@@ -1,15 +1,15 @@
 module scoped;
-pub data Policy { }
+public data Policy { }
 
-pub boundary operator Policy::convert(value: i32) -> i32;
-pub boundary operator Policy::convert(value: i32) -> i32 in Wrapping;
+public boundary operator Policy::convert(value: i32) -> i32;
+public boundary operator Policy::convert(value: i32) -> i32 in Wrapping;
 
 data Provider { }
 machine Provider::exact(value: i32) -> i32 satisfies Policy::convert { value }
 machine Provider::wrapping(value: i32) -> i32 in Wrapping satisfies Policy::convert {
     value as i32 in Wrapping
 }
-pub machine calculate() -> bool {
+public machine calculate() -> bool {
     let exact: i32 = Policy::convert(7);
     let wrapping: i32 in Wrapping = Policy::convert(9);
     exact == 7 && wrapping == 9

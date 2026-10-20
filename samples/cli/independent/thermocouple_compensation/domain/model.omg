@@ -3,16 +3,16 @@
 // monotone. Global monotonicity is deliberately not assumed: enumerate roots.
 use omega::language::core::float_operations;
 
-pub data Segment [copy] { low: f64; high: f64; a: f64; b: f64; c: f64; }
-pub data Estimate [copy] { count: i32; temperature: f64; residual: f64; }
+public data Segment [copy] { low: f64; high: f64; a: f64; b: f64; c: f64; }
+public data Estimate [copy] { count: i32; temperature: f64; residual: f64; }
 
-pub machine voltage(segment: Segment, temperature: f64) -> f64 {
+public machine voltage(segment: Segment, temperature: f64) -> f64 {
     transition { _ -> ((segment.c * temperature + segment.b) * temperature + segment.a) }
 }
-pub machine magnitude(value: f64) -> f64 {
+public machine magnitude(value: f64) -> f64 {
     transition value < 0.0 { true -> (0.0 - value) _ -> value }
 }
-pub machine valid(segment: Segment) -> bool {
+public machine valid(segment: Segment) -> bool {
     // For 0.001-scaled integer inputs, b + 2*c*T is an even integer
     // divided by 1,000,000: every nonzero derivative is at least 2e-6.
     // The 1e-12 zero guard exceeds binary64 roundoff within the declared
@@ -24,7 +24,7 @@ pub machine valid(segment: Segment) -> bool {
         ((left > 0.000000000001 && right > 0.000000000001) ||
          (left < -0.000000000001 && right < -0.000000000001))) }
 }
-pub machine inside(segment: Segment, temperature: f64) -> bool {
+public machine inside(segment: Segment, temperature: f64) -> bool {
     transition { _ -> (temperature >= segment.low && temperature <= segment.high) }
 }
 // Forty fixed bisection steps bound temperature error by 300 / 2**40 C.
@@ -49,7 +49,7 @@ machine bisect(segment: Segment, target: f64, low: f64, high: f64) -> f64 {
         }
     }
 }
-pub machine candidate(segment: Segment, target: f64, requested_low: f64, requested_high: f64) -> Estimate {
+public machine candidate(segment: Segment, target: f64, requested_low: f64, requested_high: f64) -> Estimate {
     let low: f64 = maximum(segment.low, requested_low);
     let high: f64 = minimum(segment.high, requested_high);
     transition low <= high {
@@ -83,7 +83,7 @@ pub machine candidate(segment: Segment, target: f64, requested_low: f64, request
             residual: voltage(segment, temperature) - target } }
     }
 }
-pub machine enumerate(first: Segment, second: Segment, target: f64, low: f64, high: f64) -> Estimate {
+public machine enumerate(first: Segment, second: Segment, target: f64, low: f64, high: f64) -> Estimate {
     let left: Estimate = candidate(first, target, low, high);
     let right: Estimate = candidate(second, target, low, high);
     transition left.count == 0 {

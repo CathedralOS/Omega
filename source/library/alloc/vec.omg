@@ -36,7 +36,7 @@
 // data fails layout on `[T; N]`), so `Backing4`, `Backing8`, and
 // `Backing16` are spelled concretely and each growth edge is its own
 // ordinary machine.
-pub data Vec [linear] {
+public data Vec [linear] {
     live: u64;
     rung: u64;
     len: u64;
@@ -44,17 +44,17 @@ pub data Vec [linear] {
 
 // Caller-owned backing stores, one per rung. `held` is the custody flag:
 // 0 while the caller owns the store outright, 1 while the vector names it.
-pub data Backing4 {
+public data Backing4 {
     e: [u32; 4];
     held: u64;
 }
 
-pub data Backing8 {
+public data Backing8 {
     e: [u32; 8];
     held: u64;
 }
 
-pub data Backing16 {
+public data Backing16 {
     e: [u32; 16];
     held: u64;
 }
@@ -62,7 +62,7 @@ pub data Backing16 {
 // The allocation strategy's ledger over caller-supplied stores: `freeN`
 // counts unissued slots of rung N and `overN` records a release that
 // would exceed the caller's declared supply.
-pub data Pool {
+public data Pool {
     free4: u64;
     free8: u64;
     free16: u64;
@@ -76,7 +76,7 @@ pub data Pool {
 
 // Declare the supply the caller minted: how many stores of each rung
 // exist for the strategy to issue grants against.
-pub machine Pool::open(pool: &mut Pool, supply4: u64, supply8: u64, supply16: u64) {
+public machine Pool::open(pool: &mut Pool, supply4: u64, supply8: u64, supply16: u64) {
     pool.free4 = supply4;
     pool.free8 = supply8;
     pool.free16 = supply16;
@@ -91,14 +91,14 @@ pub machine Pool::open(pool: &mut Pool, supply4: u64, supply8: u64, supply16: u6
 // The fallible request's outcome: `rung` on a grant is the backing class
 // the pool issued — the vector adopts it as its new rung, so the granted
 // value literally becomes the vector's storage size.
-pub data Request {
+public data Request {
     case Granted(rung: u64);
     case Denied;
 }
 
 // Seed a fresh backing with zero elements — the caller's minting step:
 // the store starts unheld and empty.
-pub machine Backing4::seed(backing4: &mut Backing4) {
+public machine Backing4::seed(backing4: &mut Backing4) {
     backing4.e[0] = 0;
     backing4.e[1] = 0;
     backing4.e[2] = 0;
@@ -106,7 +106,7 @@ pub machine Backing4::seed(backing4: &mut Backing4) {
     backing4.held = 0;
 }
 
-pub machine Backing8::seed(backing8: &mut Backing8) {
+public machine Backing8::seed(backing8: &mut Backing8) {
     backing8.e[0] = 0;
     backing8.e[1] = 0;
     backing8.e[2] = 0;
@@ -118,7 +118,7 @@ pub machine Backing8::seed(backing8: &mut Backing8) {
     backing8.held = 0;
 }
 
-pub machine Backing16::seed(backing16: &mut Backing16) {
+public machine Backing16::seed(backing16: &mut Backing16) {
     backing16.e[0] = 0;
     backing16.e[1] = 0;
     backing16.e[2] = 0;
@@ -141,7 +141,7 @@ pub machine Backing16::seed(backing16: &mut Backing16) {
 // Fallible requests: a free slot decrements the ledger and mints the
 // rung's grant; an exhausted rung answers Denied and leaves every
 // counter untouched.
-pub machine Pool::request4(pool: &mut Pool) -> Request {
+public machine Pool::request4(pool: &mut Pool) -> Request {
     transition pool.free4 > 0 {
         true -> minted(pool)
         _ -> denied(pool)
@@ -157,7 +157,7 @@ pub machine Pool::request4(pool: &mut Pool) -> Request {
     }
 }
 
-pub machine Pool::request8(pool: &mut Pool) -> Request {
+public machine Pool::request8(pool: &mut Pool) -> Request {
     transition pool.free8 > 0 {
         true -> minted(pool)
         _ -> denied(pool)
@@ -173,7 +173,7 @@ pub machine Pool::request8(pool: &mut Pool) -> Request {
     }
 }
 
-pub machine Pool::request16(pool: &mut Pool) -> Request {
+public machine Pool::request16(pool: &mut Pool) -> Request {
     transition pool.free16 > 0 {
         true -> minted(pool)
         _ -> denied(pool)
@@ -192,7 +192,7 @@ pub machine Pool::request16(pool: &mut Pool) -> Request {
 // Return the slot for the rung the vector vacated — retired content
 // under the contract. A release beyond the caller's declared supply
 // records the conservation violation instead of silently wrapping.
-pub machine Pool::release4(pool: &mut Pool) {
+public machine Pool::release4(pool: &mut Pool) {
     transition pool.free4 < pool.supply4 {
         true -> freed(pool)
         _ -> over(pool)
@@ -207,7 +207,7 @@ pub machine Pool::release4(pool: &mut Pool) {
     }
 }
 
-pub machine Pool::release8(pool: &mut Pool) {
+public machine Pool::release8(pool: &mut Pool) {
     transition pool.free8 < pool.supply8 {
         true -> freed(pool)
         _ -> over(pool)
@@ -222,7 +222,7 @@ pub machine Pool::release8(pool: &mut Pool) {
     }
 }
 
-pub machine Pool::release16(pool: &mut Pool) {
+public machine Pool::release16(pool: &mut Pool) {
     transition pool.free16 < pool.supply16 {
         true -> freed(pool)
         _ -> over(pool)
@@ -241,7 +241,7 @@ pub machine Pool::release16(pool: &mut Pool) {
 // the allocation — `Granted` binds the store (held) and establishes the
 // ledger at the granted rung, `Denied` leaves the vector closed and the
 // store untouched.
-pub machine Vec::open4(vec: &mut Vec, request: Request, store: &mut Backing4) -> u64
+public machine Vec::open4(vec: &mut Vec, request: Request, store: &mut Backing4) -> u64
 {
     transition request {
         Request::Granted { rung } -> verify(vec, store, rung)
@@ -272,21 +272,21 @@ pub machine Vec::open4(vec: &mut Vec, request: Request, store: &mut Backing4) ->
 
 // Append within the resident rung: the caller's in-range index is the
 // bounds proof, so `len` follows it exactly.
-pub machine Vec::push4(vec: &mut Vec, store: &mut Backing4, index: u64, value: u32)
+public machine Vec::push4(vec: &mut Vec, store: &mut Backing4, index: u64, value: u32)
 requires index <= 3
 {
     store.e[index] = value;
     vec.len = index + 1;
 }
 
-pub machine Vec::push8(vec: &mut Vec, store: &mut Backing8, index: u64, value: u32)
+public machine Vec::push8(vec: &mut Vec, store: &mut Backing8, index: u64, value: u32)
 requires index <= 7
 {
     store.e[index] = value;
     vec.len = index + 1;
 }
 
-pub machine Vec::push16(vec: &mut Vec, store: &mut Backing16, index: u64, value: u32)
+public machine Vec::push16(vec: &mut Vec, store: &mut Backing16, index: u64, value: u32)
 requires index <= 15
 {
     store.e[index] = value;
@@ -300,7 +300,7 @@ requires index <= 15
 // and `rung` adopts the granted value. Denied, nothing moves — the
 // vector keeps contents and custody and the caller's supply stays
 // unheld. The returned count is the live elements that crossed.
-pub machine Vec::grow4to8(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing8, request: Request) -> u64 {
+public machine Vec::grow4to8(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing8, request: Request) -> u64 {
     transition request {
         Request::Granted { rung } -> verify(vec, old, fresh, rung)
         Request::Denied -> denied(vec)
@@ -335,7 +335,7 @@ pub machine Vec::grow4to8(vec: &mut Vec, old: &mut Backing4, fresh: &mut Backing
     }
 }
 
-pub machine Vec::grow8to16(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backing16, request: Request) -> u64 {
+public machine Vec::grow8to16(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backing16, request: Request) -> u64 {
     transition request {
         Request::Granted { rung } -> verify(vec, old, fresh, rung)
         Request::Denied -> denied(vec)
@@ -380,36 +380,36 @@ pub machine Vec::grow8to16(vec: &mut Vec, old: &mut Backing8, fresh: &mut Backin
 
 // Read one element out of the resident store — the caller's index proof
 // bounds the access to the live prefix.
-pub machine Vec::read4(store: &Backing4, index: u64) -> u32
+public machine Vec::read4(store: &Backing4, index: u64) -> u32
 requires index <= 3
 {
     store.e[index]
 }
 
-pub machine Vec::read8(store: &Backing8, index: u64) -> u32
+public machine Vec::read8(store: &Backing8, index: u64) -> u32
 requires index <= 7
 {
     store.e[index]
 }
 
-pub machine Vec::read16(store: &Backing16, index: u64) -> u32
+public machine Vec::read16(store: &Backing16, index: u64) -> u32
 requires index <= 15
 {
     store.e[index]
 }
 
-pub machine Vec::tag(vec: &mut Vec) -> u64 {
+public machine Vec::tag(vec: &mut Vec) -> u64 {
     vec.rung
 }
 
-pub machine Vec::len(vec: &mut Vec) -> u64 {
+public machine Vec::len(vec: &mut Vec) -> u64 {
     vec.len
 }
 
 // Explicit backing return: the live store's elements are read back into
 // the caller's `out` record and the store is unheld — under the contract
 // this is the caller draining the resident extent before `close`.
-pub machine Vec::drain4(live: &mut Backing4, out: &mut Backing4) {
+public machine Vec::drain4(live: &mut Backing4, out: &mut Backing4) {
     out.e[0] = live.e[0];
     out.e[1] = live.e[1];
     out.e[2] = live.e[2];
@@ -421,7 +421,7 @@ pub machine Vec::drain4(live: &mut Backing4, out: &mut Backing4) {
     live.held = 0;
 }
 
-pub machine Vec::drain8(live: &mut Backing8, out: &mut Backing8) {
+public machine Vec::drain8(live: &mut Backing8, out: &mut Backing8) {
     out.e[0] = live.e[0];
     out.e[1] = live.e[1];
     out.e[2] = live.e[2];
@@ -441,7 +441,7 @@ pub machine Vec::drain8(live: &mut Backing8, out: &mut Backing8) {
     live.held = 0;
 }
 
-pub machine Vec::drain16(live: &mut Backing16, out: &mut Backing16) {
+public machine Vec::drain16(live: &mut Backing16, out: &mut Backing16) {
     out.e[0] = live.e[0];
     out.e[1] = live.e[1];
     out.e[2] = live.e[2];
@@ -485,6 +485,6 @@ pub machine Vec::drain16(live: &mut Backing16, out: &mut Backing16) {
 // the consumer is a contract the checker enforces, not a runtime action —
 // the same shape `vec_duplicate_cleanup` exercises. The handle is an ordinary
 // explicit argument of the trait's one row.
-pub boundary trait VecDisposal {
+public boundary trait VecDisposal {
     machine close(vec: Vec);
 }

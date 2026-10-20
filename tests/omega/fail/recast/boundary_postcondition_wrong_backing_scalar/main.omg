@@ -1,10 +1,10 @@
 // Must reject: source.count stays eight; Counter.count views source.first.
-pub data Counter { count: u64; pad: u64; }
-pub data Source { first: u64; count: u64; }
-pub boundary trait Parent {
+public data Counter { count: u64; pad: u64; }
+public data Source { first: u64; count: u64; }
+public boundary trait Parent {
     machine reset(counter: &mut Counter) ensures counter.count <= 7u64;
 }
-pub boundary trait Child: Parent {}
+public boundary trait Child: Parent {}
 Good satisfies Child { Parent::reset = reset; }
 machine reset(counter: &mut Counter)
 ensures counter.count <= 7u64, counter.count <= 3u64

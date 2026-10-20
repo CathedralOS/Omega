@@ -1,4 +1,4 @@
-pub machine step() -> bool blocks; { true }
+public machine step() -> bool blocks; { true }
 machine scan(remaining: i32 in Wrapping) -> bool {
     let ready: bool = block step();
     transition remaining > 0 { true -> (scan(remaining - 1)) _ -> ready }

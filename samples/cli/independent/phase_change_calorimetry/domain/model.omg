@@ -1,16 +1,16 @@
 // Specific enthalpy is zero at onset of melting. Both sensible phases
 // use the material's declared heat capacity. Temperature is continuous.
 use omega::language::core::float_operations;
-pub data Material [copy] { mass: f64; capacity: f64; latent: f64; melting: f64; initial: f64; }
-pub data Problem [copy] { first: Material; second: Material; conductance: f64; }
-pub data Evolution [copy] { energy: f64; elapsed: f64; success: bool; }
-pub machine temperature(material: &Material, enthalpy: f64) -> f64 {
+public data Material [copy] { mass: f64; capacity: f64; latent: f64; melting: f64; initial: f64; }
+public data Problem [copy] { first: Material; second: Material; conductance: f64; }
+public data Evolution [copy] { energy: f64; elapsed: f64; success: bool; }
+public machine temperature(material: &Material, enthalpy: f64) -> f64 {
     transition enthalpy < 0.0 { true -> (material.melting + enthalpy / material.capacity) _ -> upper(material, enthalpy) }
     state upper(material: &Material, enthalpy: f64) -> f64 {
         transition enthalpy > material.latent { true -> (material.melting + (enthalpy - material.latent) / material.capacity) _ -> (material.melting) }
     }
 }
-pub machine fraction(material: &Material, enthalpy: f64) -> f64 {
+public machine fraction(material: &Material, enthalpy: f64) -> f64 {
     transition enthalpy <= 0.0 { true -> 0.0 _ -> upper(material, enthalpy) }
     state upper(material: &Material, enthalpy: f64) -> f64 { transition enthalpy >= material.latent { true -> 1.0 _ -> (enthalpy / material.latent) } }
 }
@@ -26,7 +26,7 @@ machine second_slope(material: &Material, energy: f64, positive: bool) -> f64 {
     let liquid: f64 = material.mass * (material.latent - material.initial);
     transition energy < solid || energy > liquid || (energy == solid && !positive) || (energy == liquid && positive) { true -> (1.0 / material.capacity) _ -> 0.0 }
 }
-pub machine magnitude(value: f64) -> f64 { transition value < 0.0 { true -> (-value) _ -> value } }
+public machine magnitude(value: f64) -> f64 { transition value < 0.0 { true -> (-value) _ -> value } }
 // exp(-x): reduce to [0, 1/2], evaluate 24 Taylor terms and square
 // back. Nonnegative x is bounded by 2e6 by the input domain. No ambient
 // floating-mode change, fused contraction or relaxed math is requested.
@@ -73,7 +73,7 @@ machine boundary(problem: &Problem, energy: f64, positive: bool) -> f64 {
     let third: f64 = nearer(energy, -problem.second.mass * problem.second.initial, second, positive);
     transition { _ -> nearer(energy, problem.second.mass * (problem.second.latent - problem.second.initial), third, positive) }
 }
-pub machine evolve(problem: &Problem, initial_energy: f64, duration: f64) -> Evolution {
+public machine evolve(problem: &Problem, initial_energy: f64, duration: f64) -> Evolution {
     transition { _ -> segment(problem, initial_energy, duration, 0.0, 0) }
     state segment(problem: &Problem, energy: f64, duration: f64, elapsed: f64, events: i32) -> Evolution {
         transition elapsed >= duration { true -> Evolution { energy: energy, elapsed: elapsed, success: true } _ -> budget(problem, energy, duration, elapsed, events) }

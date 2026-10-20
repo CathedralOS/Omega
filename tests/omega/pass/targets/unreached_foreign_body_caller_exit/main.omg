@@ -21,16 +21,16 @@ machine Helper::firmware_bridge(input: i32) -> i32 {
     transition { _ -> (Helper::firmware_only(input)) }
 }
 
-pub data Value {}
-pub boundary requirement Value::read(input: i32) -> i32;
+public data Value {}
+public boundary requirement Value::read(input: i32) -> i32;
 
 // The provider the build selects for `Value::read`.
-pub data PlainValue {}
+public data PlainValue {}
 machine PlainValue::read(input: i32) -> i32
 satisfies Value::read { input }
 
 // A competing provider the build never selects.
-pub data FirmwareValue {}
+public data FirmwareValue {}
 machine FirmwareValue::read(input: i32) -> i32
 satisfies Value::read { Helper::firmware_only(input) }
 

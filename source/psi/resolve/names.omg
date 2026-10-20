@@ -36,7 +36,7 @@ use psi::syntax::syntax;
 // What a name's position lets it name. Children precede their parent in the
 // expression table, so one pass over the table gives each child its role
 // before the bodies bind.
-pub data NameRole [copy] {
+public data NameRole [copy] {
     case Value;
     case Callee;
     case Target;
@@ -47,7 +47,7 @@ pub data NameRole [copy] {
 // One body's names: its machine, its parameters and its statements, and how
 // far into the statements locals are visible. A transition arm adds the
 // binders of its case pattern for its target.
-pub data NameScope [copy] {
+public data NameScope [copy] {
     // A constant's value has no enclosing machine.
     has_machine: bool;
     machine: u64 in Trapping;
@@ -70,7 +70,7 @@ pub data NameScope [copy] {
     subject_domain: u64 in Trapping;
 }
 
-pub machine Resolver::bind_body_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_body_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     Resolver::assign_name_roles(resolver, syntax);
@@ -233,7 +233,7 @@ crashes Trap
     }
 }
 
-pub machine Resolver::role(resolver: &Resolver, index: u64 in Trapping) -> NameRole
+public machine Resolver::role(resolver: &Resolver, index: u64 in Trapping) -> NameRole
 crashes Trap
 {
     transition index < 131072 {
@@ -505,7 +505,7 @@ crashes Trap
 
 // Every name and path in the expression rooted at `root`: its subtree is the
 // contiguous run from the root's first row to the root.
-pub machine Resolver::bind_tree(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, root: u64 in Trapping)
+public machine Resolver::bind_tree(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, root: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, root);
@@ -615,7 +615,7 @@ crashes Trap
 }
 
 // What a name in `role` denotes, or `Unresolved`.
-pub machine Resolver::name_binding(
+public machine Resolver::name_binding(
     resolution: &NameResolution,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -873,14 +873,14 @@ crashes Trap
 // whose carrier binds like the type `Owner` names in `types`
 // (wiki/spec/language/modules.md#foreign-attached-declaration-paths). A
 // case and a declared domain of one path compete.
-pub data DomainPath [copy] {
+public data DomainPath [copy] {
     case Absent;
     case Ambiguous;
     case Case(item: u64 in Trapping, data_case: u64 in Trapping);
     case Declared(item: u64 in Trapping);
 }
 
-pub machine Resolver::domain_path(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, types: TypeScope, owner: SourceSpan, name: SourceSpan) -> DomainPath
+public machine Resolver::domain_path(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, types: TypeScope, owner: SourceSpan, name: SourceSpan) -> DomainPath
 crashes Trap
 {
     let named: ValueBinding = Resolver::case_or_machine(&resolver.output, sources, syntax, owner, name);
@@ -949,7 +949,7 @@ crashes Trap
 // A machine whose path is `name` (owned by `owner` when `owned`): its
 // overload family's first declaration, since typing selects among the
 // overloads.
-pub machine Resolver::machine_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+public machine Resolver::machine_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
     let lookup: Lookup = Resolver::machine_named(resolution, sources, syntax, owned, owner, name);
@@ -1063,7 +1063,7 @@ crashes Trap
 // A free callee: the machine or the proposition `name` names. Machines and
 // propositions are one callee tier, so a machine and a proposition of one
 // spelling are ambiguous.
-pub machine Resolver::free_callee(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> ValueBinding
+public machine Resolver::free_callee(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
     let named_machine: ValueBinding = Resolver::machine_name(resolution, sources, syntax, false, name, name);
@@ -1182,7 +1182,7 @@ crashes Trap
 // never applies where a value is computed (`ProofOnlyApplication`), and an
 // application inside a larger fact is a form resolution does not bind yet.
 // `None` admits the application.
-pub machine Resolver::proposition_site(syntax: &SyntaxTrees, in_fact: bool, root: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode
+public machine Resolver::proposition_site(syntax: &SyntaxTrees, in_fact: bool, root: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode
 crashes Trap
 {
     transition in_fact {
@@ -1290,7 +1290,7 @@ crashes Trap
 }
 
 // Whether a binder of `kind` names a machine (`machine_binder`) or a value.
-pub machine Resolver::binder_names(kind: GenericParameterKind, machine_binder: bool) -> bool {
+public machine Resolver::binder_names(kind: GenericParameterKind, machine_binder: bool) -> bool {
     transition kind {
         GenericParameterKind::Machine -> machine_kind(machine_binder)
         GenericParameterKind::Value -> value_kind(machine_binder)

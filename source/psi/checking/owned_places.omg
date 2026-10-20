@@ -15,7 +15,7 @@ use psi::types::types;
 // slice view copies; data has its declared multiplicity, linear when a type
 // argument is declared linear; an array has its element's and a generic
 // parameter its bound's.
-pub machine Checker::multiplicity(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
+public machine Checker::multiplicity(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
 crashes Trap
 {
     transition { _ -> level(syntax, typing, handle, 0) }
@@ -127,7 +127,7 @@ crashes Trap
 
 // The owned root of a place expression: its root, unless a reference lies
 // on its path.
-pub machine Checker::place_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::place_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     Checker::path_root(syntax, resolution, typing, handle, false)
@@ -137,7 +137,7 @@ crashes Trap
 // parameter or a pattern binder, reached through fields (a field selecting
 // `.len` is no place) and indexes, and through references when `through`
 // holds. Zero for any other expression.
-pub machine Checker::path_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, through: bool) -> u64 in Trapping
+public machine Checker::path_root(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, through: bool) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, resolution, typing, handle, through, 0) }
@@ -215,7 +215,7 @@ crashes Trap
 }
 
 // Whether a field expression selects a field, a place, rather than `.len`.
-pub machine Checker::field_place(typing: &Typing, node: u64 in Trapping, expression: Expression) -> bool
+public machine Checker::field_place(typing: &Typing, node: u64 in Trapping, expression: Expression) -> bool
 crashes Trap
 {
     let selection: Selection = Typing::selection(typing, node);
@@ -231,7 +231,7 @@ crashes Trap
 }
 
 // How many index steps a place expression takes from its root.
-pub machine Checker::index_steps(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::index_steps(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, handle, 0, 0) }
@@ -258,7 +258,7 @@ crashes Trap
 
 // How many field steps lie between a place expression and its root; an
 // index is transparent.
-pub machine Checker::place_depth(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::place_depth(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(syntax, handle, 0, 0) }
@@ -393,7 +393,7 @@ crashes Trap
 }
 
 // Whether two index operands are integer literals of different values.
-pub machine Checker::distinct_indexes(syntax: &SyntaxTrees, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
+public machine Checker::distinct_indexes(syntax: &SyntaxTrees, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
     let left_expression: Expression = SyntaxTrees::expression(syntax, left);
@@ -454,14 +454,14 @@ crashes Trap
 
 // How two places relate: the place `other` contains the place `used` or is
 // it (`Inside`), lies inside it (`Encloses`), or neither.
-pub data PlaceRelation [copy] {
+public data PlaceRelation [copy] {
     case Apart;
     case Inside;
     case Encloses;
 }
 
 // How a used place relates to a moved one, owned roots only.
-pub machine Checker::place_relation(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, used: u64 in Trapping, moved: u64 in Trapping) -> PlaceRelation
+public machine Checker::place_relation(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, used: u64 in Trapping, moved: u64 in Trapping) -> PlaceRelation
 crashes Trap
 {
     Checker::path_relation(syntax, resolution, typing, used, moved, false)
@@ -469,7 +469,7 @@ crashes Trap
 
 // How two places relate, their roots reached through references when
 // `through` holds.
-pub machine Checker::path_relation(
+public machine Checker::path_relation(
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
     typing: &Typing,
@@ -548,7 +548,7 @@ crashes Trap
 // Whether a place is, or is reached through, a write-only reference: the
 // place itself, or a field (a `.len` selection reads metadata, not the
 // referent) or element base along its path, of type `&write T`.
-pub machine Checker::through_write_only(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+public machine Checker::through_write_only(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(syntax, typing, handle, 0) }
@@ -578,7 +578,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::borrowed_place(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+public machine Checker::borrowed_place(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(syntax, typing, handle, 0) }
@@ -608,7 +608,7 @@ crashes Trap
 
 // Whether two place expressions name one place: one root, one depth and the
 // same field at every step.
-pub machine Checker::same_owned_place(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
+public machine Checker::same_owned_place(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
     transition left == right {

@@ -33,7 +33,7 @@ use omega_language_std::calling;
 // the compiler's materialization of `InterruptAcknowledgement` by value
 // exact -- `build.omg` selects it so the closed calling vocabulary can
 // compute the boundary signature's shapes.
-pub data CriticalAcknowledgementCarrier {
+public data CriticalAcknowledgementCarrier {
     physical_root: u64;
     execution: u64;
     invocation: u64;
@@ -41,7 +41,7 @@ pub data CriticalAcknowledgementCarrier {
     acknowledgement: u64;
 }
 
-pub CriticalAcknowledgementRepresentation satisfies OpaqueRepresentation<
+public CriticalAcknowledgementRepresentation satisfies OpaqueRepresentation<
     InterruptAcknowledgement,
     CriticalAcknowledgementCarrier
 > { }
@@ -57,9 +57,9 @@ pub CriticalAcknowledgementRepresentation satisfies OpaqueRepresentation<
 // preemption, and a transitive machine-state ceiling of general
 // registers plus flags -- the footprint the installed root's admitted
 // machine-state column must stay inside.
-pub data CriticalStackPolicy {
+public data CriticalStackPolicy {
 }
-pub CriticalStackPolicyCalling satisfies CallingPolicy {
+public CriticalStackPolicyCalling satisfies CallingPolicy {
     CallingPolicy::plan = CriticalStackPolicy::plan;
 }
 
@@ -145,7 +145,7 @@ machine CriticalStackPolicy::plan(
 // the authored calling policy). The compiler's provider selection
 // resolves this trait to the named implementation below; nothing
 // consumer-side spells the provider's name again.
-pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPolicyCalling> {
+public boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPolicyCalling> {
 }
 
 // The divide-error provider. Its entry machine realizes
@@ -157,9 +157,9 @@ pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPol
 // requirement's `MachineControl + PortIo` upper bound. The named
 // implementation owns the complete root map; its one row names the
 // inherited requirement's declaring trait and the existing entry machine.
-pub data FatalExceptionProvider {
+public data FatalExceptionProvider {
 }
-pub FatalExceptionProviderRoot satisfies FatalExceptionRoot {
+public FatalExceptionProviderRoot satisfies FatalExceptionRoot {
     InterruptEntry::enter = FatalExceptionProvider::enter;
 }
 
@@ -173,9 +173,9 @@ machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement 
 // `CriticalStackPolicy`, but its arrivals land on dedicated critical
 // stack class 14 -- the declared membership joins vector 0x20 to that
 // class, and the table profile refuses two members sharing one class.
-pub data TimerStackPolicy {
+public data TimerStackPolicy {
 }
-pub TimerStackPolicyCalling satisfies CallingPolicy {
+public TimerStackPolicyCalling satisfies CallingPolicy {
     CallingPolicy::plan = TimerStackPolicy::plan;
 }
 
@@ -261,7 +261,7 @@ machine TimerStackPolicy::plan(
 // deliberately one shared requirement identity -- the selected closure
 // now retains one resolution row per (requirement, plan), so this second
 // inheriting trait resolves through its own provider plan.
-pub boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicyCalling> {
+public boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicyCalling> {
 }
 
 // The timer provider. Its tick machine realizes `InterruptEntry::enter`:
@@ -270,9 +270,9 @@ pub boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicyCalling> 
 // tick record are the later device leg's package code; the LAPIC reach
 // `complete` settles through stays inside the requirement's declared
 // `MachineControl + PortIo` bound.
-pub data TimerProvider {
+public data TimerProvider {
 }
-pub TimerProviderRoot satisfies TimerRoot {
+public TimerProviderRoot satisfies TimerRoot {
     InterruptEntry::enter = TimerProvider::enter;
 }
 
@@ -296,9 +296,9 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
 // compiler-known realization. The leaf keeps its exact `via` edge, so it
 // is a candidate for the slot on its own; `build.omg` selects the named
 // implementation explicitly.
-pub data InterruptMaskProvider {
+public data InterruptMaskProvider {
 }
-pub InterruptMaskProviderMaskControl satisfies InterruptMaskControl {
+public InterruptMaskProviderMaskControl satisfies InterruptMaskControl {
     InterruptMaskControl::save_and_mask = InterruptMaskProvider::save_and_mask;
 }
 

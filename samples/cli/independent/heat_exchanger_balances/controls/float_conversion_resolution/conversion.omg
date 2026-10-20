@@ -1,6 +1,6 @@
 module conversion;
 use omega::language::core::float_operations;
-pub machine convert(value: f64) -> i32 in Saturating {
+public machine convert(value: f64) -> i32 in Saturating {
     let result: i32 in Saturating = I32::from_f64(value);
     result
 }

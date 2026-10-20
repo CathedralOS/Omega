@@ -118,14 +118,16 @@ declaration owners, the exact carrier, and the imports exposing the conflict.
 
 ## Visibility
 
+Named decision: `public-visibility-spelling`, settled 2026-10-19.
+
 Independently nameable data, domains, traits, machines,
 wire schemas, operators, constants, and complete named conformances are private
-unless marked `pub`. Carrier qualification does not inherit visibility.
+unless marked `public`. Carrier qualification does not inherit visibility.
 Fields, cases, states, and trait requirements instead inherit their exact
 semantic owner's visibility. An attached declaration head independently selects
 its carrier and therefore needs authority to name that carrier.
 
-Ranking measures are private proof machinery; `pub measure` rejects. A public
+Ranking measures are private proof machinery; `public measure` rejects. A public
 termination guarantee does not publish its implementation's ranking witness.
 Requirement-local `as Name` labels have no standalone package visibility.
 Public interfaces cannot select private declarations as consumer-nameable API.

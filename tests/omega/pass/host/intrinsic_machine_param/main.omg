@@ -2,7 +2,7 @@
 // A worker-execution provider bound by the compiler itself: `execute` is
 // generic over a machine symbol and satisfies the trait row through
 // `ForeignBinding::CompilerIntrinsic` — no authored body.
-pub boundary trait WorkerProvider {
+public boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(
         arguments: Arguments
     ) -> T

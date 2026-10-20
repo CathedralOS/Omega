@@ -3,7 +3,7 @@
 // planning must preserve that exact identity through adapter dispatch.
 use omega_language_std::console;
 
-pub boundary trait Convert {
+public boundary trait Convert {
     machine convert(value: i32) -> i32;
     machine convert(value: i32) -> i32 in Saturating;
 }

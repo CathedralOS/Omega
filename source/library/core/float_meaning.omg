@@ -13,7 +13,7 @@ use omega::language::core::int;
 use omega::language::core::nat;
 use omega::language::core::rat;
 
-pub data Sign [copy] {
+public data Sign [copy] {
     case Negative;
     case Positive;
 }
@@ -21,11 +21,11 @@ pub data Sign [copy] {
 // The finite case is domain-qualified so rational zero cannot overlap either
 // signed Zero case. A caller may establish this body from an ordinary checked
 // fact; no compiler-known float or rational predicate is involved.
-pub domain Rat::NonZero(value)
+public domain Rat::NonZero(value)
 requires
     value.num.pos != value.num.neg;
 
-pub data FloatMeaning {
+public data FloatMeaning {
     case FiniteNonZero(value: Rat in NonZero);
     case Zero(sign: Sign);
     case Infinity(sign: Sign);

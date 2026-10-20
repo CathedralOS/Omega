@@ -394,7 +394,7 @@ fn require_exact_atomic_fence_row(
         || entry.return_type.is_valid()
         || !valid_parameter
     {
-        return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `pub machine Atomic::fence(ordering: FenceOrdering);`").with_source_span(machine.name.source_span()));
+        return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `public machine Atomic::fence(ordering: FenceOrdering);`").with_source_span(machine.name.source_span()));
     }
     Ok(())
 }

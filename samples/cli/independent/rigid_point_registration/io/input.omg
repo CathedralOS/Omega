@@ -1,10 +1,10 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use model::registration;
-pub data Raw { values: [f64; 113]; count: u64; }
+public data Raw { values: [f64; 113]; count: u64; }
 // Finite decimal syntax; no NaN/infinity spellings or exponents. The byte and
 // digit caps bound execution even on an unterminated hostile stream.
-pub machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> next(raw, 0, 0.0, 1.0, false, false, false, 0, 0) }
     state next(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
         transition bytes < 2048 { true -> receive(raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals) false -> bad() }
@@ -52,7 +52,7 @@ pub machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks;
     state bad() -> bool { false }
 }
 machine sign(accumulator: f64, negative: bool) -> f64 { transition negative { true -> minus(accumulator) false -> plus(accumulator) } state minus(accumulator: f64) -> f64 { 0.0 - accumulator } state plus(accumulator: f64) -> f64 { accumulator } }
-pub machine decode(raw: &Raw, problem: &mut Problem) -> bool {
+public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
     let count: u64 in Saturating = U64::from_f64(raw.values[0]);
     transition count >= 3 && count <= 16 && F64::from_u64(count as u64) == raw.values[0] && raw.count == 1 + (count as u64) * 7 {
         true -> start(raw, problem, count as u64)

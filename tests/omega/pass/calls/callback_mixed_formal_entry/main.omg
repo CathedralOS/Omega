@@ -2,11 +2,11 @@ use omega_language_std::calling;
 use omega_language_std::console;
 use omega::language::core::external_binding;
 
-pub data SortPolicies { }
-pub ComparatorCalling satisfies CallingPolicy {
+public data SortPolicies { }
+public ComparatorCalling satisfies CallingPolicy {
     CallingPolicy::plan = SortPolicies::comparator;
 }
-pub SortCalling satisfies CallingPolicy {
+public SortCalling satisfies CallingPolicy {
     CallingPolicy::plan = SortPolicies::sort;
 }
 
@@ -138,13 +138,13 @@ machine SortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
     BoundaryPlanResult::Accepted { plan: plan }
 }
 
-pub data Element [copy] { value: u64; stamp: u64; }
-pub data Elements { first: Element; second: Element; }
+public data Element [copy] { value: u64; stamp: u64; }
+public data Elements { first: Element; second: Element; }
 
-pub boundary trait Comparator: Calling<ComparatorCalling> {
+public boundary trait Comparator: Calling<ComparatorCalling> {
     machine compare(first: &Element, direction: u64, second: &Element) -> i32;
 }
-pub boundary trait SortRegistrar: Calling<SortCalling> {
+public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<machine Handler>(
         elements: &mut Elements, count: u64, width: u64, direction: u64,
         native callback compare from Handler
@@ -166,8 +166,8 @@ machine compare_values(first: &Element, second: &Element) -> i32 {
         }
     }
 }
-pub data Ordering { }
-pub machine Ordering::compare(first: &Element, direction: u64, second: &Element) -> i32
+public data Ordering { }
+public machine Ordering::compare(first: &Element, direction: u64, second: &Element) -> i32
 satisfies Comparator::compare
 {
     transition direction == 1 {

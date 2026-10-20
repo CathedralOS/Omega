@@ -3,20 +3,20 @@
 // requirements and suppliers must also survive the CLI's package review.
 use omega_language_std::console;
 
-pub data Math {}
-pub boundary machine - Math::choose(left: i32, right: i32) -> i32;
-pub boundary machine - Math::choose(left: u32, right: u32) -> u32;
+public data Math {}
+public boundary machine - Math::choose(left: i32, right: i32) -> i32;
+public boundary machine - Math::choose(left: u32, right: u32) -> u32;
 
-pub data LeftProvider {}
-pub machine LeftProvider::signed(left: i32, right: i32) -> i32
+public data LeftProvider {}
+public machine LeftProvider::signed(left: i32, right: i32) -> i32
 satisfies Math::choose { left }
-pub machine LeftProvider::unsigned(left: u32, right: u32) -> u32
+public machine LeftProvider::unsigned(left: u32, right: u32) -> u32
 satisfies Math::choose { left }
 
-pub data RightProvider {}
-pub machine RightProvider::signed(left: i32, right: i32) -> i32
+public data RightProvider {}
+public machine RightProvider::signed(left: i32, right: i32) -> i32
 satisfies Math::choose { right }
-pub machine RightProvider::unsigned(left: u32, right: u32) -> u32
+public machine RightProvider::unsigned(left: u32, right: u32) -> u32
 satisfies Math::choose { right }
 
 data Main { }

@@ -3,25 +3,25 @@
 // (wiki/spec/resources/extents.md "Mapping and reclamation").
 use omega::language::core::extent;
 
-pub data TranslationActivationFact {
+public data TranslationActivationFact {
     identity: u64;
 }
 
-pub data TranslationCompletionFact {
+public data TranslationCompletionFact {
     identity: u64;
 }
 
-pub data TranslationInstallObligations {
+public data TranslationInstallObligations {
     facts: [TranslationActivationFact; 2];
 }
 
-pub data TranslationReleaseObligations {
+public data TranslationReleaseObligations {
     facts: [TranslationCompletionFact; 2];
 }
 
-pub boundary data MappingToken [linear];
+public boundary data MappingToken [linear];
 
-pub data Mapping [linear] {
+public data Mapping [linear] {
     token: MappingToken;
     source_base: addr;
     source_length: u64;
@@ -31,23 +31,23 @@ pub data Mapping [linear] {
     release: TranslationReleaseObligations;
 }
 
-pub domain Mapping::Pending
+public domain Mapping::Pending
 established by TranslationAuthority::map;
 
-pub domain Mapping::Installed
+public domain Mapping::Installed
 established by TranslationAuthority::activate;
 
-pub boundary data Shootdown [linear];
+public boundary data Shootdown [linear];
 
-pub domain Shootdown::Owed;
+public domain Shootdown::Owed;
 
-pub data Unmapped {
+public data Unmapped {
     destination: Extent in Granted;
     source: Extent in Granted;
     shootdown: Shootdown in Owed;
 }
 
-pub boundary trait TranslationAuthority {
+public boundary trait TranslationAuthority {
     machine map(
         source: Extent in Granted,
         destination: Extent in Granted,

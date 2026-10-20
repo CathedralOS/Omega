@@ -8,7 +8,7 @@
 // The integer fields are the bootstrap carrier for provider and activation
 // identity. They are not public proof that a provider accepted custody: TR4's
 // boundary requirement and admission path own establishment of real claims.
-pub data Task<T> [linear] {
+public data Task<T> [linear] {
     provider: u64;
     activation: u64;
 }
@@ -16,12 +16,12 @@ pub data Task<T> [linear] {
 // Provider/lifecycle failures are ordinary affine records. Concrete providers
 // may wrap richer diagnostics; the core outcomes keep the runtime boundary
 // surface's payloads stable while provider admission is implemented.
-pub data TaskFailureReceipt {
+public data TaskFailureReceipt {
     provider: u64;
     code: i32;
 }
 
-pub data StartRejection {
+public data StartRejection {
     code: i32;
 }
 
@@ -29,13 +29,13 @@ pub data StartRejection {
 // carries any substituted linear debt. `Returned(LinearT)` and
 // `Rejected(LinearArguments)` therefore participate in the same conditional
 // permission accounting as a non-generic `Empty | Live(Token)` sum.
-pub data TaskOutcome<T> {
+public data TaskOutcome<T> {
     case Cancelled;
     case Returned(value: T);
     case Failed(receipt: TaskFailureReceipt);
 }
 
-pub data StartOutcome<T, Arguments> {
+public data StartOutcome<T, Arguments> {
     case Started(task: Task<T>);
     case Rejected(arguments: Arguments, reason: StartRejection);
 }
@@ -43,9 +43,9 @@ pub data StartOutcome<T, Arguments> {
 // Cancellation requests retain the linear claim. `finish` is the terminal
 // operation: it may park while the provider reaches a lifecycle outcome and
 // consumes the claim exactly once.
-pub boundary requirement Task::request_cancel<T>(task: &Task<T>);
+public boundary requirement Task::request_cancel<T>(task: &Task<T>);
 
-pub boundary requirement Task::finish<T>(task: Task<T>) -> TaskOutcome<T>
+public boundary requirement Task::finish<T>(task: Task<T>) -> TaskOutcome<T>
 suspends; blocks;
 
 // Runtime authority is a public selected boundary capability carried by
@@ -53,7 +53,7 @@ suspends; blocks;
 // admitted custody or their returned arguments. These requirements give
 // `start<M>` a nominal, machine-contract-checked surface for activation-plan
 // elaboration; provider admission/dispatch remains the next runtime layer.
-pub boundary trait TaskRuntime {
+public boundary trait TaskRuntime {
     machine start<T, Arguments, machine Target>(
         arguments: Arguments
     ) -> Task<T>

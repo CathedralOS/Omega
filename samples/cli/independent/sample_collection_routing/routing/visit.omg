@@ -17,7 +17,7 @@ machine travel(tour: &mut Tour, destination: i32 in Saturating) {
     }
 }
 
-pub machine visit(plan: &Plan, tour: &mut Tour, event: u64) -> bool {
+public machine visit(plan: &Plan, tour: &mut Tour, event: u64) -> bool {
     transition event {
         0 -> pickup_a(plan, tour)
         1 -> pickup_b(plan, tour)

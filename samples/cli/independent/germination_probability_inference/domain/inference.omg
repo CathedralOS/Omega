@@ -5,7 +5,7 @@
 // overflow enters the summation. Positive terms avoid cancellation in the tail.
 use omega::language::core::float_operations;
 
-pub data Posterior [copy] { alpha: i32 in Wrapping; beta: i32 in Wrapping; mean: f64; variance: f64; lower: f64; upper: f64; above_half: f64; }
+public data Posterior [copy] { alpha: i32 in Wrapping; beta: i32 in Wrapping; mean: f64; variance: f64; lower: f64; upper: f64; above_half: f64; }
 machine tail(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {
     let length: i32 in Wrapping = alpha + beta - 1;
     transition { _ -> initial(alpha, length, value, 0, 1.0) }
@@ -20,7 +20,7 @@ machine tail(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {
         }
     }
 }
-pub machine beta_cdf(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {
+public machine beta_cdf(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {
     transition value <= 0.5 { true -> tail(alpha, beta, value) _ -> 1.0 - tail(beta, alpha, 1.0 - value) }
 }
 machine quantile(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64) -> f64 {
@@ -34,7 +34,7 @@ machine quantile(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64
         transition observed < probability { true -> bisect(alpha, beta, probability, iteration + 1, midpoint, upper) _ -> bisect(alpha, beta, probability, iteration + 1, lower, midpoint) }
     }
 }
-pub machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Posterior {
+public machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Posterior {
     let first: f64 = F64::from_i32(alpha as i32);
     let second: f64 = F64::from_i32(beta as i32);
     let total: f64 = first + second;
@@ -45,7 +45,7 @@ pub machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Posterio
 }
 // P(K=0)=product_j (b+j)/(a+b+j), followed by adjacent-bin ratios.
 // All denominators are positive for a,b>=1 and 0<=K<m<=32.
-pub machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33]) {
+public machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33]) {
     transition { _ -> zero(alpha, beta, future, bins, 0, 1.0) }
     state zero(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         transition position < future { true -> zero(alpha, beta, future, bins, position + 1, mass * F64::from_i32((beta + position) as i32) / F64::from_i32((alpha + beta + position) as i32)) _ -> first(alpha, beta, future, bins, mass) }

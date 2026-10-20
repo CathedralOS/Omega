@@ -3,7 +3,7 @@
 // takes `binding: &mut Binding<Settlement>` as an ordinary &mut
 // param — same receiver admission either way.
 //
-//   * `pub boundary trait Settlement` + `Settler satisfies Settlement`
+//   * `public boundary trait Settlement` + `Settler satisfies Settlement`
 //     (impl consumes the linear receipt via `drop`).
 //   * `reaches Settlement` on forwarding machines.
 //
@@ -13,10 +13,10 @@
 use omega::language::core::binding;
 use omega::language::core::drop;
 
-pub data Receipt [linear] { code: i32; }
+public data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 
-pub boundary trait Settlement {
+public boundary trait Settlement {
     machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32;
 }
 

@@ -1,7 +1,7 @@
 // glibc mallinfo2 returns an 80-byte record through the SysV hidden result pointer.
 use omega::language::core::external_binding;
 
-pub data AllocationStatistics {
+public data AllocationStatistics {
     arena: u64;
     ordinary_blocks: u64;
     small_blocks: u64;
@@ -13,9 +13,9 @@ pub data AllocationStatistics {
     available_bytes: u64;
     releasable_bytes: u64;
 }
-pub data AllocationProbe {}
-pub boundary requirement AllocationProbe::statistics() -> AllocationStatistics;
-pub boundary requirement AllocationProbe::exit_with(code: i32);
+public data AllocationProbe {}
+public boundary requirement AllocationProbe::statistics() -> AllocationStatistics;
+public boundary requirement AllocationProbe::exit_with(code: i32);
 data AllocationProvider {}
 linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 9, 10> {
     ForeignBinding::DllImport {

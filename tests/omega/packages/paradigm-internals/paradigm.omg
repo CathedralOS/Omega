@@ -15,21 +15,21 @@
 // `shared` is the portable member dependents call so the package demonstrably
 // links into the program that executes.
 
-pub data Helper { seed: i32; }
+public data Helper { seed: i32; }
 
-pub machine Helper::shared() -> i32 {
+public machine Helper::shared() -> i32 {
     transition { _ -> 7 }
 }
 
-pub uefi_x86_64 machine Helper::paradigm_internal(helper: &Helper) -> i32 {
+public uefi_x86_64 machine Helper::paradigm_internal(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 
-pub uefi_x86_64 machine Helper::record_paradigm_event(helper: &mut Helper) {
+public uefi_x86_64 machine Helper::record_paradigm_event(helper: &mut Helper) {
     transition { _ -> done() }
     state done() { }
 }
 
-pub uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
+public uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
     transition { _ -> (Helper::paradigm_internal(helper)) }
 }

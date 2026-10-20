@@ -9,7 +9,7 @@ use psi::tokens::tokens;
 // the row's handle lands in `name_path_result`. `missing` is the caller's
 // diagnostic for an absent first name; a name missing after `::` is
 // `ExpectedPathMember`.
-pub machine Parser::parse_name_path(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
+public machine Parser::parse_name_path(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
 crashes Trap
 {
     let first_member: u64 in Trapping = parser.output.member_count as u64 in Trapping;

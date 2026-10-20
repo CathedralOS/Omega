@@ -1,11 +1,11 @@
 // Expected exit: 0. A named state's disjoint aliased write preserves the
 // guaranteed backing field through the same capture and write-coordinate route.
-pub data Counter { count: u64; pad: u64; }
-pub data Source { first: u64; count: u64; }
-pub boundary trait Parent {
+public data Counter { count: u64; pad: u64; }
+public data Source { first: u64; count: u64; }
+public boundary trait Parent {
     machine reset(counter: &mut Counter) ensures counter.count <= 7u64;
 }
-pub boundary trait Child: Parent {}
+public boundary trait Child: Parent {}
 Good satisfies Child { Parent::reset = reset; }
 machine reset(counter: &mut Counter)
 ensures counter.count <= 7u64, counter.count <= 3u64

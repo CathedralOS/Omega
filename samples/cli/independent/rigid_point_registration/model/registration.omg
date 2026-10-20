@@ -1,9 +1,9 @@
 use omega::language::core::float_operations;
-pub data Matrix<const Rows: u64, const Columns: u64> [copy]
+public data Matrix<const Rows: u64, const Columns: u64> [copy]
 where Rows >= 1 && Rows <= 4 && Columns >= 1 && Columns <= 4 {
     values: [f64; Rows * Columns];
 }
-pub data Problem {
+public data Problem {
     count: u64; source: [f64; 48]; target: [f64; 48]; weights: [f64; 16];
     source_center: [f64; 3]; target_center: [f64; 3]; total_weight: f64;
     covariance: Matrix<3, 3>; scatter: Matrix<3, 3>; matrix: Matrix<4, 4>; vectors: Matrix<4, 4>;
@@ -22,7 +22,7 @@ requires Extent >= 1 && Extent <= 4, index < Extent
 // rotation, including the nonzero residual of reflected observations. Cyclic
 // Jacobi sweeps use stable tangent rotations; an eigenvalue gap checks whether
 // the optimum is identifiable. Source rank two admits noncollinear planes.
-pub machine solve(problem: &mut Problem) -> bool {
+public machine solve(problem: &mut Problem) -> bool {
     centers(problem, 0); normalize_centers(problem); covariance(problem, 0);
     let trace: f64 = diagonal<3>(&problem.scatter, 0) + diagonal<3>(&problem.scatter, 1) + diagonal<3>(&problem.scatter, 2);
     let area: f64 = problem.scatter.values[0] * problem.scatter.values[4] + problem.scatter.values[0] * problem.scatter.values[8] + problem.scatter.values[4] * problem.scatter.values[8]

@@ -328,7 +328,7 @@ fn resolve_template_adapter_rows(
 
 /// Resolve the exact checked adapter realizing a top-level `boundary
 /// requirement`. A public requirement carrying no static generic binders
-/// (`pub boundary requirement Owner::name(...);`, optionally with an erased
+/// (`public boundary requirement Owner::name(...);`, optionally with an erased
 /// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
 /// adapter with no static generic binders whose exact `satisfies` edge rejoins
 /// that requirement symbol with the same explicit arity. Unlike the trait

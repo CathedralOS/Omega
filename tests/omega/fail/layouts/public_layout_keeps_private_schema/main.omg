@@ -1,6 +1,6 @@
 use omega::language::core::layout;
 
-pub data LayoutPolicy { }
+public data LayoutPolicy { }
 data HiddenSchema { word: u64; }
 
 machine LayoutPolicy::plan(schema: Schema) -> Plan {

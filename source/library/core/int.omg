@@ -20,7 +20,7 @@
 use omega::language::core::algebra;
 use omega::language::core::nat;
 
-pub data IntPair {
+public data IntPair {
     neg: Nat;
     pos: Nat;
 }

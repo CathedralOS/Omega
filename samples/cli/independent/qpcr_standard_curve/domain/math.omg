@@ -3,7 +3,7 @@
 // Exponential reduces by 128, takes 32 Taylor terms, then squares seven times.
 // Callers establish finite arguments; representability is checked separately.
 use omega::language::core::float_operations;
-pub machine logarithm(value: f64) -> f64 {
+public machine logarithm(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
     state reduce(value: f64, offset: f64) -> f64 {
         transition value >= 2.0 { true -> reduce(value / 2.0, offset + 0.6931471805599453094) _ -> series(value, offset) }
@@ -17,7 +17,7 @@ pub machine logarithm(value: f64) -> f64 {
         transition count < 39 { true -> term(square, power * square, denominator + 2.0, total, offset, count + 1) _ -> (offset + 2.0 * total) / 2.3025850929940456840 }
     }
 }
-pub machine exponential(value: f64) -> f64 {
+public machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 1) }
     state term(reduced: f64, sum: f64, previous: f64, denominator: f64, count: i32 in Wrapping) -> f64 {
@@ -35,7 +35,7 @@ pub machine exponential(value: f64) -> f64 {
 
 // Array windows carry the validated standard prefix. The loops retain signed
 // indexes and exact element extents; no helper receives the unused array tail.
-pub machine residual_sum(logarithms: &[f64], cycles: &[f64], residuals: &mut [f64], slope: f64, intercept: f64) -> f64
+public machine residual_sum(logarithms: &[f64], cycles: &[f64], residuals: &mut [f64], slope: f64, intercept: f64) -> f64
 crashes Trap
 {
     transition logarithms.len == cycles.len && cycles.len == residuals.len { true -> scan(logarithms, cycles, residuals, slope, intercept, 0, 0.0) _ -> bad() }

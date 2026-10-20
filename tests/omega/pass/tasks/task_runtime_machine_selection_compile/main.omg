@@ -35,14 +35,14 @@ windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetP
     TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
 }
 
-pub boundary data Sleeper;
+public boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
 
-pub data Token {
+public data Token {
     id: u64;
 }
 
-pub boundary trait TokenIssuer {
+public boundary trait TokenIssuer {
     machine issue(id: u64) -> Token
     ensures
         result in Carry::AcrossSuspend;

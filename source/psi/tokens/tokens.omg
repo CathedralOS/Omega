@@ -7,14 +7,14 @@ use psi::source::source;
 // only ASCII syntax; non-ASCII bytes remain opaque inside comments and literal
 // bodies.
 
-pub data NumericBase [copy] {
+public data NumericBase [copy] {
     case Binary;
     case Octal;
     case Decimal;
     case Hexadecimal;
 }
 
-pub data KeywordKind [copy] {
+public data KeywordKind [copy] {
     case As;
     case CallingConvention;
     case Capability;
@@ -32,7 +32,7 @@ pub data KeywordKind [copy] {
     case Match;
     case Owns;
     case Platform;
-    case Pub;
+    case Public;
     case Return;
     case SelfValue;
     case State;
@@ -50,7 +50,7 @@ pub data KeywordKind [copy] {
     case Linear;
 }
 
-pub data PunctuationKind [copy] {
+public data PunctuationKind [copy] {
     case Ampersand;
     case AndAnd;
     case Apostrophe;
@@ -96,7 +96,7 @@ pub data PunctuationKind [copy] {
 
 // The stored token is itself the vocabulary sum. Consumers classify this one
 // value directly; no nested kind field or numeric observation projection exists.
-pub data Token [copy] {
+public data Token [copy] {
     source: u32 in Trapping;
     start: u64 in Trapping;
     end: u64 in Trapping;
@@ -118,7 +118,7 @@ pub data Token [copy] {
     case Punctuation(punctuation: PunctuationKind);
 }
 
-pub data LexDiagnosticCode [copy] {
+public data LexDiagnosticCode [copy] {
     case None;
     case InvalidUtf8;
     case OutsideLexicalProfile;
@@ -133,12 +133,12 @@ pub data LexDiagnosticCode [copy] {
     case DecodedCapacityExceeded;
 }
 
-pub data LexDiagnostic [copy] {
+public data LexDiagnostic [copy] {
     code: LexDiagnosticCode;
     source_span: SourceSpan;
 }
 
-pub data TokenStream
+public data TokenStream
 where
     token_count <= 65536,
     decoded_length <= 131072,

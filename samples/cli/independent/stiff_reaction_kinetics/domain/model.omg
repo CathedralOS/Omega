@@ -1,9 +1,9 @@
 use omega::language::core::float_operations;
 use domain::input;
-pub data Vector [copy] { a: f64; b: f64; c: f64; }
-pub data Reaction [copy] { a: u64; b: u64; c: u64; p: u64; q: u64; r: u64; rate: f64; }
-pub data Problem [copy] { first: Reaction; second: Reaction; third: Reaction; initial: Vector; end: f64; step: f64; absolute: f64; relative: f64; trials: u64; iterations: u64; }
-pub machine valid(input: &Input) -> bool {
+public data Vector [copy] { a: f64; b: f64; c: f64; }
+public data Reaction [copy] { a: u64; b: u64; c: u64; p: u64; q: u64; r: u64; rate: f64; }
+public data Problem [copy] { first: Reaction; second: Reaction; third: Reaction; initial: Vector; end: f64; step: f64; absolute: f64; relative: f64; trials: u64; iterations: u64; }
+public machine valid(input: &Input) -> bool {
     input.valid && input.count == 40
         && input.values[1] > 0
         && input.values[3] > 0
@@ -39,7 +39,7 @@ pub machine valid(input: &Input) -> bool {
         && input.values[30] > 0 && input.values[32] > 0 && input.values[34] > 0 && input.values[36] > 0
         && input.values[38] >= 1 && input.values[38] <= 1000000 && input.values[39] >= 1 && input.values[39] <= 32
 }
-pub machine problem(input: &Input) -> Problem {
+public machine problem(input: &Input) -> Problem {
     Problem {
         first: Reaction { a: input.values[6] as u64, b: input.values[7] as u64, c: input.values[8] as u64, p: input.values[9] as u64, q: input.values[10] as u64, r: input.values[11] as u64, rate: F64::from_u64(input.values[0] as u64) / F64::from_u64(input.values[1] as u64) },
         second: Reaction { a: input.values[12] as u64, b: input.values[13] as u64, c: input.values[14] as u64, p: input.values[15] as u64, q: input.values[16] as u64, r: input.values[17] as u64, rate: F64::from_u64(input.values[2] as u64) / F64::from_u64(input.values[3] as u64) },

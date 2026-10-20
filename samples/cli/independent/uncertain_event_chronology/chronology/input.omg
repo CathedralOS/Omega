@@ -1,7 +1,7 @@
 use chronology::model;
 // A private scratch record owns the decoded wire digits across parser states.
 data Digits { values: [i32; 19]; }
-pub machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bool {
+public machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bool {
     let mut digits: Digits;
     transition count == 19 || count == 20 {
         true -> ending(bytes, count, model, &mut digits)

@@ -1,2 +1,2 @@
 module m::a;
-pub data A { value: u32; }
+public data A { value: u32; }

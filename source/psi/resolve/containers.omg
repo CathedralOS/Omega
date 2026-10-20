@@ -17,7 +17,7 @@ use psi::syntax::syntax;
 // Every machine's `MachineOwner`, in machine order: a root machine keeps its
 // authored owner; a member takes its container's name. Containers cover
 // contiguous machine ranges, so one pass per container table places them.
-pub machine Resolver::place_machines(resolver: &mut Resolver, syntax: &SyntaxTrees)
+public machine Resolver::place_machines(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> root(resolver, syntax, 0) }
@@ -135,7 +135,7 @@ crashes Trap
 }
 
 // A machine's type scope: its own generic parameters, then its container's.
-pub machine Resolver::machine_scope(resolution: &NameResolution, syntax: &SyntaxTrees, handle: u64 in Trapping) -> TypeScope
+public machine Resolver::machine_scope(resolution: &NameResolution, syntax: &SyntaxTrees, handle: u64 in Trapping) -> TypeScope
 crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
@@ -150,7 +150,7 @@ crashes Trap
 }
 
 // A container's own generic parameters as a scope; a root machine has none.
-pub machine Resolver::container_scope(syntax: &SyntaxTrees, owner: MachineOwner) -> TypeScope
+public machine Resolver::container_scope(syntax: &SyntaxTrees, owner: MachineOwner) -> TypeScope
 crashes Trap
 {
     transition owner.container {
@@ -180,7 +180,7 @@ crashes Trap
 // requirement: `Trait::requirement`, or a bare requirement of the satisfied
 // trait. The right side names an existing machine as a callee would. Both
 // bindings land in `NameResolution::path_bindings`.
-pub machine Resolver::bind_conformance_rows(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_conformance_rows(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next_conformance(resolver, sources, syntax, 0) }
@@ -303,7 +303,7 @@ crashes Trap
 
 // Bind name path `path` to the machine it names as a callee would, or
 // reject it as unknown or ambiguous at its span.
-pub machine Resolver::bind_machine_path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, path: u64 in Trapping)
+public machine Resolver::bind_machine_path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, path: u64 in Trapping)
 crashes Trap
 {
     let name_path: NamePath = SyntaxTrees::name_path(syntax, path);
@@ -330,7 +330,7 @@ crashes Trap
 // The machine a name path names: a free machine for one member, an owned
 // machine (a trait requirement or conformance member included) for two. A
 // longer path crosses a package, which this source set cannot bind.
-pub machine Resolver::machine_path_lookup(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup
+public machine Resolver::machine_path_lookup(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup
 crashes Trap
 {
     transition name_path.member_count {
@@ -375,7 +375,7 @@ crashes Trap
 
 // The first member of trait `trait_index` named `name`: its overload
 // family's representative.
-pub machine Resolver::trait_member_named(sources: &SourceSet, syntax: &SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> Lookup
+public machine Resolver::trait_member_named(sources: &SourceSet, syntax: &SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> Lookup
 crashes Trap
 {
     let item: TraitItem = SyntaxTrees::trait_item(syntax, trait_index);
@@ -410,7 +410,7 @@ crashes Trap
 // its reference row for that requirement names, else the satisfied trait's
 // requirement or default of that name. Calling it selects the conformance's
 // row for the requirement (wiki/spec/language/conformances.md#complete-row-identity).
-pub machine Resolver::conformance_row_named(
+public machine Resolver::conformance_row_named(
     resolution: &NameResolution,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -482,7 +482,7 @@ crashes Trap
     }
 }
 
-pub machine Resolver::set_path_binding(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding)
+public machine Resolver::set_path_binding(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding)
 crashes Trap
 {
     transition path < 2048 {

@@ -1,14 +1,14 @@
 // Expected exit: 0.
-// Direct foreign calls keep interface exposure independent of pub and supply.
+// Direct foreign calls keep interface exposure independent of public and supply.
 // The three libc abs calls must return 41, 39 and 37, including state forwarding.
 use omega::language::core::external_binding;
 
-pub boundary trait Magnitude {
+public boundary trait Magnitude {
     machine absolute(value: i32) -> i32 requires value > -2147483648;
     machine ordinary(value: i32) -> i32 requires value > -2147483648;
     machine exported(value: i32) -> i32 requires value > -2147483648;
 }
-pub macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
+public macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs"
     } }
@@ -19,7 +19,7 @@ macos_arm64 boundary machine absolute(value: i32) -> i32
 macos_arm64 machine ordinary(value: i32) -> i32
     satisfies Magnitude::ordinary via absolute_binding()
     requires value > -2147483648;
-pub macos_arm64 boundary machine exported(value: i32) -> i32
+public macos_arm64 boundary machine exported(value: i32) -> i32
     satisfies Magnitude::exported via absolute_binding()
     requires value > -2147483648;
 

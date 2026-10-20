@@ -4,13 +4,13 @@ module spectrometer_equality_control;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 
-pub data Main { }
+public data Main { }
 
 // A value-returning body uses ordinary Float::equal. Merely returning bool or
 // sharing the carrier of a resultless law must not grant proposition equality.
 machine same(left: f64, right: f64) -> bool { left == right }
 
-pub machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches Console
 invokes Console;
 blocks;
 crashes Trap

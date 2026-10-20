@@ -2,7 +2,7 @@
 // declared port-I/O service contract; the state boundary does not supply it.
 use omega::language::core::assembly;
 
-pub machine emit_selected_state(ready: u8) {
+public machine emit_selected_state(ready: u8) {
     transition ready == 1 { true -> emit() _ -> idle() }
     state emit() {
         asm where clobbers r10, r11, r15, rax, rdx {

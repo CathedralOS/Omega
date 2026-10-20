@@ -3,8 +3,8 @@
 use omega::language::core::layout;
 use omega::language::core::float_operations;
 
-pub data Register { value: u64; }
-pub data CheckedPolicy {}
+public data Register { value: u64; }
+public data CheckedPolicy {}
 machine CheckedPolicy::limit(value: u64) -> u64 {
     transition value < 9 { true -> bounded(value)
         false -> 0 }

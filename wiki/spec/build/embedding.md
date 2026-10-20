@@ -82,7 +82,7 @@ under [entry roots](entry_roots.md). A qualified machine name introduces no hidd
 receiver. Requirement and implementation signatures retain the same explicit
 parameter correspondence; the admitted entry adapter supplies any provisioned
 context rather than changing the machine's signature.
-Neither `pub` nor `satisfies` alone exports a callable ABI. No `main`, `run`, or
+Neither `public` nor `satisfies` alone exports a callable ABI. No `main`, `run`, or
 `Run` name is privileged by embedding.
 
 An instance's import roster identifies each exact slot/occurrence, closed

@@ -10,15 +10,15 @@
 // call rax` -- read OutputString from the protocol struct and dispatch. The
 // greeting text is a utf16"..." literal (CHAR16 code units).
 
-pub boundary trait TextOutput { machine output_string(this: addr, text: &[u16; 19]); }
+public boundary trait TextOutput { machine output_string(this: addr, text: &[u16; 19]); }
 data EfiTextOutputProtocol { reset: addr; output_string: addr; }
 uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: &[u16; 19]) satisfies TextOutput::output_string via ForeignBinding::VtableField(output_string);
-pub data EfiSystemTable {
+public data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-pub data Main { msg: [u16; 19]; }
+public data Main { msg: [u16; 19]; }
 boundary machine Main::main(main: &mut Main, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;

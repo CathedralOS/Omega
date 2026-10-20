@@ -24,7 +24,7 @@
 use omega::language::core::assembly;
 use cathedral::tables;
 
-pub boundary trait TranslationHardware {
+public boundary trait TranslationHardware {
     // Store `entry` into `table`'s slot `slot`, consuming and returning the
     // table so its `storage` qualification replays through the call: a
     // `&mut` borrow cannot carry the backing extent's `Granted` claim

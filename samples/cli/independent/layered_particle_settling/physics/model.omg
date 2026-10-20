@@ -3,11 +3,11 @@ use omega::language::core::float_operations;
 // Nondimensional declared sample law: unit volume, unit gravitational acceleration.
 // Positive depth/velocity points downward. The layer is sampled at the start of
 // a time step; crossings change the next step's law, without substep interpolation.
-pub data Layer [copy] { density: f64; drag: f64; quadratic: bool; }
-pub data Particle [copy] { depth: f64; velocity: f64; density: f64; }
-pub data Step [copy] { force: f64; residual: f64; }
+public data Layer [copy] { density: f64; drag: f64; quadratic: bool; }
+public data Particle [copy] { depth: f64; velocity: f64; density: f64; }
+public data Step [copy] { force: f64; residual: f64; }
 
-pub machine layer_at(depth: f64) -> i32 {
+public machine layer_at(depth: f64) -> i32 {
     transition {
         depth < 0.5 -> top()
         depth < 2.0 -> middle()
@@ -18,7 +18,7 @@ pub machine layer_at(depth: f64) -> i32 {
     state bottom() -> i32 { 2 }
 }
 
-pub machine layer(index: i32) -> Layer {
+public machine layer(index: i32) -> Layer {
     transition index {
         0 -> top()
         1 -> middle()
@@ -29,13 +29,13 @@ pub machine layer(index: i32) -> Layer {
     state bottom() -> Layer { Layer { density: 4.0, drag: 4.0, quadratic: false } }
 }
 
-pub machine absolute(value: f64) -> f64 {
+public machine absolute(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
     state negative(value: f64) -> f64 { 0.0 - value }
     state positive(value: f64) -> f64 { value }
 }
 
-pub machine force(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
+public machine force(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
     transition fluid.quadratic {
         true -> quadratic(particle_density, fluid, velocity)
         false -> linear(particle_density, fluid, velocity)
@@ -51,7 +51,7 @@ pub machine force(particle_density: f64, fluid: Layer, velocity: f64) -> f64 {
 // Private bounded root search, independent of any numerics package. All accepted
 // densities put the positive root within [0, 8]. 40 halvings bound speed error
 // by 8/2^40; force residual is separately checked by the application.
-pub machine terminal_velocity(density: f64, fluid: Layer) -> f64 {
+public machine terminal_velocity(density: f64, fluid: Layer) -> f64 {
     let drive: f64 = density - fluid.density;
     transition fluid.quadratic {
         true -> bisect(drive, fluid.drag, 0.0, 8.0, 40)
@@ -73,7 +73,7 @@ pub machine terminal_velocity(density: f64, fluid: Layer) -> f64 {
     state positive(value: f64) -> f64 { value }
 }
 
-pub machine advance(particle: &mut Particle, fluid: Layer, timestep: f64) -> Step {
+public machine advance(particle: &mut Particle, fluid: Layer, timestep: f64) -> Step {
     let old_velocity: f64 = particle.velocity;
     let net: f64 = force(particle.density, fluid, old_velocity);
     particle.velocity = old_velocity + timestep * net / particle.density;

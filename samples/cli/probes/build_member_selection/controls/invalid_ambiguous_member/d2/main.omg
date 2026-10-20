@@ -1,3 +1,3 @@
-pub machine shared() -> i32 {
+public machine shared() -> i32 {
     2
 }

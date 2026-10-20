@@ -232,7 +232,7 @@ structural ones every program has:
 
 | Surface | Samples | | Surface | Samples |
 | --- | --- | --- | --- | --- |
-| `in <Domain>` qualification | 120 | | `pub` | 17 |
+| `in <Domain>` qualification | 120 | | `public` | 17 |
 | `domain` declaration | 64 | | `trait` | 17 |
 | `requires` | 45 | | shared `&` borrow | 16 |
 | `boundary` | 31 | | `f32`/`f64` | 14 |

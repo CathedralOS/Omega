@@ -13,7 +13,7 @@ machine nf09_finite(value: f64) -> bool {
     difference == 0.0
 }
 
-pub machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> bool {
+public machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> bool {
     transition left.len == right.len {
         true -> step(left, right, output, 0, 0.0)
         _ -> (false)
@@ -46,7 +46,7 @@ pub machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> bool {
 // LAPACK-style scale/ssq recurrence. No original element is squared:
 // the ratio is at most one, so representable large/small norms survive.
 // The final scale * sqrt(ssq) can still overflow; that is a try failure.
-pub machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
+public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
     transition { _ -> step(values, output, 0, 0.0, 1.0) }
     state step(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64) -> bool {
@@ -102,7 +102,7 @@ pub machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
 // Two passes: validate every multiply then add before mutating any element.
 // The input is shared and the output exclusive for the whole operation, so
 // successful validation cannot be invalidated by another writer.
-pub machine try_axpy_f64(alpha: f64, input: &[f64], output: &mut [f64]) -> bool {
+public machine try_axpy_f64(alpha: f64, input: &[f64], output: &mut [f64]) -> bool {
     let valid: bool = nf09_finite(alpha) && input.len == output.len;
     transition valid {
         true -> validate(alpha, input, output, 0)
@@ -146,7 +146,7 @@ pub machine try_axpy_f64(alpha: f64, input: &[f64], output: &mut [f64]) -> bool 
 
 // x == y is permitted only through this one-loan entrypoint. Evaluate
 // alpha*old + old rather than (alpha+1)*old, preserving rounding order.
-pub machine try_axpy_self_f64(alpha: f64, values: &mut [f64]) -> bool {
+public machine try_axpy_self_f64(alpha: f64, values: &mut [f64]) -> bool {
     let valid: bool = nf09_finite(alpha);
     transition valid {
         true -> validate(alpha, values, 0)

@@ -1,11 +1,11 @@
 // A published machine names every crash cause it may commit; omitting a
-// cause forbids it. Calling a trapping conversion from a `pub` machine
+// cause forbids it. Calling a trapping conversion from a `public` machine
 // therefore needs `crashes Trap`, unlike a private body, whose crash ceiling
 // is inferred.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
 
-pub machine narrow(value: u16) -> u8 {
+public machine narrow(value: u16) -> u8 {
     narrow_u16_to_u8_trapping(value)
 }
 

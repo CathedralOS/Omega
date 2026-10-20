@@ -5,7 +5,7 @@ use omega::language::core::task;
 // contract at specialization; whole-program inference cannot widen it.
 boundary trait DiskIo {
 }
-pub boundary data Disk;
+public boundary data Disk;
 boundary machine Disk::touch(value: i32) reaches DiskIo;
 
 data Job {

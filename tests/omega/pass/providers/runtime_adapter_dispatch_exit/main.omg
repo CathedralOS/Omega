@@ -1,7 +1,7 @@
 // A static boundary call runs through the checked adapter retained by the
 // selected named implementation in both engine pipelines.
 use omega_language_std::console;
-pub boundary trait Echo {
+public boundary trait Echo {
     machine echo(x: i32) -> i32;
 }
 data EchoProvider {}

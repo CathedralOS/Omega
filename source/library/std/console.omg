@@ -14,21 +14,21 @@ use targets::linux_arm64::console_impl;
 // The result of a byte-level stdin read. `Eof` is ORDINAL 0: a
 // zero-initialized ByteRead IS end-of-input -- ZII, no magic sentinel
 // (the byte result has no sentinel).
-pub data ByteRead {
+public data ByteRead {
     case Eof;
     case Byte(value: i32) where value >= 0 && value <= 255;
 }
 
 // Counts describe only the prefix written during this invocation. Invalid is
 // the zero-initialized value, never a normal reader completion or an I/O error.
-pub data LineReadResult {
+public data LineReadResult {
     case Invalid;
     case LineComplete(count: u64);
     case EndOfInput(count: u64);
     case Full(count: u64);
 }
 
-pub boundary trait Console {
+public boundary trait Console {
     machine write_line(text: &[u8])
     reaches
         Console;
@@ -65,11 +65,11 @@ pub boundary trait Console {
 
 // Storage for target-default declarations and the namespace of the exact
 // native leaves. This data declaration is not a whole-trait implementation.
-pub data ConsoleNativeProvider { }
+public data ConsoleNativeProvider { }
 
 // The selected implementation owns the complete Console map. Native leaves
 // retain their exact target identities; shared adapters use ordinary calls.
-pub NativeConsole satisfies Console {
+public NativeConsole satisfies Console {
     machine write_line(text: &[u8]) reaches Console {
         console_write_bytes(text, true);
     }

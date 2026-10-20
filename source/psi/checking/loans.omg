@@ -25,7 +25,7 @@ use psi::types::types;
 
 // Every local's last use in the body from `first` to `end`: the index of
 // the last statement whose trees name it.
-pub machine Checker::find_last_uses(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, first: u64 in Trapping, end: u64 in Trapping)
+public machine Checker::find_last_uses(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, first: u64 in Trapping, end: u64 in Trapping)
 crashes Trap
 {
     checker.ownership.use_count = 0;
@@ -237,7 +237,7 @@ crashes Trap
 
 // A local initialized at statement `index` holds a loan of every place its
 // initializer lends, when its type holds references.
-pub machine Checker::create_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement)
+public machine Checker::create_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, statement: Statement)
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.value);
@@ -428,7 +428,7 @@ crashes Trap
 // value. Existing loans remain available while capturing the RHS, so even
 // `reference = reference` preserves its loans. Writes through exclusive
 // references and projected stores do not replace the local's loan carrier.
-pub machine Checker::capture_local_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) -> u64 in Trapping
+public machine Checker::capture_local_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) -> u64 in Trapping
 crashes Trap
 {
     let target: Expression = SyntaxTrees::expression(syntax, statement.target);
@@ -509,7 +509,7 @@ crashes Trap
 // its old loans retire, and it holds whatever the call's other arguments
 // lend, as a value a call returns may. Entered at the call after its
 // arguments were walked.
-pub machine Checker::replace_lent_holders(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
+public machine Checker::replace_lent_holders(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, handle);
@@ -629,7 +629,7 @@ crashes Trap
 
 // Retire only the old carrier's loans, keeping the replacement captured after
 // `previous_count` and every independent holder's earlier captured loans.
-pub machine Ownership::replace_loan_holder(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64)
+public machine Ownership::replace_loan_holder(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64)
 crashes Trap
 {
     transition { _ -> next(ownership, holder, previous_count, 0, 0) }
@@ -668,7 +668,7 @@ crashes Trap
 
 // The place a tree node lends, and how: a borrow's operand, a range slice
 // a destination lends implicitly, or a reference passed on whole.
-pub machine Checker::lent_place(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> Hold
+public machine Checker::lent_place(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> Hold
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, handle);
@@ -745,7 +745,7 @@ crashes Trap
 // arguments. Explicit traversal frames retain the next sibling at each depth;
 // calls do not recurse. One depth budget follows every structural edge, and
 // its limit conservatively retains possible loans.
-pub machine Checker::holds_references(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+public machine Checker::holds_references(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let mut handles: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -851,7 +851,7 @@ crashes Trap
 // An access to a place while loans last: one overlapping a live loan's place,
 // not through its holder, conflicts when the loan is exclusive or the access
 // writes, moves or lends exclusively.
-pub machine Checker::loan_access(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, excludes: bool)
+public machine Checker::loan_access(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, excludes: bool)
 crashes Trap
 {
     let root: u64 in Trapping = Checker::path_root(syntax, resolution, typing, handle, true);
@@ -924,7 +924,7 @@ crashes Trap
 
 // An exit's value may not lend a place the body owns, nor be a holder of
 // such a loan.
-pub machine Checker::own_escape(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping)
+public machine Checker::own_escape(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping)
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, root);
@@ -1048,7 +1048,7 @@ crashes Trap
 
 // Record that local `key` is used at statement `index`; statements are
 // scanned in order, so the last record is its last use.
-pub machine Ownership::use_local(ownership: &mut Ownership, key: u64 in Trapping, index: u64 in Trapping)
+public machine Ownership::use_local(ownership: &mut Ownership, key: u64 in Trapping, index: u64 in Trapping)
 crashes Trap
 {
     let slot: u64 in Trapping = Ownership::use_slot(ownership, key);
@@ -1091,7 +1091,7 @@ crashes Trap
 }
 
 // Where local `key` sits in the use table, plus one; zero when absent.
-pub machine Ownership::use_slot(ownership: &Ownership, key: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::use_slot(ownership: &Ownership, key: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> next(ownership, key, 0) }
@@ -1119,7 +1119,7 @@ crashes Trap
 }
 
 // Local `key`'s last use; zero when it has none recorded.
-pub machine Ownership::last_use(ownership: &Ownership, key: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::last_use(ownership: &Ownership, key: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let slot: u64 in Trapping = Ownership::use_slot(ownership, key);
@@ -1149,7 +1149,7 @@ crashes Trap
 }
 
 // A holder `lender` lent to `holder` lives at least as long as it.
-pub machine Ownership::extend_uses(ownership: &mut Ownership, lender: u64 in Trapping, holder: u64 in Trapping)
+public machine Ownership::extend_uses(ownership: &mut Ownership, lender: u64 in Trapping, holder: u64 in Trapping)
 crashes Trap
 {
     let lender_last: u64 in Trapping = Ownership::last_use(ownership, lender);
@@ -1177,7 +1177,7 @@ crashes Trap
 }
 
 // Record a loan; false when the table is full.
-pub machine Ownership::add_loan(ownership: &mut Ownership, holder: u64 in Trapping, place: u64 in Trapping, exclusive: bool, owned: bool) -> bool
+public machine Ownership::add_loan(ownership: &mut Ownership, holder: u64 in Trapping, place: u64 in Trapping, exclusive: bool, owned: bool) -> bool
 crashes Trap
 {
     transition ownership.loan_count < 64 {
@@ -1202,7 +1202,7 @@ crashes Trap
 }
 
 // Whether a holder's loans last through the statement being walked.
-pub machine Ownership::loan_live(ownership: &Ownership, holder: u64 in Trapping) -> bool
+public machine Ownership::loan_live(ownership: &Ownership, holder: u64 in Trapping) -> bool
 crashes Trap
 {
     let last: u64 in Trapping = Ownership::last_use(ownership, holder);
@@ -1214,7 +1214,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::loan_holder(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::loan_holder(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < 64 {
@@ -1234,7 +1234,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::loan_place(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::loan_place(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < 64 {
@@ -1254,7 +1254,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::loan_exclusive(ownership: &Ownership, index: u64 in Trapping) -> bool
+public machine Ownership::loan_exclusive(ownership: &Ownership, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition index < 64 {
@@ -1273,7 +1273,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::loan_owned(ownership: &Ownership, index: u64 in Trapping) -> bool
+public machine Ownership::loan_owned(ownership: &Ownership, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition index < 64 {
@@ -1294,7 +1294,7 @@ crashes Trap
 
 // Whether an access excludes others: an exclusive loan, an exclusive
 // reference passed on rather than read, or a move.
-pub machine Checker::access_excludes(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole) -> bool
+public machine Checker::access_excludes(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, role: UseRole) -> bool
 crashes Trap
 {
     transition role {

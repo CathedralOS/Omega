@@ -7,7 +7,7 @@
 module main;
 
 
-pub boundary trait Assert {
+public boundary trait Assert {
     machine check(ok: bool) crashes Trap;
 }
 
@@ -19,9 +19,9 @@ crashes Trap
     state fail() -> bool { crash Trap; }
 }
 
-pub data CheckingAssert { }
+public data CheckingAssert { }
 
-pub CheckingAssertProvider satisfies Assert {
+public CheckingAssertProvider satisfies Assert {
     Assert::check = CheckingAssert::check;
 }
 
@@ -32,9 +32,9 @@ crashes Trap
     let verdict: bool = verify(ok);
 }
 
-pub data NoOpAssert { }
+public data NoOpAssert { }
 
-pub NoOpAssertProvider satisfies Assert {
+public NoOpAssertProvider satisfies Assert {
     Assert::check = NoOpAssert::check;
 }
 

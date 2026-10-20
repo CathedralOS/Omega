@@ -18,7 +18,7 @@ use psi::syntax::syntax;
 // parameters: its subjects and view bind as a `requires` fact's names do
 // (wiki/spec/language/termination.md). A trait reached through a module
 // path rejects as unsupported.
-pub machine Resolver::bind_clause_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_clause_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next_machine(resolver, sources, syntax, 0) }

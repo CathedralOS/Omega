@@ -22,7 +22,7 @@ subject to compiler validation and canonicalization.
 The policy implementation declares its machine inside its conformance block:
 
 ```omega
-pub FirmwarePolicy satisfies CallingPolicy {
+public FirmwarePolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         make_firmware_plan(signature)
     }

@@ -1,6 +1,6 @@
 // A closed caller at Count4 cannot retroactively prove the unconstrained
 // generic relay's public requirement at every Count.
-pub boundary trait Service {
+public boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
     where Count == 4 || Count == 8;
 }

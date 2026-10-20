@@ -1,9 +1,9 @@
 use omega::language::core::external_binding;
 
-pub data Resource { identity: u64; }
-pub domain Resource::Open established by acquire;
+public data Resource { identity: u64; }
+public domain Resource::Open established by acquire;
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
-pub boundary trait Source { machine open() -> Resource in Open; }
+public boundary trait Source { machine open() -> Resource in Open; }
 data ImportedSource {}
 machine imported_binding() -> ForeignBinding<26, 7, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {

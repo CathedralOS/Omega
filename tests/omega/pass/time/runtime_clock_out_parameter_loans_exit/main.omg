@@ -3,10 +3,10 @@ use omega::language::core::numeric_conversion;
 // retain the original record/array backing through helpers and captures.
 use omega::language::core::external_binding;
 
-pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
+public data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
 data Main { holder: Holder; pair: [i64; 2]; request: Instant; }
-pub boundary trait ClockProbe {
+public boundary trait ClockProbe {
     machine read(selector: i32, instant: &mut Instant) -> i32;
     machine read_pair(selector: u32, pair: &mut [i64; 2]) -> i32;
     machine nanoseconds(selector: i32) -> u64;

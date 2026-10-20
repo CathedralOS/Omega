@@ -1,7 +1,7 @@
 module graph;
 use fixtures;
 use geometry;
-pub data Planner {
+public data Planner {
     weights: [i64 in Wrapping; 36];
     clearances: [i64 in Wrapping; 36];
     distances: [i64 in Wrapping; 6];
@@ -14,7 +14,7 @@ pub data Planner {
 }
 // Negative means invalid edge. Walls are convex, so endpoint minima suffice for
 // wall clearance; every circular obstacle uses the whole segment projection.
-pub machine edge(scene: &fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
+public machine edge(scene: &fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
                  radius: i64 in Wrapping) -> i64 in Wrapping
 requires from >= 0 && from < 6 && to >= 0 && to < 6
 {
@@ -53,7 +53,7 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
         }
     }
 }
-pub machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping) {
+public machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping) {
     planner.weights = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; planner.clearances = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     planner.distances = [-1, -1, -1, -1, -1, -1]; planner.parents = [-1, -1, -1, -1, -1, -1];
     planner.settled = [false, false, false, false, false, false]; planner.route = [0, 0, 0, 0, 0, 0];
@@ -101,7 +101,7 @@ pub machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in
 }
 // Dijkstra owns its whole fixed graph. -1 is an explicit unreachable distance,
 // independent of zero handles; every published parent is a node ordinal.
-pub machine solve(planner: &mut Planner) -> bool {
+public machine solve(planner: &mut Planner) -> bool {
     transition { _ -> scan(planner, 0, -1, 1000000) }
     state scan(planner: &mut Planner, index: i32 in Wrapping,
                best: i32 in Wrapping, cost: i64 in Wrapping) -> bool {

@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
-pub data Counter { value: i32; }
-pub boundary trait CounterOperations {
+public data Counter { value: i32; }
+public boundary trait CounterOperations {
     machine replace(counter: &mut Counter, value: i32);
     machine read(counter: &Counter) -> i32;
 }

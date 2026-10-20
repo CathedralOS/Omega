@@ -4,17 +4,17 @@ use omega_language_std::calling;
 
 // Test-owned physical schema for selected-entry transport. Synthetic grants
 // exercise calling and custody only; this package claims no firmware backing.
-pub data EfiImageHandle {
+public data EfiImageHandle {
     raw: addr;
 }
 
-pub data EfiSystemTable { signature: u64; }
+public data EfiSystemTable { signature: u64; }
 
-pub data EfiStatus {
+public data EfiStatus {
     code: u64;
 }
 
-pub boundary trait UefiPhysicalEntry {
+public boundary trait UefiPhysicalEntry {
     machine enter(
         image_handle: EfiImageHandle,
         system_table: &EfiSystemTable

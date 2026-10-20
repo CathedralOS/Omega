@@ -1,4 +1,4 @@
-pub machine step() -> bool blocks; { true }
+public machine step() -> bool blocks; { true }
 data Context { value: i32; }
 machine scan(first: &mut Context, second: &mut Context, remaining: i32 in Wrapping) -> bool {
     let ready: bool = block step();

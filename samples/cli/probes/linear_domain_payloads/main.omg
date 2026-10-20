@@ -14,20 +14,20 @@
 
 use omega::language::core::drop;
 
-pub data Receipt [linear] {
+public data Receipt [linear] {
     code: i32;
     first: u64;
 }
 
 machine Receipt::drop(receipt: &mut Receipt) {}
 
-pub domain Receipt::Issued;
+public domain Receipt::Issued;
 
 domain Receipt::Extra(receipt) requires receipt.code >= 0;
 
 domain Receipt::ExtraIssued = Issued & Extra;
 
-pub boundary trait Acknowledgement {
+public boundary trait Acknowledgement {
     machine acknowledge(receipt: Receipt in Receipt::Issued) crashes Trap;
 }
 

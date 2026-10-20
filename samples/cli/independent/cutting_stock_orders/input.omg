@@ -2,7 +2,7 @@ module input;
 use model;
 use omega::language::core::numeric_conversion;
 // Fixed grammar: SSS RRR K LLL LLL LLL LLL, followed by LF or EOF.
-pub machine parse(bytes: &[u8; 32], orders: &mut model::Orders) -> bool {
+public machine parse(bytes: &[u8; 32], orders: &mut model::Orders) -> bool {
     orders.values = [0,0,0,0,0,0,0];
     transition { _ -> scan(bytes, orders, 0, 0) }
     state scan(bytes: &[u8; 32], orders: &mut model::Orders,

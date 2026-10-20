@@ -11,7 +11,7 @@
 // wholesale. Actual authority is bound to the caller's containing process
 // execution domain by the admitted entry/runtime environment; declaring the
 // reach or selecting a provider grants none of it.
-pub boundary trait ProcessExit {
+public boundary trait ProcessExit {
     machine exit_process(return_code: i32)
     reaches
         ProcessExit;

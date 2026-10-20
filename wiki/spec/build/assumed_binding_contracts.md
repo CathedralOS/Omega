@@ -25,15 +25,15 @@ does not substitute for its definition or the core authority required by memory
 operations. The domain must authorize the exact claim requirement as an issuer.
 
 ```omega
-pub boundary trait WritableMemory {
+public boundary trait WritableMemory {
     machine claim(region: Range) -> Range in Writable;
 }
 
-pub boundary trait RangeSupplier {
+public boundary trait RangeSupplier {
     machine supply(region: Range) -> Range;
 }
 
-pub data EchoSupplier { }
+public data EchoSupplier { }
 
 machine EchoSupplier::supply(region: Range) -> Range
 satisfies RangeSupplier::supply

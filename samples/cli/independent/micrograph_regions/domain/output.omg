@@ -29,7 +29,7 @@ machine number(value: i32 in Wrapping) reaches Console {
     }
 }
 
-pub machine render(image: &Image)
+public machine render(image: &Image)
 invokes Console;
 reaches Console {
     Console::write_line("P2");

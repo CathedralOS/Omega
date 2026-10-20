@@ -1,12 +1,12 @@
 module helpers;
 
-pub let reflexive(value: u8): core::Strict<0> = value == value;
+public let reflexive(value: u8): core::Strict<0> = value == value;
 
-pub let predicate(): u8 -> core::Strict<0> = reflexive();
+public let predicate(): u8 -> core::Strict<0> = reflexive();
 
-pub let identity<A: core::Type<0> >(value: A): A = value;
+public let identity<A: core::Type<0> >(value: A): A = value;
 
-pub let byte_mask(): u8 = ~0u8;
+public let byte_mask(): u8 = ~0u8;
 
-pub let wrapping_reflexive(value: u8 in Wrapping): core::Strict<0> =
+public let wrapping_reflexive(value: u8 in Wrapping): core::Strict<0> =
     (value * value) == (value * value);

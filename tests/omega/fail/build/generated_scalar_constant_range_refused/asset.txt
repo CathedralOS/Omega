@@ -1,1 +1,1 @@
-pub const VALUE: u8 = 256;
+public const VALUE: u8 = 256;

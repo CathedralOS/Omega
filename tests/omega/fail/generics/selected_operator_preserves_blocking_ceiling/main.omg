@@ -1,4 +1,4 @@
-pub trait Arithmetic<Value> {
+public trait Arithmetic<Value> {
     operator + combine(left: Value, right: Value) -> Value blocks;
 }
 

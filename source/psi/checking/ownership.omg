@@ -34,7 +34,7 @@ use psi::types::types;
 // `Exclusive` exclusively; `Drop` discards it (a statement's value); `Write`
 // is an assignment's target; `WriteLend` lends it for writing without
 // observation (`&write`).
-pub data UseRole [copy] {
+public data UseRole [copy] {
     case Inspect;
     case Value;
     case Base;
@@ -49,21 +49,21 @@ pub data UseRole [copy] {
 }
 
 // A path's moved places, as the place expressions that moved them.
-pub data MovedSet [copy] {
+public data MovedSet [copy] {
     places: [u64; 64];
     count: u64;
 }
 
 // How the moved places cover a written place: not at all, by a moved place
 // that is it, or by a moved whole it lies strictly within.
-pub data PlaceCover [copy] {
+public data PlaceCover [copy] {
     case Uncovered;
     case Exact;
     case Within;
 }
 
 // The ownership walk of one body.
-pub data Ownership {
+public data Ownership {
     moved: MovedSet;
     // A transition's moved places once its arm's guard ran.
     arm_saved: MovedSet;
@@ -113,7 +113,7 @@ pub data Ownership {
 // body that runs off its end exits there. Entered from the body's checking
 // walk (checker.omg) while its places are open, so a loan held through an
 // exclusive reference local finds the referent that local captured.
-pub machine Checker::own_body(
+public machine Checker::own_body(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -1532,7 +1532,7 @@ crashes Trap
 }
 
 // The moved place at `index`.
-pub machine MovedSet::at(set: &MovedSet, index: u64 in Trapping) -> u64 in Trapping
+public machine MovedSet::at(set: &MovedSet, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < 64 {
@@ -1553,7 +1553,7 @@ crashes Trap
 }
 
 // Add a moved place; false when the set is full.
-pub machine MovedSet::add(set: &mut MovedSet, place: u64 in Trapping) -> bool
+public machine MovedSet::add(set: &mut MovedSet, place: u64 in Trapping) -> bool
 crashes Trap
 {
     transition set.count < 64 {
@@ -1575,7 +1575,7 @@ crashes Trap
 }
 
 // Remove the place at `index`: the last one takes its slot.
-pub machine MovedSet::remove(set: &mut MovedSet, index: u64 in Trapping)
+public machine MovedSet::remove(set: &mut MovedSet, index: u64 in Trapping)
 crashes Trap
 {
     transition set.count > 0 && index < set.count {
@@ -1604,7 +1604,7 @@ crashes Trap
 }
 
 // Whether `key` is owed.
-pub machine Ownership::owes(ownership: &Ownership, key: u64 in Trapping) -> bool
+public machine Ownership::owes(ownership: &Ownership, key: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(ownership, key, 0) }
@@ -1632,7 +1632,7 @@ crashes Trap
 }
 
 // Owe `key` once; false when the table is full.
-pub machine Ownership::owe(ownership: &mut Ownership, key: u64 in Trapping) -> bool
+public machine Ownership::owe(ownership: &mut Ownership, key: u64 in Trapping) -> bool
 crashes Trap
 {
     let owed: bool = Ownership::owes(ownership, key);
@@ -1662,7 +1662,7 @@ crashes Trap
 }
 
 // The owed key at `index`.
-pub machine Ownership::owed_at(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::owed_at(ownership: &Ownership, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < 64 {
@@ -1683,7 +1683,7 @@ crashes Trap
 }
 
 // Whether `key` is a binder of a borrowed subject.
-pub machine Ownership::borrows(ownership: &Ownership, key: u64 in Trapping) -> bool
+public machine Ownership::borrows(ownership: &Ownership, key: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(ownership, key, 0) }
@@ -1711,7 +1711,7 @@ crashes Trap
 }
 
 // Record a binder of a borrowed subject; false when the table is full.
-pub machine Ownership::borrow_binder(ownership: &mut Ownership, key: u64 in Trapping) -> bool
+public machine Ownership::borrow_binder(ownership: &mut Ownership, key: u64 in Trapping) -> bool
 crashes Trap
 {
     let borrowed: bool = Ownership::borrows(ownership, key);
@@ -1742,7 +1742,7 @@ crashes Trap
 
 // Record an `&&`/`||` right operand's handles; false when the table is
 // full.
-pub machine Ownership::add_conditional(ownership: &mut Ownership, start: u64 in Trapping, end: u64 in Trapping) -> bool
+public machine Ownership::add_conditional(ownership: &mut Ownership, start: u64 in Trapping, end: u64 in Trapping) -> bool
 crashes Trap
 {
     transition ownership.conditional_count < 32 {
@@ -1766,7 +1766,7 @@ crashes Trap
 
 // Whether a node lies in an `&&`/`||` right operand: on one path of a
 // reconvergence only.
-pub machine Ownership::conditional(ownership: &Ownership, handle: u64 in Trapping) -> bool
+public machine Ownership::conditional(ownership: &Ownership, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(ownership, handle, 0) }
@@ -1797,7 +1797,7 @@ crashes Trap
 
 // Record a match of the tree, its first arm pending; false when the table
 // is full.
-pub machine Ownership::add_match(ownership: &mut Ownership, handle: u64 in Trapping) -> bool
+public machine Ownership::add_match(ownership: &mut Ownership, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition ownership.match_count < 8 {
@@ -1820,7 +1820,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::match_at(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::match_at(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition slot < 8 {
@@ -1840,7 +1840,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::match_arm_at(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::match_arm_at(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition slot < 8 {
@@ -1860,7 +1860,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::match_ended_at(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::match_ended_at(ownership: &Ownership, slot: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition slot < 8 {
@@ -1880,7 +1880,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::set_match_arm(ownership: &mut Ownership, slot: u64 in Trapping, arm: u64 in Trapping)
+public machine Ownership::set_match_arm(ownership: &mut Ownership, slot: u64 in Trapping, arm: u64 in Trapping)
 crashes Trap
 {
     transition slot < 8 {
@@ -1901,7 +1901,7 @@ crashes Trap
 
 // A match's first arm begins: the moved places after its subject are
 // saved, and no arm has ended.
-pub machine Ownership::open_match(ownership: &mut Ownership, slot: u64 in Trapping)
+public machine Ownership::open_match(ownership: &mut Ownership, slot: u64 in Trapping)
 crashes Trap
 {
     transition slot < 8 {
@@ -1925,7 +1925,7 @@ crashes Trap
 }
 
 // A later arm starts from the moved places after the subject.
-pub machine Ownership::restart_arm(ownership: &mut Ownership, slot: u64 in Trapping)
+public machine Ownership::restart_arm(ownership: &mut Ownership, slot: u64 in Trapping)
 crashes Trap
 {
     transition slot < 8 {
@@ -1944,7 +1944,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::load_join(ownership: &mut Ownership, slot: u64 in Trapping)
+public machine Ownership::load_join(ownership: &mut Ownership, slot: u64 in Trapping)
 crashes Trap
 {
     transition slot < 8 {
@@ -1964,7 +1964,7 @@ crashes Trap
 }
 
 // The join extended by an ended arm is stored, one more arm ended.
-pub machine Ownership::store_join(ownership: &mut Ownership, slot: u64 in Trapping)
+public machine Ownership::store_join(ownership: &mut Ownership, slot: u64 in Trapping)
 crashes Trap
 {
     transition slot < 8 {
@@ -1996,7 +1996,7 @@ crashes Trap
 }
 
 // The path after a match continues from the join of its arms.
-pub machine Ownership::take_join(ownership: &mut Ownership, slot: u64 in Trapping)
+public machine Ownership::take_join(ownership: &mut Ownership, slot: u64 in Trapping)
 crashes Trap
 {
     transition slot < 8 {
@@ -2017,7 +2017,7 @@ crashes Trap
 
 // Count one more arm moving joined place `index` of match `slot`, or the
 // first.
-pub machine Ownership::vote(ownership: &mut Ownership, slot: u64 in Trapping, index: u64 in Trapping, first: bool)
+public machine Ownership::vote(ownership: &mut Ownership, slot: u64 in Trapping, index: u64 in Trapping, first: bool)
 crashes Trap
 {
     transition slot < 8 && index < 64 {
@@ -2070,7 +2070,7 @@ crashes Trap
     }
 }
 
-pub machine Ownership::votes_at(ownership: &Ownership, slot: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+public machine Ownership::votes_at(ownership: &Ownership, slot: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition slot < 8 && index < 64 {

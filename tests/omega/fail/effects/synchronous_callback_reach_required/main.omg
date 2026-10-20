@@ -1,7 +1,7 @@
 
-pub boundary trait Read {}
-pub boundary trait Handler { machine read() -> u64 reaches Read; }
-pub boundary trait Registrar {
+public boundary trait Read {}
+public boundary trait Handler { machine read() -> u64 reaches Read; }
+public boundary trait Registrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies Handler::read;
     invokes Handler;

@@ -1,7 +1,7 @@
 // A selected clock out-parameter cannot elevate a shared observation to a write.
 
-pub data Instant { seconds: i64; nanoseconds: i64; }
-pub boundary trait ClockProbe {
+public data Instant { seconds: i64; nanoseconds: i64; }
+public boundary trait ClockProbe {
     machine read(selector: u32, instant: &mut Instant) -> i32;
 }
 data Main { }

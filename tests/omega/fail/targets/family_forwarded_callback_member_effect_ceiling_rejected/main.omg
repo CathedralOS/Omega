@@ -1,4 +1,4 @@
-pub machine may_block(value: u64) -> bool blocks; { value == 42 }
+public machine may_block(value: u64) -> bool blocks; { value == 42 }
 
 linux_arm64 machine choose<machine Selected>(value: u64) -> bool
 where machine Selected(argument: u64) -> bool blocks;

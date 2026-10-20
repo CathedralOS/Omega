@@ -25,7 +25,7 @@ use psi::types::types;
 // origin as the other arm's. A write whose origin cannot be recovered is
 // refused as UnsupportedCheck rather than assigned independent storage.
 
-pub machine Checker::clear_reference_origins(checker: &mut Checker)
+public machine Checker::clear_reference_origins(checker: &mut Checker)
 crashes Trap
 {
     transition { _ -> next(checker, 0) }
@@ -51,7 +51,7 @@ crashes Trap
 // The containing storage of an untracked element or range is still known
 // when its collection is. Stop at an unknown reference: its containing
 // record is not its referent. This recovers footprints, never borrow rights.
-pub machine Checker::storage_origin(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::storage_origin(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> node(checker, syntax, typing, handle, 0) }
@@ -90,7 +90,7 @@ crashes Trap
 
 // Initialization writes binding storage; later assignments through a
 // reference use the referent returned by reference_value instead.
-pub machine Checker::initialize_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
+public machine Checker::initialize_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition place > 0 && place <= 256 {
@@ -124,7 +124,7 @@ crashes Trap
 // Shared-reference local assignment replaces the binding (exclusive names
 // instead denote their referent). Other reference binding storage is not
 // represented by the local-origin table and remains an explicit refusal.
-pub machine Checker::replace_reference(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value) -> bool
+public machine Checker::replace_reference(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value) -> bool
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, statement.target);
@@ -168,7 +168,7 @@ crashes Trap
 // footprint: a write through the local forgets that storage's contents
 // (flow.omg), as a direct store to the element would, and a read through
 // it is unknown. `type_handle` is the local's declared type.
-pub machine Checker::capture_footprint(
+public machine Checker::capture_footprint(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -206,7 +206,7 @@ crashes Trap
 
 // The footprint a reference local captured (one-based place), zero when
 // it captured an exact origin or nothing.
-pub machine Checker::local_footprint(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+public machine Checker::local_footprint(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition place > 0 && place <= 256 {
@@ -236,7 +236,7 @@ crashes Trap
 // and, through a name, the footprint its reference local captured. A
 // lent exclusive argument keeps the origin without footprints, since the
 // callee writes through the reference, not within the footprint.
-pub machine Checker::written_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::written_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> node(checker, syntax, resolution, typing, handle, 0) }
@@ -298,7 +298,7 @@ crashes Trap
 // place of its own: a field or element slot lies within its base's
 // storage, whatever the slot's type, and anything else is where its write
 // lands (`Checker::written_origin`).
-pub machine Checker::store_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping) -> u64 in Trapping
+public machine Checker::store_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let value: Value = Checker::value_at(checker, target);
@@ -329,7 +329,7 @@ crashes Trap
 // A reference expression's value denotes its live referent. Parameter roots
 // are incoming storage; a local has only its captured origin. Neither the
 // type nor a call's postcondition proves where a returned reference points.
-pub machine Checker::reference_value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value
+public machine Checker::reference_value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value
 crashes Trap
 {
     transition place > 0 {

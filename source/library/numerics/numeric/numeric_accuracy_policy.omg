@@ -11,7 +11,7 @@ module numeric::numeric_accuracy_policy;
 use omega::language::core::float_operations;
 use omega::language::core::float_order;
 
-pub data NumericClass [copy] {
+public data NumericClass [copy] {
     case Finite;
     case PositiveZero;
     case NegativeZero;
@@ -19,22 +19,22 @@ pub data NumericClass [copy] {
     case NegativeInfinity;
     case NaN;
 }
-pub data AccuracyComparison [copy] {
+public data AccuracyComparison [copy] {
     case Close;
     case Different;
     case InvalidTolerance;
 }
-pub data SymmetricAnyTolerance32 [copy] { absolute: f32; relative: f32; }
-pub data SymmetricAnyTolerance64 [copy] { absolute: f64; relative: f64; }
-pub data ReferenceAdditiveTolerance32 [copy] { atol: f32; rtol: f32; }
-pub data ReferenceAdditiveTolerance64 [copy] { atol: f64; rtol: f64; }
+public data SymmetricAnyTolerance32 [copy] { absolute: f32; relative: f32; }
+public data SymmetricAnyTolerance64 [copy] { absolute: f64; relative: f64; }
+public data ReferenceAdditiveTolerance32 [copy] { atol: f32; rtol: f32; }
+public data ReferenceAdditiveTolerance64 [copy] { atol: f64; rtol: f64; }
 
-pub machine widen_f32_to_f64(value: f32) -> f64 { F64::from_f32(value) }
-pub machine round_f64_to_f32(value: f64) -> f32 { F32::from_f64(value) }
-pub machine round_i32_to_f32(value: i32) -> f32 { F32::from_i32(value) }
-pub machine round_i32_to_f64(value: i32) -> f64 { F64::from_i32(value) }
+public machine widen_f32_to_f64(value: f32) -> f64 { F64::from_f32(value) }
+public machine round_f64_to_f32(value: f64) -> f32 { F32::from_f64(value) }
+public machine round_i32_to_f32(value: i32) -> f32 { F32::from_i32(value) }
+public machine round_i32_to_f64(value: i32) -> f64 { F64::from_i32(value) }
 
-pub machine classify_f32(value: f32) -> NumericClass {
+public machine classify_f32(value: f32) -> NumericClass {
     transition {
         F32::is_nan(value) -> (NumericClass::NaN)
         F32::is_infinite(value) -> infinity(value)
@@ -62,7 +62,7 @@ machine magnitude_f32(value: f32) -> f32 {
     }
 }
 
-pub machine compare_symmetric_any_f32(left: f32, right: f32, tolerance: SymmetricAnyTolerance32) -> AccuracyComparison {
+public machine compare_symmetric_any_f32(left: f32, right: f32, tolerance: SymmetricAnyTolerance32) -> AccuracyComparison {
     // Validate first: even equal values must not hide a malformed policy.
     transition {
         !F32::is_finite(tolerance.absolute) || !F32::is_finite(tolerance.relative)
@@ -92,7 +92,7 @@ pub machine compare_symmetric_any_f32(left: f32, right: f32, tolerance: Symmetri
     }
 }
 
-pub machine classify_f64(value: f64) -> NumericClass {
+public machine classify_f64(value: f64) -> NumericClass {
     transition {
         F64::is_nan(value) -> (NumericClass::NaN)
         F64::is_infinite(value) -> infinity(value)
@@ -120,7 +120,7 @@ machine magnitude_f64(value: f64) -> f64 {
     }
 }
 
-pub machine compare_symmetric_any_f64(left: f64, right: f64, tolerance: SymmetricAnyTolerance64) -> AccuracyComparison {
+public machine compare_symmetric_any_f64(left: f64, right: f64, tolerance: SymmetricAnyTolerance64) -> AccuracyComparison {
     // Validate first: even equal values must not hide a malformed policy.
     transition {
         !F64::is_finite(tolerance.absolute) || !F64::is_finite(tolerance.relative)
@@ -155,7 +155,7 @@ pub machine compare_symmetric_any_f64(left: f64, right: f64, tolerance: Symmetri
 // actual-reference overflows, halve before subtracting and building the bound.
 // The halved difference is always finite; a positive infinite bound then really
 // exceeds it. This is a rounded error policy, not exact-real certification.
-pub machine compare_reference_additive_f32(
+public machine compare_reference_additive_f32(
     actual: f32,
     reference: f32,
     tolerance: ReferenceAdditiveTolerance32
@@ -202,7 +202,7 @@ pub machine compare_reference_additive_f32(
 // actual-reference overflows, halve before subtracting and building the bound.
 // The halved difference is always finite; a positive infinite bound then really
 // exceeds it. This is a rounded error policy, not exact-real certification.
-pub machine compare_reference_additive_f64(
+public machine compare_reference_additive_f64(
     actual: f64,
     reference: f64,
     tolerance: ReferenceAdditiveTolerance64

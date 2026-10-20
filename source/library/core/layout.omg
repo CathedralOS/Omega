@@ -26,7 +26,7 @@ use omega::language::core::option;
 // 4 KiB extent and nonzero alignment bounds. The compiler supplies established
 // fields by value, including valid inactive-tail placeholders; zeroed storage
 // alone does not establish a SchemaField.
-pub data SchemaField where size <= 4096, align >= 1, align <= 16 {
+public data SchemaField where size <= 4096, align >= 1, align <= 16 {
     key: u64;
     size: u64;
     align: u64;
@@ -42,7 +42,7 @@ pub data SchemaField where size <= 4096, align >= 1, align <= 16 {
 // A schema field's SHAPE fact -- what a grammar policy needs to choose a
 // placement (a scalar varint-encodes; text/nested/repeated payloads are
 // length-prefixed). ZII: the zero case is Scalar.
-pub data FieldKind {
+public data FieldKind {
     case Scalar;
     case Text;
     case Nested;
@@ -52,7 +52,7 @@ pub data FieldKind {
 // One reflected sum case. Stable identity is schema metadata; declaration
 // position remains the independent home-layout discriminant. Payload fields
 // have their own numbered scope and tombstones.
-pub data SchemaCase where payload_field_count <= 32, retired_payload_identity_count <= 32 {
+public data SchemaCase where payload_field_count <= 32, retired_payload_identity_count <= 32 {
     key: u64;
     identity: Optional<u64>;
     payload_fields: [SchemaField; 32];
@@ -61,7 +61,7 @@ pub data SchemaCase where payload_field_count <= 32, retired_payload_identity_co
     retired_payload_identity_count: u64;
 }
 
-pub data Schema where field_count <= 32, retired_field_identity_count <= 32,
+public data Schema where field_count <= 32, retired_field_identity_count <= 32,
     case_count <= 32, retired_case_identity_count <= 32 {
     fields: [SchemaField; 32];
     field_count: u64;
@@ -87,12 +87,12 @@ pub data Schema where field_count <= 32, retired_field_identity_count <= 32,
 // read-only interpreter record views use the same decode. Concrete proved-fit
 // mutation remains fail-closed. Tagged/wire placements remain consumers of the
 // wire-plan path today.
-pub data IntegerInterpretation {
+public data IntegerInterpretation {
     case Signed;
     case Unsigned;
 }
 
-pub data FieldPlan {
+public data FieldPlan {
     case At(offset: u64);
     case IntegerAt(
         offset: u64,
@@ -110,7 +110,7 @@ pub data FieldPlan {
     case LengthPrefixed(tag: u64);
 }
 
-pub data FieldEntry {
+public data FieldEntry {
     key: u64;
     placement: FieldPlan;
 }
@@ -124,7 +124,7 @@ pub data FieldEntry {
 // entry comes from an executed `Plan::place_private` call citing one exact
 // named `PrivateCallbackSlot<Layout, Requirement>` implementation. Neither raw
 // slot identities nor callback addresses enter this record.
-pub data Plan {
+public data Plan {
     entries: [FieldEntry; 64];
     entry_count: u64;
     size_fixed: u64;
@@ -142,7 +142,7 @@ pub data Plan {
 // callback occupying a whole foreign ABI parameter is instead declared once in
 // its registrar requirement's native telescope; it is not a layout slot and
 // does not use this relationship.
-pub trait PrivateCallbackSlot<Layout, machine Requirement> {
+public trait PrivateCallbackSlot<Layout, machine Requirement> {
 }
 
 // The ordinary value signature is an identity operation so helpers can compose
@@ -151,7 +151,7 @@ pub trait PrivateCallbackSlot<Layout, machine Requirement> {
 // machine: typed lowering records the exact conformance separately and build-
 // time evaluation emits a private-placement receipt while returning `plan`
 // unchanged. Runtime code receives no slot identity or callback address.
-pub machine Plan::place_private(plan: Plan, offset: u64) -> Plan {
+public machine Plan::place_private(plan: Plan, offset: u64) -> Plan {
     plan
 }
 
@@ -160,18 +160,18 @@ pub machine Plan::place_private(plan: Plan, offset: u64) -> Plan {
 // compiler evaluates policy machines and validates their returned values, but
 // source code cannot construct lowering authority from the records alone.
 
-pub data Exposure {
+public data Exposure {
     case Exported;
     case BindingPrivate;
 }
 
-pub data Observation {
+public data Observation {
     case Stable;
     case External;
     case Atomic;
 }
 
-pub data ExternalRead {
+public data ExternalRead {
     case None;
     case Read;
     case Take;
@@ -184,29 +184,29 @@ pub data ExternalRead {
 // Declaration order is the canonical wire/runtime tag order: expected
 // failure first, committed success second, and an uncommitted single attempt
 // third only where that state exists.
-pub data AtomicCompareExchangeOutcome<T> {
+public data AtomicCompareExchangeOutcome<T> {
     case Mismatched(observed: T);
     case Exchanged;
 }
 
-pub data AtomicCompareExchangeOnceOutcome<T [copy]> [copy] {
+public data AtomicCompareExchangeOnceOutcome<T [copy]> [copy] {
     case Mismatched(observed: T);
     case Exchanged;
     case Uncommitted(observed: T);
 }
 
-pub data AtomicTryExchangeOutcome<T> {
+public data AtomicTryExchangeOutcome<T> {
     case Mismatched(proposed: T);
     case Exchanged(displaced: T);
 }
 
-pub data AtomicTryExchangeOnceOutcome<T> {
+public data AtomicTryExchangeOnceOutcome<T> {
     case Mismatched(proposed: T);
     case Exchanged(displaced: T);
     case Uncommitted(proposed: T);
 }
 
-pub data AtomicOperations [copy] {
+public data AtomicOperations [copy] {
     load: bool;
     store: bool;
     fetch_add: bool;
@@ -223,14 +223,14 @@ pub data AtomicOperations [copy] {
 
 // Transfer width and alignment are byte-count facts. Access authors do not
 // choose offsets; validated layout geometry supplies those.
-pub data TransferRule [copy] {
+public data TransferRule [copy] {
     width_bits: u64;
     alignment_bytes: u64;
 }
 
 // Invalid observation/operation cross-products are unrepresentable. The
 // effective transfer rule comes from the validated layout/resource join.
-pub data FieldAccess {
+public data FieldAccess {
     case Inaccessible;
     case Stable(
         read: bool,
@@ -248,14 +248,14 @@ pub data FieldAccess {
     );
 }
 
-pub data AccessFieldEntry {
+public data AccessFieldEntry {
     key: u64;
     access: FieldAccess;
 }
 
 // Fixed capacity is a bootstrap carrier only. The compiler requires exactly
 // `field_count` canonical schema decisions and ignores the zero tail.
-pub data AccessPlan where field_count <= 32 {
+public data AccessPlan where field_count <= 32 {
     entries: [AccessFieldEntry; 32];
     field_count: u64;
 }
@@ -265,7 +265,7 @@ pub data AccessPlan where field_count <= 32 {
 // fixed-capacity tail is semantically absent because field_count excludes it.
 // The seed only observes keys, so it borrows: Schema is affine, and a policy
 // still owns its schema for the grant states that follow the seed.
-pub machine AccessPlan::inaccessible(schema: &Schema) -> AccessPlan {
+public machine AccessPlan::inaccessible(schema: &Schema) -> AccessPlan {
     AccessPlan {
         entries: [
             AccessFieldEntry { key: schema.fields[0].key, access: FieldAccess::Inaccessible },
@@ -309,7 +309,7 @@ pub machine AccessPlan::inaccessible(schema: &Schema) -> AccessPlan {
 // A key outside the seed is deliberately retained as an extra/overwriting
 // entry so compiler validation rejects it rather than silently ignoring an
 // authored mistake.
-pub machine AccessPlan::with(plan: AccessPlan, key: u64, access: FieldAccess) -> AccessPlan {
+public machine AccessPlan::with(plan: AccessPlan, key: u64, access: FieldAccess) -> AccessPlan {
     AccessPlan::with_bounded(plan, key, access, 128)
 }
 
@@ -413,41 +413,41 @@ requires fuel >= 1 && fuel <= 128
 
 // A normalized static set of boundary-service keys. Suspension and blocking
 // are independent contract axes and never enter this record.
-pub data BoundaryReach where service_count <= 32 {
+public data BoundaryReach where service_count <= 32 {
     services: [u64; 32];
     service_count: u64;
 }
 
-pub data PlacementPlan {
+public data PlacementPlan {
     layout: Plan;
     access: AccessPlan;
     reach: BoundaryReach;
 }
 
-pub data RelativeRange [copy] {
+public data RelativeRange [copy] {
     offset: u64;
     length: u64;
 }
 
-pub data StableCapability {
+public data StableCapability {
     case None;
     case Read;
     case Write;
     case ReadWrite;
 }
 
-pub data ExternalReadBehavior {
+public data ExternalReadBehavior {
     case None;
     case Repeatable;
     case Destructive;
 }
 
-pub data TransferRules where rule_count <= 16 {
+public data TransferRules where rule_count <= 16 {
     entries: [TransferRule; 16];
     rule_count: u64;
 }
 
-pub data ExternalCapability {
+public data ExternalCapability {
     case None;
     case Access(
         read: ExternalReadBehavior,
@@ -456,22 +456,22 @@ pub data ExternalCapability {
     );
 }
 
-pub data AtomicTransferRule {
+public data AtomicTransferRule {
     transfer: TransferRule;
     operations: AtomicOperations;
 }
 
-pub data AtomicTransferRules where rule_count <= 16 {
+public data AtomicTransferRules where rule_count <= 16 {
     entries: [AtomicTransferRule; 16];
     rule_count: u64;
 }
 
-pub data AtomicCapability {
+public data AtomicCapability {
     case None;
     case Access(transfers: AtomicTransferRules);
 }
 
-pub data ResourceRegion {
+public data ResourceRegion {
     range: RelativeRange;
     stable: StableCapability;
     external: ExternalCapability;
@@ -479,7 +479,7 @@ pub data ResourceRegion {
     reach: BoundaryReach;
 }
 
-pub data ResourceProfile where region_count <= 32 {
+public data ResourceProfile where region_count <= 32 {
     regions: [ResourceRegion; 32];
     region_count: u64;
 }
@@ -489,22 +489,22 @@ pub data ResourceProfile where region_count <= 32 {
 // storage, provider, or domain authority. Declaration order is the canonical
 // runtime tag and payload order. Establishment/retirement operations and
 // custody-conformance checking remain intentionally absent.
-pub boundary data Placed<P, T>;
+public boundary data Placed<P, T>;
 
 // Borrowed View over already initialized ordinary RAM. The compiler checks the
 // exact applied P/T geometry and content relation and retains the original
 // source loan. Neither declaration supplies an extent, device capability,
 // resource profile or stronger access than the source borrow.
-pub boundary machine Placed::view<P, T>(source: &T) -> &Placed<P, T>;
-pub boundary machine Placed::view_mut<P, T>(source: &mut T) -> &mut Placed<P, T>;
+public boundary machine Placed::view<P, T>(source: &T) -> &Placed<P, T>;
+public boundary machine Placed::view_mut<P, T>(source: &mut T) -> &mut Placed<P, T>;
 
 
-pub data PlacementOutcome<View, Returned, Reason> {
+public data PlacementOutcome<View, Returned, Reason> {
     case Ready(view: View);
     case Rejected(returned: Returned, reason: Reason);
 }
 
-pub data PlacementReturn<Source, Custody> {
+public data PlacementReturn<Source, Custody> {
     source: Source;
     custody: Custody;
 }
@@ -513,22 +513,22 @@ pub data PlacementReturn<Source, Custody> {
 // placement `P`; a named implementation of this exact application is the
 // agreement the compiler checks. The custody record is an ordinary argument,
 // never a subject that owns the implementation.
-pub trait PlacementCustody<C, P, T> {
+public trait PlacementCustody<C, P, T> {
 }
 
 // Granular placed-field requirements. These are ordinary generic contracts so
 // helpers can accept one accessor without receiving the whole placed view.
 // The compiler derives conforming accessor types from a normalized placement;
 // source cannot construct the opaque template or use it as placement evidence.
-pub trait Readable<Field, T> {
+public trait Readable<Field, T> {
     machine read(placed_field: &Field) -> T;
 }
 
-pub trait DestructiveRead<Field, T> {
+public trait DestructiveRead<Field, T> {
     machine take(placed_field: &mut Field) -> T;
 }
 
-pub trait Writable<Field, T> {
+public trait Writable<Field, T> {
     machine write(placed_field: &mut Field, value: T);
 }
 
@@ -537,12 +537,12 @@ pub trait Writable<Field, T> {
 // selected placement plan, with its exact value type and operation permission.
 // Ordinary generic helpers must declare an explicit operation requirement;
 // an unconstrained type parameter cannot acquire placed access by forwarding.
-pub boundary machine placed_read<Accessor, Value>(field: &Accessor) -> Value
+public boundary machine placed_read<Accessor, Value>(field: &Accessor) -> Value
 satisfies Readable<Accessor, Value>::read;
-pub boundary machine placed_write<Accessor, Value>(field: &mut Accessor, value: Value)
+public boundary machine placed_write<Accessor, Value>(field: &mut Accessor, value: Value)
 satisfies Writable<Accessor, Value>::write;
 
-pub boundary data PlacedField<T>;
+public boundary data PlacedField<T>;
 
 boundary machine PlacedField::read<T>(placed_field: &PlacedField<T>) -> T
 satisfies Readable<PlacedField<T>, T>::read;
@@ -555,14 +555,14 @@ satisfies Writable<PlacedField<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
-pub trait Layout {
+public trait Layout {
     machine plan(schema: Schema) -> Plan;
 }
 
-pub trait Access {
+public trait Access {
     machine plan(schema: Schema, layout: Plan) -> AccessPlan;
 }
 
-pub trait Placement {
+public trait Placement {
     machine plan(schema: Schema) -> PlacementPlan;
 }

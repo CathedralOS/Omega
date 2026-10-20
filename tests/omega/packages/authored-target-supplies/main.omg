@@ -2,7 +2,7 @@ module main;
 
 use omega::language::core::external_binding;
 
-pub machine marker() -> i32 {
+public machine marker() -> i32 {
     0
 }
 
@@ -29,7 +29,7 @@ macos_arm64 machine macos_wait_binding() -> ForeignBinding<17, 5, 0> {
 
 // A pure unknown deployment tag is valid source and inert policy, not a
 // request to invent a native profile while reviewing the package.
-pub reserved_target machine retained_marker() -> i32 {
+public reserved_target machine retained_marker() -> i32 {
     9
 }
 

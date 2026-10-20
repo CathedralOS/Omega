@@ -8,7 +8,7 @@ use psi::types::types;
 
 // Alias metadata follows the same branch lifetime as its zone. At a join
 // only associations valid on both reachable paths survive.
-pub data AliasTable [copy] {
+public data AliasTable [copy] {
     places: [u64; 16];
     conditions: [u64; 16];
     limits: [u64; 16];
@@ -28,7 +28,7 @@ pub data AliasTable [copy] {
 // The caller proves replayable before binding: evaluation changed no
 // storage, and the destination does not overwrite a read of this condition.
 // Later writes still retire aliases through forget_aliases below.
-pub machine Checker::record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value, replayable: bool)
+public machine Checker::record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value, replayable: bool)
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, root);
@@ -71,7 +71,7 @@ crashes Trap
 // At a statement-level dispatch or guard (never inside a tree, where the
 // replay would evaluate over it), a Boolean place, or its negation, assumed
 // to hold (or fail) assumes its alias's condition the same way.
-pub machine Checker::assume_alias(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, holds: bool)
+public machine Checker::assume_alias(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, holds: bool)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, root);
@@ -101,7 +101,7 @@ crashes Trap
 
 // A Boolean subject's `true`/`false` arm assumes the subject's alias held or
 // failed as its literal says.
-pub machine Checker::assume_subject_alias(
+public machine Checker::assume_subject_alias(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -127,7 +127,7 @@ crashes Trap
 }
 
 // The condition `place` stands for, plus one; zero when it has none.
-pub machine Checker::alias_condition(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+public machine Checker::alias_condition(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition place > 0 {
@@ -184,7 +184,7 @@ crashes Trap
 
 // A written place forgets every alias it is, and every alias formed while it
 // existed, whose condition may read it.
-pub machine Checker::forget_aliases(checker: &mut Checker, place: u64 in Trapping)
+public machine Checker::forget_aliases(checker: &mut Checker, place: u64 in Trapping)
 crashes Trap
 {
     Checker::drop_aliases(checker, place, place);
@@ -243,7 +243,7 @@ crashes Trap
 // Copy only an existing, still-valid predicate association. This does not
 // turn an effectful expression into a replayable condition. Ordinary writes
 // retire the copied alias through its original live-place dependencies.
-pub machine Checker::copy_alias(checker: &mut Checker, source: u64 in Trapping, target: u64 in Trapping)
+public machine Checker::copy_alias(checker: &mut Checker, source: u64 in Trapping, target: u64 in Trapping)
 crashes Trap
 {
     let condition: u64 in Trapping = Checker::alias_condition(checker, source);
@@ -259,7 +259,7 @@ crashes Trap
 
 // Intersect associations by identity; an unreachable predecessor contributes
 // no constraint. Taking the larger limit remains conservative for later writes.
-pub machine AliasTable::join(table: &mut AliasTable, other: &AliasTable, current_live: bool, other_live: bool)
+public machine AliasTable::join(table: &mut AliasTable, other: &AliasTable, current_live: bool, other_live: bool)
 crashes Trap
 {
     transition other_live {

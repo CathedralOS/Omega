@@ -36,7 +36,7 @@ requires window.len >= 2 {
 
 // The caller binds the returned record, writes through its field, and passes
 // that field onward. The peak record is the call result of the same hold.
-pub machine baseline_ready() -> bool {
+public machine baseline_ready() -> bool {
     let mut trace: [f64; 4] = [1.0, 2.0, 3.0, 4.0];
     write_baseline(hold(window(&mut trace, 0)).values);
     let leading: Held = hold(window(&mut trace, 0));

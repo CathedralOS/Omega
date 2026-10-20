@@ -104,7 +104,7 @@ machine regions(trapped: i32 in Wrapping) reaches Console {
     state done() { }
 }
 
-pub machine report(cavity: &Cavity) reaches Console
+public machine report(cavity: &Cavity) reaches Console
 invokes Console;
 {
     Console::write_line("MOLD_FRONT_VENT_V1");

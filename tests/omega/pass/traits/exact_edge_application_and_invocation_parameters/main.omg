@@ -2,11 +2,11 @@
 // become invocation binders, and the member's separate telescope still matches.
 use omega_language_std::console;
 
-pub trait Readable<Field> {
+public trait Readable<Field> {
     machine read<Value>(field: &Field, value: Value) -> Value;
 }
 
-pub data Reader {}
+public data Reader {}
 machine Reader::read<Element, const Width: u32, Value>(
     field: &[Element; Width], value: Value
 ) -> Value satisfies Readable<[Element; Width]>::read { value }

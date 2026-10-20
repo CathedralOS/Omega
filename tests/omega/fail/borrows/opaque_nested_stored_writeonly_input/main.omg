@@ -1,4 +1,4 @@
-pub data Cell { value: i32; }
-pub data Slot<'storage> { target: &'storage write Cell; }
-pub data Outer<'carrier, 'storage> { slot: &'carrier mut Slot<'storage>; }
+public data Cell { value: i32; }
+public data Slot<'storage> { target: &'storage write Cell; }
+public data Outer<'carrier, 'storage> { slot: &'carrier mut Slot<'storage>; }
 boundary machine consume<'carrier, 'storage>(value: Outer<'carrier, 'storage>);

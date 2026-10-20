@@ -1,6 +1,6 @@
 // Private bounded storage. Input digits encode signed amplitudes by adding four.
 // Four candidate directions share one active-channel denominator and window.
-pub data Beamforming {
+public data Beamforming {
     raw: [u64; 36];
     samples: [[i64 in Wrapping; 8]; 3];
     horizontal: [u64; 3];

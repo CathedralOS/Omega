@@ -2,12 +2,12 @@ module right;
 
 use omega_language_std::console;
 
-pub boundary trait Reader { machine read() -> i32; }
-pub data Provider {}
+public boundary trait Reader { machine read() -> i32; }
+public data Provider {}
 machine Provider::read() -> i32 satisfies Reader::read { 37 }
 
-pub data Runner { }
-pub machine Runner::run(runner: &mut Runner) reaches Reader, Console
+public data Runner { }
+public machine Runner::run(runner: &mut Runner) reaches Reader, Console
 invokes Reader;
 invokes Console;
 {
@@ -17,6 +17,6 @@ invokes Console;
     state wrong(runner: &mut Runner, observed: i32) { Console::exit_process(65); }
 }
 
-pub ProviderReaderImplementation satisfies Reader {
+public ProviderReaderImplementation satisfies Reader {
     Reader::read = Provider::read;
 }

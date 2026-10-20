@@ -5,8 +5,8 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 
-pub data Reader { consumed: i32; }
-pub data Number [copy] { valid: bool; ended: bool; value: f64; }
+public data Reader { consumed: i32; }
+public data Number [copy] { valid: bool; ended: bool; value: f64; }
 
 machine character(reader: &mut Reader) -> i32 reaches Console {
     transition reader.consumed >= 0 && reader.consumed < 4096 {
@@ -23,7 +23,7 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
     }
 }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
-pub machine read_number(reader: &mut Reader) -> Number reaches Console
+public machine read_number(reader: &mut Reader) -> Number reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -143,8 +143,8 @@ crashes Trap
         transition { _ -> Number { valid: true, ended: false, value: value } }
     }
 }
-pub data Input { values: [f64; 22]; count: i32 in Wrapping; }
-pub machine read_input(reader: &mut Reader, input: &mut Input) -> bool reaches Console
+public data Input { values: [f64; 22]; count: i32 in Wrapping; }
+public machine read_input(reader: &mut Reader, input: &mut Input) -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap

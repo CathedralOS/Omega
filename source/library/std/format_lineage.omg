@@ -9,6 +9,6 @@
 // The requirement intentionally does not imply reversibility. A downgrade is
 // a separate edge, and a fallible package may expose a result sum of its own as
 // the `New` carrier.
-pub trait FormatMigration<Lineage, Old, New> {
+public trait FormatMigration<Lineage, Old, New> {
     machine migrate(old: Old, out: &mut New);
 }

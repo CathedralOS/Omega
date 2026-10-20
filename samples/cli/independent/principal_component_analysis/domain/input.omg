@@ -1,11 +1,11 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
-pub data Input {
+public data Input {
  values: [f64; 67]; count: u64 in Wrapping; bytes: u64 in Wrapping; length: u64 in Wrapping;
  token: [i32 in Wrapping; 64]; valid: bool;
 }
-pub machine Input::read(input: &mut Input)
+public machine Input::read(input: &mut Input)
 invokes Console; reaches Console blocks; crashes Trap {
  input.count = 0; input.bytes = 0; input.length = 0; input.valid = true;
  transition { _ -> receive(input) }

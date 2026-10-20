@@ -2,7 +2,7 @@ module policies;
 
 use compose;
 
-pub machine banner() -> &[u8] {
+public machine banner() -> &[u8] {
     "topology policy"
 }
 
@@ -12,7 +12,7 @@ pub machine banner() -> &[u8] {
 // deployment plan, and serializes it into the output stream behind the
 // caller's required-output obligation. The facets arrive as parameters, so
 // the package never holds Build authority of its own.
-pub machine publish(output: &mut BuildOutput, source: &BuildSource, log: &mut BuildLog, descriptor: i32) {
+public machine publish(output: &mut BuildOutput, source: &BuildSource, log: &mut BuildLog, descriptor: i32) {
     let mut work: compose::Compose;
     compose::Compose::publish(&mut work, source, output, log, descriptor);
 }

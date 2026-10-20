@@ -1,6 +1,6 @@
 // A shared source cannot supply an applied requirement's `&mut` parameter
 // that the mutable result borrows from.
-pub boundary trait Parent<Value> {
+public boundary trait Parent<Value> {
     machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value;
 }
 

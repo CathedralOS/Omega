@@ -59,13 +59,13 @@ pub(crate) fn parse_body<'tokens, 'source>(
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("entry")
-            || (input.at_keyword(KeywordKind::Pub)
+            || (input.at_keyword(KeywordKind::Public)
                 && input
-                    .take_keyword(KeywordKind::Pub, "pub")?
+                    .take_keyword(KeywordKind::Public, "public")?
                     .at_contextual("entry"))
         {
             return Err(input.error_here(
-                "explicit nested `entry` / `pub entry` machine members are retired; put the callable signature on the `machine` head, put its entry statements directly in the machine body, and put visibility on the declaration as `pub machine`",
+                "explicit nested `entry` / `public entry` machine members are retired; put the callable signature on the `machine` head, put its entry statements directly in the machine body, and put visibility on the declaration as `public machine`",
             ));
         }
 
@@ -98,7 +98,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
 
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
     !input.at_punctuation(PunctuationKind::RightBrace)
-        && !input.at_keyword(KeywordKind::Pub)
+        && !input.at_keyword(KeywordKind::Public)
         && !input.at_contextual("entry")
         && !starts_state_member(input)
         && !starts_retired_invariant_member(input)
@@ -106,7 +106,7 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
 
 pub(super) fn starts_machine_member(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::RightBrace)
-        || input.at_keyword(KeywordKind::Pub)
+        || input.at_keyword(KeywordKind::Public)
         || input.at_contextual("entry")
         || starts_state_member(input)
         || starts_retired_invariant_member(input)

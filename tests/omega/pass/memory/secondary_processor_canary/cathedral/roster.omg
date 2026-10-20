@@ -22,7 +22,7 @@
 // plans), the private stack bytes and alignment the supervisor must
 // provision for its entry, and the private state extent bytes its
 // account holds for the life of the admitted attempt.
-pub data SecondaryProcessorSlot {
+public data SecondaryProcessorSlot {
     stack_class: u64;
     stack_bytes: u64;
     stack_alignment: u64;
@@ -35,13 +35,13 @@ pub data SecondaryProcessorSlot {
 // exclusive bound of the low-memory startup region. The trampoline
 // bytes themselves are emitted by the compiler from the contract's
 // sealed inputs, so the declaration carries no code.
-pub data SecondaryProcessorStartup {
+public data SecondaryProcessorStartup {
     processors: [SecondaryProcessorSlot; 2];
     startup_alignment: u64;
     low_memory_limit: u64;
 }
 
-pub machine SecondaryProcessorStartup::declare() -> SecondaryProcessorStartup {
+public machine SecondaryProcessorStartup::declare() -> SecondaryProcessorStartup {
     let mut slots: [SecondaryProcessorSlot; 2];
     // The two authored processors arrive through the two rooted entries
     // on dedicated stack classes 13 and 14. Their private extents are

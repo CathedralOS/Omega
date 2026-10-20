@@ -23,7 +23,7 @@ use psi::tokens::tokens;
 
 // An operator waiting for its right operand; a prefix operator waits for its
 // only operand.
-pub data PendingOperator [copy] {
+public data PendingOperator [copy] {
     operator: OperatorKind;
     precedence: u64 in Trapping;
     unary: bool;
@@ -32,7 +32,7 @@ pub data PendingOperator [copy] {
 
 // A match is one frame that moves through its parts: its subject, then for
 // each arm a pattern and a value.
-pub data ExpressionFrameKind [copy] {
+public data ExpressionFrameKind [copy] {
     case Group;
     case Arguments;
     case Index;
@@ -51,7 +51,7 @@ pub data ExpressionFrameKind [copy] {
 // expression a call, index or construction applies to, or a match's subject.
 // A match also keeps where it starts, where its current arm starts, and that
 // arm's pattern and pattern kind.
-pub data ExpressionFrame [copy] {
+public data ExpressionFrame [copy] {
     kind: ExpressionFrameKind;
     operator_base: u64 in Trapping;
     pending_base: u64 in Trapping;
@@ -74,7 +74,7 @@ pub data ExpressionFrame [copy] {
 // since a transition subject's `{` opens its arms instead, and memberships
 // only when `allow_membership` holds, since a ranking subject's `in` opens
 // its rank range instead.
-pub machine Parser::parse_expression(
+public machine Parser::parse_expression(
     parser: &mut Parser,
     input: &TokenStream,
     missing: ParseDiagnosticCode,

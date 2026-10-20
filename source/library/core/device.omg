@@ -42,12 +42,12 @@
 // vocabulary (wiki/spec/resources/device_access.md).
 use omega::language::core::extent;
 
-pub boundary data DeviceLoan [linear];
+public boundary data DeviceLoan [linear];
 
-pub domain DeviceLoan::DeviceReads
+public domain DeviceLoan::DeviceReads
 established by
     DeviceLoanProvider::lend_for_read;
-pub domain DeviceLoan::DeviceWrites
+public domain DeviceLoan::DeviceWrites
 established by
     DeviceLoanProvider::lend_for_write;
 
@@ -55,34 +55,34 @@ established by
 // identity is owned by the selected provider exactly like the loan proxy:
 // opaque to source, unforgeable by construction, and meaningful only through
 // the admitted role crossings below.
-pub boundary data DeviceOrderingEvent [linear];
+public boundary data DeviceOrderingEvent [linear];
 
-pub domain DeviceOrderingEvent::Publication
+public domain DeviceOrderingEvent::Publication
 established by
     DeviceLoanProvider::publish;
-pub domain DeviceOrderingEvent::CacheMaintenance
+public domain DeviceOrderingEvent::CacheMaintenance
 established by
     DeviceLoanProvider::maintain_cache;
-pub domain DeviceOrderingEvent::Notification
+public domain DeviceOrderingEvent::Notification
 established by
     DeviceLoanProvider::notify;
 
 // The proven completion occurrence rides inside the `DeviceCompletionAttempt`
 // carrier rather than being returned directly, so the domain — like the
 // shootdown debt's `Owed` — has no `established by` crossing of its own.
-pub domain DeviceOrderingEvent::Completion;
+public domain DeviceOrderingEvent::Completion;
 
 // Completion custody: the proven `Completion` occurrence on success, or the
 // still-live loan when the provider could not prove borrower release — the
 // caller retries `complete` with it rather than losing custody.
-pub data DeviceCompletionAttempt {
+public data DeviceCompletionAttempt {
     case Completed(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion);
     case Pending(loan: DeviceLoan);
 }
 
 // Acquisition custody: the restored `Granted` range on success, or the
 // retained completion candidate for a later `acquire` retry.
-pub data DeviceAcquisitionAttempt {
+public data DeviceAcquisitionAttempt {
     case Acquired(extent: Extent in Granted);
     case Pending(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion);
 }
@@ -92,7 +92,7 @@ pub data DeviceAcquisitionAttempt {
 // receipt is what establishes the direction qualification on the returned
 // proxy, binding borrower, direction, space, provenance, rights, and the
 // completion obligation with an exact confinement receipt.
-pub boundary trait DeviceLoanProvider {
+public boundary trait DeviceLoanProvider {
     // Reserves `length` bytes in the provider's own address-space pool: the
     // ranges a device may borrow are the ranges the same authority
     // provisioned, so the pool owner — not an extent-geometry caller — mints

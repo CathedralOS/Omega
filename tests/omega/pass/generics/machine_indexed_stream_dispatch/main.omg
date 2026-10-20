@@ -11,7 +11,7 @@
 // The body builds a two-element Stream<succ>, forwards it through
 // identity_schema, then destructures the result in two states. Both types are
 // recursive by value and therefore proof-only: compile-checked, no entry.
-pub data Index {
+public data Index {
     case Zero;
     case Next(previous: Index);
 }

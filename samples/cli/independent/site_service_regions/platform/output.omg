@@ -4,7 +4,7 @@ use domain::model;
 // Runtime recursion is tail-only. Keep pending decimal digits in private
 // fixed storage: every i64 needs at most 19 digits, including i64::MIN.
 data Digits { bytes: [i32; 20]; count: u64; }
-pub machine integer(value: i64 in Saturating) reaches Console
+public machine integer(value: i64 in Saturating) reaches Console
 invokes Console;
 {
     let mut output: Digits;
@@ -61,7 +61,7 @@ invokes Console;
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
 // remains f64; quantization happens only at this presentation boundary.
-pub machine micro(value: f64) reaches Console
+public machine micro(value: f64) reaches Console
 invokes Console;
 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
@@ -75,7 +75,7 @@ invokes Console;
         integer(rounded);
     }
 }
-pub machine emit(partition: &Partition) reaches Console
+public machine emit(partition: &Partition) reaches Console
 invokes Console;
 {
     Console::write_line("SERVICE_REGIONS micro_units=1000000");

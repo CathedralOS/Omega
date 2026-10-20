@@ -16,7 +16,7 @@ module digest;
 
 use omega::language::core::numeric_conversion;
 
-pub data Sha256 {
+public data Sha256 {
     bad: bool;
     h: [u32 in Wrapping; 8];
     w: [u32 in Wrapping; 64];

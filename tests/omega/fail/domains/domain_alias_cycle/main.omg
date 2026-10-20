@@ -1,6 +1,6 @@
 data Socket {}
 
-pub domain Socket::Usable = Socket::Ready;
-pub domain Socket::Ready = Socket::Usable;
+public domain Socket::Usable = Socket::Ready;
+public domain Socket::Ready = Socket::Usable;
 
 machine main() {}

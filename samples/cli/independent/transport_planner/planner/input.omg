@@ -1,9 +1,9 @@
 module planner::input;
 // Private decimal parser. One line, exactly fifteen signed integers.
 // Limit the accumulator BEFORE multiplying: malformed input cannot wrap.
-pub data TransportInput { values: [i32; 15]; }
+public data TransportInput { values: [i32; 15]; }
 
-pub machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool {
+public machine parse_transport(bytes: &[u8], input: &mut TransportInput) -> bool {
     transition { _ -> scan(bytes, input, 0, 0, 0, false, false, false) }
     state scan(bytes: &[u8], input: &mut TransportInput, position: u64,
                token: u64, value: i32 in Wrapping, negative: bool,
@@ -83,7 +83,7 @@ machine signed_value(value: i32 in Wrapping, negative: bool) -> i32 in Wrapping 
     transition negative { true -> (0 - value) false -> value }
 }
 
-pub machine valid_margins(input: &TransportInput) -> bool {
+public machine valid_margins(input: &TransportInput) -> bool {
     transition { _ -> item(input, 0) }
     state item(input: &TransportInput, index: u64) -> bool {
         transition index < 6 {

@@ -3,13 +3,13 @@
 // an unrelated selection.
 use omega::language::core::binding;
 
-pub boundary trait Reading {
+public boundary trait Reading {
     machine read() -> u64;
 }
 data ReadingProvider {}
 machine ReadingProvider::read() -> u64 satisfies Reading::read { 42 }
 
-pub boundary trait Unselected { machine read() -> u64; }
+public boundary trait Unselected { machine read() -> u64; }
 machine unused(binding: &Binding<Unselected>) -> u64 reaches Unselected {
     binding.read()
 }

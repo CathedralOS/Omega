@@ -1,7 +1,7 @@
 use omega::language::core::layout;
 
 data HiddenPolicy { }
-pub data RecordSchema { word: u64; }
+public data RecordSchema { word: u64; }
 
 machine HiddenPolicy::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];

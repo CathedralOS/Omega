@@ -1,2 +1,2 @@
 module sizes;
-pub const Count: u64 = 3;
+public const Count: u64 = 3;

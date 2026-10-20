@@ -48,7 +48,7 @@ use translation::Mapping::Installed;
 // A fully backed four-level page-table hierarchy over qualified table
 // extents, root first. Cathedral owns every table's backing for the
 // hierarchy's whole life.
-pub data CathedralPageTables {
+public data CathedralPageTables {
     pml4: Table;
     pdpt: Table;
     pd: Table;
@@ -59,7 +59,7 @@ pub data CathedralPageTables {
 // the still-pending carrier that flowed through them. The carrier arrives at
 // `activate` only by passing through the stores, so the entry the provider
 // wrote provably belongs to the mapping the receipt qualifies.
-pub data WalkedInstall {
+public data WalkedInstall {
     tables: CathedralPageTables;
     pending: Mapping in Pending;
 }
@@ -67,7 +67,7 @@ pub data WalkedInstall {
 // The release route's return: the hierarchy with the leaf cleared and the
 // still-installed carrier that flowed through it. The carrier arrives at
 // `unmap` only by passing through the leaf clear and local invalidation.
-pub data ClearedLeaf {
+public data ClearedLeaf {
     tables: CathedralPageTables;
     installed: Mapping in Installed;
 }
@@ -77,7 +77,7 @@ pub data ClearedLeaf {
 // terminal entry for the pending carrier's recorded source frame, and the
 // root activates. The same carrier is returned pending -- the authority's
 // receipt crossing is what requalifies it.
-pub machine CathedralPageTables::install(
+public machine CathedralPageTables::install(
     tables: CathedralPageTables,
     pending: Mapping in Pending
 ) -> WalkedInstall
@@ -116,7 +116,7 @@ invokes TranslationHardware;
 // leaf index is the same `level_index` the install computed for this base,
 // so the cleared slot is the entry the install wrote. The carrier stays
 // installed until the authority's `unmap` receipt releases it.
-pub machine CathedralPageTables::remove(
+public machine CathedralPageTables::remove(
     tables: CathedralPageTables,
     active: Mapping in Installed
 ) -> ClearedLeaf
@@ -143,7 +143,7 @@ invokes TranslationHardware;
 // earlier and needs no `pt` table at all. The entry encoding is unchanged --
 // granularity is which table slot the terminal lands in, not a different
 // bit pattern -- and the provider still finishes by activating the root.
-pub machine CathedralPageTables::install_huge(
+public machine CathedralPageTables::install_huge(
     tables: CathedralPageTables,
     pending: Mapping in Pending
 ) -> WalkedInstall
@@ -175,7 +175,7 @@ invokes TranslationHardware;
 // `EMPTY` overwrite, and the same local invalidation -- a stale huge
 // translation is still one page-mapping entry to the hardware, only
 // spanning more of the address space.
-pub machine CathedralPageTables::remove_huge(
+public machine CathedralPageTables::remove_huge(
     tables: CathedralPageTables,
     active: Mapping in Installed
 ) -> ClearedLeaf

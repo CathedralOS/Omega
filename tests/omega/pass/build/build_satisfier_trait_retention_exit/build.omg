@@ -1,6 +1,6 @@
 // Product provider selection describes the core trait. That must not remove
 // the same trait from the checking context of this Build-owned satisfier.
-pub data HostRoot {}
+public data HostRoot {}
 boundary machine HostRoot::grant(root: Extent) -> Extent
 satisfies ExtentRootProvider::grant;
 

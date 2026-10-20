@@ -3,12 +3,12 @@
 // is needed: a normal Unit entry returns zero after checking write results.
 use omega::language::core::external_binding;
 
-pub data DescriptorProbe { }
+public data DescriptorProbe { }
 // A byte view supplies the two native words (pointer, length) of write's
 // buffer and count. A primitive loan supplies only its pointer, so that
 // declaration carries the separate bounded count.
-pub boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
-pub boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
+public boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
+public boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
 data DescriptorImports { }
 
 macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {

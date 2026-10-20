@@ -44,7 +44,7 @@ use omega::language::core::layout;
 // present bit, the gate type code, and the interrupt-stack-table slot (0
 // spells the architectural no-switch value; dedicated critical stacks take
 // 1..=7). The record's natural extent is exactly one 16-byte wire slot.
-pub data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
+public data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
     entry: u64;
     selector: u16;
     ist: u8;
@@ -58,7 +58,7 @@ pub data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
 // honest -- the compiler's plan validation rejects any policy whose
 // fragments overlap a neighbor's destination bits or fail to tile a
 // scalar's declared source width exactly.
-pub data InterruptGateLayout {
+public data InterruptGateLayout {
 }
 machine InterruptGateLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
@@ -139,7 +139,7 @@ machine InterruptGateLayout::plan(schema: Schema) -> Plan {
 // covers. The board item's profile admits vectors 0, 13, 14 and 0x20, so
 // the declared image spans 33 slots; absent vectors remain all-zero
 // entries the validator refuses to mistake for members.
-pub data InterruptDescriptorTable {
+public data InterruptDescriptorTable {
     gates: [InterruptGate; 33];
 }
 
@@ -150,7 +150,7 @@ pub data InterruptDescriptorTable {
 // the `index < 33` bound reaches `place` as proved discharge for the
 // `entries` write, and the non-copy entry array travels by value through
 // the state parameters rather than on an implicit subject.
-pub data DescriptorTableLayout {
+public data DescriptorTableLayout {
 }
 machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> Plan {
     DescriptorTableLayout::evaluate(descriptor_table_layout, schema, 128)

@@ -1,8 +1,8 @@
 // Frozen typed transfer observations: 1111 from the helper and original RAM.
 use omega::language::core::layout;
 use omega::language::core::float_operations;
-pub data ScalarRegisters { signed: i16; flag: bool; narrow: f32; wide: f64; }
-pub data ScalarPlacement {}
+public data ScalarRegisters { signed: i16; flag: bool; narrow: f32; wide: f64; }
+public data ScalarPlacement {}
 machine ScalarPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };

@@ -4,18 +4,18 @@ use omega::language::core::numeric_conversion;
 
 // Time and total concentration are bounded by 10^6, so 10^-12 units
 // fit i64. Explicit floating conversion handles presentation rounding.
-pub machine scaled(value: f64)
+public machine scaled(value: f64)
 invokes Console;
 reaches Console {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     integer64(scaled as i64);
 }
-pub machine integer(value: i32)
+public machine integer(value: i32)
 invokes Console;
 reaches Console {
     integer64(widen_i32_to_i64(value));
 }
-pub machine integer64(value: i64)
+public machine integer64(value: i64)
 invokes Console;
 reaches Console {
     transition value < 0 {

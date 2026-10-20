@@ -1,6 +1,6 @@
 
-pub boundary trait Handler { machine wait() -> u64 blocks; }
-pub boundary trait Registrar {
+public boundary trait Handler { machine wait() -> u64 blocks; }
+public boundary trait Registrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies Handler::wait;
     invokes Handler;

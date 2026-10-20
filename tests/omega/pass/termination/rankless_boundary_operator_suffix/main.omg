@@ -1,7 +1,7 @@
 // Named boundary operators retain their declaration identity in both call forms.
-pub data Scalar {}
-pub boundary operator Scalar::observe(value: u32);
-pub boundary operator Value::value() -> u32;
+public data Scalar {}
+public boundary operator Scalar::observe(value: u32);
+public boundary operator Value::value() -> u32;
 machine count(remaining: u32) terminates by remaining; -> u32 {
     transition remaining > 0 {
         true -> count(remaining - 1)

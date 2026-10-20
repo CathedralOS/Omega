@@ -291,7 +291,7 @@ mod tests {
         let authored = sources
             .add_with_metadata(
                 PathBuf::from("kit/main.omg"),
-                String::from("pub machine value() -> i32 { generated_value() }"),
+                String::from("public machine value() -> i32 { generated_value() }"),
                 PathBuf::from("kit"),
                 Some(kit),
                 SourceOrigin::User,
@@ -300,7 +300,7 @@ mod tests {
         let generated = sources
             .add_with_metadata_and_resolution_stratum(
                 PathBuf::from("kit/.omega/generated/generated.omg"),
-                String::from("pub machine generated_value() -> i32 { seed() }"),
+                String::from("public machine generated_value() -> i32 { seed() }"),
                 PathBuf::from("kit"),
                 Some(kit),
                 SourceOrigin::User,

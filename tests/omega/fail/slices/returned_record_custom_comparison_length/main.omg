@@ -1,6 +1,6 @@
-pub domain u64::Custom;
-pub machine == u64::Custom::equal(left: u64, right: u64 in Custom) -> bool { true }
-pub data Held<'row> { values: &'row mut [u8]; }
+public domain u64::Custom;
+public machine == u64::Custom::equal(left: u64, right: u64 in Custom) -> bool { true }
+public data Held<'row> { values: &'row mut [u8]; }
 boundary machine selected<'row>(values: &'row mut [u8; 4], count: u64 in Custom) -> Held<'row>
 ensures result.values.len == count;
 machine need_two(values: &[u8]) requires values.len == 2 {}

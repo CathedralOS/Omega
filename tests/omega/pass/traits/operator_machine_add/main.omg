@@ -1,10 +1,10 @@
-// `pub machine +` binds an operator on borrowed test-owned operands:
+// `public machine +` binds an operator on borrowed test-owned operands:
 // `left + right` invokes the declaration's own checked body yielding
 // the wrapped sum 250 + 10 = 260 that no u8 builtin could carry; the
 // declaration stays callable by name as `Wrapped::add`.
-pub data Wrapped { value: u8; }
+public data Wrapped { value: u8; }
 
-pub machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 {
+public machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 {
     (left.value as u64) + (right.value as u64)
 }
 

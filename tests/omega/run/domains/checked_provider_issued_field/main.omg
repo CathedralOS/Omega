@@ -1,9 +1,9 @@
 // Expected exit: 0.
-pub data Resource { identity: u64; }
-pub domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
-pub data Package { resource: Resource in Open; }
+public data Resource { identity: u64; }
+public domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
+public data Package { resource: Resource in Open; }
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
-pub boundary trait Source { machine open() -> Package; }
+public boundary trait Source { machine open() -> Package; }
 data CheckedSource {}
 machine CheckedSource::open() -> Package satisfies Source::open {
     Package { resource: acquire() }

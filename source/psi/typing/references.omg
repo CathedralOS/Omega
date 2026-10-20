@@ -10,7 +10,7 @@ use psi::typing::typer;
 // names and interns it from their types and its own binding. Integer static
 // arguments and array lengths read their spelling here; a named static value
 // (a `const` parameter) has no value before evaluation exists and rejects.
-pub machine Typer::type_references(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+public machine Typer::type_references(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
     typer.output.reference_count = syntax.type_reference_count;
@@ -351,7 +351,7 @@ machine Typer::domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> b
 }
 
 // Whether `builtin` is a fixed-width integer carrier.
-pub machine Typer::fixed_integer(builtin: BuiltinType) -> bool {
+public machine Typer::fixed_integer(builtin: BuiltinType) -> bool {
     builtin == BuiltinType::I8 || builtin == BuiltinType::I16 || builtin == BuiltinType::I32
         || builtin == BuiltinType::I64 || builtin == BuiltinType::U8 || builtin == BuiltinType::U16
         || builtin == BuiltinType::U32 || builtin == BuiltinType::U64
@@ -388,7 +388,7 @@ crashes Trap
 // Whether a type row is a `const` generic parameter, the only binder an
 // inline array's static extent may name
 // (wiki/spec/language/generics.md#value-binders-and-const-requirements).
-pub machine Typer::const_parameter(syntax: &SyntaxTrees, row: TypeRow) -> bool
+public machine Typer::const_parameter(syntax: &SyntaxTrees, row: TypeRow) -> bool
 crashes Trap
 {
     transition row.kind == TypeKind::GenericParameter {
@@ -409,7 +409,7 @@ crashes Trap
 // The qualifiers an array or slice type takes: none, an arithmetic policy
 // its integer or Boolean elements read under
 // (wiki/spec/language/numeric_values.md), or a declared domain.
-pub machine Typer::collection_qualifier(domain: DomainBinding) -> bool {
+public machine Typer::collection_qualifier(domain: DomainBinding) -> bool {
     transition domain {
         DomainBinding::Unqualified -> yes()
         DomainBinding::Wrapping -> yes()

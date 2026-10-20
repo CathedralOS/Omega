@@ -1,12 +1,12 @@
 // Expected exit: 0. Result projections remain functional postconditions,
 // including nested fields, rather than becoming universal trait laws.
-pub data Status [copy] { code: u64; }
-pub data Packet [copy] { status: Status; }
-pub boundary trait Reports {
+public data Status [copy] { code: u64; }
+public data Packet [copy] { status: Status; }
+public boundary trait Reports {
     machine status() -> Status ensures result.code == 7;
     machine packet() -> Packet ensures result.status.code == 11;
 }
-pub CheckedReports satisfies Reports {
+public CheckedReports satisfies Reports {
     machine status() -> Status ensures result.code == 7; {
         Status { code: 7 }
     }

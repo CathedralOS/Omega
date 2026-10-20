@@ -32,7 +32,7 @@ pub(crate) enum ParsedDeclaration {
 /// implementation needs its complete telescope followed by `satisfies`; `<`
 /// alone is also a comparison and cannot terminate the current contract.
 pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
-    if input.at_keyword(KeywordKind::Pub) {
+    if input.at_keyword(KeywordKind::Public) {
         let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
         return starts_following_item(after);
     }
@@ -160,8 +160,8 @@ pub(crate) fn parse_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedDeclaration> {
-    if input.at_keyword(KeywordKind::Pub) {
-        let input = input.take_keyword(KeywordKind::Pub, "pub")?;
+    if input.at_keyword(KeywordKind::Public) {
+        let input = input.take_keyword(KeywordKind::Public, "public")?;
         // Data retains this bit because public structural declarations publish
         // their source shape, including numbered fields.
         // Domains and propositions retain it because a public transparent
@@ -184,7 +184,7 @@ pub(crate) fn parse_item<'tokens, 'source>(
                 Item::Trait(trait_definition) => trait_definition.is_public = true,
                 _ => {
                     return Err(rest.error_here(
-                        "`pub` is not yet retained for this declaration kind; refusing to compile a silently private API",
+                        "`public` is not yet retained for this declaration kind; refusing to compile a silently private API",
                     ));
                 }
             },
@@ -501,7 +501,7 @@ fn parse_declared_item<'tokens, 'source>(
         "`operator`",
         "`package`",
         "`platform`",
-        "`pub`",
+        "`public`",
         "`trait`",
         "`boundary let`",
         "`boundary operator`",

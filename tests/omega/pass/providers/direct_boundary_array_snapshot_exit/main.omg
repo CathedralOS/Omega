@@ -3,8 +3,8 @@
 // array snapshot captured earlier, while the caller observes the later write.
 use omega_language_std::console;
 
-pub data Thing {}
-pub boundary requirement Thing::take(first: u64, values: [u8; 4], last: u64) -> i32;
+public data Thing {}
+public boundary requirement Thing::take(first: u64, values: [u8; 4], last: u64) -> i32;
 
 data ThingProvider {}
 machine ThingProvider::take(first: u64, values: [u8; 4], last: u64) -> i32

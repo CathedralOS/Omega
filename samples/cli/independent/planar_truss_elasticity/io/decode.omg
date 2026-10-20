@@ -1,7 +1,7 @@
 use io::input;
 use domain::model;
 use omega::language::core::float_operations;
-pub machine decode(input: &Input, truss: &mut Truss) {
+public machine decode(input: &Input, truss: &mut Truss) {
     truss.valid = false;
     transition input.count >= 2 && input.tokens[0] >= 2 && input.tokens[0] <= 8 && input.tokens[1] >= 0 && input.tokens[1] <= 16 { true -> dimensions(input, truss) false -> done() }
     state dimensions(input: &Input, truss: &mut Truss) {

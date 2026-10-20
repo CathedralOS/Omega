@@ -10,7 +10,7 @@ crashes Trap items[index] == 0
 }
 machine preserve(index: u64) -> u64
 { index }
-pub machine read_seven(items: &[u64; 2], index: u64) -> u64
+public machine read_seven(items: &[u64; 2], index: u64) -> u64
 requires index < 2
 requires items[index] == 7
 { let selected: u64 = preserve(index); maybe_zero(items, selected) }

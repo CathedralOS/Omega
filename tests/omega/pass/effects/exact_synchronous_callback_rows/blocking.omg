@@ -1,9 +1,9 @@
 
-pub boundary trait BlockingHandler {
+public boundary trait BlockingHandler {
     machine wait() -> u64 blocks;
     machine unrelated_suspend() suspends;
 }
-pub boundary trait BlockingRegistrar {
+public boundary trait BlockingRegistrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies BlockingHandler::wait;
     invokes BlockingHandler;

@@ -7,11 +7,11 @@
 // literal, a local, a field, a call result, a forwarded parameter, a
 // position beside an untagged formal, an operator-homing domain, a guard
 // operand, and a later state's parameter.
-pub domain u64::Km;
+public domain u64::Km;
 
-pub domain u64::Metres;
+public domain u64::Metres;
 
-pub operator + u64::Metres::add(left: u64 in u64::Metres, right: u64 in u64::Metres)
+public operator + u64::Metres::add(left: u64 in u64::Metres, right: u64 in u64::Metres)
     -> u64 in u64::Metres;
 
 data Leg [copy] { length: u64; }

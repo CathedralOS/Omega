@@ -21,7 +21,7 @@ use psi::tokens::tokens;
 // Lifetimes precede every other binder. Each parameter is retained as soon
 // as it is whole, so a rejection keeps every parameter before it. Repeated
 // names are a resolution question, not a grammar one.
-pub machine Parser::parse_generic_parameters(parser: &mut Parser, input: &TokenStream)
+public machine Parser::parse_generic_parameters(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     Parser::take_current(parser, input);

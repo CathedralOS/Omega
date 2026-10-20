@@ -1,10 +1,10 @@
 use omega_language_std::console;
 
-pub boundary trait ArrayReader {
+public boundary trait ArrayReader {
     machine inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32;
 }
 
-pub ArrayReaderProvider satisfies ArrayReader {
+public ArrayReaderProvider satisfies ArrayReader {
     machine inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32 {
         transition prefix == 30 && suffix == 40 && values[0] == 11 && values[1] == 22 && values[2] == 33 && values[3] == 44 {
             true -> (70)

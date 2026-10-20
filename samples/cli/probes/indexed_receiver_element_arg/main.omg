@@ -1,10 +1,10 @@
 // An &-receiver's indexed field element loans into a &T call argument:
 // `&main.list.items[i]` under a `requires i < 4` guard.
-pub data Elem { value: u64; }
+public data Elem { value: u64; }
 machine Elem::clone_of(source: &Elem) -> Elem {
     Elem { value: source.value }
 }
-pub data List { items: [Elem; 4]; }
+public data List { items: [Elem; 4]; }
 machine List::get(list: &List, position: u64) -> Elem requires position < 4 {
     (Elem::clone_of(&list.items[position]))
 }

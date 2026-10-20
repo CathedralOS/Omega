@@ -8,13 +8,13 @@ use psi::tokens::tokens;
 // `Reference` keeps its `access`; an `Arguments` frame keeps its applied
 // name's end and the base of its staged arguments. `first_row` is the next
 // row when the frame opened, so the finished type's run begins there.
-pub data TypeFrameKind [copy] {
+public data TypeFrameKind [copy] {
     case Reference;
     case Array;
     case Arguments;
 }
 
-pub data TypeFrame [copy] {
+public data TypeFrame [copy] {
     kind: TypeFrameKind;
     access: ReferenceAccess;
     start: u64 in Trapping;
@@ -43,7 +43,7 @@ pub data TypeFrame [copy] {
 // where its own run begins. The root's handle lands in `type_result` and its
 // source end in `type_end`. `missing` is the caller's diagnostic for an absent
 // type; nested positions use the array and static-argument diagnostics.
-pub machine Parser::parse_type_reference(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
+public machine Parser::parse_type_reference(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
 crashes Trap
 {
     parser.type_frame_depth = 0;
@@ -852,7 +852,7 @@ crashes Trap
 // argument is a type, or an integer static value, staged on the type
 // argument stack until `>` commits the list to `type_arguments`; its range
 // lands in `committed_type_first`/`committed_type_count`.
-pub machine Parser::parse_static_arguments(parser: &mut Parser, input: &TokenStream)
+public machine Parser::parse_static_arguments(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     let base: u64 in Trapping = parser.pending_type_argument_count as u64 in Trapping;
@@ -927,7 +927,7 @@ crashes Trap
 // One static argument: a type, or at its root an integer static value
 // (`AtMost<8>`, `Build::f<8>(x)`). Rows and diagnostics are the type
 // grammar's.
-pub machine Parser::parse_static_argument(parser: &mut Parser, input: &TokenStream)
+public machine Parser::parse_static_argument(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     parser.type_static_argument = true;

@@ -1,15 +1,15 @@
 // Domain evidence follows the value; it does not change its stored payload.
 // Exercise both a produced home and an owned-parameter return with real bytes.
 
-pub data Ticket {
+public data Ticket {
     amount: i32;
     marker: i32;
 }
 
-pub domain Ticket::Issued
+public domain Ticket::Issued
 established by Issuer::issue, IssuerProvider::issue;
 
-pub boundary trait Issuer {
+public boundary trait Issuer {
     machine issue(amount: i32) -> Ticket
     ensures result in Ticket::Issued
     reaches Issuer;

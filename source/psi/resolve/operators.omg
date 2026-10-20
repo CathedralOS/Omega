@@ -15,7 +15,7 @@ use psi::syntax::syntax;
 // token at one home with the same parameters are duplicate participating
 // shapes and reject at the later one. Typing selects among a home's machines
 // by their operands (typing/operators.omg).
-pub machine Resolver::bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
@@ -125,7 +125,7 @@ crashes Trap
 }
 
 // Whether an operator home is data declaration `data`.
-pub machine Resolver::homed_at(home: TypeBinding, data: u64 in Trapping) -> bool {
+public machine Resolver::homed_at(home: TypeBinding, data: u64 in Trapping) -> bool {
     transition home {
         TypeBinding::Data { item } -> data_item(item, data)
         _ -> elsewhere()

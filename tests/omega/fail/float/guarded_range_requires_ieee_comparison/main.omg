@@ -1,6 +1,6 @@
 // A selected boundary with the same token and carrier supplies no IEEE law.
-pub boundary machine < Unrelated::less(left: f64, right: f64) -> bool;
-pub boundary machine + Unrelated::add(left: u64, right: u64) -> u64
+public boundary machine < Unrelated::less(left: f64, right: f64) -> bool;
+public boundary machine + Unrelated::add(left: u64, right: u64) -> u64
     ensures result < 2;
 machine select(value: f64) -> f64 {
     transition value >= 0.0 && value < 1.0 {

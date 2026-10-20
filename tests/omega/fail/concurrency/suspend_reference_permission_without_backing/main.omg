@@ -1,11 +1,11 @@
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine park() suspends;
     machine park_with(argument: &i32 in Carry::AcrossSuspend) suspends;
 }
 
 data Envelope<T> { payload: T; }
-pub boundary data Sleeper;
+public boundary data Sleeper;
 boundary machine Sleeper::park() suspends;
 
 // Carry permission on a descriptor is not a backing-lifetime or pinning proof.

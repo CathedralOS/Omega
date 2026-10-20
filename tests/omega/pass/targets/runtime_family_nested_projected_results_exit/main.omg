@@ -2,11 +2,11 @@
 // paths and linear claims, not qualifications on the enclosing carrier.
 use omega::language::core::drop;
 
-pub data Receipt [linear] { code: u64; }
+public data Receipt [linear] { code: u64; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 // Declaration order deliberately differs from Terminal catalog name order.
-pub domain Receipt::Ready(receipt) requires receipt.code < 50;
-pub domain Receipt::Issued(receipt) requires receipt.code > 0;
+public domain Receipt::Ready(receipt) requires receipt.code < 50;
+public domain Receipt::Issued(receipt) requires receipt.code > 0;
 data ReceiptBox { receipts: [Receipt in Receipt::Ready & Receipt::Issued; 2]; }
 data Holder<Value> { value: Value; }
 

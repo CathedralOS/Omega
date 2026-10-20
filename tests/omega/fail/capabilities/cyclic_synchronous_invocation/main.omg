@@ -3,16 +3,16 @@
 // though ordinary service reach may remain cyclic. Providers hold no state:
 // each requirement calls the other boundary directly.
 
-pub data Services {
+public data Services {
 }
 
-pub boundary trait Alpha {
+public boundary trait Alpha {
     machine alpha(services: &Services)
     reaches Alpha + Beta
     invokes Beta;
 }
 
-pub boundary trait Beta {
+public boundary trait Beta {
     machine beta(services: &Services)
     reaches Alpha + Beta
     invokes Alpha;

@@ -24,7 +24,7 @@ use omega::language::core::filesystem_authority;
 use targets::windows_x86_64::windows_filesystem_impl;
 
 // An untouched result is an error. Timestamp zero remains a valid FILETIME.
-pub data WindowsFileTimeResult {
+public data WindowsFileTimeResult {
     case Error(code: u32);
     case Value(access_time: u64, write_time: u64);
 }
@@ -34,7 +34,7 @@ pub data WindowsFileTimeResult {
 // metadata or namespace reach; physical authority is still admitted separately.
 // In particular, empty source reach on CloseHandle proves no ordinary-release
 // classification for an arbitrary HANDLE or its close-triggered behavior.
-pub boundary trait WindowsFilesystemHost {
+public boundary trait WindowsFilesystemHost {
     machine create_file(
         path: &[u8] in Path,
         desired_access: u32,

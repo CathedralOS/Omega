@@ -1,5 +1,5 @@
-pub data Cell { value: i32; }
-pub data Slot<'s> { target: &'s write Cell; }
+public data Cell { value: i32; }
+public data Slot<'s> { target: &'s write Cell; }
 boundary machine consume<T>(value: T);
 machine apply<'s, machine Sink>(value: Slot<'s>)
 where machine Sink(value: Slot<'s>);

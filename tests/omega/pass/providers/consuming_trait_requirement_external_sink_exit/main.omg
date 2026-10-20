@@ -10,15 +10,15 @@
 // `fail/providers/consuming_trait_requirement_without_provider`.
 use omega::language::core::external_binding;
 
-pub data Receipt [linear] { code: i32; }
+public data Receipt [linear] { code: i32; }
 
-pub boundary trait Acknowledgement {
+public boundary trait Acknowledgement {
     machine ack(receipt: Receipt) -> i32;
 }
 
-pub data ReceiptSink {}
+public data ReceiptSink {}
 
-pub windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+public windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "msvcrt.dll",
@@ -27,7 +27,7 @@ pub windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBindi
     }
 }
 
-pub linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+public linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
@@ -37,7 +37,7 @@ pub linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9
     }
 }
 
-pub linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
+public linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
@@ -47,7 +47,7 @@ pub linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 
     }
 }
 
-pub macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
+public macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",

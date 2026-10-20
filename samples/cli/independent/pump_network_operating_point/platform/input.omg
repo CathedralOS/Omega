@@ -1,7 +1,7 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-pub data Input {
+public data Input {
     values: [i64 in Wrapping; 9];
     index: u64;
     count: u64;
@@ -15,7 +15,7 @@ pub data Input {
 
 // One record, at most 96 consumed bytes and at most nine signed decimal
 // tokens of at most four digits. Spaces and LF/EOF delimit; other bytes reject.
-pub machine read(input: &mut Input)
+public machine read(input: &mut Input)
 reaches Console
 invokes Console;
 blocks;

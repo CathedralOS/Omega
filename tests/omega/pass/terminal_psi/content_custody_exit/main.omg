@@ -20,7 +20,7 @@ trait Content<Owner, A> {
     machine project(subject: &Owner) -> A;
 }
 
-pub data Region [linear] {
+public data Region [linear] {
     length: u64;
 }
 

@@ -23,7 +23,7 @@ machine field(name: &[u8], value: u64 in Wrapping) reaches Console {
     decimal(value);
     Console::write_line("");
 }
-pub machine report(result: &Inference) reaches Console
+public machine report(result: &Inference) reaches Console
 invokes Console;
 {
     Console::write_line("exact_contingency_inference model=fixed_margins_factorial structural_zeros=conditioned");

@@ -3,10 +3,10 @@ use omega::language::core::binding;
 // parameter — `folder.write_line` uses the passed authority without
 // minting its own, and `Main::main(folder: Binding<Folder>)` takes the
 // capability at entry.
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-pub boundary trait Folder {
+public boundary trait Folder {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Folder;

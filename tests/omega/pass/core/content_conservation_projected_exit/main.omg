@@ -5,28 +5,28 @@ use omega::language::core::content;
 use omega::language::core::drop;
 use omega_language_std::console;
 
-pub data ByteUnit {}
+public data ByteUnit {}
 
-pub data Region [linear] {
+public data Region [linear] {
     remaining: u64;
 }
 
 machine Region::drop(region: &mut Region) {}
 
-pub domain Region::Owned;
+public domain Region::Owned;
 
-pub machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+public machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
 satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: embed(region.remaining) as Nat }
 }
 
-pub data SplitResult {
+public data SplitResult {
     left: Region in Owned;
     right: Region in Owned;
 }
 
-pub boundary trait RegionSplit {
+public boundary trait RegionSplit {
     machine split(whole: Region in Owned, head: u64) -> SplitResult
     requires head <= whole.remaining
     ensures
@@ -37,7 +37,7 @@ pub boundary trait RegionSplit {
         );
 }
 
-pub boundary trait RegionSink {
+public boundary trait RegionSink {
     machine accept(piece: Region in Owned);
 }
 

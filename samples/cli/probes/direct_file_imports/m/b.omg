@@ -1,3 +1,3 @@
 use m::a;
 
-pub data B { value: A; }
+public data B { value: A; }

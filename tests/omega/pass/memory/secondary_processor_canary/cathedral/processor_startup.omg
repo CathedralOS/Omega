@@ -45,10 +45,10 @@ use omega_language_std::calling;
 // established envelope must resolve the acknowledgement requirement or
 // be settled by the supervisor, so an attempt is never silently
 // dropped once dispatched.
-pub boundary data StartupOccurrence [copy];
-pub boundary data StartupVector [copy];
-pub data StartupAcknowledgement { value: AtomicU64; }
-pub data StartupEnvelope [linear] {
+public boundary data StartupOccurrence [copy];
+public boundary data StartupVector [copy];
+public data StartupAcknowledgement { value: AtomicU64; }
+public data StartupEnvelope [linear] {
     processor: StartupOccurrence;
     invocation: u64;
     startup_vector: StartupVector;
@@ -59,7 +59,7 @@ pub data StartupEnvelope [linear] {
 // extinguished by `confirm`. The ledger rejects requests and freshly
 // minted envelopes; only this domain's inhabitants count as an
 // outstanding startup attempt.
-pub domain StartupEnvelope::Pending
+public domain StartupEnvelope::Pending
 established by SecondaryProcessorEntry::enter;
 
 // The bounded entry a provider hands to the secondary processor. The
@@ -68,7 +68,7 @@ established by SecondaryProcessorEntry::enter;
 // and raise itself, nothing broader. Implementation policies carry the
 // regime and the dedicated stack class; the contract itself is
 // stack-mechanism silent.
-pub boundary trait SecondaryProcessorEntry {
+public boundary trait SecondaryProcessorEntry {
     machine enter(envelope: StartupEnvelope in Pending)
     reaches <= MachineControl;
 }
@@ -77,7 +77,7 @@ pub boundary trait SecondaryProcessorEntry {
 // startup. The consuming requirement owes one actual publication of this
 // Pending invocation to its typed acknowledgement cell. Pending admission
 // supplies a nonreused invocation identity; cancellation supplies no receipt.
-pub boundary trait StartupAcknowledgementProtocol {
+public boundary trait StartupAcknowledgementProtocol {
     machine confirm(envelope: StartupEnvelope)
     reaches MachineControl
     requires envelope in StartupEnvelope::Pending;
@@ -93,7 +93,7 @@ pub boundary trait StartupAcknowledgementProtocol {
 // `request_cancel` convention: the route is open exactly while the
 // attempt is outstanding, and a racing `confirm` or settlement still
 // discharges the claim exactly once.
-pub boundary requirement StartupEnvelope::request_cancel(envelope: &StartupEnvelope);
+public boundary requirement StartupEnvelope::request_cancel(envelope: &StartupEnvelope);
 
 // ---------------------------------------------------------------------------
 // The physical carrier
@@ -104,16 +104,16 @@ pub boundary requirement StartupEnvelope::request_cancel(envelope: &StartupEnvel
 // representations carry inert identity; the separate checked reference
 // supplies access to the acknowledgement cell. Both Calling policies still
 // require the complete 32-byte, 8-aligned envelope.
-pub data StartupEnvelopeCarrier {
+public data StartupEnvelopeCarrier {
     processor: u64;
     invocation: u64;
     startup_vector: u64;
     acknowledgement: u64;
 }
-pub data StartupOccurrenceCarrier [copy] { value: u64; }
-pub data StartupVectorCarrier [copy] { value: u64; }
-pub StartupOccurrenceRepresentation satisfies OpaqueRepresentation<StartupOccurrence, StartupOccurrenceCarrier> {}
-pub StartupVectorRepresentation satisfies OpaqueRepresentation<StartupVector, StartupVectorCarrier> {}
+public data StartupOccurrenceCarrier [copy] { value: u64; }
+public data StartupVectorCarrier [copy] { value: u64; }
+public StartupOccurrenceRepresentation satisfies OpaqueRepresentation<StartupOccurrence, StartupOccurrenceCarrier> {}
+public StartupVectorRepresentation satisfies OpaqueRepresentation<StartupVector, StartupVectorCarrier> {}
 
 // ---------------------------------------------------------------------------
 // First secondary processor: policy, root, provider
@@ -125,10 +125,10 @@ pub StartupVectorRepresentation satisfies OpaqueRepresentation<StartupVector, St
 // accounted onto dedicated critical-stack class 13. The class is a
 // compile-time constant of this policy; the roster declares the same
 // class so the ledger joins account and boundary.
-pub data FirstSecondaryProcessorStackPolicy {
+public data FirstSecondaryProcessorStackPolicy {
 }
 
-pub FirstSecondaryProcessorStackCalling satisfies CallingPolicy {
+public FirstSecondaryProcessorStackCalling satisfies CallingPolicy {
     CallingPolicy::plan = FirstSecondaryProcessorStackPolicy::plan;
 }
 
@@ -203,7 +203,7 @@ satisfies CallingPolicy::plan
 // The first secondary processor's startup root: the authored contract
 // plus the dedicated stack policy. `plan` supplies the only plan for
 // this trait; realization binds the contract's service demand.
-pub boundary trait FirstSecondaryProcessorRoot:
+public boundary trait FirstSecondaryProcessorRoot:
     SecondaryProcessorEntry
     + Calling<FirstSecondaryProcessorStackCalling>
 {
@@ -215,10 +215,10 @@ pub boundary trait FirstSecondaryProcessorRoot:
 // tests. The named implementation owns the complete root map; its one
 // row binds the inherited requirement to that existing entry machine,
 // and provider selection installs the root through the implementation.
-pub data FirstSecondaryProcessor {
+public data FirstSecondaryProcessor {
 }
 
-pub FirstSecondaryProcessorConformance satisfies FirstSecondaryProcessorRoot {
+public FirstSecondaryProcessorConformance satisfies FirstSecondaryProcessorRoot {
     SecondaryProcessorEntry::enter = FirstSecondaryProcessor::enter;
 }
 
@@ -238,10 +238,10 @@ reaches MachineControl
 // its arrivals account onto dedicated critical-stack class 14. Keeping
 // the two policies distinct values keeps the two accounts' resource
 // classes nonoverlapping at admission.
-pub data SecondSecondaryProcessorStackPolicy {
+public data SecondSecondaryProcessorStackPolicy {
 }
 
-pub SecondSecondaryProcessorStackCalling satisfies CallingPolicy {
+public SecondSecondaryProcessorStackCalling satisfies CallingPolicy {
     CallingPolicy::plan = SecondSecondaryProcessorStackPolicy::plan;
 }
 
@@ -309,16 +309,16 @@ satisfies CallingPolicy::plan
     }
 }
 
-pub boundary trait SecondSecondaryProcessorRoot:
+public boundary trait SecondSecondaryProcessorRoot:
     SecondaryProcessorEntry
     + Calling<SecondSecondaryProcessorStackCalling>
 {
 }
 
-pub data SecondSecondaryProcessor {
+public data SecondSecondaryProcessor {
 }
 
-pub SecondSecondaryProcessorConformance satisfies SecondSecondaryProcessorRoot {
+public SecondSecondaryProcessorConformance satisfies SecondSecondaryProcessorRoot {
     SecondaryProcessorEntry::enter = SecondSecondaryProcessor::enter;
 }
 
@@ -333,8 +333,8 @@ reaches MachineControl
 // A performed release publishes the exact invocation to its admitted cell.
 // This historical instruction-effect receipt settles one Pending claim; it
 // grants no memory authority or observation by another processor.
-pub data StartupConfirmation {}
-pub StartupConfirmationProvider satisfies StartupAcknowledgementProtocol {
+public data StartupConfirmation {}
+public StartupConfirmationProvider satisfies StartupAcknowledgementProtocol {
     StartupAcknowledgementProtocol::confirm = StartupConfirmation::confirm;
 }
 proposition confirmed(envelope: StartupEnvelope) =

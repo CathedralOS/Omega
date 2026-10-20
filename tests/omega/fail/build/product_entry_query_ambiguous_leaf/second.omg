@@ -1,5 +1,5 @@
 module second;
 
-pub machine launch() {
+public machine launch() {
     let marker: u8 = 37;
 }

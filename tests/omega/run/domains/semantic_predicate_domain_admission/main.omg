@@ -7,14 +7,14 @@
 // a literal, a local, a requires-bounded parameter, a later state's
 // parameter, an explicit qualification, and a record literal and local whose
 // field satisfies the record predicate.
-pub domain u64::Distance(value) requires value > 0;
+public domain u64::Distance(value) requires value > 0;
 
-pub operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance)
+public operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance)
     -> u64 in u64::Distance;
 
-pub domain u64::Km;
+public domain u64::Km;
 
-pub operator + u64::Km::add(left: u64 in u64::Km, right: u64 in u64::Km) -> u64 in u64::Km;
+public operator + u64::Km::add(left: u64 in u64::Km, right: u64 in u64::Km) -> u64 in u64::Km;
 
 data Quantity [copy] { value: i32; }
 

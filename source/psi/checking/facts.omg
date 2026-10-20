@@ -15,7 +15,7 @@ use psi::types::types;
 // equality of other non-integers establishes nothing. The tree has been evaluated,
 // so its nodes' values are known; the walk keeps its own stack of
 // (handle, holds) pairs, each packed as `handle * 2 + holds`.
-pub machine Checker::assume(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, holds: bool)
+public machine Checker::assume(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, holds: bool)
 crashes Trap
 {
     checker.assumption_count = 0;
@@ -175,7 +175,7 @@ machine Checker::slack(strict: bool) -> ExactInteger {
 
 // The comparison a failed `operator` establishes: its complement. `&&` and
 // `||` keep their spelling; `both` reads the polarity.
-pub machine Checker::polarized(operator: OperatorKind, holds: bool) -> OperatorKind {
+public machine Checker::polarized(operator: OperatorKind, holds: bool) -> OperatorKind {
     transition holds {
         true -> kept(operator)
         _ -> complement(operator)
@@ -205,7 +205,7 @@ pub machine Checker::polarized(operator: OperatorKind, holds: bool) -> OperatorK
 // Establish `left - right <= bound` for two integer values: a difference of
 // their subjects when both are linear terms, otherwise a bound on the one
 // that is, from the other's interval.
-pub machine Checker::constrain_difference(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger)
+public machine Checker::constrain_difference(checker: &mut Checker, left: Value, right: Value, bound: ExactInteger)
 crashes Trap
 {
     transition left.known && right.known {
@@ -326,7 +326,7 @@ crashes Trap
 // both failures, `!` swaps, and a disjunction (or a failed conjunction)
 // needs one of its sides to be a comparison or literal that proves. Goals
 // keep the assumption stack's packing, `handle * 2 + holds`.
-pub machine Checker::proves(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping) -> bool
+public machine Checker::proves(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping) -> bool
 crashes Trap
 {
     checker.assumption_count = 0;
@@ -411,7 +411,7 @@ crashes Trap
 // false) wherever the zone does, or any other Boolean's value is 1 (or 0).
 // Two values of one place are equal however little the zone knows of it, a
 // Boolean's included.
-pub machine Checker::proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
+public machine Checker::proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, handle);

@@ -13,7 +13,7 @@ Re-swept at `be496d9a90` — see [Re-sweep](#re-sweep-at-be496d9a90) and
 
 ## Method
 
-- `rg 'pub struct \w*Identity'` over every `omega-rust/*/pipeline/` `src/`
+- `rg 'public struct \w*Identity'` over every `omega-rust/*/pipeline/` `src/`
   (durable identity newtypes outside `representations/`).
 - `rg 'Sha256::digest|sha2::'` over the same set (identity producers inside
   transforms).
@@ -26,7 +26,7 @@ Re-swept at `be496d9a90` — see [Re-sweep](#re-sweep-at-be496d9a90) and
 - `rg 'static \w*(COUNTER|COUNT)|AtomicUsize|AtomicU64'` over
   `omega-rust/*/representations/` and `omega-rust/*/semantics/` (allocation
   counters outside `tooling/artifacts`).
-- `rg 'pub struct \w*Arena|struct Interner'` over `omega-rust/omega/` (Omega
+- `rg 'public struct \w*Arena|struct Interner'` over `omega-rust/omega/` (Omega
   re-implementing Psi foundation primitives — zero hits).
 - Workspace member naming: every `omega-rust/*/pipeline/` crate name follows
   `X-to-Y`; no umbrella/helper crate names found.

@@ -30,7 +30,7 @@ data Plan {
     align: u64;
 }
 
-pub data SignedByte { }
+public data SignedByte { }
 machine SignedByte::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
@@ -50,9 +50,9 @@ machine SignedByte::plan(schema: Schema) -> Plan {
     }
 }
 
-pub data PortableByte [copy] { value: i64; }
-pub data RawView { value: SignedByte<PortableByte>; }
-pub boundary trait EncodedWriter { machine write(value: &mut RawView); }
+public data PortableByte [copy] { value: i64; }
+public data RawView { value: SignedByte<PortableByte>; }
+public boundary trait EncodedWriter { machine write(value: &mut RawView); }
 machine write_first(bytes: &mut [RawView]) reaches EncodedWriter {
     transition bytes.len > 0 { true -> change(bytes) _ -> done() }
     state change(bytes: &mut [RawView]) { EncodedWriter::write(&mut bytes[0]); }

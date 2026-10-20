@@ -1,6 +1,6 @@
 // An ordinary same-named service has normal completion. Confined package
 // discovery must not make the caller's false return obligation unreachable.
-pub boundary trait Console {
+public boundary trait Console {
     machine exit_process(return_code: i32) reaches Console;
 }
 data ReturningProvider {}
@@ -8,7 +8,7 @@ machine ReturningProvider::exit_process(return_code: i32)
 satisfies Console::exit_process
 reaches Console
 {}
-pub machine impossible()
+public machine impossible()
 reaches Console
 invokes Console;
 ensures false;

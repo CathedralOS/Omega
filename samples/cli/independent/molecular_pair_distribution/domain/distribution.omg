@@ -26,7 +26,7 @@ machine separation(first: i32, second: i32, box: i32) -> f64 crashes Trap {
         transition delta > box / 2 { true -> F64::from_i32(((box as i32 in Wrapping) - (delta as i32 in Wrapping)) as i32) _ -> F64::from_i32(delta) }
     }
 }
-pub machine histogram(distribution: &mut Distribution) crashes Trap {
+public machine histogram(distribution: &mut Distribution) crashes Trap {
     transition { _ -> snapshot(distribution, 0) }
     state snapshot(distribution: &mut Distribution, snapshot: i32 in Wrapping) {
         transition snapshot >= 0 && snapshot < 8 && snapshot < distribution.snapshots {
@@ -73,7 +73,7 @@ pub machine histogram(distribution: &mut Distribution) crashes Trap {
     }
     state done() { }
 }
-pub machine report(distribution: &Distribution) reaches Console invokes Console; crashes Trap {
+public machine report(distribution: &Distribution) reaches Console invokes Console; crashes Trap {
     Console::write_line("molecular_pair_distribution bin count g coordination");
     transition { _ -> row(distribution, 0, 0.0, 0) }
     state row(distribution: &Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {

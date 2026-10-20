@@ -10,17 +10,17 @@ use calling;
 // independent initial storage through scoped firmware providers, accounts for
 // its stack, and crosses ProgramStorageEntry::enter; this ABI alone establishes
 // no root or firmware-service authority.
-pub data EfiImageHandle {
+public data EfiImageHandle {
     raw: addr;
 }
 
-pub boundary data EfiSystemTable;
+public boundary data EfiSystemTable;
 
-pub data EfiStatus {
+public data EfiStatus {
     code: u64;
 }
 
-pub boundary trait UefiPhysicalEntry {
+public boundary trait UefiPhysicalEntry {
     machine enter(
         image_handle: EfiImageHandle,
         system_table: &EfiSystemTable

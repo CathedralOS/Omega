@@ -20,7 +20,7 @@ use omega::language::core::nat;
 use omega::language::core::nat_metric;
 use omega::language::core::int;
 
-pub data Rat {
+public data Rat {
     num: IntPair;
     den: Nat;
 }

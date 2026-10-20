@@ -2,5 +2,5 @@
 // is not a static operand even in an unused declaration.
 use omega::language::core::binding;
 
-pub boundary trait Indexed<const Count: u64> { machine read() -> i32; }
+public boundary trait Indexed<const Count: u64> { machine read() -> i32; }
 machine bad<Count: u64>(binding: &Binding<Indexed<Count>>) reaches Indexed {}

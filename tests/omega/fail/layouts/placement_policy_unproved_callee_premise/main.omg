@@ -2,8 +2,8 @@
 // Removing unrelated runtime bodies from its probe must not grant this call.
 use omega::language::core::layout;
 
-pub data Register { value: u64; }
-pub data CheckedPolicy {}
+public data Register { value: u64; }
+public data CheckedPolicy {}
 machine CheckedPolicy::limit(value: u64) -> u64
 requires value <= 7
 { value }

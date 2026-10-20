@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 use domain::model;
 // Sutherland-Hodgman clipping against a*x+b*y<=c. No geometric tolerance
 // changes cell ownership: points exactly on a bisector belong to both closures.
-pub machine append(polygon: &mut Polygon, x: f64, y: f64) -> bool {
+public machine append(polygon: &mut Polygon, x: f64, y: f64) -> bool {
     transition polygon.count < 32 {
         true -> store(polygon, x, y)
         false -> (false)
@@ -14,7 +14,7 @@ pub machine append(polygon: &mut Polygon, x: f64, y: f64) -> bool {
         true
     }
 }
-pub machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64) -> bool {
+public machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64) -> bool {
     output.count = 0;
     transition { _ -> edge(input, output, a, b, c, 0) }
     state edge(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64, index: u64) -> bool {
@@ -64,7 +64,7 @@ pub machine clip(input: &Polygon, output: &mut Polygon, a: f64, b: f64, c: f64) 
         }
     }
 }
-pub machine construct(partition: &mut Partition) {
+public machine construct(partition: &mut Partition) {
     transition { _ -> cell(partition, 0) }
     state cell(partition: &mut Partition, index: u64) {
         transition index < partition.site_count && index < 8 {

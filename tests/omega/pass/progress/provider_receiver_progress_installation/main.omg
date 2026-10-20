@@ -4,20 +4,20 @@ use omega::language::core::binding;
 // issues it WeakFair-qualified.
 // The opaque receipt has a native wire carrier; only the grant route
 // establishes WeakFair membership.
-pub data SchedulerHandle [copy] { identity: u64; }
+public data SchedulerHandle [copy] { identity: u64; }
 
-pub domain SchedulerHandle::WeakFair
+public domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by Scheduler::grant;
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine notify(value: i32)
     terminates;
 
     machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
 }
 
-pub data SchedulerProvider { grant: addr; notify: addr; }
+public data SchedulerProvider { grant: addr; notify: addr; }
 
 // Notification returns normally. Provider selection does not turn this Unit
 // requirement into canonical ProcessExit or establish its progress premise.

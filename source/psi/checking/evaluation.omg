@@ -13,7 +13,7 @@ use psi::types::types;
 // that overflows always weakens rather than tightens. Expression trees are
 // evaluated bottom-up in table order, children before parents, each node's
 // value kept by its offset from the tree's lowest handle.
-pub data Value [copy] {
+public data Value [copy] {
     place: u64 in Trapping;
     known: bool;
     subject: u64 in Trapping;
@@ -22,7 +22,7 @@ pub data Value [copy] {
     floor: Bound;
 }
 
-pub machine Value::unknown() -> Value {
+public machine Value::unknown() -> Value {
     Value {
         place: 0,
         known: false,
@@ -33,7 +33,7 @@ pub machine Value::unknown() -> Value {
     }
 }
 
-pub machine Value::constant(value: ExactInteger) -> Value {
+public machine Value::constant(value: ExactInteger) -> Value {
     let negated: ExactInteger = ExactInteger::negate(value);
     Value {
         place: 0,
@@ -46,7 +46,7 @@ pub machine Value::constant(value: ExactInteger) -> Value {
 }
 
 // A Boolean's value: 1 when true, 0 when false.
-pub machine Value::truth(flag: bool) -> Value {
+public machine Value::truth(flag: bool) -> Value {
     transition flag {
         true -> one()
         _ -> zero()
@@ -64,7 +64,7 @@ pub machine Value::truth(flag: bool) -> Value {
 }
 
 // The interval of a carrier: its exact range.
-pub machine Value::carrier(builtin: BuiltinType) -> Value {
+public machine Value::carrier(builtin: BuiltinType) -> Value {
     let least: ExactInteger = ExactInteger::minimum(builtin);
     let greatest: ExactInteger = ExactInteger::maximum(builtin);
     let negated: ExactInteger = ExactInteger::negate(least);
@@ -80,18 +80,18 @@ pub machine Value::carrier(builtin: BuiltinType) -> Value {
 }
 
 // Whether the value is a constant.
-pub machine Value::is_constant(value: Value) -> bool {
+public machine Value::is_constant(value: Value) -> bool {
     value.known && value.subject == 0
 }
 
 // The least value, when bounded below.
-pub machine Value::least(value: Value) -> Bound {
+public machine Value::least(value: Value) -> Bound {
     let negated: ExactInteger = ExactInteger::negate(value.floor.value);
     Bound { finite: value.floor.finite, value: negated }
 }
 
 // Whether every value of the interval lies in `builtin`'s range.
-pub machine Value::within(value: Value, builtin: BuiltinType) -> bool {
+public machine Value::within(value: Value, builtin: BuiltinType) -> bool {
     let range: Value = Value::carrier(builtin);
     let below: bool = Bound::at_most(value.ceiling, range.ceiling);
     let above: bool = Bound::at_most(value.floor, range.floor);
@@ -99,7 +99,7 @@ pub machine Value::within(value: Value, builtin: BuiltinType) -> bool {
 }
 
 // The interval narrowed to `builtin`'s range.
-pub machine Value::clamped(value: Value, builtin: BuiltinType) -> Value {
+public machine Value::clamped(value: Value, builtin: BuiltinType) -> Value {
     let range: Value = Value::carrier(builtin);
     let ceiling_tighter: bool = Bound::at_most(value.ceiling, range.ceiling);
     let floor_tighter: bool = Bound::at_most(value.floor, range.floor);
@@ -109,14 +109,14 @@ pub machine Value::clamped(value: Value, builtin: BuiltinType) -> Value {
 }
 
 // The interval of a value, without its place or term.
-pub machine Value::interval(value: Value) -> Value {
+public machine Value::interval(value: Value) -> Value {
     let unknown: Value = Value::unknown();
     Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: value.ceiling, floor: value.floor }
 }
 
 // The least interval holding both values' (a floor is stored negated, so
 // the greater floor is the lower bound).
-pub machine Value::hull(left: Value, right: Value) -> Value {
+public machine Value::hull(left: Value, right: Value) -> Value {
     let left_ceiling: bool = Bound::at_most(right.ceiling, left.ceiling);
     let left_floor: bool = Bound::at_most(right.floor, left.floor);
     let ceiling: Bound = Value::pick(left_ceiling, left.ceiling, right.ceiling);
@@ -137,7 +137,7 @@ machine Value::pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
 }
 
 // The interval of `subject + offset` in the current zone.
-pub machine Checker::term_value(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping, offset: ExactInteger) -> Value
+public machine Checker::term_value(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping, offset: ExactInteger) -> Value
 crashes Trap
 {
     let upper: Bound = Zone::bound(&checker.zone, 0, subject);
@@ -154,7 +154,7 @@ crashes Trap
 // A linear term's interval is read from the zone again: facts installed
 // after the node was evaluated (a field's `where` facts, an assumption)
 // hold of it too.
-pub machine Checker::value_at(checker: &Checker, handle: u64 in Trapping) -> Value
+public machine Checker::value_at(checker: &Checker, handle: u64 in Trapping) -> Value
 crashes Trap
 {
     transition handle >= checker.tree_low {
@@ -197,7 +197,7 @@ crashes Trap
 // A name of a reference to a builtin integer reads as its referent where the
 // integer is needed (typing's `Typer::read_type`): unbounded, its value lies
 // in the referent's carrier.
-pub machine Checker::read_interval(typing: &Typing, type_handle: u64 in Trapping, value: Value) -> Value
+public machine Checker::read_interval(typing: &Typing, type_handle: u64 in Trapping, value: Value) -> Value
 crashes Trap
 {
     let read: u64 in Trapping = Checker::read_type(typing, type_handle);
@@ -221,7 +221,7 @@ crashes Trap
 
 // The type a value reads as: a reference to a builtin scalar, through every
 // layer, reads as the scalar; any other type as itself.
-pub machine Checker::read_type(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::read_type(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> layer(typing, handle, handle, 0) }
@@ -247,7 +247,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::set_value(checker: &mut Checker, handle: u64 in Trapping, value: Value)
+public machine Checker::set_value(checker: &mut Checker, handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition handle >= checker.tree_low {
@@ -276,31 +276,31 @@ crashes Trap
 
 // Interval arithmetic. Each bound sums with the overflow rule of
 // `Bound::add`, which only weakens.
-pub machine Value::sum(left: Value, right: Value) -> Value {
+public machine Value::sum(left: Value, right: Value) -> Value {
     let ceiling: Bound = Bound::add(left.ceiling, right.ceiling);
     let floor: Bound = Bound::add(left.floor, right.floor);
     let unknown: Value = Value::unknown();
     Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
 }
 
-pub machine Value::negation(value: Value) -> Value {
+public machine Value::negation(value: Value) -> Value {
     let unknown: Value = Value::unknown();
     Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: value.floor, floor: value.ceiling }
 }
 
-pub machine Value::difference(left: Value, right: Value) -> Value {
+public machine Value::difference(left: Value, right: Value) -> Value {
     let negated: Value = Value::negation(right);
     let result: Value = Value::sum(left, negated);
     result
 }
 
 // Whether the value is known to be at least zero.
-pub machine Value::nonnegative(value: Value) -> bool {
+public machine Value::nonnegative(value: Value) -> bool {
     value.floor.finite && (value.floor.value.negative || value.floor.value.magnitude == 0)
 }
 
 // A product of two nonnegative intervals; any other product is unbounded.
-pub machine Value::product(left: Value, right: Value) -> Value {
+public machine Value::product(left: Value, right: Value) -> Value {
     let left_nonnegative: bool = Value::nonnegative(left);
     let right_nonnegative: bool = Value::nonnegative(right);
     transition left_nonnegative && right_nonnegative {
@@ -329,7 +329,7 @@ pub machine Value::product(left: Value, right: Value) -> Value {
 
 // A quotient of a nonnegative interval by a positive one; any other
 // quotient is unbounded.
-pub machine Value::quotient(left: Value, right: Value) -> Value {
+public machine Value::quotient(left: Value, right: Value) -> Value {
     let left_nonnegative: bool = Value::nonnegative(left);
     let divisor: Bound = Value::least(right);
     let positive: bool = divisor.finite && !divisor.value.negative && divisor.value.magnitude > 0;
@@ -388,7 +388,7 @@ machine Value::divided_floor(least: u64 in Wrapping, ceiling: Bound) -> Bound {
 // magnitude lies below the divisor's greatest magnitude and its sign is the
 // dividend's, so a nonnegative dividend's is at most the dividend
 // (wiki/spec/language/numeric_values.md#integer-quotient-and-remainder).
-pub machine Value::remainder(left: Value, right: Value) -> Value {
+public machine Value::remainder(left: Value, right: Value) -> Value {
     let constants: bool = Value::is_constant(left) && Value::is_constant(right);
     transition constants {
         true -> folded(left, right)
@@ -461,7 +461,7 @@ pub machine Value::remainder(left: Value, right: Value) -> Value {
 }
 
 // A bitwise AND of nonnegative values is at most either operand.
-pub machine Value::conjunction(left: Value, right: Value) -> Value {
+public machine Value::conjunction(left: Value, right: Value) -> Value {
     let left_nonnegative: bool = Value::nonnegative(left);
     let right_nonnegative: bool = Value::nonnegative(right);
     transition left_nonnegative && right_nonnegative {
@@ -485,7 +485,7 @@ pub machine Value::conjunction(left: Value, right: Value) -> Value {
 
 // A right shift of a nonnegative value is at most the value; of constants,
 // exact.
-pub machine Value::shifted_right(left: Value, right: Value) -> Value {
+public machine Value::shifted_right(left: Value, right: Value) -> Value {
     let nonnegative: bool = Value::nonnegative(left);
     let constants: bool = Value::is_constant(left) && Value::is_constant(right)
         && !right.offset.negative && right.offset.magnitude < 64;
@@ -520,7 +520,7 @@ pub machine Value::shifted_right(left: Value, right: Value) -> Value {
 }
 
 // `left + right` as a linear term when one side is a constant.
-pub machine Value::offset_sum(left: Value, right: Value, interval: Value) -> Value {
+public machine Value::offset_sum(left: Value, right: Value, interval: Value) -> Value {
     let right_constant: bool = Value::is_constant(right);
     let left_constant: bool = Value::is_constant(left);
     transition left.known && right_constant {
@@ -553,7 +553,7 @@ pub machine Value::offset_sum(left: Value, right: Value, interval: Value) -> Val
 }
 
 // `left - right` as a linear term when `right` is a constant.
-pub machine Value::offset_difference(left: Value, right: Value, interval: Value) -> Value {
+public machine Value::offset_difference(left: Value, right: Value, interval: Value) -> Value {
     let right_constant: bool = Value::is_constant(right);
     transition left.known && right_constant {
         true -> shifted(left.subject, left.offset, right.offset, interval)
@@ -579,7 +579,7 @@ pub machine Value::offset_difference(left: Value, right: Value, interval: Value)
 
 // The tightest bound the zone gives on `right - left` for two linear terms;
 // unbounded when either is not one.
-pub machine Checker::difference_bound(checker: &Checker, left: Value, right: Value) -> Bound
+public machine Checker::difference_bound(checker: &Checker, left: Value, right: Value) -> Bound
 crashes Trap
 {
     transition left.known && right.known {
@@ -602,7 +602,7 @@ crashes Trap
 
 // Whether `left < right` holds wherever the zone does: through the zone's
 // relation between their terms, or through their intervals.
-pub machine Checker::proves_less(checker: &Checker, left: Value, right: Value) -> bool
+public machine Checker::proves_less(checker: &Checker, left: Value, right: Value) -> bool
 crashes Trap
 {
     let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
@@ -615,7 +615,7 @@ crashes Trap
 }
 
 // Whether `left <= right` holds wherever the zone does.
-pub machine Checker::proves_at_most(checker: &Checker, left: Value, right: Value) -> bool
+public machine Checker::proves_at_most(checker: &Checker, left: Value, right: Value) -> bool
 crashes Trap
 {
     let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
@@ -628,7 +628,7 @@ crashes Trap
 }
 
 // Whether the value is never zero.
-pub machine Checker::proves_nonzero(checker: &Checker, value: Value) -> bool {
+public machine Checker::proves_nonzero(checker: &Checker, value: Value) -> bool {
     let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
     let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
     let positive_wanted: Bound = Bound::exactly(below);
@@ -638,14 +638,14 @@ pub machine Checker::proves_nonzero(checker: &Checker, value: Value) -> bool {
 }
 
 // A value known only as a place, such as a record or a reference.
-pub machine Value::at_place(place: u64 in Trapping) -> Value {
+public machine Value::at_place(place: u64 in Trapping) -> Value {
     let unknown: Value = Value::unknown();
     Value { place: place, known: false, subject: 0, offset: unknown.offset, ceiling: unknown.ceiling, floor: unknown.floor }
 }
 
 // A value known only by its type: a fixed integer's carrier range, a
 // Boolean's 0 to 1.
-pub machine Value::typed(row: TypeRow) -> Value {
+public machine Value::typed(row: TypeRow) -> Value {
     let integer: bool = row.kind == TypeKind::Builtin && (ExactInteger::is_carrier(row.builtin) || row.builtin == BuiltinType::Bool);
     transition integer {
         true -> ranged(row.builtin)

@@ -2,8 +2,8 @@ module right;
 
 use omega_language_std::console;
 
-pub boundary trait Reader { machine read() -> i32; }
-pub data RightProvider {}
+public boundary trait Reader { machine read() -> i32; }
+public data RightProvider {}
 machine RightProvider::read() -> i32 satisfies Reader::read { 37 }
 
 // The sibling module tags its attached data (`RightRunner`, `RightProvider`)
@@ -13,8 +13,8 @@ machine RightProvider::read() -> i32 satisfies Reader::read { 37 }
 // unit plan would be omitted. The trait leaf stays shared -- provider
 // dispatch is symbol-keyed -- so the package still carries two `Reader`
 // conformances and the selection must pick `left::Reader`'s provider.
-pub data RightRunner { }
-pub machine RightRunner::run(right_runner: &mut RightRunner) reaches Reader, Console
+public data RightRunner { }
+public machine RightRunner::run(right_runner: &mut RightRunner) reaches Reader, Console
 invokes Reader;
 invokes Console;
 {

@@ -3,14 +3,14 @@ use omega_language_std::console;
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
-pub data Policies { }
-pub PrepareCalling satisfies CallingPolicy {
+public data Policies { }
+public PrepareCalling satisfies CallingPolicy {
     CallingPolicy::plan = Policies::prepare;
 }
-pub InvokeCalling satisfies CallingPolicy {
+public InvokeCalling satisfies CallingPolicy {
     CallingPolicy::plan = Policies::invoke;
 }
-pub TransformCalling satisfies CallingPolicy {
+public TransformCalling satisfies CallingPolicy {
     CallingPolicy::plan = Policies::transform;
 }
 
@@ -156,33 +156,33 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
 }
 
 
-pub data FloatRecord [copy] { first: f64; second: f64; third: f64; fourth: f64; }
+public data FloatRecord [copy] { first: f64; second: f64; third: f64; fourth: f64; }
 
 // Darwin arm64 ffi.h: ffi_type is 24 bytes and ffi_cif has the extra
 // aarch64_nfixedargs word, making its aligned extent 40 bytes.
-pub data DoubleType { size: u64; alignment: u16; kind: u16; elements: u64; }
-pub data TypeElements { first: &DoubleType; second: &DoubleType; third: &DoubleType; fourth: &DoubleType; terminator: u64; }
-pub data PairType { size: u64; alignment: u16; kind: u16; elements: &TypeElements; }
-pub data ArgumentTypes { pair: &PairType; }
+public data DoubleType { size: u64; alignment: u16; kind: u16; elements: u64; }
+public data TypeElements { first: &DoubleType; second: &DoubleType; third: &DoubleType; fourth: &DoubleType; terminator: u64; }
+public data PairType { size: u64; alignment: u16; kind: u16; elements: &TypeElements; }
+public data ArgumentTypes { pair: &PairType; }
 // ffi_call consumes the CIF prefix. This explicit shared metadata carrier
 // keeps the actual type records available throughout that invocation.
-pub data PreparedInterface { interface: ForeignInterface; types: &ArgumentTypes; }
-pub data ForeignInterface [copy] {
+public data PreparedInterface { interface: ForeignInterface; types: &ArgumentTypes; }
+public data ForeignInterface [copy] {
     abi: u32; argument_count: u32; argument_types: addr; result_type: addr;
     stack_bytes: u32; flags: u32; fixed_arguments: u32;
 }
-pub data ArgumentValues { pair: &FloatRecord; }
+public data ArgumentValues { pair: &FloatRecord; }
 
-pub boundary trait Prepare: Calling<PrepareCalling> {
+public boundary trait Prepare: Calling<PrepareCalling> {
     machine prepare(
         interface: &mut ForeignInterface, abi: u32, count: u32,
         result_type: &PairType, argument_types: &ArgumentTypes
     ) -> u32;
 }
-pub boundary trait Transform: Calling<TransformCalling> {
+public boundary trait Transform: Calling<TransformCalling> {
     machine transform(pair: FloatRecord) -> FloatRecord;
 }
-pub boundary trait Invoke: Calling<InvokeCalling> {
+public boundary trait Invoke: Calling<InvokeCalling> {
     machine invoke<machine Handler>(
         interface: &PreparedInterface, native callback transform from Handler,
         result: &mut FloatRecord, arguments: &ArgumentValues
@@ -194,8 +194,8 @@ pub boundary trait Invoke: Calling<InvokeCalling> {
 machine transformed(pair: FloatRecord) -> FloatRecord {
     FloatRecord { first: pair.fourth, second: pair.first, third: pair.second, fourth: pair.third }
 }
-pub data Handler { }
-pub machine Handler::transform(pair: FloatRecord) -> FloatRecord
+public data Handler { }
+public machine Handler::transform(pair: FloatRecord) -> FloatRecord
 satisfies Transform::transform
 {
     transformed(pair)

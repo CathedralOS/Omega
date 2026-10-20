@@ -2,24 +2,24 @@
 use numerics::complex::complex_carrier_ops::Complex;
 use omega::language::core::float_operations;
 
-pub trait Arithmetic<Scalar [copy]> {
+public trait Arithmetic<Scalar [copy]> {
     machine plus(left: Scalar, right: Scalar) -> Scalar;
     machine minus(left: Scalar, right: Scalar) -> Scalar;
     machine times(left: Scalar, right: Scalar) -> Scalar;
     machine divide(left: Scalar, right: Scalar) -> Scalar;
 }
-pub Double satisfies Arithmetic<f64> {
+public Double satisfies Arithmetic<f64> {
     machine plus(left: f64, right: f64) -> f64 { left + right }
     machine minus(left: f64, right: f64) -> f64 { left - right }
     machine times(left: f64, right: f64) -> f64 { left * right }
     machine divide(left: f64, right: f64) -> f64 { left / right }
 }
-pub machine norm<Scalar [copy], Operations satisfies Arithmetic<Scalar>>(value: Complex<Scalar>) -> Scalar {
+public machine norm<Scalar [copy], Operations satisfies Arithmetic<Scalar>>(value: Complex<Scalar>) -> Scalar {
     Arithmetic::plus<Scalar, Operations>(
         Arithmetic::times<Scalar, Operations>(value.real, value.real),
         Arithmetic::times<Scalar, Operations>(value.imaginary, value.imaginary))
 }
-pub machine quotient<Scalar [copy], Operations satisfies Arithmetic<Scalar>>(
+public machine quotient<Scalar [copy], Operations satisfies Arithmetic<Scalar>>(
     numerator: Complex<Scalar>, denominator: Complex<Scalar>) -> Complex<Scalar> {
     Complex {
         real: Arithmetic::divide<Scalar, Operations>(

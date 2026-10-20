@@ -9,10 +9,10 @@
 use omega::language::core::drop;
 use omega_language_std::console;
 
-pub data Token [linear] { value: u64; }
+public data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
 
-pub boundary trait TokenScale {
+public boundary trait TokenScale {
     machine weigh(token: &Token) -> u64;
     machine tag(token: &Token, marker: u64) -> bool;
 }

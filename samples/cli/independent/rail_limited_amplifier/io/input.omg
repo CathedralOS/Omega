@@ -1,7 +1,7 @@
 // Ten signed decimal integers, at most 10000 in magnitude, separated by
 // ASCII spaces, tab, CR or LF. No exponent, partial token or numeric wrap.
 use omega::language::core::numeric_conversion;
-pub data Inputs {
+public data Inputs {
     values: [i32; 10];
     count: i32 in Wrapping;
     magnitude: i32 in Wrapping;
@@ -10,7 +10,7 @@ pub data Inputs {
     digits: bool;
     valid: bool;
 }
-pub machine parse(bytes: &[u8]) -> Inputs {
+public machine parse(bytes: &[u8]) -> Inputs {
     let mut input: Inputs;
     input.valid = true;
     transition { _ -> scan(bytes, 0, input) }

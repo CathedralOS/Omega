@@ -210,7 +210,7 @@ checks. See [behavior exclusions](../spec/build/behavior_exclusions.md).
 
 Use `::` to resolve a static name: a package, module, type, or associated
 declaration. Use `.` to access a field. An ordinary machine declaration with
-signature `pub machine Room::describe(room: &Room)` in `dungeon::rooms` takes
+signature `public machine Room::describe(room: &Room)` in `dungeon::rooms` takes
 its data argument explicitly:
 
 ```omega
@@ -317,19 +317,19 @@ API and rebuild consequences.
 
 ## Visibility
 
-Independently nameable declarations are private unless marked `pub`.
+Independently nameable declarations are private unless marked `public`.
 Qualification does not inherit visibility: a public `Player` does not
 automatically publish `Player::take_damage`. A genuine field, case, state, or
 trait requirement follows its exact containing declaration.
 
 ```omega
-pub data Player {
+public data Player {
     health: i32;
 }
 
-pub const MAX_DAMAGE: i32 = 100;
+public const MAX_DAMAGE: i32 = 100;
 
-pub machine Player::take_damage(player: &mut Player, amount: i32)
+public machine Player::take_damage(player: &mut Player, amount: i32)
 requires amount >= 0
 requires player.health >= amount
 {
@@ -344,7 +344,7 @@ A public contract cannot expose a private declaration for consumer selection.
 A public machine's body
 may use private implementation details; its exposed contracts may not. Likewise,
 `terminates` is the public promise, while its ranking measure is private
-proof machinery. Measures are not published with `pub`.
+proof machinery. Measures are not published with `public`.
 
 Named conformances have independent visibility. A public conformance may
 retain private implementing machine identities: its consumer selects the public

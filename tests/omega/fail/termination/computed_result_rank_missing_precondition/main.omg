@@ -1,4 +1,4 @@
-pub boundary trait RankReader { machine observe(value: i32) -> i32
+public boundary trait RankReader { machine observe(value: i32) -> i32
 terminates
 requires value > 0 && value <= 9
 ensures result == value - 1;

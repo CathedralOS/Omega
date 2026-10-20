@@ -7,7 +7,7 @@ use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use clock;
 
-pub data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
+public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 
 data LinuxArmClockWait { }
 

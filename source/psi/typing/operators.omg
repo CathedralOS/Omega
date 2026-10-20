@@ -11,12 +11,12 @@ use psi::typing::typer;
 // An arithmetic or order operator with a data operand is operand-directed:
 // its candidates are the machines binding its token whose semantic home is
 // an operand's data, never a scan of imports. A candidate is one its use can
-// see (the home's package, or a `pub` machine), takes two parameters and
+// see (the home's package, or a `public` machine), takes two parameters and
 // admits both operands as a call admits its arguments; exactly one must.
 // The expression takes the selected machine's result and records the
 // selection, so checking owes the machine's contract as at a named call. A
 // generic token machine is no candidate yet.
-pub machine Typer::type_operator_call(
+public machine Typer::type_operator_call(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -174,11 +174,11 @@ crashes Trap
         candidate: u64 in Trapping,
         item: MachineItem
     ) -> bool {
-        let public: bool = Resolver::machine_public(resolution, syntax, item, candidate);
+        let is_public: bool = Resolver::machine_public(resolution, syntax, item, candidate);
         let use_unit: u64 in Trapping = expression.source_span.source.value as u64 in Trapping;
         let declared_unit: u64 in Trapping = item.name.source_span.source.value as u64 in Trapping;
         let own: bool = Resolver::same_package(sources, use_unit, declared_unit);
-        transition public || own {
+        transition is_public || own {
             true -> operands(typer, syntax, expression, item)
             _ -> no()
         }
@@ -219,7 +219,7 @@ crashes Trap
 }
 
 // Whether type `handle` is data.
-pub machine Typer::data_type(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::data_type(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -229,7 +229,7 @@ crashes Trap
 // The token an operator binds, or `None` for an operator no machine binds
 // (equality keeps the sealed `Equatable` route; logical, bitwise and shift
 // operators are builtin).
-pub machine Typer::operator_token(operator: OperatorKind) -> OperatorToken {
+public machine Typer::operator_token(operator: OperatorKind) -> OperatorToken {
     transition operator {
         OperatorKind::Add -> chosen(OperatorToken::Add)
         OperatorKind::Subtract -> chosen(OperatorToken::Subtract)

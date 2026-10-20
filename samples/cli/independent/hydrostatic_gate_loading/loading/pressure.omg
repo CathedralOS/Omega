@@ -4,8 +4,8 @@
 use geometry::profile;
 use omega::language::core::float_operations;
 
-pub data SegmentLoad [copy] { area: f64; force: f64; first_moment: f64; hinge_moment: f64; }
-pub machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64) -> SegmentLoad {
+public data SegmentLoad [copy] { area: f64; force: f64; first_moment: f64; hinge_moment: f64; }
+public machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64) -> SegmentLoad {
     let height: f64 = segment.upper - segment.lower;
     transition height > 0.0 {
         true -> wet(segment, water, gamma, hinge, height)

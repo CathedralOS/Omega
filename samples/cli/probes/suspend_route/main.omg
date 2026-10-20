@@ -5,7 +5,7 @@
 // machine's declared effect — ordinary callers must declare it
 // too (or themselves be boundary reach).
 //
-//   * `pub boundary data Sleeper;` — boundary-owned data.
+//   * `public boundary data Sleeper;` — boundary-owned data.
 //   * `boundary machine Sleeper::park(token: i32) suspends;` —
 //     bodyless suspending boundary decl.
 //   * `machine Worker::run(...) -> Token suspends` — declared
@@ -21,15 +21,15 @@
 
 use omega::language::core::task;
 
-pub boundary data Sleeper;
+public boundary data Sleeper;
 
 boundary machine Sleeper::park(token: i32) suspends;
 
-pub domain Token::AcrossSuspend(token)
+public domain Token::AcrossSuspend(token)
 requires
     token.id > 0;
 
-pub data Token {
+public data Token {
     id: u64;
 }
 

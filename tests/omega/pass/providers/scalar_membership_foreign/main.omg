@@ -1,8 +1,8 @@
 // Predicate-qualified scalars are not structural boundary arguments.
 use omega::language::core::external_binding;
-pub domain i32::MagnitudeInput(value)
+public domain i32::MagnitudeInput(value)
     requires value > -2147483648; (value & 1) == 0;
-pub boundary trait Magnitude {
+public boundary trait Magnitude {
     machine absolute(value: i32 in MagnitudeInput) -> i32
         requires 6 in MagnitudeInput;
 }

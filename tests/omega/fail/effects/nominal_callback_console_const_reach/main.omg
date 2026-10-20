@@ -1,5 +1,5 @@
-pub boundary trait Console {}
-pub trait StepContract {
+public boundary trait Console {}
+public trait StepContract {
     machine step(value: u64) -> u64 reaches Console terminates;
 }
 machine selected(value: u64) -> u64
@@ -9,7 +9,7 @@ terminates;
 {
     value
 }
-pub machine traverse<machine Step>(value: u64) -> u64
+public machine traverse<machine Step>(value: u64) -> u64
 where machine Step satisfies StepContract::step;
 terminates;
 {

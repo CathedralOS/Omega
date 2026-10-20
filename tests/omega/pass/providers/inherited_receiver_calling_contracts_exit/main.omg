@@ -1,11 +1,11 @@
 // Expected exit: 0. Inherited receivers retain distinct effective machine-state
 // promises even when their scalar register/result placements are identical.
 use omega_language_std::calling;
-pub boundary trait Parent { machine value() -> u64; }
-pub boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64; }
-pub boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64; }
-pub FirstCalling satisfies CallingPolicy { CallingPolicy::plan = first_plan; }
-pub SecondCalling satisfies CallingPolicy { CallingPolicy::plan = second_plan; }
+public boundary trait Parent { machine value() -> u64; }
+public boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64; }
+public boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64; }
+public FirstCalling satisfies CallingPolicy { CallingPolicy::plan = first_plan; }
+public SecondCalling satisfies CallingPolicy { CallingPolicy::plan = second_plan; }
 FirstMap satisfies FirstRoot { Parent::value = first_value; FirstRoot::selected = first_value; }
 SecondMap satisfies SecondRoot { Parent::value = second_value; SecondRoot::selected = second_value; }
 machine first_value() -> u64 { 17 }

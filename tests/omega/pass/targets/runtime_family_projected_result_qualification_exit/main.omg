@@ -2,9 +2,9 @@
 // Selected bodies transport that membership and the same linear owner together.
 use omega::language::core::drop;
 
-pub data Receipt [linear] { code: u64; }
+public data Receipt [linear] { code: u64; }
 machine Receipt::drop(receipt: &mut Receipt) {}
-pub domain Receipt::Issued;
+public domain Receipt::Issued;
 data Slot { receipt: Receipt in Receipt::Issued; }
 
 machine issue(code: u64) -> Receipt in Receipt::Issued {

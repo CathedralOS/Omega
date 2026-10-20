@@ -1,7 +1,7 @@
 module input::sequence;
 use omega_language_std::console;
 
-pub data Sequence {
+public data Sequence {
     bases: [u8; 16];
     length: i32 in Wrapping;
 }
@@ -10,7 +10,7 @@ pub data Sequence {
 // Capacity is checked before storing. Lowercase is normalized; no whitespace,
 // FASTA headers, punctuation or alphabet beyond A/C/G/T/N is silently accepted.
 // Status: 0 valid, 1 empty, 2 alphabet, 3 capacity, 4 unavailable line.
-pub machine read_sequence(sequence: &mut Sequence) -> i32
+public machine read_sequence(sequence: &mut Sequence) -> i32
 reaches Console
 invokes Console;
 blocks;

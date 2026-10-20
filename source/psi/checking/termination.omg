@@ -43,7 +43,7 @@ use psi::types::types;
 // enforced yet.
 
 // Clear the edges among `nodes` local nodes.
-pub machine Checker::clear_edges(checker: &mut Checker, nodes: u64 in Trapping)
+public machine Checker::clear_edges(checker: &mut Checker, nodes: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> row(checker, nodes, 0) }
@@ -74,7 +74,7 @@ crashes Trap
 }
 
 // Record an edge from the node being walked to node `to`.
-pub machine Checker::record_edge(checker: &mut Checker, to: u64 in Trapping)
+public machine Checker::record_edge(checker: &mut Checker, to: u64 in Trapping)
 crashes Trap
 {
     let from: u64 in Trapping = checker.walking as u64 in Trapping;
@@ -94,7 +94,7 @@ crashes Trap
 }
 
 // Whether node `from` reaches node `to` once the edges are closed.
-pub machine Checker::reaches(checker: &Checker, from: u64 in Trapping, to: u64 in Trapping) -> bool
+public machine Checker::reaches(checker: &Checker, from: u64 in Trapping, to: u64 in Trapping) -> bool
 crashes Trap
 {
     let index: u64 in Trapping = from * 129 + to;
@@ -118,7 +118,7 @@ crashes Trap
 // `through` in turn joins what it reaches into every node reaching it), then
 // record whether machine `machine` has a local cycle: a node reaching
 // itself.
-pub machine Checker::close_edges(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping)
+public machine Checker::close_edges(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> through(checker, machine, nodes, 0) }
@@ -200,7 +200,7 @@ crashes Trap
 }
 
 // A call of the machine being checked is an edge to its entry's node.
-pub machine Checker::record_self_call(checker: &mut Checker, selection: Selection)
+public machine Checker::record_self_call(checker: &mut Checker, selection: Selection)
 crashes Trap
 {
     transition selection {
@@ -224,7 +224,7 @@ crashes Trap
 
 // A self call of a terminating body descends its ranking: the entry's
 // formals receive its arguments.
-pub machine Checker::require_self_descent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
+public machine Checker::require_self_descent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
 crashes Trap
 {
     transition selection {
@@ -249,7 +249,7 @@ crashes Trap
 
 // Whether machine `machine`'s body has a local cycle; a machine beyond the
 // table is taken to have one.
-pub machine Checker::has_local_cycle(checker: &Checker, machine: u64 in Trapping) -> bool {
+public machine Checker::has_local_cycle(checker: &Checker, machine: u64 in Trapping) -> bool {
     transition machine < 2048 {
         true -> read(checker, machine)
         _ -> unknown()
@@ -270,14 +270,14 @@ pub machine Checker::has_local_cycle(checker: &Checker, machine: u64 in Trapping
 // whether a `terminates by` witness ranks it, with that clause's handle.
 // `promise` is the clause that promises (a bare `terminates;`, or the
 // `satisfies` clause inheriting one), `handle` the witness clause.
-pub data TerminationClause [copy] {
+public data TerminationClause [copy] {
     promised: bool;
     promise: u64 in Trapping;
     ranked: bool;
     handle: u64 in Trapping;
 }
 
-pub machine Checker::termination_clause(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem) -> TerminationClause
+public machine Checker::termination_clause(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem) -> TerminationClause
 crashes Trap
 {
     let none: TerminationClause = TerminationClause { promised: false, promise: 0, ranked: false, handle: 0 };
@@ -364,7 +364,7 @@ crashes Trap
 }
 
 // Forget a machine's local graph summary before checking starts.
-pub machine Checker::reset_termination(checker: &mut Checker, machine: u64 in Trapping) {
+public machine Checker::reset_termination(checker: &mut Checker, machine: u64 in Trapping) {
     transition machine < 2048 {
         true -> write(checker, machine)
         _ -> done()
@@ -382,7 +382,7 @@ pub machine Checker::reset_termination(checker: &mut Checker, machine: u64 in Tr
 }
 
 // The body being checked calls a machine binder.
-pub machine Checker::record_binder_call(checker: &mut Checker)
+public machine Checker::record_binder_call(checker: &mut Checker)
 crashes Trap
 {
     let machine: u64 in Trapping = checker.machine;
@@ -401,7 +401,7 @@ crashes Trap
 }
 
 // Settle which machines terminate (see the header).
-pub machine Checker::settle_termination(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
+public machine Checker::settle_termination(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
     transition { _ -> seed(checker, syntax, resolution, 0) }
@@ -500,7 +500,7 @@ crashes Trap
 
 // Whether machine `machine` settled as terminating, and whether its own
 // graph is acyclic or ranked.
-pub machine Checker::settled_termination(checker: &Checker, machine: u64 in Trapping) -> bool {
+public machine Checker::settled_termination(checker: &Checker, machine: u64 in Trapping) -> bool {
     transition machine < 2048 {
         true -> read(checker, machine)
         _ -> no()
@@ -517,7 +517,7 @@ pub machine Checker::settled_termination(checker: &Checker, machine: u64 in Trap
     }
 }
 
-pub machine Checker::ranked_locally(checker: &Checker, machine: u64 in Trapping) -> bool {
+public machine Checker::ranked_locally(checker: &Checker, machine: u64 in Trapping) -> bool {
     transition machine < 2048 {
         true -> read(checker, machine)
         _ -> no()
@@ -545,7 +545,7 @@ data Rank [copy] {
 // or a self call) must strictly descend the machine's ranking: the
 // target's formals `target_first .. target_first + target_count` receive
 // the call's arguments in order.
-pub machine Checker::require_descent(
+public machine Checker::require_descent(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -660,7 +660,7 @@ crashes Trap
 // At a machine's entry, a ranked witness with a rank range owes that the
 // rank its view produces from the entry parameters lies within the range
 // (wiki/spec/language/termination.md#ranking), under the entry's facts.
-pub machine Checker::require_rank_range_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
+public machine Checker::require_rank_range_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
 crashes Trap
 {
     let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
@@ -786,7 +786,7 @@ crashes Trap
 // one unsigned integer descends, one slice ranks by its length, and two
 // subjects rank by their bounded distance. `Default` stays for a witness
 // none of these fit.
-pub machine Checker::elaborated_view(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause) -> RankingView
+public machine Checker::elaborated_view(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause) -> RankingView
 crashes Trap
 {
     let view: RankingView = NameResolution::ranking_view(resolution, termination.handle);
@@ -828,7 +828,7 @@ crashes Trap
 
 // Whether a type row is an unsigned fixed-width integer, whose values are
 // naturals.
-pub machine Checker::natural_row(row: TypeRow) -> bool {
+public machine Checker::natural_row(row: TypeRow) -> bool {
     transition row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin) {
         true -> carrier(row.builtin)
         _ -> no()
@@ -999,7 +999,7 @@ crashes Trap
 // into the target formals `target_first .. target_first + target_count`,
 // plus one; zero when no formal carries it. The entry's own formals carry
 // themselves.
-pub machine Checker::carried_argument(
+public machine Checker::carried_argument(
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
     call: Expression,

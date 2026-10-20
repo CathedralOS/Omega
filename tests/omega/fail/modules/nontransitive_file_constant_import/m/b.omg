@@ -1,2 +1,2 @@
 use m::a::SEED;
-pub data B {}
+public data B {}

@@ -29,7 +29,7 @@ use psi::typing::typer;
 // routed one, an arithmetic policy or a case's domain does not.
 // An unlanded match or array literal (landing.omg) lands where each
 // anonymous number among its values would, at a destination of its shape.
-pub data Admission [copy] {
+public data Admission [copy] {
     case Rejected;
     case NotAValue;
     case OutOfRange;
@@ -42,7 +42,7 @@ pub data Admission [copy] {
     case Fraction;
 }
 
-pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
+public machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
 crashes Trap
 {
     let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
@@ -288,7 +288,7 @@ crashes Trap
 // An anonymous number, `expression`, at a destination of row `wanted`: it
 // lands at a float format by one rounding, and an anonymous integer at a
 // fixed integer it fits.
-pub machine Typer::literal_admission(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission
+public machine Typer::literal_admission(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission
 crashes Trap
 {
     let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
@@ -354,7 +354,7 @@ crashes Trap
 // shared loan (only where `lend` allows one: a call argument), or reject at
 // the expression, or at an unlanded value's number that does not land.
 // Whether it was admitted.
-pub machine Typer::admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
+public machine Typer::admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
 crashes Trap
 {
     let admission: Admission = Typer::admission(typer, syntax, destination, expression);
@@ -469,7 +469,7 @@ crashes Trap
 
 // Whether `expression` would be admitted at `destination`, lending allowed:
 // the test overload selection applies to each candidate.
-pub machine Typer::admissible(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
+public machine Typer::admissible(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
 crashes Trap
 {
     let admission: Admission = Typer::admission(typer, syntax, destination, expression);
@@ -494,7 +494,7 @@ crashes Trap
 // Whether a reference to an array meets a slice reference of its element
 // and qualifier, a shared one from either access and an exclusive one from
 // an exclusive reference.
-pub machine Typer::views_array(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool
+public machine Typer::views_array(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool
 crashes Trap
 {
     let access: bool = given.access == wanted.access || wanted.access == ReferenceAccess::Shared;

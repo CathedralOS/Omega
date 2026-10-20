@@ -1,5 +1,5 @@
 use omega::language::core::binding;
-pub boundary trait Console {}
+public boundary trait Console {}
 // A `data where` constrains a record's scalar field beside a service
 // `Binding<Console>` field: the facts don't hide the service field from
 // establishment.

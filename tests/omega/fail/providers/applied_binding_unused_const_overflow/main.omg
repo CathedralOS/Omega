@@ -1,4 +1,4 @@
 // A closed value outside its phantom carrier cannot be admitted.
 use omega::language::core::binding;
-pub boundary trait Parent<const Count: u8> { machine read() -> i32; }
+public boundary trait Parent<const Count: u8> { machine read() -> i32; }
 data Holder { slot: Binding<Parent<256> >; }

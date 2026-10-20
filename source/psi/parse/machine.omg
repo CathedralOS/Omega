@@ -8,10 +8,10 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // What precedes a machine declaration's `machine` keyword: where the
-// declaration starts, `pub`, a target name (`linux_arm64 machine ...`),
+// declaration starts, `public`, a target name (`linux_arm64 machine ...`),
 // `boundary`, and whether it stands at the root or inside a trait or a
 // conformance.
-pub data MachineHead [copy] {
+public data MachineHead [copy] {
     start: u64 in Trapping;
     is_public: bool;
     has_target: bool;
@@ -22,7 +22,7 @@ pub data MachineHead [copy] {
 }
 
 // Machine-declaration grammar attached to the parser owner:
-// `[pub] [target] [boundary] machine [token] [Owner::]name [<generic
+// `[public] [target] [boundary] machine [token] [Owner::]name [<generic
 // parameters>] [(parameters)] [-> Type] contracts clauses ({ statements
 // state* } | ;)`, entered at the `machine` keyword with its head. A fixed
 // operator token (`+`, `==`, `[]`, `[..]`, ...) binds operator syntax to the
@@ -35,7 +35,7 @@ pub data MachineHead [copy] {
 // primitive, a requirement, a boundary provider) is checking's question, not
 // the grammar's. A trait or conformance member names no owner, and only a
 // root declaration is retained as a root.
-pub machine Parser::parse_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead)
+public machine Parser::parse_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead)
 crashes Trap
 {
     parser.machine_start = head.start;
@@ -632,7 +632,7 @@ crashes Trap
 // may name a binder of an earlier contract's own generic parameters, so
 // contracts form one flat list whose binders resolution matches. The range
 // lands in `machine_first_contract` and the table count.
-pub machine Parser::parse_machine_contracts(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
+public machine Parser::parse_machine_contracts(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
 crashes Trap
 {
     parser.machine_first_contract = parser.output.contract_count as u64 in Trapping;
@@ -761,7 +761,7 @@ crashes Trap
 }
 
 // Append one contract row.
-pub machine Parser::retain_contract(parser: &mut Parser, input: &TokenStream, contract: Contract)
+public machine Parser::retain_contract(parser: &mut Parser, input: &TokenStream, contract: Contract)
 crashes Trap
 {
     transition parser.output.contract_count < 256 {

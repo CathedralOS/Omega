@@ -85,7 +85,7 @@ SURFACES = {
     "terminates": r"\bterminates\b",
     "case": r"\bcase\b",
     "use": r"^\s*use\s",
-    "pub": r"\bpub\b",
+    "public": r"\bpublic\b",
     "const": r"\bconst\b",
     "nested_call": r"\.\w+\(",
     "self_receiver": r"&mut self|&self",

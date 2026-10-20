@@ -23,12 +23,12 @@ machine quotient(numerator: u64 in Wrapping, denominator: u64 in Wrapping) -> u6
     state divide(numerator: u64 in Wrapping, denominator: u64 in Wrapping) -> u64 in Wrapping
     requires denominator > 0 { numerator / denominator }
 }
-pub machine table_weight(table: &Table, total: u64 in Wrapping) -> u64 in Wrapping {
+public machine table_weight(table: &Table, total: u64 in Wrapping) -> u64 in Wrapping {
     let denominator: u64 in Wrapping = factorial(table.cells[0]) * factorial(table.cells[1]) *
         factorial(table.cells[2]) * factorial(table.cells[3]) * factorial(table.cells[4]) * factorial(table.cells[5]);
     quotient(factorial(total), denominator)
 }
-pub machine score_denominator(model: &Model) -> u64 in Wrapping {
+public machine score_denominator(model: &Model) -> u64 in Wrapping {
     (model.rows[0] + model.rows[1]) * model.rows[0] * model.rows[1] *
         model.columns[0] * model.columns[1] * model.columns[2]
 }
@@ -39,7 +39,7 @@ machine contribution(cell: u64 in Wrapping, row: u64 in Wrapping,
     let difference: u64 in Wrapping = total * cell - row * column;
     difference * difference * quotient(common, row * column)
 }
-pub machine association_score(model: &Model, table: &Table) -> u64 in Wrapping {
+public machine association_score(model: &Model, table: &Table) -> u64 in Wrapping {
     let total: u64 in Wrapping = model.rows[0] + model.rows[1];
     let common: u64 in Wrapping = model.rows[0] * model.rows[1] * model.columns[0] * model.columns[1] * model.columns[2];
     contribution(table.cells[0], model.rows[0], model.columns[0], total, common) +

@@ -1,8 +1,8 @@
 use omega::language::core::drop;
-pub data Token [linear] { code: u8; }
+public data Token [linear] { code: u8; }
 machine Token::drop(token: &mut Token) {}
-pub domain Token::Issued established by TokenRoot::grant;
-pub boundary trait TokenRoot {
+public domain Token::Issued established by TokenRoot::grant;
+public boundary trait TokenRoot {
     machine grant(token: Token) -> Token ensures result in Token::Issued;
 }
 machine observe(first: Token in Issued, second: Token in Issued) -> bool {

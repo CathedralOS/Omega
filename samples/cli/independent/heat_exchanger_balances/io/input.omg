@@ -4,8 +4,8 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
 
-pub data Raw { values: [u32; 16]; count: u32; }
-pub data Input {
+public data Raw { values: [u32; 16]; count: u32; }
+public data Input {
     stages: u32;
     hot_capacity: f64;
     cold_capacity: f64;
@@ -14,7 +14,7 @@ pub data Input {
     conductance: [f64; 8];
 }
 
-pub machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> read(raw, 0, false, 0) }
     state read(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition bytes < 256 {
@@ -87,7 +87,7 @@ pub machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks
     state bad() -> bool { false }
 }
 
-pub machine validate(raw: &Raw, input: &mut Input) -> bool {
+public machine validate(raw: &Raw, input: &mut Input) -> bool {
     transition raw.count >= 9 && raw.values[0] == 1
         && raw.values[1] >= 1 && raw.values[1] <= 8
         && raw.values[2] >= 1 && raw.values[2] <= 100

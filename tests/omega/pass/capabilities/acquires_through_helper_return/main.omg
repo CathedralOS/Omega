@@ -1,4 +1,4 @@
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 // Chapter 18 "Capabilities And Authority Flow" (Acquires, nested): a helper
@@ -9,13 +9,13 @@ requires
 // up the call graph with the helper recorded as provenance
 // (`Backup::stage acquires via Vault::pick`).
 
-pub data Folder {
+public data Folder {
 }
 
-pub domain Folder::Writable
+public domain Folder::Writable
 established by Desktop::choose_folder, DesktopProvider::choose_folder;
 
-pub boundary trait Desktop {
+public boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable

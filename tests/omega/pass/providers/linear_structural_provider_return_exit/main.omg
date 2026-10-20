@@ -2,14 +2,14 @@
 use omega_language_std::console;
 use omega::language::core::drop;
 
-pub data Token [linear] { value: i32 in Wrapping; }
+public data Token [linear] { value: i32 in Wrapping; }
 machine Token::drop(token: &mut Token) { token.value = 0; }
-pub domain Token::SuspensionSafe = Carry::AcrossSuspend;
-pub domain Token::Marked;
-pub data Pair { left: Token in Token::Marked; right: Token in Token::Marked; }
-pub data Envelope { pair: Pair; }
-pub data Choice { case Empty; case Held(token: Token in Token::Marked); }
-pub boundary trait TokenFlow {
+public domain Token::SuspensionSafe = Carry::AcrossSuspend;
+public domain Token::Marked;
+public data Pair { left: Token in Token::Marked; right: Token in Token::Marked; }
+public data Envelope { pair: Pair; }
+public data Choice { case Empty; case Held(token: Token in Token::Marked); }
+public boundary trait TokenFlow {
     machine forward(token: Token) -> Token ensures result in Token::SuspensionSafe;
     machine replace(token: Token) -> Token;
     machine pair() -> Envelope;

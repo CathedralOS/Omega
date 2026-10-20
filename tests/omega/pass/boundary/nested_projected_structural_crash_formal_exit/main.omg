@@ -1,7 +1,7 @@
-pub data Input [copy] {value:i32;}
-pub data Envelope [copy] {input:Input;}
-pub data Reader {}
-pub boundary requirement Reader::read(source:&Input)->i32
+public data Input [copy] {value:i32;}
+public data Envelope [copy] {input:Input;}
+public data Reader {}
+public boundary requirement Reader::read(source:&Input)->i32
  crashes Trap !(source.value>=0);
 data Provider {}
 machine Provider::read(source:&Input)->i32 satisfies Reader::read {source.value}

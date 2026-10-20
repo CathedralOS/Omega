@@ -1,7 +1,7 @@
 // Expected exit: 0. Structural arguments do not consume scalar positions.
-pub domain u32::Flags(value) requires (value & 2) == 0;
-pub data Prefix { marker: u32; }
-pub boundary trait Gate {
+public domain u32::Flags(value) requires (value & 2) == 0;
+public data Prefix { marker: u32; }
+public boundary trait Gate {
     machine accept(prefix: &Prefix, value: u32 in Flags) -> u32;
 }
 data Provider {}

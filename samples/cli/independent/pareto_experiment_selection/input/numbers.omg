@@ -1,8 +1,8 @@
 // Whitespace-separated unsigned decimal tokens, at most three digits.
 // Admission checks happen on actual bytes; no wrapping or truncation is accepted.
 use omega_language_std::console;
-pub data Parsed [copy] { value: u64; valid: bool; }
-pub machine read_number() -> Parsed
+public data Parsed [copy] { value: u64; valid: bool; }
+public machine read_number() -> Parsed
 reaches Console
 invokes Console;
 blocks;
@@ -65,7 +65,7 @@ crashes Trap
     state invalid() -> Parsed { Parsed { value: 0, valid: false } }
 }
 
-pub machine only_whitespace() -> bool
+public machine only_whitespace() -> bool
 reaches Console
 invokes Console;
 blocks;

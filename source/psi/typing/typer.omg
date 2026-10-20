@@ -27,7 +27,7 @@ use psi::typing::statements;
 // (expressions.omg). An anonymous integer tree lands where its destination
 // is known: a declared local, a parameter, a field, an operand of a typed
 // operation, a cast or a result. The first rejection is the diagnostic.
-pub data Typer {
+public data Typer {
     output: Typing;
     // Which expressions have typed.
     typed: [bool; 131072];
@@ -48,7 +48,7 @@ pub data Typer {
     work: [u64; 4096];
 }
 
-pub machine Typer::type_check(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+public machine Typer::type_check(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
     Typer::clear(typer, syntax);
@@ -254,7 +254,7 @@ crashes Trap
 }
 
 // The type a declared result reference names, or `otherwise`.
-pub machine Typer::declared_result(typer: &Typer, has_type: bool, reference: u64 in Trapping, otherwise: u64 in Trapping) -> u64 in Trapping
+public machine Typer::declared_result(typer: &Typer, has_type: bool, reference: u64 in Trapping, otherwise: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition has_type {
@@ -274,7 +274,7 @@ crashes Trap
 // `handle` with every reference layer removed: what `.field` and `[index]`
 // project from (wiki/spec/language/expressions.md, "Dot access remains
 // data-field projection").
-pub machine Typer::referent(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+public machine Typer::referent(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -301,7 +301,7 @@ crashes Trap
 // of reference type denotes its referent's storage; a write-only reference
 // (wiki/spec/language/ownership.md#borrows-and-aliases) and any other type
 // read as themselves.
-pub machine Typer::read_type(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+public machine Typer::read_type(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -326,7 +326,7 @@ crashes Trap
 
 // Intern a row the typer builds; a full table rejects at `source_span` and
 // yields the absent type.
-pub machine Typer::intern(typer: &mut Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping
+public machine Typer::intern(typer: &mut Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     let handle: u64 in Trapping = TypeTable::intern(&mut typer.output.types, row);
@@ -347,7 +347,7 @@ crashes Trap
 
 // Guarded scratch access: the typed marks share the expression table's
 // bound, and the traversal stack its own.
-pub machine Typer::is_typed(typer: &Typer, index: u64 in Trapping) -> bool
+public machine Typer::is_typed(typer: &Typer, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition index < 131072 {
@@ -364,7 +364,7 @@ crashes Trap
     }
 }
 
-pub machine Typer::mark_typed(typer: &mut Typer, index: u64 in Trapping, typed: bool)
+public machine Typer::mark_typed(typer: &mut Typer, index: u64 in Trapping, typed: bool)
 crashes Trap
 {
     transition index < 131072 {

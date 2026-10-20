@@ -1,8 +1,8 @@
 // A bodyless contract's final semicolon separates declarations regardless of
 // the following declaration's visibility or generic implementation telescope.
-pub data Status [copy] { code: u64; }
-pub data Table { read: addr; }
-pub boundary trait ForeignReports {
+public data Status [copy] { code: u64; }
+public data Table { read: addr; }
+public boundary trait ForeignReports {
     machine read(table: &Table) -> Status ensures result.code == 0;
 }
 trait Identity<T> { machine same(value: T) -> T; }
@@ -11,7 +11,7 @@ data Wrapped<T> { value: T; }
 uefi_x86_64 machine Table::read(table: &Table) -> Status
 satisfies ForeignReports::read via ForeignBinding::TableFunction(read)
 ensures result.code == 0;
-pub FirmwareReports satisfies ForeignReports {
+public FirmwareReports satisfies ForeignReports {
     machine read(table: &Table) -> Status ensures result.code == 0; {
         Table::read(table)
     }

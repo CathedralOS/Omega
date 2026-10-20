@@ -1,5 +1,5 @@
 
-pub boundary trait Ping { machine ping(); }
+public boundary trait Ping { machine ping(); }
 
 data Harness { }
 // Borrowing a caller's established service preserves its exact authority.

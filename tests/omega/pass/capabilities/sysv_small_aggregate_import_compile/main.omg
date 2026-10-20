@@ -6,12 +6,12 @@
 // import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
 
-pub data Pair {
+public data Pair {
     first: u64;
     second: u64;
 }
 
-pub boundary trait AggregateImport {
+public boundary trait AggregateImport {
     machine call(tag: u64, pair: Pair) -> Pair;
 }
 

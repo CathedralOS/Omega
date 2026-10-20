@@ -10,7 +10,7 @@
 
 use omega_language_std::console;
 
-pub boundary trait Echo {
+public boundary trait Echo {
     machine echo(value: i32) -> i32;
 }
 
@@ -20,8 +20,8 @@ machine EchoProvider::echo(value: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (41) }
 }
 
-pub data Triple { first: u64; second: u64; third: u64; }
-pub boundary trait RecordSource {
+public data Triple { first: u64; second: u64; third: u64; }
+public boundary trait RecordSource {
     machine receive(seed: u64) -> Triple;
 }
 data RecordProvider {}

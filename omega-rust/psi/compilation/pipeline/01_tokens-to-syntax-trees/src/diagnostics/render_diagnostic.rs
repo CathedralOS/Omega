@@ -84,7 +84,7 @@ fn render_keyword(keyword: KeywordKind) -> &'static str {
         KeywordKind::Match => "match",
         KeywordKind::Owns => "owns",
         KeywordKind::Platform => "platform",
-        KeywordKind::Pub => "pub",
+        KeywordKind::Public => "public",
         KeywordKind::Return => "return",
         KeywordKind::SelfValue => "self",
         KeywordKind::State => "state",

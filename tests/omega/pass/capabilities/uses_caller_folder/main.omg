@@ -1,4 +1,4 @@
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 // A library that USES a caller-provided capability. The `Folder` writer surface
@@ -6,7 +6,7 @@ requires
 // authority without ever minting its own. The boundary has no in-package
 // implementation, so it is an approved provider edge.
 
-pub boundary trait Folder {
+public boundary trait Folder {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Folder;

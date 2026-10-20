@@ -48,7 +48,7 @@ module verify;
 use digest;
 use omega::language::core::numeric_conversion;
 
-pub data Verify {
+public data Verify {
     // ---- verdict + latch -------------------------------------------------
     ok: bool;
     verdict: u64 in Wrapping;
@@ -200,7 +200,7 @@ pub data Verify {
 // order. A feed outside the opened extent or capacity latches `ok` false;
 // nothing reads un-staged bytes (decoders bound by `*_n`, not capacity).
 
-pub machine Verify::open_stream(verify: &mut Verify, stream: u64 in Wrapping, n: u64 in Wrapping) {
+public machine Verify::open_stream(verify: &mut Verify, stream: u64 in Wrapping, n: u64 in Wrapping) {
     verify.cur = stream;
     verify.sn = n;
     verify.pos = 0;
@@ -262,7 +262,7 @@ pub machine Verify::open_stream(verify: &mut Verify, stream: u64 in Wrapping, n:
 // Feed one byte into the opened stream at `pos`. Over-extent or
 // over-capacity feeds latch `ok` false and leave the stream short-read,
 // which the decoder's end checks reject as truncation.
-pub machine Verify::feed(verify: &mut Verify, b: u8) {
+public machine Verify::feed(verify: &mut Verify, b: u8) {
     transition verify.cur == 0 && verify.pos < verify.req_n && verify.pos < 8192 {
         true -> put_req(verify, b)
         _ -> feed_plan_g(verify, b)
@@ -4314,7 +4314,7 @@ machine Verify::closed_ck(verify: &mut Verify) {
 // replay + certificate checks. Any stage short-circuits into `fin`,
 // which maps a bare decode failure to verdict 2 when the stage itself
 // did not name a code.
-pub machine Verify::verify(verify: &mut Verify) {
+public machine Verify::verify(verify: &mut Verify) {
     verify.ok = true;
     verify.verdict = 0;
     transition { _ -> req(verify) }
@@ -4416,7 +4416,7 @@ pub machine Verify::verify(verify: &mut Verify) {
 // coverage, 17 = verifier identity, 18 = inadmissible outcome,
 // 19 = predicate does not hold, 20 = invalid certificate,
 // 24–29 = malformed bindings.
-pub machine Verify::result(verify: &mut Verify) -> u64 in Wrapping {
+public machine Verify::result(verify: &mut Verify) -> u64 in Wrapping {
     transition { _ -> done(verify) }
     state done(verify: &mut Verify) -> u64 in Wrapping {
         verify.verdict

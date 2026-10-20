@@ -4,7 +4,7 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
-pub machine integer(reader: &mut Reader, value: i64)
+public machine integer(reader: &mut Reader, value: i64)
 reaches Console
 invokes Console;
 {
@@ -44,7 +44,7 @@ invokes Console;
         }
     }
 }
-pub machine field(reader: &mut Reader, name: &[u8], value: f64)
+public machine field(reader: &mut Reader, name: &[u8], value: f64)
 reaches Console
 invokes Console;
 {
@@ -53,7 +53,7 @@ invokes Console;
     integer(reader, narrowed as i64);
     Console::write_byte(10);
 }
-pub machine rational(reader: &mut Reader, name: &[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping)
+public machine rational(reader: &mut Reader, name: &[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping)
 reaches Console invokes Console; crashes Trap {
     transition denominator > 0 { true -> emit(reader, name, numerator, denominator) _ -> invalid() }
     state emit(reader: &mut Reader, name: &[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping) requires denominator > 0 {

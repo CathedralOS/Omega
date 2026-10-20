@@ -4,7 +4,7 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
-pub machine integer(reader: &mut Reader, value: i64)
+public machine integer(reader: &mut Reader, value: i64)
 reaches Console
 invokes Console;
 {
@@ -45,7 +45,7 @@ invokes Console;
     }
 }
 // Emit 13 significant digits in scientific notation without clipping signs.
-pub machine field(reader: &mut Reader, name: &[u8], value: f64) reaches Console invokes Console; {
+public machine field(reader: &mut Reader, name: &[u8], value: f64) reaches Console invokes Console; {
     Console::write(name);
     transition value < 0.0 { true -> negative(reader, value) _ -> normalize(reader, value, 0) }
     state negative(reader: &mut Reader, value: f64) { Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }

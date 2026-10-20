@@ -25,7 +25,7 @@ use psi::types::types;
 
 // What an argument holds while its call runs: nothing, or a shared or an
 // exclusive loan of a place expression.
-pub data Hold [copy] {
+public data Hold [copy] {
     case Released;
     case Shared(place: u64 in Trapping);
     case Exclusive(place: u64 in Trapping);
@@ -33,7 +33,7 @@ pub data Hold [copy] {
 
 // A call's arguments, pairwise: an earlier argument's hold against every
 // access of a later one.
-pub machine Checker::check_holds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
+public machine Checker::check_holds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, handle);
@@ -539,7 +539,7 @@ crashes Trap
 
 // The handle of a call's callee's first parameter, plus one: a machine's or
 // a state's; zero when the callee has no parameter list here.
-pub machine Checker::callee_parameters(syntax: &SyntaxTrees, selection: Selection) -> u64 in Trapping
+public machine Checker::callee_parameters(syntax: &SyntaxTrees, selection: Selection) -> u64 in Trapping
 crashes Trap
 {
     transition selection {
@@ -567,7 +567,7 @@ crashes Trap
 
 // Whether a call's parameter `offset` is a shared reference: an exclusive
 // argument passed there is held shared.
-pub machine Checker::shared_parameter(syntax: &SyntaxTrees, typing: &Typing, first_parameter: u64 in Trapping, offset: u64 in Trapping) -> bool
+public machine Checker::shared_parameter(syntax: &SyntaxTrees, typing: &Typing, first_parameter: u64 in Trapping, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     transition first_parameter > 0 {

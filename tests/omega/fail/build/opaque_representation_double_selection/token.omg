@@ -1,11 +1,11 @@
 use omega::language::core::representation;
 
-pub boundary data Token [copy];
-pub data TokenBytes [copy] {
+public boundary data Token [copy];
+public data TokenBytes [copy] {
     value: u32;
 }
-pub data TokenWide [copy] {
+public data TokenWide [copy] {
     value: u32;
 }
-pub TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }
-pub TokenWideRepresentation satisfies OpaqueRepresentation<Token, TokenWide> { }
+public TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }
+public TokenWideRepresentation satisfies OpaqueRepresentation<Token, TokenWide> { }

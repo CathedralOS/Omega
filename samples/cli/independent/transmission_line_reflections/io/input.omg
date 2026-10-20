@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-pub data Request [copy] {
+public data Request [copy] {
     valid: bool;
     identifier: u64 in Saturating;
     horizon: u64 in Saturating;
@@ -9,7 +9,7 @@ pub data Request [copy] {
 // Grammar: one case digit, one space, one or two horizon digits, LF.
 // Bytes are read through the documented Console provider; EOF and host traps
 // are explicit rejection routes. No input can grow the simulation storage.
-pub machine read_request() -> Request
+public machine read_request() -> Request
 reaches Console
 invokes Console;
 blocks;

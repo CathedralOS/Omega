@@ -11,7 +11,7 @@ use psi::resolution::resolution;
 use psi::resolve::resolver;
 use psi::source::source;
 
-pub data ResolverHarness {
+public data ResolverHarness {
 }
 
 // A little-endian `u32` read from the gate's input, or the input ending
@@ -32,7 +32,7 @@ data HarnessWord [copy] {
 // shared syntax tables in order, so its position is its `SourceId`; the
 // whole set then resolves. Malformed framing exits 253, and a set its
 // provisions cannot hold 252, without an observation.
-pub machine ResolverHarness::main(resolver_harness: &mut ResolverHarness)
+public machine ResolverHarness::main(resolver_harness: &mut ResolverHarness)
 reaches Console
 invokes Console;
 crashes Trap

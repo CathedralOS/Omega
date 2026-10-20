@@ -1,10 +1,10 @@
 // glibc div returns an 8-byte pair packed in one SysV integer result register.
 use omega::language::core::external_binding;
 
-pub data DivisionResult { quotient: i32; remainder: i32; }
-pub data AllocationProbe {}
-pub boundary requirement AllocationProbe::statistics(numerator: i32, denominator: i32) -> DivisionResult;
-pub boundary requirement AllocationProbe::exit_with(code: i32);
+public data DivisionResult { quotient: i32; remainder: i32; }
+public data AllocationProbe {}
+public boundary requirement AllocationProbe::statistics(numerator: i32, denominator: i32) -> DivisionResult;
+public boundary requirement AllocationProbe::exit_with(code: i32);
 data AllocationProvider {}
 linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 3, 11> {
     ForeignBinding::DllImport {

@@ -1,7 +1,7 @@
 // Portable atomic ordering events. The compiler supplies this exact sealed
 // declaration; an authored lookalike has no primitive implementation.
-pub data Atomic {}
-pub data FenceOrdering [copy] {
+public data Atomic {}
+public data FenceOrdering [copy] {
     case Receive;
     case Publish;
     case ReceivePublish;
@@ -9,4 +9,4 @@ pub data FenceOrdering [copy] {
 
 // The argument must name one proved case at the evaluated call. A fence alone
 // does not establish a publication or a reads-from synchronization relation.
-pub machine Atomic::fence(ordering: FenceOrdering);
+public machine Atomic::fence(ordering: FenceOrdering);

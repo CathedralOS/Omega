@@ -9,14 +9,14 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] Name [<generic parameters>] satisfies Trait<arguments> { member* }`,
+// `[public] Name [<generic parameters>] satisfies Trait<arguments> { member* }`,
 // entered at the implementation's name. The name identifies a closed map of
 // machines, not a data subject: the satisfied trait application is one type
 // reference, and a member is a checked machine with a body (machine.omg's
 // grammar, contained by the conformance) or a reference row
 // `Trait::requirement = Path;`. The item and its root are retained at the
 // closing `}`.
-pub machine Parser::parse_conformance(
+public machine Parser::parse_conformance(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,

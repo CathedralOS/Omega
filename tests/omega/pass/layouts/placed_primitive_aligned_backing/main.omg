@@ -2,7 +2,7 @@
 // Expected exit: 0
 use omega::language::core::layout;
 
-pub data Value { number: u64; padding: u64; }
+public data Value { number: u64; padding: u64; }
 data Aligned { value: Value; }
 data Wide {}
 machine Wide::plan(schema: Schema) -> Plan {
@@ -10,7 +10,7 @@ machine Wide::plan(schema: Schema) -> Plan {
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     Plan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 16 }
 }
-pub data StablePlacement {}
+public data StablePlacement {}
 
 machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];

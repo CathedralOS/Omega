@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // Declared quasi-static sample model, not an ideal-gas equation of state.
 // Pressure is kPa, volume is litres, hence work is joules. Positive work
 // means work by the piston. Isochoric stages interpolate declared pressure and do zero work.
-pub data Stage [copy] {
+public data Stage [copy] {
     volume: f64;
     pressure: f64;
     end_volume: f64;
@@ -14,7 +14,7 @@ pub data Stage [copy] {
     work: f64;
 }
 
-pub machine pressure_at(stage: &Stage, volume: f64) -> f64 {
+public machine pressure_at(stage: &Stage, volume: f64) -> f64 {
     let ratio: f64 = stage.volume / volume;
     transition stage.exponent {
         -1 -> rising(stage, ratio)
@@ -28,7 +28,7 @@ pub machine pressure_at(stage: &Stage, volume: f64) -> f64 {
     state cube(stage: &Stage, ratio: f64) -> f64 { stage.pressure * ratio * ratio * ratio }
 }
 
-pub machine evaluate(stage: &mut Stage) -> bool {
+public machine evaluate(stage: &mut Stage) -> bool {
     transition stage.volume >= 0.25 && stage.volume <= 8.0
         && stage.end_volume >= 0.25 && stage.end_volume <= 8.0
         && stage.pressure > 0.0 && stage.pressure <= 64.0 {
@@ -86,6 +86,6 @@ pub machine evaluate(stage: &mut Stage) -> bool {
     state reject() -> bool { false }
 }
 
-pub machine near(left: f64, right: f64) -> bool {
+public machine near(left: f64, right: f64) -> bool {
     left - right <= 0.000000001 && right - left <= 0.000000001
 }

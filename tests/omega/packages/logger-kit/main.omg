@@ -5,13 +5,13 @@
 module main;
 
 
-pub boundary trait Sink {
+public boundary trait Sink {
     machine emit(text: &[u8]);
 }
 
-pub data QuietSink { }
+public data QuietSink { }
 
-pub QuietSinkProvider satisfies Sink {
+public QuietSinkProvider satisfies Sink {
     Sink::emit = QuietSink::emit;
 }
 
@@ -20,7 +20,7 @@ satisfies Sink::emit
 {
 }
 
-pub machine log_quiet(text: &[u8])
+public machine log_quiet(text: &[u8])
 reaches Sink
 {
     let marker: u8 = 0;

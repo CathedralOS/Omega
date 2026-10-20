@@ -3,7 +3,7 @@ use chronology::model;
 data Candidate { ticks: [i32; 3]; }
 // Exact finite-domain search, independent of the host-side product oracle.
 // Candidate numbers encode A,B,C in decimal; every assignment is visited once.
-pub machine reconcile(model: &Chronology, result: &mut Reconciliation) {
+public machine reconcile(model: &Chronology, result: &mut Reconciliation) {
     result.count = 0;
     result.lower = [9,9,9];
     result.upper = [0,0,0];
@@ -136,7 +136,7 @@ pub machine reconcile(model: &Chronology, result: &mut Reconciliation) {
 
 // Deletion is monotone: if removing an edge admits a solution now, removing
 // more edges cannot make that edge redundant later. One pass is irreducible.
-pub machine contradiction(model: &mut Chronology, result: &mut Reconciliation) {
+public machine contradiction(model: &mut Chronology, result: &mut Reconciliation) {
     transition { _ -> edge(model, result, 0) }
     state edge(model: &mut Chronology, result: &mut Reconciliation, index: i32 in Wrapping) {
         transition index >= 0 && index < 4 {

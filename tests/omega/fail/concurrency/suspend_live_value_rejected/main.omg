@@ -6,7 +6,7 @@ data Message {
     body: &Cell;
 }
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine park() suspends;
 }
 

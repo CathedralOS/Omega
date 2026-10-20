@@ -1,7 +1,7 @@
 // Private decimal token reader. Reject overflow before multiplying; at most
 // 256 input bytes and 51 tokens, so malformed input cannot grow storage.
 use omega_language_std::console;
-pub data Tokens {
+public data Tokens {
     values: [i32; 51] in Saturating;
     count: i32 in Saturating;
     value: i32 in Saturating;
@@ -9,7 +9,7 @@ pub data Tokens {
     digits: bool;
     valid: bool;
 }
-pub machine Tokens::read(tokens: &mut Tokens)
+public machine Tokens::read(tokens: &mut Tokens)
 reaches Console
 invokes Console;
 blocks;
@@ -92,7 +92,7 @@ crashes Trap
     state done(tokens: &mut Tokens) { }
     state reject(tokens: &mut Tokens) { tokens.valid = false; }
 }
-pub machine Tokens::at(tokens: &Tokens, index: i32 in Saturating) -> i32 in Saturating {
+public machine Tokens::at(tokens: &Tokens, index: i32 in Saturating) -> i32 in Saturating {
     transition index >= 0 && index < 51 {
         true -> read(tokens, index)
         _ -> (-1)

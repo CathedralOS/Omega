@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 
 // Signed micro-units, ten decimal digits. No text format or math dependency.
 // Saturating conversion is explicit; the model inputs keep values below 1000.
-pub machine print_micro(value: f64)
+public machine print_micro(value: f64)
 reaches Console
 invokes Console;
 {

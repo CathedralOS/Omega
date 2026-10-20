@@ -26,7 +26,7 @@ use psi::types::types;
 // declaration rejects, since it ranks no body
 // (wiki/spec/language/termination.md). A bodyless declaration's promise is
 // its callers' premise, not an obligation.
-pub machine Checker::check_supply(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
+public machine Checker::check_supply(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
     transition { _ -> next_machine(checker, syntax, resolution, 0) }

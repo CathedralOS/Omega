@@ -10,7 +10,7 @@ data Moments {
     fractions: [f64; 32];
     uu: f64; uv: f64; vv: f64; uy: f64; vy: f64;
 }
-pub machine fraction(role: i32, logarithm: f64, log_half: f64, hill: f64) -> f64 {
+public machine fraction(role: i32, logarithm: f64, log_half: f64, hill: f64) -> f64 {
     transition role {
         1 -> 0.0
         2 -> 1.0
@@ -686,7 +686,7 @@ machine profile_endpoint(observations: &Observations, fit: &mut Fit,
         fit.upper[position] = value; true
     }
 }
-pub machine fit_curve(observations: &mut Observations, fit: &mut Fit) {
+public machine fit_curve(observations: &mut Observations, fit: &mut Fit) {
     fit.status = 6;
     bounds(observations);
     group_replicates(observations);

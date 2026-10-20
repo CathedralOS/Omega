@@ -51,7 +51,7 @@ requires span.events.len >= 1
     span.events[0] == expected
 }
 
-pub machine report(certificate: &Certificate) reaches Console
+public machine report(certificate: &Certificate) reaches Console
 invokes Console;
 {
     Console::write_line("sample_collection_routing: synthetic integer-minute model");

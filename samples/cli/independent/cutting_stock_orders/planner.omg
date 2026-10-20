@@ -3,7 +3,7 @@ use model;
 // All 4^4 choices are exhausted: 0/1 fresh bars, 2 remnant, 3 unfulfilled.
 // Objective: maximum count, maximum useful length, minimum fresh bars,
 // minimum opened material. Ascending code is the deterministic tie break.
-pub machine solve(orders: &model::Orders, best: &mut model::Plan) {
+public machine solve(orders: &model::Orders, best: &mut model::Plan) {
     best.code = 255;
     best.fulfilled = -1;
     best.useful = 0;

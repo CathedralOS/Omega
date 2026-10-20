@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // Factor once; forward/back substitution preserves the authored complex state.
 use domain::complex;
 use domain::model;
-pub machine factor(problem: &mut Problem) {
+public machine factor(problem: &mut Problem) {
     transition { _ -> rows(problem, 0) }
     state rows(problem: &mut Problem, row: i32) {
         transition row >= 0 && row < problem.cells && row < 32 { true -> columns(problem, row, 0) false -> pivots(problem, 0) }
@@ -41,7 +41,7 @@ pub machine factor(problem: &mut Problem) {
     state done() {}
 }
 machine identity(row: i32, column: i32) -> f64 { transition row == column { true -> 1.0 false -> 0.0 } }
-pub machine step(problem: &mut Problem) {
+public machine step(problem: &mut Problem) {
     transition { _ -> rhs_row(problem, 0) }
     state rhs_row(problem: &mut Problem, row: i32) {
         transition row >= 0 && row < problem.cells && row < 32 { true -> rhs_column(problem, row, 0, Complex { real: 0.0, imaginary: 0.0 }) false -> forward(problem, 0) }

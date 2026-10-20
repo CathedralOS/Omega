@@ -1,5 +1,5 @@
 // Retaining the described trait must preserve its signature checking.
-pub data HostRoot {}
+public data HostRoot {}
 boundary machine HostRoot::grant(root: i32) -> Extent
 satisfies ExtentRootProvider::grant;
 

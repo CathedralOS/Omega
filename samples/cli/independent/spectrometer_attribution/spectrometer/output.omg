@@ -49,7 +49,7 @@ machine rounded_ratio_thousandths(numerator: f64, denominator: f64) -> i32 in Wr
         converted as i32 in Wrapping
     }
 }
-pub machine print_report(application: &mut Spectrometer) reaches Console
+public machine print_report(application: &mut Spectrometer) reaches Console
 invokes Console;
 {
     let count: i32 in Wrapping = application.regions.count;

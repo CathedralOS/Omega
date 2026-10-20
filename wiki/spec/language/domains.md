@@ -77,7 +77,7 @@ multiplicity properties are separate facilities and are unchanged.
 domain i32::Positive(value)
     requires value > 0;
 
-pub domain Reservation::Issued
+public domain Reservation::Issued
     established by Issues::issue;
 
 domain i32::Km;
@@ -143,7 +143,7 @@ an assumption that old flow facts survived a write.
 ### Visibility and foreign declarations
 
 A carrier-qualified domain owns its visibility independently of its carrier.
-It is private unless declared `pub`; publishing it does not publish a private
+It is private unless declared `public`; publishing it does not publish a private
 carrier. Public signatures must be authorized to name both declarations under
 [package boundaries](../packages/boundaries.md).
 
@@ -181,12 +181,12 @@ Named decision: `domain-read-write-authority`.
 Domains may independently restrict who obtains access to their qualified subject:
 
 ```omega
-pub domain Cell::Controlled
+public domain Cell::Controlled
     established by Cell::create
     read by Cell::read
     written by Cell::set;
 
-pub data Counter {
+public data Counter {
     cell: Cell in Controlled;
 }
 ```
@@ -460,7 +460,7 @@ operator spellings retain operand-directed selection, not this result rule.
 ## Aliases and identity
 
 ```omega
-pub domain Socket::Usable =
+public domain Socket::Usable =
     Socket::Connected & Socket::Authenticated;
 ```
 

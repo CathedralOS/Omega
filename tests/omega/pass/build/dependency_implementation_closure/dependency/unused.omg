@@ -1,7 +1,7 @@
 // This body must be resolved only when its module is compiled, or during review.
 use omega::language::core::layout;
 
-pub machine unused() -> u64 {
+public machine unused() -> u64 {
     // Body-local builtin normalization is implementation work too.
     let invalid_intrinsic: u64 = abs(1, 2);
     let bytes: [u8; 0] = "a";
@@ -48,15 +48,15 @@ machine unused_capacity<Storage, const Capacity: u64>() -> u64
 where Storage == [u8; Capacity]
 { Capacity }
 
-pub data UnusedRegisters {
+public data UnusedRegisters {
     bytes: [u8; placed_byte_count()];
     nested: InnerPlacement<InnerRegisters>;
 }
 
-pub machine placed_byte_count() -> u64 { unused_slot_count() }
+public machine placed_byte_count() -> u64 { unused_slot_count() }
 
-pub data InnerRegisters { status: u32; }
-pub data InnerPlacement {}
+public data InnerRegisters { status: u32; }
+public data InnerPlacement {}
 
 machine InnerPlacement::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
@@ -81,7 +81,7 @@ machine InvalidPlacement::plan(schema: Schema) -> Plan {
     Plan {}
 }
 
-pub data UnusedPlacement {}
+public data UnusedPlacement {}
 
 machine UnusedPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];

@@ -3,7 +3,7 @@ use domain::model;
 // Mixed-radix genotype enumeration, separate from the oracle's allele-copy
 // generative enumeration. All arithmetic is bounded by 3^6 and 4^6.
 // Wrapping is explicit storage policy; validated bounds make wrap unreachable.
-pub data Inference {
+public data Inference {
     genotypes: [i32; 6];
     active: [i32; 6];
     marginals: [i32; 18];
@@ -13,7 +13,7 @@ pub data Inference {
     limit: i32 in Wrapping;
 }
 
-pub machine initialize(pedigree: &Pedigree, result: &mut Inference) {
+public machine initialize(pedigree: &Pedigree, result: &mut Inference) {
     result.active = [1, 1, 1, 1, 1, 1];
     result.limit = 1;
     result.denominator = 1;
@@ -32,7 +32,7 @@ pub machine initialize(pedigree: &Pedigree, result: &mut Inference) {
     state done() { }
 }
 
-pub machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
+public machine enumerate(pedigree: &Pedigree, result: &mut Inference) {
     result.solutions = 0;
     result.mass = 0;
     result.marginals = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
@@ -145,7 +145,7 @@ machine founder_weight(genotype: i32 in Wrapping) -> i32 in Wrapping {
 
 // Greedy deletion in ID order yields an irreducible (not minimum-cardinality)
 // witness. Removing constraints cannot destroy an assignment, so one pass suffices.
-pub machine contradiction(pedigree: &Pedigree, result: &mut Inference) {
+public machine contradiction(pedigree: &Pedigree, result: &mut Inference) {
     transition { _ -> attempt(pedigree, result, 0) }
     state attempt(pedigree: &Pedigree, result: &mut Inference, person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {

@@ -1,6 +1,6 @@
 use omega::language::core::layout;
-pub data Registers { status: u32; transmit: u8; }
-pub data RegPlacement {}
+public data Registers { status: u32; transmit: u8; }
+public data RegPlacement {}
 machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {

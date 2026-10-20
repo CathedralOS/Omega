@@ -1,6 +1,6 @@
 module visible;
-pub data Policy { }
-pub boundary operator Policy::convert(value: i32) -> bool;
+public data Policy { }
+public boundary operator Policy::convert(value: i32) -> bool;
 data Provider { }
 machine Provider::wrong(value: i32) -> i32 satisfies Policy::convert { value }
-pub machine exercise() { }
+public machine exercise() { }

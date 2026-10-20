@@ -3,9 +3,9 @@
 // an extent from an allocator result. Held means exactly the right to free it.
 use omega::language::core::external_binding;
 
-pub data Allocation [linear] { address: addr; }
-pub domain Allocation::Held established by NativeHeap::allocate;
-pub boundary trait NativeHeap {
+public data Allocation [linear] { address: addr; }
+public domain Allocation::Held established by NativeHeap::allocate;
+public boundary trait NativeHeap {
     machine allocate(bytes: u64) -> Allocation
     ensures result in Held;
     machine release(allocation: Allocation in Held);

@@ -123,7 +123,7 @@ pub struct TraitDefinition {
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
     /// The `= Base` head of a transparent trait refinement
-    /// (`pub trait LocalLogger = Logger`). A refinement is a structural bound
+    /// (`public trait LocalLogger = Logger`). A refinement is a structural bound
     /// over an existing base conformance, never a new nominal conformance
     /// target; `None` marks an ordinary trait.
     pub refines: Option<crate::types::TypeReferenceHandle>,

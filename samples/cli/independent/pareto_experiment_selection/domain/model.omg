@@ -2,7 +2,7 @@
 // Twelve rows bound storage and pairwise work; certificates retain original positions.
 use omega_language_std::console;
 
-pub data Experiment [copy] {
+public data Experiment [copy] {
     identifier: u64;
     provenance: u64;
     position: u64;
@@ -11,7 +11,7 @@ pub data Experiment [copy] {
     gain: u64;
     risk: u64;
 }
-pub data Application {
+public data Application {
     rows: [Experiment; 12];
     count: u64;
     budget: u64;

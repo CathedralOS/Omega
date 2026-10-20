@@ -9,11 +9,11 @@ use omega::language::core::filesystem_authority;
 use omega::language::core::numeric_conversion;
 
 
-pub data File [copy] {
+public data File [copy] {
     handle: u64;
 }
 
-pub data ErrorKind [copy] {
+public data ErrorKind [copy] {
     case Other;
     case NotFound;
     case PermissionDenied;
@@ -41,55 +41,55 @@ machine ErrorKind::reconstruct(error_kind: &ErrorKind) -> ErrorKind {
     }
 }
 
-pub data OpenResult {
+public data OpenResult {
     case Error(kind: ErrorKind);
     case Ok(file: File);
 }
-pub data IoResult {
+public data IoResult {
     case Error(kind: ErrorKind);
     case Ok(count: u64);
 }
 
-pub data DirStats [copy] {
+public data DirStats [copy] {
     entries: u64;
     subdirs: u64;
     files: u64;
 }
-pub data DirStatsResult {
+public data DirStatsResult {
     case Error(kind: ErrorKind);
     case Ok(stats: DirStats);
 }
 
-pub data DirEntry [copy] {
+public data DirEntry [copy] {
     name: [u8; 256];
     name_len: u64;
     is_dir: bool;
     is_file: bool;
 }
 
-pub data DirEntryResult {
+public data DirEntryResult {
     case Error(kind: ErrorKind);
     case End;
     case Ok(entry: DirEntry);
 }
 
-pub data EmptyResult {
+public data EmptyResult {
     case Error(kind: ErrorKind);
     case Empty;
     case NonEmpty;
 }
-pub data UnitResult {
+public data UnitResult {
     case Error(kind: ErrorKind);
     case Ok;
 }
 
-pub data ExistsResult {
+public data ExistsResult {
     case Error(kind: ErrorKind);
     case No;
     case Yes;
 }
 
-pub data TryLockResult {
+public data TryLockResult {
     case Error(kind: ErrorKind);
     case WouldBlock;
     case Unsupported;
@@ -98,7 +98,7 @@ pub data TryLockResult {
     case Acquired;
 }
 
-pub data OpenOptions [copy] {
+public data OpenOptions [copy] {
     read: bool;
     write: bool;
     append: bool;
@@ -111,13 +111,13 @@ pub data OpenOptions [copy] {
 // Zero requests the target's default writable-file permissions. Readonly is a
 // portable request; a numeric POSIX mode is explicitly an OS-family extension,
 // not a fictional Windows ACL or an encoding of its read-only attribute.
-pub data Permissions [copy] {
+public data Permissions [copy] {
     case Default;
     case Readonly(value: bool);
     case Posix(mode: u32);
 }
 
-pub machine Permissions::readonly(permissions: &Permissions) -> bool {
+public machine Permissions::readonly(permissions: &Permissions) -> bool {
     transition permissions {
         Permissions::Default -> false
         Permissions::Readonly { value } -> (value)
@@ -125,7 +125,7 @@ pub machine Permissions::readonly(permissions: &Permissions) -> bool {
     }
 }
 
-pub machine Permissions::set_readonly(permissions: &mut Permissions, readonly: bool) {
+public machine Permissions::set_readonly(permissions: &mut Permissions, readonly: bool) {
     transition permissions {
         Permissions::Posix { mode } -> posix(permissions, mode, readonly)
         _ -> portable(permissions, readonly)
@@ -147,12 +147,12 @@ machine posix_mode_with_readonly(mode: u32, readonly: bool) -> u32 {
 
 // Not every native metadata record contains a creation timestamp. Keep that
 // absence distinct from the Unix epoch and from a failed metadata query.
-pub data TimestampResult [copy] {
+public data TimestampResult [copy] {
     case Error(kind: ErrorKind);
     case Ok(seconds: i64);
 }
 
-pub data FileKind [copy] {
+public data FileKind [copy] {
     case Other;
     case File;
     case Directory;
@@ -167,7 +167,7 @@ pub data FileKind [copy] {
 // Keep genuine zero values (including UID/GID 0 and inline allocation) distinct
 // from unavailable information. Windows cannot manufacture these as zero or
 // truncate a native 128-bit file identifier into the POSIX inode field.
-pub data PosixMetadata [copy] {
+public data PosixMetadata [copy] {
     mode: u32;
     ino: u64;
     dev: u64;
@@ -177,12 +177,12 @@ pub data PosixMetadata [copy] {
     blocks: u64;
     blksize: u64;
 }
-pub data PosixMetadataResult [copy] {
+public data PosixMetadataResult [copy] {
     case Error(kind: ErrorKind);
     case Ok(details: PosixMetadata);
 }
 
-pub data Metadata [copy] {
+public data Metadata [copy] {
     len: i64;
     kind: FileKind;
     permissions: Permissions;
@@ -194,70 +194,70 @@ pub data Metadata [copy] {
     changed_secs: i64;
 }
 
-pub machine Metadata::is_file(metadata: &Metadata) -> bool {
+public machine Metadata::is_file(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::File -> true _ -> false }
 }
-pub machine Metadata::is_dir(metadata: &Metadata) -> bool {
+public machine Metadata::is_dir(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Directory -> true _ -> false }
 }
-pub machine Metadata::is_symlink(metadata: &Metadata) -> bool {
+public machine Metadata::is_symlink(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Symlink -> true _ -> false }
 }
 
-pub machine Metadata::is_char_device(metadata: &Metadata) -> bool {
+public machine Metadata::is_char_device(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::CharacterDevice -> true _ -> false }
 }
-pub machine Metadata::is_block_device(metadata: &Metadata) -> bool {
+public machine Metadata::is_block_device(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::BlockDevice -> true _ -> false }
 }
-pub machine Metadata::is_fifo(metadata: &Metadata) -> bool {
+public machine Metadata::is_fifo(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Fifo -> true _ -> false }
 }
-pub machine Metadata::is_socket(metadata: &Metadata) -> bool {
+public machine Metadata::is_socket(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Socket -> true _ -> false }
 }
 
-pub machine Metadata::readonly(metadata: &Metadata) -> bool {
+public machine Metadata::readonly(metadata: &Metadata) -> bool {
     Permissions::readonly(&metadata.permissions)
 }
 
-pub machine Metadata::permissions(metadata: &Metadata) -> Permissions {
+public machine Metadata::permissions(metadata: &Metadata) -> Permissions {
     metadata.permissions
 }
 
-pub machine Metadata::nlink(metadata: &Metadata) -> u64 {
+public machine Metadata::nlink(metadata: &Metadata) -> u64 {
     metadata.nlink
 }
 
-pub machine Metadata::posix(metadata: &Metadata) -> PosixMetadataResult {
+public machine Metadata::posix(metadata: &Metadata) -> PosixMetadataResult {
     metadata.posix
 }
 
-pub machine Metadata::changed(metadata: &Metadata) -> i64 {
+public machine Metadata::changed(metadata: &Metadata) -> i64 {
     metadata.changed_secs
 }
 
-pub machine Metadata::modified(metadata: &Metadata) -> i64 {
+public machine Metadata::modified(metadata: &Metadata) -> i64 {
     metadata.modified_secs
 }
 
-pub machine Metadata::accessed(metadata: &Metadata) -> i64 {
+public machine Metadata::accessed(metadata: &Metadata) -> i64 {
     metadata.accessed_secs
 }
 
-pub machine Metadata::created(metadata: &Metadata) -> TimestampResult {
+public machine Metadata::created(metadata: &Metadata) -> TimestampResult {
     metadata.creation_time
 }
-pub data MetadataResult {
+public data MetadataResult {
     case Error(kind: ErrorKind);
     case Ok(meta: Metadata);
 }
 
 use posix_filesystem_adapter;
 
-pub data Filesystem {}
+public data Filesystem {}
 
-pub boundary trait FilesystemService {
+public boundary trait FilesystemService {
     machine create(path: &[u8] in Path) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
@@ -444,322 +444,322 @@ pub boundary trait FilesystemService {
     invokes WindowsFilesystemHost;
 }
 
-pub machine Filesystem::create(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
+public machine Filesystem::create(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::create(path)
 }
 
-pub machine Filesystem::create_new(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
+public machine Filesystem::create_new(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::create_new(path)
 }
 
-pub machine Filesystem::open(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
+public machine Filesystem::open(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::open(path)
 }
 
-pub machine Filesystem::append(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
+public machine Filesystem::append(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::append(path)
 }
 
-pub machine Filesystem::read(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64) -> IoResult
+public machine Filesystem::read(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
 invokes FilesystemService;
 {
     FilesystemService::read(file, buffer, count)
 }
 
-pub machine Filesystem::write(filesystem: &mut Filesystem, file: File, bytes: &[u8]) -> IoResult
+public machine Filesystem::write(filesystem: &mut Filesystem, file: File, bytes: &[u8]) -> IoResult
 reaches FilesystemContentWrite
 invokes FilesystemService;
 {
     FilesystemService::write(file, bytes)
 }
 
-pub machine Filesystem::close(filesystem: &mut Filesystem, file: File) -> UnitResult
+public machine Filesystem::close(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
     FilesystemService::close(file)
 }
 
-pub machine Filesystem::write_all(filesystem: &mut Filesystem, path: &[u8] in Path, bytes: &[u8]) -> UnitResult
+public machine Filesystem::write_all(filesystem: &mut Filesystem, path: &[u8] in Path, bytes: &[u8]) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::write_all(path, bytes)
 }
 
-pub machine Filesystem::read_all(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+public machine Filesystem::read_all(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::read_all(path, buffer, count)
 }
 
-pub machine Filesystem::copy(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+public machine Filesystem::copy(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::copy(from, to, buffer, cap)
 }
 
-pub machine Filesystem::exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> bool
+public machine Filesystem::exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::exists(path)
 }
 
-pub machine Filesystem::try_exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> ExistsResult
+public machine Filesystem::try_exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> ExistsResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::try_exists(path)
 }
 
-pub machine Filesystem::metadata_path(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
+public machine Filesystem::metadata_path(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::metadata_path(path)
 }
 
-pub machine Filesystem::symlink_metadata(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
+public machine Filesystem::symlink_metadata(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::symlink_metadata(path)
 }
 
-pub machine Filesystem::remove(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
+public machine Filesystem::remove(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::remove(path)
 }
 
-pub machine Filesystem::create_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
+public machine Filesystem::create_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::create_dir(path)
 }
 
-pub machine Filesystem::remove_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
+public machine Filesystem::remove_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::remove_dir(path)
 }
 
-pub machine Filesystem::create_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
+public machine Filesystem::create_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::create_dir_all(path)
 }
 
-pub machine Filesystem::read_dir_is_empty(filesystem: &mut Filesystem, path: &[u8] in Path) -> EmptyResult
+public machine Filesystem::read_dir_is_empty(filesystem: &mut Filesystem, path: &[u8] in Path) -> EmptyResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::read_dir_is_empty(path)
 }
 
-pub machine Filesystem::set_permissions(filesystem: &mut Filesystem, path: &[u8] in Path, perms: Permissions) -> UnitResult
+public machine Filesystem::set_permissions(filesystem: &mut Filesystem, path: &[u8] in Path, perms: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_permissions(path, perms)
 }
 
-pub machine Filesystem::symlink(filesystem: &mut Filesystem, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+public machine Filesystem::symlink(filesystem: &mut Filesystem, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::symlink(target, link)
 }
 
-pub machine Filesystem::read_link(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+public machine Filesystem::read_link(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::read_link(path, buffer, count)
 }
 
-pub machine Filesystem::set_file_permissions(filesystem: &mut Filesystem, file: File, perms: Permissions) -> UnitResult
+public machine Filesystem::set_file_permissions(filesystem: &mut Filesystem, file: File, perms: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_file_permissions(file, perms)
 }
 
-pub machine Filesystem::rename(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
+public machine Filesystem::rename(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::rename(from, to)
 }
 
-pub machine Filesystem::set_len(filesystem: &mut Filesystem, file: File, length: i64) -> UnitResult
+public machine Filesystem::set_len(filesystem: &mut Filesystem, file: File, length: i64) -> UnitResult
 reaches FilesystemContentWrite + FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_len(file, length)
 }
 
-pub machine Filesystem::sync(filesystem: &mut Filesystem, file: File) -> UnitResult
+public machine Filesystem::sync(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
     FilesystemService::sync(file)
 }
 
-pub machine Filesystem::sync_data(filesystem: &mut Filesystem, file: File) -> UnitResult
+public machine Filesystem::sync_data(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
     FilesystemService::sync_data(file)
 }
 
-pub machine Filesystem::try_clone(filesystem: &mut Filesystem, file: File) -> OpenResult
+public machine Filesystem::try_clone(filesystem: &mut Filesystem, file: File) -> OpenResult
 
 invokes FilesystemService;
 {
     FilesystemService::try_clone(file)
 }
 
-pub machine Filesystem::set_owner(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+public machine Filesystem::set_owner(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_owner(path, uid, gid)
 }
 
-pub machine Filesystem::set_owner_no_follow(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+public machine Filesystem::set_owner_no_follow(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_owner_no_follow(path, uid, gid)
 }
 
-pub machine Filesystem::set_file_owner(filesystem: &mut Filesystem, file: File, uid: i32, gid: i32) -> UnitResult
+public machine Filesystem::set_file_owner(filesystem: &mut Filesystem, file: File, uid: i32, gid: i32) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_file_owner(file, uid, gid)
 }
 
-pub machine Filesystem::metadata(filesystem: &mut Filesystem, file: File) -> MetadataResult
+public machine Filesystem::metadata(filesystem: &mut Filesystem, file: File) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::metadata(file)
 }
 
-pub machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
+public machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::open_with(path, options)
 }
 
-pub machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
+public machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes FilesystemService;
 {
     FilesystemService::read_dir_count(path)
 }
 
-pub machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
+public machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::read_dir_nth(path, n)
 }
 
-pub machine Filesystem::remove_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
+public machine Filesystem::remove_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::remove_dir_all(path)
 }
 
-pub machine Filesystem::read_at(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+public machine Filesystem::read_at(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
 reaches FilesystemContentRead
 invokes FilesystemService;
 {
     FilesystemService::read_at(file, buffer, count, offset)
 }
 
-pub machine Filesystem::write_at(filesystem: &mut Filesystem, file: File, bytes: &[u8], offset: i64) -> IoResult
+public machine Filesystem::write_at(filesystem: &mut Filesystem, file: File, bytes: &[u8], offset: i64) -> IoResult
 reaches FilesystemContentWrite
 invokes FilesystemService;
 {
     FilesystemService::write_at(file, bytes, offset)
 }
 
-pub machine Filesystem::hard_link(filesystem: &mut Filesystem, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+public machine Filesystem::hard_link(filesystem: &mut Filesystem, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
     FilesystemService::hard_link(original, link)
 }
 
-pub machine Filesystem::set_times(filesystem: &mut Filesystem, file: File, accessed: i64, modified: i64) -> UnitResult
+public machine Filesystem::set_times(filesystem: &mut Filesystem, file: File, accessed: i64, modified: i64) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
     FilesystemService::set_times(file, accessed, modified)
 }
 
-pub machine Filesystem::canonicalize(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+public machine Filesystem::canonicalize(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::canonicalize(path, buffer)
 }
 
-pub machine Filesystem::lock(filesystem: &mut Filesystem, file: File) -> UnitResult
+public machine Filesystem::lock(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
     FilesystemService::lock(file)
 }
 
-pub machine Filesystem::lock_shared(filesystem: &mut Filesystem, file: File) -> UnitResult
+public machine Filesystem::lock_shared(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
     FilesystemService::lock_shared(file)
 }
 
-pub machine Filesystem::try_lock(filesystem: &mut Filesystem, file: File) -> TryLockResult
+public machine Filesystem::try_lock(filesystem: &mut Filesystem, file: File) -> TryLockResult
 
 invokes FilesystemService;
 {
     FilesystemService::try_lock(file)
 }
 
-pub machine Filesystem::try_lock_shared(filesystem: &mut Filesystem, file: File) -> TryLockResult
+public machine Filesystem::try_lock_shared(filesystem: &mut Filesystem, file: File) -> TryLockResult
 
 invokes FilesystemService;
 {
     FilesystemService::try_lock_shared(file)
 }
 
-pub machine Filesystem::unlock(filesystem: &mut Filesystem, file: File) -> UnitResult
+public machine Filesystem::unlock(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {

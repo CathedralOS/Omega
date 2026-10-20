@@ -1,9 +1,9 @@
 // All arithmetic is private to ADD01. Input magnitudes are capped at 1,000,000;
 // loads at 1000 N. These bounds keep every product below 2^63, so Wrapping
 // operations agree with mathematical integers. CoP remains an exact ratio.
-pub data Frame { values: [i64; 7]; }
+public data Frame { values: [i64; 7]; }
 // These are first moments Qx,Qy (N mm), not torque-axis components.
-pub data Balance {
+public data Balance {
     force: i64 in Wrapping;
     moment_x: i64 in Wrapping;
     moment_y: i64 in Wrapping;
@@ -12,7 +12,7 @@ pub data Balance {
     y_residual: i64 in Wrapping;
     status: i32;
 }
-pub machine reconcile(frame: &Frame) -> Balance {
+public machine reconcile(frame: &Frame) -> Balance {
     let mut result: Balance;
     let a: i64 in Wrapping = frame.values[0] as i64 in Wrapping;
     let b: i64 in Wrapping = frame.values[1] as i64 in Wrapping;

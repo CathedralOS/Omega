@@ -9,12 +9,12 @@
 use omega::language::core::extent;
 use omega::language::core::content;
 
-pub data Split {
+public data Split {
     taken: Extent in Granted & Vacant;
     rest: Extent in Granted & Vacant;
 }
 
-pub boundary trait ExtentPartition {
+public boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         Granted::content(old(&whole))
@@ -37,24 +37,24 @@ pub boundary trait ExtentPartition {
         == Vacant::content(&result);
 }
 
-pub data Slot [copy] {
+public data Slot [copy] {
     value: u32;
 }
 
-pub data SlotPlacement {}
+public data SlotPlacement {}
 
-pub data OtherPlacement {}
+public data OtherPlacement {}
 
-pub data Occupied {
+public data Occupied {
     storage: Extent in Granted & Resident<SlotPlacement, Slot>;
 }
 
-pub data Retired {
+public data Retired {
     storage: Extent in Granted & Vacant;
     value: Slot;
 }
 
-pub boundary trait ResidentStorage {
+public boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);

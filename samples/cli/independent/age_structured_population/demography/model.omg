@@ -2,26 +2,26 @@
 // Rates are thousandths. Flooring is per survival cohort and once for births.
 // All arithmetic stays below 10^10 after input bounds; Wrapping declares the
 // machine arithmetic domain, while explicit validation rejects invalid counts.
-pub data Census [copy] { newborn: i64 in Wrapping; juvenile: i64 in Wrapping; adult: i64 in Wrapping; }
-pub data Schedule [copy] {
+public data Census [copy] { newborn: i64 in Wrapping; juvenile: i64 in Wrapping; adult: i64 in Wrapping; }
+public data Schedule [copy] {
     survival0: i64 in Wrapping; survival1: i64 in Wrapping; survival2: i64 in Wrapping;
     fertility0: i64 in Wrapping; fertility1: i64 in Wrapping; fertility2: i64 in Wrapping;
     migration0: i64 in Wrapping; migration1: i64 in Wrapping; migration2: i64 in Wrapping;
 }
-pub data Balance [copy] { births: i64 in Wrapping; deaths: i64 in Wrapping; migration: i64 in Wrapping; before: i64 in Wrapping; after: i64 in Wrapping; }
-pub machine valid_count(value: i64 in Wrapping) -> bool { value >= 0 && value <= 1000000 }
-pub machine valid_rate(value: i64 in Wrapping) -> bool { value >= 0 && value <= 1000 }
-pub machine valid_migration(value: i64 in Wrapping) -> bool { value >= -1000000 && value <= 1000000 }
-pub machine valid_census(census: &Census) -> bool {
+public data Balance [copy] { births: i64 in Wrapping; deaths: i64 in Wrapping; migration: i64 in Wrapping; before: i64 in Wrapping; after: i64 in Wrapping; }
+public machine valid_count(value: i64 in Wrapping) -> bool { value >= 0 && value <= 1000000 }
+public machine valid_rate(value: i64 in Wrapping) -> bool { value >= 0 && value <= 1000 }
+public machine valid_migration(value: i64 in Wrapping) -> bool { value >= -1000000 && value <= 1000000 }
+public machine valid_census(census: &Census) -> bool {
     valid_count(census.newborn) && valid_count(census.juvenile) && valid_count(census.adult)
 }
-pub machine valid_schedule(schedule: &Schedule) -> bool {
+public machine valid_schedule(schedule: &Schedule) -> bool {
     valid_rate(schedule.survival0) && valid_rate(schedule.survival1) && valid_rate(schedule.survival2) &&
     valid_rate(schedule.fertility0) && valid_rate(schedule.fertility1) && valid_rate(schedule.fertility2) &&
     valid_migration(schedule.migration0) && valid_migration(schedule.migration1) && valid_migration(schedule.migration2)
 }
-pub machine total(census: &Census) -> i64 in Wrapping { census.newborn + census.juvenile + census.adult }
-pub machine advance(census: &mut Census, schedule: &Schedule) -> Balance {
+public machine total(census: &Census) -> i64 in Wrapping { census.newborn + census.juvenile + census.adult }
+public machine advance(census: &mut Census, schedule: &Schedule) -> Balance {
     let before: i64 in Wrapping = total(census);
     let survivor0: i64 in Wrapping = census.newborn * schedule.survival0 / 1000;
     let survivor1: i64 in Wrapping = census.juvenile * schedule.survival1 / 1000;

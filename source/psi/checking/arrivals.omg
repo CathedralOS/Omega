@@ -16,13 +16,13 @@ use psi::types::types;
 // body enters them as places in that order, so its subjects match its
 // arrival zone's. A path one jump did not project is unknown in that jump's
 // contribution.
-pub data ArrivalStep [copy] {
+public data ArrivalStep [copy] {
     length: bool;
     field: u64 in Trapping;
     type_handle: u64 in Trapping;
 }
 
-pub data ArrivalPath [copy] {
+public data ArrivalPath [copy] {
     parameter: u64 in Trapping;
     depth: u64 in Trapping;
     step0: ArrivalStep;
@@ -32,7 +32,7 @@ pub data ArrivalPath [copy] {
 }
 
 // A path's projection at `index` (0 through 3).
-pub machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> ArrivalStep {
+public machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> ArrivalStep {
     transition index {
         0 -> chosen(path.step0)
         1 -> chosen(path.step1)
@@ -47,7 +47,7 @@ pub machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> Arri
 
 // The first `count` steps of `path`, collected deepest first, in order from
 // the parameter, as a path of that depth.
-pub machine ArrivalPath::reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath
+public machine ArrivalPath::reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     let mut ordered: ArrivalPath = path;
@@ -83,7 +83,7 @@ crashes Trap
 }
 
 // `path` with its projection at `index` (0 through 3) replaced.
-pub machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping, step: ArrivalStep) -> ArrivalPath {
+public machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping, step: ArrivalStep) -> ArrivalPath {
     transition index {
         0 -> first(path, step)
         1 -> second(path, step)
@@ -108,7 +108,7 @@ pub machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping, st
     }
 }
 
-pub machine Checker::path_count(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
+public machine Checker::path_count(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition offset < 128 {
@@ -127,7 +127,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::set_path_count(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
+public machine Checker::set_path_count(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -146,7 +146,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::arrival_path(checker: &Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
+public machine Checker::arrival_path(checker: &Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     transition offset < 128 && index < 40 {
@@ -201,7 +201,7 @@ crashes Trap
 // The path from place `outer` (one-based) down to place `inner`, when
 // `inner` lies strictly within it by at most four field or `.len` steps;
 // depth zero otherwise.
-pub machine Checker::path_below(checker: &Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
+public machine Checker::path_below(checker: &Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
@@ -279,7 +279,7 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
 
 // The index of `path` among state `offset`'s paths, the ones its demand
 // derived (demand.omg); 40 when it has none.
-pub machine Checker::path_index(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+public machine Checker::path_index(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
     let count: u64 in Trapping = Checker::path_count(checker, offset);
@@ -308,7 +308,7 @@ crashes Trap
 
 // Add `path` to state `offset`'s paths when it is new and there is room.
 // Whether it was added.
-pub machine Checker::add_arrival_path(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
+public machine Checker::add_arrival_path(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
 crashes Trap
 {
     let index: u64 in Trapping = Checker::path_index(checker, offset, path);
@@ -331,7 +331,7 @@ crashes Trap
 
 // Enter state `offset`'s paths as places below its parameters, in order.
 // Whether every path's place took the subject its arrival numbers it with.
-pub machine Checker::enter_paths(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping) -> bool
+public machine Checker::enter_paths(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping) -> bool
 crashes Trap
 {
     let count: u64 in Trapping = Checker::path_count(checker, offset);
@@ -361,7 +361,7 @@ crashes Trap
 
 // The places of `path` below `root` (one-based), entered as needed; the
 // last one, or zero when `root` is absent.
-pub machine Checker::enter_path(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+public machine Checker::enter_path(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(checker, typing, root, path, 0) }
@@ -397,7 +397,7 @@ machine Checker::step_kind(length: bool) -> PlaceKind {
 }
 
 // A place (one-based) or, for zero, a place with no subject.
-pub machine Checker::place_or_absent(checker: &Checker, place: u64 in Trapping) -> Place
+public machine Checker::place_or_absent(checker: &Checker, place: u64 in Trapping) -> Place
 crashes Trap
 {
     transition place > 0 {
@@ -419,7 +419,7 @@ crashes Trap
 // is a place, into state `offset`'s path slots after its `first_subject`
 // integer-parameter subjects. Slots this jump does not reach are unknown.
 // The number of projected subjects, the zero subject included.
-pub machine Checker::project_paths(
+public machine Checker::project_paths(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     typing: &Typing,

@@ -2,7 +2,7 @@ module io::decimal;
 use omega_language_std::console;
 
 // Decimal output keeps its own bounded divisor loop; no formatter package.
-pub machine number(value: i64 in Wrapping)
+public machine number(value: i64 in Wrapping)
 reaches Console
 invokes Console;
 {

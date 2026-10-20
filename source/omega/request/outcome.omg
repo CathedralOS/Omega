@@ -10,7 +10,7 @@ use omega_language_std::console;
 // projections the frame encoder reads, embedded rather than read from any
 // sidecar.
 
-pub data OutcomeTag [copy] {
+public data OutcomeTag [copy] {
     case Reject;
     case Incomplete;
     case InternalFailure;
@@ -18,7 +18,7 @@ pub data OutcomeTag [copy] {
 
 // Where a frame's primary coordinate points. Only canonical Omega source
 // carries a tail: the package and source-unit ordinals.
-pub data CoordinateSpace [copy] {
+public data CoordinateSpace [copy] {
     case None;
     case Request;
     case EmittedArtifact;
@@ -28,7 +28,7 @@ pub data CoordinateSpace [copy] {
 
 // The assigned Reject codes: 1 the request, 2-12 lexical, declaration, entry
 // and literal refusals, 13-89 the syntax inventory, 90-97 checking.
-pub data RejectCode [copy] {
+public data RejectCode [copy] {
     case MalformedRequest;
     case InvalidUtf8;
     case OutsideLexicalProfile;
@@ -131,7 +131,7 @@ pub data RejectCode [copy] {
 // The scalar-resource table: one Incomplete code per named private
 // provision, with the same names, limits and coordinate rules in every
 // implementation.
-pub data Provision [copy] {
+public data Provision [copy] {
     case RequestSubjectBytes;
     case RequestInvocationBytes;
     case ParserRoots;
@@ -171,7 +171,7 @@ pub data Provision [copy] {
 
 // One outcome as recorded before publication. Quantities are exact here and
 // normalized to `min(quantity, INT32_MAX)` only when the frame is written.
-pub data Outcome [copy] {
+public data Outcome [copy] {
     tag: OutcomeTag;
     space: CoordinateSpace;
     code: u64 in Trapping;
@@ -183,7 +183,7 @@ pub data Outcome [copy] {
 }
 
 // `malformed_request` anchored at a request byte.
-pub machine Outcome::malformed_request(offset: u64 in Trapping) -> Outcome {
+public machine Outcome::malformed_request(offset: u64 in Trapping) -> Outcome {
     let code: u64 in Trapping = RejectCode::number(RejectCode::MalformedRequest);
     Outcome {
         tag: OutcomeTag::Reject,
@@ -199,7 +199,7 @@ pub machine Outcome::malformed_request(offset: u64 in Trapping) -> Outcome {
 
 // An Incomplete provision with its coordinate and requested amount, in the
 // provision's own coordinate space.
-pub machine Outcome::incomplete(provision: Provision, coordinate: u64 in Trapping, requested: u64 in Trapping) -> Outcome {
+public machine Outcome::incomplete(provision: Provision, coordinate: u64 in Trapping, requested: u64 in Trapping) -> Outcome {
     let space: CoordinateSpace = Provision::space(provision);
     let code: u64 in Trapping = Provision::number(provision);
     let limit: u64 in Trapping = Provision::limit(provision);
@@ -218,11 +218,11 @@ pub machine Outcome::incomplete(provision: Provision, coordinate: u64 in Trappin
 // A well-formed request whose semantic phases this compiler does not
 // implement yet: the provision covers the whole request, so it carries no
 // coordinate and no requested amount.
-pub machine Outcome::coverage_request_semantics() -> Outcome {
+public machine Outcome::coverage_request_semantics() -> Outcome {
     Outcome::incomplete(Provision::CoverageRequestSemantics, 0, 0)
 }
 
-pub machine RejectCode::number(code: RejectCode) -> u64 in Trapping {
+public machine RejectCode::number(code: RejectCode) -> u64 in Trapping {
     transition code {
         RejectCode::MalformedRequest -> value(1)
         RejectCode::InvalidUtf8 -> value(2)
@@ -328,7 +328,7 @@ pub machine RejectCode::number(code: RejectCode) -> u64 in Trapping {
     }
 }
 
-pub machine RejectCode::space(code: RejectCode) -> CoordinateSpace {
+public machine RejectCode::space(code: RejectCode) -> CoordinateSpace {
     transition code {
         RejectCode::MalformedRequest -> request()
         RejectCode::MissingEntry -> none()
@@ -348,7 +348,7 @@ pub machine RejectCode::space(code: RejectCode) -> CoordinateSpace {
     }
 }
 
-pub machine Provision::number(provision: Provision) -> u64 in Trapping {
+public machine Provision::number(provision: Provision) -> u64 in Trapping {
     transition provision {
         Provision::RequestSubjectBytes -> value(1)
         Provision::RequestInvocationBytes -> value(2)
@@ -392,7 +392,7 @@ pub machine Provision::number(provision: Provision) -> u64 in Trapping {
     }
 }
 
-pub machine Provision::limit(provision: Provision) -> u64 in Trapping {
+public machine Provision::limit(provision: Provision) -> u64 in Trapping {
     transition provision {
         Provision::RequestSubjectBytes -> value(67108864)
         Provision::RequestInvocationBytes -> value(1048576)
@@ -436,7 +436,7 @@ pub machine Provision::limit(provision: Provision) -> u64 in Trapping {
     }
 }
 
-pub machine Provision::space(provision: Provision) -> CoordinateSpace {
+public machine Provision::space(provision: Provision) -> CoordinateSpace {
     transition provision {
         Provision::RequestSubjectBytes -> request()
         Provision::RequestInvocationBytes -> request()
@@ -481,7 +481,7 @@ pub machine Provision::space(provision: Provision) -> CoordinateSpace {
 
 // The frame's extent: 48 bytes for canonical source, whose tail carries the
 // package and source-unit ordinals, and 40 bytes otherwise.
-pub machine Outcome::frame_length(outcome: Outcome) -> u64 in Trapping {
+public machine Outcome::frame_length(outcome: Outcome) -> u64 in Trapping {
     transition outcome.space {
         CoordinateSpace::CanonicalSource -> length(48)
         _ -> length(40)
@@ -496,7 +496,7 @@ pub machine Outcome::frame_length(outcome: Outcome) -> u64 in Trapping {
 // coordinate space, two reserved zeros, then the code (`u32`) and the
 // coordinate, limit and requested amount (`u64`), all little-endian, then
 // for canonical source the package and source-unit ordinals (`u32`).
-pub machine Outcome::frame_byte(outcome: Outcome, index: u64 in Trapping) -> u8
+public machine Outcome::frame_byte(outcome: Outcome, index: u64 in Trapping) -> u8
 crashes Trap
 {
     transition index < 8 {
@@ -593,7 +593,7 @@ machine Outcome::published(quantity: u64 in Trapping) -> u64 in Trapping {
 }
 
 // The outcome's tag as the frame byte and the process exit value.
-pub machine OutcomeTag::value(tag: OutcomeTag) -> u8 {
+public machine OutcomeTag::value(tag: OutcomeTag) -> u8 {
     transition tag {
         OutcomeTag::Reject -> byte(1)
         OutcomeTag::Incomplete -> byte(2)

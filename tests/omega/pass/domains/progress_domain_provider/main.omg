@@ -6,16 +6,16 @@
 // (`ForeignBinding::Syscall(1)` / `VtableField(notify)`).
 // The opaque receipt has a native wire carrier; only the grant route
 // establishes WeakFair membership.
-pub data SchedulerHandle [copy] { identity: u64; }
-pub domain SchedulerHandle::WeakFair
+public data SchedulerHandle [copy] { identity: u64; }
+public domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by Scheduler::grant;
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine notify(value: i32)
     terminates;
     machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
 }
-pub data SchedulerProvider { grant: addr; notify: addr; }
+public data SchedulerProvider { grant: addr; notify: addr; }
 linux_x86_64 machine SchedulerProvider::notify(value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::Syscall(1);

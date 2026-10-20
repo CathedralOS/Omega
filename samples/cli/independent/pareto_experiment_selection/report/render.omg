@@ -3,20 +3,20 @@
 use domain::model;
 use domain::selection;
 use omega_language_std::console;
-pub machine number(application: &mut Application, value: u64) reaches Console
+public machine number(application: &mut Application, value: u64) reaches Console
 invokes Console;
 requires value <= 999 {
     Console::write_byte(((value / 100) + 48) as i32);
     Console::write_byte((((value / 10) % 10) + 48) as i32);
     Console::write_byte(((value % 10) + 48) as i32);
 }
-pub machine field(application: &mut Application, value: u64) reaches Console
+public machine field(application: &mut Application, value: u64) reaches Console
 invokes Console;
 requires value <= 999 {
     Console::write("|");
     number(application, value);
 }
-pub machine report(application: &mut Application) reaches Console
+public machine report(application: &mut Application) reaches Console
 invokes Console;
 {
     Console::write_line("PARETO|id|source|position|cost|days|gain|risk|status|certificate");

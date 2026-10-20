@@ -2,7 +2,7 @@ use omega_language_std::console;
 use demography::model;
 use omega::language::core::numeric_conversion;
 // Decimal output uses no allocation and includes a sign for net emigration.
-pub machine number(value: i64 in Wrapping) reaches Console
+public machine number(value: i64 in Wrapping) reaches Console
 invokes Console;
 {
     transition value < 0 { true -> negative(value) false -> begin(value) }
@@ -28,7 +28,7 @@ invokes Console;
     }
     state done() {}
 }
-pub machine row(year: i64 in Wrapping, census: &Census, balance: &Balance) reaches Console
+public machine row(year: i64 in Wrapping, census: &Census, balance: &Balance) reaches Console
 invokes Console;
 {
     number(year); Console::write(","); number(census.newborn); Console::write(",");

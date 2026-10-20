@@ -125,7 +125,7 @@ Calling a window requirement declaring window-service reach contributes that row
 Whether its code came from a DLL is a provider fact. Calling an explicit runtime
 loader additionally reaches `DynamicLibraryLoading` and still needs admission
 for the loaded implementation. API visibility, crossings, and possible behavior
-are different questions: `pub`, `boundary`, and `reaches` do not substitute for
+are different questions: `public`, `boundary`, and `reaches` do not substitute for
 one another.
 
 ## Provider slots and runtime values
@@ -171,15 +171,15 @@ machine build(builder: &mut Build) {
 For example, a library can declare these two views of the same runtime data:
 
 ```omega
-pub boundary trait WritableMemory {
+public boundary trait WritableMemory {
     machine claim(region: Range) -> Range in Writable;
 }
 
-pub boundary trait RangeSupplier {
+public boundary trait RangeSupplier {
     machine supply(region: Range) -> Range;
 }
 
-pub data EchoSupplier { }
+public data EchoSupplier { }
 
 machine EchoSupplier::supply(region: Range) -> Range
 satisfies RangeSupplier::supply
@@ -384,7 +384,7 @@ There is no subtraction or masking of services.
 Installation-bound requirements have one restricted symbolic form:
 
 ```omega
-pub boundary trait InterruptCompletion {
+public boundary trait InterruptCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
         reaches <= MachineControl + PortIo
         requires

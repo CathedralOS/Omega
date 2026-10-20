@@ -1,7 +1,7 @@
 // std::clock — the portable `Clock` pacing boundary.
 //
 // The corpus's time-facing canaries and the `samples/cli` pacing samples each
-// declare a package-local `pub boundary trait Clock { machine
+// declare a package-local `public boundary trait Clock { machine
 // sleep(milliseconds: u32); }` — the Win32 `Sleep` / POSIX `nanosleep` seam —
 // and then require a selected provider for their own nominal trait. Provider
 // selection is nominal (owning package + trait name), so bundled library code
@@ -40,7 +40,7 @@ use targets::linux_arm64::clock_impl;
 use targets::macos_arm64::clock_impl;
 use targets::windows_x86_64::clock_impl;
 
-pub boundary trait Clock {
+public boundary trait Clock {
     // Block the caller for `milliseconds`.
     machine sleep(milliseconds: u32) reaches Clock;
 }
@@ -48,11 +48,11 @@ pub boundary trait Clock {
 // Nominal owner of the selected Clock provider closure. Realization leaves
 // attach to this type so provider selection never assembles the row from
 // unrelated implementations.
-pub data ClockNativeProvider { }
+public data ClockNativeProvider { }
 
 // Select the explicit whole-trait map. The inline member preserves the exact
 // target body's checked wait and raw-provider closure.
-pub NativeClock satisfies Clock {
+public NativeClock satisfies Clock {
     machine sleep(milliseconds: u32) reaches Clock {
         ClockNativeProvider::sleep(milliseconds);
     }

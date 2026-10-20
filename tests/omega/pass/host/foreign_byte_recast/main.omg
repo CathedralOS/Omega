@@ -4,7 +4,7 @@ use omega::language::core::layout;
 // `value as &mut ForeignByte` hands `&mut SignedByte<PortableByte>` storage
 // to the `i8` view `bzero`/`memcmp` consume — `reaches A + B` unions both
 // service ceilings.
-pub data SignedByte2 {}
+public data SignedByte2 {}
 machine SignedByte2::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
@@ -23,10 +23,10 @@ machine SignedByte2::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
-pub data PortableByte [copy] { value: i64; }
-pub data RawView { value: SignedByte2<PortableByte>; }
-pub data ForeignByte { value: i8; }
-pub boundary trait ClearByte {
+public data PortableByte [copy] { value: i64; }
+public data RawView { value: SignedByte2<PortableByte>; }
+public data ForeignByte { value: i8; }
+public boundary trait ClearByte {
     machine clear(value: &mut ForeignByte, count: u64);
 }
 macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
@@ -38,7 +38,7 @@ macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
 }
 macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
     satisfies ClearByte::clear via clear_binding();
-pub boundary trait CompareByte {
+public boundary trait CompareByte {
     machine compare(left: &RawView, right: &RawView, count: u64) -> i32;
 }
 macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {

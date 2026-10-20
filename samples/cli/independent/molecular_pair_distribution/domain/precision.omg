@@ -3,12 +3,12 @@ use omega::language::core::float_operations;
 // and cubic shell differences are exact in f64 throughout the wire envelope;
 // normalization uses a split reciprocal of pi and compensated division.
 use omega::language::core::numeric_conversion;
-pub data Precise { high: f64; low: f64; }
-pub machine precise_sum(high: f64, low: f64) -> Precise {
+public data Precise { high: f64; low: f64; }
+public machine precise_sum(high: f64, low: f64) -> Precise {
     let sum: f64 = high + low;
     Precise { high: sum, low: low - (sum - high) }
 }
-pub machine product(first: f64, second: f64) -> Precise {
+public machine product(first: f64, second: f64) -> Precise {
     let value: f64 = first * second;
     let first_split: f64 = 134217729.0 * first;
     let first_high: f64 = first_split - (first_split - first);
@@ -19,17 +19,17 @@ pub machine product(first: f64, second: f64) -> Precise {
     let error: f64 = ((first_high * second_high - value) + first_high * second_low + first_low * second_high) + first_low * second_low;
     Precise { high: value, low: error }
 }
-pub machine multiply(first: Precise, second: Precise) -> Precise {
+public machine multiply(first: Precise, second: Precise) -> Precise {
     let leading: Precise = product(first.high, second.high);
     precise_sum(leading.high, leading.low + first.high * second.low + first.low * second.high + first.low * second.low)
 }
-pub machine quotient(numerator: f64, denominator: f64) -> Precise {
+public machine quotient(numerator: f64, denominator: f64) -> Precise {
     let leading: f64 = numerator / denominator;
     let subtracted: Precise = product(leading, denominator);
     let correction: f64 = ((numerator - subtracted.high) - subtracted.low) / denominator;
     precise_sum(leading, correction)
 }
-pub machine normalized(count: f64, box: f64, snapshots: f64, particles: f64, cube_difference: f64) -> Precise {
+public machine normalized(count: f64, box: f64, snapshots: f64, particles: f64, cube_difference: f64) -> Precise {
     let numerator: f64 = 3.0 * count * box * box * box;
     let denominator: f64 = 2.0 * snapshots * particles * (particles - 1.0) * cube_difference;
     let ratio: Precise = quotient(numerator, denominator);

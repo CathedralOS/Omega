@@ -1,6 +1,6 @@
 // Replacing an output must not release the lifetime debt of an older copy.
-pub data Output<'source> { value: &'source u8; }
-pub boundary trait ReadView {
+public data Output<'source> { value: &'source u8; }
+public boundary trait ReadView {
     machine acquire<'source>(source: &'source [u8; 3], output: &mut Output<'source>);
 }
 

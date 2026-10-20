@@ -4,7 +4,7 @@
 use mechanics::model;
 use omega::language::core::float_operations;
 data Expected { values: [f64;81]; }
-pub machine matches(actual: &Laminate,mode: u8) -> bool {
+public machine matches(actual: &Laminate,mode: u8) -> bool {
     let mut computed: [f64;81];
     let mut expected: Expected;
     computed[0] = actual.stiffness[0][0][0];

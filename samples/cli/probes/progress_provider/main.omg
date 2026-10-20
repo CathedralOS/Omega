@@ -18,13 +18,13 @@
 
 use omega::language::core::binding;
 
-pub data SchedulerHandle [copy] { }
+public data SchedulerHandle [copy] { }
 
-pub domain SchedulerHandle::WeakFair
+public domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by Scheduler::grant;
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine notify(value: i32)
     terminates;
 

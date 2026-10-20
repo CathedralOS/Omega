@@ -1,2 +1,2 @@
 module first;
-pub proposition valid(value: u32);
+public proposition valid(value: u32);

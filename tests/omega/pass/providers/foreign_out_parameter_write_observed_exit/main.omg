@@ -15,9 +15,9 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub data ForeignWrittenInstant { seconds: i64; nanoseconds: i64; }
+public data ForeignWrittenInstant { seconds: i64; nanoseconds: i64; }
 
-pub boundary trait ForeignOutParameter {
+public boundary trait ForeignOutParameter {
     machine clock_gettime(clock_id: u32, instant: &mut ForeignWrittenInstant) -> i32;
 }
 

@@ -23,7 +23,7 @@ use psi::typing::typer;
 // (wiki/spec/language/numeric_values.md).
 
 // Type every node of the tree rooted at `root` not typed yet.
-pub machine Typer::type_tree(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping)
+public machine Typer::type_tree(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping)
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);
@@ -607,7 +607,7 @@ crashes Trap
 // under its collection's policy (a typed value keeps its own policy, so it
 // must already carry it; a literal lands there), a loaned name's referent,
 // or the place's type.
-pub machine Typer::place_type(typer: &mut Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
+public machine Typer::place_type(typer: &mut Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, place);
@@ -643,7 +643,7 @@ crashes Trap
 }
 
 // Whether `handle` is a fixed-integer type, with any qualifier.
-pub machine Typer::integer_type(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::integer_type(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -834,7 +834,7 @@ crashes Trap
 
 // Whether `index` names storage: a local, parameter or binder, or a field
 // or element of one, through any references.
-pub machine Typer::is_place(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
+public machine Typer::is_place(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, index);
@@ -873,7 +873,7 @@ crashes Trap
 // Whether the place `index` is reached through a shared reference: the
 // place itself or a field or element step along it has a shared-reference
 // type, whose referent no spelling may lend exclusively.
-pub machine Typer::through_shared(typer: &Typer, syntax: &SyntaxTrees, index: u64 in Trapping) -> bool
+public machine Typer::through_shared(typer: &Typer, syntax: &SyntaxTrees, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(typer, syntax, index, 0) }
@@ -907,7 +907,7 @@ crashes Trap
 // included, writes its referent), or the place's root is a `let mut` local
 // or a `mut` parameter. Any other local or parameter, a pattern binder and a
 // shared reference's referent are read-only.
-pub machine Typer::writable_place(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
+public machine Typer::writable_place(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(typer, syntax, resolution, index) }
@@ -1267,7 +1267,7 @@ crashes Trap
 }
 
 // A fixed integer of any carrier, or an anonymous integer.
-pub machine Typer::integer_like(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::integer_like(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let integer: bool = Typer::integer_type(typer, handle);
@@ -1275,7 +1275,7 @@ crashes Trap
 }
 
 // A float format, or an anonymous decimal.
-pub machine Typer::float_like(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::float_like(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -1299,7 +1299,7 @@ crashes Trap
 // need a declared equality).
 // Byte-sequence operations accept fixed byte arrays and byte slices, with
 // or without qualification, themselves or through a reference.
-pub machine Typer::byte_sequence(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::byte_sequence(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let referent: u64 in Trapping = Typer::referent(typer, handle);
@@ -1538,7 +1538,7 @@ crashes Trap
 // `handle` with the generic parameters of the data type `owner` replaced by
 // its arguments (generics.omg). An unapplied owner (a case value whose
 // arguments its destination supplies) leaves the type as written.
-pub machine Typer::substitute(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping
+public machine Typer::substitute(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     transition owner.argument_count > 0 {

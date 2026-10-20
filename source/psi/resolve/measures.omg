@@ -9,7 +9,7 @@ use psi::syntax::syntax;
 // a result type and a one-expression body; a lexicographic measure `measure
 // Owner::Name lexicographic { fields }` names a data declaration `Owner` and
 // fields of it, each recorded by member handle for the checker's ranking.
-pub machine Resolver::check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }

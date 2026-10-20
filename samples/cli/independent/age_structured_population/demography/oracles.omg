@@ -2,7 +2,7 @@
 // They attest recurrence values through Terminal's supported exit comparison;
 // they never replace the supplied-input forecast or derive expected results.
 use demography::model;
-pub machine reference_checks() -> bool {
+public machine reference_checks() -> bool {
     let mut verified: bool = true;
     let mut births_census: Census = Census { newborn: 80, juvenile: 40, adult: 20 };
     let births_schedule: Schedule = Schedule { survival0: 500, survival1: 750, survival2: 500, fertility0: 0, fertility1: 250, fertility2: 500, migration0: 0, migration1: 0, migration2: 0 };

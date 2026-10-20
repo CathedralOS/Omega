@@ -1,3 +1,3 @@
-pub machine bad2_value() -> i32 {
+public machine bad2_value() -> i32 {
     0
 }

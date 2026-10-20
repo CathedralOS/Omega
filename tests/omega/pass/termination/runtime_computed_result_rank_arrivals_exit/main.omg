@@ -1,4 +1,4 @@
-pub boundary trait RankReader {
+public boundary trait RankReader {
     machine step(value: i32) -> i32
     terminates
     requires value > 0 && value <= 9

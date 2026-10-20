@@ -1,5 +1,5 @@
 module main;
-pub boundary trait Assert {
+public boundary trait Assert {
     machine check(ok: bool) crashes Trap;
 }
 machine verify(ok: bool) -> bool
@@ -9,14 +9,14 @@ crashes Trap
     state pass() -> bool { true }
     state fail() -> bool { crash Trap; }
 }
-pub data CheckingAssert { }
+public data CheckingAssert { }
 machine CheckingAssert::check(ok: bool)
 satisfies Assert::check
 crashes Trap
 {
     let verdict: bool = verify(ok);
 }
-pub data NoOpAssert { }
+public data NoOpAssert { }
 machine NoOpAssert::check(ok: bool)
 satisfies Assert::check
 {

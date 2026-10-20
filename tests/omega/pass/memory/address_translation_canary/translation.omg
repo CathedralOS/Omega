@@ -56,13 +56,13 @@ use omega::language::core::extent;
 // spelled as authored contract data. The identity is inert: naming a fact
 // grants no authority, and nonzero normalization belongs to the provider's
 // admission, not to source.
-pub data TranslationActivationFact {
+public data TranslationActivationFact {
     identity: u64;
 }
 
 // One target-completion fact a release receipt must establish before the
 // torn-down mapping's authority becomes reusable.
-pub data TranslationCompletionFact {
+public data TranslationCompletionFact {
     identity: u64;
 }
 
@@ -70,13 +70,13 @@ pub data TranslationCompletionFact {
 // fact identities the provider's activation receipt must cover. This
 // contract fixes the set at two facts; a provider package's own contract
 // declares the arity its receipts actually require.
-pub data TranslationInstallObligations {
+public data TranslationInstallObligations {
     facts: [TranslationActivationFact; 2];
 }
 
 // The exact release obligations a mapping binds, spelled as the authored
 // fact identities the provider's release receipt must cover.
-pub data TranslationReleaseObligations {
+public data TranslationReleaseObligations {
     facts: [TranslationCompletionFact; 2];
 }
 
@@ -84,7 +84,7 @@ pub data TranslationReleaseObligations {
 // exact consumed extents. `boundary data` keeps it unforgeable and the
 // carrier opaque: source can move and read it but never spell one into
 // being.
-pub boundary data MappingToken [linear];
+public boundary data MappingToken [linear];
 
 // The mapping carrier: token identity, the consumed source and destination
 // ranges, and the authored obligation sets. Not `[linear]` itself because
@@ -92,7 +92,7 @@ pub boundary data MappingToken [linear];
 // (the token inside is still linear), but a moved carrier carries the
 // mapping's whole custody and only the provider's receipt crossings
 // requalify it.
-pub data Mapping {
+public data Mapping {
     token: MappingToken;
     source: Extent in Granted;
     destination: Extent in Granted;
@@ -100,16 +100,16 @@ pub data Mapping {
     release: TranslationReleaseObligations;
 }
 
-pub domain Mapping::Pending
+public domain Mapping::Pending
 established by TranslationAuthority::map;
 
-pub domain Mapping::Installed
+public domain Mapping::Installed
 established by TranslationAuthority::activate;
 
 // Provider-owned identity of one borrowed-source mapping. Kept opaque for
 // the same reason as `MappingToken`; the carrier below pairs it with the
 // visible loan it holds, so source can never spell this token alone.
-pub boundary data BorrowedMappingToken [linear];
+public boundary data BorrowedMappingToken [linear];
 
 // The borrowed-source carrier: an unforgeable provider identity, the
 // visible shared loan of the lender's source, the consumed destination
@@ -118,7 +118,7 @@ pub boundary data BorrowedMappingToken [linear];
 // makes the lender's owned source unavailable until teardown releases
 // the carrier. Not `[linear]` for the same ledger-visibility reason as
 // `Mapping`.
-pub data BorrowedMapping {
+public data BorrowedMapping {
     token: BorrowedMappingToken;
     held_source: &Extent in Granted;
     destination: Extent in Granted;
@@ -126,21 +126,21 @@ pub data BorrowedMapping {
     release: TranslationReleaseObligations;
 }
 
-pub domain BorrowedMapping::Pending
+public domain BorrowedMapping::Pending
 established by TranslationAuthority::map_borrowed;
 
-pub domain BorrowedMapping::Installed
+public domain BorrowedMapping::Installed
 established by TranslationAuthority::activate_borrowed;
 
 // The linear cross-core invalidation debt a teardown leaves. It cannot be
 // dropped; only `discharge` consumes it.
-pub boundary data Shootdown [linear];
+public boundary data Shootdown [linear];
 
-pub domain Shootdown::Owed;
+public domain Shootdown::Owed;
 
 // Teardown's intermediate custody: the reusable destination, the owned
 // source the mapping held, and the still-owed shootdown obligation.
-pub data Unmapped {
+public data Unmapped {
     destination: Extent in Granted;
     source: Extent in Granted;
     shootdown: Shootdown in Owed;
@@ -150,18 +150,18 @@ pub data Unmapped {
 // ends when the carrier is consumed, so the lender -- not the unmap route --
 // retains source authority. Only the destination and the shootdown debt
 // return through the boundary.
-pub data UnmappedBorrowed {
+public data UnmappedBorrowed {
     destination: Extent in Granted;
     shootdown: Shootdown in Owed;
 }
 
 // The debt-free shape after `discharge`: both ranges' authority, nothing owed.
-pub data Reclaimed {
+public data Reclaimed {
     destination: Extent in Granted;
     source: Extent in Granted;
 }
 
-pub boundary trait TranslationAuthority {
+public boundary trait TranslationAuthority {
     // Structural validation only: consumes the caller-authored obligation
     // sets into the pending carrier, where a consumer reads the exact fact
     // sets the provider's receipts must establish. The carrier holds both
@@ -244,7 +244,7 @@ pub boundary trait TranslationAuthority {
         == Granted::content(old(&active.destination));
 }
 
-pub boundary requirement Shootdown::discharge(owed: Shootdown)
+public boundary requirement Shootdown::discharge(owed: Shootdown)
 reaches MachineControl
 requires
     owed in Shootdown::Owed;

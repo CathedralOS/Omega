@@ -4,7 +4,7 @@ use omega::language::core::numeric_conversion;
 
 // Decimal integer mantissa and exponent retain about 18 significant digits
 // without saturating large energy or small amplitudes into the integer range.
-pub machine scaled(value: f64)
+public machine scaled(value: f64)
 invokes Console;
 reaches Console {
     transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
@@ -31,12 +31,12 @@ reaches Console {
         integer((exponent - 18) as i32);
     }
 }
-pub machine integer(value: i32)
+public machine integer(value: i32)
 invokes Console;
 reaches Console {
     integer64(widen_i32_to_i64(value));
 }
-pub machine integer64(value: i64)
+public machine integer64(value: i64)
 invokes Console;
 reaches Console {
     transition value < 0 {

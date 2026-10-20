@@ -207,7 +207,7 @@ crashes Trap
 // (wiki/spec/proofs/contracts.md#explicit-erased-bindings): `[` must open
 // exactly that marker. Records whether it was spelled in
 // `binding_erased`.
-pub machine Parser::parse_erased_marker(parser: &mut Parser, input: &TokenStream)
+public machine Parser::parse_erased_marker(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     parser.binding_erased = false;
@@ -241,7 +241,7 @@ crashes Trap
 }
 
 // Record binding `handle` of `kind` as erased when its marker was spelled.
-pub machine Parser::record_erased(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping)
+public machine Parser::record_erased(parser: &mut Parser, kind: ErasedBindingKind, handle: u64 in Trapping, end: u64 in Trapping)
 crashes Trap
 {
     transition parser.binding_erased {
@@ -398,7 +398,7 @@ crashes Trap
 }
 
 // Whether the current token begins a declaration rather than an expression:
-// a declaration keyword (`use`, `data`, `machine`, `pub`), two adjacent
+// a declaration keyword (`use`, `data`, `machine`, `public`), two adjacent
 // names (`boundary trait`, `linux_arm64 machine`, `const N`), a domain
 // family's `domain<` or a bracketed carrier's `domain [u8]::Path`, or a
 // generic conformance `Name<...> satisfies`. No expression begins with two
@@ -410,8 +410,8 @@ crashes Trap
     let uses: bool = Parser::at_keyword(parser, input, KeywordKind::Use);
     let declares_data: bool = Parser::at_keyword(parser, input, KeywordKind::Data);
     let declares_machine: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
-    let public: bool = Parser::at_keyword(parser, input, KeywordKind::Pub);
-    transition uses || declares_data || declares_machine || public {
+    let is_public: bool = Parser::at_keyword(parser, input, KeywordKind::Public);
+    transition uses || declares_data || declares_machine || is_public {
         true -> head()
         _ -> first_name(parser, input)
     }

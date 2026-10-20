@@ -1,6 +1,6 @@
 // Authored seed the generated `b_value` forwards to: authored source may
 // not select declarations its own build generates, so the public machine
 // consumers import lives in the generated stratum and calls back here.
-pub machine b_seed() -> i32 {
+public machine b_seed() -> i32 {
     20
 }

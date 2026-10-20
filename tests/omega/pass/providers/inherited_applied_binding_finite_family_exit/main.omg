@@ -1,10 +1,10 @@
 
-pub boundary trait Parent<Value> {
+public boundary trait Parent<Value> {
     machine echo<const Count: u64>(value: Value) -> Value
     where Count == 4 || Count == 8;
     machine spare() -> i32;
 }
-pub boundary trait Child: Parent<i32> { machine choose() -> i32; }
+public boundary trait Child: Parent<i32> { machine choose() -> i32; }
 ChildMap satisfies Child {
     Parent::echo = echo;
     Parent::spare = spare;

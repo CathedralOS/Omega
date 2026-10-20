@@ -1,18 +1,18 @@
 // Ordinary constants establish their data/case predicates without becoming
 // generic indices. Keep exact u64 bits through nested record/array copies.
-pub data Bounded [copy] where value <= 7 { value: u64; }
-pub data Choice [copy] {
+public data Bounded [copy] where value <= 7 { value: u64; }
+public data Choice [copy] {
     case Empty;
     case Selected(value: u64) where value <= 7;
     case Uninhabited(value: u64) where value < 0;
 }
-pub data Packet [copy] {
+public data Packet [copy] {
     bounded: Bounded;
     rows: [Bounded; 2];
     choice: Choice;
     maximum: u64;
 }
-pub const Packet::VALUE: Packet = Packet {
+public const Packet::VALUE: Packet = Packet {
     bounded: Bounded { value: 7 },
     rows: [Bounded { value: 0 }, Bounded { value: 6 }],
     choice: Choice::Selected { value: 5 },

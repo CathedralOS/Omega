@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 
 // Fixed six-place decimal output is independently checked to 2e-6.
 // The declared fixture inventory keeps scaled magnitudes below i32::MAX.
-pub machine number(value: f64)
+public machine number(value: f64)
 reaches Console
 invokes Console;
 crashes Trap
@@ -32,7 +32,7 @@ machine digits(scaled: i32) reaches Console {
     Console::write_byte(((value % 10) + 48) as i32);
 }
 
-pub machine integer(value: i32)
+public machine integer(value: i32)
 reaches Console
 invokes Console;
 {

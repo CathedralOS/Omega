@@ -1,23 +1,23 @@
 use omega::language::core::content;
 use omega::language::core::nat;
 
-pub data ByteUnit {}
-pub data Chunk [linear] { length: u64; }
-pub domain Chunk::Held established by ChunkRoot::grant;
-pub machine Held::content(value: &Chunk) -> CountedQuantity<ByteUnit>
+public data ByteUnit {}
+public data Chunk [linear] { length: u64; }
+public domain Chunk::Held established by ChunkRoot::grant;
+public machine Held::content(value: &Chunk) -> CountedQuantity<ByteUnit>
 satisfies Content<Chunk, CountedQuantity<ByteUnit>>::project
 { CountedQuantity { magnitude: embed(value.length) as Nat } }
-pub boundary trait ChunkRoot {
+public boundary trait ChunkRoot {
     machine grant(value: Chunk) -> Chunk in Held;
 }
-pub data Pair { left: Chunk in Held; right: Chunk in Held; }
-pub boundary trait Join {
+public data Pair { left: Chunk in Held; right: Chunk in Held; }
+public boundary trait Join {
     machine merge(parts: Pair) -> Chunk in Held
     ensures separate(Held::content(old(&parts.left)), Held::content(old(&parts.right)))
         == Held::content(&result);
 }
-pub boundary trait Sink { machine accept(value: Chunk in Held); }
-pub machine combine(left: Chunk in Held, right: Chunk in Held)
+public boundary trait Sink { machine accept(value: Chunk in Held); }
+public machine combine(left: Chunk in Held, right: Chunk in Held)
 reaches Join, Sink
     invokes join;
     invokes sink;

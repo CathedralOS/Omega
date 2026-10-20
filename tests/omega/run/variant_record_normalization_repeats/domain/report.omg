@@ -3,7 +3,7 @@ use domain::normalization;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-pub machine number(value: u64 in Wrapping) reaches Console
+public machine number(value: u64 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> digit(value, 10000000000000000000, false) }
@@ -39,13 +39,13 @@ invokes Console;
     }
     state stop() { }
 }
-pub machine separator() reaches Console
+public machine separator() reaches Console
 invokes Console;
 { Console::write_byte(124); }
-pub machine newline() reaches Console
+public machine newline() reaches Console
 invokes Console;
 { Console::write_byte(10); }
-pub machine bases(sequence: &Sequence) reaches Console
+public machine bases(sequence: &Sequence) reaches Console
 invokes Console;
 {
     transition sequence.length == 0 {
@@ -75,7 +75,7 @@ invokes Console;
     }
     state stop() { }
 }
-pub machine variant_row(variant: &Variant) reaches Console
+public machine variant_row(variant: &Variant) reaches Console
 invokes Console;
 {
     number(variant.contig); separator(); number(variant.position); separator();

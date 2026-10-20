@@ -1,7 +1,7 @@
 // A boundary's output reference retains its declared lifetime dependencies,
 // even when the provider's referent is not spatially inside an input object.
-pub data Output<'source> { value: &'source u8; }
-pub boundary trait ReadView {
+public data Output<'source> { value: &'source u8; }
+public boundary trait ReadView {
     machine acquire<'source>(source: &'source [u8; 3], output: &mut Output<'source>);
 }
 

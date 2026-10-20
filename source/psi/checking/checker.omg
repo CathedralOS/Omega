@@ -40,7 +40,7 @@ use psi::types::types;
 // must be proved (supply.omg). A machine's checking stops at its first
 // rejection and the next machine's begins, so one run reports every rejected
 // machine (checks.omg).
-pub data Checker {
+public data Checker {
     output: Checks;
     // The body being walked: its places, its integer subjects and its zone.
     places: [Place; 256];
@@ -200,7 +200,7 @@ pub data Checker {
     pending_count: u64;
 }
 
-pub machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
+public machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
 crashes Trap
 {
     Checker::clear(checker, syntax);
@@ -284,7 +284,7 @@ crashes Trap
 }
 
 // The causes a clause run's `crashes` clauses declare.
-pub machine Checker::declared_causes(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> CrashRoutes
+public machine Checker::declared_causes(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> CrashRoutes
 crashes Trap
 {
     transition { _ -> next(syntax, first, first + count, false, false) }
@@ -311,7 +311,7 @@ crashes Trap
 
 // One machine: gather facts to a fixed point, then check every body,
 // then publish its local crash routes.
-pub machine Checker::check_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
+public machine Checker::check_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
 crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
@@ -704,7 +704,7 @@ crashes Trap
 // zero subject for each one's own range. The arrival keeps what every
 // contribution so far implies; after three loosenings, bounds that keep
 // loosening are dropped.
-pub machine Checker::contribute(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping)
+public machine Checker::contribute(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, call);
@@ -955,7 +955,7 @@ crashes Trap
 
 // Record a call to a machine for crash-route settlement. A machine binder's
 // call derives the causes its `where machine` contract declares.
-pub machine Checker::record_call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection)
+public machine Checker::record_call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection)
 crashes Trap
 {
     transition selection {
@@ -996,7 +996,7 @@ crashes Trap
 
 // A call of machine `callee` from machine `caller` that supplies its
 // machine binders static arguments.
-pub data SuppliedCall [copy] {
+public data SuppliedCall [copy] {
     caller: u64;
     call: u64;
     callee: u64;
@@ -1005,7 +1005,7 @@ pub data SuppliedCall [copy] {
 // Record a call whose selected machine has machine binders: its static
 // arguments must refine their contracts, which supply.omg decides once
 // crash routes settle.
-pub machine Checker::record_supply(checker: &mut Checker, syntax: &SyntaxTrees, selection: Selection, call: u64 in Trapping)
+public machine Checker::record_supply(checker: &mut Checker, syntax: &SyntaxTrees, selection: Selection, call: u64 in Trapping)
 crashes Trap
 {
     transition selection {
@@ -1045,7 +1045,7 @@ crashes Trap
 
 // Whether any generic parameter in `first .. first + count` is a machine
 // binder.
-pub machine Checker::binds_machines(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+public machine Checker::binds_machines(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, first, count, 0) }
@@ -1079,7 +1079,7 @@ crashes Trap
 // may replace its parameter's whole referent or its writes are unknown (a
 // machine binder's always are), else each field place below it whose field
 // the callee may write.
-pub machine Checker::release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, selection: Selection)
+public machine Checker::release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, selection: Selection)
 crashes Trap
 {
     transition selection {
@@ -1219,7 +1219,7 @@ crashes Trap
 
 // Forget each field place strictly below `place` (one-based) whose field
 // `callee` may write, with everything inside it.
-pub machine Checker::forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
+public machine Checker::forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
 crashes Trap
 {
     Checker::settle_written_pending(checker, typing, place, callee);
@@ -1329,7 +1329,7 @@ crashes Trap
 }
 
 // What a callee publishes for one cause.
-pub machine Checker::published(inferred: bool, derived: bool, declared: bool) -> bool {
+public machine Checker::published(inferred: bool, derived: bool, declared: bool) -> bool {
     transition inferred {
         true -> chosen(derived)
         _ -> chosen(declared)

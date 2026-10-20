@@ -6,7 +6,7 @@
 
 data TallyState { total: u32; }
 
-pub boundary trait Tally {
+public boundary trait Tally {
     machine add(amount: u32) -> u32;
     machine reset() -> u32;
 }
@@ -39,8 +39,8 @@ satisfies Process::exit
 via ForeignBinding::Syscall(60);
 
 // Top-level, operator and token-bearing boundary requirements.
-pub data Arithmetic {}
-pub boundary requirement Arithmetic::count(value: u64) -> u64;
+public data Arithmetic {}
+public boundary requirement Arithmetic::count(value: u64) -> u64;
 boundary operator Arithmetic::offset(value: i32) -> i32;
 boundary machine - Arithmetic::select_left(left: i32, right: i32) -> i32;
 

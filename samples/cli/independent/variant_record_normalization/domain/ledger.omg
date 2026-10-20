@@ -4,13 +4,13 @@ use domain::sequence;
 // Different rows conflict when their closed reference intervals intersect.
 // This deliberately conservative synthetic conflict model includes insertions
 // at deletion endpoints; no diploidy or biological pathogenicity is inferred.
-pub data Ledger {
+public data Ledger {
     variants: [Variant; 32];
     count: u64 in Wrapping;
     conflicts: u64 in Wrapping;
     merged: u64 in Wrapping;
 }
-pub machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
+public machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> double(source, 0, 1) }
     state double(source: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition index < source && index < 8 {
@@ -19,7 +19,7 @@ pub machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
         }
     }
 }
-pub machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
+public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
     transition { _ -> search(ledger, variant, 0) }
     state search(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         transition index < ledger.count && index < 32 {

@@ -4,9 +4,9 @@
 // instead of inventing a disposition for the receipt. The same program with an
 // external sink selected for the slot is
 // `pass/providers/consuming_trait_requirement_external_sink_exit`.
-pub data Receipt [linear] { code: i32; }
+public data Receipt [linear] { code: i32; }
 
-pub boundary trait Acknowledgement {
+public boundary trait Acknowledgement {
     machine ack(receipt: Receipt) -> i32;
 }
 

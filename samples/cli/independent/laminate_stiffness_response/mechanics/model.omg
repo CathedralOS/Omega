@@ -1,7 +1,7 @@
 // Private classical laminate model: engineering shear, centered thickness,
 // synthetic plane-stress Q=(12,4,1,2). No external numerical package.
 use omega::language::core::float_operations;
-pub data Laminate {
+public data Laminate {
     count: u64;
     thickness: [f64; 4];
     m2: [f64; 4];
@@ -17,12 +17,12 @@ pub data Laminate {
     stress: [[f64; 3]; 4];
     singular: bool;
 }
-pub machine absolute(value: f64) -> f64 {
+public machine absolute(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
     state negative(value: f64) -> f64 { 0.0 - value }
     state positive(value: f64) -> f64 { value }
 }
-pub machine transform(out: &mut [[f64; 3]; 3], m2: f64, n2: f64, mn: f64, scale: f64) {
+public machine transform(out: &mut [[f64; 3]; 3], m2: f64, n2: f64, mn: f64, scale: f64) {
     let product: f64 = m2 * n2;
     out[0][0] = scale * (12.0*m2*m2 + 4.0*n2*n2 + 10.0*product);
     out[1][1] = scale * (12.0*n2*n2 + 4.0*m2*m2 + 10.0*product);
@@ -34,7 +34,7 @@ pub machine transform(out: &mut [[f64; 3]; 3], m2: f64, n2: f64, mn: f64, scale:
     out[2][1] = out[1][2];
     out[2][2] = scale * (10.0*product + 2.0*(m2*m2+n2*n2));
 }
-pub machine assemble(model: &mut Laminate) {
+public machine assemble(model: &mut Laminate) {
     transition { _ -> layer(model, 0) }
     state layer(model: &mut Laminate, layer_index: u64) requires layer_index <= 3 {
         transition { _ -> cell(model, layer_index, 0, 0) }
@@ -61,7 +61,7 @@ pub machine assemble(model: &mut Laminate) {
     }
     state done() { }
 }
-pub machine prepare_system(model: &mut Laminate) {
+public machine prepare_system(model: &mut Laminate) {
     transition { _ -> cell(model, 0, 0) }
     state cell(model: &mut Laminate, row: u64, column: u64)
     requires row <= 2 requires column <= 2 {
@@ -85,7 +85,7 @@ pub machine prepare_system(model: &mut Laminate) {
         model.augmented[5][6] = 0.025;
     }
 }
-pub machine layer_stress(model: &mut Laminate) {
+public machine layer_stress(model: &mut Laminate) {
     transition { _ -> cell(model,0,0) }
     state cell(model: &mut Laminate,layer_index: u64,row: u64)
     requires layer_index <= 3 requires row <= 2 {

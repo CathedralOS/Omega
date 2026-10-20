@@ -1,5 +1,5 @@
-pub domain u64::ProductPositive(value) requires value > 0;
+public domain u64::ProductPositive(value) requires value > 0;
 
-pub machine preserve_product(value: u64 in ProductPositive) -> u64 in ProductPositive {
+public machine preserve_product(value: u64 in ProductPositive) -> u64 in ProductPositive {
     value
 }

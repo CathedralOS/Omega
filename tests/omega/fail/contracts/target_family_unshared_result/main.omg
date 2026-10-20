@@ -1,9 +1,9 @@
 // A nonselected target's differing result cannot become a portable guarantee.
-pub data Status [copy] { code: u64; }
-pub boundary trait Reports {
+public data Status [copy] { code: u64; }
+public boundary trait Reports {
     machine status() -> Status ensures result.code == 7;
 }
-pub ForwardedReports satisfies Reports {
+public ForwardedReports satisfies Reports {
     machine status() -> Status ensures result.code == 7; {
         selected_status()
     }

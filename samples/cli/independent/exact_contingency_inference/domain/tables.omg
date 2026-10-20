@@ -1,14 +1,14 @@
 // Private fixed-margin model. Every accepted margin is positive; N <= 8.
 // Wrapping marks arithmetic whose full boundedness is established by input validation.
 // No shared numerical package is imported.
-pub data Table [copy] { cells: [u64 in Wrapping; 6]; }
-pub data Model [copy] {
+public data Table [copy] { cells: [u64 in Wrapping; 6]; }
+public data Model [copy] {
     rows: [u64 in Wrapping; 2];
     columns: [u64 in Wrapping; 3];
     zeros: [u64 in Wrapping; 6];
     observed: Table;
 }
-pub data Inference [copy] {
+public data Inference [copy] {
     status: i32;
     count: u64 in Wrapping;
     partition: u64 in Wrapping;
@@ -19,7 +19,7 @@ pub data Inference [copy] {
     score: u64 in Wrapping;
     denominator: u64 in Wrapping;
 }
-pub machine margins_valid(model: &Model) -> bool {
+public machine margins_valid(model: &Model) -> bool {
     model.rows[0] > 0 && model.rows[1] > 0 &&
     model.columns[0] > 0 && model.columns[1] > 0 && model.columns[2] > 0 &&
     model.rows[0] + model.rows[1] <= 8 &&
@@ -27,7 +27,7 @@ pub machine margins_valid(model: &Model) -> bool {
     model.zeros[0] <= 1 && model.zeros[1] <= 1 && model.zeros[2] <= 1 &&
     model.zeros[3] <= 1 && model.zeros[4] <= 1 && model.zeros[5] <= 1
 }
-pub machine table_valid(model: &Model, table: &Table) -> bool {
+public machine table_valid(model: &Model, table: &Table) -> bool {
     table.cells[0] + table.cells[1] + table.cells[2] == model.rows[0] &&
     table.cells[3] + table.cells[4] + table.cells[5] == model.rows[1] &&
     table.cells[0] + table.cells[3] == model.columns[0] &&

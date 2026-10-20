@@ -1,6 +1,6 @@
 // Declared synthetic stacks. Orientation is (cos^2,sin^2,cos*sin).
 use mechanics::model;
-pub machine fixture(model: &mut Laminate,mode: u8) {
+public machine fixture(model: &mut Laminate,mode: u8) {
     model.count = 2;
     model.thickness = [0.5,0.5,0.0,0.0];
     model.m2 = [1.0,0.0,0.0,0.0];

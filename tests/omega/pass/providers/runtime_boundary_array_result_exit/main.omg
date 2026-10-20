@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-pub boundary trait ArrayFactory {
+public boundary trait ArrayFactory {
     machine produce() -> [u8; 2];
 }
 data ArrayFactoryProvider {}

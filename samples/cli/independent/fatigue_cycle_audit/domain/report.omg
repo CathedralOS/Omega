@@ -1,7 +1,7 @@
 use omega_language_std::console;
 use domain::cycles;
 
-pub data Report {}
+public data Report {}
 
 // Fixed-width decimal columns avoid floating projection and preserve exact
 // rational numerators. Every reachable number is below 10000.

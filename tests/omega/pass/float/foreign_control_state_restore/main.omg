@@ -11,7 +11,7 @@ use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-pub boundary trait FloatingEnvironment {
+public boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32;
 }
 

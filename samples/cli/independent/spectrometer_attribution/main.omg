@@ -13,7 +13,7 @@ use spectrometer::output::print_report;
 
 // The ordinary hosted entry consumes one complete bounded spectrum/catalog
 // inventory. There are no built-in answers or scenario-dependent branches.
-pub machine Spectrometer::main(application: &mut Spectrometer) reaches Console
+public machine Spectrometer::main(application: &mut Spectrometer) reaches Console
 invokes Console;
 blocks;
 crashes Trap

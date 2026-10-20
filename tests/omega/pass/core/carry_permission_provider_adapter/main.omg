@@ -1,13 +1,13 @@
 // Compiler-owned carry permissions are admitted only through the selected
 // owner-authorized requirement. The resulting claim is born strict, so this
 // contract relaxes suspension without relaxing CPU, thread, or address.
-pub data Token [linear] {
+public data Token [linear] {
     id: u64;
 }
 
-pub domain Token::SuspensionSafe = Carry::AcrossSuspend;
+public domain Token::SuspensionSafe = Carry::AcrossSuspend;
 
-pub boundary trait ClaimProvider {
+public boundary trait ClaimProvider {
     machine grant(token: Token) -> Token
     ensures
         result in Token::SuspensionSafe;
@@ -25,7 +25,7 @@ machine forward_claim(token: Token) -> Token {
     token
 }
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine park() suspends;
 }
 

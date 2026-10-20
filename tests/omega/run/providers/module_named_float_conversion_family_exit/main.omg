@@ -2,10 +2,10 @@ module conversion_probe;
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-pub data Main { }
+public data Main { }
 // Named modules must not make unchanged core provider families disappear.
 // The byte is runtime input so the conversion also crosses native/Terminal.
-pub machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches Console
 invokes Console;
 blocks;
 crashes Trap

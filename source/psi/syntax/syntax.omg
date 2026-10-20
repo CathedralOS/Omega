@@ -4,17 +4,17 @@ use psi::source::source;
 // are dense indices into owner-local tables; no symbol or package meaning is
 // assigned here.
 
-pub data IdentifierSpan [copy] {
+public data IdentifierSpan [copy] {
     source_span: SourceSpan;
 }
 
-pub data UseItem [copy] {
+public data UseItem [copy] {
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
-pub data TypeReferenceKind [copy] {
+public data TypeReferenceKind [copy] {
     case Named;
     case Reference;
     case Array;
@@ -22,7 +22,7 @@ pub data TypeReferenceKind [copy] {
     case Literal;
 }
 
-pub data ReferenceAccess [copy] {
+public data ReferenceAccess [copy] {
     case Shared;
     case Mutable;
     // `&write T`: exclusive mutation without observation
@@ -43,7 +43,7 @@ pub data ReferenceAccess [copy] {
 // own name is `domain`, and a path qualifier (`in Type::Case`) keeps the
 // members before that name in `domain_owner`.
 // Fields a form does not carry are zero.
-pub data TypeReference [copy] {
+public data TypeReference [copy] {
     kind: TypeReferenceKind;
     name: IdentifierSpan;
     has_domain: bool;
@@ -70,7 +70,7 @@ pub data TypeReference [copy] {
 // (wiki/spec/layouts/plans.md): `has_identity` and the integer literal's span
 // in `identity`. Identities are not runtime discriminants; their numbering
 // rules are resolution's question.
-pub data DataField [copy] {
+public data DataField [copy] {
     name: IdentifierSpan;
     has_identity: bool;
     identity: SourceSpan;
@@ -78,7 +78,7 @@ pub data DataField [copy] {
     source_span: SourceSpan;
 }
 
-pub data DataCase [copy] {
+public data DataCase [copy] {
     name: IdentifierSpan;
     has_identity: bool;
     identity: SourceSpan;
@@ -89,24 +89,24 @@ pub data DataCase [copy] {
     source_span: SourceSpan;
 }
 
-pub data DataMemberKind [copy] {
+public data DataMemberKind [copy] {
     case Field;
     case Case;
 }
 
-pub data DataMember [copy] {
+public data DataMember [copy] {
     kind: DataMemberKind;
     item_index: u64 in Trapping;
     source_span: SourceSpan;
 }
 
-pub data DataMultiplicity [copy] {
+public data DataMultiplicity [copy] {
     case Affine;
     case Unrestricted;
     case Linear;
 }
 
-pub data GenericParameterKind [copy] {
+public data GenericParameterKind [copy] {
     case Lifetime;
     case Type;
     case Const;
@@ -120,7 +120,7 @@ pub data GenericParameterKind [copy] {
 // `const N: Ty`, `u: Ty`, `machine M`, `proposition R`, or the evidence
 // binder `Order satisfies Ranked<T>`, whose trait application is its type
 // reference, with its property bounds.
-pub data GenericParameter [copy] {
+public data GenericParameter [copy] {
     kind: GenericParameterKind;
     name: IdentifierSpan;
     has_type_reference: bool;
@@ -129,7 +129,7 @@ pub data GenericParameter [copy] {
     source_span: SourceSpan;
 }
 
-pub data DataItem [copy] {
+public data DataItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
@@ -154,20 +154,20 @@ pub data DataItem [copy] {
 // (wiki/spec/proofs/contracts.md#explicit-erased-bindings): it stays in
 // checking and identity but contributes no runtime field, read or cleanup.
 // `handle` indexes the table its kind names.
-pub data ErasedBindingKind [copy] {
+public data ErasedBindingKind [copy] {
     case Parameter;
     case Field;
     case PayloadField;
     case Local;
 }
 
-pub data ErasedBinding [copy] {
+public data ErasedBinding [copy] {
     kind: ErasedBindingKind;
     handle: u64 in Trapping;
     source_span: SourceSpan;
 }
 
-pub data Parameter [copy] {
+public data Parameter [copy] {
     name: IdentifierSpan;
     type_reference: u64 in Trapping;
     // `mut name: Type`: the body may assign the parameter.
@@ -192,7 +192,7 @@ pub data Parameter [copy] {
 // as an index's operand, a range slice: its start is `left` when `first` is
 // 1 and its end `right` when `count` is 1. Unused fields
 // of a kind are zero.
-pub data ExpressionKind [copy] {
+public data ExpressionKind [copy] {
     case Name;
     case Path;
     case Integer;
@@ -213,7 +213,7 @@ pub data ExpressionKind [copy] {
     case Array;
 }
 
-pub data OperatorKind [copy] {
+public data OperatorKind [copy] {
     case None;
     case Or;
     case And;
@@ -244,7 +244,7 @@ pub data OperatorKind [copy] {
     case BorrowWrite;
 }
 
-pub data Expression [copy] {
+public data Expression [copy] {
     kind: ExpressionKind;
     operator: OperatorKind;
     left: u64 in Trapping;
@@ -259,13 +259,13 @@ pub data Expression [copy] {
 }
 
 // One `name: value` field of a construction `Path { name: value, ... }`.
-pub data ConstructField [copy] {
+public data ConstructField [copy] {
     name: IdentifierSpan;
     value: u64 in Trapping;
     source_span: SourceSpan;
 }
 
-pub data CrashCause [copy] {
+public data CrashCause [copy] {
     case Trap;
     case Abort;
 }
@@ -277,7 +277,7 @@ pub data CrashCause [copy] {
 // `Transition` selects among its arms, over the subject in `value` when
 // `has_value` holds; `Discard` (`_ = value;`) evaluates `value` and drops its
 // result intentionally.
-pub data StatementKind [copy] {
+public data StatementKind [copy] {
     case Let;
     case Assign;
     case Expression;
@@ -292,7 +292,7 @@ pub data StatementKind [copy] {
 // literal pattern expression; `Case` holds the case path expression and a
 // contiguous range of `SyntaxTrees::pattern_fields`. `target` is the arm's
 // target expression, of kind `target_kind`, or zero for `-> {}`.
-pub data ArmPatternKind [copy] {
+public data ArmPatternKind [copy] {
     case Guard;
     case Wildcard;
     case Literal;
@@ -305,13 +305,13 @@ pub data ArmPatternKind [copy] {
 // jumps to a state or completes the machine through a terminal call. A
 // `Value` is any other expression, a terminal value that completes the
 // machine. `Unit` is the explicit Unit completion `{}`.
-pub data ArmTargetKind [copy] {
+public data ArmTargetKind [copy] {
     case Call;
     case Value;
     case Unit;
 }
 
-pub data TransitionArm [copy] {
+public data TransitionArm [copy] {
     // A braced structural pattern checks field completeness unless it
     // explicitly ends in `..`; a bare case path tests only its tag.
     has_fields: bool;
@@ -333,7 +333,7 @@ pub data TransitionArm [copy] {
 // (`keyword as word`, `rename` naming the binder), a waived field
 // (`keyword as _`, which binds nothing) or a nested value
 // (`punctuation: PunctuationKind::Comma`).
-pub data PatternField [copy] {
+public data PatternField [copy] {
     name: IdentifierSpan;
     has_value: bool;
     value: u64 in Trapping;
@@ -343,7 +343,7 @@ pub data PatternField [copy] {
     source_span: SourceSpan;
 }
 
-pub data Statement [copy] {
+public data Statement [copy] {
     kind: StatementKind;
     name: IdentifierSpan;
     is_mutable: bool;
@@ -370,7 +370,7 @@ pub data Statement [copy] {
 // and the view, a path or an argumented view call, as its expression.
 // Machines, contracts, states, data declarations and cases each own a
 // contiguous range of clauses.
-pub data ClauseKind [copy] {
+public data ClauseKind [copy] {
     case Reaches;
     case Invokes;
     case Suspends;
@@ -387,7 +387,7 @@ pub data ClauseKind [copy] {
 // before `requires` ends it, since `requires Parent;` is then the trait's
 // body parent; a contract's clauses end at its `;`; each clause of a
 // refinement member ends at its own `;`.
-pub data ClauseOwner [copy] {
+public data ClauseOwner [copy] {
     case Machine;
     case TraitMember;
     case Contract;
@@ -398,7 +398,7 @@ pub data ClauseOwner [copy] {
     case Domain;
 }
 
-pub data Clause [copy] {
+public data Clause [copy] {
     kind: ClauseKind;
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
@@ -419,7 +419,7 @@ pub data Clause [copy] {
 
 // A named state member of a machine body. Its parameters are a contiguous
 // range of `SyntaxTrees::parameters`.
-pub data StateItem [copy] {
+public data StateItem [copy] {
     name: IdentifierSpan;
     first_parameter: u64 in Trapping;
     parameter_count: u64 in Trapping;
@@ -437,7 +437,7 @@ pub data StateItem [copy] {
 // its contiguous range. A refinement member names one base requirement,
 // possibly qualified by the base trait (`Base::requirement`), or every one
 // (`machine *`), and carries only the operational clauses it narrows.
-pub data MachineContainer [copy] {
+public data MachineContainer [copy] {
     case Root;
     case Trait;
     case Conformance;
@@ -455,7 +455,7 @@ pub data MachineContainer [copy] {
 // (`machine + Vec2::add(...)`, wiki/spec/language/expressions.md "Operator
 // declarations"): a closed, compiler-owned vocabulary. `None` is a tokenless
 // named machine.
-pub data OperatorToken [copy] {
+public data OperatorToken [copy] {
     case None;
     case Add;
     case Subtract;
@@ -486,7 +486,7 @@ pub data OperatorToken [copy] {
 // `first_expression`. A target-scoped declaration (`linux_arm64 machine
 // ...`) names its target, one body of the family the path keys by target;
 // `boundary machine` marks a crossing.
-pub data MachineItem [copy] {
+public data MachineItem [copy] {
     has_owner: bool;
     owner: IdentifierSpan;
     name: IdentifierSpan;
@@ -528,12 +528,12 @@ pub data MachineItem [copy] {
 // Name(parameters);` gives a proposition binder its signature. Which binder
 // a contract names is resolution's question: a contract may also name a
 // binder of an earlier contract's own generic parameters.
-pub data ContractKind [copy] {
+public data ContractKind [copy] {
     case Machine;
     case Proposition;
 }
 
-pub data Contract [copy] {
+public data Contract [copy] {
     kind: ContractKind;
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
@@ -550,7 +550,7 @@ pub data Contract [copy] {
 // A `::`-separated name path, `a::b::c`, as a contiguous range of
 // `SyntaxTrees::members`: a domain's establishment routes and alias
 // constituents, and both sides of a conformance's reference rows.
-pub data NamePath [copy] {
+public data NamePath [copy] {
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
     source_span: SourceSpan;
@@ -567,7 +567,7 @@ pub data NamePath [copy] {
 // has no parents or contracts, and its members' container is `Refinement`.
 // Its generic parameters are the header's own; each member machine's follow
 // them in its own range.
-pub data TraitItem [copy] {
+public data TraitItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
@@ -589,7 +589,7 @@ pub data TraitItem [copy] {
 // a contiguous range of `SyntaxTrees::machines` whose container is
 // `Conformance`; reference rows bind a requirement to an existing machine.
 // Its generic parameters are the header's own, as for a trait.
-pub data ConformanceItem [copy] {
+public data ConformanceItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
@@ -604,7 +604,7 @@ pub data ConformanceItem [copy] {
 
 // One reference row `Trait::requirement = Path;`: both sides are name-path
 // handles.
-pub data ConformanceRow [copy] {
+public data ConformanceRow [copy] {
     requirement: u64 in Trapping;
     target: u64 in Trapping;
     source_span: SourceSpan;
@@ -615,7 +615,7 @@ pub data ConformanceRow [copy] {
 // `SyntaxTrees::type_arguments`. A predicate domain keeps its `requires`
 // facts as clauses and its `established by` routes as name paths; a
 // transparent alias (`= A & B;`) keeps its constituents as name paths.
-pub data DomainItem [copy] {
+public data DomainItem [copy] {
     carrier: u64 in Trapping;
     name: IdentifierSpan;
     first_argument: u64 in Trapping;
@@ -637,7 +637,7 @@ pub data DomainItem [copy] {
 
 // A `const [Owner::]NAME: Type = value;` declaration. `value` is an
 // expression handle.
-pub data ConstantItem [copy] {
+public data ConstantItem [copy] {
     has_owner: bool;
     owner: IdentifierSpan;
     name: IdentifierSpan;
@@ -649,7 +649,7 @@ pub data ConstantItem [copy] {
 
 // What a proposition declares after its signature: nothing more (`;`), a
 // witness type (`evidence Type;`) or a transparent fact (`= fact;`).
-pub data PropositionBody [copy] {
+public data PropositionBody [copy] {
     case Primitive;
     case Evidence;
     case Transparent;
@@ -658,7 +658,7 @@ pub data PropositionBody [copy] {
 // A `proposition Name<binders>(parameters)` declaration. `evidence` is a
 // type-reference handle and `fact` an expression handle; the one its body
 // does not carry is zero.
-pub data PropositionItem [copy] {
+public data PropositionItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
@@ -675,7 +675,7 @@ pub data PropositionItem [copy] {
 // term;`, or with `is_boundary` an admitted assumption `boundary let ...;`
 // without a term. `result_type` is a type-reference handle and `term` an
 // expression handle, zero without one.
-pub data DefinitionItem [copy] {
+public data DefinitionItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
@@ -689,7 +689,7 @@ pub data DefinitionItem [copy] {
     source_span: SourceSpan;
 }
 
-pub data RootItemKind [copy] {
+public data RootItemKind [copy] {
     case Use;
     case Data;
     case Machine;
@@ -701,13 +701,13 @@ pub data RootItemKind [copy] {
     case Definition;
 }
 
-pub data RootItem [copy] {
+public data RootItem [copy] {
     kind: RootItemKind;
     item_index: u64 in Trapping;
     source_span: SourceSpan;
 }
 
-pub data ParseDiagnosticCode [copy] {
+public data ParseDiagnosticCode [copy] {
     case None;
     case LexicalInputRejected;
     case UnsupportedRootItem;
@@ -750,7 +750,7 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedLifetimeName;
     // `lexicographic { fields }` without a field name, or unclosed.
     case ExpectedMeasureComponent;
-    // `pub measure`: declared measures are package-private.
+    // `public measure`: declared measures are package-private.
     case MeasureNotPublic;
     // `in` after a witness's subjects without `lower..upper` or `lower..=upper`.
     case ExpectedRankRange;
@@ -913,12 +913,12 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedArrayElementEnd;
 }
 
-pub data ParseDiagnostic [copy] {
+public data ParseDiagnostic [copy] {
     code: ParseDiagnosticCode;
     source_span: SourceSpan;
 }
 
-pub data SyntaxTrees
+public data SyntaxTrees
 where
     root_count <= 4096,
     use_count <= 1024,
@@ -1028,7 +1028,7 @@ where
     accepted: bool;
 }
 
-pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId) {
+public machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId) {
     syntax_trees.root_count = 0;
     syntax_trees.use_count = 0;
     syntax_trees.member_count = 0;
@@ -1070,7 +1070,7 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.diagnostic.source_span.span.end = 0;
 }
 
-pub machine SyntaxTrees::reject(
+public machine SyntaxTrees::reject(
     syntax_trees: &mut SyntaxTrees,
     code: ParseDiagnosticCode,
     source: SourceId,
@@ -1087,7 +1087,7 @@ pub machine SyntaxTrees::reject(
 // Table reads by handle. The parser stores only handles inside its tables, so
 // a handle at or past a table's count is a violated producer invariant: the
 // read crashes rather than returning another declaration's row.
-pub machine SyntaxTrees::root_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RootItem
+public machine SyntaxTrees::root_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RootItem
 crashes Trap
 {
     transition handle < syntax_trees.root_count {
@@ -1104,7 +1104,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::data_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataItem
+public machine SyntaxTrees::data_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataItem
 crashes Trap
 {
     transition handle < syntax_trees.data_count {
@@ -1121,7 +1121,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::data_member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataMember
+public machine SyntaxTrees::data_member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataMember
 crashes Trap
 {
     transition handle < syntax_trees.data_member_count {
@@ -1138,7 +1138,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField
+public machine SyntaxTrees::field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField
 crashes Trap
 {
     transition handle < syntax_trees.field_count {
@@ -1155,7 +1155,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::data_case(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataCase
+public machine SyntaxTrees::data_case(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataCase
 crashes Trap
 {
     transition handle < syntax_trees.case_count {
@@ -1172,7 +1172,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::payload_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField
+public machine SyntaxTrees::payload_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField
 crashes Trap
 {
     transition handle < syntax_trees.payload_field_count {
@@ -1189,7 +1189,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::generic_parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> GenericParameter
+public machine SyntaxTrees::generic_parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> GenericParameter
 crashes Trap
 {
     transition handle < syntax_trees.generic_parameter_count {
@@ -1208,7 +1208,7 @@ crashes Trap
 
 // A type reference's `in` qualifier as written: its owner path, if any,
 // through its name.
-pub machine TypeReference::qualifier_span(reference: TypeReference) -> SourceSpan {
+public machine TypeReference::qualifier_span(reference: TypeReference) -> SourceSpan {
     transition reference.has_domain_owner {
         true -> owned(reference)
         _ -> bare(reference)
@@ -1226,7 +1226,7 @@ pub machine TypeReference::qualifier_span(reference: TypeReference) -> SourceSpa
     }
 }
 
-pub machine SyntaxTrees::type_reference(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TypeReference
+public machine SyntaxTrees::type_reference(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TypeReference
 crashes Trap
 {
     transition handle < syntax_trees.type_reference_count {
@@ -1244,7 +1244,7 @@ crashes Trap
 }
 
 // The type row of one static argument, by its index in `type_arguments`.
-pub machine SyntaxTrees::type_argument(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
+public machine SyntaxTrees::type_argument(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < syntax_trees.type_argument_count {
@@ -1261,7 +1261,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::machine_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineItem
+public machine SyntaxTrees::machine_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineItem
 crashes Trap
 {
     transition handle < syntax_trees.machine_count {
@@ -1278,7 +1278,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Parameter
+public machine SyntaxTrees::parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Parameter
 crashes Trap
 {
     transition handle < syntax_trees.parameter_count {
@@ -1295,7 +1295,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::state_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem
+public machine SyntaxTrees::state_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem
 crashes Trap
 {
     transition handle < syntax_trees.state_count {
@@ -1312,7 +1312,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::expression(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Expression
+public machine SyntaxTrees::expression(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Expression
 crashes Trap
 {
     transition handle < syntax_trees.expression_count {
@@ -1329,7 +1329,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::construct_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstructField
+public machine SyntaxTrees::construct_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstructField
 crashes Trap
 {
     transition handle < syntax_trees.construct_field_count {
@@ -1346,7 +1346,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::use_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> UseItem
+public machine SyntaxTrees::use_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> UseItem
 crashes Trap
 {
     transition handle < syntax_trees.use_count {
@@ -1364,7 +1364,7 @@ crashes Trap
 }
 
 // One member of a path or member list in `SyntaxTrees::members`.
-pub machine SyntaxTrees::member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan
+public machine SyntaxTrees::member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan
 crashes Trap
 {
     transition handle < syntax_trees.member_count {
@@ -1381,7 +1381,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::statement(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Statement
+public machine SyntaxTrees::statement(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Statement
 crashes Trap
 {
     transition handle < syntax_trees.statement_count {
@@ -1398,7 +1398,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::argument(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine SyntaxTrees::argument(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition handle < syntax_trees.argument_count {
@@ -1415,7 +1415,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
+public machine SyntaxTrees::arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
 crashes Trap
 {
     transition handle < syntax_trees.arm_count {
@@ -1434,20 +1434,20 @@ crashes Trap
 
 // The values one expression joins into one type: a value-position match's
 // arm values (`arms`), or a fixed-array literal's elements.
-pub data JoinedValues [copy] {
+public data JoinedValues [copy] {
     arms: bool;
     first: u64 in Trapping;
     count: u64 in Trapping;
 }
 
 // The values a match or an array literal joins.
-pub machine SyntaxTrees::joined_values(expression: Expression) -> JoinedValues {
+public machine SyntaxTrees::joined_values(expression: Expression) -> JoinedValues {
     let arms: bool = expression.kind == ExpressionKind::Match;
     JoinedValues { arms: arms, first: expression.first, count: expression.count }
 }
 
 // The value `offset` of a join: an arm's value or an element.
-pub machine SyntaxTrees::joined_value(syntax_trees: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping
+public machine SyntaxTrees::joined_value(syntax_trees: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition values.arms {
@@ -1468,14 +1468,14 @@ crashes Trap
 
 // A dispatch's arms: a transition's in `arms`, or, `matched`, a
 // value-position match's in `match_arms`.
-pub data ArmRange [copy] {
+public data ArmRange [copy] {
     matched: bool;
     first: u64 in Trapping;
     count: u64 in Trapping;
 }
 
 // The arm `offset` of a dispatch's range.
-pub machine SyntaxTrees::range_arm(syntax_trees: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> TransitionArm
+public machine SyntaxTrees::range_arm(syntax_trees: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> TransitionArm
 crashes Trap
 {
     transition range.matched {
@@ -1498,7 +1498,7 @@ crashes Trap
 // value pattern whose `Value` target is the arm's value. Match arms keep
 // their own table, so a match nested in a transition arm never splits that
 // transition's contiguous arm range.
-pub machine SyntaxTrees::match_arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
+public machine SyntaxTrees::match_arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
 crashes Trap
 {
     transition handle < syntax_trees.match_arm_count {
@@ -1515,7 +1515,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::pattern_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField
+public machine SyntaxTrees::pattern_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField
 crashes Trap
 {
     transition handle < syntax_trees.pattern_field_count {
@@ -1532,7 +1532,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::clause(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Clause
+public machine SyntaxTrees::clause(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Clause
 crashes Trap
 {
     transition handle < syntax_trees.clause_count {
@@ -1549,7 +1549,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::name_path(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> NamePath
+public machine SyntaxTrees::name_path(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> NamePath
 crashes Trap
 {
     transition handle < syntax_trees.name_path_count {
@@ -1566,7 +1566,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::trait_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TraitItem
+public machine SyntaxTrees::trait_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TraitItem
 crashes Trap
 {
     transition handle < syntax_trees.trait_count {
@@ -1583,7 +1583,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::conformance_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem
+public machine SyntaxTrees::conformance_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem
 crashes Trap
 {
     transition handle < syntax_trees.conformance_count {
@@ -1600,7 +1600,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::conformance_row(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceRow
+public machine SyntaxTrees::conformance_row(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceRow
 crashes Trap
 {
     transition handle < syntax_trees.conformance_row_count {
@@ -1617,7 +1617,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::domain_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DomainItem
+public machine SyntaxTrees::domain_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DomainItem
 crashes Trap
 {
     transition handle < syntax_trees.domain_count {
@@ -1634,7 +1634,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::constant_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstantItem
+public machine SyntaxTrees::constant_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstantItem
 crashes Trap
 {
     transition handle < syntax_trees.constant_count {
@@ -1651,7 +1651,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::proposition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PropositionItem
+public machine SyntaxTrees::proposition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PropositionItem
 crashes Trap
 {
     transition handle < syntax_trees.proposition_count {
@@ -1668,7 +1668,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::contract(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Contract
+public machine SyntaxTrees::contract(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Contract
 crashes Trap
 {
     transition handle < syntax_trees.contract_count {
@@ -1685,7 +1685,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::definition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem
+public machine SyntaxTrees::definition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem
 crashes Trap
 {
     transition handle < syntax_trees.definition_count {
@@ -1703,7 +1703,7 @@ crashes Trap
 }
 
 // The type row of one trait parent, by its index in `trait_parents`.
-pub machine SyntaxTrees::trait_parent(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
+public machine SyntaxTrees::trait_parent(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < syntax_trees.trait_parent_count {
@@ -1721,7 +1721,7 @@ crashes Trap
 }
 
 // The authored name of a data member: a direct field's name or a case's name.
-pub machine SyntaxTrees::member_name(syntax_trees: &SyntaxTrees, member: DataMember) -> IdentifierSpan
+public machine SyntaxTrees::member_name(syntax_trees: &SyntaxTrees, member: DataMember) -> IdentifierSpan
 crashes Trap
 {
     transition member.kind {
@@ -1741,7 +1741,7 @@ crashes Trap
 }
 
 // The erased binding at `index`.
-pub machine SyntaxTrees::erased_binding(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding
+public machine SyntaxTrees::erased_binding(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding
 crashes Trap
 {
     transition index < syntax_trees.erased_binding_count && index < 1024 {
@@ -1759,7 +1759,7 @@ crashes Trap
 }
 
 // The lifetime argument at `index` in `type_lifetimes`.
-pub machine SyntaxTrees::type_lifetime(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
+public machine SyntaxTrees::type_lifetime(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
 crashes Trap
 {
     transition index < syntax_trees.type_lifetime_count && index < 1024 {

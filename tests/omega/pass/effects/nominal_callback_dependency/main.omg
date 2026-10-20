@@ -1,11 +1,11 @@
-pub boundary trait Console {}
+public boundary trait Console {}
 
-pub trait StepContract {
+public trait StepContract {
     machine step(value: u64) -> u64 reaches Console;
 }
 
 machine note() reaches Console {}
 
-pub machine traverse<machine Step>(value: u64) -> u64
+public machine traverse<machine Step>(value: u64) -> u64
 where machine Step satisfies StepContract::step;
 { Step(value) }

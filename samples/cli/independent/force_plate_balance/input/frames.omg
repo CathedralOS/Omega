@@ -2,8 +2,8 @@ use domain::balance;
 use omega::language::core::numeric_conversion;
 // Seven signed decimal integers per line, separated by spaces. No commas,
 // exponent syntax or silent partial parses. Bounded magnitude prevents overflow.
-pub data Parsed { case Invalid; case Valid(frame: Frame); }
-pub machine parse_frame(text: &[u8]) -> Parsed {
+public data Parsed { case Invalid; case Valid(frame: Frame); }
+public machine parse_frame(text: &[u8]) -> Parsed {
     let mut frame: Frame;
     transition { _ -> scan(text, frame, 0, 0, 0, false, false) }
     state scan(text: &[u8], frame: Frame, position: u64, field: i32,

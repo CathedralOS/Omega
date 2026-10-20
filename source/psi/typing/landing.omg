@@ -18,7 +18,7 @@ use psi::typing::typer;
 // other has taken a type, and an unlanded one anywhere else, a subject or
 // an operand, has been rejected.
 
-pub machine Typer::unlanded(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::unlanded(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -27,7 +27,7 @@ crashes Trap
 }
 
 // A choice or an anonymous array: an unlanded value with joined values.
-pub machine Typer::unlanded_join_type(typer: &Typer, handle: u64 in Trapping) -> bool
+public machine Typer::unlanded_join_type(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typer.output.types, handle);
@@ -103,13 +103,13 @@ crashes Trap
 
 // How an unlanded value lands: `Landed`, or the first value that does not
 // land and why.
-pub data Landing [copy] {
+public data Landing [copy] {
     admission: Admission;
     value: u64 in Trapping;
 }
 
 // Whether the unlanded value rooted at `root` lands at `destination`.
-pub machine Typer::landing(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping) -> Landing
+public machine Typer::landing(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping) -> Landing
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);
@@ -207,7 +207,7 @@ crashes Trap
 // `Typer::landing` admits: each unlanded match or array literal, parents
 // first, takes the destination peeled by its depth below the root, and each
 // anonymous number among its values lands at the innermost element type.
-pub machine Typer::land(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping)
+public machine Typer::land(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping)
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);

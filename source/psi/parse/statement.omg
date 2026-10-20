@@ -16,7 +16,7 @@ use psi::tokens::tokens;
 // later slices (`if`, `loop`, `while`, `return`) reject with the caller's
 // `unsupported` diagnostic, the body end the grammar expects instead. The
 // range lands in `body_first_statement` and the table count.
-pub machine Parser::parse_statements(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode)
+public machine Parser::parse_statements(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode)
 crashes Trap
 {
     parser.body_first_statement = parser.output.statement_count as u64 in Trapping;

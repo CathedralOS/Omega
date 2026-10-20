@@ -275,7 +275,7 @@ customer-side rewrite.
 
 **Boundary requirements.** `core/interrupt.omg`'s
 `machine save_and_mask(&mut self) -> InterruptMaskGuard in Active`,
-`core/task.omg`'s `pub boundary requirement Task::request_cancel<T>(&self)`,
+`core/task.omg`'s `public boundary requirement Task::request_cancel<T>(&self)`,
 `core/layout.omg`'s `PlacedField` surface. Changing these changes the boundary
 contract every implementor and provider satisfies, not one file.
 
@@ -453,8 +453,8 @@ writing the corpus holds 3,078 occurrences in samples and 4,327 in canaries.
 Four rules separate a receiver that can go from one that cannot. Each was
 learned from a rejection, and each was wrong in an earlier attempt.
 
-**A `pub machine` is still a machine.** A declaration scanner anchored on
-`machine` or `state` at a line start misses every `pub`-qualified machine, and
+**A `public machine` is still a machine.** A declaration scanner anchored on
+`machine` or `state` at a line start misses every `public`-qualified machine, and
 with it the enclosing machine of any state nested inside one. This is silent:
 the states are still found, so they are rewritten without their owner. Fixing
 the anchor took one threading pass over the same corpus from 39 fixtures to
@@ -511,8 +511,8 @@ the tool could not see all the declarations it was reasoning about. Each of
 these was silent: states nested inside an invisible machine were still
 rewritten, just without their owner.
 
-**`pub machine`.** Anchoring on `machine` at a line start misses every
-`pub`-qualified declaration. Fixing it took one threading pass from 39 held
+**`public machine`.** Anchoring on `machine` at a line start misses every
+`public`-qualified declaration. Fixing it took one threading pass from 39 held
 fixtures to 138 over the same corpus.
 
 **Clause-bearing bodies.** A declaration may carry `reaches`, `invokes` or

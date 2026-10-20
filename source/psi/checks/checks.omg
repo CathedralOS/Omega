@@ -11,7 +11,7 @@ use psi::source::source;
 // obligation the facts at its program point cannot prove rejects; proof
 // search failing is not a refutation, and it grants nothing
 // (wiki/spec/language/effects.md#recoverable-outcomes-and-strict-use).
-pub data CheckDiagnosticCode [copy] {
+public data CheckDiagnosticCode [copy] {
     case None;
     // A body holds more integer subjects, or a machine more states, than
     // the checker's tables.
@@ -71,7 +71,7 @@ pub data CheckDiagnosticCode [copy] {
     case RankRangeUnproven;
 }
 
-pub data CheckDiagnostic [copy] {
+public data CheckDiagnostic [copy] {
     code: CheckDiagnosticCode;
     source_span: SourceSpan;
 }
@@ -81,7 +81,7 @@ pub data CheckDiagnostic [copy] {
 // its body derives. `trap` and `abort` are the derived causes: its own crash
 // statements and Trapping operations, and its callees' published causes
 // (wiki/spec/language/effects.md#guarded-crashes).
-pub data CrashRoutes [copy] {
+public data CrashRoutes [copy] {
     declares_trap: bool;
     declares_abort: bool;
     inferred: bool;
@@ -93,7 +93,7 @@ pub data CrashRoutes [copy] {
 // pass over the machines (their bodies, their crash routes, their supply
 // clauses) records the first rejection of every machine it rejects, in the
 // order found, until 64 are recorded.
-pub data Checks
+public data Checks
 where
     machine_count <= 2048,
     diagnostic_count <= 64,
@@ -110,11 +110,11 @@ where
 }
 
 // A pass moves on to another machine.
-pub machine Checks::open_machine(checks: &mut Checks) {
+public machine Checks::open_machine(checks: &mut Checks) {
     checks.machine_accepted = true;
 }
 
-pub machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+public machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
     transition checks.machine_accepted {
         true -> first(checks, code, source_span)
         _ -> done()
@@ -141,7 +141,7 @@ pub machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, sourc
 }
 
 // The rejection at `index`, in the order checking found them.
-pub machine Checks::diagnostic(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
+public machine Checks::diagnostic(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
 crashes Trap
 {
     transition index < checks.diagnostic_count && index < 64 {
@@ -160,7 +160,7 @@ crashes Trap
     }
 }
 
-pub machine Checks::routes(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes
+public machine Checks::routes(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes
 crashes Trap
 {
     transition machine < checks.machine_count {
@@ -177,7 +177,7 @@ crashes Trap
     }
 }
 
-pub machine Checks::set_routes(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes)
+public machine Checks::set_routes(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes)
 crashes Trap
 {
     transition machine < checks.machine_count {

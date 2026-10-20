@@ -3,11 +3,11 @@
 // declarations. Local facts named like targets remain ordinary proof facts.
 use omega::language::core::external_binding;
 
-pub boundary trait Magnitude {
+public boundary trait Magnitude {
     machine absolute(value: i32) -> i32 requires value > -2147483648;
     machine alternate(value: i32) -> i32 requires value > -2147483648;
 }
-pub macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
+public macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs"
     } }
@@ -15,10 +15,10 @@ pub macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
 macos_arm64 boundary machine absolute(value: i32) -> i32
     satisfies Magnitude::absolute via absolute_binding()
     requires value > -2147483648;
-pub macos_arm64 boundary machine alternate(value: i32) -> i32
+public macos_arm64 boundary machine alternate(value: i32) -> i32
     satisfies Magnitude::alternate via absolute_binding()
     requires value > -2147483648;
-pub macos_arm64 machine checked_offset(value: i32, macos_arm64: i32) -> i32
+public macos_arm64 machine checked_offset(value: i32, macos_arm64: i32) -> i32
     requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }
 
 data Main { }

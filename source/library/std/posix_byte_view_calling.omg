@@ -4,7 +4,7 @@
 // it neither changes the default slice ABI nor grants access beyond the view.
 use calling;
 
-pub LinuxArm64ByteViewCalling satisfies CallingPolicy {
+public LinuxArm64ByteViewCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = posix_byte_view_linux_arm64_entry();
         let accepted: bool = posix_byte_view_parameters(&signature, &mut plan);
@@ -17,7 +17,7 @@ pub LinuxArm64ByteViewCalling satisfies CallingPolicy {
     }
 }
 
-pub LinuxX86ByteViewCalling satisfies CallingPolicy {
+public LinuxX86ByteViewCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = posix_byte_view_linux_x86_entry();
         let accepted: bool = posix_byte_view_parameters(&signature, &mut plan);
@@ -30,7 +30,7 @@ pub LinuxX86ByteViewCalling satisfies CallingPolicy {
     }
 }
 
-pub DarwinArm64ByteViewCalling satisfies CallingPolicy {
+public DarwinArm64ByteViewCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = posix_byte_view_darwin_entry();
         let accepted: bool = posix_byte_view_parameters(&signature, &mut plan);

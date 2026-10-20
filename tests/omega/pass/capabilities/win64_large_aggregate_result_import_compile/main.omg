@@ -2,13 +2,13 @@
 // hidden RCX. The declared seed argument therefore shifts to RDX.
 use omega::language::core::external_binding;
 
-pub data Triple {
+public data Triple {
     first: u64;
     second: u64;
     third: u64;
 }
 
-pub boundary trait LargeAggregateResultImport {
+public boundary trait LargeAggregateResultImport {
     machine receive(seed: u64) -> Triple;
 }
 

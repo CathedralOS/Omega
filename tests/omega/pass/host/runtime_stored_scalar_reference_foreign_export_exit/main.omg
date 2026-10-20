@@ -3,11 +3,11 @@
 // exported as thin pointers, including helper and runtime-indexed crossings.
 use omega::language::core::external_binding;
 
-pub boundary trait ByteOutput {
+public boundary trait ByteOutput {
     machine write(descriptor: i32, value: &u8, count: u64) -> i64;
 }
-pub data ByteImports {}
-pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+public data ByteImports {}
+public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }

@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 // Every emitted quantity is below 10^12 in magnitude by the input envelope.
-pub machine integer(value: i64 in Wrapping) reaches Console
+public machine integer(value: i64 in Wrapping) reaches Console
 invokes Console;
 crashes Trap
 {
@@ -39,7 +39,7 @@ crashes Trap
 
 // Scientific decimal output keeps the absolute error below 1e-8 for the
 // qualification envelope, without saturating an integer scaled g(r).
-pub machine real(value: f64) reaches Console invokes Console; crashes Trap {
+public machine real(value: f64) reaches Console invokes Console; crashes Trap {
     transition value == 0.0 { true -> zero() _ -> normalize(value, 0) }
     state zero() { Console::write("0"); }
     state normalize(value: f64, exponent: i64 in Wrapping) {
@@ -65,7 +65,7 @@ pub machine real(value: f64) reaches Console invokes Console; crashes Trap {
 }
 
 use domain::precision;
-pub machine precise_real(value: Precise) reaches Console invokes Console; crashes Trap {
+public machine precise_real(value: Precise) reaches Console invokes Console; crashes Trap {
     transition value.high == 0.0 { true -> zero() _ -> normalize(value, 0) }
     state zero() { Console::write("0"); }
     state normalize(value: Precise, exponent: i64 in Wrapping) {

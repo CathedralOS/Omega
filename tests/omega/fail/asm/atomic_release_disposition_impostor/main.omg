@@ -1,5 +1,5 @@
 // REFUSE: an unperformed, mismatched or already spent store cannot settle a claim.
-pub proposition atomic_release_written<Cell, Value>(destination: &Cell, value: Value);
+public proposition atomic_release_written<Cell, Value>(destination: &Cell, value: Value);
 data Cell { value: AtomicU64; }
 data Ack [linear] { nonce: u64; }
 boundary trait Completion {

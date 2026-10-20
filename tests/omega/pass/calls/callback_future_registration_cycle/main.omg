@@ -2,11 +2,11 @@ use omega_language_std::calling;
 use omega_language_std::console;
 use omega::language::core::external_binding;
 
-pub data CallbackPolicies { }
-pub InitializerCalling satisfies CallingPolicy {
+public data CallbackPolicies { }
+public InitializerCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::initializer;
 }
-pub RegistrationCalling satisfies CallingPolicy {
+public RegistrationCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::registration;
 }
 macos_arm64 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
@@ -130,7 +130,7 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
     BoundaryPlanResult::Accepted { plan: plan }
 }
 
-pub boundary trait Initializer: Calling<InitializerCalling> {
+public boundary trait Initializer: Calling<InitializerCalling> {
     machine call(context: u64) reaches Registration + Console
     invokes Registration;
     invokes Console;
@@ -138,8 +138,8 @@ pub boundary trait Initializer: Calling<InitializerCalling> {
 
 // pthread_key_create stores the destructor for later thread exit. It does not
 // invoke it during registration, so this requirement has no invokes clause.
-pub data ThreadKey { token: u64; }
-pub boundary trait Registration: Calling<RegistrationCalling> {
+public data ThreadKey { token: u64; }
+public boundary trait Registration: Calling<RegistrationCalling> {
     machine register<machine Handler>(key: &mut ThreadKey, native callback initialize from Handler) -> i32
     where machine Handler satisfies Initializer::call;
 }
@@ -157,8 +157,8 @@ where machine Handler satisfies Initializer::call;
 satisfies Registration::register
 via registration_binding();
 
-pub data Initialization { }
-pub machine Initialization::call(context: u64) satisfies Initializer::call
+public data Initialization { }
+public machine Initialization::call(context: u64) satisfies Initializer::call
 reaches Registration + Console
 invokes Registration;
 invokes Console;

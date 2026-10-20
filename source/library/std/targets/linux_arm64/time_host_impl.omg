@@ -27,7 +27,7 @@ use time_host;
 
 // The kernel's 64-bit timespec, in declaration order; both fields are signed.
 // One record serves the read out-parameter and the sleep in-parameter.
-pub data LinuxArm64TimeHostInstant { seconds: i64; nanoseconds: i64; }
+public data LinuxArm64TimeHostInstant { seconds: i64; nanoseconds: i64; }
 
 // Per-target requirement carriers. A `boundary requirement` is target-neutral,
 // so each target's seam owns its own carrier type rather than re-declaring a
@@ -58,7 +58,7 @@ linux_arm64 machine LinuxArm64TimeImports::nanosleep(request: &LinuxArm64TimeHos
 // here. The product cannot wrap for any real clock — u64 holds 18_446_744_073
 // seconds of nanoseconds — and a kernel reporting more reads as a degraded
 // tick count instead of faulting.
-pub machine linux_arm64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u64 {
+public machine linux_arm64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u64 {
     let seconds_unsigned: u64 = narrow_i64_to_u64_saturating(seconds);
     let nanoseconds_unsigned: u64 = narrow_i64_to_u64_saturating(nanoseconds);
     let scaled: u64 in Wrapping = (seconds_unsigned as u64 in Wrapping) * 1000000000;

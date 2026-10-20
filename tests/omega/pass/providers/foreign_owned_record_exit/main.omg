@@ -2,9 +2,9 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub data InternetAddress { address: u32; }
+public data InternetAddress { address: u32; }
 
-pub boundary trait AddressParts {
+public boundary trait AddressParts {
     machine make(network: u32, host: u32) -> InternetAddress;
     machine host(address: InternetAddress) -> u32;
 }

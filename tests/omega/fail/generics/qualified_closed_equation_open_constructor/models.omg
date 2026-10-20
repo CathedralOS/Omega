@@ -1,2 +1,2 @@
 module models;
-pub data Token<Element> [copy] { value: Element; }
+public data Token<Element> [copy] { value: Element; }

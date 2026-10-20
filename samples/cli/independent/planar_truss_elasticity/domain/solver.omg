@@ -3,8 +3,8 @@
 // numerically unresolved structure. Fixed-coordinate displacement is zero.
 use domain::model;
 use omega::language::core::float_operations;
-pub machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (-value) false -> value } }
-pub machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes <= 8 requires truss.bars <= 16 {
+public machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (-value) false -> value } }
+public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes <= 8 requires truss.bars <= 16 {
     result.valid = false;
     result.status = 64;
     transition { _ -> bar(truss, result, 0) }

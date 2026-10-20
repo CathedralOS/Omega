@@ -2,7 +2,7 @@ module protocol::model;
 
 // One vessel has one lease. An abort retains that lease until explicit recovery;
 // cancellation can never make the vessel available to a competing owner.
-pub data Laboratory [copy] {
+public data Laboratory [copy] {
     owner: i32;
     phase: i32;
     closed: bool;
@@ -14,7 +14,7 @@ pub data Laboratory [copy] {
 // Decisions: 0 acquired, 1 loaded, 2 started, 3 advanced, 4 completed,
 // 5 cancelled, 6 recovered, 7 lid changed, 8 conflict, 9 wrong phase,
 // 10 open interlock, 11 timeout, 12 invalid input, 13 emergency interlock.
-pub machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
     transition argument >= 0 && argument <= 9 {
         true -> dispatch(laboratory, operation, argument)
         false -> invalid()

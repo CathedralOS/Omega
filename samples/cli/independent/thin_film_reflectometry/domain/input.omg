@@ -3,8 +3,8 @@
 // The total budget includes separators. EOF after a complete token is valid.
 use omega_language_std::console;
 use omega::language::core::float_operations;
-pub data Reader { consumed: i32; }
-pub data Number [copy] { valid: bool; value: f64; }
+public data Reader { consumed: i32; }
+public data Number [copy] { valid: bool; value: f64; }
 machine character(reader: &mut Reader) -> i32 reaches Console {
     transition reader.consumed >= 0 && reader.consumed < 4096 { true -> read(reader) _ -> -2 }
     state read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
@@ -17,7 +17,7 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
     }
 }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
-pub machine number(reader: &mut Reader) -> Number reaches Console invokes Console; blocks; crashes Trap {
+public machine number(reader: &mut Reader) -> Number reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> start(reader) }
     state start(reader: &mut Reader) -> Number {
         let value: i32 = block character(reader);
@@ -61,7 +61,7 @@ pub machine number(reader: &mut Reader) -> Number reaches Console invokes Consol
         }
     }
 }
-pub machine ended(reader: &mut Reader) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine ended(reader: &mut Reader) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> scan(reader) }
     state scan(reader: &mut Reader) -> bool {
         let value: i32 = block character(reader);

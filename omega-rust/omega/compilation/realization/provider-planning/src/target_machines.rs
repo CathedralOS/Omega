@@ -214,7 +214,7 @@ pub(crate) fn family_member_for_target<'program>(
 /// The machine a provider row realizes on the selected target. A row names
 /// the machine resolution bound its authored path to: a portable body, an
 /// exact target member, or a target family's head when the authored name is
-/// a family (`pub macos_arm64 machine sleep` in a library). The head is the
+/// a family (`public macos_arm64 machine sleep` in a library). The head is the
 /// family's declaration, not a body, so the row realizes the member the
 /// catalog retains for the selected target; a family without a body for that
 /// target leaves the row, and its map, inert on that target exactly like a

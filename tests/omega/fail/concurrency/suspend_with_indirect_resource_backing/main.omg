@@ -1,14 +1,14 @@
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine park() suspends;
     machine inspect(value: &Restricted) suspends;
     machine inspect_carrier(value: Envelope<&Restricted>) suspends;
 }
 
-pub data Restricted [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] {
+public data Restricted [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] {
     value: i32;
 }
-pub data Envelope<T> { payload: T; }
+public data Envelope<T> { payload: T; }
 
 machine observe(value: &Restricted) -> i32 { value.value }
 

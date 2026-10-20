@@ -3,8 +3,8 @@ use omega::language::core::representation;
 use omega::language::core::program_image;
 
 // Matching a signature and trait does not confer the toolchain intrinsic identity.
-pub data UnadmittedImageProvider {}
-pub uefi_x86_64 boundary machine UnadmittedImageProvider::retained_suffix_start() -> addr
+public data UnadmittedImageProvider {}
+public uefi_x86_64 boundary machine UnadmittedImageProvider::retained_suffix_start() -> addr
 satisfies ProgramImage::retained_suffix_start;
 use std::targets::uefi_x86_64::entry;
 

@@ -1,7 +1,7 @@
 // A generic envelope carries retained references — including a reference to
 // a retained reference (`&retained` where retained is itself `&i32`) — plus a
 // `&write` attenuated loan of a mutable local.
-pub data Envelope<T> { marker: i32; first: T; second: T; }
+public data Envelope<T> { marker: i32; first: T; second: T; }
 machine score(e: Envelope<&i32>) -> i32 in Wrapping {
     ((e.marker as i32 in Wrapping) + (e.first as i32 in Wrapping)
         + (e.second as i32 in Wrapping))

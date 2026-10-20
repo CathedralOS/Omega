@@ -22,14 +22,14 @@ use psi::types::types;
 // a machine binder's `where machine` contract's (wiki/spec/language/
 // generics.md#static-machine-binder-categories). A binder without a contract
 // and every other selection declare none.
-pub data CallClauses [copy] {
+public data CallClauses [copy] {
     first_clause: u64 in Trapping;
     clause_count: u64 in Trapping;
     first_parameter: u64 in Trapping;
     parameter_count: u64 in Trapping;
 }
 
-pub machine Checker::call_clauses(syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) -> CallClauses
+public machine Checker::call_clauses(syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) -> CallClauses
 crashes Trap
 {
     transition selection {
@@ -62,7 +62,7 @@ crashes Trap
 }
 
 // Whether a clause run holds a clause of `kind`.
-pub machine Checker::declares(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, kind: ClauseKind) -> bool
+public machine Checker::declares(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, kind: ClauseKind) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, first, first + count, kind) }
@@ -93,7 +93,7 @@ crashes Trap
 
 // Whether a type, through references, is data whose declaration or one of
 // whose cases carries `where` facts.
-pub machine Checker::constrained(syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping) -> bool
+public machine Checker::constrained(syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = Checker::referent_row(typing, type_handle);
@@ -159,7 +159,7 @@ crashes Trap
 
 // Assume a body's `requires` facts as it opens: its callers and
 // predecessors established them.
-pub machine Checker::assume_requirements(
+public machine Checker::assume_requirements(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -174,7 +174,7 @@ crashes Trap
 
 // A normal return owes its machine's `ensures` facts, `result` standing for
 // the returned value.
-pub machine Checker::require_guarantees(
+public machine Checker::require_guarantees(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -208,7 +208,7 @@ crashes Trap
 // call's result and each parameter for its argument's value. An exclusive
 // argument's place was released by the call, so a fact about it describes
 // what the callee left there.
-pub machine Checker::assume_guarantees(
+public machine Checker::assume_guarantees(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -230,7 +230,7 @@ crashes Trap
 
 // Decide a call's or jump's target facts of `kind`: while they are decided,
 // each target parameter stands for its argument's value at the call.
-pub machine Checker::decide_call_facts(
+public machine Checker::decide_call_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -312,7 +312,7 @@ crashes Trap
 
 // The next fact clause of `kind` at or after `index` in a clause run ending
 // at `end` (`index` is `end` when none is left), and whether it typed.
-pub data FactClause [copy] {
+public data FactClause [copy] {
     index: u64 in Trapping;
     fact: u64 in Trapping;
     typed: bool;
@@ -347,7 +347,7 @@ crashes Trap
 // Decide each fact of `kind` in a clause run: assume it, or, when
 // `proving`, report whether every one is proved. An untyped fact is not
 // assumed and is never proved.
-pub machine Checker::decide_facts(
+public machine Checker::decide_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -403,7 +403,7 @@ crashes Trap
 // Decide a declared domain's predicates, its `requires` facts, as trees: a
 // membership inside them is an unknown Boolean, so deciding a membership
 // through its domain never recurs.
-pub machine Checker::decide_predicates(
+public machine Checker::decide_predicates(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -473,7 +473,7 @@ crashes Trap
 }
 
 // The value a substituted parameter stands for.
-pub machine Checker::argument_value(checker: &Checker, offset: u64 in Trapping) -> Value
+public machine Checker::argument_value(checker: &Checker, offset: u64 in Trapping) -> Value
 crashes Trap
 {
     transition offset < checker.argument_count && offset < 64 {

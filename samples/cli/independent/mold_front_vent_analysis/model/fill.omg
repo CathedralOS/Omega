@@ -1,7 +1,7 @@
 // Integer cellular model. Four-neighbour air closure and synchronous resin
 // batches are distinct: a row-major budget cut never lets new resin advance
 // twice in one tick. Trapped air is excluded forever after losing its vent.
-pub data Cavity {
+public data Cavity {
     walls: i32 in Wrapping;
     gates: i32 in Wrapping;
     vents: i32 in Wrapping;
@@ -14,13 +14,13 @@ pub data Cavity {
     arrival: [i32 in Wrapping; 16];
 }
 
-pub machine neighbours(mask: i32 in Wrapping) -> i32 in Wrapping {
+public machine neighbours(mask: i32 in Wrapping) -> i32 in Wrapping {
     (((mask & 30583) << 1) | ((mask & 61166) >> 1) | (mask << 4) | (mask >> 4)) & 65535
 }
 
 // At most fifteen edges join sixteen cells. Sixteen relaxation rounds reach
 // every connected cell regardless of the path shape, without a heap or queue.
-pub machine air_closure(air: i32 in Wrapping, seeds: i32 in Wrapping) -> i32 in Wrapping {
+public machine air_closure(air: i32 in Wrapping, seeds: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> expand(air, seeds & air, 0) }
     state expand(air: i32 in Wrapping, reached: i32 in Wrapping,
                  round: i32 in Wrapping) -> i32 in Wrapping {
@@ -31,7 +31,7 @@ pub machine air_closure(air: i32 in Wrapping, seeds: i32 in Wrapping) -> i32 in 
     }
 }
 
-pub machine cell_count(mask: i32 in Wrapping) -> i32 in Wrapping {
+public machine cell_count(mask: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bit(mask & 65535, 0) }
     state bit(rest: i32 in Wrapping, count: i32 in Wrapping) -> i32 in Wrapping {
         transition rest != 0 {
@@ -41,7 +41,7 @@ pub machine cell_count(mask: i32 in Wrapping) -> i32 in Wrapping {
     }
 }
 
-pub machine Cavity::valid(cavity: &Cavity) -> bool {
+public machine Cavity::valid(cavity: &Cavity) -> bool {
     cavity.gates != 0 && (cavity.walls & (cavity.gates | cavity.vents)) == 0
         && (cavity.gates & cavity.vents) == 0 && cavity.budget >= cell_count(cavity.gates)
         && cavity.budget >= 0 && cavity.budget <= 16
@@ -56,7 +56,7 @@ machine Cavity::classify(cavity: &mut Cavity) {
     cavity.trapped = cavity.trapped | (air & ~cavity.vented);
 }
 
-pub machine Cavity::simulate(cavity: &mut Cavity) {
+public machine Cavity::simulate(cavity: &mut Cavity) {
     cavity.filled = cavity.gates;
     cavity.trapped = 0;
     cavity.vented = 0;
@@ -121,7 +121,7 @@ pub machine Cavity::simulate(cavity: &mut Cavity) {
 
 // This check is a postcondition on reported physical partitions, rather than
 // an expected checksum of one fixture. Whole-map byte oracles are external.
-pub machine Cavity::balanced(cavity: &Cavity) -> bool {
+public machine Cavity::balanced(cavity: &Cavity) -> bool {
     let partition: i32 in Wrapping = cavity.walls | cavity.filled | cavity.trapped | cavity.vented;
     let total: i32 in Wrapping = cell_count(cavity.walls) + cell_count(cavity.filled)
         + cell_count(cavity.trapped) + cell_count(cavity.vented);
@@ -165,7 +165,7 @@ requires window.len >= 1 {
     window[0] = tick;
 }
 
-pub machine arrival_row_holds() -> bool {
+public machine arrival_row_holds() -> bool {
     let mut row: [i32 in Wrapping; 4] = [1, 2, 3, 4];
     let gate: HeldTicks = gate_window(&mut row);
     let gate_length: u64 = gate.values.len;

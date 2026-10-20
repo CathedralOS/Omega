@@ -8,7 +8,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
+// `[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
 // {where proposition Name(parameters);} { member* }`, entered at the `trait`
 // word. A parent is a type application retained in
 // `SyntaxTrees::trait_parents`; each proposition binder takes its signature
@@ -20,7 +20,7 @@ use psi::tokens::tokens;
 // clause*` narrows the base's operational axes with `reaches [rows];`,
 // `suspends [true | false];`, `blocks [true | false];` and `terminates;`.
 // The item and its root are retained at the closing `}`.
-pub machine Parser::parse_trait(
+public machine Parser::parse_trait(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,

@@ -6,7 +6,7 @@ use io::input;
 use model::scale;
 use model::courant;
 use omega::language::core::float_operations;
-pub data Field {
+public data Field {
  count:u32 in Saturating; steps:u32 in Saturating; local_weight:f64; spacing_mantissa:f64; spacing_power:i32 in Wrapping; cfl:f64; exact:bool;
  current:[f64;64]; powers:[i32 in Wrapping;64]; next:[f64;64]; next_powers:[i32 in Wrapping;64];
  coefficients:[u64 in Wrapping;64]; original_powers:[i32 in Wrapping;64];
@@ -17,7 +17,7 @@ pub data Field {
  minimum:f64; minimum_exponent:i32 in Wrapping; minimum_index:u32 in Saturating;
  maximum:f64; maximum_exponent:i32 in Wrapping; maximum_index:u32 in Saturating;
 }
-pub machine finite(value:f64) -> bool { value == value && value-value == 0.0 }
+public machine finite(value:f64) -> bool { value == value && value-value == 0.0 }
 machine integer(coefficient:u64 in Wrapping,power:i32 in Wrapping) -> bool {
  transition power >= 0 || coefficient == 0 { true -> good() false -> fraction(coefficient,power) }
  state fraction(coefficient:u64 in Wrapping,power:i32 in Wrapping) -> bool {
@@ -26,7 +26,7 @@ machine integer(coefficient:u64 in Wrapping,power:i32 in Wrapping) -> bool {
  state good() -> bool { true }
  state bad() -> bool { false }
 }
-pub machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
+public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
  transition input.count >= 9 && input.values[0] == input.values[0] && input.values[1] == input.values[1]
   && input.values[0] >= 4.0 && input.values[0] <= 64.0 && input.values[1] >= 0.0 && input.values[1] <= 256.0
   && integer(input.coefficients[0],input.powers[0]) && integer(input.coefficients[1],input.powers[1])
@@ -99,7 +99,7 @@ pub machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
  state good() -> bool { true }
  state bad() -> bool { false }
 }
-pub machine evolve(field:&mut Field) {
+public machine evolve(field:&mut Field) {
  transition { _ -> step(field,0) }
  state step(field:&mut Field,iteration:u32 in Saturating) {
   transition iteration < field.steps && field.cfl != 0.0 { true -> cells(field,iteration,0) false -> summarize(field) }

@@ -1,6 +1,6 @@
 // Ordinary method operands keep their declaration-defined slots in both call forms.
-pub data Observation { value: i32; }
-pub boundary trait Source {
+public data Observation { value: i32; }
+public boundary trait Source {
     machine keep<Value>(value: Value) -> Value;
     machine fill<const Value: i32>(destination: &mut Observation);
 }

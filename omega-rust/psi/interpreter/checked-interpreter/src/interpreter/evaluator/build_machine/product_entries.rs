@@ -2,7 +2,7 @@
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product machine under the query occurrence's lexical
-//! package scope -- its own package, or a `pub` declaration inside a package
+//! package scope -- its own package, or a `public` declaration inside a package
 //! the occurrence's package holds an authorized product dependency on -- and
 //! hands back an opaque `ProductEntryRef` marker. The
 //! semantic payload stays in the evaluator's private
@@ -106,7 +106,7 @@ impl<'program> Evaluator<'program> {
         // Strings are locators, not authority: `path` resolves under the
         // query occurrence's own authorized scope. A qualified `alias::rest`
         // spelling resolves `alias` through the occurrence package's
-        // retained product dependencies and selects a `pub` declaration in
+        // retained product dependencies and selects a `public` declaration in
         // that exact target package's product checked instance. A helper keeps
         // its operational capability but cannot enumerate the caller's product
         // namespace, and a build-scope alias authorizes nothing. A bare leaf

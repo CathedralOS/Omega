@@ -1,2 +1,2 @@
 module second;
-pub data Carrier {}
+public data Carrier {}

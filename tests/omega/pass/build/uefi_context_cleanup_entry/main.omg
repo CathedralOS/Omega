@@ -31,7 +31,7 @@ invokes ProgramStorageEntry;
 
 data KernelState { phase: u64; }
 
-pub boundary trait CleanupAudit {
+public boundary trait CleanupAudit {
     machine finish() terminates;
 }
 

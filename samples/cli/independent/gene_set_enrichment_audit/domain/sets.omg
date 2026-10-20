@@ -1,9 +1,9 @@
 // Ten synthetic IDs. Masks are private bounded set storage, not gene biology.
 use omega_language_std::console;
 
-pub data Parsed [copy] { mask: u64 in Wrapping; duplicates: u64 in Wrapping; valid: bool; }
+public data Parsed [copy] { mask: u64 in Wrapping; duplicates: u64 in Wrapping; valid: bool; }
 
-pub machine power(gene: u64 in Wrapping) -> u64 in Wrapping {
+public machine power(gene: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> step(gene, 1) }
     state step(left: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition left == 0 { true -> value
@@ -12,7 +12,7 @@ pub machine power(gene: u64 in Wrapping) -> u64 in Wrapping {
     }
 }
 
-pub machine member(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
+public machine member(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
     transition { _ -> step(mask, gene) }
     state step(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
         transition gene == 0 {
@@ -22,7 +22,7 @@ pub machine member(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
     }
 }
 
-pub machine size(mask: u64 in Wrapping) -> u64 in Wrapping {
+public machine size(mask: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> step(mask, 0) }
     state step(left: u64 in Wrapping, count: u64 in Wrapping) -> u64 in Wrapping {
         transition left == 0 { true -> count
@@ -31,7 +31,7 @@ pub machine size(mask: u64 in Wrapping) -> u64 in Wrapping {
     }
 }
 
-pub machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+public machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> step(left, right, 1, 0) }
     state step(left: u64 in Wrapping, right: u64 in Wrapping, weight: u64 in Wrapping, mask: u64 in Wrapping) -> u64 in Wrapping {
         transition left == 0 { true -> mask
@@ -45,7 +45,7 @@ pub machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 i
 }
 
 // Newline terminates each row; at most 63 IDs precede it. EOF and any other byte reject.
-pub machine read_set() -> Parsed reaches Console
+public machine read_set() -> Parsed reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -85,7 +85,7 @@ crashes Trap
     state invalid() -> Parsed { Parsed { mask: 0, duplicates: 0, valid: false } }
 }
 
-pub machine end_input() -> bool reaches Console
+public machine end_input() -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap

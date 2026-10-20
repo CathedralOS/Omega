@@ -2,11 +2,11 @@
 // parameter carrier and the earlier scalar snapshot used by the next argument.
 data Main { record: [u8; 146]; }
 
-pub boundary trait Writer {
+public boundary trait Writer {
     machine write(path: &[u8], bytes: &mut [u8]) -> i32;
 }
 
-pub ByteWriter satisfies Writer {
+public ByteWriter satisfies Writer {
     machine write(path: &[u8], bytes: &mut [u8]) -> i32 {
         transition path.len == 1 && bytes.len > 0 {
             true -> write_first(bytes)
@@ -19,19 +19,19 @@ pub ByteWriter satisfies Writer {
     }
 }
 
-pub boundary trait GenericWriter<Element> {
+public boundary trait GenericWriter<Element> {
     machine write(path: &[Element], bytes: &mut [u8]) -> i32;
 }
-pub GenericByteWriter satisfies GenericWriter<u8> {
+public GenericByteWriter satisfies GenericWriter<u8> {
     machine write(path: &[u8], bytes: &mut [u8]) -> i32 {
         ByteWriter::write(path, bytes)
     }
 }
 
-pub boundary trait NestedWriter {
+public boundary trait NestedWriter {
     machine write(paths: [&[u8]; 1], bytes: &mut [u8]) -> i32;
 }
-pub NestedByteWriter satisfies NestedWriter {
+public NestedByteWriter satisfies NestedWriter {
     machine write(paths: [&[u8]; 1], bytes: &mut [u8]) -> i32 {
         ByteWriter::write(paths[0], bytes)
     }

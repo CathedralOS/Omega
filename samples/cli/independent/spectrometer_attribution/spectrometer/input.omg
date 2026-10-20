@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // Decimal magnitude is guarded before every multiplication. The signed bound
 // is one million, so Wrapping never wraps on accepted input. Delimiters are
 // consumed; a minus sign must be followed by a digit, including at EOF.
-pub machine read_integer(application: &mut Spectrometer) -> IntegerRead
+public machine read_integer(application: &mut Spectrometer) -> IntegerRead
 reaches Console
 invokes Console;
 blocks;
@@ -81,7 +81,7 @@ crashes Trap
 
 // The validated integer inventory is converted once into floating coordinates.
 // Baseline endpoints are supplied calibration data, not estimated from peaks.
-pub machine load_spectrum(application: &mut Spectrometer) -> bool {
+public machine load_spectrum(application: &mut Spectrometer) -> bool {
     transition { _ -> samples(application, 0) }
     state samples(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 16 {

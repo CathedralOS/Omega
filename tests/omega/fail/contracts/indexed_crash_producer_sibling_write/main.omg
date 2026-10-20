@@ -16,7 +16,7 @@ requires index < 2
 ensures result == index
 ensures result < 2
 { index }
-pub machine read_seven(items: &[u64; 2], index: u64) -> u64
+public machine read_seven(items: &[u64; 2], index: u64) -> u64
 requires index < 2
 requires items[index] == 7
 { let mut selected: u64 = index; let carried: u64 = preserve_after(clear(&mut selected), selected); maybe_zero(items, carried) }

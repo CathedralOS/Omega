@@ -1,8 +1,8 @@
 // Scientific model: isolated frictionless disks, constant velocity between
 // instantaneous Newton restitution impulses. No walls, gravity or spin.
 use omega::language::core::float_operations;
-pub data Disk [copy] { x:f64; y:f64; vx:f64; vy:f64; radius:f64; mass:f64; }
-pub data Lab {
+public data Disk [copy] { x:f64; y:f64; vx:f64; vy:f64; radius:f64; mass:f64; }
+public data Lab {
  disks:[Disk;4]; count:u64; budget:u64; events:u64; horizon:f64;
  restitution:f64; time:f64; valid:bool;
  first:u64; second:u64; selected:bool;
@@ -10,7 +10,7 @@ pub data Lab {
  momentum_x:f64; momentum_y:f64; energy:f64; initial_x:f64; initial_y:f64; initial_energy:f64;
  loss:f64; contact_error:f64;
 }
-pub machine totals(lab:&mut Lab) {
+public machine totals(lab:&mut Lab) {
  lab.momentum_x=0.0; lab.momentum_y=0.0; lab.energy=0.0;
  transition { _ -> scan(lab,0) }
  state scan(lab:&mut Lab,index:u64) {
@@ -25,7 +25,7 @@ pub machine totals(lab:&mut Lab) {
  }
  state done() {}
 }
-pub machine validate(lab:&mut Lab) {
+public machine validate(lab:&mut Lab) {
  lab.valid=false;
  transition lab.count >= 2 && lab.count <= 4 && lab.budget <= 8
   && lab.horizon >= 0.0 && lab.horizon <= 10.0

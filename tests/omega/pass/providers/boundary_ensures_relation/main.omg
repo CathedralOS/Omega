@@ -2,7 +2,7 @@
 // `size == cap && cap <= 8` bounds `size` through `cap`, so the
 // four-byte view beginning at `size` fits in the twelve-byte region.
 // The equality stays a relation between the two argument places.
-pub boundary trait Firmware {
+public boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
     ensures size == cap && cap <= 8;
 }

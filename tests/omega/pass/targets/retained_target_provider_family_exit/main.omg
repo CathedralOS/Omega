@@ -3,11 +3,11 @@
 // A distinct competing provider must not donate its body to that selection.
 use omega_language_std::console;
 
-pub boundary trait Value {
+public boundary trait Value {
     machine read(input: i32) -> i32 ensures result == input;
 }
 
-pub SelectedValue satisfies Value {
+public SelectedValue satisfies Value {
     machine read(input: i32) -> i32 ensures result == input {
         target_value(input)
     }
@@ -23,7 +23,7 @@ ensures result == input { input }
 reserved_target machine target_value(input: i32) -> i32
 ensures result == input { input }
 
-pub OtherProvider satisfies Value {
+public OtherProvider satisfies Value {
     machine read(input: i32) -> i32 ensures result == input {
         other_value(input)
     }

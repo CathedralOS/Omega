@@ -1,8 +1,8 @@
 use omega::language::core::layout;
 
-pub data Words [copy] { first: u64; second: u64; third: u64; }
-pub data Aligned32 { }
-pub data Aligned64 { }
+public data Words [copy] { first: u64; second: u64; third: u64; }
+public data Aligned32 { }
+public data Aligned64 { }
 
 machine Aligned32::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];

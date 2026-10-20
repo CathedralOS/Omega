@@ -1,4 +1,4 @@
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 // Chapter 18 "Capabilities And Authority Flow" (Derives, nested): a helper
@@ -8,16 +8,16 @@ requires
 // propagate `derives` up the call graph with the helper recorded as provenance
 // (`Worker::open_main_log derives via Worker::open_log`).
 
-pub data Folder {
+public data Folder {
 }
 
-pub data File {
+public data File {
 }
 
-pub domain File::Writable
+public domain File::Writable
 established by Filesystem::open;
 
-pub boundary trait Filesystem {
+public boundary trait Filesystem {
     machine open(folder: Folder, path: &[u8] in Utf8) -> File
     ensures
         result in File::Writable

@@ -1,2 +1,2 @@
 module other;
-pub data Token [copy] { value: u64; }
+public data Token [copy] { value: u64; }

@@ -9,7 +9,7 @@
 // dylib-symbol import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
 
-pub boundary trait Leaf {
+public boundary trait Leaf {
     machine exit(code: i32) -> i32;
 }
 

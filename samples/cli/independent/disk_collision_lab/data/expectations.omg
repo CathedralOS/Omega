@@ -4,7 +4,7 @@ use omega_language_std::math;
 // comparison meaningful despite the CLI exposing only native stdout.
 use omega::language::core::float_operations;
 use physics::model;
-pub machine expected_result(lab:&Lab,choice:i32)->bool {
+public machine expected_result(lab:&Lab,choice:i32)->bool {
  transition choice {
   0 -> case_0(lab)
   1 -> case_1(lab)
@@ -146,7 +146,7 @@ pub machine expected_result(lab:&Lab,choice:i32)->bool {
  state rejected()->bool {false}
 }
 
-pub machine expected_contact(lab:&Lab,choice:i32)->bool {
+public machine expected_contact(lab:&Lab,choice:i32)->bool {
  transition choice {
   0 -> case_0(lab)
   1 -> case_1(lab)

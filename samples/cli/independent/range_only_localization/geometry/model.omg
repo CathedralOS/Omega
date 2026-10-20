@@ -3,18 +3,18 @@
 // every actual product is small (squared distances <= 3200).
 use omega::language::core::numeric_conversion;
 
-pub data Problem {
+public data Problem {
     values: [i32 in Wrapping; 17];
 }
 
-pub machine distance_squared(x: i32 in Wrapping, y: i32 in Wrapping,
+public machine distance_squared(x: i32 in Wrapping, y: i32 in Wrapping,
     anchor_x: i32 in Wrapping, anchor_y: i32 in Wrapping) -> i32 in Wrapping {
     let horizontal: i32 in Wrapping = x - anchor_x;
     let vertical: i32 in Wrapping = y - anchor_y;
     horizontal * horizontal + vertical * vertical
 }
 
-pub machine feasible(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping) -> bool {
+public machine feasible(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping) -> bool {
     transition { _ -> observation(problem, x, y, 0) }
     state observation(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool {
         transition index < 3 {
@@ -36,7 +36,7 @@ pub machine feasible(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping) 
     }
 }
 
-pub machine degenerate(problem: &Problem) -> bool {
+public machine degenerate(problem: &Problem) -> bool {
     problem.values[5] == problem.values[9] && problem.values[9] == problem.values[13]
         && problem.values[6] == problem.values[10] && problem.values[10] == problem.values[14]
 }

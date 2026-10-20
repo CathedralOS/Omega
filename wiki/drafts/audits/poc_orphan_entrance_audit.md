@@ -98,5 +98,5 @@ and deliberately unsequenced. Sequencing any family means wiring it into
 executable pressure-recovery route — under POC-SPILL-FAMILY-SEQUENCING.
 Deleting the park removes retained validation substrate and the 44-entry test
 surface; the row owns that tradeoff. No entrance is ambiguous about ownership:
-all 18 are `pub(crate)` inside this crate and leave it only through the test
+all 18 are `public(crate)` inside this crate and leave it only through the test
 re-exports above.

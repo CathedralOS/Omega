@@ -3,7 +3,7 @@
 // degrading to a structural field.
 use omega::language::core::binding;
 
-pub boundary trait Ping {
+public boundary trait Ping {
     machine ping();
 }
 data PingProvider { }

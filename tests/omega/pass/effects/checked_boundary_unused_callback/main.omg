@@ -1,5 +1,5 @@
-pub boundary trait Read {}
-pub boundary trait Handler {
+public boundary trait Read {}
+public boundary trait Handler {
     machine read() -> u64 reaches Read blocks;
 }
 data Provider {}

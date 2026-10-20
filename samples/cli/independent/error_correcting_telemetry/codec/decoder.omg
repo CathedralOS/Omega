@@ -2,8 +2,8 @@ use codec::field;
 // Enumerating 25 private codewords is deliberate: this declared tiny code
 // needs no numerical package or heuristic. Admission is exactly 2e+s <= 2.
 // Distance three makes an admitted candidate unique; count remains a tripwire.
-pub data Recovery { matches: i32 in Wrapping; intercept: i32 in Wrapping; slope: i32 in Wrapping; }
-pub machine recover(frame: &Frame) -> Recovery {
+public data Recovery { matches: i32 in Wrapping; intercept: i32 in Wrapping; slope: i32 in Wrapping; }
+public machine recover(frame: &Frame) -> Recovery {
     transition { _ -> search(frame, 0, 0, 0, 0) }
     state search(frame: &Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
         intercept: i32 in Wrapping, slope: i32 in Wrapping) -> Recovery {

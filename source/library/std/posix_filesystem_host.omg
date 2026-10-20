@@ -29,7 +29,7 @@ use targets::linux_arm64::posix_filesystem_impl;
 // the service on each POSIX target.
 data PosixFilesystemNativeProvider { }
 
-pub boundary trait PosixFilesystemHost {
+public boundary trait PosixFilesystemHost {
     // Open an existing file (`open(path, flags)`). Creating opens use
     // `open_create`, whose mode crosses as a fixed argument.
     machine open(path: &[u8] in Path, flags: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
@@ -130,7 +130,7 @@ pub boundary trait PosixFilesystemHost {
 
 // Export the checked implementation for explicit raw-service composition.
 // Calling its members retains their original reaches and provider closure.
-pub PosixFilesystemImplementation satisfies PosixFilesystemHost {
+public PosixFilesystemImplementation satisfies PosixFilesystemHost {
     machine open(path: &[u8] in Path, flags: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
         PosixFilesystemNativeProvider::open(path, flags)
     }
@@ -290,7 +290,7 @@ pub PosixFilesystemImplementation satisfies PosixFilesystemHost {
 // on the writer's own entry parameter, whose storage origin checking can
 // trace through each invocation back to the caller's buffer. Buffers cross
 // as slices; callers lend fixed local arrays.
-pub machine posix_terminated_path(path: &[u8], out: &mut [u8]) -> bool {
+public machine posix_terminated_path(path: &[u8], out: &mut [u8]) -> bool {
     posix_copy_path_from(path, out, 0);
     transition path.len < out.len {
         true -> (true)

@@ -4,9 +4,9 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub data Pair { first: i64; second: i64; }
+public data Pair { first: i64; second: i64; }
 data Holder { prefix: i64; payload: Pair; }
-pub boundary trait Compare {
+public boundary trait Compare {
     // Raw memcmp leaf: both calls below supply the record's exact 16 bytes.
     machine bytes(left: &Pair, right: &Pair, count: u64) -> i32;
 }

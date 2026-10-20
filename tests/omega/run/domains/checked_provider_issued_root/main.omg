@@ -1,8 +1,8 @@
 // Expected exit: 0.
-pub data Resource { identity: u64; }
-pub domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
+public data Resource { identity: u64; }
+public domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
-pub boundary trait Source { machine open() -> Resource in Open; }
+public boundary trait Source { machine open() -> Resource in Open; }
 data CheckedSource {}
 machine CheckedSource::open() -> Resource in Open satisfies Source::open { acquire() }
 machine close(resource: Resource in Open) crashes Trap {

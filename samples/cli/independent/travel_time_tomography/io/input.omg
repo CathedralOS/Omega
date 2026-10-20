@@ -5,8 +5,8 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
 
-pub data Input { tokens: [i32; 13]; valid: bool; }
-pub machine read_input(input: &mut Input) reaches Console
+public data Input { tokens: [i32; 13]; valid: bool; }
+public machine read_input(input: &mut Input) reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -79,7 +79,7 @@ crashes Trap
     }
     state bad() {}
 }
-pub machine problem_from_input(input: &Input) -> Problem {
+public machine problem_from_input(input: &Input) -> Problem {
     Problem {
         low_first: input.tokens[0] as f64, high_first: input.tokens[1] as f64,
         low_second: input.tokens[2] as f64, high_second: input.tokens[3] as f64,

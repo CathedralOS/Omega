@@ -23,7 +23,7 @@ use psi::types::types;
 // shared but not mutably; a qualified target asks for predicates checking
 // does not compare and is unsupported unless both referents are the one
 // type.
-pub machine Checker::check_recast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, row: TypeRow, checking: bool)
+public machine Checker::check_recast(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, row: TypeRow, checking: bool)
 crashes Trap
 {
     let source_type: u64 in Trapping = Typing::expression_type(typing, expression.left);

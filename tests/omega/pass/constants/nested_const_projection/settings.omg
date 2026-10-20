@@ -1,7 +1,7 @@
 module settings;
 
-pub data Inner [copy] { value: u64; }
-pub data Middle [copy] { inner: Inner; }
-pub data Outer [copy] { middle: Middle; }
+public data Inner [copy] { value: u64; }
+public data Middle [copy] { inner: Inner; }
+public data Outer [copy] { middle: Middle; }
 machine make() -> Outer { Outer { middle: Middle { inner: Inner { value: 7 } } } }
-pub const VALUE: Outer = make();
+public const VALUE: Outer = make();

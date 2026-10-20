@@ -5,7 +5,7 @@
 // presentation; dropping that argument once discarded the entry machine's
 // plan and the establishment rejoin failed.
 
-pub boundary trait Ping {
+public boundary trait Ping {
     machine ping();
 }
 

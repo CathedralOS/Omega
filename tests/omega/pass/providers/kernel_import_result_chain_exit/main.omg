@@ -6,12 +6,12 @@
 // include/uapi/asm-generic/unistd.h (getpid and getpgid).
 use omega::language::core::external_binding;
 
-pub data ProcessProbe {}
-pub boundary requirement ProcessProbe::process_id() -> i32;
-pub boundary requirement ProcessProbe::group_id(process: i32) -> i32;
-pub boundary requirement ProcessProbe::absolute(value: i32) -> i32
+public data ProcessProbe {}
+public boundary requirement ProcessProbe::process_id() -> i32;
+public boundary requirement ProcessProbe::group_id(process: i32) -> i32;
+public boundary requirement ProcessProbe::absolute(value: i32) -> i32
 requires value > -2147483648;
-pub boundary requirement ProcessProbe::exit_with(code: i32);
+public boundary requirement ProcessProbe::exit_with(code: i32);
 
 data ProcessProvider {}
 linux_x86_64 machine ProcessProvider::process_id() -> i32

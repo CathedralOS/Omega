@@ -3,8 +3,8 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
-pub data Output { }
-pub machine write_scaled(output: &mut Output, value: f64) reaches Console
+public data Output { }
+public machine write_scaled(output: &mut Output, value: f64) reaches Console
 invokes Console;
 {
     let converted: i64 in Saturating = I64::from_f64(value * 1000000.0);
@@ -36,7 +36,7 @@ invokes Console;
     }
     state done(output: &mut Output) { Console::write_line(""); }
 }
-pub machine report(output: &mut Output, problem: &Problem, fit: &Fit) reaches Console
+public machine report(output: &mut Output, problem: &Problem, fit: &Fit) reaches Console
 invokes Console;
 {
     Console::write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");

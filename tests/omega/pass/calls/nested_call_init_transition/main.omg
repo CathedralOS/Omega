@@ -5,17 +5,17 @@
 // call roster for the body to admit a unit plan.
 use omega_language_std::console;
 
-pub data Sum [copy] {
+public data Sum [copy] {
     case First;
     case Second(payload: u64);
 }
 
-pub data Parse {
+public data Parse {
     case Parsed(value: Cell);
     case Refused;
 }
 
-pub data Cell {
+public data Cell {
     big: [u8; 64];
     sum: Sum;
     len: u64;

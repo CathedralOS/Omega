@@ -11,8 +11,8 @@ linux_x86_64 machine RegistrarImports::install<machine Callback>() -> i32
 where machine Callback satisfies Handler::notify;
 satisfies Registrar::install via binding();
 
-pub boundary trait Handler { machine notify(); }
-pub boundary trait Registrar {
+public boundary trait Handler { machine notify(); }
+public boundary trait Registrar {
     machine install<machine Callback>() -> i32
     where machine Callback satisfies Handler::notify;
 }

@@ -23,7 +23,7 @@ pub(super) fn install(base: &str) -> String {
 }
 
 fn declarations() -> String {
-    let mut text = String::from("pub data Optimization {\n");
+    let mut text = String::from("public data Optimization {\n");
     for optimization in Optimization::ALL {
         text.push_str(&format!("    case {};\n", optimization.build_case_name()));
     }
@@ -31,7 +31,7 @@ fn declarations() -> String {
     // synthesized increments obligation-free. Saturating clamps at the type
     // maximum rather than wrapping a report count back to zero, and the
     // machines emit no `crashes Trap` bucket the verifier would demand.
-    text.push_str("}\npub data Optimizations {\n    human_report: u8 in Saturating;\n");
+    text.push_str("}\npublic data Optimizations {\n    human_report: u8 in Saturating;\n");
     for optimization in Optimization::ALL {
         text.push_str(&format!(
             "    {}: u8 in Saturating;\n",
@@ -44,7 +44,7 @@ fn declarations() -> String {
 
 fn enable_machine() -> String {
     let mut text = String::from(
-        "pub machine Optimizations::enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    transition optimization {\n",
+        "public machine Optimizations::enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    transition optimization {\n",
     );
     for optimization in Optimization::ALL {
         text.push_str(&format!(
@@ -64,7 +64,7 @@ fn enable_machine() -> String {
     text
 }
 
-const REPORT_MACHINE: &str = r#"pub machine Optimizations::emit_report(optimizations: &mut Optimizations) {
+const REPORT_MACHINE: &str = r#"public machine Optimizations::emit_report(optimizations: &mut Optimizations) {
     optimizations.human_report = optimizations.human_report + 1;
 }
 "#;

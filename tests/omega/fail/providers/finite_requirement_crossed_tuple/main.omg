@@ -1,5 +1,5 @@
 // Each operand appears in the roster, but this complete tuple does not.
-pub boundary trait Service {
+public boundary trait Service {
     machine echo<const Count: u64, const Stride: u64>(value: i32) -> i32
     where (Count == 4 && Stride == 1) || (Count == 8 && Stride == 2);
 }

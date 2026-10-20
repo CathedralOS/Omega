@@ -4,7 +4,7 @@ use physics::model;
 
 // Fixed twelve-digit signed decimal fields avoid a host formatting dependency.
 // All values in this bounded model fit; the validator checks each numeric field.
-pub machine integer(value: i64 in Saturating) reaches Console
+public machine integer(value: i64 in Saturating) reaches Console
 invokes Console;
 {
     transition value < 0 {
@@ -28,7 +28,7 @@ invokes Console;
     state done() { }
 }
 
-pub machine field(value: f64) reaches Console
+public machine field(value: f64) reaches Console
 invokes Console;
 {
     let scaled: f64 = value * 1000000.0;
@@ -48,7 +48,7 @@ invokes Console;
     state invalid() { Console::write_line("ERROR numeric output range"); Console::exit_process(70); }
 }
 
-pub machine report(tick: u64, tree: &ReflectionTree)
+public machine report(tick: u64, tree: &ReflectionTree)
 requires tick < 24
 reaches Console
 invokes Console;

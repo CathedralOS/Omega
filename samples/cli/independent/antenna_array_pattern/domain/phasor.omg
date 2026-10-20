@@ -2,8 +2,8 @@
 // Geometry validation bounds phase to 8*pi; the sine shift adds pi/2, requiring <=5 turns.
 // Taylor remainder <= pi^22/22! < 8e-11. No shared numerics imports.
 use omega::language::core::float_operations;
-pub data Phasor { }
-pub machine Phasor::cosine(angle: f64) -> f64 {
+public data Phasor { }
+public machine Phasor::cosine(angle: f64) -> f64 {
     transition { _ -> reduce(angle) }
     state reduce(angle: f64) {
         transition angle > 3.141592653589793 {
@@ -33,7 +33,7 @@ pub machine Phasor::cosine(angle: f64) -> f64 {
         transition { _ -> (value) }
     }
 }
-pub machine Phasor::sine(angle: f64) -> f64 {
+public machine Phasor::sine(angle: f64) -> f64 {
     let result: f64 = Phasor::cosine(angle - 1.5707963267948966);
     transition { _ -> (result) }
 }

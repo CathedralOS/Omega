@@ -3,12 +3,12 @@
 // Captured native and Terminal values must agree with expected_stdout.txt.
 use omega::language::core::layout;
 
-pub data Registers {
+public data Registers {
     status: u32;
     transmit: u8;
 }
 
-pub data RegPlacement {}
+public data RegPlacement {}
 
 machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];
@@ -118,7 +118,7 @@ machine alias_entry(shared: &Placed<RegPlacement, Registers>, exclusive: &mut Pl
     (first as u64) + (second as u64)
 }
 
-pub data Plain { value: u32; }
+public data Plain { value: u32; }
 
 machine mixed(seed: u32, plain: &Plain, view: &mut Placed<RegPlacement, Registers>) -> u64 {
     let status: u32 = delegate_mutable(view);
@@ -164,7 +164,7 @@ machine ram_descriptor() -> u64 {
     (observed as u64) + selection + (counter.count as u64)
 }
 
-pub data SelectionCounter { count: u32; }
+public data SelectionCounter { count: u32; }
 machine choose_register(counter: &mut SelectionCounter) -> u64
 requires counter.count < 2
 ensures counter.count <= 2

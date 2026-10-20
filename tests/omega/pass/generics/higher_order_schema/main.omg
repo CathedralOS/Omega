@@ -4,7 +4,7 @@
 // The nested binder is alpha-renamed by the concrete implementation;
 // the distinct `Selected` parameter forwards through both `Stream`
 // and the direct `Schema<Selected>` invocation.
-pub data Index {
+public data Index {
     case Zero;
     case Next(previous: Index);
 }

@@ -32,7 +32,7 @@ use psi::types::types;
 // whether or not the right operand ran.
 
 // Evaluate the tree rooted at `root`, children before parents.
-pub machine Checker::evaluate_tree(
+public machine Checker::evaluate_tree(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -80,7 +80,7 @@ crashes Trap
 
 // Decide a whole fact: a membership through its domain
 // (`Checker::decide_membership`), any other fact as a tree.
-pub machine Checker::decide_fact(
+public machine Checker::decide_fact(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -115,7 +115,7 @@ crashes Trap
 // what no zone fact expresses: assuming it establishes nothing, and where
 // it must hold, checking cannot decide it and rejects it as unsupported. A
 // membership inside a larger fact is an unknown Boolean.
-pub machine Checker::decide_tree(
+public machine Checker::decide_tree(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -204,7 +204,7 @@ crashes Trap
 
 // The value of `operand` in the fact tree rooted at `root`, evaluated like
 // any fact tree above the open one; unknown when too deep to evaluate.
-pub machine Checker::fact_operand(
+public machine Checker::fact_operand(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -439,7 +439,7 @@ crashes Trap
 
 // One open tree's evaluation state, saved while a tree evaluated inside it
 // runs.
-pub data TreeFrame [copy] {
+public data TreeFrame [copy] {
     base: u64 in Trapping;
     low: u64 in Trapping;
     size: u64 in Trapping;
@@ -449,14 +449,14 @@ pub data TreeFrame [copy] {
 
 // Dispatch subjects retain their evaluated window while guards and targets
 // use later scratch. Restoring a header never reexecutes source effects.
-pub machine Checker::tree_frame(checker: &Checker) -> TreeFrame {
+public machine Checker::tree_frame(checker: &Checker) -> TreeFrame {
     TreeFrame {
         base: checker.tree_base, low: checker.tree_low, size: checker.tree_size,
         context_first: checker.context_first, context_count: checker.context_count
     }
 }
 
-pub machine Checker::restore_tree(checker: &mut Checker, frame: TreeFrame) {
+public machine Checker::restore_tree(checker: &mut Checker, frame: TreeFrame) {
     checker.tree_base = frame.base;
     checker.tree_low = frame.low;
     checker.tree_size = frame.size;
@@ -464,7 +464,7 @@ pub machine Checker::restore_tree(checker: &mut Checker, frame: TreeFrame) {
     checker.context_count = frame.context_count;
 }
 
-pub data CapturedSubject [copy] {
+public data CapturedSubject [copy] {
     frame: TreeFrame;
     floor: u64 in Trapping;
 }
@@ -527,7 +527,7 @@ crashes Trap
 
 // Evaluate an already evaluated tree again for its values alone: its calls
 // record nothing and release nothing a second time.
-pub machine Checker::replay_tree(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping)
+public machine Checker::replay_tree(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping)
 crashes Trap
 {
     checker.replay = true;
@@ -642,7 +642,7 @@ crashes Trap
 
 // Push a copy of the zone, owned by `owner`, or report that the stack is
 // full.
-pub machine Checker::save_zone(checker: &mut Checker, owner: u64 in Trapping) -> bool
+public machine Checker::save_zone(checker: &mut Checker, owner: u64 in Trapping) -> bool
 crashes Trap
 {
     transition checker.saved_count < 8 {
@@ -666,7 +666,7 @@ crashes Trap
 }
 
 // Replace the zone by the top saved copy, keeping it saved.
-pub machine Checker::restore_zone(checker: &mut Checker)
+public machine Checker::restore_zone(checker: &mut Checker)
 crashes Trap
 {
     transition checker.saved_count > 0 && checker.saved_count <= 8 {
@@ -687,7 +687,7 @@ crashes Trap
 }
 
 // Overwrite the top saved copy with the zone.
-pub machine Checker::resave_zone(checker: &mut Checker)
+public machine Checker::resave_zone(checker: &mut Checker)
 crashes Trap
 {
     transition checker.saved_count > 0 && checker.saved_count <= 8 {
@@ -707,7 +707,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::drop_saved(checker: &mut Checker) {
+public machine Checker::drop_saved(checker: &mut Checker) {
     transition checker.saved_count > 0 {
         true -> drop(checker)
         _ -> done()
@@ -723,7 +723,7 @@ pub machine Checker::drop_saved(checker: &mut Checker) {
 // One body's statements, from its opening facts. A body that runs off its
 // end returns its tail's value, else Unit, and owes its machine's `ensures`
 // facts there.
-pub machine Checker::walk_body(
+public machine Checker::walk_body(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -1141,7 +1141,7 @@ crashes Trap
 // A place takes a new value: its old facts and those of everything inside
 // it are forgotten, and an integer place takes the value's term or
 // interval.
-pub machine Checker::bind_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
+public machine Checker::bind_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition place > 0 {
@@ -1292,7 +1292,7 @@ crashes Trap
 // the guard holds on the selected arm. Passing over the arm establishes
 // its failure only where the pattern alone always matched (`_`); after any
 // other pattern the subject may have failed to match instead.
-pub machine Checker::select_guard(
+public machine Checker::select_guard(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -1379,7 +1379,7 @@ crashes Trap
 // pattern establishes nothing. A case arm's binders are places of their
 // payload types, and a chosen case arm assumes its case's own `where`
 // facts.
-pub machine Checker::arm_facts(
+public machine Checker::arm_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,

@@ -7,12 +7,12 @@
 // and one Mach-O dylib symbol on macOS AArch64.
 use omega::language::core::external_binding;
 
-pub data ByteDescriptor {
+public data ByteDescriptor {
     pointer: addr;
     length: u64;
 }
 
-pub boundary trait NativeByteShapes {
+public boundary trait NativeByteShapes {
     machine take_separate(pointer: addr, length: u64) -> i32;
     machine take_descriptor(value: ByteDescriptor) -> i32;
 }

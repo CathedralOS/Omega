@@ -1,4 +1,4 @@
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 // A single boundary machine may declare more than one service identity; the
@@ -8,7 +8,7 @@ requires
 boundary trait Allocator {
 }
 
-pub boundary trait Net {
+public boundary trait Net {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Net

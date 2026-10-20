@@ -1,10 +1,10 @@
 module model;
 // Integer millimetres; a cut always consumes one kerf, even an exact-end cut.
 // Zero remnant means absent; leftover >= 5 is reusable, smaller leftover is scrap.
-pub data Orders {
+public data Orders {
     values: [i32 in Wrapping; 7];
 }
-pub data Plan {
+public data Plan {
     code: i32 in Wrapping;
     fulfilled: i32 in Wrapping;
     useful: i32 in Wrapping;

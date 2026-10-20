@@ -22,7 +22,7 @@ use psi::types::types;
 // before projecting them (arrivals.omg).
 
 // A field a construction wrote and no place holds yet.
-pub data PendingField [copy] {
+public data PendingField [copy] {
     // The one-based place the field lies below.
     parent: u64 in Trapping;
     // The data field's handle.
@@ -33,7 +33,7 @@ pub data PendingField [copy] {
 
 // The value of a data construction `handle`: its place, its integer and
 // Boolean fields pending below it. A case construction is its type's range.
-pub machine Checker::construction_value(
+public machine Checker::construction_value(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -176,7 +176,7 @@ crashes Trap
 // Write an integer or Boolean field below `parent`: into its place when it
 // has one, else pending. A full table drops the field, which only forgets
 // facts.
-pub machine Checker::write_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value)
+public machine Checker::write_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     let carrier: BuiltinType = Checker::carrier(typing, type_handle);
@@ -217,7 +217,7 @@ crashes Trap
 }
 
 // A field place just entered below a place takes the value pending there.
-pub machine Checker::take_pending(checker: &mut Checker, entry: Place)
+public machine Checker::take_pending(checker: &mut Checker, entry: Place)
 crashes Trap
 {
     transition entry.kind == PlaceKind::Field && entry.subject > 0 {
@@ -252,7 +252,7 @@ crashes Trap
 
 // subject - value <= 0 and value - subject <= 0: equal to a linear term, or
 // within an interval.
-pub machine Checker::equate_subject(checker: &mut Checker, subject: u64 in Trapping, value: Value)
+public machine Checker::equate_subject(checker: &mut Checker, subject: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition subject > 0 {
@@ -293,7 +293,7 @@ crashes Trap
 
 // Before `place` is written: its pending fields are gone, and every pending
 // field that read it enters its own place, keeping the value it captured.
-pub machine Checker::forget_pending(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
+public machine Checker::forget_pending(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> next(checker, typing, place, 0) }
@@ -363,7 +363,7 @@ crashes Trap
 // A copy takes pending fields along the same projected paths as represented
 // fields. Keeping only immediate children loses a nested construction's
 // values when the enclosing record is copied or captured.
-pub machine Checker::copy_pending(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
+public machine Checker::copy_pending(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
 crashes Trap
 {
     transition target > 0 && source > 0 && target != source {
@@ -407,7 +407,7 @@ crashes Trap
 }
 
 // Enter every field pending below `parent` as its place.
-pub machine Checker::settle_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping)
+public machine Checker::settle_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping)
 crashes Trap
 {
     Checker::settle_pending_fields(checker, typing, parent, false, 0);
@@ -416,7 +416,7 @@ crashes Trap
 // A narrow call frame must see pending fields it writes as places before
 // invalidating those places. Untouched siblings keep their pending values;
 // forgetting the entire parent here would discard their construction facts.
-pub machine Checker::settle_written_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, callee: u64 in Trapping)
+public machine Checker::settle_written_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, callee: u64 in Trapping)
 crashes Trap
 {
     Checker::settle_pending_fields(checker, typing, parent, true, callee);

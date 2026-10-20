@@ -5,7 +5,7 @@ module design::model;
 // Determinant expansion terms sum in magnitude to <= 1296000000000;
 // cofactor and prediction numerators also fit i64 and 18 decimal digits.
 // Wrapping specifies integer operations; the validated inputs never wrap.
-pub data Design {
+public data Design {
     settings: [i64 in Wrapping; 12];
     precisions: [i64 in Wrapping; 12];
     predictions: [i64 in Wrapping; 3];
@@ -41,13 +41,13 @@ machine polynomial_determinant<const Count: u64>(degree: i64 in Wrapping,
         }
     }
 }
-pub machine determinant(design: &Design) -> i64 in Wrapping {
+public machine determinant(design: &Design) -> i64 in Wrapping {
     polynomial_determinant<5>(design.degree, &design.moments)
 }
 // All masks are subsets without replacement. The reversed-bit key prefers
 // inclusion at the first differing input index, exactly lexicographic order
 // for fixed subset size. No floating comparison participates in selection.
-pub machine solve(design: &mut Design) {
+public machine solve(design: &mut Design) {
     design.determinant = -1;
     design.key = -1;
     transition { _ -> mask(design, 1) }

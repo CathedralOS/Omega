@@ -27,7 +27,7 @@ use psi::types::types;
 
 // The declared domain qualifying a type, directly or as a reference's
 // referent, plus one; zero for none.
-pub machine Checker::qualifying_domain(typing: &Typing, type_handle: u64 in Trapping) -> u64 in Trapping
+public machine Checker::qualifying_domain(typing: &Typing, type_handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
@@ -59,7 +59,7 @@ crashes Trap
 
 // Decide domain `domain`'s predicates of `subject`: assume them, or, when
 // `proving`, whether every one holds. A routed domain is never proved here.
-pub machine Checker::decide_domain(
+public machine Checker::decide_domain(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -105,7 +105,7 @@ crashes Trap
 }
 
 // Whether a fact's operand is `result`.
-pub machine Checker::names_result(resolution: &NameResolution, node: u64 in Trapping) -> bool
+public machine Checker::names_result(resolution: &NameResolution, node: u64 in Trapping) -> bool
 crashes Trap
 {
     let binding: ValueBinding = NameResolution::value_binding(resolution, node);
@@ -121,7 +121,7 @@ crashes Trap
 
 // Whether one of a domain's `established by` routes names machine
 // `machine`.
-pub machine Checker::routes_to(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping) -> bool
+public machine Checker::routes_to(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(resolution, item, machine, 0) }
@@ -161,7 +161,7 @@ crashes Trap
 // `value in Type::Case` establishes nothing assumed and, needing case
 // knowledge checking does not keep, rejects as unsupported where it must
 // hold.
-pub machine Checker::decide_membership(
+public machine Checker::decide_membership(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -238,7 +238,7 @@ crashes Trap
 }
 
 // A value, `expression`'s, meeting a destination of type `destination`.
-pub machine Checker::require_qualification(
+public machine Checker::require_qualification(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -302,7 +302,7 @@ crashes Trap
 
 // A value of type `type_handle` satisfies the predicates of the declared
 // domain qualifying it.
-pub machine Checker::assume_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, type_handle: u64 in Trapping, value: Value)
+public machine Checker::assume_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, type_handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     let wanted: u64 in Trapping = Checker::qualifying_domain(typing, type_handle);
@@ -320,7 +320,7 @@ crashes Trap
 
 // Each argument of a call or jump meets its formal's qualification, the
 // formals `first_parameter .. first_parameter + parameter_count`.
-pub machine Checker::require_argument_qualifications(
+public machine Checker::require_argument_qualifications(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -376,7 +376,7 @@ crashes Trap
 
 // A call's arguments meet its callee's formals: a machine's, or a machine
 // binder's contract's.
-pub machine Checker::require_call_qualifications(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
+public machine Checker::require_call_qualifications(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
 crashes Trap
 {
     let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
@@ -384,7 +384,7 @@ crashes Trap
 }
 
 // Each formal of a body that opens satisfies its qualification.
-pub machine Checker::assume_parameter_qualifications(
+public machine Checker::assume_parameter_qualifications(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -416,7 +416,7 @@ crashes Trap
 }
 
 // A returned value meets the machine's declared result type.
-pub machine Checker::require_result_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, value: Value, source_span: SourceSpan)
+public machine Checker::require_result_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, value: Value, source_span: SourceSpan)
 crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, checker.machine);
@@ -438,7 +438,7 @@ crashes Trap
 }
 
 // A store meets its target's qualification in the checking walk.
-pub machine Checker::require_stored_qualification(
+public machine Checker::require_stored_qualification(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,

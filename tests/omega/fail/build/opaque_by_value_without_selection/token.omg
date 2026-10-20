@@ -2,10 +2,10 @@
 // build: `Token` travels by value while `TokenBytes` stays the carrier.
 use omega::language::core::representation;
 
-pub boundary data Token;
+public boundary data Token;
 
-pub data TokenBytes [copy] {
+public data TokenBytes [copy] {
     value: u64;
 }
 
-pub TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }
+public TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }

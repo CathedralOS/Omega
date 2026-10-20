@@ -1,2 +1,2 @@
 module predicates;
-pub proposition valid(left: u32, right: u32);
+public proposition valid(left: u32, right: u32);

@@ -2,7 +2,7 @@ module study::model;
 // Private bounded sample model: y = grand + part + operator + interaction + error.
 // All arithmetic intermediates fit signed i32 for eight observations in 0..9.
 // Reports are exact numerators over 32; Wrapping never actually wraps here.
-pub data Study {
+public data Study {
     values: [i32 in Wrapping; 8];
     present: [i32 in Wrapping; 8];
     part: i32 in Wrapping;
@@ -16,12 +16,12 @@ pub data Study {
     interaction_variance: i32 in Wrapping;
 }
 
-pub machine nonnegative(value: i32 in Wrapping) -> i32 in Wrapping {
+public machine nonnegative(value: i32 in Wrapping) -> i32 in Wrapping {
     transition value < 0 { true -> 0 _ -> value }
 }
 
 // Return 3 for a wholly missing cell, 4 for unequal replication, 0 for balanced.
-pub machine analyze(study: &mut Study) -> i32 {
+public machine analyze(study: &mut Study) -> i32 {
     let a: i32 in Wrapping = study.present[0] + study.present[1];
     let b: i32 in Wrapping = study.present[2] + study.present[3];
     let c: i32 in Wrapping = study.present[4] + study.present[5];

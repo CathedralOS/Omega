@@ -4,7 +4,7 @@ use planner::solver::TransportPlan;
 
 // Fixed signed four-digit objective keeps the table machine-readable. All
 // digit output is through the ordinary selected Console provider.
-pub machine emit_integer(value: i32 in Wrapping) reaches Console
+public machine emit_integer(value: i32 in Wrapping) reaches Console
 invokes Console;
 {
     transition value < 0 {
@@ -31,7 +31,7 @@ invokes Console;
     }
     state finish() { Console::write_byte(10); }
 }
-pub machine emit_plan(plan: &TransportPlan) reaches Console
+public machine emit_plan(plan: &TransportPlan) reaches Console
 invokes Console;
 {
     Console::write_line("OPTIMAL: shipments");

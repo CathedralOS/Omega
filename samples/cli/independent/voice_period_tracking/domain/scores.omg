@@ -2,7 +2,7 @@ module domain.scores;
 
 // Exhaustive squared-difference score. Bounded PCM values are 0..9;
 // at most 30 pairs contribute, so sums and comparison products never wrap.
-pub machine lag_sum(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping) -> i32 in Wrapping
+public machine lag_sum(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping) -> i32 in Wrapping
 crashes Trap {
     transition { _ -> scan(samples, length, lag, 0, 0) }
     state scan(samples: &[i32 in Wrapping; 32], length: i32 in Wrapping, lag: i32 in Wrapping, cursor: i32 in Wrapping, sum: i32 in Wrapping) -> i32 in Wrapping {

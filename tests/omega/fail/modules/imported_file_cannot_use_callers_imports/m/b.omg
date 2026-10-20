@@ -1,2 +1,2 @@
 // The caller's imports cannot supply this source's own vocabulary.
-pub data B { value: A; }
+public data B { value: A; }

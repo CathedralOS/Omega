@@ -29,7 +29,7 @@ use psi::syntax::syntax;
 // those it may be. Builtin and duplicate declarations reject before any
 // lookup, so the builtin and declaration tiers never compete for one
 // spelling; two visible declarations of one spelling reject as ambiguous.
-pub data Resolver {
+public data Resolver {
     output: NameResolution;
     // Name-resolution scratch: what each expression's position lets it name.
     name_roles: [NameRole; 131072];
@@ -39,7 +39,7 @@ pub data Resolver {
 // trait's parent or a conformance's satisfied trait; a static argument may
 // also name a conformance; every other position names a type. A row inside
 // a type is always a type, or a conformance as an applied name's argument.
-pub data TypeRole [copy] {
+public data TypeRole [copy] {
     case Type;
     case Trait;
     case StaticArgument;
@@ -52,11 +52,11 @@ data BoundKind [copy] {
     case Conformance;
 }
 
-pub machine Resolver::initialize(resolver: &mut Resolver) {
+public machine Resolver::initialize(resolver: &mut Resolver) {
     NameResolution::clear(&mut resolver.output, SourceId { value: 0 });
 }
 
-pub machine Resolver::resolve(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::resolve(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     NameResolution::clear(&mut resolver.output, SourceId { value: 0 });
@@ -242,14 +242,14 @@ crashes Trap
 // name, and propositions name logical declarations. `use` rows, machines
 // (overload families, check_machines) and domains (by carrier,
 // domains.omg) are checked apart.
-pub data RootNamespace [copy] {
+public data RootNamespace [copy] {
     case None;
     case Type;
     case Constant;
     case Proposition;
 }
 
-pub data RootName [copy] {
+public data RootName [copy] {
     kind: RootItemKind;
     space: RootNamespace;
     has_owner: bool;
@@ -717,7 +717,7 @@ machine Resolver::data_scope(item: DataItem) -> TypeScope {
 }
 
 // A declaration's own generic parameters as a scope with no container.
-pub machine Resolver::scope(first: u64 in Trapping, count: u64 in Trapping) -> TypeScope {
+public machine Resolver::scope(first: u64 in Trapping, count: u64 in Trapping) -> TypeScope {
     TypeScope {
         first_generic_parameter: first,
         generic_parameter_count: count,
@@ -842,7 +842,7 @@ crashes Trap
 
 // The generic parameters of one declaration share one namespace, whatever
 // their kinds.
-pub machine Resolver::check_generic_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope)
+public machine Resolver::check_generic_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, 0) }
@@ -886,7 +886,7 @@ crashes Trap
 
 // The type annotations of one declaration's value binders (`const N: u64`,
 // `Count: u32`), each in the declaration's own scope.
-pub machine Resolver::bind_generic_annotations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope)
+public machine Resolver::bind_generic_annotations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, 0) }
@@ -919,7 +919,7 @@ crashes Trap
 // named row binds its name and an `in` domain, and a reference, array, slice
 // or integer row binds by its form. Nested rows need no recursion. `role` is
 // what the root's position admits.
-pub machine Resolver::bind_type_reference(
+public machine Resolver::bind_type_reference(
     resolver: &mut Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -1196,7 +1196,7 @@ crashes Trap
 // parameter by spelling (lifetimes are not type names), the declaration's
 // own before its container's, then a builtin type, then the one data, trait
 // or conformance declaration the name's unit can see.
-pub machine Resolver::type_binding(
+public machine Resolver::type_binding(
     sources: &SourceSet,
     syntax: &SyntaxTrees,
     scope: TypeScope,
@@ -1442,7 +1442,7 @@ crashes Trap
 
 // The compiler-installed type a name spells, or `Unresolved`. Builtin names
 // are not source declarations, so they match by spelling, not by span.
-pub machine Resolver::builtin_type(sources: &SourceSet, name: SourceSpan) -> TypeBinding
+public machine Resolver::builtin_type(sources: &SourceSet, name: SourceSpan) -> TypeBinding
 crashes Trap
 {
     let matched: bool = SourceSet::span_spells(sources, name, "bool");
@@ -1746,7 +1746,7 @@ crashes Trap
     state done() {}
 }
 
-pub machine Resolver::empty_scope() -> TypeScope {
+public machine Resolver::empty_scope() -> TypeScope {
     Resolver::scope(0, 0)
 }
 
@@ -1898,7 +1898,7 @@ crashes Trap
 }
 
 // Each parameter name of one signature differs from every earlier one.
-pub machine Resolver::check_parameter_names(
+public machine Resolver::check_parameter_names(
     resolver: &mut Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -2043,7 +2043,7 @@ crashes Trap
 // kinds and the same parameter types, position by position. A generic
 // parameter in a parameter type matches the one at the same position of the
 // other machine's scope, so `f<T>(value: T)` and `f<U>(other: U)` match.
-pub machine Resolver::same_parameters(
+public machine Resolver::same_parameters(
     resolver: &Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -2147,7 +2147,7 @@ crashes Trap
 // same length and agree row by row in form, access, argument count, binding
 // and domain. Generic parameters agree by position in their scopes. Integer
 // rows compare by spelling until static evaluation lands.
-pub machine Resolver::same_type(
+public machine Resolver::same_type(
     resolver: &Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,

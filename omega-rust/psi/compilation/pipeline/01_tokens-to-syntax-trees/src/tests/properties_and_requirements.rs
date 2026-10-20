@@ -62,8 +62,8 @@ fn retired_explicit_machine_entry_members_name_the_machine_body_migration() {
     for retired in [
         "machine run { entry() {} }",
         "machine run { entry begin() {} }",
-        "machine run { pub entry() {} }",
-        "machine run { pub entry begin() {} }",
+        "machine run { public entry() {} }",
+        "machine run { public entry begin() {} }",
     ] {
         let error = super::parse_source_error(
             retired,
@@ -73,10 +73,10 @@ fn retired_explicit_machine_entry_members_name_the_machine_body_migration() {
         assert!(
             error
                 .message
-                .contains("explicit nested `entry` / `pub entry` machine members are retired")
+                .contains("explicit nested `entry` / `public entry` machine members are retired")
                 && error.message.contains("`machine` head")
                 && error.message.contains("directly in the machine body")
-                && error.message.contains("`pub machine`"),
+                && error.message.contains("`public machine`"),
             "got for {retired:?}: {}",
             error.message
         );
@@ -669,7 +669,7 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
 #[test]
 fn parses_fixed_operator_tokens_in_declaration_heads() {
     let source = r#"
-        pub operator + add(left: i32, right: i32) -> i32;
+        public operator + add(left: i32, right: i32) -> i32;
         boundary operator [] Slice::index(items: &[u8], index: u64) -> u8;
         boundary operator [..] Slice::range(items: &[u8], start: u64, end: u64) -> &[u8];
         operator named(left: i32, right: i32) -> i32;
@@ -720,7 +720,7 @@ fn rejects_retired_operator_spelling_clause() {
 #[test]
 fn parses_fixed_operator_tokens_on_machine_declarations() {
     let source = r#"
-        pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+        public machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
             add_vectors(left, right)
         }
         machine [] Slice::index(items: Slice, index: u64) -> u8 {
@@ -984,7 +984,7 @@ fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
 #[test]
 fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_machine() {
     let source = r#"
-        pub boundary requirement InterruptAcknowledgement::complete<T>(acknowledgement: T) -> bool
+        public boundary requirement InterruptAcknowledgement::complete<T>(acknowledgement: T) -> bool
         reaches <= MachineControl + PortIo
         requires acknowledgement == acknowledgement;
         boundary requirement Task::finish(task: u64);
@@ -1054,10 +1054,10 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
 #[test]
 fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
     let source = r#"
-        pub boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
+        public boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
         requires guard in InterruptMaskGuard::Active;
 
-        pub boundary requirement InterruptAcknowledgement::complete(acknowledgement: InterruptAcknowledgement);
+        public boundary requirement InterruptAcknowledgement::complete(acknowledgement: InterruptAcknowledgement);
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -1087,7 +1087,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
 #[test]
 fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     let source = r#"
-        pub boundary requirement Task::finish<T>(task: Task<T>) -> T
+        public boundary requirement Task::finish<T>(task: Task<T>) -> T
         suspends; blocks;
 
         boundary trait TaskRuntime {}

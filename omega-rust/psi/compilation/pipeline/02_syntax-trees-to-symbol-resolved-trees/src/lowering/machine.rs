@@ -41,7 +41,7 @@ pub(crate) struct PendingMachineBody {
 }
 
 /// Structural exposure is decided before supply classification erases whether
-/// an external leaf used the boundary introducer. Keep it separate from `pub`:
+/// an external leaf used the boundary introducer. Keep it separate from `public`:
 /// exported contracts do not make a private declaration source-nameable.
 pub(crate) fn machine_interface_exposure(
     machine: &syntax::item::Machine,

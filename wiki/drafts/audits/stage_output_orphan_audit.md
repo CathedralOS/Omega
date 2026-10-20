@@ -52,7 +52,7 @@ preserves_semantic_owners` green at `3f5e37a0b6e1` on linux x86-64.
 
 Mechanical sweep of every `omega-rust/{psi,omega}/pipeline/*` crate's stage
 output at `9e1ff76efc` (25 output types): for each stage entrance's return
-type, enumerate its `pub` self-receiver accessors and resolve every external
+type, enumerate its `public` self-receiver accessors and resolve every external
 reader — `value.accessor(...)`/`value.field` call and read sites plus
 path-qualified `Type::accessor` forms — across `omega-rust`, `tests`, and
 `tools`. An orphan output is a designed read/construction channel on a stage
@@ -149,7 +149,7 @@ functions nothing called: `SyntaxTrees::root_mathematical_definitions`,
 the original audit change.
 
 No accessor was deleted in this change: the zero-reader set is dominated by
-`pub` representation API (`typed-trees`, `syntax-trees`, `compilation-report`)
+`public` representation API (`typed-trees`, `syntax-trees`, `compilation-report`)
 whose pruning is a representation-contract call owned by the
 REPRESENTATION-OWNERSHIP / PIPELINE-OWNER-CONSOLIDATION cluster, not an
 audit-side repair. The `SeededSymbolResolvedTrees` pair is the closest
@@ -166,7 +166,7 @@ channels, a sequencing call for the continuation owner.
   receiver type only in the per-impl sweep; a same-named method on another
   type can mask a dead channel (spot-checked on the flagged set — no mask
   found).
-- The sweep covers accessor *methods* and `pub` fields on the return type; it
+- The sweep covers accessor *methods* and `public` fields on the return type; it
   does not measure whether a consumed field's *contents* are themselves read
   downstream (data-depth orphans), which needs per-field provenance tracing
   beyond this audit's call-site method.

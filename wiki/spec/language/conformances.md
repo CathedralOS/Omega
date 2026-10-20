@@ -39,7 +39,7 @@ trait Incrementable<T> {
 
 data Counter { value: i32; }
 
-pub SaturatingIncrement satisfies Incrementable<Counter> {
+public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: &mut Counter) {
         if counter.value < i32::Maximum {
             counter.value = counter.value + 1;
@@ -65,7 +65,7 @@ Defaults and authorized core synthesis remain unchanged.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
 instantiated trait application, complete row map, laws, and provenance. It is
-private unless declared `pub`; data and trait visibility do not publish it.
+private unless declared `public`; data and trait visibility do not publish it.
 Cross-package selection requires public visibility and ordinary direct-dependency
 authority. A generic evidence binder has the same shape without a body:
 `Order satisfies Ranked<Element>`. It is an implementation parameter, not a
@@ -225,7 +225,7 @@ Neither `satisfies` nor ordinary generic conformance selection may use the
 unproved relationship as though it were checked conformance evidence.
 
 ```omega
-pub trait LocalLogger = Logger {
+public trait LocalLogger = Logger {
     machine *
         reaches;
         suspends false;

@@ -1,5 +1,5 @@
 // Declaration/checking coverage: suspending realization is a separate route.
-pub machine park() -> bool suspends; blocks; { true }
-pub machine relay_both() -> bool suspends; blocks; {
+public machine park() -> bool suspends; blocks; { true }
+public machine relay_both() -> bool suspends; blocks; {
     transition true { true -> suspend block park() false -> false }
 }

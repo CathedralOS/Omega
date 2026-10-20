@@ -31,7 +31,7 @@ use omega::language::core::extent;
 // One 4KiB page-table extent: 512 8-byte slots under one qualified range.
 // The record is linear through `storage`: moving or dropping the table moves
 // the backing authority, and teardown cannot lose it.
-pub data Table {
+public data Table {
     storage: Extent in Granted;
 }
 
@@ -41,16 +41,16 @@ pub data Table {
 // `frame_base & FRAME_MASK` discarded every frame-address bit. Cathedral's own
 // page-table source declares the same mask as
 // X86_MAX_ALIGNED_PHYSICAL_FRAME_ADDRESS.
-pub const TableEntry::FRAME_MASK: u64 = 4503599627366400;
+public const TableEntry::FRAME_MASK: u64 = 4503599627366400;
 
 // The inert empty slot: every flag clear. `remove` writes it over the leaf
 // entry a teardown retires.
-pub const TableEntry::EMPTY: TableEntry = TableEntry { raw: 0 };
+public const TableEntry::EMPTY: TableEntry = TableEntry { raw: 0 };
 
 // One raw 64-bit page-table entry. `raw` is data, not authority: copying or
 // forging the bits grants no mapping, and the value only becomes a
 // translation when the provider's store crossing places it in a table slot.
-pub data TableEntry [copy] {
+public data TableEntry [copy] {
     raw: u64;
 }
 
@@ -59,7 +59,7 @@ pub data TableEntry [copy] {
 // leaf table's (bits 12..21). The shift `39 - 9 * depth` stays nonnegative
 // because the parameter's own range caps it at 3, and the mask result is the
 // ranged slot every table store expects.
-pub machine level_index(virtual_base: u64, depth: u64) -> u64
+public machine level_index(virtual_base: u64, depth: u64) -> u64
 requires depth <= 3
 ensures result <= 511
 {
@@ -69,14 +69,14 @@ ensures result <= 511
 // A next-level entry: present and writable, pointing at the child table's
 // frame base. Table-link writability lets the leaf entry's own flags be the
 // only access policy.
-pub machine TableEntry::next_level(frame_base: u64) -> TableEntry {
+public machine TableEntry::next_level(frame_base: u64) -> TableEntry {
     TableEntry { raw: (frame_base & TableEntry::FRAME_MASK) | 3 }
 }
 
 // The terminal leaf entry for one mapped frame. `writable` selects the
 // caller's access policy; present is always set -- a mapping that is not
 // present is no installation at all.
-pub machine TableEntry::terminal(frame_base: u64, writable: bool) -> TableEntry {
+public machine TableEntry::terminal(frame_base: u64, writable: bool) -> TableEntry {
     transition writable {
         true -> writable(frame_base)
         _ -> read_only(frame_base)

@@ -5,7 +5,7 @@ use omega::language::core::drop;
 
 data Cell { value: u32; }
 data Pair { left: Cell; right: Cell; }
-pub data Token [linear] { value: u32; }
+public data Token [linear] { value: u32; }
 machine Token::drop(token: &mut Token) {}
 data Plain { value: u32; }
 data Marker {}
@@ -29,7 +29,7 @@ machine consume_then_select(token: Token, choose: bool) -> u32 {
 machine take_marker(marker: Marker, value: u32) -> u32 { value }
 
 // A bodied boundary adapter keeps the sequence consumer under the same exit rule.
-pub boundary trait Selection {
+public boundary trait Selection {
     machine select(token: Token, choose: bool) -> u32;
 }
 Selector satisfies Selection {

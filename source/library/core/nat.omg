@@ -32,7 +32,7 @@ use omega::language::core::algebra;
 // machine may induct over guarded unsigned `n - 1` while its recursive result
 // and contract stay in this structural Nat world. Wider fact-position operator
 // routing remains N3 work.
-pub data Nat {
+public data Nat {
     case Zero;
     case Succ(prev: Nat);
 }
@@ -68,7 +68,7 @@ requires
 // cross-machine call (no cycle; only self-calls need the measure).
 // Extraction lemmas (add_zero, add_succ, commutativity) ride N3/N4's
 // ensures-extraction rung.
-pub machine add(a: Nat, b: Nat) -> Nat
+public machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring<Nat>::add
 terminates by a;
 {
@@ -78,7 +78,7 @@ terminates by a;
     }
 }
 
-pub machine mul(a: Nat, b: Nat) -> Nat
+public machine mul(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring<Nat>::mul
 terminates by a;
 {
@@ -120,7 +120,7 @@ ensures
 // is the induction edge: exact recursion checking proves `prev` descends from
 // `a`, then the citation contributes `add(prev, Zero) == prev` to that arm.
 // Consumers cite the theorem as a statement; it never computes a dummy Nat.
-pub machine add_zero_right(a: Nat)
+public machine add_zero_right(a: Nat)
 satisfies CommutativeSemiring<Nat>::add_identity
 terminates by a;
 ensures
@@ -192,7 +192,7 @@ ensures
 // inductive hypothesis, whose descent flows through the sub-state parameter
 // (provenance: every transition into comm_step binds it from `a`'s Succ
 // payload).
-pub machine add_comm(a: Nat, b: Nat)
+public machine add_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::add_comm
 terminates by a;
 ensures
@@ -215,7 +215,7 @@ ensures
 
 // ASSOCIATIVITY: pure induction on `a`, no citations -- both sides
 // normalize by unfolding plus the inductive hypothesis.
-pub machine add_assoc(a: Nat, b: Nat, c: Nat)
+public machine add_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring<Nat>::add_assoc
 terminates by a;
 ensures
@@ -380,7 +380,7 @@ ensures
 
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
-pub machine mul_comm(a: Nat, b: Nat)
+public machine mul_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring<Nat>::mul_comm
 terminates by a;
 ensures
@@ -450,7 +450,7 @@ machine pred(a: Nat) -> Nat
 // `b <= a` at formation. This named monus and its proof corpus remain distinct
 // from the exact operator above rather than silently routing bare `-` to
 // clamping.
-pub machine saturating_sub(a: Nat, b: Nat) -> Nat
+public machine saturating_sub(a: Nat, b: Nat) -> Nat
 terminates by b;
 {
     transition b {

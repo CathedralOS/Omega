@@ -4,8 +4,8 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
-pub data Output { }
-pub machine write_scaled(output: &mut Output, value: f64) reaches Console invokes Console; {
+public data Output { }
+public machine write_scaled(output: &mut Output, value: f64) reaches Console invokes Console; {
     transition value > -1000000000000.0 && value < 1000000000000.0 { true -> sign(output, value) false -> overflow(output) }
     state overflow(output: &mut Output) { Console::write_line("ERROR numerical output range"); Console::exit_process(66); }
     state sign(output: &mut Output, value: f64) {
@@ -51,7 +51,7 @@ pub machine write_scaled(output: &mut Output, value: f64) reaches Console invoke
     }
     state done() {}
 }
-pub machine report(output: &mut Output, truss: &Truss, result: &Solution) reaches Console invokes Console; {
+public machine report(output: &mut Output, truss: &Truss, result: &Solution) reaches Console invokes Console; {
     Console::write_line("planar_truss_elasticity; numeric values in consistent input units");
     transition { _ -> node(output, truss, result, 0) }
     state node(output: &mut Output, truss: &Truss, result: &Solution, index: u64) {

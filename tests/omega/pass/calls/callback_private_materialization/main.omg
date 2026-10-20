@@ -2,11 +2,11 @@ use omega_language_std::calling;
 use omega_language_std::console;
 use omega::language::core::external_binding;
 
-pub data CallbackPolicies { }
-pub PointCalling satisfies CallingPolicy {
+public data CallbackPolicies { }
+public PointCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::point;
 }
-pub LineCalling satisfies CallingPolicy {
+public LineCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::line;
 }
 
@@ -98,15 +98,15 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan
     plan
 }
 
-pub data CallbackState [copy] {
+public data CallbackState [copy] {
     observed: bool;
     last_x: i32;
     last_y: i32;
 }
-pub boundary trait PointProcedure: Calling<PointCalling> {
+public boundary trait PointProcedure: Calling<PointCalling> {
     machine visit(x: i32, y: i32, context: &mut CallbackState);
 }
-pub boundary trait LineRaster: Calling<LineCalling> {
+public boundary trait LineRaster: Calling<LineCalling> {
     machine draw<machine Handler>(
         start_x: i32, start_y: i32, end_x: i32, end_y: i32,
         native callback point from Handler, context: &mut CallbackState
@@ -120,8 +120,8 @@ machine remember_point(context: &mut CallbackState, x: i32, y: i32) {
     context.last_x = x;
     context.last_y = y;
 }
-pub data PointHandler { }
-pub machine PointHandler::visit(x: i32, y: i32, context: &mut CallbackState)
+public data PointHandler { }
+public machine PointHandler::visit(x: i32, y: i32, context: &mut CallbackState)
 satisfies PointProcedure::visit
 {
     remember_point(context, x, y);

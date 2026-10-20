@@ -1,4 +1,4 @@
 module foreign;
-pub domain f64::Float;
-pub machine marker() {}
-pub machine == f64::Float::equal(left: f64 in Float, right: f64 in Float) -> bool { false }
+public domain f64::Float;
+public machine marker() {}
+public machine == f64::Float::equal(left: f64 in Float, right: f64 in Float) -> bool { false }

@@ -3,8 +3,8 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 
 
-pub data Input { tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }
-pub machine read_input(input: &mut Input) reaches Console
+public data Input { tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }
+public machine read_input(input: &mut Input) reaches Console
 invokes Console;
 blocks;
 crashes Trap

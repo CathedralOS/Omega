@@ -13,11 +13,11 @@
 // declaration retains it in Terminal Psi and every call owes its obligation.
 use omega::language::core::external_binding;
 
-pub data ForeignMath {}
+public data ForeignMath {}
 
-pub boundary requirement ForeignMath::absolute(value: i32) -> i32
+public boundary requirement ForeignMath::absolute(value: i32) -> i32
 requires value > -2147483648;
-pub boundary requirement ForeignMath::exit_with(code: i32);
+public boundary requirement ForeignMath::exit_with(code: i32);
 
 data ForeignMathProvider {}
 

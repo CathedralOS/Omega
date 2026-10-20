@@ -6,22 +6,22 @@ use targets::windows_x86_64::windows_gui_impl;
 
 // Win64 MSG has 48 bytes with pointer alignment. The exact native layout stays
 // opaque to callers; PeekMessage fills it and Translate/Dispatch consume it.
-pub data WindowsMessage { words: [u64; 6]; }
-pub data WindowsRectangle { left: i32; top: i32; right: i32; bottom: i32; }
+public data WindowsMessage { words: [u64; 6]; }
+public data WindowsRectangle { left: i32; top: i32; right: i32; bottom: i32; }
 
 // Win64 MSG stores HWND at byte 0, UINT message at byte 8 (followed by
 // padding), and WPARAM at byte 16. Inspect only after a successful pump.
-pub machine WindowsMessage::window(message: &WindowsMessage) -> u64 {
+public machine WindowsMessage::window(message: &WindowsMessage) -> u64 {
     message.words[0]
 }
-pub machine WindowsMessage::kind(message: &WindowsMessage) -> u64 {
+public machine WindowsMessage::kind(message: &WindowsMessage) -> u64 {
     message.words[1] & 4294967295
 }
-pub machine WindowsMessage::word_parameter(message: &WindowsMessage) -> u64 {
+public machine WindowsMessage::word_parameter(message: &WindowsMessage) -> u64 {
     message.words[2]
 }
 
-pub boundary trait WindowsGuiHost {
+public boundary trait WindowsGuiHost {
     machine window_create(class_name: &[u8], title: &[u8], style: u32,
         x: i32, y: i32, width: i32, height: i32) -> u64 reaches WindowsGuiHost;
     machine foreground_window() -> u64 reaches WindowsGuiHost;

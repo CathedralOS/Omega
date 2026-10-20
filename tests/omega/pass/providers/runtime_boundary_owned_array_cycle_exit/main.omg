@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-pub boundary trait ArrayValue {
+public boundary trait ArrayValue {
     machine read(values: [i32; 2]) -> i32;
 }
 ArrayProvider satisfies ArrayValue {

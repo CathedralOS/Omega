@@ -5,7 +5,7 @@ use omega_language_std::math;
 // that covariance overstates fraction uncertainty and understates total uncertainty.
 use omega::language::core::float_operations;
 
-pub data Mixture [copy] {
+public data Mixture [copy] {
     mass_a: f64;
     mass_b: f64;
     total: f64;
@@ -22,7 +22,7 @@ pub data Mixture [copy] {
     status: i32;
 }
 
-pub machine correct(result: &mut Mixture, gross_a: f64, gross_b: f64,
+public machine correct(result: &mut Mixture, gross_a: f64, gross_b: f64,
     tare: f64, scale: f64, shared: bool) {
     result.mass_a = (gross_a - tare) * scale;
     result.mass_b = (gross_b - tare) * scale;

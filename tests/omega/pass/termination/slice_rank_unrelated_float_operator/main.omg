@@ -1,7 +1,7 @@
 // An unrelated float comparison must not hide the builtin u64 meaning of
 // slice length guards. Keep anonymous bounds and the consumed-slice state.
-pub boundary trait Output { machine emit_byte(byte: i32) reaches Output; }
-pub data Provider {}
+public boundary trait Output { machine emit_byte(byte: i32) reaches Output; }
+public data Provider {}
 machine Provider::emit_byte(byte: i32) satisfies Output::emit_byte {}
 machine console_write_bytes(bytes: &[u8], newline: bool)
 terminates by bytes -> Slice::Length;
@@ -36,4 +36,4 @@ reaches Output
     state done() { }
 }
 
-pub boundary machine > Unrelated::greater(left: f32, right: f32) -> bool;
+public boundary machine > Unrelated::greater(left: f32, right: f32) -> bool;

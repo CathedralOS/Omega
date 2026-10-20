@@ -16,11 +16,11 @@ use omega::language::core::slice_views;
 // index returns the element by value: copying it out of a shared borrow
 // requires a copyable element type. The view-returning requirements below
 // carry no such bound.
-pub boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
+public boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
-pub boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+public boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len
 ensures

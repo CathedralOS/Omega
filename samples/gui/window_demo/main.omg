@@ -11,7 +11,7 @@ use omega_language_std::windows_gui_host;
 use providers;
 // Both targets select stateless implementations; the application owns every
 // native handle and the Windows message buffer throughout the render loop.
-pub boundary trait Gui {
+public boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
         reaches AppKit + CoreGraphics + ObjectiveC + WindowsGuiHost
         invokes AppKit; invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;

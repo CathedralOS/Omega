@@ -1,6 +1,6 @@
 // FAIL CANARY -- `support` is a build-scope alias: the build source imports
 // the helper package's `setup` module as a host library, and the helper
-// declares `pub machine launch()`. A product-entry query through that alias
+// declares `public machine launch()`. A product-entry query through that alias
 // still rejects. Only a product dependency authorizes a qualified product
 // path; a build edge grants no product selection scope, and the query never
 // falls back to the build-context declaration of the same name.

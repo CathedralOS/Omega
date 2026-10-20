@@ -2,7 +2,7 @@ use omega_language_std::console;
 use domain::model;
 use domain::solver;
 
-pub machine number(value: i32 in Wrapping) reaches Console
+public machine number(value: i32 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> leading(value, 10000) }
@@ -28,7 +28,7 @@ invokes Console;
     state done() { }
 }
 
-pub machine emit(pedigree: &Pedigree, result: &Inference) reaches Console
+public machine emit(pedigree: &Pedigree, result: &Inference) reaches Console
 invokes Console;
 {
     Console::write("SOLUTIONS "); number(result.solutions); Console::write_line("");

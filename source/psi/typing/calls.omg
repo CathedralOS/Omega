@@ -27,12 +27,12 @@ use psi::typing::typer;
 // proposition's parameters.
 // The explicit static arguments of a call `path<arguments>(...)`: a run of
 // `SyntaxTrees::type_arguments`. A plain call has none.
-pub data StaticArguments [copy] {
+public data StaticArguments [copy] {
     first: u64 in Trapping;
     count: u64 in Trapping;
 }
 
-pub machine Typer::type_call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+public machine Typer::type_call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
     let callee: Expression = SyntaxTrees::expression(syntax, expression.left);
@@ -193,7 +193,7 @@ crashes Trap
 }
 
 // `handle` through the live generic bindings when `generic`.
-pub machine Typer::substitute_if(typer: &mut Typer, handle: u64 in Trapping, generic: bool, source_span: SourceSpan) -> u64 in Trapping
+public machine Typer::substitute_if(typer: &mut Typer, handle: u64 in Trapping, generic: bool, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     transition generic {
@@ -680,7 +680,7 @@ crashes Trap
 
 // Admit each argument of `expression` at its parameter, in order; a generic
 // callee's parameters through its live bindings.
-pub machine Typer::bind_arguments(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, first_parameter: u64 in Trapping, generic: bool, offset: u64 in Trapping)
+public machine Typer::bind_arguments(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, first_parameter: u64 in Trapping, generic: bool, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < expression.count && typer.output.accepted {
@@ -713,7 +713,7 @@ crashes Trap
 // value; an omitted field is zero-initialized, which checking judges against
 // the type's default domain (wiki/spec/language/data_and_literals.md).
 // Generic data is applied to the arguments its field values imply.
-pub machine Typer::type_construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+public machine Typer::type_construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
     let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
@@ -1073,7 +1073,7 @@ crashes Trap
 
 // The member `name` denotes in a construction or pattern of `declared`: a
 // common field, else, with `has_case`, a payload field of `data_case`.
-pub machine Typer::member_target(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> MemberTarget
+public machine Typer::member_target(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> MemberTarget
 crashes Trap
 {
     transition { _ -> common(sources, syntax, declared, has_case, data_case, name, 0) }
@@ -1125,7 +1125,7 @@ crashes Trap
 
 // The type reference of the member `name` denotes, or the maximum handle
 // when it denotes none.
-pub machine Typer::member_field_type(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> u64 in Trapping
+public machine Typer::member_field_type(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> u64 in Trapping
 crashes Trap
 {
     let target: MemberTarget = Typer::member_target(sources, syntax, declared, has_case, data_case, name);
@@ -1134,7 +1134,7 @@ crashes Trap
 }
 
 // A member's declared type reference, or the maximum handle for none.
-pub machine Typer::target_reference(syntax: &SyntaxTrees, target: MemberTarget) -> u64 in Trapping
+public machine Typer::target_reference(syntax: &SyntaxTrees, target: MemberTarget) -> u64 in Trapping
 crashes Trap
 {
     transition target {

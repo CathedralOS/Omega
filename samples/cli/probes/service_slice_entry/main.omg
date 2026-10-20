@@ -16,7 +16,7 @@
 
 use omega::language::core::binding;
 
-pub boundary trait Ping {
+public boundary trait Ping {
     machine ping();
 }
 

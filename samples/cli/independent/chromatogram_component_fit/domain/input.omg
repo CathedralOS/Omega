@@ -2,7 +2,7 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
 
-pub data InputReader {
+public data InputReader {
     remaining: i32 in Wrapping;
     exhausted: bool;
 }
@@ -110,7 +110,7 @@ crashes Trap
         }
     }
 }
-pub machine read_input(reader: &mut InputReader, chromatogram: &mut Chromatogram) -> bool reaches Console
+public machine read_input(reader: &mut InputReader, chromatogram: &mut Chromatogram) -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap

@@ -3,7 +3,7 @@
 // at t=2..5. Finite observations are never padded or extrapolated.
 use domain::records;
 
-pub machine analyze(records: &mut Beamforming) -> u64 {
+public machine analyze(records: &mut Beamforming) -> u64 {
     records.active = 0;
     records.best = 0;
     transition { _ -> decode(records, 0) }

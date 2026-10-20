@@ -1,4 +1,4 @@
-pub boundary trait Echo {
+public boundary trait Echo {
     machine value() -> i32;
 }
 

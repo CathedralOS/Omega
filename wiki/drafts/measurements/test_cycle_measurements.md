@@ -131,7 +131,7 @@ mbx nextest run -p package-manager --test semantic_binding_review \
   --no-fail-fast -E 'test(=macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
 ```
 
-The route requires a local two-line `pub(crate)` repair in
+The route requires a local two-line `public(crate)` repair in
 `build-output/src/capture.rs` (`is_executable`, `same_file_observation`):
 commit `0b404debf1bfea59784cb633ff2bd97fcd352a2b` left the `#[cfg(not(unix))`
 definitions private, so this base cannot compile package-manager on Windows

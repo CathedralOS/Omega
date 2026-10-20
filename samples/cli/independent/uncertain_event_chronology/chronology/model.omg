@@ -1,6 +1,6 @@
 // Private finite scientific model: three quantized timestamps, inclusive bounds,
 // and destination >= source + lag. No continuous-time inference is claimed.
-pub data Chronology {
+public data Chronology {
     lower: [i32; 3];
     upper: [i32; 3];
     source: [i32; 4];
@@ -8,7 +8,7 @@ pub data Chronology {
     lag: [i32; 4];
     enabled: [i32; 4];
 }
-pub data Reconciliation {
+public data Reconciliation {
     count: i32 in Wrapping;
     lower: [i32; 3];
     upper: [i32; 3];

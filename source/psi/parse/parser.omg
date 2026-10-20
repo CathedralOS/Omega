@@ -21,7 +21,7 @@ use psi::tokens::tokens;
 // its TokenStream; `parse` observes it through one shared borrow forwarded
 // along every state edge that reads a token, so no token or stream is copied
 // and nothing is moved out of the owning lexer.
-pub data Parser
+public data Parser
 where
     current_index <= 65535,
     expression_operand_depth <= 64,
@@ -230,7 +230,7 @@ where
 // Empty syntax tables for a compilation's source units, which `parse` then
 // appends one at a time. Every row keeps its unit in its source span, so the
 // tables are shared and handles stay dense across units.
-pub machine Parser::initialize(parser: &mut Parser) {
+public machine Parser::initialize(parser: &mut Parser) {
     SyntaxTrees::clear(&mut parser.output, SourceId { value: 0 });
 }
 
@@ -269,7 +269,7 @@ machine Parser::identifier_span(
 // delegated to its grammar machine (data.omg, machine.omg, traits.omg,
 // conformance.omg, domain.omg, constant.omg, proposition.omg,
 // definition.omg), the shared type grammar lives in types.omg, and input.omg
-// remains the only token/cursor behavior owner. A root is `[pub]` and then a
+// remains the only token/cursor behavior owner. A root is `[public]` and then a
 // declaration: `use`, `data`, `machine` and `let` by keyword; `boundary`,
 // `trait`, `domain`, `const` and `proposition` by contextual word; and, led
 // by a name, a target-scoped `target [boundary] machine` or a named
@@ -277,7 +277,7 @@ machine Parser::identifier_span(
 // introducers reject at their word. Bounded array reads carry their
 // collection's Trapping policy, so parsing publishes the same crash route
 // its callees do.
-pub machine Parser::parse(
+public machine Parser::parse(
     parser: &mut Parser,
     source: SourceId,
     source_length: u64 in Trapping,
@@ -324,7 +324,7 @@ crashes Trap
             KeywordKind::Data -> dispatch_data(parser, input, false, false)
             KeywordKind::Machine -> dispatch_machine(parser, input, head)
             KeywordKind::Let -> dispatch_definition(parser, input, false, false)
-            KeywordKind::Pub -> public_item_root(parser, input)
+            KeywordKind::Public -> public_item_root(parser, input)
             _ -> unsupported_root(parser, start, end)
         }
     }
@@ -395,7 +395,7 @@ crashes Trap
     }
 
     // `measure Owner::Name ...` declares a ranking view, parsed as a root
-    // machine in the `Measure` container; `pub measure` rejects, as declared
+    // machine in the `Measure` container; `public measure` rejects, as declared
     // measures are package-private (wiki/spec/language/termination.md).
     state measure_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
         let ranking: bool = Parser::at_word(parser, input, "measure");
@@ -816,7 +816,7 @@ crashes Trap
     state done() { }
 }
 
-// The head of a root `[pub] machine` declaration starting at `start`; the
+// The head of a root `[public] machine` declaration starting at `start`; the
 // constructors below add a target name or `boundary`.
 machine Parser::root_machine_head(start: u64 in Trapping, is_public: bool) -> MachineHead {
     MachineHead {

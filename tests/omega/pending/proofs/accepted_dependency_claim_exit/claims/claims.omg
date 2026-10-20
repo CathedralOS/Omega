@@ -1,4 +1,4 @@
-pub proposition established();
+public proposition established();
 
-pub boundary machine establish()
+public boundary machine establish()
 ensures established();

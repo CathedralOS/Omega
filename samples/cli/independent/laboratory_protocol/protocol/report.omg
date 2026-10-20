@@ -3,9 +3,9 @@ module protocol::report;
 use omega_language_std::console;
 use protocol::model;
 
-pub data Report { }
+public data Report { }
 
-pub machine Report::row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
+public machine Report::row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
 invokes Console;
 {
     Report::decision(decision);

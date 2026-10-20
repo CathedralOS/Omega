@@ -6,7 +6,7 @@
 //
 //   * `data Message { body: &Cell }` — a shared-borrow
 //     member formed before the suspension point.
-//   * `pub boundary trait Scheduler { machine park()
+//   * `public boundary trait Scheduler { machine park()
 //     suspends; }` — the provider-side suspension
 //     axis.
 //
@@ -22,7 +22,7 @@ data Message {
     body: &Cell;
 }
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine park() suspends;
 }
 

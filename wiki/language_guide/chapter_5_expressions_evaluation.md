@@ -130,7 +130,7 @@ Write the token immediately after `machine`; there is no separate operator
 declaration keyword. For example, with `Vec2` and a checked `add_vectors` helper:
 
 ```omega
-pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+public machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
     add_vectors(left, right)
 }
 ```
@@ -184,7 +184,7 @@ The last two cases are different:
 
 ```omega
 // Canonical core declarations, not user opt-in spellings.
-pub boundary machine + Float::add(left: f32, right: f32) -> f32;
+public boundary machine + Float::add(left: f32, right: f32) -> f32;
 machine Float::meaning32(value: f32) -> FloatMeaning;
 ```
 

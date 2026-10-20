@@ -3,7 +3,7 @@
 // a field, a parameter, and a call result, and again from a later state.
 // A table-function leaf in the same machine carries its own demand.
 
-pub boundary trait TextOutput {
+public boundary trait TextOutput {
     machine output_string(this: addr);
     machine query(table: addr);
 }

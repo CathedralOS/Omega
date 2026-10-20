@@ -8,7 +8,7 @@ crashes Trap items[index] == 0
     transition items[index] == 0 { true -> bad() false -> (items[index]) }
     state bad() { crash Trap; }
 }
-pub machine read_seven(items: &[u64; 2], other: &[u64; 2], index: u64) -> u64
+public machine read_seven(items: &[u64; 2], other: &[u64; 2], index: u64) -> u64
 requires index < 2
 requires items[index] == 7
 { maybe_zero(other, index) }

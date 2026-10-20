@@ -6,11 +6,11 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] const [Owner::]NAME: Type = value;`, entered at the `const` word.
+// `[public] const [Owner::]NAME: Type = value;`, entered at the `const` word.
 // A constant names an immutable compile-time value, package-scoped or scoped
 // to one owner type; its value is an ordinary expression, constructions
 // included. The item and its root are retained at the closing `;`.
-pub machine Parser::parse_constant(
+public machine Parser::parse_constant(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,

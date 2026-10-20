@@ -2,7 +2,7 @@ use routing::model;
 
 // Eleven ASCII digits: C A B RA RB LA(2) LB(2) H(2).
 // Only complete eleven-digit records are admitted by the entrypoint.
-pub machine parse(bytes: &[u8; 12], plan: &mut Plan) -> bool {
+public machine parse(bytes: &[u8; 12], plan: &mut Plan) -> bool {
     let mut digits: [i32 in Saturating; 11];
     transition { _ -> digit(bytes, plan, &mut digits, 0) }
     state digit(bytes: &[u8; 12], plan: &mut Plan, digits: &mut [i32 in Saturating; 11], index: u64) -> bool {

@@ -2,10 +2,10 @@
 // Selecting a complete portable provider does not admit its absent dependency.
 use omega_language_std::console;
 
-pub boundary trait RawMeasure {
+public boundary trait RawMeasure {
     machine measure(value: i32) -> i32;
 }
-pub boundary trait PortableMeasure {
+public boundary trait PortableMeasure {
     machine measure(value: i32) -> i32 invokes RawMeasure;
 }
 PortableMeasureProvider satisfies PortableMeasure {

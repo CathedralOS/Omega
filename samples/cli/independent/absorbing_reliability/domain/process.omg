@@ -2,7 +2,7 @@ module domain::process;
 // Exact finite Markov evolution: transition rows contain integer quarters.
 // The absorbing row is (0,0,4). Distribution numerators share denominator.
 // At horizon <= 8 every intermediate is below 2^24, so Wrapping never wraps.
-pub data Process {
+public data Process {
     healthy: u64 in Wrapping;
     degraded: u64 in Wrapping;
     failed: u64 in Wrapping;

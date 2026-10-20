@@ -2,7 +2,7 @@
 // call does: through an entry field, a forwarded parameter and a local loan.
 use omega::language::core::binding;
 
-pub boundary trait Character {
+public boundary trait Character {
     machine echo(value: i32) -> i32;
 }
 CharacterImplementation satisfies Character {

@@ -2,33 +2,33 @@
 // outside the foreign read/write interval and must not acquire invented bytes.
 use omega::language::core::external_binding;
 
-pub data Packet [copy] { header: u16; payload: u64; ending: u8; }
-pub boundary trait DescriptorIo {
+public data Packet [copy] { header: u16; payload: u64; ending: u8; }
+public boundary trait DescriptorIo {
     machine read(descriptor: i32, packet: &mut Packet, count: u64) -> i64 blocks;
     machine write(descriptor: i32, packet: &Packet, count: u64) -> i64;
 }
-pub data DescriptorImports {}
+public data DescriptorImports {}
 data Holder { before: u64; packet: Packet; after: u64; }
 data Main { holder: Holder; }
 
-pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }
 }
 
-pub linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
+public linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "read", version: "GLIBC_2.2.5"
     } }
 }
-pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }
 }
 
-pub linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+public linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
     } }

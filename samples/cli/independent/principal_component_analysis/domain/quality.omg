@@ -1,6 +1,6 @@
 use domain::model;
 use omega::language::core::float_operations;
-pub machine qualify(a: &mut Analysis) {
+public machine qualify(a: &mut Analysis) {
  a.residual = 0.0; a.orthogonality = 0.0; a.error = 0.0;
  transition { _ -> matrix(a, 0, 0, 0.0, 0.0) }
  state matrix(a: &mut Analysis, index: u64 in Wrapping, column: u64 in Wrapping, residual: f64, orthogonality: f64) {

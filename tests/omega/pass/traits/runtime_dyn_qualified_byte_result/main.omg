@@ -1,5 +1,5 @@
 // Expected exit: 0. Memberships follow the selected descriptor's original bytes.
-pub domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+public domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 trait Payload {
     machine window<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
 }

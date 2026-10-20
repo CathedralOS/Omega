@@ -1,11 +1,11 @@
 use omega::language::core::relation;
 
-pub data Representative {
+public data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-pub proposition equivalent(a: Representative, b: Representative) = a == b;
+public proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
 ensures a == a
@@ -43,7 +43,7 @@ where equivalent satisfies
 
 boundary machine observe(value: Representative) -> bool;
 
-pub machine representative(value: Representative) -> Representative {
+public machine representative(value: Representative) -> Representative {
     value
 }
 

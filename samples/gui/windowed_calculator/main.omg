@@ -17,13 +17,13 @@ use omega_language_std::console;
 use omega_language_std::macos_gui;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
-pub boundary trait Clock {
+public boundary trait Clock {
     machine sleep(milliseconds: u32) reaches DarwinClock invokes DarwinClock;
 }
-pub boundary trait Input {
+public boundary trait Input {
     machine key_state(virtual_key: u32) -> u64 reaches CoreGraphics invokes CoreGraphics;
 }
-pub boundary trait Gui {
+public boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
         reaches AppKit + CoreGraphics + ObjectiveC
         invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;

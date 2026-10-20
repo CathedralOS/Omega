@@ -1,6 +1,6 @@
 use omega::language::core::binding;
 
-pub boundary trait Ping { machine ping(); }
+public boundary trait Ping { machine ping(); }
 
 machine forward(service: &Binding<Ping>) -> i64 {
     transition { _ -> finish(service) }

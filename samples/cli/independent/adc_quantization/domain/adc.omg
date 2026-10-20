@@ -2,7 +2,7 @@
 // Bounded inputs keep every i64 Wrapping intermediate below 10^12: the policy
 // makes arithmetic defined, while the application envelope prevents wrapping.
 use domain::settings;
-pub data Conversion {
+public data Conversion {
     code: i64 in Wrapping;
     reconstruction_numerator: i64 in Wrapping;
     reconstruction_denominator: i64 in Wrapping;
@@ -12,7 +12,7 @@ pub data Conversion {
     bound_numerator: i64 in Wrapping;
     bound_denominator: i64 in Wrapping;
 }
-pub machine quantize(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion) {
+public machine quantize(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion) {
     transition { _ -> levels(configuration, raw, result, 0, 1) }
     state levels(configuration: &Settings, raw: i64 in Wrapping, result: &mut Conversion, bit: i64 in Wrapping, extent: i64 in Wrapping) {
         transition bit < configuration.width {

@@ -2,22 +2,22 @@
 // stream; zero-byte calls and short reads must preserve the untouched bytes.
 use omega::language::core::external_binding;
 
-pub boundary trait DescriptorIo {
+public boundary trait DescriptorIo {
     machine read_word(descriptor: i32, word: &mut u32, count: u64) -> i64 blocks;
     machine read_half(descriptor: i32, half: &mut u16, count: u64) -> i64 blocks;
     machine write_word(descriptor: i32, word: &u32, count: u64) -> i64;
     machine write_half(descriptor: i32, half: &u16, count: u64) -> i64;
     machine write_discarded(descriptor: i32, word: &u32, count: u64);
 }
-pub data DescriptorImports { }
+public data DescriptorImports { }
 data Main { word: u32; half: u16; }
 
-pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }
 }
-pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }

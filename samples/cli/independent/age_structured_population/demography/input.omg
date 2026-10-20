@@ -1,8 +1,8 @@
 use omega_language_std::console;
-pub data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
+public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
 // One signed decimal per LF-delimited field. Ten digits bound accumulation;
 // malformed, empty, missing and overlong fields are rejected before forecasting.
-pub machine read_number() -> Parsed reaches Console
+public machine read_number() -> Parsed reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -45,7 +45,7 @@ crashes Trap
         }
     }
 }
-pub machine input_complete() -> bool reaches Console
+public machine input_complete() -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap

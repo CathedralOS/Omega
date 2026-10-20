@@ -1,10 +1,10 @@
 module right;
 
-pub boundary trait Sink {
+public boundary trait Sink {
     machine emit(text: &[u8]);
 }
 
-pub data QuietSink { }
+public data QuietSink { }
 
 machine QuietSink::emit(text: &[u8])
 satisfies Sink::emit

@@ -2,7 +2,7 @@
 // establishment from its generated entry bridge. A same-shaped non-root owner
 // receives no such authority merely because the provider is selected.
 
-pub boundary trait Ping {
+public boundary trait Ping {
     machine ping();
 }
 

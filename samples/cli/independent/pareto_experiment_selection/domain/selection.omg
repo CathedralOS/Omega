@@ -3,7 +3,7 @@
 // lowest feasible dominating identifier, independent of input order or front membership.
 use domain::model;
 
-pub machine violations(row: &Experiment, budget: u64, deadline: u64, risk_limit: u64) -> u64 {
+public machine violations(row: &Experiment, budget: u64, deadline: u64, risk_limit: u64) -> u64 {
     transition row.cost > budget { true -> days(row, deadline, risk_limit, 1) false -> days(row, deadline, risk_limit, 0) }
     state days(row: &Experiment, deadline: u64, risk_limit: u64, mask: u64) -> u64
     requires mask <= 1 {
@@ -14,11 +14,11 @@ pub machine violations(row: &Experiment, budget: u64, deadline: u64, risk_limit:
         transition row.risk > risk_limit { true -> (mask + 4) false -> mask }
     }
 }
-pub machine dominates(left: &Experiment, right: &Experiment) -> bool {
+public machine dominates(left: &Experiment, right: &Experiment) -> bool {
     left.cost <= right.cost && left.days <= right.days && left.gain >= right.gain
         && (left.cost < right.cost || left.days < right.days || left.gain > right.gain)
 }
-pub machine witness(application: &Application, candidate: &Experiment) -> u64 {
+public machine witness(application: &Application, candidate: &Experiment) -> u64 {
     transition { _ -> scan(application, candidate, 0, 0) }
     state scan(application: &Application, candidate: &Experiment, index: u64, best: u64) -> u64 {
         transition index < application.count && index < 12 {
@@ -37,7 +37,7 @@ pub machine witness(application: &Application, candidate: &Experiment) -> u64 {
         }
     }
 }
-pub machine duplicate(application: &Application, identifier: u64, limit: u64) -> bool {
+public machine duplicate(application: &Application, identifier: u64, limit: u64) -> bool {
     transition { _ -> scan(application, identifier, limit, 0) }
     state scan(application: &Application, identifier: u64, limit: u64, index: u64) -> bool {
         transition index < limit && index < 12 {

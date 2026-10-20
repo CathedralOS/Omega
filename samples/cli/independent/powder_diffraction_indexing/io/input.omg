@@ -1,10 +1,10 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::indexing;
-pub data Raw { values: [f64; 9]; count: u64; }
+public data Raw { values: [f64; 9]; count: u64; }
 // Finite decimal syntax; no NaN/infinity spellings or exponents. The byte and
 // digit caps bound execution even on an unterminated hostile stream.
-pub machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> next(raw, 0, 0.0, 1.0, false, false, false, 0, 0) }
     state next(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
         transition bytes < 2048 { true -> receive(raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals) false -> bad() }

@@ -1,9 +1,9 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
-pub data Reader { valid: bool; value: f64; }
+public data Reader { valid: bool; value: f64; }
 // A whitespace-separated signed integer, bounded to [-100,100]. This parser
 // consumes one separator, accepts EOF after digits, and rejects partial tokens.
-pub machine read_integer(reader: &mut Reader) reaches Console
+public machine read_integer(reader: &mut Reader) reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -62,7 +62,7 @@ crashes Trap
     state bad(reader: &mut Reader) { reader.valid = false; }
     state done() { }
 }
-pub machine end_input(reader: &mut Reader) reaches Console
+public machine end_input(reader: &mut Reader) reaches Console
 invokes Console;
 blocks;
 crashes Trap

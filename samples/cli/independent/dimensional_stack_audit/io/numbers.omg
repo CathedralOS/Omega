@@ -1,8 +1,8 @@
 use omega_language_std::console;
-pub data Input [copy] { value: i32 in Saturating; valid: bool; }
+public data Input [copy] { value: i32 in Saturating; valid: bool; }
 // One signed decimal token terminated by LF or EOF, at most five digits.
 // Whitespace, CR, empty lines, embedded signs and overflow-shaped tokens reject.
-pub machine read_integer(input: &mut Input) reaches Console
+public machine read_integer(input: &mut Input) reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -51,7 +51,7 @@ crashes Trap
     state done() { }
 }
 // Decimal rendering uses byte output, avoiding any invented UTF-8 obligations.
-pub machine write_integer(value: i32 in Saturating) reaches Console
+public machine write_integer(value: i32 in Saturating) reaches Console
 invokes Console;
 {
     transition value == -2147483648 {

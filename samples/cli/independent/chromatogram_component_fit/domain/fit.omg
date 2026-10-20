@@ -74,7 +74,7 @@ machine finish_fit(chromatogram: &Chromatogram, fit: &mut Fit) {
     }
     state done() { }
 }
-pub machine fit_components(chromatogram: &Chromatogram, fit: &mut Fit) -> bool {
+public machine fit_components(chromatogram: &Chromatogram, fit: &mut Fit) -> bool {
     let mut sums: Moments;
     moments(chromatogram, &mut sums);
     transition sums.aa > 0.0 && sums.bb > 0.0 {

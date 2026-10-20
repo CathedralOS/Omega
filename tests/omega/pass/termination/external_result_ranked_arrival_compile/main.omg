@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
-pub data ForeignMath {}
-pub boundary requirement ForeignMath::absolute(value: i32) -> i32
+public data ForeignMath {}
+public boundary requirement ForeignMath::absolute(value: i32) -> i32
 terminates;
 requires value >= 0 && value <= 9;
 ensures result == value;

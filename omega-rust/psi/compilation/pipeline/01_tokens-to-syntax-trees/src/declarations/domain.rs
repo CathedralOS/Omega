@@ -299,7 +299,7 @@ fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
         || input.at_contextual("satisfies")
         || input.at_punctuation(PunctuationKind::LeftBrace)
         || input.tokens.is_empty()
-        || input.at_keyword(KeywordKind::Pub)
+        || input.at_keyword(KeywordKind::Public)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Machine)
         || input.at_keyword(KeywordKind::Use)

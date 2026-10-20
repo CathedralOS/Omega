@@ -3,7 +3,7 @@
 // Projection is dissipative; energy drift is measured, never called conservation.
 use omega::language::core::float_operations;
 
-pub data Pendulum {
+public data Pendulum {
     length: f64;
     x: f64;
     y: f64;
@@ -15,7 +15,7 @@ pub data Pendulum {
     energy: f64;
 }
 
-pub machine Pendulum::project(pendulum: &mut Pendulum) {
+public machine Pendulum::project(pendulum: &mut Pendulum) {
     let radius_squared: f64 = pendulum.x * pendulum.x + pendulum.y * pendulum.y;
     pendulum.raw_drift = radius_squared - pendulum.length * pendulum.length;
     let radius: f64 = F64::square_root(radius_squared);
@@ -28,13 +28,13 @@ pub machine Pendulum::project(pendulum: &mut Pendulum) {
     Pendulum::measure(pendulum);
 }
 
-pub machine Pendulum::measure(pendulum: &mut Pendulum) {
+public machine Pendulum::measure(pendulum: &mut Pendulum) {
     pendulum.drift = pendulum.x * pendulum.x + pendulum.y * pendulum.y - pendulum.length * pendulum.length;
     pendulum.tangent = pendulum.x * pendulum.vx + pendulum.y * pendulum.vy;
     pendulum.energy = 0.5 * (pendulum.vx * pendulum.vx + pendulum.vy * pendulum.vy) + 9.81 * (pendulum.y + pendulum.length);
 }
 
-pub machine Pendulum::step(pendulum: &mut Pendulum) {
+public machine Pendulum::step(pendulum: &mut Pendulum) {
     let tension: f64 = (pendulum.vx * pendulum.vx + pendulum.vy * pendulum.vy - 9.81 * pendulum.y) / (pendulum.length * pendulum.length);
     let acceleration_x: f64 = 0.0 - tension * pendulum.x;
     let acceleration_y: f64 = 0.0 - 9.81 - tension * pendulum.y;

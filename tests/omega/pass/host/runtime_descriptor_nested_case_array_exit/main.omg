@@ -2,41 +2,41 @@ use omega::language::core::external_binding;
 use omega_language_std::calling;
 use byte_view_calling;
 
-pub data Bytes { values: [u8; 4]; }
-pub data Variant {
+public data Bytes { values: [u8; 4]; }
+public data Variant {
     revision: u32;
     case Left(value: u32, bytes: Bytes);
     case Right(value: u32, bytes: Bytes);
     case Empty;
 }
-pub boundary trait PacketIo {
+public boundary trait PacketIo {
     machine read(descriptor: i32, variant: &mut Variant, count: u64) -> i64 blocks;
 }
-pub boundary trait ByteIo: Calling<ByteViewCallingPolicy<u8>> {
+public boundary trait ByteIo: Calling<ByteViewCallingPolicy<u8>> {
     machine write(descriptor: i32, bytes: &[u8]) -> i64;
 }
-pub data Imports {}
+public data Imports {}
 data Envelope { prefix: u32; variant: Variant; suffix: u32; }
 data Main { }
 
-pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }
 }
 
-pub linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
+public linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "read", version: "GLIBC_2.2.5"
     } }
 }
-pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }
 }
 
-pub linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+public linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
     } }

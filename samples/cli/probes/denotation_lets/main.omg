@@ -1,4 +1,4 @@
-// Denotation lets: `pub let` names a formula at module level —
+// Denotation lets: `public let` names a formula at module level —
 // scalar value lets (`byte_mask`), predicate lets returning
 // `core::Strict<0>` (`reflexive`, `wrapping_reflexive`),
 // schema lets returning arrow types (`predicate`), and generic

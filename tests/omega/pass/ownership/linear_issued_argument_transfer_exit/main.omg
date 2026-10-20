@@ -4,10 +4,10 @@
 use omega::language::core::drop;
 use omega_language_std::console;
 
-pub data Token [linear] { code: u8; }
+public data Token [linear] { code: u8; }
 machine Token::drop(token: &mut Token) {}
-pub domain Token::Issued established by TokenRoot::grant;
-pub boundary trait TokenRoot {
+public domain Token::Issued established by TokenRoot::grant;
+public boundary trait TokenRoot {
     machine grant(token: Token) -> Token ensures result in Token::Issued;
 }
 TokenProvider satisfies TokenRoot {
@@ -23,7 +23,7 @@ machine total_tokens(first: Token in Issued, second: Token in Issued) -> u64 {
     result
 }
 
-pub boundary trait TokenConsumer {
+public boundary trait TokenConsumer {
     machine observe(first: Token in Issued, second: Token in Issued) -> u64;
 }
 Consumer satisfies TokenConsumer {

@@ -9,7 +9,7 @@ use domain::input;
 // Total half units are therefore <=15, giving damage numerator <=15*81=1215.
 // Wrapping value carriers accommodate array reads without element refinements;
 // these validated magnitudes cannot wrap. Storage indices remain Exact.
-pub data Audit {
+public data Audit {
     turning: [u64; 16] in Wrapping;
     stack: [u64; 16] in Wrapping;
     ranges: [u64; 16] in Wrapping;

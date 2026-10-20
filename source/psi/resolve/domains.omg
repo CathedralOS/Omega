@@ -20,7 +20,7 @@ use psi::syntax::syntax;
 
 // Each domain's generic annotations, carrier and index arguments, in its
 // own scope.
-pub machine Resolver::bind_domain_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_domain_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
@@ -58,7 +58,7 @@ crashes Trap
 
 // Domain names: none spells a compiler-known domain, and a module declares
 // one name over one carrier type once.
-pub machine Resolver::check_domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::check_domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
@@ -115,7 +115,7 @@ crashes Trap
 }
 
 // The compiler-known domain a name spells, or `Unqualified`.
-pub machine Resolver::known_domain(sources: &SourceSet, name: SourceSpan) -> DomainBinding
+public machine Resolver::known_domain(sources: &SourceSet, name: SourceSpan) -> DomainBinding
 crashes Trap
 {
     let matched: bool = SourceSet::span_spells(sources, name, "Wrapping");
@@ -155,7 +155,7 @@ crashes Trap
 
 // The declared domain `name` selects for the type whose root is row `row`:
 // the one visible domain of that name whose carrier admits the type.
-pub machine Resolver::declared_domain(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> Lookup
+public machine Resolver::declared_domain(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> Lookup
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, row, name, 0) }
@@ -205,7 +205,7 @@ crashes Trap
 
 // Whether domain `index` is named `name`, visible from it, and carried by
 // the type rooted at `row`.
-pub machine Resolver::domain_admits(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, row: u64 in Trapping, name: SourceSpan) -> bool
+public machine Resolver::domain_admits(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, row: u64 in Trapping, name: SourceSpan) -> bool
 crashes Trap
 {
     let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
@@ -231,7 +231,7 @@ crashes Trap
 // order whenever the rows agree. A carrier row naming one of the domain's
 // own generic parameters stands for any type: the walk skips the whole
 // subtree the actual type has in its place. No recursion or stack is needed.
-pub machine Resolver::carrier_matches(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DomainItem, actual: u64 in Trapping) -> bool
+public machine Resolver::carrier_matches(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DomainItem, actual: u64 in Trapping) -> bool
 crashes Trap
 {
     let carrier_root: TypeReference = SyntaxTrees::type_reference(syntax, item.carrier);
@@ -410,7 +410,7 @@ crashes Trap
 }
 
 // Establishment routes and alias constituents, in domain order.
-pub machine Resolver::bind_domain_paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_domain_paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
@@ -497,7 +497,7 @@ crashes Trap
 // The visible domain named `name` whose carrier's root binds like the type
 // `carrier` names in `scope`, or is one of the domain's own generic
 // parameters.
-pub machine Resolver::domain_by_head(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> Lookup
+public machine Resolver::domain_by_head(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> Lookup
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, carrier, name, 0) }
@@ -602,7 +602,7 @@ crashes Trap
 
 // The one visible domain named `name`, whatever its carrier; several are
 // ambiguous until the carrier is known.
-pub machine Resolver::domain_named(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> Lookup
+public machine Resolver::domain_named(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> Lookup
 crashes Trap
 {
     transition { _ -> next(sources, syntax, name, 0) }

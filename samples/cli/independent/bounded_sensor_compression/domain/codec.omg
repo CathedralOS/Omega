@@ -7,7 +7,7 @@ use domain::model::InputBuffer;
 // Integer units are 1/16 degree C from an artificial ADC, [0,4095].
 // Quantize onto the origin-anchored grid (2*E+1), ties impossible, clipping
 // the upper endpoint to 4095. Predict from the previous reconstructed sample.
-pub machine quantize(value: i32, tolerance: i32) -> i32
+public machine quantize(value: i32, tolerance: i32) -> i32
 requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
 {
     let step: i32 = tolerance * 2 + 1;
@@ -15,7 +15,7 @@ requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
     min_i32(rounded, 4095)
 }
 
-pub machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool {
+public machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool {
     stream.length = 0;
     transition records.count >= 1 && records.count <= 16 && records.tolerance >= 0 && records.tolerance <= 7 {
         true -> header(records, stream)
@@ -81,7 +81,7 @@ pub machine encode(records: &SensorBlock, stream: &mut SensorStream) -> bool {
 
 // Independent byte decoder, no encoder state and no original readings.
 // Reject noncanonical escapes and every length/bounds violation before reading.
-pub machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool {
+public machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool {
     records.count = 0;
     transition stream.length >= 6 && stream.length <= 53 {
         true -> header(stream, records)
@@ -153,7 +153,7 @@ pub machine decode(stream: &SensorStream, records: &mut SensorBlock) -> bool {
 
 // A posteriori certificate from original observations and decoded bytes.
 // -1 denotes a failed certificate; zero tolerance is exact reconstruction.
-pub machine certify(original: &SensorBlock, decoded: &SensorBlock) -> i32 {
+public machine certify(original: &SensorBlock, decoded: &SensorBlock) -> i32 {
     transition original.count == decoded.count && original.count >= 1 && original.count <= 16 && original.tolerance >= 0 && original.tolerance <= 7 {
         true -> scan(original, decoded, 0, 0)
         _ -> invalid()

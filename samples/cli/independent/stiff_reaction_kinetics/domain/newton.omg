@@ -4,7 +4,7 @@
 use omega::language::core::float_operations;
 use domain::model;
 use domain::rates;
-pub data Newton [copy] { value: Vector; residual: Vector; delta: Vector; field: Field; success: bool; iteration: u64; damping: f64; backtracks: u64; candidate: Vector; }
+public data Newton [copy] { value: Vector; residual: Vector; delta: Vector; field: Field; success: bool; iteration: u64; damping: f64; backtracks: u64; candidate: Vector; }
 machine linear(newton: &mut Newton, step: f64) -> bool {
     let aa: f64 = 1.0 - step * newton.field.aa;
     let ab: f64 = 0.0 - step * newton.field.ab;
@@ -31,7 +31,7 @@ machine linear(newton: &mut Newton, step: f64) -> bool {
     }
     state failed() -> bool { false }
 }
-pub machine implicit(problem: &Problem, initial: &Vector, step: f64) -> Newton {
+public machine implicit(problem: &Problem, initial: &Vector, step: f64) -> Newton {
     let mut newton: Newton;
     newton.value = Vector { a: initial.a, b: initial.b, c: initial.c };
     transition { _ -> evaluate_guard(problem, initial, step, newton) }

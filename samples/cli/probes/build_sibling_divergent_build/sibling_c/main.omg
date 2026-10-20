@@ -1,3 +1,3 @@
-pub machine c_value() -> i64 {
+public machine c_value() -> i64 {
     3 as i64
 }

@@ -1,8 +1,8 @@
 // Signed fixed-point text: one numeric value per line in micro-units.
 use omega_language_std::console;
 use omega::language::core::float_operations;
-pub data Reporter { }
-pub machine number(reporter: &mut Reporter,value: f64) reaches Console invokes Console; crashes Trap {
+public data Reporter { }
+public machine number(reporter: &mut Reporter,value: f64) reaches Console invokes Console; crashes Trap {
     let converted: i32 in Trapping = I32::from_f64(value*1000000.0);
     let scaled: i32 = converted as i32;
     transition scaled >= -1000000000 && scaled <= 1000000000 {
@@ -48,7 +48,7 @@ pub machine number(reporter: &mut Reporter,value: f64) reaches Console invokes C
     }
     state done(reporter: &mut Reporter) { Console::write_byte(10); }
 }
-pub machine matrix(reporter: &mut Reporter,values: &[[f64;3];3]) reaches Console invokes Console; crashes Trap {
+public machine matrix(reporter: &mut Reporter,values: &[[f64;3];3]) reaches Console invokes Console; crashes Trap {
     transition { _ -> cell(reporter,values,0,0) }
     state cell(reporter: &mut Reporter,values: &[[f64;3];3],row: u64,column: u64)
     requires row <= 2 requires column <= 2 {

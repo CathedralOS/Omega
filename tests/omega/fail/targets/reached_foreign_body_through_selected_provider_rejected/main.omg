@@ -12,10 +12,10 @@ uefi_x86_64 machine Helper::firmware_only(input: i32) -> i32 {
     transition { _ -> 63 }
 }
 
-pub data Value {}
-pub boundary requirement Value::read(input: i32) -> i32;
+public data Value {}
+public boundary requirement Value::read(input: i32) -> i32;
 
-pub data RelayValue {}
+public data RelayValue {}
 machine RelayValue::read(input: i32) -> i32
 satisfies Value::read { Helper::firmware_only(input) }
 

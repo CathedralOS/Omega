@@ -1,10 +1,10 @@
 // A signed view's upper bound does not bound the source's unsigned decoding.
-pub data Counter { count: i16; pad: u16; }
-pub data Source { first: u16; count: u16; }
-pub boundary trait Parent {
+public data Counter { count: i16; pad: u16; }
+public data Source { first: u16; count: u16; }
+public boundary trait Parent {
     machine reset(counter: &mut Counter) ensures counter.count <= 7i16;
 }
-pub boundary trait Child: Parent {}
+public boundary trait Child: Parent {}
 Good satisfies Child { Parent::reset = reset; }
 machine reset(counter: &mut Counter)
 ensures counter.count <= 7i16

@@ -2,8 +2,8 @@
 // stdout: FF 00 80 0A; stderr: 00 FE 81 0A, before CLI diagnostics.
 use omega::language::core::external_binding;
 
-pub data DescriptorProbe { }
-pub boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
+public data DescriptorProbe { }
+public boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
 data DescriptorImports { }
 
 macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {

@@ -2,16 +2,16 @@ use omega_language_std::math;
 
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
-pub data Analysis {
+public data Analysis {
  rows: u64 in Wrapping; features: u64 in Wrapping; mode: u64 in Wrapping;
  values: [f64; 64]; centered: [f64; 64]; scores: [f64; 64];
  means: [f64; 4]; scales: [f64; 4]; eigenvalues: [f64; 4]; explained: [f64; 4];
  covariance: [f64; 16]; matrix: [f64; 16]; work: [f64; 16]; vectors: [f64; 16];
  error: f64; residual: f64; orthogonality: f64; status: i32 in Wrapping;
 }
-pub machine absolute(value: f64) -> f64 { match value < 0.0 { true -> 0.0 - value false -> value } }
-pub machine maximum(left: f64, right: f64) -> f64 { match left > right { true -> left false -> right } }
-pub machine analyze(a: &mut Analysis) {
+public machine absolute(value: f64) -> f64 { match value < 0.0 { true -> 0.0 - value false -> value } }
+public machine maximum(left: f64, right: f64) -> f64 { match left > right { true -> left false -> right } }
+public machine analyze(a: &mut Analysis) {
  a.status = 0;
  transition { _ -> mean(a, 0, 0, 0.0) }
  state mean(a: &mut Analysis, column: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {

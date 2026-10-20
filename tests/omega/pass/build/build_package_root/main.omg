@@ -1,6 +1,6 @@
 // A `package`-kind root needs no entry machine — it checks as a
 // library closure.
 
-pub machine v() -> i32 {
+public machine v() -> i32 {
     1
 }

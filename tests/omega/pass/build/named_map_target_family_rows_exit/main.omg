@@ -6,7 +6,7 @@
 // bindings; the sibling fixture spells it before them.
 use omega_language_std::console;
 
-pub boundary trait Gate {
+public boundary trait Gate {
     machine open() -> i32;
     machine close(ticket: i32) -> i32;
 }

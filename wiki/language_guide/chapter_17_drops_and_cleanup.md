@@ -82,7 +82,7 @@ Authored code ends a value's lifetime early through the ordinary consuming core
 machine, conceptually:
 
 ```omega
-pub machine drop<T>(value: T) {
+public machine drop<T>(value: T) {
     // `value` reaches its checked cleanup edge here.
 }
 ```

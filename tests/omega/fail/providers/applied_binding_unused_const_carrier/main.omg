@@ -1,4 +1,4 @@
 // Const admission does not depend on calling a requirement.
 use omega::language::core::binding;
-pub boundary trait Parent<const Count: u8> { machine read() -> i32; }
+public boundary trait Parent<const Count: u8> { machine read() -> i32; }
 data Holder { slot: Binding<Parent<bool>>; }

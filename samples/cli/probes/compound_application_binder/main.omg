@@ -1,7 +1,7 @@
-pub trait Readable<Field> {
+public trait Readable<Field> {
     machine read<Value>(field: &Field, value: Value) -> Value;
 }
-pub data Reader {}
+public data Reader {}
 machine Reader::read<Element, const Width: u32, Value>(
     field: &[Element; Width], value: Value
 ) -> Value satisfies Readable<[Element; Width]>::read { value }

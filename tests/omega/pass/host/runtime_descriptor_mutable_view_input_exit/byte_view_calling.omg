@@ -3,12 +3,12 @@
 // occupy X1/X2 after the i32 descriptor in X0. A bare slice supplies no such ABI.
 use omega_language_std::calling;
 
-pub data ByteViewCalling { }
-pub ByteViewCallingPolicy satisfies CallingPolicy {
+public data ByteViewCalling { }
+public ByteViewCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = ByteViewCalling::plan;
 }
 
-pub macos_arm64 machine ByteViewCalling::plan(signature: BoundarySignature) -> BoundaryPlanResult
+public macos_arm64 machine ByteViewCalling::plan(signature: BoundarySignature) -> BoundaryPlanResult
 {
     transition signature.parameter_count == 2 && signature.native_parameter_count == 2
         && signature.has_result && signature.callback_demand_count == 0 {
@@ -104,7 +104,7 @@ pub macos_arm64 machine ByteViewCalling::plan(signature: BoundarySignature) -> B
     }
 }
 
-pub linux_x86_64 machine ByteViewCalling::plan(signature: BoundarySignature) -> BoundaryPlanResult
+public linux_x86_64 machine ByteViewCalling::plan(signature: BoundarySignature) -> BoundaryPlanResult
 {
     transition signature.parameter_count == 2 && signature.native_parameter_count == 2
         && signature.has_result && signature.callback_demand_count == 0 {

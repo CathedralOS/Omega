@@ -11,7 +11,7 @@ use psi::syntax::syntax;
 // values, compared by value rather than spelling (`#1` and `#0x1` collide).
 // Identities are not runtime discriminants and bind nothing.
 
-pub data IdentityScopeKind [copy] {
+public data IdentityScopeKind [copy] {
     case Fields;
     case Cases;
     case PayloadFields;
@@ -19,14 +19,14 @@ pub data IdentityScopeKind [copy] {
 
 // One scope: a contiguous range of the fields, cases or payload-fields
 // table.
-pub data IdentityScope [copy] {
+public data IdentityScope [copy] {
     kind: IdentityScopeKind;
     first: u64 in Trapping;
     count: u64 in Trapping;
 }
 
 // One member of a scope: its name and, when numbered, its literal's span.
-pub data MemberIdentity [copy] {
+public data MemberIdentity [copy] {
     name: IdentifierSpan;
     has_identity: bool;
     identity: SourceSpan;
@@ -34,12 +34,12 @@ pub data MemberIdentity [copy] {
 
 // An identity literal's value, or not `valid` when the literal has a suffix
 // or exceeds `u64`.
-pub data IdentityValue [copy] {
+public data IdentityValue [copy] {
     valid: bool;
     value: u64 in Trapping;
 }
 
-pub machine Resolver::check_stable_identities(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::check_stable_identities(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next_data(resolver, sources, syntax, 0) }

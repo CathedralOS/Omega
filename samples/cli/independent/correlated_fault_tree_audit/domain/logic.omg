@@ -1,12 +1,12 @@
 // Three-event monotone DNF. An event ID is a bit, never a separate occurrence.
 // The full assignment table, rather than products of marginals, owns correlation.
-pub machine contains_events(assignment: i32, term: i32) -> bool {
+public machine contains_events(assignment: i32, term: i32) -> bool {
     assignment % 2 >= term % 2 &&
     (assignment / 2) % 2 >= (term / 2) % 2 &&
     (assignment / 4) % 2 >= (term / 4) % 2
 }
 
-pub machine fails(terms: &[i32; 4], count: i32, assignment: i32) -> bool {
+public machine fails(terms: &[i32; 4], count: i32, assignment: i32) -> bool {
     transition { _ -> scan(terms, count, assignment, 0) }
     state scan(terms: &[i32; 4], count: i32, assignment: i32, index: i32) -> bool {
         transition index >= 0 && index < 4 && index < count {
@@ -25,7 +25,7 @@ pub machine fails(terms: &[i32; 4], count: i32, assignment: i32) -> bool {
 
 // A cut is minimal iff none of its proper subsets fails. Enumerating all
 // subsets also covers the empty cut (an unconditional-failure term).
-pub machine minimal_cut(terms: &[i32; 4], count: i32, candidate: i32) -> bool {
+public machine minimal_cut(terms: &[i32; 4], count: i32, candidate: i32) -> bool {
     transition fails(terms, count, candidate) {
         true -> scan(terms, count, candidate, 0)
         _ -> false
@@ -45,7 +45,7 @@ pub machine minimal_cut(terms: &[i32; 4], count: i32, candidate: i32) -> bool {
     }
 }
 
-pub machine force_event(assignment: i32, event: i32, present: bool) -> i32 {
+public machine force_event(assignment: i32, event: i32, present: bool) -> i32 {
     transition event {
         0 -> change(assignment, 1, present)
         1 -> change(assignment, 2, present)

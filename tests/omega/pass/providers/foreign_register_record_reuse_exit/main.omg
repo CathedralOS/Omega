@@ -1,10 +1,10 @@
 // glibc ldiv returns a 16-byte pair in SysV integer result registers.
 use omega::language::core::external_binding;
 
-pub data DivisionResult { quotient: i64; remainder: i64; }
-pub data AllocationProbe {}
-pub boundary requirement AllocationProbe::statistics(numerator: i64, denominator: i64) -> DivisionResult;
-pub boundary requirement AllocationProbe::exit_with(code: i32);
+public data DivisionResult { quotient: i64; remainder: i64; }
+public data AllocationProbe {}
+public boundary requirement AllocationProbe::statistics(numerator: i64, denominator: i64) -> DivisionResult;
+public boundary requirement AllocationProbe::exit_with(code: i32);
 data AllocationProvider {}
 linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 4, 11> {
     ForeignBinding::DllImport {

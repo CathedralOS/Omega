@@ -1,7 +1,7 @@
 use omega_language_std::console;
 // Finite decimal tokens, 0..1000. -1 means malformed, missing, or oversized.
 // Separators are ASCII space and LF. EOF terminates a token, never invents one.
-pub machine read_number() -> i32 in Saturating
+public machine read_number() -> i32 in Saturating
 reaches Console
 invokes Console;
 blocks;
@@ -47,7 +47,7 @@ crashes Trap
     }
 }
 
-pub machine require_end() -> bool reaches Console
+public machine require_end() -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap

@@ -3,10 +3,10 @@
 // entry prologue's inbound argument write, never inferred from zero storage.
 // The body observes the payload and then explicitly consumes the obligation.
 
-pub data ImageHandle [linear] { raw: addr; }
+public data ImageHandle [linear] { raw: addr; }
 boundary requirement ImageHandle::release(handle: ImageHandle);
 
-pub data Main {}
+public data Main {}
 
 boundary machine Main::main(handle: ImageHandle) -> i32 {
     let raw: addr = handle.raw;

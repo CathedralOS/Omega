@@ -16,7 +16,7 @@ use psi::typing::typer;
 // arrays of one shape as that array (landing.omg).
 
 // The type of the first value of a fixed type, or zero.
-pub machine Typer::fixed_join(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues) -> u64 in Trapping
+public machine Typer::fixed_join(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> value(typer, syntax, values, 0) }
@@ -45,7 +45,7 @@ crashes Trap
 }
 
 // Each value meets the join's type exactly, by landing there, or as `Never`.
-pub machine Typer::admit_joined(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping)
+public machine Typer::admit_joined(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> value(typer, syntax, values, result_type, 0) }
@@ -99,12 +99,12 @@ crashes Trap
 // anonymous numbers and choices, one anonymous array type for anonymous
 // arrays, or, when every value is `Never`, the first value's type. A value
 // whose shape differs from those before it is named, its handle plus one.
-pub data UnlandedJoin [copy] {
+public data UnlandedJoin [copy] {
     joined: u64 in Trapping;
     mismatch: u64 in Trapping;
 }
 
-pub machine Typer::unlanded_join(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues) -> UnlandedJoin
+public machine Typer::unlanded_join(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues) -> UnlandedJoin
 crashes Trap
 {
     let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);

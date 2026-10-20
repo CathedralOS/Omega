@@ -4,10 +4,10 @@
 
 use omega::language::core::representation;
 
-pub boundary data Seal;
+public boundary data Seal;
 
-pub data SealBytes [copy] {
+public data SealBytes [copy] {
     value: u64;
 }
 
-pub SealRepresentation satisfies OpaqueRepresentation<Seal, SealBytes> { }
+public SealRepresentation satisfies OpaqueRepresentation<Seal, SealBytes> { }

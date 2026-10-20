@@ -1,5 +1,5 @@
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64 suspends;
 }
 
@@ -10,7 +10,7 @@ InlineSchedulerImplementation satisfies Scheduler {
     }
 }
 
-pub data Envelope<T> { marker: i32; first: T; second: T; }
+public data Envelope<T> { marker: i32; first: T; second: T; }
 data Wrapper<T> { padding: i32; payload: T; }
 machine produce<'storage>(first: &'storage i32, second: &'storage i32)
 -> Envelope<&'storage i32> {

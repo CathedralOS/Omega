@@ -1,2 +1,2 @@
 module m::a;
-pub const SEED: u32 = 7;
+public const SEED: u32 = 7;

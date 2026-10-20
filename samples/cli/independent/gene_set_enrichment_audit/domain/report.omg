@@ -2,7 +2,7 @@ use omega_language_std::console;
 use domain::exact;
 use domain::sets;
 
-pub machine number(value: u64 in Wrapping) reaches Console
+public machine number(value: u64 in Wrapping) reaches Console
 invokes Console;
 {
     // The declared model displays values at most 756. Subtraction extracts
@@ -45,13 +45,13 @@ invokes Console;
     }
 }
 
-pub machine fraction(value: Fraction) reaches Console
+public machine fraction(value: Fraction) reaches Console
 invokes Console;
 {
     number(value.numerator); Console::write("/"); number(value.denominator);
 }
 
-pub machine membership(mask: u64 in Wrapping) reaches Console
+public machine membership(mask: u64 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> step(mask, 0) }
@@ -72,7 +72,7 @@ invokes Console;
     state done() { }
 }
 
-pub machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
+public machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
 invokes Console;
 {
     Console::write("set="); number(identifier);

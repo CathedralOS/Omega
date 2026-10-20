@@ -44,12 +44,12 @@ use targets::windows_x86_64::time_host_impl;
 
 // The selected target owns an ordinary reviewed provider, not a table of
 // compiler-folded answers. Unsupported targets retain their settlement gap.
-pub data TimeHostNativeProvider { }
+public data TimeHostNativeProvider { }
 
 // The target namespace is not a whole-trait implementation. Select this
 // complete map; each inline member makes an ordinary call to its exact target
 // body, retaining that body's raw-provider closure and operational contract.
-pub NativeTimeHost satisfies TimeHost {
+public NativeTimeHost satisfies TimeHost {
     machine monotonic_ticks() -> u64 reaches TimeHost {
         TimeHostNativeProvider::monotonic_ticks()
     }
@@ -75,7 +75,7 @@ pub NativeTimeHost satisfies TimeHost {
     }
 }
 
-pub boundary trait TimeHost {
+public boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
     // Only differences are meaningful.
     machine monotonic_ticks() -> u64 reaches TimeHost;

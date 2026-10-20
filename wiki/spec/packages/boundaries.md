@@ -1,6 +1,6 @@
 # Package declaration and carried-type boundaries
 
-The package is the dependency-reach boundary. `pub` exposes declarations owned
+The package is the dependency-reach boundary. `public` exposes declarations owned
 by the package; `build.omg` declares its dependencies and selections. Undeclared
 aliases are not nameable, and fully qualified spelling does not bypass that
 boundary. There is no export item that relabels a dependency declaration.
@@ -60,7 +60,7 @@ Independently nameable declarations own their own visibility, including
 carrier-qualified declarations. Only genuine members of one exact semantic owner
 inherit visibility. An attached declaration head selects its carrier independently;
 qualification does not admit a transitive-only owner. Exported boundary supply
-has interface exposure even without ordinary `pub`.
+has interface exposure even without ordinary `public`.
 
 Trait parents and body requirements normalize to semantic composition edges but
 retain every authored selection. Generic bounds select their exact right-hand

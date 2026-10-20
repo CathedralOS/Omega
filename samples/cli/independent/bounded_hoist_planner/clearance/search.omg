@@ -17,7 +17,7 @@ machine digit(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturat
     state undefined() -> i32 in Saturating { 0 }
 }
 
-pub machine solve(plan: &Plan, certificate: &mut Certificate) {
+public machine solve(plan: &Plan, certificate: &mut Certificate) {
     certificate.feasible = 0;
     certificate.ties = 0;
     transition { _ -> enumerate(plan, certificate, 0) }

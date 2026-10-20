@@ -4,18 +4,18 @@
 // Wrapping is explicit storage arithmetic, never the scientific model: admission
 // restricts coordinates to 0..8, cell widths to 1..4, and grid extents to 1..4.
 // Thus all intermediates fit i32. No projection, geographic degrees or smoothing.
-pub data Grid [copy] {
+public data Grid [copy] {
     x: i32 in Wrapping; y: i32 in Wrapping;
     width: i32 in Wrapping; height: i32 in Wrapping;
     columns: i32 in Wrapping; rows: i32 in Wrapping;
 }
-pub machine minimum(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
+public machine minimum(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
     transition a < b { true -> a false -> b }
 }
-pub machine maximum(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
+public machine maximum(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
     transition a > b { true -> a false -> b }
 }
-pub machine overlap(x: i32 in Wrapping, y: i32 in Wrapping,
+public machine overlap(x: i32 in Wrapping, y: i32 in Wrapping,
     width: i32 in Wrapping, height: i32 in Wrapping,
     source_x: i32 in Wrapping, source_y: i32 in Wrapping) -> i32 in Wrapping {
     let left: i32 in Wrapping = maximum(x, source_x);

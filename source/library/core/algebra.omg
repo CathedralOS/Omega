@@ -22,7 +22,7 @@
 // Law requirements are resultless theorem slots. Their parameters state the
 // universally quantified operands; satisfiers prove the `ensures` without
 // manufacturing a dummy carrier value.
-pub trait CommutativeSemiring<T> {
+public trait CommutativeSemiring<T> {
     // Algebra operations are total mathematical functions. Publishing that
     // promise is what permits a selected implementation to denote a value in
     // Prop; each satisfier still owes the ordinary termination proof.

@@ -25,7 +25,7 @@ use psi::types::types;
 // facts.
 
 // Record a match the tree's scan met, its first event pending.
-pub machine Checker::add_match(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping)
+public machine Checker::add_match(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping)
 crashes Trap
 {
     transition checker.match_count < 16 {
@@ -49,7 +49,7 @@ crashes Trap
 
 // Fire every match event that begins at `handle`: an enclosing match's
 // before a nested one's, whose handle is lower.
-pub machine Checker::advance_matches(
+public machine Checker::advance_matches(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -339,7 +339,7 @@ crashes Trap
 // The match node: its last arm ends, the facts after it are its arms'
 // join, and its value is already their hull. A match the checker could not
 // track has already been rejected; its value is its type's.
-pub machine Checker::close_match(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool)
+public machine Checker::close_match(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, handle);

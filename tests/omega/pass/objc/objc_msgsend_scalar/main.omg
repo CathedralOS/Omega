@@ -9,12 +9,12 @@
 // register gives something else -> exit 1. Uses only NSObject (defined in
 // libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
 
-pub domain [u8]::CString(bytes)
+public domain [u8]::CString(bytes)
 requires
     no_nul(bytes);
 use omega_language_std::console;
 
-pub boundary trait ObjectiveC {
+public boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
     machine register_selector(name: &[u8] in CString) -> u64;
     machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;

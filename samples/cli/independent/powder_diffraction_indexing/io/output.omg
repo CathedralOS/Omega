@@ -4,7 +4,7 @@ use domain::indexing;
 use omega::language::core::numeric_conversion;
 // These exact metadata values are bounded by the search (at most 765
 // hypotheses and Miller components <=4), far below integer precision loss.
-pub machine integer(value: u64) reaches Console invokes Console; {
+public machine integer(value: u64) reaches Console invokes Console; {
     Console::write(" ");
     transition { _ -> digit(value, 10000000000000000000, false) }
     state digit(value: u64, place: u64, started: bool) requires place > 0 {
@@ -25,7 +25,7 @@ pub machine integer(value: u64) reaches Console invokes Console; {
     state limit() { Console::exit_process(70); }
 }
 // Signed integers in 1e-12 units preserve more than the acceptance precision.
-pub machine number(value: f64) reaches Console invokes Console; {
+public machine number(value: f64) reaches Console invokes Console; {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     let integer: i64 in Wrapping = scaled as i64 in Wrapping;
     Console::write(" ");
@@ -44,7 +44,7 @@ pub machine number(value: f64) reaches Console invokes Console; {
     }
     state done() { }
 }
-pub machine report(problem: &Problem, kind: u64, mask: u64) reaches Console invokes Console; {
+public machine report(problem: &Problem, kind: u64, mask: u64) reaches Console invokes Console; {
     Console::write("hypothesis"); integer(kind); number(problem.lattice); number(problem.scale); Console::write_line("");
     peaks(problem, kind, 0); missing(problem, mask, 0);
     Console::write_line("end");

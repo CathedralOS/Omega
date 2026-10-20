@@ -1,3 +1,3 @@
-pub data Left {
+public data Left {
     value: i32;
 }

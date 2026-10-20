@@ -1,5 +1,5 @@
 // Expected exit: 0. A selected worker provider invokes the supplied body.
-pub boundary trait WorkerProvider {
+public boundary trait WorkerProvider {
     machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     ensures true

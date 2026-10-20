@@ -1,3 +1,3 @@
 use query_dependency::value;
 
-pub machine result() -> u64 ensures result == 7 { value() }
+public machine result() -> u64 ensures result == 7 { value() }

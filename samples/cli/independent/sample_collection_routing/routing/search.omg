@@ -5,7 +5,7 @@
 use routing::model;
 use routing::visit;
 
-pub machine solve(plan: &Plan, certificate: &mut Certificate) {
+public machine solve(plan: &Plan, certificate: &mut Certificate) {
     certificate.feasible = 0;
     certificate.ties = 0;
     transition { _ -> enumerate(plan, certificate, 0) }

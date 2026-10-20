@@ -2,7 +2,7 @@ use omega_language_std::console;
 use data::dataset;
 use partition::allocation;
 use partition::audit;
-pub machine number(value: i32 in Saturating)
+public machine number(value: i32 in Saturating)
 reaches Console
 invokes Console;
 {
@@ -10,7 +10,7 @@ invokes Console;
     Console::write_byte(((value / 10) % 10 + 48) as i32);
     Console::write_byte((value % 10 + 48) as i32);
 }
-pub machine report(data: &Dataset, result: &Allocation, audit: &Audit)
+public machine report(data: &Dataset, result: &Allocation, audit: &Audit)
 reaches Console
 invokes Console;
 {

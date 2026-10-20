@@ -1,6 +1,6 @@
 use domain::array;
-pub data Fixtures { }
-pub machine Fixtures::load(geometry: &mut Geometry, selection: i32) {
+public data Fixtures { }
+public machine Fixtures::load(geometry: &mut Geometry, selection: i32) {
     geometry.positions[0] = 0.0;
     geometry.positions[1] = 0.5;
     geometry.positions[2] = 1.0;

@@ -5,13 +5,13 @@
 // data, and `pump(buffer: &mut [u8])` re-proves the same length
 // across the second boundary.
 //
-//   * `pub boundary trait ByteHost` with `reaches ByteHost`
+//   * `public boundary trait ByteHost` with `reaches ByteHost`
 //     + `requires count <= buffer.len` roster.
 //
 // Compile-checked only: no provider selection at --check.
 
 
-pub boundary trait ByteHost {
+public boundary trait ByteHost {
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
     requires
         count <= buffer.len;

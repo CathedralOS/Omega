@@ -22,7 +22,7 @@ module compose;
 use digest;
 use omega::language::core::numeric_conversion;
 
-pub data Compose {
+public data Compose {
     ok: bool;
     i: u64 in Wrapping;
     j: u64 in Wrapping;

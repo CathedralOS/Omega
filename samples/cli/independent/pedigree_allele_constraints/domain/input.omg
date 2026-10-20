@@ -5,7 +5,7 @@ use domain::model;
 // Parse to an independent token buffer before touching pedigree storage.
 data Tokens { values: [i32; 19]; count: i32 in Wrapping; separated: bool; }
 
-pub machine read(pedigree: &mut Pedigree) -> bool
+public machine read(pedigree: &mut Pedigree) -> bool
 reaches Console
 invokes Console;
 blocks;

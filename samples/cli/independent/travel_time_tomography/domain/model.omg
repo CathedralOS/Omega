@@ -2,19 +2,19 @@
 // No geophysical claims: uniform cells, no refraction, equal observation weights.
 use omega::language::core::float_operations;
 
-pub data Ray [copy] { first: f64; second: f64; time: f64; }
-pub data Problem [copy] {
+public data Ray [copy] { first: f64; second: f64; time: f64; }
+public data Problem [copy] {
     low_first: f64; high_first: f64; low_second: f64; high_second: f64;
     rays: [Ray; 3];
 }
-pub data Fit [copy] {
+public data Fit [copy] {
     first: f64; second: f64; objective: f64;
     rank: i32; null_first: f64; null_second: f64;
 }
-pub machine residual(ray: &Ray, first: f64, second: f64) -> f64 {
+public machine residual(ray: &Ray, first: f64, second: f64) -> f64 {
     ray.first * first + ray.second * second - ray.time
 }
-pub machine objective(problem: &Problem, first: f64, second: f64) -> f64 {
+public machine objective(problem: &Problem, first: f64, second: f64) -> f64 {
     let a: f64 = residual(&problem.rays[0], first, second);
     let b: f64 = residual(&problem.rays[1], first, second);
     let c: f64 = residual(&problem.rays[2], first, second);

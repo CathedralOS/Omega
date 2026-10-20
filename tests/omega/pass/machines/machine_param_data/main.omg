@@ -3,7 +3,7 @@
 // — the family contract is checked at a concrete use (`Stream<sample>`)
 // while a recursive occurrence forwards its own static parameter
 // without storing a callable value.
-pub data Index {
+public data Index {
     case Zero;
     case Next(previous: Index);
 }

@@ -3,7 +3,7 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-pub data Pair [copy] { first: f64; second: f64; }
+public data Pair [copy] { first: f64; second: f64; }
 machine make_pair(x: f64, y: f64) -> Pair {
     Pair { first: x + y, second: x * (y - 1.0) }
 }

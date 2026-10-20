@@ -1,13 +1,13 @@
 use domain::sequence;
 
-pub data Variant [copy] {
+public data Variant [copy] {
     contig: u64 in Wrapping;
     position: u64 in Wrapping;
     removed: u64 in Wrapping;
     inserted: Sequence;
     provenance: u64 in Wrapping;
 }
-pub data Normalization {
+public data Normalization {
     canonical: Variant;
     haplotype: Sequence;
     cost: u64 in Wrapping;
@@ -16,7 +16,7 @@ pub data Normalization {
 // Validate the declared reference allele before constructing the haplotype.
 // Canonical ordering is (removed+inserted, position, removed). For a fixed
 // haplotype and candidate coordinates, the inserted sequence is uniquely fixed.
-pub machine normalize(reference: &Sequence, position: u64 in Wrapping,
+public machine normalize(reference: &Sequence, position: u64 in Wrapping,
                       removed: &Sequence, inserted: &Sequence, result: &mut Normalization) {
     result.status = 1;
     transition reference.length <= 8 && position <= reference.length

@@ -1,6 +1,6 @@
 trait Evidence {}
 proposition available() evidence Evidence;
-pub machine step() -> bool blocks; { true }
+public machine step() -> bool blocks; { true }
 machine scan(remaining: i32 in Wrapping) -> bool
 requires incoming: available()
 {

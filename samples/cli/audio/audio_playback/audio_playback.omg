@@ -16,7 +16,7 @@
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
-pub boundary trait AudioPlayback {
+public boundary trait AudioPlayback {
     machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
         reaches AudioPlayback
         blocks;

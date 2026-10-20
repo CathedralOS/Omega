@@ -25,7 +25,7 @@ machine observe(ignored: u64, items: &[u64; 2], index: u64) -> u64
 requires index < 2
 crashes Trap items[index] == 0
 { maybe_zero(items, index) }
-pub machine read_seven(items: &[u64; 2], index: u64) -> u64
+public machine read_seven(items: &[u64; 2], index: u64) -> u64
 requires index < 2
 requires items[index] == 7
 { let mut carried: u64 = preserve(index); observe(clear(&mut carried), items, carried % 2) }

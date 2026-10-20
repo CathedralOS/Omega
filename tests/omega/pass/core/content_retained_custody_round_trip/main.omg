@@ -7,9 +7,9 @@ use omega::language::core::content;
 
 data ByteUnit {}
 
-pub data Buffer [linear] {}
+public data Buffer [linear] {}
 
-pub domain Buffer::Owned
+public domain Buffer::Owned
 established by Writer::complete;
 
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
@@ -18,9 +18,9 @@ satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 
-pub data PendingWrite [linear] {}
+public data PendingWrite [linear] {}
 
-pub domain PendingWrite::Retained
+public domain PendingWrite::Retained
 established by Writer::submit;
 
 machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
@@ -29,7 +29,7 @@ satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 
-pub boundary trait Writer {
+public boundary trait Writer {
     machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite
     ensures
         result in PendingWrite::Retained;

@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 use model::registration;
 use omega::language::core::numeric_conversion;
 // Signed integers in 1e-12 units preserve more than the acceptance precision.
-pub machine number(value: f64) reaches Console invokes Console; {
+public machine number(value: f64) reaches Console invokes Console; {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     let integer: i64 in Wrapping = scaled as i64 in Wrapping;
     Console::write(" ");
@@ -22,7 +22,7 @@ pub machine number(value: f64) reaches Console invokes Console; {
     }
     state done() { }
 }
-pub machine emit(problem: &Problem) reaches Console invokes Console; {
+public machine emit(problem: &Problem) reaches Console invokes Console; {
     Console::write_line("status fitted; numbers in 1e-12 units");
     Console::write("rotation");
     number(problem.rotation.values[0]);

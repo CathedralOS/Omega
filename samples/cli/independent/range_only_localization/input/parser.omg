@@ -4,7 +4,7 @@ use omega::language::core::numeric_conversion;
 // Exactly 17 small signed decimal fields. No partial record is admitted. The
 // parser bounds magnitude before accumulation, rejects extra fields and any
 // non-decimal byte, and accepts space, tab, CR, LF as separators.
-pub machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
+public machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
     transition { _ -> scan(bytes, problem, 0, 0, 0, false, false, false) }
     state scan(bytes: &[u8], problem: &mut Problem, cursor: u64, field: u64,
         magnitude: i32 in Wrapping, negative: bool, started: bool, digit_seen: bool) -> bool {
@@ -81,7 +81,7 @@ pub machine parse(bytes: &[u8], problem: &mut Problem) -> bool {
     }
 }
 
-pub machine valid(problem: &Problem) -> bool {
+public machine valid(problem: &Problem) -> bool {
     transition problem.values[0] <= problem.values[1] && problem.values[2] <= problem.values[3]
         && problem.values[4] == 3 {
         true -> ranges(problem, 0)

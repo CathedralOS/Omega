@@ -13,7 +13,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state finish(main: &mut Main) { Console::exit_process(0); }
 }
-pub machine number(value: u64 in Wrapping) reaches Console
+public machine number(value: u64 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> digit(value, 10000000000000000000, false) }

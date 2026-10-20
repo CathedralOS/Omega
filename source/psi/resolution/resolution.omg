@@ -9,7 +9,7 @@ use psi::syntax::syntax;
 // none.
 
 // Compiler-installed type names, in the reference compiler's builtin order.
-pub data BuiltinType [copy] {
+public data BuiltinType [copy] {
     case Bool;
     case I8;
     case I16;
@@ -42,7 +42,7 @@ pub data BuiltinType [copy] {
 // A named conformance (`SyntaxTrees::conformances`) is named only as a static
 // argument. Reference, array, slice and integer rows name no declaration:
 // each binds by its form, and the rows of its run carry the names' bindings.
-pub data TypeBinding [copy] {
+public data TypeBinding [copy] {
     case Unresolved;
     // Two visible declarations spell the name; the reference rejects.
     case Ambiguous;
@@ -63,7 +63,7 @@ pub data TypeBinding [copy] {
 // A machine binder's callable contract, `where machine F(...) -> T`
 // (wiki/spec/language/generics.md, Static machine binder categories): the
 // contract row the binder carries, when it has one.
-pub data BinderContract [copy] {
+public data BinderContract [copy] {
     present: bool;
     contract: u64 in Trapping;
 }
@@ -79,7 +79,7 @@ pub data BinderContract [copy] {
 // or conformance containing it) by its `SyntaxTrees::generic_parameters`
 // handle. A constant binding names a `SyntaxTrees::constants` handle, and a
 // proposition binding a `SyntaxTrees::propositions` handle.
-pub data ValueBinding [copy] {
+public data ValueBinding [copy] {
     case NotAName;
     case Unresolved;
     // Two visible declarations spell the name; the reference rejects.
@@ -118,14 +118,14 @@ pub data ValueBinding [copy] {
 // (wiki/spec/terminal-psi/byte_views.md, wiki/spec/terminal-psi/encoding.md):
 // `valid_utf8`, `no_nul`, `ascii_only` and `non_empty`. A declaration of the
 // same spelling is found first.
-pub data BytePredicate [copy] {
+public data BytePredicate [copy] {
     case ValidUtf8;
     case NoNul;
     case AsciiOnly;
     case NonEmpty;
 }
 
-pub data LayoutQuery [copy] {
+public data LayoutQuery [copy] {
     case Size;
     case Align;
 }
@@ -134,7 +134,7 @@ pub data LayoutQuery [copy] {
 // machine (both sides of a conformance's reference row, a domain's
 // establishment route; a trait requirement is a machine) or a domain (an
 // alias constituent).
-pub data PathBinding [copy] {
+public data PathBinding [copy] {
     case Unresolved;
     case Machine(handle: u64 in Trapping);
     case Domain(item: u64 in Trapping);
@@ -143,7 +143,7 @@ pub data PathBinding [copy] {
 // The generic parameters a type name may bind: the enclosing declaration's
 // contiguous range of `SyntaxTrees::generic_parameters`, then, for a trait or
 // conformance member, its container's range, which the member's own shadow.
-pub data TypeScope [copy] {
+public data TypeScope [copy] {
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
     first_outer_parameter: u64 in Trapping;
@@ -156,7 +156,7 @@ pub data TypeScope [copy] {
 // row's `NameResolution::domain_items` entry, and `Case` a case's implied
 // domain (`Type::Case`), whose entry is the case's `SyntaxTrees::data_cases`
 // handle.
-pub data DomainBinding [copy] {
+public data DomainBinding [copy] {
     case Unqualified;
     case Wrapping;
     case Saturating;
@@ -171,14 +171,14 @@ pub data DomainBinding [copy] {
 // and a conformance member are named through their container (`Trait::name`,
 // `Conformance::name`), whose `SyntaxTrees::traits` or `conformances` handle
 // is `item`. Overload families, duplicates and callees compare these paths.
-pub data MachineOwner [copy] {
+public data MachineOwner [copy] {
     container: MachineContainer;
     item: u64 in Trapping;
     has_owner: bool;
     owner: IdentifierSpan;
 }
 
-pub data ResolveDiagnosticCode [copy] {
+public data ResolveDiagnosticCode [copy] {
     case None;
     case UnresolvedImport;
     // A `use` whose first member spells another package's name, or one of
@@ -259,12 +259,12 @@ pub data ResolveDiagnosticCode [copy] {
     case UnknownMeasureComponent;
 }
 
-pub data ResolveDiagnostic [copy] {
+public data ResolveDiagnostic [copy] {
     code: ResolveDiagnosticCode;
     source_span: SourceSpan;
 }
 
-pub data NameResolution
+public data NameResolution
 where
     binding_count <= 65536,
     value_binding_count <= 131072,
@@ -310,7 +310,7 @@ where
     accepted: bool;
 }
 
-pub machine NameResolution::clear(resolution: &mut NameResolution, source: SourceId) {
+public machine NameResolution::clear(resolution: &mut NameResolution, source: SourceId) {
     resolution.binding_count = 0;
     resolution.value_binding_count = 0;
     resolution.path_binding_count = 0;
@@ -323,7 +323,7 @@ pub machine NameResolution::clear(resolution: &mut NameResolution, source: Sourc
     resolution.diagnostic.source_span.span.end = 0;
 }
 
-pub machine NameResolution::reject(
+public machine NameResolution::reject(
     resolution: &mut NameResolution,
     code: ResolveDiagnosticCode,
     source_span: SourceSpan
@@ -334,7 +334,7 @@ pub machine NameResolution::reject(
 }
 
 // The binding of expression `index`, which must be below the bound count.
-pub machine NameResolution::value_binding(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding
+public machine NameResolution::value_binding(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding
 crashes Trap
 {
     transition index < resolution.value_binding_count {
@@ -354,7 +354,7 @@ crashes Trap
 // A machine binder's static argument: a declared machine (the first
 // declaration of the family its name binds), or a binder of the caller's
 // forwarded.
-pub data MachineArgument [copy] {
+public data MachineArgument [copy] {
     case Absent;
     case Declared(machine: u64 in Trapping);
     case Forwarded(parameter: u64 in Trapping);
@@ -362,7 +362,7 @@ pub data MachineArgument [copy] {
 
 // What static argument row `row` names for a machine binder
 // (wiki/spec/language/generics.md#static-machine-binder-categories).
-pub machine NameResolution::machine_argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> MachineArgument
+public machine NameResolution::machine_argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> MachineArgument
 crashes Trap
 {
     let binding: TypeBinding = NameResolution::type_binding_at(resolution, row);
@@ -387,7 +387,7 @@ crashes Trap
 
 // The callable contract generic parameter `parameter` carries; none for a
 // parameter beyond the table.
-pub machine NameResolution::binder_contract(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract {
+public machine NameResolution::binder_contract(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract {
     transition parameter < 256 {
         true -> read(resolution, parameter)
         _ -> none()
@@ -404,7 +404,7 @@ pub machine NameResolution::binder_contract(resolution: &NameResolution, paramet
     }
 }
 
-pub machine NameResolution::set_binder_contract(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
+public machine NameResolution::set_binder_contract(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
 crashes Trap
 {
     transition parameter < 256 {
@@ -424,7 +424,7 @@ crashes Trap
 }
 
 // The requirement clause `index` names, which must be below the bound count.
-pub machine NameResolution::requirement(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding
+public machine NameResolution::requirement(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding
 crashes Trap
 {
     transition index < resolution.requirement_count {
@@ -443,7 +443,7 @@ crashes Trap
 
 // The data a token-bound machine `handle` is homed at, or `Unresolved`;
 // `handle` must be below the machine count.
-pub machine NameResolution::operator_home(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding
+public machine NameResolution::operator_home(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding
 crashes Trap
 {
     transition handle < resolution.machine_owner_count {
@@ -461,7 +461,7 @@ crashes Trap
 }
 
 // Where machine `handle` stands, which must be below the bound count.
-pub machine NameResolution::machine_owner(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner
+public machine NameResolution::machine_owner(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner
 crashes Trap
 {
     transition handle < resolution.machine_owner_count {
@@ -479,7 +479,7 @@ crashes Trap
 }
 
 // The qualifier kind of type reference `row`, below the bound count.
-pub machine NameResolution::domain_binding_at(resolution: &NameResolution, row: u64 in Trapping) -> DomainBinding
+public machine NameResolution::domain_binding_at(resolution: &NameResolution, row: u64 in Trapping) -> DomainBinding
 crashes Trap
 {
     transition row < resolution.binding_count {
@@ -498,7 +498,7 @@ crashes Trap
 
 // The declared domain or case of type reference `row`, below the bound
 // count.
-pub machine NameResolution::domain_item(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping
+public machine NameResolution::domain_item(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition row < resolution.binding_count {
@@ -516,7 +516,7 @@ crashes Trap
 }
 
 // The binding of name path `handle`, below the bound count.
-pub machine NameResolution::path_binding(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
+public machine NameResolution::path_binding(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
 crashes Trap
 {
     transition handle < resolution.path_binding_count {
@@ -535,7 +535,7 @@ crashes Trap
 
 // The binding of type reference `row` while resolution runs: every row
 // below the syntax table's count, bound or not yet.
-pub machine NameResolution::type_binding_at(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding
+public machine NameResolution::type_binding_at(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding
 crashes Trap
 {
     transition row < 65536 {
@@ -553,7 +553,7 @@ crashes Trap
 }
 
 // The binding of name path `handle` while resolution runs.
-pub machine NameResolution::path_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
+public machine NameResolution::path_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
 crashes Trap
 {
     transition handle < 2048 {
@@ -572,7 +572,7 @@ crashes Trap
 
 // The binding of expression `handle` while resolution runs: every
 // expression below the table's capacity, bound or not yet.
-pub machine NameResolution::value_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding
+public machine NameResolution::value_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> ValueBinding
 crashes Trap
 {
     transition handle < 131072 {
@@ -599,7 +599,7 @@ crashes Trap
 // subject up to the upper; `SliceLength` is `Slice::Length`, a slice's
 // length; `IncreasingTo` is `Nat::IncreasingTo(limit)`, one climbing subject's
 // distance up to the view's argument.
-pub data RankingView [copy] {
+public data RankingView [copy] {
     case Default;
     case Descending;
     case BoundedDistance;
@@ -610,7 +610,7 @@ pub data RankingView [copy] {
     case Measure;
 }
 
-pub machine NameResolution::ranking_view(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView {
+public machine NameResolution::ranking_view(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView {
     transition clause < 2048 {
         true -> read(resolution, clause)
         _ -> none()
@@ -627,7 +627,7 @@ pub machine NameResolution::ranking_view(resolution: &NameResolution, clause: u6
     }
 }
 
-pub machine NameResolution::set_ranking_view(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
+public machine NameResolution::set_ranking_view(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
 crashes Trap
 {
     transition clause < 2048 {
@@ -648,7 +648,7 @@ crashes Trap
 
 // The offset of the entry parameter state parameter `parameter` carries,
 // plus one; zero for none or a parameter beyond the table.
-pub machine NameResolution::ranking_measure(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
+public machine NameResolution::ranking_measure(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
     transition clause < 2048 {
         true -> read(resolution, clause)
         _ -> none()
@@ -665,7 +665,7 @@ pub machine NameResolution::ranking_measure(resolution: &NameResolution, clause:
     }
 }
 
-pub machine NameResolution::set_ranking_measure(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
+public machine NameResolution::set_ranking_measure(resolution: &mut NameResolution, clause: u64 in Trapping, measure: u64 in Trapping)
 crashes Trap
 {
     transition clause < 2048 {
@@ -684,7 +684,7 @@ crashes Trap
     }
 }
 
-pub machine NameResolution::component_field(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping {
+public machine NameResolution::component_field(resolution: &NameResolution, member: u64 in Trapping) -> u64 in Trapping {
     transition member < 32000 {
         true -> read(resolution, member)
         _ -> none()
@@ -701,7 +701,7 @@ pub machine NameResolution::component_field(resolution: &NameResolution, member:
     }
 }
 
-pub machine NameResolution::set_component_field(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
+public machine NameResolution::set_component_field(resolution: &mut NameResolution, member: u64 in Trapping, bound: u64 in Trapping)
 crashes Trap
 {
     transition member < 32000 {
@@ -720,7 +720,7 @@ crashes Trap
     }
 }
 
-pub machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
+public machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
     transition parameter < 32768 {
         true -> read(resolution, parameter)
         _ -> none()
@@ -737,7 +737,7 @@ pub machine NameResolution::rank_carrier(resolution: &NameResolution, parameter:
     }
 }
 
-pub machine NameResolution::set_rank_carrier(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
+public machine NameResolution::set_rank_carrier(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
 crashes Trap
 {
     transition parameter < 32768 {

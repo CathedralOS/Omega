@@ -1,5 +1,5 @@
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine read(references: &[&i32; 2]) -> i64 suspends;
 }
 

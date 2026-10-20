@@ -18,7 +18,7 @@ use psi::types::types;
 // traps (#shift-counts).
 
 // The value of a binary operator whose result is a fixed integer.
-pub machine Checker::binary_value(checker: &mut Checker, expression: Expression, row: TypeRow, checking: bool) -> Value
+public machine Checker::binary_value(checker: &mut Checker, expression: Expression, row: TypeRow, checking: bool) -> Value
 crashes Trap
 {
     let left: Value = Checker::value_at(checker, expression.left);
@@ -115,7 +115,7 @@ crashes Trap
 }
 
 // The value of a negation whose result is a fixed integer.
-pub machine Checker::negation_value(checker: &mut Checker, expression: Expression, row: TypeRow, checking: bool) -> Value
+public machine Checker::negation_value(checker: &mut Checker, expression: Expression, row: TypeRow, checking: bool) -> Value
 crashes Trap
 {
     let operand: Value = Checker::value_at(checker, expression.left);
@@ -144,7 +144,7 @@ crashes Trap
 // policy, which governs only the target's later operations. The value must
 // fit the target carrier, and keeps its term. A Boolean converts to zero or
 // one.
-pub machine Checker::conversion_value(checker: &mut Checker, typing: &Typing, expression: Expression, row: TypeRow, checking: bool) -> Value
+public machine Checker::conversion_value(checker: &mut Checker, typing: &Typing, expression: Expression, row: TypeRow, checking: bool) -> Value
 crashes Trap
 {
     let source: Value = Checker::value_at(checker, expression.left);
@@ -197,7 +197,7 @@ crashes Trap
 // `code` rejects when checking), a Trapping one that may not is a crash
 // site, Wrapping keeps the result only when it cannot wrap, and Saturating
 // clamps. A term survives only where the result is the mathematical one.
-pub machine Checker::policy_result(checker: &mut Checker, expression: Expression, row: TypeRow, result: Value, code: CheckDiagnosticCode, checking: bool) -> Value
+public machine Checker::policy_result(checker: &mut Checker, expression: Expression, row: TypeRow, result: Value, code: CheckDiagnosticCode, checking: bool) -> Value
 crashes Trap
 {
     let fits: bool = Value::within(result, row.builtin);
@@ -282,7 +282,7 @@ crashes Trap
 
 // A zero divisor is undefined under every policy but Trapping, where it is
 // the trap.
-pub machine Checker::require_divisor(checker: &mut Checker, expression: Expression, row: TypeRow, divisor: Value, checking: bool)
+public machine Checker::require_divisor(checker: &mut Checker, expression: Expression, row: TypeRow, divisor: Value, checking: bool)
 crashes Trap
 {
     let nonzero: bool = Checker::proves_nonzero(checker, divisor);
@@ -318,7 +318,7 @@ crashes Trap
 
 // A shift count outside `0..width` is undefined unless Wrapping reduces it,
 // and the trap under Trapping.
-pub machine Checker::require_shift_count(checker: &mut Checker, expression: Expression, row: TypeRow, count: Value, checking: bool)
+public machine Checker::require_shift_count(checker: &mut Checker, expression: Expression, row: TypeRow, count: Value, checking: bool)
 crashes Trap
 {
     let width: u64 in Trapping = Checker::width(row.builtin);
@@ -358,7 +358,7 @@ crashes Trap
 }
 
 // The bit width of a fixed-integer carrier.
-pub machine Checker::width(builtin: BuiltinType) -> u64 in Trapping {
+public machine Checker::width(builtin: BuiltinType) -> u64 in Trapping {
     transition builtin {
         BuiltinType::I8 -> bits(8)
         BuiltinType::U8 -> bits(8)

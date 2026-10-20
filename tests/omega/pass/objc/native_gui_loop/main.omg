@@ -17,12 +17,12 @@ use omega::language::core::float_operations;
 // is the end-goal behavior; the only remaining piece is the source-transparent
 // wiring so the UNCHANGED samples' boundary Gui/Clock/Input calls reach it.
 
-pub domain [u8]::CString(bytes)
+public domain [u8]::CString(bytes)
 requires
     no_nul(bytes);
 use omega_language_std::console;
 
-pub boundary trait ObjectiveC {
+public boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
     machine register_selector(name: &[u8] in CString) -> u64;
     machine send(recv: u64, sel: u64) -> u64;
@@ -33,7 +33,7 @@ pub boundary trait ObjectiveC {
     machine send_string(recv: u64, sel: u64, text: &[u8] in CString) -> u64;
 }
 
-pub boundary trait CoreGraphics {
+public boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
     machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
     machine bitmap_context_image(ctx: u64) -> u64;

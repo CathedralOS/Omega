@@ -3,14 +3,14 @@
 // occurs AFTER the Euler update, so numerical instability remains observable.
 use omega::language::core::float_operations;
 
-pub data Circuit [copy] {
+public data Circuit [copy] {
     gain: f64;
     feedback: f64;
     relaxation: f64;
     lower: f64;
     upper: f64;
 }
-pub data Equilibrium [copy] {
+public data Equilibrium [copy] {
     lower_exists: bool;
     interior_exists: bool;
     upper_exists: bool;
@@ -21,14 +21,14 @@ pub data Equilibrium [copy] {
     stable: bool;
     multiplier: f64;
 }
-pub data Observation [copy] {
+public data Observation [copy] {
     output: f64;
     feedback: f64;
     raw: f64;
     overload: i32;
 }
 
-pub machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
+public machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
     let mut result: Equilibrium;
     result.multiplier = 1.0 - circuit.relaxation * (1.0 + circuit.gain * circuit.feedback);
     result.stable = result.multiplier > -1.0 && result.multiplier < 1.0;
@@ -70,7 +70,7 @@ pub machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
     }
 }
 
-pub machine advance(circuit: Circuit, drive: f64, previous: f64) -> Observation {
+public machine advance(circuit: Circuit, drive: f64, previous: f64) -> Observation {
     let mut observed: Observation;
     observed.feedback = circuit.feedback * previous;
     observed.raw = previous + circuit.relaxation * (circuit.gain * (drive - observed.feedback) - previous);

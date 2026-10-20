@@ -24,7 +24,7 @@ use psi::types::types;
 // `requires` facts, effects and `ensures` facts. Values only gather facts
 // while `checking` is false; obligations reject only when it holds, after
 // the body's facts have settled.
-pub machine Checker::evaluate_node(
+public machine Checker::evaluate_node(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -646,7 +646,7 @@ crashes Trap
 }
 
 // The collection type an index or `.len` applies to, through references.
-pub machine Checker::collection_row(typing: &Typing, handle: u64 in Trapping) -> TypeRow
+public machine Checker::collection_row(typing: &Typing, handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
@@ -655,7 +655,7 @@ crashes Trap
 }
 
 // A type's row through any references.
-pub machine Checker::referent_row(typing: &Typing, type_handle: u64 in Trapping) -> TypeRow
+public machine Checker::referent_row(typing: &Typing, type_handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
@@ -682,7 +682,7 @@ crashes Trap
 // any `u64`, since one body serves every specialization.
 // Whether every exclusive reference argument of a call has known storage
 // (`Checker::storage_origin`), from operand `offset` on.
-pub machine Checker::exclusive_arguments_placed(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) -> bool
+public machine Checker::exclusive_arguments_placed(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     let count: u64 in Trapping = Checker::operand_count(expression);
@@ -716,7 +716,7 @@ crashes Trap
 }
 
 // The truth of primitive byte predicate `predicate` of `argument`.
-pub machine Checker::predicate_value(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping, predicate: BytePredicate) -> Value
+public machine Checker::predicate_value(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping, predicate: BytePredicate) -> Value
 crashes Trap
 {
     let written: Expression = SyntaxTrees::expression(syntax, argument);
@@ -849,7 +849,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::array_extent(typing: &Typing, collection: TypeRow) -> Value
+public machine Checker::array_extent(typing: &Typing, collection: TypeRow) -> Value
 crashes Trap
 {
     let extent: TypeRow = TypeTable::row(&typing.types, collection.length);
@@ -871,7 +871,7 @@ crashes Trap
 }
 
 // A collection's length: an array's from its type, a slice's from its place.
-pub machine Checker::collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
+public machine Checker::collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
 crashes Trap
 {
     transition collection.kind == TypeKind::Array {
@@ -906,7 +906,7 @@ crashes Trap
 
 // Whether typing selected a machine, or a machine binder through its
 // contract.
-pub machine Checker::selects_machine(selection: Selection) -> bool {
+public machine Checker::selects_machine(selection: Selection) -> bool {
     transition selection {
         Selection::Machine { handle } -> yes()
         Selection::Binder { parameter } -> yes()
@@ -924,7 +924,7 @@ pub machine Checker::selects_machine(selection: Selection) -> bool {
 
 // How many operands a call-like expression passes: a call's arguments, or
 // an operator's operands when typing selected a machine for it.
-pub machine Checker::operand_count(expression: Expression) -> u64 in Trapping {
+public machine Checker::operand_count(expression: Expression) -> u64 in Trapping {
     transition expression.kind {
         ExpressionKind::Binary -> two()
         _ -> arguments(expression.count)
@@ -941,7 +941,7 @@ pub machine Checker::operand_count(expression: Expression) -> u64 in Trapping {
 
 // The handle of a call-like expression's operand `offset`: a call's
 // argument, or an operator's left then right operand.
-pub machine Checker::operand(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping
+public machine Checker::operand(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition expression.kind {

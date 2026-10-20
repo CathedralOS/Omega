@@ -1,4 +1,4 @@
-pub machine step() -> bool blocks; { true }
+public machine step() -> bool blocks; { true }
 machine scan(remaining: i32 in Wrapping) -> bool
 requires remaining >= 0;
 {

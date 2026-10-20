@@ -3,18 +3,18 @@
 // the outer `open_main_log` only forwards its folder, so the authority
 // flow propagates `derives` up the call graph.
 
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
-pub data Folder {
+public data Folder {
 }
-pub data File {
+public data File {
 }
-pub domain File::Writable
+public domain File::Writable
 established by Filesystem::open;
 
-pub boundary trait Filesystem {
+public boundary trait Filesystem {
     machine open(folder: Folder, path: &[u8] in Utf8) -> File
     ensures
         result in File::Writable

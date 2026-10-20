@@ -2,8 +2,8 @@
 use omega_language_std::calling;
 use omega::language::core::external_binding;
 
-pub data HookProcedurePolicy { }
-pub HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
+public data HookProcedurePolicy { }
+public HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = HookProcedurePolicy::plan;
 }
 
@@ -86,12 +86,12 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 }
 
-pub boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
+public boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
     machine call(message: u64) -> u64;
 }
 
-pub data RegistrarPolicy { }
-pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+public data RegistrarPolicy { }
+public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = RegistrarPolicy::plan;
 }
 
@@ -234,7 +234,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-pub boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
+public boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     machine install<machine Handler>(
         kind: u64,
         native callback procedure from Handler,
@@ -243,15 +243,15 @@ pub boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     where machine Handler satisfies HookProcedure::call;
 }
 
-pub data HookProvider { }
+public data HookProvider { }
 
-pub machine HookProvider::call(message: u64) -> u64
+public machine HookProvider::call(message: u64) -> u64
 satisfies HookProcedure::call
 {
     message
 }
 
-pub linux_x86_64 machine install_binding() -> ForeignBinding<9, 19, 7> {
+public linux_x86_64 machine install_binding() -> ForeignBinding<9, 19, 7> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",

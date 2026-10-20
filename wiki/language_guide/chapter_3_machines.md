@@ -231,7 +231,7 @@ token type explicitly. The trait application, requirement name, static
 telescope, signature and contract form requirement identity.
 
 ```omega
-pub boundary trait InterruptCompletion {
+public boundary trait InterruptCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
         reaches PortIo
         requires

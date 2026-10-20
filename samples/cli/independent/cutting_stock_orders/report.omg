@@ -9,7 +9,7 @@ machine number(value: i32 in Wrapping) reaches Console {
     Console::write_byte((value % 10 + 48) as i32);
     Console::write_byte(32);
 }
-pub machine emit(orders: &model::Orders, plan: &model::Plan) -> bool reaches Console
+public machine emit(orders: &model::Orders, plan: &model::Plan) -> bool reaches Console
 invokes Console;
 {
     Console::write("summary ");

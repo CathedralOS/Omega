@@ -1,5 +1,5 @@
 use omega::language::core::nat;
-pub boundary trait Console {}
+public boundary trait Console {}
 data Observation { value: Nat; }
 machine project<machine Read>(index: Nat) -> Nat
 where machine Read(index: Nat) -> Observation reaches Console terminates;

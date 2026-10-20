@@ -23,7 +23,7 @@ use psi::types::types;
 // always lies in its carrier, whatever its policy
 // (wiki/spec/language/numeric_values.md#integer-equality-and-order). Facts
 // about a place hold until a write to it or to a place containing it.
-pub data PlaceKind [copy] {
+public data PlaceKind [copy] {
     case Parameter;
     case Local;
     case Binder;
@@ -42,7 +42,7 @@ pub data PlaceKind [copy] {
     case Snapshot;
 }
 
-pub data Place [copy] {
+public data Place [copy] {
     kind: PlaceKind;
     // The parameter, `let` statement, pattern field or data field handle.
     handle: u64 in Trapping;
@@ -53,7 +53,7 @@ pub data Place [copy] {
     subject: u64 in Trapping;
 }
 
-pub machine Checker::place_at(checker: &Checker, index: u64 in Trapping) -> Place
+public machine Checker::place_at(checker: &Checker, index: u64 in Trapping) -> Place
 crashes Trap
 {
     transition index < checker.place_count && index < 256 {
@@ -75,7 +75,7 @@ crashes Trap
 // The carrier of an interned type's subject: a fixed integer's, `Bool` for
 // a Boolean, whose subject is 1 when true and 0 when false, or `Never` when
 // the type has no subject.
-pub machine Checker::carrier(typing: &Typing, type_handle: u64 in Trapping) -> BuiltinType
+public machine Checker::carrier(typing: &Typing, type_handle: u64 in Trapping) -> BuiltinType
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
@@ -96,12 +96,12 @@ crashes Trap
 
 // Whether a place of this carrier is a subject: a fixed integer or a
 // Boolean.
-pub machine Checker::has_subject(carrier: BuiltinType) -> bool {
+public machine Checker::has_subject(carrier: BuiltinType) -> bool {
     ExactInteger::is_carrier(carrier) || carrier == BuiltinType::Bool
 }
 
 // Clear the body's places and open its zone over the zero subject alone.
-pub machine Checker::open_places(checker: &mut Checker)
+public machine Checker::open_places(checker: &mut Checker)
 crashes Trap
 {
     checker.place_count = 0;
@@ -115,7 +115,7 @@ crashes Trap
 
 // The place `kind`/`handle` under `parent`, entered on first use. Zero when
 // the tables are full, which rejects the body.
-pub machine Checker::place(
+public machine Checker::place(
     checker: &mut Checker,
     typing: &Typing,
     kind: PlaceKind,
@@ -268,7 +268,7 @@ crashes Trap
 }
 
 // A place's carrier: a slice length's is `u64`, any other place's its type's.
-pub machine Checker::place_carrier(typing: &Typing, kind: PlaceKind, type_handle: u64 in Trapping) -> BuiltinType
+public machine Checker::place_carrier(typing: &Typing, kind: PlaceKind, type_handle: u64 in Trapping) -> BuiltinType
 crashes Trap
 {
     transition kind == PlaceKind::Length {
@@ -288,7 +288,7 @@ crashes Trap
 
 // The place `kind`/`handle` under `parent` (one-based), or zero when the
 // body has not entered it.
-pub machine Checker::find_place(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping) -> u64 in Trapping
+public machine Checker::find_place(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> search(checker, kind, handle, parent, 0) }
@@ -340,7 +340,7 @@ crashes Trap
 }
 
 // A new subject's value lies in its carrier's range.
-pub machine Checker::enter_range(checker: &mut Checker, subject: u64 in Trapping, carrier: BuiltinType)
+public machine Checker::enter_range(checker: &mut Checker, subject: u64 in Trapping, carrier: BuiltinType)
 crashes Trap
 {
     let least: ExactInteger = ExactInteger::minimum(carrier);
@@ -379,7 +379,7 @@ crashes Trap
 // zone its places were entered in, and widening may have dropped a bound
 // that only the carrier implied; the range holds on every arrival all the
 // same.
-pub machine Checker::restore_ranges(checker: &mut Checker, typing: &Typing)
+public machine Checker::restore_ranges(checker: &mut Checker, typing: &Typing)
 crashes Trap
 {
     transition { _ -> next(checker, typing, 0) }
@@ -411,7 +411,7 @@ crashes Trap
 // Forget every fact about `place` and the places it contains, as a write to
 // it or an exclusive loan of it may change them all. The carrier ranges
 // return with the subjects.
-pub machine Checker::forget_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
+public machine Checker::forget_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
     Checker::forget_storage(checker, typing, place, false);
@@ -421,7 +421,7 @@ crashes Trap
 // A view (a range slice's place, a referent below its collection with the
 // slice's node as its handle) shares its collection's storage: writing or
 // lending it exclusively may change any of the collection's contents.
-pub machine Checker::forget_backing(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
+public machine Checker::forget_backing(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
     transition place > 0 && place <= 256 {
@@ -447,7 +447,7 @@ crashes Trap
 // An element store changes collection contents, not the collection's own
 // length. Nested lengths are still mutable contents: replacing an element
 // may replace a slice inside it. Keep all other write bookkeeping shared.
-pub machine Checker::forget_contents(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
+public machine Checker::forget_contents(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
     Checker::forget_storage(checker, typing, place, true);
@@ -493,7 +493,7 @@ crashes Trap
 // The value (one-based place) whose invariant window storing `place` opens:
 // the owner of a stored field when its data carries `where` facts, else
 // zero.
-pub machine Checker::window_owner(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) -> u64 in Trapping
+public machine Checker::window_owner(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition place > 0 {
@@ -528,7 +528,7 @@ crashes Trap
 }
 
 // Whether place `inner` (one-based) is `outer` (one-based) or lies within it.
-pub machine Checker::within(checker: &Checker, inner: u64 in Trapping, outer: u64 in Trapping) -> bool
+public machine Checker::within(checker: &Checker, inner: u64 in Trapping, outer: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> step(checker, inner, outer, 0) }
@@ -566,7 +566,7 @@ crashes Trap
 
 // The value of a name: the place of a local, parameter or binder. A name
 // binding a state, machine or data declaration is no place.
-pub machine Checker::name_value(
+public machine Checker::name_value(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -705,7 +705,7 @@ crashes Trap
 
 // A constant's value: exact when its initializer is an anonymous integer
 // tree landed at its fixed-integer type, else its type's range.
-pub machine Checker::constant_value(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value
+public machine Checker::constant_value(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value
 crashes Trap
 {
     let declaration: ConstantItem = SyntaxTrees::constant_item(syntax, constant);
@@ -732,7 +732,7 @@ crashes Trap
 // The value of `.field` or `.len`: a place below its operand's place, or,
 // for a value that is no place (a call's result), its type's range. An
 // array's length is its type's.
-pub machine Checker::member_value(
+public machine Checker::member_value(
     checker: &mut Checker,
     typing: &Typing,
     handle: u64 in Trapping,
@@ -797,7 +797,7 @@ crashes Trap
 }
 
 // A place's value: its subject's term and interval, or the place alone.
-pub machine Checker::place_value(checker: &Checker, place: u64 in Trapping) -> Value
+public machine Checker::place_value(checker: &Checker, place: u64 in Trapping) -> Value
 crashes Trap
 {
     transition place > 0 {
@@ -831,7 +831,7 @@ crashes Trap
 }
 
 // The place (one-based) whose subject is `subject`; zero when none is.
-pub machine Checker::subject_place(checker: &Checker, subject: u64 in Trapping) -> u64 in Trapping
+public machine Checker::subject_place(checker: &Checker, subject: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition subject > 0 {
@@ -867,7 +867,7 @@ crashes Trap
 // (arrivals.omg) equals the same path below `target` from here on, and
 // each field pending below `source` is pending below `target` too. A
 // slice bound from a view thus keeps the view's length.
-pub machine Checker::copy_fields(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
+public machine Checker::copy_fields(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
 crashes Trap
 {
     Checker::copy_pending(checker, typing, target, source);

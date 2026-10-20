@@ -3,7 +3,7 @@
 // owner receives no such authority merely because the provider is
 // selected — `NonRoot::run` still checks its `reaches Ping` declaration.
 
-pub boundary trait Ping {
+public boundary trait Ping {
     machine ping();
 }
 data PingProvider { }

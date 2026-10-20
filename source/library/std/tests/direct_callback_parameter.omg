@@ -2,7 +2,7 @@
 use omega::language::std::calling;
 
 data HookProcedurePolicy { }
-pub HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
+public HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = HookProcedurePolicy::plan;
 }
 
@@ -73,7 +73,7 @@ boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
 }
 
 data RegistrarPolicy { }
-pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = RegistrarPolicy::plan;
 }
 

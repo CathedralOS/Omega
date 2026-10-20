@@ -1,6 +1,6 @@
 use model::audit;
 // Authored fixture data, independent of the reference and expected outputs.
-pub machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
+public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
     transition profile {
         1 -> profile_1(assembly)
         2 -> profile_2(assembly)

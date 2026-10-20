@@ -1,5 +1,5 @@
 // The Boolean carrier is valid, but the exact public predicate is false.
-pub boundary trait Service {
+public boundary trait Service {
     machine echo<const Selected: bool>(value: i32) -> i32 where Selected == true;
 }
 Provider satisfies Service { Service::echo = echo; }

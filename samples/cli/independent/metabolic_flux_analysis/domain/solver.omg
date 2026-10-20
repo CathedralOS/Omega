@@ -4,7 +4,7 @@ use omega::language::core::numeric_conversion;
 // free. A full-column-rank free system gives one vertex; all vertices occur.
 // Bareiss elimination uses integer minors and checked exact divisions. Equality
 // of optimal objectives is rational equality, never a floating tolerance.
-pub data Solver {
+public data Solver {
     metabolites: i32 in Wrapping; reactions: i32 in Wrapping; biomass: i32 in Wrapping;
     matrix: [i64 in Wrapping; 24]; lower: [i64 in Wrapping; 6]; upper: [i64 in Wrapping; 6];
     free: [i64 in Wrapping; 6]; free_count: i32 in Wrapping;
@@ -14,31 +14,31 @@ pub data Solver {
     maxima: [i64 in Wrapping; 6]; maximum_denominators: [i64 in Wrapping; 6];
     found: bool;
 }
-pub machine read_six(values: &[i64 in Wrapping; 6], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
+public machine read_six(values: &[i64 in Wrapping; 6], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition index >= 0 && index < 6 { true -> (values[index]) _ -> invalid() }
     state invalid() -> i64 in Wrapping { crash Trap; }
 }
-pub machine write_six(values: &mut [i64 in Wrapping; 6], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
+public machine write_six(values: &mut [i64 in Wrapping; 6], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
     transition index >= 0 && index < 6 { true -> write(values, index, value) _ -> invalid() }
     state write(values: &mut [i64 in Wrapping; 6], index: i32 in Wrapping, value: i64 in Wrapping)
     requires index >= 0 && index < 6 { values[index] = value; }
     state invalid() { crash Trap; }
 }
-pub machine read_matrix(values: &[i64 in Wrapping; 24], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
+public machine read_matrix(values: &[i64 in Wrapping; 24], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition index >= 0 && index < 24 { true -> (values[index]) _ -> invalid() }
     state invalid() -> i64 in Wrapping { crash Trap; }
 }
-pub machine write_matrix(values: &mut [i64 in Wrapping; 24], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
+public machine write_matrix(values: &mut [i64 in Wrapping; 24], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
     transition index >= 0 && index < 24 { true -> write(values, index, value) _ -> invalid() }
     state write(values: &mut [i64 in Wrapping; 24], index: i32 in Wrapping, value: i64 in Wrapping)
     requires index >= 0 && index < 24 { values[index] = value; }
     state invalid() { crash Trap; }
 }
-pub machine read_work(values: &[i64 in Wrapping; 28], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
+public machine read_work(values: &[i64 in Wrapping; 28], index: i32 in Wrapping) -> i64 in Wrapping crashes Trap {
     transition index >= 0 && index < 28 { true -> (values[index]) _ -> invalid() }
     state invalid() -> i64 in Wrapping { crash Trap; }
 }
-pub machine write_work(values: &mut [i64 in Wrapping; 28], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
+public machine write_work(values: &mut [i64 in Wrapping; 28], index: i32 in Wrapping, value: i64 in Wrapping) crashes Trap {
     transition index >= 0 && index < 28 { true -> write(values, index, value) _ -> invalid() }
     state write(values: &mut [i64 in Wrapping; 28], index: i32 in Wrapping, value: i64 in Wrapping)
     requires index >= 0 && index < 28 { values[index] = value; }
@@ -51,7 +51,7 @@ machine quotient(numerator: i64 in Wrapping, denominator: i64 in Wrapping) -> i6
     }
     state invalid() -> i64 in Wrapping { crash Trap; }
 }
-pub machine solve(solver: &mut Solver) crashes Trap {
+public machine solve(solver: &mut Solver) crashes Trap {
     solver.found = false;
     transition { _ -> limit(solver, 0, 1) }
     state limit(solver: &mut Solver, index: i32 in Wrapping, count: i32 in Wrapping) {

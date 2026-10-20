@@ -5,7 +5,7 @@ module io::input;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use model::scale;
-pub data Input {
+public data Input {
  values:[f64;69]; mantissas:[f64;69]; powers:[i32 in Wrapping;69];
  coefficients:[u64 in Wrapping;69]; negative:[bool;69]; count:u32 in Saturating;
  coefficient:u64 in Wrapping; fraction:i32 in Wrapping; exponent:i32 in Wrapping;
@@ -19,7 +19,7 @@ machine reset(input:&mut Input) {
  input.active=false; input.decimal=false; input.exponent_mode=false;
  input.negative_token=false; input.exponent_negative=false; input.exponent_sign=false;
 }
-pub machine parse(input:&mut Input) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine parse(input:&mut Input) -> bool reaches Console invokes Console; blocks; crashes Trap {
  input.count=0; reset(input);
  transition { _ -> read(input,0) }
  state read(input:&mut Input,bytes:u32 in Saturating) -> bool {

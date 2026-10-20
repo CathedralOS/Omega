@@ -22,7 +22,7 @@ invokes Console;
     Console::write_byte(10);
 }
 
-pub machine report(certificate: &Certificate) reaches Console
+public machine report(certificate: &Certificate) reaches Console
 invokes Console;
 {
     Console::write_line("clearance_route_planner: synthetic span-height clearance model");

@@ -4,7 +4,7 @@ use omega::language::core::numeric_conversion;
 
 // Rescan all records at each distinct time. The risk set includes every tied
 // censor until all tied events are accounted for. No sort order affects counts.
-pub machine analyze(records: &Records, group: i32 in Wrapping, table: &mut Table, logrank: &mut Logrank) {
+public machine analyze(records: &Records, group: i32 in Wrapping, table: &mut Table, logrank: &mut Logrank) {
     table.numerator = [1,0,0,0]; table.denominator = [1,0,0,0];
     table.count = 0; table.median_status = 0; table.median = 0.0;
     transition { _ -> next(records, group, table, logrank, -1.0, 1.0, 0.0) }

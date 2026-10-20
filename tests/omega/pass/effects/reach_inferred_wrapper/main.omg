@@ -1,10 +1,10 @@
 // Transitive effect inference: the direct boundary caller declares
 // `reaches Console`; the wrapper `greet` propagates that reach without
 // repeating the declaration.
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-pub boundary trait Console {
+public boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Console;

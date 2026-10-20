@@ -3,7 +3,7 @@ use fixtures;
 use graph;
 use geometry;
 // Re-evaluate the emitted path, rather than trusting adjacency or stored cost.
-pub machine route(scene: &fixtures::Scene, planner: &graph::Planner,
+public machine route(scene: &fixtures::Scene, planner: &graph::Planner,
                   radius: i64 in Wrapping) -> bool {
     transition planner.route_count >= 2 && planner.route_count <= 6 {
         true -> endpoints(scene, planner, radius, planner.route_count - 1)
@@ -79,7 +79,7 @@ pub machine route(scene: &fixtures::Scene, planner: &graph::Planner,
 }
 // A separating cut proves roadmap infeasibility. It explicitly includes start,
 // excludes goal, and has no physically admissible edge crossing to its complement.
-pub machine cut(scene: &fixtures::Scene, planner: &graph::Planner,
+public machine cut(scene: &fixtures::Scene, planner: &graph::Planner,
                 radius: i64 in Wrapping) -> bool {
     transition (planner.witness & 1) == 1 && (planner.witness & 2) == 0 {
         true -> row(scene, planner, radius, 0)

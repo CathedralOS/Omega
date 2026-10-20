@@ -782,7 +782,7 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
 
 #[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
-    let tokens = Lexer::new("pub measure Counter::Zero(value: i32) -> i32 { 0 }")
+    let tokens = Lexer::new("public measure Counter::Zero(value: i32) -> i32 { 0 }")
         .tokenize()
         .expect("tokenize declaration");
     let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
@@ -836,7 +836,7 @@ fn parses_relevance_on_ordinary_numbered_fields() {
 #[test]
 fn parses_primitive_witness_and_transparent_proposition_declarations() {
     let source = r#"
-        pub proposition related(left: i32, right: i32);
+        public proposition related(left: i32, right: i32);
 
         proposition converges_together<machine Left, machine Right>(
             left: Stream<Left>,

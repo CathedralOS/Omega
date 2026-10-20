@@ -1,3 +1,3 @@
-pub machine shared_seed() -> i32 {
+public machine shared_seed() -> i32 {
     3
 }

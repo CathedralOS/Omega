@@ -134,12 +134,12 @@ not a common-carrier promotion. This does not change operator selection or add
 conversions to ordinary machine arguments.
 
 An operator binding is a property of an ordinary named machine declaration,
-package-private unless declared `pub machine`. A qualified path does not inherit
+package-private unless declared `public machine`. A qualified path does not inherit
 its namespace type's visibility. An optional fixed token immediately after
 `machine` binds operator syntax to that declaration:
 
 ```omega
-pub machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+public machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
     add_vectors(left, right)
 }
 ```

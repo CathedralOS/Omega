@@ -1,13 +1,13 @@
-pub data GeneratedPair {
+public data GeneratedPair {
     left: i32;
     right: i32;
 }
 
-pub machine generated_offset() -> i32 {
+public machine generated_offset() -> i32 {
     seed() + 1
 }
 
-pub machine generated_check() {
+public machine generated_check() {
     let pair: GeneratedPair = GeneratedPair { left: seed(), right: generated_offset() };
     transition pair.left == 7 {
         true -> later(pair)

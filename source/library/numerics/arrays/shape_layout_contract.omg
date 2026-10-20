@@ -3,14 +3,14 @@
 // arithmetic is used only after those guards establish mathematical exactness.
 // Mutable injectivity follows the minimal integer solution of dr*sr = dc*sc.
 
-pub data Layout2 [copy] {
+public data Layout2 [copy] {
     rows: u64; columns: u64; origin: u64;
     row_stride: u64; column_stride: u64;
 }
-pub data IndexResult [copy] { case Invalid; case Ok(index: u64); }
-pub data ReadResult [copy] { case Invalid; case Ok(value: i32); }
+public data IndexResult [copy] { case Invalid; case Ok(index: u64); }
+public data ReadResult [copy] { case Invalid; case Ok(value: i32); }
 
-pub machine try_offset(layout: &Layout2, backing_length: u64, row: u64, column: u64) -> IndexResult {
+public machine try_offset(layout: &Layout2, backing_length: u64, row: u64, column: u64) -> IndexResult {
     transition row < layout.rows && column < layout.columns && layout.origin < backing_length {
         true -> row_capacity(layout, backing_length, row, column)
         false -> IndexResult::Invalid
@@ -56,7 +56,7 @@ pub machine try_offset(layout: &Layout2, backing_length: u64, row: u64, column: 
     }
 }
 
-pub machine valid_readonly(layout: &Layout2, backing_length: u64) -> bool {
+public machine valid_readonly(layout: &Layout2, backing_length: u64) -> bool {
     transition layout.rows == 0 || layout.columns == 0 {
         true -> (layout.origin <= backing_length)
         false -> nonempty(layout, backing_length)
@@ -78,7 +78,7 @@ terminates by right -> Nat::Descending;
     }
 }
 
-pub machine valid_mutable(layout: &Layout2, backing_length: u64) -> bool {
+public machine valid_mutable(layout: &Layout2, backing_length: u64) -> bool {
     let bounded: bool = valid_readonly(layout, backing_length);
     transition bounded {
         true -> injective(layout)
@@ -116,17 +116,17 @@ pub machine valid_mutable(layout: &Layout2, backing_length: u64) -> bool {
     }
 }
 
-pub machine transpose(layout: &Layout2) -> Layout2 {
+public machine transpose(layout: &Layout2) -> Layout2 {
     Layout2 { rows: layout.columns, columns: layout.rows, origin: layout.origin,
         row_stride: layout.column_stride, column_stride: layout.row_stride }
 }
 
-pub machine read_checked(backing: &[i32], index: u64) -> i32
+public machine read_checked(backing: &[i32], index: u64) -> i32
 requires index < backing.len {
     backing[index]
 }
 
-pub machine try_read(backing: &[i32], layout: &Layout2, row: u64, column: u64) -> ReadResult {
+public machine try_read(backing: &[i32], layout: &Layout2, row: u64, column: u64) -> ReadResult {
     let admitted: bool = valid_readonly(layout, backing.len);
     transition admitted {
         true -> locate(backing, layout, row, column)
@@ -147,7 +147,7 @@ pub machine try_read(backing: &[i32], layout: &Layout2, row: u64, column: u64) -
     }
 }
 
-pub machine try_write(backing: &mut [i32], layout: &Layout2, row: u64, column: u64, value: i32) -> bool {
+public machine try_write(backing: &mut [i32], layout: &Layout2, row: u64, column: u64, value: i32) -> bool {
     let admitted: bool = valid_mutable(layout, backing.len);
     transition admitted {
         true -> locate(backing, layout, row, column, value)

@@ -19,11 +19,11 @@ verification.
 `compiler/tests/contract_application_terms.rs::runtime_body_calls_execute_with_checked_premises`:
 
 ```omega
-pub machine observe(value: bool) -> bool
+public machine observe(value: bool) -> bool
 terminates;
 { transition { _ -> (value == true) } }
 
-pub machine restricted(left: bool, right: bool) -> bool
+public machine restricted(left: bool, right: bool) -> bool
 requires observe(left) == observe(right);
 terminates;
 { left }

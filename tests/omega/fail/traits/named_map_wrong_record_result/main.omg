@@ -1,8 +1,8 @@
-pub data Status [copy] { code: u64; }
-pub boundary trait Reports {
+public data Status [copy] { code: u64; }
+public boundary trait Reports {
     machine status() -> Status ensures result.code == 7;
 }
-pub WrongReports satisfies Reports {
+public WrongReports satisfies Reports {
     machine status() -> Status ensures result.code == 8; {
         Status { code: 8 }
     }

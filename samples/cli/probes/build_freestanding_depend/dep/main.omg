@@ -1,3 +1,3 @@
-pub machine value() -> i32 {
+public machine value() -> i32 {
     1
 }

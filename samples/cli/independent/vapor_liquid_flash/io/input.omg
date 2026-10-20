@@ -2,11 +2,11 @@ module io::input;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 
-pub data Raw { values: [f64; 17]; count: u32; }
-pub data Feed { count: u32; fractions: [f64; 8]; ratios: [f64; 8]; }
+public data Raw { values: [f64; 17]; count: u32; }
+public data Feed { count: u32; fractions: [f64; 8]; ratios: [f64; 8]; }
 // Finite decimal grammar, 1023 bytes, 32 characters/token, 17 tokens.
 // No floating parser can manufacture NaN/Inf; exponent and sign tokens refuse.
-pub machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> read(raw, 0.0, 1.0, false, false, false, 0, 0) }
     state read(raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32) -> bool {
         transition bytes < 1024 {
@@ -93,7 +93,7 @@ pub machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks
     state good() -> bool { true }
     state bad() -> bool { false }
 }
-pub machine validate(raw: &Raw, feed: &mut Feed) -> bool {
+public machine validate(raw: &Raw, feed: &mut Feed) -> bool {
     transition raw.count >= 5 && raw.values[0] >= 2.0 && raw.values[0] <= 8.0 {
         true -> count(raw, feed)
         false -> bad()

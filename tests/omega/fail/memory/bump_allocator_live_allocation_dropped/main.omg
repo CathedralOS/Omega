@@ -7,12 +7,12 @@
 use omega::language::core::extent;
 use omega::language::core::content;
 
-pub data Split {
+public data Split {
     taken: Extent in Granted & Vacant;
     rest: Extent in Granted & Vacant;
 }
 
-pub boundary trait ExtentPartition {
+public boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         Granted::content(old(&whole))

@@ -1,14 +1,14 @@
 use omega::language::core::float_operations;
 use domain::model;
-pub machine absolute(value: f64) -> f64 {
+public machine absolute(value: f64) -> f64 {
     transition value < 0.0 { true -> (0.0 - value) false -> (value) }
 }
-pub machine distance(x: f64, y: f64, site_x: f64, site_y: f64) -> f64 {
+public machine distance(x: f64, y: f64, site_x: f64, site_y: f64) -> f64 {
     let horizontal: f64 = x - site_x;
     let vertical: f64 = y - site_y;
     horizontal * horizontal + vertical * vertical
 }
-pub machine area(polygon: &Polygon) -> f64 {
+public machine area(polygon: &Polygon) -> f64 {
     transition { _ -> edge(polygon, 0, 0.0) }
     state edge(polygon: &Polygon, index: u64, sum: f64) -> f64 {
         let count: u64 = polygon.count;
@@ -27,7 +27,7 @@ pub machine area(polygon: &Polygon) -> f64 {
 }
 // Each boundary edge must put every non-endpoint vertex strictly to its left.
 // This rejects repeated vertices, collinearity, self-intersections and CW order.
-pub machine boundary_valid(polygon: &Polygon) -> bool {
+public machine boundary_valid(polygon: &Polygon) -> bool {
     transition { _ -> edge(polygon, 0) }
     state edge(polygon: &Polygon, index: u64) -> bool {
         let count: u64 = polygon.count;
@@ -60,7 +60,7 @@ pub machine boundary_valid(polygon: &Polygon) -> bool {
         transition { _ -> edge(polygon, index + 1) }
     }
 }
-pub machine sites_valid(partition: &Partition) -> bool {
+public machine sites_valid(partition: &Partition) -> bool {
     transition { _ -> site(partition, 0, 0) }
     state site(partition: &Partition, index: u64, edge: u64) -> bool {
         transition index < partition.site_count && index < 8 {

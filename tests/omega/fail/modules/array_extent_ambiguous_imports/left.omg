@@ -1,2 +1,2 @@
 module left;
-pub const Count: u64 = 2;
+public const Count: u64 = 2;

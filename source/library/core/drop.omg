@@ -14,5 +14,5 @@
 // here. This is not a direct call to `T::drop`; cleanup runs at the
 // edge under the ownership contract, not inside authored statements.
 
-pub machine drop<T>(value: T) {
+public machine drop<T>(value: T) {
 }

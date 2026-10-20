@@ -2,7 +2,7 @@ use domain::network;
 use platform::decimal;
 use omega_language_std::console;
 
-pub data Solver {
+public data Solver {
     network: Network;
     roots: i64 in Wrapping;
     feasible: i64 in Wrapping;
@@ -37,7 +37,7 @@ machine report(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrappi
 // emitted once, and sign brackets are bisected to one 1/1024-unit tick.
 // A quadratic's double root has no sign change: handle its exact integer
 // discriminant separately, including non-grid rational vertices.
-pub machine solve(solver: &mut Solver)
+public machine solve(solver: &mut Solver)
 reaches Console
 invokes Console;
 {

@@ -1,3 +1,3 @@
 data Atomic {}
 data FenceOrdering [copy] { case Receive; case Publish; case ReceivePublish; }
-pub machine Atomic::fence(ordering: FenceOrdering);
+public machine Atomic::fence(ordering: FenceOrdering);

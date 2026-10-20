@@ -8,7 +8,7 @@ use psi::tokens::tokens;
 // are checked (an unterminated block comment rejects) but are not stored:
 // no consumer reads them, and the stream holds only what the parser reads.
 
-pub data Lexer {
+public data Lexer {
     source: SourceUnit;
     output: TokenStream;
 
@@ -46,17 +46,17 @@ pub data Lexer {
     candidate_cursor: u64 in Trapping;
 }
 
-pub machine Lexer::initialize(lexer: &mut Lexer, source_id: u32 in Trapping) {
+public machine Lexer::initialize(lexer: &mut Lexer, source_id: u32 in Trapping) {
     SourceUnit::clear(&mut lexer.source, SourceId { value: source_id });
     TokenStream::clear(&mut lexer.output, SourceId { value: source_id });
     lexer.cursor = 0;
 }
 
-pub machine Lexer::append_source_byte(lexer: &mut Lexer, byte: u8) {
+public machine Lexer::append_source_byte(lexer: &mut Lexer, byte: u8) {
     SourceUnit::append(&mut lexer.source, byte);
 }
 
-pub machine Lexer::reject(
+public machine Lexer::reject(
     lexer: &mut Lexer,
     code: LexDiagnosticCode,
     start: u64 in Trapping,
@@ -446,8 +446,8 @@ machine Lexer::classify_keyword(lexer: &mut Lexer) {
     state machine_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "machine"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Machine) _ -> match_kw(lexer) } }
     state match_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "match"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Match) _ -> owns_kw(lexer) } }
     state owns_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "owns"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Owns) _ -> platform_kw(lexer) } }
-    state platform_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "platform"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Platform) _ -> pub_kw(lexer) } }
-    state pub_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "pub"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Pub) _ -> return_kw(lexer) } }
+    state platform_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "platform"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Platform) _ -> public_kw(lexer) } }
+    state public_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "public"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Public) _ -> return_kw(lexer) } }
     state return_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "return"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Return) _ -> self_value_kw(lexer) } }
     state self_value_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "self"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::SelfValue) _ -> state_kw(lexer) } }
     state state_kw(lexer: &mut Lexer) { Lexer::token_equals(lexer, "state"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::State) _ -> struct_kw(lexer) } }
@@ -1325,7 +1325,7 @@ machine Lexer::lex_next(lexer: &mut Lexer) {
 
 // Bounded array reads carry their collection's Trapping policy, so tokenizing
 // publishes the same crash route its callees do.
-pub machine Lexer::tokenize(lexer: &mut Lexer)
+public machine Lexer::tokenize(lexer: &mut Lexer)
 crashes Trap
 {
     TokenStream::clear(&mut lexer.output, lexer.source.id);

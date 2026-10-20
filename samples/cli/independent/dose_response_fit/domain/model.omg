@@ -1,6 +1,6 @@
 // Synthetic bounded 4PL. Controls observe the low/high dose limits directly;
 // every replicate remains one equally weighted observation.
-pub data Observations {
+public data Observations {
     count: i32 in Wrapping;
     direction: i32;
     sigma: f64;
@@ -19,7 +19,7 @@ pub data Observations {
     lower_log_half: f64;
     upper_log_half: f64;
 }
-pub data Candidate [copy] {
+public data Candidate [copy] {
     low: f64;
     high: f64;
     log_half: f64;
@@ -28,8 +28,8 @@ pub data Candidate [copy] {
     converged: bool;
     iterations: i32 in Wrapping;
 }
-pub data Profile [copy] { fixed: i32; value: f64; }
-pub data Fit {
+public data Profile [copy] { fixed: i32; value: f64; }
+public data Fit {
     candidate: Candidate;
     lower: [f64; 4];
     upper: [f64; 4];

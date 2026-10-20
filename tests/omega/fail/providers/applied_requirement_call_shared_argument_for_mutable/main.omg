@@ -1,7 +1,7 @@
 // A shared reference cannot supply the `&mut` parameter of an applied
 // requirement, whether the call is a statement or produces a value and
 // whether the parameter spells the trait's type parameter or a concrete type.
-pub boundary trait Parent<Value> {
+public boundary trait Parent<Value> {
     machine mutate(value: &mut Value) -> i32;
     machine touch(value: &mut i32);
 }

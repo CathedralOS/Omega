@@ -2,7 +2,7 @@
 // `&mut [u64]` through the borrowed-view presentation; the Fused entry
 // receiver keeps its Terminal attachment while it lends the field.
 
-pub boundary trait Ping {
+public boundary trait Ping {
     machine ping();
 }
 data PingProvider { }

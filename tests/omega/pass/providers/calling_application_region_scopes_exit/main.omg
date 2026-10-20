@@ -1,7 +1,7 @@
 // Expected exit: 0. Both trait lifetime arguments and Value share the supplying
 // region. The method binder named 'provider stays separate from Reader's binder.
 
-pub boundary trait Reading<'first, 'second, Value> {
+public boundary trait Reading<'first, 'second, Value> {
     machine read<'provider>(value: Value, other: &'provider i32) -> i32;
 }
 Reader<'provider> satisfies Reading<'provider, 'provider, &'provider i32> {

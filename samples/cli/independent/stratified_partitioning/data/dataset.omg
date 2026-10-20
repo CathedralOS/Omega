@@ -1,10 +1,10 @@
 use input::parser;
-pub data Record [copy] {
+public data Record [copy] {
     id: i32 in Saturating;
     group: i32 in Saturating;
     stratum: i32 in Saturating;
 }
-pub data Dataset {
+public data Dataset {
     records: [Record; 16];
     totals: [i32; 3] in Saturating;
     count: i32 in Saturating;
@@ -12,7 +12,7 @@ pub data Dataset {
     denominator: i32 in Saturating;
     valid: bool;
 }
-pub machine Dataset::load(data: &mut Dataset, tokens: &Tokens) {
+public machine Dataset::load(data: &mut Dataset, tokens: &Tokens) {
     data.numerator = Tokens::at(tokens, 0);
     data.denominator = Tokens::at(tokens, 1);
     data.count = Tokens::at(tokens, 2);

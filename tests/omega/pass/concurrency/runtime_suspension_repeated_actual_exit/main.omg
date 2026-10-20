@@ -1,9 +1,9 @@
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine advance(first: i32, second: i32, left: Marker, right: Marker) -> i32 suspends;
 }
 
-pub data Marker [copy] { value: i32; }
+public data Marker [copy] { value: i32; }
 
 InlineSchedulerImplementation satisfies Scheduler {
     machine advance(first: i32, second: i32, left: Marker, right: Marker) -> i32 {

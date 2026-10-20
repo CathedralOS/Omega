@@ -1,6 +1,6 @@
-pub data Input [copy] {value:i32;}
-pub data Reader {}
-pub boundary requirement Reader::read(prefix:i32,source:&Input,suffix:i32)->i32
+public data Input [copy] {value:i32;}
+public data Reader {}
+public boundary requirement Reader::read(prefix:i32,source:&Input,suffix:i32)->i32
  crashes Trap !(prefix==11 && source.value>=0 && suffix==19);
 data Provider {}
 machine Provider::read(prefix:i32,source:&Input,suffix:i32)->i32 satisfies Reader::read {source.value}

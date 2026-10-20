@@ -14,7 +14,7 @@ use psi::typing::typer;
 // with `true` and with `false`, or one pair of expressions with `==` and
 // with `!=`, the two sides structurally the same (`Typer::same_tree`). Any
 // other ladder of literals, comparisons or predicates closes with `_`.
-pub machine Typer::covers(
+public machine Typer::covers(
     typer: &Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -352,7 +352,7 @@ crashes Trap
 }
 
 // An equality of an expression with a Boolean literal, either side.
-pub data BooleanComparison [copy] {
+public data BooleanComparison [copy] {
     compared: bool;
     subject: u64 in Trapping;
     value: bool;
@@ -390,7 +390,7 @@ crashes Trap
 // among them, never the same. A tree's nodes are contiguous and children
 // precede parents, so equal trees align at equal offsets from their lowest
 // nodes.
-pub machine Typer::same_tree(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, left_root: u64 in Trapping, right_root: u64 in Trapping) -> bool
+public machine Typer::same_tree(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, left_root: u64 in Trapping, right_root: u64 in Trapping) -> bool
 crashes Trap
 {
     let left: Expression = SyntaxTrees::expression(syntax, left_root);

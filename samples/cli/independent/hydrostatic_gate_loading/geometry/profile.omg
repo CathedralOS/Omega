@@ -2,13 +2,13 @@
 // Nodes are validated before clipping; a zero width is a legitimate tip.
 use omega::language::core::float_operations;
 
-pub data Node [copy] { elevation: f64; width: f64; }
-pub data Profile { nodes: [Node; 8]; count: u64 in Wrapping; }
-pub data WetSegment [copy] {
+public data Node [copy] { elevation: f64; width: f64; }
+public data Profile { nodes: [Node; 8]; count: u64 in Wrapping; }
+public data WetSegment [copy] {
     lower: f64; upper: f64; lower_width: f64; upper_width: f64;
 }
 
-pub machine clip(lower: Node, upper: Node, water: f64) -> WetSegment {
+public machine clip(lower: Node, upper: Node, water: f64) -> WetSegment {
     transition water <= lower.elevation {
         true -> dry(lower.elevation)
         false -> choose_top(lower, upper, water)

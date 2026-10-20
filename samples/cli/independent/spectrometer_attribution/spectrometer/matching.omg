@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // All lines within the inclusive tolerance remain candidates. Nearest is only
 // a deterministic preference: equal distances keep the earlier catalog ID.
 // A many-candidate region is reported as ambiguous, never asserted unique.
-pub machine match_regions(spectrum: &Spectrum, regions: &mut Regions) {
+public machine match_regions(spectrum: &Spectrum, regions: &mut Regions) {
     transition { _ -> region(spectrum, regions, 0) }
     state region(spectrum: &Spectrum, regions: &mut Regions, index: i32 in Wrapping) {
         transition index >= 0 && index < regions.count && index < 8 {

@@ -4,7 +4,7 @@
 // the two argument places; the fail sibling
 // `fail/recast/boundary_equality_retired_by_out_argument_write` shows a later
 // write to one of them retiring it.
-pub boundary trait Firmware {
+public boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
     ensures size == cap && cap <= 8;
 }

@@ -5,26 +5,26 @@
 // only the named boundary routes mint it.
 //
 //   * `established by A::m, B::m` multi-route rosters.
-//   * `pub boundary trait` + `pub data` + `pub domain` trio.
+//   * `public boundary trait` + `public data` + `public domain` trio.
 //
 // Compile-checked only: declaration surface, no standard-library
 // dependency.
 
 
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
-pub data Folder {
+public data Folder {
 }
 
-pub data File {
+public data File {
 }
 
-pub domain File::Writable
+public domain File::Writable
 established by Filesystem::open;
 
-pub boundary trait Filesystem {
+public boundary trait Filesystem {
     machine open(folder: Folder, path: &[u8] in Utf8) -> File
     ensures
         result in File::Writable
@@ -32,10 +32,10 @@ pub boundary trait Filesystem {
         Filesystem;
 }
 
-pub domain Folder::Writable
+public domain Folder::Writable
 established by Desktop::choose_folder, DesktopProvider::choose_folder;
 
-pub boundary trait Desktop {
+public boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable

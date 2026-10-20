@@ -9,7 +9,7 @@ use psi::typing::typer;
 // joined type (joins.omg) whose extent is its element count. Elements of no
 // fixed type make an anonymous array, which lands element by element at its
 // destination (landing.omg); `[]` is an anonymous array of no elements.
-pub machine Typer::type_array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+public machine Typer::type_array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
     let values: JoinedValues = SyntaxTrees::joined_values(expression);

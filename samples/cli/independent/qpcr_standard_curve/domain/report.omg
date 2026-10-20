@@ -4,7 +4,7 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
-pub machine integer(reader: &mut Reader, value: i64)
+public machine integer(reader: &mut Reader, value: i64)
 reaches Console
 invokes Console;
 {
@@ -46,7 +46,7 @@ invokes Console;
 }
 // Scientific decimal transport: signed integer significand times 10^exponent.
 // Normalize before integer conversion so finite concentrations never saturate.
-pub machine field(reader: &mut Reader, name: &[u8], value: f64)
+public machine field(reader: &mut Reader, name: &[u8], value: f64)
 reaches Console
 invokes Console;
 {

@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // overlapping peaks deliberately remain unresolved rather than fabricated.
 // Rectangular area and moment retain integer fifteenths until the final ratio.
 // Their maximum moment is below 2^53, so every accumulation is exact in f64.
-pub machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool {
+public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool {
     regions.count = 0;
     regions.open = false;
     transition { _ -> scan(spectrum, regions, 0) }

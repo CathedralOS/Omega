@@ -1,9 +1,9 @@
 
-pub data Counter { value: i32; }
-pub boundary trait CounterOperations {
+public data Counter { value: i32; }
+public boundary trait CounterOperations {
     machine read(counter: &Counter) -> i32;
 }
-pub boundary trait OtherOperations {
+public boundary trait OtherOperations {
     machine read(counter: &Counter) -> i32;
 }
 machine read_counter(counter: &Counter) -> i32

@@ -10,7 +10,7 @@ data Decimal {
 
 // Prepare signed decimal bytes before invoking Console. A nonpositive
 // working value represents i32::MIN exactly; eleven bytes include its sign.
-pub machine number(value: i32 in Wrapping)
+public machine number(value: i32 in Wrapping)
 reaches Console
 invokes Console;
 {

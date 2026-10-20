@@ -2,7 +2,7 @@
 // one finite record; EOF, a malformed byte, and excess digits reject explicitly.
 use omega_language_std::console;
 use model::records;
-pub machine read_token() -> Token
+public machine read_token() -> Token
 reaches Console
 invokes Console;
 blocks;
@@ -39,7 +39,7 @@ crashes Trap
 }
 // The complete stream ends after the declared records; surplus numeric data
 // and malformed trailing characters are both rejected.
-pub machine at_end() -> bool
+public machine at_end() -> bool
 reaches Console
 invokes Console;
 blocks;

@@ -6,7 +6,7 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub boundary trait Magnitude {
+public boundary trait Magnitude {
     machine absolute(value: i32) -> i32;
 }
 

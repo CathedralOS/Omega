@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-pub data Elem {
+public data Elem {
     value: u64;
 }
 
@@ -12,7 +12,7 @@ machine List::get(list: &List, position: u64) -> Elem requires position < 4 {
     (Elem::clone_of(&list.items[position]))
 }
 
-pub data List {
+public data List {
     items: [Elem; 4];
 }
 

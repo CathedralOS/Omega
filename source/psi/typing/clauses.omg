@@ -15,7 +15,7 @@ use psi::typing::typer;
 // parameters of its own, or a trait with parameters other than types and
 // lifetimes, rejects as unsupported. The `via` payload and a `terminates by`
 // witness's subjects and view type like any expression.
-pub machine Typer::type_clauses(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+public machine Typer::type_clauses(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
     transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }

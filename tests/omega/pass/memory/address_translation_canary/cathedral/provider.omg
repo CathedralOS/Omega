@@ -34,7 +34,7 @@ use translation::TranslationReleaseObligations;
 use translation::Unmapped;
 use translation::UnmappedBorrowed;
 
-pub boundary trait CathedralTranslationProvider {
+public boundary trait CathedralTranslationProvider {
     // Structural-validation crossing behind `map`.
     machine map(
         source: Extent in Granted,

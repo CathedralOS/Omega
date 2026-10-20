@@ -3,7 +3,7 @@ use domain::balance;
 // Collect decimal digits privately, then emit them in reverse order. Ten
 // digits cover every bounded application result; division precedes all I/O.
 data Decimal { digits: [i32; 10]; }
-pub machine number(value: i64 in Wrapping) reaches Console
+public machine number(value: i64 in Wrapping) reaches Console
 invokes Console;
 {
     transition value < 0 {
@@ -44,7 +44,7 @@ invokes Console;
     state done() { }
     state failed() { Console::exit_process(1); }
 }
-pub machine report(frame: &Frame, result: &Balance) reaches Console
+public machine report(frame: &Frame, result: &Balance) reaches Console
 invokes Console;
 {
     Console::write("loads=");

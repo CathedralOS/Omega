@@ -1,9 +1,9 @@
 // A provider body must prove exact coercion for its own unrestricted slice,
 // independently of the requirement namespace or its erased lifetime telescope.
 // Wrapping qualifies the result; it cannot truncate this arbitrary u64 count.
-pub data CellSource {}
+public data CellSource {}
 
-pub boundary requirement CellSource::read<'a>(source: &'a [u8]) -> i32;
+public boundary requirement CellSource::read<'a>(source: &'a [u8]) -> i32;
 
 data CellSourceProvider {}
 

@@ -2,7 +2,7 @@
 // Absolute pivot floor is meaningful only for the declared synthetic units.
 use mechanics::model;
 use omega::language::core::float_operations;
-pub machine solve(model: &mut Laminate) {
+public machine solve(model: &mut Laminate) {
     transition { _ -> pivot(model,0) }
     state pivot(model: &mut Laminate,pivot_index: u64) requires pivot_index <= 5 {
         let magnitude: f64 = absolute(model.augmented[pivot_index][pivot_index]);

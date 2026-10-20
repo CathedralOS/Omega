@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
 // The parser bounds bytes, tokens and magnitudes before arithmetic/storage.
-pub data Input {
+public data Input {
     values: [u64; 40] in Wrapping;
     count: u64;
     bytes: u64;
@@ -11,7 +11,7 @@ pub data Input {
     index: u64;
 }
 
-pub machine Input::read(input: &mut Input)
+public machine Input::read(input: &mut Input)
 invokes Console;
 reaches Console
 blocks;

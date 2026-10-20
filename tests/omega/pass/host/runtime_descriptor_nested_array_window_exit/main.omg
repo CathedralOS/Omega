@@ -2,8 +2,8 @@
 // Neither window creates a new owner or changes the bytes outside its extent.
 use omega::language::core::external_binding;
 
-pub data DescriptorProbe { }
-pub boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
+public data DescriptorProbe { }
+public boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
 data DescriptorImports { }
 data Payload { bytes: [u8; 4]; }
 data Envelope { payload: Payload; }

@@ -1,9 +1,9 @@
 use omega::language::core::float_operations;
 use domain::input;
-pub data Equilibrium { hydrogen: f64; hydroxide: f64; species: [f64; 3]; total: f64; counterion: f64; closure: f64; charge: f64; ph: f64; }
+public data Equilibrium { hydrogen: f64; hydroxide: f64; species: [f64; 3]; total: f64; counterion: f64; closure: f64; charge: f64; ph: f64; }
 // Positive H: charge is strictly increasing because protonation increases
 // with H and Kw/H decreases. The domain brackets the unique physical root.
-pub machine solve(input: &Input, volume: f64, result: &mut Equilibrium) {
+public machine solve(input: &Input, volume: f64, result: &mut Equilibrium) {
     let dilution: f64 = input.values[0] + volume;
     result.total = input.values[0] * input.values[1] / dilution;
     result.counterion = volume * input.values[5] / dilution;

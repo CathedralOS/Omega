@@ -66,7 +66,7 @@ or dropped.
 
 ## Non-findings
 
-- Every pipeline stage crate's root is a thin map (doc + `mod` + `pub use`)
+- Every pipeline stage crate's root is a thin map (doc + `mod` + `public use`)
   matching the ownership README's route order.
 - `omega/src/main.rs`'s stack-provision comment and worker-spawn dispatch are
   documented startup mechanics, not hidden implementation.

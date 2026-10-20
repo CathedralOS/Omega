@@ -5,7 +5,7 @@
 // NOTHING (an implementation may reach a subset of the declared
 // effects).
 //
-//   * `pub boundary trait Sink { }` — empty boundary trait: names an
+//   * `public boundary trait Sink { }` — empty boundary trait: names an
 //     effect with no machines.
 //   * `trait StepContract { machine step -> u64 reaches Sink
 //     terminates; }` — requirements carry effect clauses.
@@ -20,10 +20,10 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-pub boundary trait Sink {
+public boundary trait Sink {
 }
 
-pub trait StepContract {
+public trait StepContract {
     machine step(value: u64) -> u64 reaches Sink terminates;
 }
 
@@ -31,7 +31,7 @@ machine quiet(value: u64) -> u64 satisfies StepContract::step terminates {
     value
 }
 
-pub machine traverse<machine Step>(value: u64) -> u64
+public machine traverse<machine Step>(value: u64) -> u64
 where machine Step satisfies StepContract::step;
 terminates;
 {

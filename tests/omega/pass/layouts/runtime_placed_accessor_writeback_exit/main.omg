@@ -1,12 +1,12 @@
 // Expected exit: 0. Placed accessor writes affect their original RAM backing.
 use omega::language::core::layout;
 
-pub data Registers where transmit <= 10 {
+public data Registers where transmit <= 10 {
     status: u32;
     transmit: u8;
 }
 
-pub data RegPlacement {}
+public data RegPlacement {}
 
 machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];

@@ -7,9 +7,9 @@
 // installs the selected adapter; the interpreter dispatches the same row.
 use omega_language_std::console;
 
-pub data CheckedMath {}
+public data CheckedMath {}
 
-pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32
+public boundary requirement CheckedMath::offset_zero(value: i32) -> i32
 requires value == value
 ensures result == value + 0 && value == value;
 

@@ -1,7 +1,7 @@
 // Expected exit: 0. A selected provider declaration is independent of the
 // caller's region. The Applied requirement occurrence supplies the complete region scope.
 
-pub boundary trait Reading<Value> {
+public boundary trait Reading<Value> {
     machine read(value: Value) -> i32;
 }
 BorrowedReading<'provider> satisfies Reading<&'provider i32> {

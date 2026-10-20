@@ -3,12 +3,12 @@ use omega::language::core::numeric_conversion;
 
 // A complete newline-terminated packet of at most 26 signed decimal integers.
 // Magnitudes are checked before multiplication, so hostile input cannot wrap.
-pub data Packet {
+public data Packet {
     values: [i32; 26];
     count: i32 in Wrapping;
     valid: bool;
 }
-pub machine parse(packet: &mut Packet, bytes: &[u8; 256]) {
+public machine parse(packet: &mut Packet, bytes: &[u8; 256]) {
     packet.count = 0;
     packet.valid = false;
     transition { _ -> scan(packet, bytes, 0, 0, false, false) }

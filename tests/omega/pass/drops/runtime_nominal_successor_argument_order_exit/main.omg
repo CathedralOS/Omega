@@ -2,7 +2,7 @@ use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
 // from its reviewed external provider. It does not strengthen std::Console.
-pub boundary trait Console {
+public boundary trait Console {
     machine write_byte(byte: i32)
     reaches Console
     terminates;
@@ -13,8 +13,8 @@ pub boundary trait Console {
     reaches Console;
 }
 
-pub data ConsoleNativeProvider {}
-pub NativeConsole satisfies Console {
+public data ConsoleNativeProvider {}
+public NativeConsole satisfies Console {
     machine write_byte(byte: i32) reaches Console terminates {
         ConsoleNativeProvider::write_byte(byte);
     }

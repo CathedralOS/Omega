@@ -1,11 +1,11 @@
 use landcover::geometry;
 // Private area buckets: no-data is class 0; classes 1..3 are categorical.
 // Outside coverage is distinct from source no-data and participates in closure.
-pub data Areas [copy] {
+public data Areas [copy] {
     forest: i32 in Wrapping; water: i32 in Wrapping;
     urban: i32 in Wrapping; nodata: i32 in Wrapping;
 }
-pub machine deposit(areas: &mut Areas, category: i32 in Wrapping, area: i32 in Wrapping) {
+public machine deposit(areas: &mut Areas, category: i32 in Wrapping, area: i32 in Wrapping) {
     transition category {
         1 -> forest(areas, area)
         2 -> water(areas, area)
@@ -17,7 +17,7 @@ pub machine deposit(areas: &mut Areas, category: i32 in Wrapping, area: i32 in W
     state urban(areas: &mut Areas, area: i32 in Wrapping) { areas.urban = areas.urban + area; }
     state nodata(areas: &mut Areas, area: i32 in Wrapping) { areas.nodata = areas.nodata + area; }
 }
-pub machine resample(areas: &mut Areas, x: i32 in Wrapping, y: i32 in Wrapping,
+public machine resample(areas: &mut Areas, x: i32 in Wrapping, y: i32 in Wrapping,
     width: i32 in Wrapping, height: i32 in Wrapping,
     a: i32 in Wrapping, b: i32 in Wrapping, c: i32 in Wrapping, d: i32 in Wrapping) {
     areas.forest = 0; areas.water = 0; areas.urban = 0; areas.nodata = 0;
@@ -28,7 +28,7 @@ pub machine resample(areas: &mut Areas, x: i32 in Wrapping, y: i32 in Wrapping,
     deposit(areas, a, first); deposit(areas, b, second);
     deposit(areas, c, third); deposit(areas, d, fourth);
 }
-pub machine dominant(areas: &Areas) -> i32 in Wrapping {
+public machine dominant(areas: &Areas) -> i32 in Wrapping {
     // Ordered comparisons preserve the lowest class identifier on a tie.
     transition areas.forest >= areas.water && areas.forest >= areas.urban && areas.forest > 0 {
         true -> 1

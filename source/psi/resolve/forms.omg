@@ -17,7 +17,7 @@ use psi::syntax::syntax;
 // domain), equality's (the sealed `Equatable` route) and the collection
 // tokens `[]` and `[..]` reject at the token. `satisfies` and `terminates`
 // clauses bind in clauses.omg.
-pub machine Resolver::check_declaration_forms(resolver: &mut Resolver, syntax: &SyntaxTrees)
+public machine Resolver::check_declaration_forms(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> root(resolver, syntax, 0) }
@@ -141,7 +141,7 @@ crashes Trap
 }
 
 // One machine's forms, in authored order.
-pub machine Resolver::check_machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem)
+public machine Resolver::check_machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem)
 crashes Trap
 {
     let bindable: bool = Resolver::bindable_token(item.operator);
@@ -235,7 +235,7 @@ crashes Trap
 
 // Whether resolution binds a direct machine's `token`: the arithmetic and
 // order tokens.
-pub machine Resolver::bindable_token(token: OperatorToken) -> bool {
+public machine Resolver::bindable_token(token: OperatorToken) -> bool {
     transition token {
         OperatorToken::Add -> yes()
         OperatorToken::Subtract -> yes()

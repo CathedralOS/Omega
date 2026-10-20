@@ -1,6 +1,6 @@
 module left;
 
-pub boundary trait Sink { machine observe(); }
+public boundary trait Sink { machine observe(); }
 
 machine apply<machine Selected, machine Unused>(value: u64) -> u64
 where machine Selected(value: u64) -> u64 reaches Sink;
@@ -10,4 +10,4 @@ where machine Unused(value: u64) -> u64 reaches Sink;
 machine identity(value: u64) -> u64 { value }
 machine unused(value: u64) -> u64 { value }
 
-pub machine run(value: u64) -> u64 { apply<identity, unused>(value) }
+public machine run(value: u64) -> u64 { apply<identity, unused>(value) }

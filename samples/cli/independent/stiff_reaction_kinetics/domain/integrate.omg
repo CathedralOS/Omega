@@ -34,8 +34,8 @@ machine dirk(problem: &Problem, initial: &Vector, step: f64) -> Newton {
         let mut failure: Newton = first; failure.success = false; failure
     }
 }
-pub data Solution [copy] { value: Vector; time: f64; step: f64; error: f64; mass_error: f64; accepted: u64; rejected: u64; attempts: u64; success: bool; full: Newton; half: Newton; fine: Newton; }
-pub machine integrate(problem: &Problem) -> Solution {
+public data Solution [copy] { value: Vector; time: f64; step: f64; error: f64; mass_error: f64; accepted: u64; rejected: u64; attempts: u64; success: bool; full: Newton; half: Newton; fine: Newton; }
+public machine integrate(problem: &Problem) -> Solution {
     let mut solution: Solution;
     solution.value = problem.initial; solution.step = problem.step;
     transition { _ -> advance(problem, solution) }

@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 use domain::model;
 // Scientific output retains twelve significant decimal places at every scale.
-pub machine number(value: f64)
+public machine number(value: f64)
 invokes Console; reaches Console {
  transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
  state negative(value: f64) { Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
@@ -30,7 +30,7 @@ invokes Console; reaches Console {
  state point(value: u64 in Wrapping, divisor: u64 in Wrapping) { Console::write("."); transition { _ -> unsigned(value, divisor / 10, false) } }
  state done() {}
 }
-pub machine report(a: &Analysis)
+public machine report(a: &Analysis)
 invokes Console; reaches Console {
  Console::write_line("principal_component_analysis");
  Console::write("means");

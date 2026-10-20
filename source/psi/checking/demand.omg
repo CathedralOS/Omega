@@ -28,7 +28,7 @@ use psi::types::types;
 //
 // Demand settles over a machine's states to a fixed point; a path beyond a
 // state's 40 arrives unknown.
-pub machine Checker::derive_demand(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
+public machine Checker::derive_demand(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
 crashes Trap
 {
     transition { _ -> round(checker, syntax, resolution, typing, item) }
@@ -63,7 +63,7 @@ crashes Trap
 
 // A member path below a parameter in a range: whether the expression names
 // one (a parameter itself has depth zero), and the path.
-pub data MemberChain [copy] {
+public data MemberChain [copy] {
     rooted: bool;
     path: ArrivalPath;
 }
@@ -71,7 +71,7 @@ pub data MemberChain [copy] {
 // The member path `handle` names: field and `.len` steps (and borrows) down
 // to a name bound to a parameter from `first_parameter` (`parameter_count`
 // of them), at most four steps.
-pub machine Checker::member_chain(
+public machine Checker::member_chain(
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
     typing: &Typing,
@@ -203,7 +203,7 @@ crashes Trap
 
 // `prefix` followed by `suffix`'s steps, below `prefix`'s parameter; depth
 // zero when together they pass four steps.
-pub machine ArrivalPath::joined(prefix: ArrivalPath, suffix: ArrivalPath) -> ArrivalPath
+public machine ArrivalPath::joined(prefix: ArrivalPath, suffix: ArrivalPath) -> ArrivalPath
 crashes Trap
 {
     transition prefix.depth + suffix.depth <= 4 {

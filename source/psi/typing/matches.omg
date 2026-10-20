@@ -18,7 +18,7 @@ use psi::typing::typer;
 // anonymous array, which lands arm by arm where its destination is known
 // (landing.omg) and is no subject. The arms cover the subject
 // (coverage.omg).
-pub machine Typer::type_match(
+public machine Typer::type_match(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,

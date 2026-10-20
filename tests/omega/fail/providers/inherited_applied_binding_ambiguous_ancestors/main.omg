@@ -1,8 +1,8 @@
 use omega::language::core::binding;
 
-pub boundary trait First<Value> { machine read() -> i32; }
-pub boundary trait Second<Value> { machine read() -> i32; }
-pub boundary trait Child: First<i32> + Second<u64> {}
+public boundary trait First<Value> { machine read() -> i32; }
+public boundary trait Second<Value> { machine read() -> i32; }
+public boundary trait Child: First<i32> + Second<u64> {}
 
 data Holder { child: Binding<Child>; }
 machine inspect(holder: &Holder) -> i32 reaches Child + First + Second {

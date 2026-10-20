@@ -1,6 +1,6 @@
 use omega_language_std::console;
 use io::input;
-pub data Settings {
+public data Settings {
     width: i64 in Wrapping;
     signedness: i64 in Wrapping;
     reference_low: i64 in Wrapping;
@@ -12,7 +12,7 @@ pub data Settings {
     rounding: i64 in Wrapping;
     count: i64 in Wrapping;
 }
-pub machine settings(configuration: &mut Settings) -> bool reaches Console
+public machine settings(configuration: &mut Settings) -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap

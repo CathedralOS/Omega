@@ -2,12 +2,12 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub data Division {
+public data Division {
     quotient: i32;
     remainder: i32;
 }
 
-pub boundary trait IntegerDivision {
+public boundary trait IntegerDivision {
     machine divide(numerator: i32, denominator: i32) -> Division;
 }
 

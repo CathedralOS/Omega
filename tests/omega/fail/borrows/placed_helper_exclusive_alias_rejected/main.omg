@@ -2,12 +2,12 @@
 // The embedding test establishes exact backings and checks external effects.
 use omega::language::core::layout;
 
-pub data Registers {
+public data Registers {
     status: u32;
     transmit: u8;
 }
 
-pub data RegPlacement {}
+public data RegPlacement {}
 
 machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];

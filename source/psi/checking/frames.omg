@@ -26,7 +26,7 @@ use psi::types::types;
 // Writes to a body's own locals and by-value parameters stay out of its
 // frame. Frames settle to a fixed point over the call graph before any body
 // is checked, so a recursive machine's frame includes its own writes.
-pub machine Checker::derive_frames(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
+public machine Checker::derive_frames(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
 crashes Trap
 {
     transition { _ -> clear_parameter(checker, syntax, resolution, typing, 0) }
@@ -478,7 +478,7 @@ crashes Trap
 
 // Whether an expression supplies a live exclusive (`&mut`) reference.
 // A scalar Read consumes the referent's captured value instead.
-pub machine Checker::exclusive_value(typing: &Typing, handle: u64 in Trapping) -> bool
+public machine Checker::exclusive_value(typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
@@ -498,7 +498,7 @@ crashes Trap
 }
 
 // Frame tables, guarded by their bounds; a write beyond them is unknown.
-pub machine Checker::writes_unknown(checker: &Checker, machine: u64 in Trapping) -> bool {
+public machine Checker::writes_unknown(checker: &Checker, machine: u64 in Trapping) -> bool {
     transition machine < 2048 {
         true -> read(checker, machine)
         _ -> unknown()
@@ -535,7 +535,7 @@ machine Checker::mark_unknown(checker: &mut Checker, machine: u64 in Trapping, u
     }
 }
 
-pub machine Checker::writes_whole(checker: &Checker, parameter: u64 in Trapping) -> bool {
+public machine Checker::writes_whole(checker: &Checker, parameter: u64 in Trapping) -> bool {
     transition parameter < 32768 {
         true -> read(checker, parameter)
         _ -> whole()
@@ -573,7 +573,7 @@ machine Checker::mark_whole(checker: &mut Checker, parameter: u64 in Trapping) -
 
 // Whether a machine may write a data field (`SyntaxTrees::fields`); a field
 // or machine beyond the tables may be written.
-pub machine Checker::writes_field(checker: &Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool
+public machine Checker::writes_field(checker: &Checker, machine: u64 in Trapping, field: u64 in Trapping) -> bool
 crashes Trap
 {
     transition machine < 2048 && field < 1024 {

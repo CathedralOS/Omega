@@ -1,6 +1,6 @@
 use omega::language::core::binding;
 
-pub boundary trait Service {
+public boundary trait Service {
     machine send(value: i32) reaches Service;
     machine read() -> i32 reaches Service;
 }

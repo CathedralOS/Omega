@@ -459,23 +459,23 @@ reaches ExtentPartition
 
 // Element type and the placement-policy index it is resident under. The
 // index is identity only: no plan is evaluated for it here.
-pub data Slot [copy] {
+public data Slot [copy] {
     value: u32;
 }
 
-pub data SlotPlacement {}
+public data SlotPlacement {}
 
 // Established custody: the allocation now carries one complete live `Slot`.
 // The record, not a bare extent, is what crosses machines (see the header's
 // restatement edge).
-pub data Occupied {
+public data Occupied {
     storage: Extent in Granted & Resident<SlotPlacement, Slot>;
 }
 
 // The abstract retirement returns the grant and moved-out value. Only the
 // core-authorized vacancy provider may establish absence of live contents;
 // the retirement's Granted conservation law alone does not establish Vacant.
-pub data Retired {
+public data Retired {
     storage: Extent in Granted;
     value: Slot;
 }
@@ -483,7 +483,7 @@ pub data Retired {
 // The provider-issuance route for one concrete `(SlotPlacement, Slot)`
 // application. `place` and `retire` conserve the extent's content; `read`
 // is a borrowed view returning a copy of the resident value.
-pub boundary trait ResidentStorage {
+public boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);

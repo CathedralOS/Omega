@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 // Bounded private scalar evaluators. Validated positive integer doses are
 // <=10000; log-half bounds extend measured doses by a factor ten, and hill
 // is [.2,5]. Thus every exponential argument has magnitude below 70.
-pub machine exponential(value: f64) -> f64 {
+public machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 1) }
     state term(reduced: f64, sum: f64, previous: f64, denominator: f64,
@@ -23,7 +23,7 @@ pub machine exponential(value: f64) -> f64 {
         power64 * power64
     }
 }
-pub machine logarithm(value: f64) -> f64 {
+public machine logarithm(value: f64) -> f64 {
     transition { _ -> normalize(value, 0.0) }
     state normalize(value: f64, exponent: f64) -> f64 {
         transition value >= 2.0 {
@@ -44,12 +44,12 @@ pub machine logarithm(value: f64) -> f64 {
         }
     }
 }
-pub machine clamp(value: f64, lower: f64, upper: f64) -> f64 {
+public machine clamp(value: f64, lower: f64, upper: f64) -> f64 {
     transition value < lower { true -> lower _ -> maximum(value, upper) }
     state maximum(value: f64, upper: f64) -> f64 {
         transition value > upper { true -> upper _ -> value }
     }
 }
-pub machine magnitude(value: f64) -> f64 {
+public machine magnitude(value: f64) -> f64 {
     transition value < 0.0 { true -> (0.0 - value) _ -> value }
 }

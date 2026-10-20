@@ -12,12 +12,12 @@ This chapter describes the accepted design, not a completed public SDK. The
 Suppose a game exposes a boundary-trait requirement:
 
 ```omega
-pub boundary trait Game {
+public boundary trait Game {
     machine set_health(player: u64, health: u32)
         reaches Game;
 }
 
-pub trait ScriptCalls<Context> {
+public trait ScriptCalls<Context> {
     machine reward(context: &mut Context, player: u64)
         reaches Game;
 }

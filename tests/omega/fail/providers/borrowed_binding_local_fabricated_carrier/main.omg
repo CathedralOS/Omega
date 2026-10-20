@@ -1,6 +1,6 @@
 use omega::language::core::binding;
 
-pub boundary trait Reading { machine read() -> i32; }
+public boundary trait Reading { machine read() -> i32; }
 Reader satisfies Reading { machine read() -> i32 { 42 } }
 data Context { reading: Binding<Reading>; }
 machine observed(reading: &Binding<Reading>) -> i32 reaches Reading { reading.read() }

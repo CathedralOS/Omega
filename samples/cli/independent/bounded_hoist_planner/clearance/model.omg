@@ -5,17 +5,17 @@
 // required end height. The objective minimizes total vertical travel.
 // Saturating arithmetic is explicit; admitted inputs bound all totals below
 // 256, so no reachable operation saturates. No external numerical package.
-pub data Plan {
+public data Plan {
     start: i32 in Saturating;
     end: i32 in Saturating;
     floors: [i32 in Saturating; 4];
     ceilings: [i32 in Saturating; 4];
 }
-pub data Travel {
+public data Travel {
     cost: i32 in Saturating;
     heights: [i32 in Saturating; 4];
 }
-pub data Certificate {
+public data Certificate {
     feasible: i32 in Saturating;
     ties: i32 in Saturating;
     code: u64;

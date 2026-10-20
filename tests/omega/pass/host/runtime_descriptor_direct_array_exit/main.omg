@@ -3,9 +3,9 @@
 // must leave the source field, including bytes beyond the count, unchanged.
 use omega::language::core::external_binding;
 
-pub data DescriptorProbe { }
-pub boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
-pub boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
+public data DescriptorProbe { }
+public boundary requirement DescriptorProbe::write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
+public boundary requirement DescriptorProbe::write_word(descriptor: i32, word: &u32, count: u64) -> i64;
 data DescriptorImports { }
 data Header { word: u32; }
 

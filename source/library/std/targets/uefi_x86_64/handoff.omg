@@ -10,29 +10,29 @@
 
 // EFI_STATUS codes the authored cycle dispatches on (the UEFI error bit is
 // bit 63, so these exceed i64 range by construction).
-pub const EFI_SUCCESS: u64 = 0;
-pub const EFI_INVALID_PARAMETER: u64 = 0x8000000000000002;
-pub const EFI_BUFFER_TOO_SMALL: u64 = 0x8000000000000005;
-pub const EFI_OUT_OF_RESOURCES: u64 = 0x8000000000000009;
+public const EFI_SUCCESS: u64 = 0;
+public const EFI_INVALID_PARAMETER: u64 = 0x8000000000000002;
+public const EFI_BUFFER_TOO_SMALL: u64 = 0x8000000000000005;
+public const EFI_OUT_OF_RESOURCES: u64 = 0x8000000000000009;
 // AllocatePages inputs for map-buffer growth.
-pub const EFI_ALLOCATE_ANY_PAGES: u32 = 0;
-pub const EFI_LOADER_DATA: u32 = 2;
-pub const EFI_PAGE_BYTES: u64 = 4096;
+public const EFI_ALLOCATE_ANY_PAGES: u32 = 0;
+public const EFI_LOADER_DATA: u32 = 2;
+public const EFI_PAGE_BYTES: u64 = 4096;
 // UEFI 2.11 GetMemoryMap: version 1 has a 40-byte prefix. Returned strides
 // may be larger; their exact value, not this minimum, advances descriptors.
 // https://uefi.org/specs/UEFI/2.11/07_Services_Boot_Services.html#efi-boot-services-getmemorymap
-pub const EFI_MEMORY_DESCRIPTOR_VERSION: u32 = 1;
-pub const EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE: u64 = 40;
+public const EFI_MEMORY_DESCRIPTOR_VERSION: u32 = 1;
+public const EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE: u64 = 40;
 // Deployment inputs the target authors: the stale-key attempt bound and the
 // status the invocation's firmware return reports when it is spent.
-pub const UEFI_OS_HANDOFF_ATTEMPT_BOUND: u64 = 4;
-pub const UEFI_OS_HANDOFF_EXHAUSTION_STATUS: u64 = EFI_INVALID_PARAMETER;
+public const UEFI_OS_HANDOFF_ATTEMPT_BOUND: u64 = 4;
+public const UEFI_OS_HANDOFF_EXHAUSTION_STATUS: u64 = EFI_INVALID_PARAMETER;
 
 // The narrowly contracted Boot Services leaves the authored cycle drives.
 // `this` borrows the exact Boot Services table retained beneath the boundary
 // edge. TableFunction uses it only for dispatch; firmware receives the remaining
 // arguments, without a fabricated protocol receiver.
-pub boundary trait UefiBootServices {
+public boundary trait UefiBootServices {
     machine allocate_pages(
         this: &EfiBootServicesTable,
         allocate_type: u32,
@@ -58,7 +58,7 @@ pub boundary trait UefiBootServices {
 // (byte offset 232): a 24-byte header then one function pointer per field, in
 // firmware order. The table type owns field placement; each contracted leaf
 // names its field.
-pub data EfiBootServicesTable {
+public data EfiBootServicesTable {
     hdr_signature: u64;
     hdr_revision: u32;
     hdr_size: u32;
@@ -133,7 +133,7 @@ uefi_x86_64 machine EfiBootServicesTable::exit_boot_services_leaf(
 // performs the invocation's physical return with a status. Both are
 // generated mechanics, declared as requirements so no authored body can
 // borrow their machinery.
-pub boundary trait UefiOsHandoffTermination {
+public boundary trait UefiOsHandoffTermination {
     machine transfer()
         reaches UefiOsHandoffTermination;
     machine firmware_return(status: u64)
@@ -142,7 +142,7 @@ pub boundary trait UefiOsHandoffTermination {
 
 // The generated edges the authored cycle's terminal stages resolve to. The
 // protocol above them is authored code, and the edges stay compiler-owned.
-pub data UefiOsHandoffNativeProvider { }
+public data UefiOsHandoffNativeProvider { }
 
 uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::transfer_to_entry()
     satisfies UefiOsHandoffTermination::transfer;
@@ -157,7 +157,7 @@ uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status
 // certain; `map_size`, `key`, `descriptor_size`, and `descriptor_version`
 // carry the freshest firmware snapshot evidence; and `status` is the last
 // status each leg's firmware call produced.
-pub data UefiOsHandoffLegs {
+public data UefiOsHandoffLegs {
     table: &EfiBootServicesTable;
     image: u64;
     map: u64;
@@ -240,16 +240,16 @@ machine UefiOsHandoffLegs::attempt_exit(uefi_os_handoff_legs: &mut UefiOsHandoff
 
 // The authored cycle's terminal stages, which call the compiler-owned
 // `UefiOsHandoffTermination` edges directly.
-pub data UefiOsHandoffTerminal { }
+public data UefiOsHandoffTerminal { }
 
-pub machine UefiOsHandoffTerminal::firmware_return(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal, status: u64)
+public machine UefiOsHandoffTerminal::firmware_return(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal, status: u64)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
     UefiOsHandoffTermination::firmware_return(status);
 }
 
-pub machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal)
+public machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
@@ -265,7 +265,7 @@ pub machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiO
 // The forwarding machines below isolate the projected loans of `legs` and
 // `terminal`. This is a lowering limitation, not an implicit receiver or a
 // language restriction on ordinary projected arguments.
-pub data UefiOsHandoffCycle {
+public data UefiOsHandoffCycle {
     legs: UefiOsHandoffLegs;
     terminal: UefiOsHandoffTerminal;
     remaining: u64;
@@ -317,7 +317,7 @@ machine UefiOsHandoffCycle::transfer(uefi_os_handoff_cycle: &mut UefiOsHandoffCy
 
 // The cycle reports its decision while its caller still owns the complete
 // live record. This is protocol state, not physical transfer or entry evidence.
-pub data UefiOsHandoffDisposition {
+public data UefiOsHandoffDisposition {
     case Ready;
     case Rejected(status: u64);
 }
@@ -334,7 +334,7 @@ machine valid_map_geometry(size: u64, capacity: u64, stride: u64, version: u32) 
     }
 }
 
-pub machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition
+public machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -511,7 +511,7 @@ pub machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle: &m
 // Physical disposition stays at the invocation boundary. The shared source
 // cycle can also be exercised by a controlled provider without pretending to
 // execute a firmware return or an OS entry.
-pub machine UefiOsHandoffCycle::run(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
+public machine UefiOsHandoffCycle::run(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices + UefiOsHandoffTermination
     invokes UefiBootServices;
     invokes UefiOsHandoffTermination;

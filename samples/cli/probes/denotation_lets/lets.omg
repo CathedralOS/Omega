@@ -1,6 +1,6 @@
 module lets;
 
-pub let reflexive(value: u8): core::Strict<0> = value == value;
+public let reflexive(value: u8): core::Strict<0> = value == value;
 
-pub let wrapping_reflexive(value: u8 in Wrapping): core::Strict<0> =
+public let wrapping_reflexive(value: u8 in Wrapping): core::Strict<0> =
     (value * value) == (value * value);

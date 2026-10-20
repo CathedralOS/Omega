@@ -1,2 +1,2 @@
 // Authored base the generated `value` selects; no consumer imports it.
-pub machine seed() -> i32 { 7 }
+public machine seed() -> i32 { 7 }

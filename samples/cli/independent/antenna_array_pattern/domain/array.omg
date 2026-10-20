@@ -4,13 +4,13 @@ use omega_language_std::math;
 // Negative real weights encode a pi phase reversal. Zero excitation is valid.
 use omega::language::core::float_operations;
 use domain::phasor;
-pub data Geometry {
+public data Geometry {
     positions: [f64; 4];
     weights: [f64; 4];
     steering: f64;
 }
-pub data Pattern { }
-pub machine Geometry::valid(geometry: &Geometry) -> bool {
+public data Pattern { }
+public machine Geometry::valid(geometry: &Geometry) -> bool {
     transition geometry.steering >= -1.0 && geometry.steering <= 1.0 {
         true -> element(geometry, 0)
         false -> no()
@@ -27,7 +27,7 @@ pub machine Geometry::valid(geometry: &Geometry) -> bool {
     state yes() -> bool { true }
     state no() -> bool { false }
 }
-pub machine Pattern::power(geometry: &Geometry, direction: f64) -> f64 {
+public machine Pattern::power(geometry: &Geometry, direction: f64) -> f64 {
     transition { _ -> element(geometry, direction, 0, 0.0, 0.0) }
     state element(geometry: &Geometry, direction: f64, index: i32, real: f64, imaginary: f64) {
         transition index >= 0 && index < 4 {
@@ -47,10 +47,10 @@ pub machine Pattern::power(geometry: &Geometry, direction: f64) -> f64 {
         real * real + imaginary * imaginary
     }
 }
-pub machine Geometry::amplitude(geometry: &Geometry) -> f64 {
+public machine Geometry::amplitude(geometry: &Geometry) -> f64 {
     abs_f64(geometry.weights[0]) + abs_f64(geometry.weights[1]) + abs_f64(geometry.weights[2]) + abs_f64(geometry.weights[3])
 }
-pub machine Geometry::duplicates(geometry: &Geometry) -> i32 {
+public machine Geometry::duplicates(geometry: &Geometry) -> i32 {
     transition { _ -> pair(geometry, 0, 1, 0) }
     state pair(geometry: &Geometry, left: i32, right: i32, count: i32) {
         transition left >= 0 && left < 3 { true -> right_guard(geometry, left, right, count) false -> done(count) }

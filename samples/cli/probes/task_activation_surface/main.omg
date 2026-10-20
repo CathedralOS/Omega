@@ -4,9 +4,9 @@
 // public requirement, and `Token in Carry::AcrossSuspend`
 // domain-qualified task payloads.
 //
-//   * `pub boundary requirement Task::finish<T>` — the sole
+//   * `public boundary requirement Task::finish<T>` — the sole
 //     public task-disposition requirement.
-//   * `Task<T> [linear]` / `TaskOutcome<T>` pub data.
+//   * `Task<T> [linear]` / `TaskOutcome<T>` public data.
 //
 // Compile-checked only: the public task declarations come from
 // `omega::language::core::task`. Executable activation still requires a
@@ -14,10 +14,10 @@
 
 use omega::language::core::task;
 
-pub boundary data Sleeper;
+public boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
 
-pub data Token {
+public data Token {
     id: u64;
 }
 

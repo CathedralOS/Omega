@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-pub data Input {
+public data Input {
     tokens: [u64; 28];
     count: u64;
     bytes: u64;
@@ -10,7 +10,7 @@ pub data Input {
 
 // One digit per token, 28 tokens, at most 256 input bytes. EOF is required.
 // Delimiters are ASCII space, tab, CR and LF; no implicit normalization.
-pub machine Input::read(input: &mut Input) reaches Console
+public machine Input::read(input: &mut Input) reaches Console
 invokes Console;
 blocks;
 crashes Trap

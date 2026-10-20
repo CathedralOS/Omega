@@ -1,6 +1,6 @@
 // Expected exit: 0. Every ordinary argument runs once, left to right,
 // inside only the selected terminal arm, for both scalar and Unit calls.
-pub boundary trait Character {
+public boundary trait Character {
     machine echo(value: i32, observed: i32) -> i32;
     machine store(output: &mut i32, value: i32, observed: i32);
 }

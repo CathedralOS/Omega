@@ -3,7 +3,7 @@ module data::fixtures;
 use domain::model::Stage;
 
 // A bounded declared-stage inventory selected by one runtime ASCII digit.
-pub machine count(selection: i32) -> u32 {
+public machine count(selection: i32) -> u32 {
     transition selection == 0 || selection == 1 || selection == 6 {
         true -> cycle()
         _ -> single()
@@ -12,7 +12,7 @@ pub machine count(selection: i32) -> u32 {
     state single() -> u32 { 1 }
 }
 
-pub machine load(selection: i32, index: u32, stage: &mut Stage) {
+public machine load(selection: i32, index: u32, stage: &mut Stage) {
     stage.volume = 1.0;
     stage.pressure = 4.0;
     stage.end_volume = 2.0;

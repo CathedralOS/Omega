@@ -1,7 +1,7 @@
 use omega::language::core::float_operations;
 // Centered periodic H: output[i] = sum_j kernel[j] input[i+width/2-j].
 // The adjoint reverses that offset; asymmetric kernels must preserve this sign.
-pub machine convolve(input: &[f64; 32], output: &mut [f64; 32], kernel: &[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool) {
+public machine convolve(input: &[f64; 32], output: &mut [f64; 32], kernel: &[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool) {
     transition { _ -> row(input, output, kernel, length, width, adjoint, 0) }
     state row(input: &[f64; 32], output: &mut [f64; 32], kernel: &[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool, index: i32 in Wrapping) {
         transition index >= 0 && index < length && index < 32 && length >= 8 && length <= 32 {
@@ -38,6 +38,6 @@ pub machine convolve(input: &[f64; 32], output: &mut [f64; 32], kernel: &[f64; 5
     }
 }
 // Array access is a source proof obligation, including for other callers.
-pub machine convolution_sample(input: &[f64; 32], source: i32 in Wrapping) -> f64
+public machine convolution_sample(input: &[f64; 32], source: i32 in Wrapping) -> f64
 requires source >= 0 && source < 32
 { input[source] }

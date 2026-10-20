@@ -1,10 +1,10 @@
-pub boundary trait Console {
+public boundary trait Console {
     machine exit_process(return_code: i32) reaches Console;
 }
-pub data ConsoleNativeProvider { }
+public data ConsoleNativeProvider { }
 macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process;
-pub NativeConsole satisfies Console {
+public NativeConsole satisfies Console {
     machine exit_process(return_code: i32) reaches Console { first(return_code); }
 }
 machine first(return_code: i32) reaches Console {

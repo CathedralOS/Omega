@@ -19,15 +19,15 @@
 use omega::language::core::assembly;
 use omega::language::core::representation;
 
-pub boundary data InterruptMaskGuard [linear];
-pub boundary data InterruptAcknowledgement [linear];
+public boundary data InterruptMaskGuard [linear];
+public boundary data InterruptAcknowledgement [linear];
 
-pub domain InterruptMaskGuard::Active
+public domain InterruptMaskGuard::Active
 established by InterruptMaskControl::save_and_mask;
 
 // The capability that may change the current activation's interrupt mask.
 // Saving returns the only authority that can restore that exact prior state.
-pub boundary trait InterruptMaskControl {
+public boundary trait InterruptMaskControl {
     machine save_and_mask() -> InterruptMaskGuard in Active
     reaches MachineControl
     ensures
@@ -41,20 +41,20 @@ pub boundary trait InterruptMaskControl {
 // the same conservative hardware-access ceiling. Installation resolves this
 // entry row to the selected provider's exact reach; provider/token lineage,
 // never equality of the two rows, binds completion to the same execution.
-pub domain InterruptAcknowledgement::Pending
+public domain InterruptAcknowledgement::Pending
 established by InterruptEntry::enter;
 
-pub boundary trait InterruptEntry {
+public boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
     reaches <= MachineControl + PortIo;
 }
 
-pub boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
+public boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
 reaches MachineControl
 requires
     guard in InterruptMaskGuard::Active;
 
-pub boundary trait InterruptAcknowledgementCompletion {
+public boundary trait InterruptAcknowledgementCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
     reaches <= MachineControl + PortIo
     requires

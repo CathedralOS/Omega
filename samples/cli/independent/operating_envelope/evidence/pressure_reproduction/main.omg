@@ -72,7 +72,7 @@ machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
 }
 
 // A later state loop retains fixed division sites after earlier real pressure.
-pub machine integer(value: i32) reaches Console
+public machine integer(value: i32) reaches Console
 invokes Console;
 {
     transition value < 0 {

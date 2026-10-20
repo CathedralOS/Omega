@@ -2,11 +2,11 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
 
-pub data InputReader {
+public data InputReader {
     remaining: i32 in Wrapping;
     exhausted: bool;
 }
-pub data Token {
+public data Token {
     case Invalid;
     case End;
     case Number(value: i32);
@@ -41,7 +41,7 @@ crashes Trap
         ByteRead::Eof
     }
 }
-pub machine token(reader: &mut InputReader) -> Token reaches Console
+public machine token(reader: &mut InputReader) -> Token reaches Console
 invokes Console;
 blocks;
 crashes Trap

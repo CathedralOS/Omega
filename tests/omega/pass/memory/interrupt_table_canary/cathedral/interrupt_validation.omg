@@ -34,7 +34,7 @@ use cathedral::interrupt_table;
 // settlement obligation (`fatal_exception` selects the never-resume
 // contract; the acknowledged-interrupt obligation is the timer member's
 // shape), and the descriptor constants the produced gate bytes must carry.
-pub data TableMemberDeclaration where privilege <= 3, ist_slot <= 7, gate_kind <= 15 {
+public data TableMemberDeclaration where privilege <= 3, ist_slot <= 7, gate_kind <= 15 {
     vector: u64;
     dedicated_stack_class: u16;
     fatal_exception: bool;
@@ -47,7 +47,7 @@ pub data TableMemberDeclaration where privilege <= 3, ist_slot <= 7, gate_kind <
 // One installed IST binding: the slot a gate may name and the dedicated
 // critical stack class the installed realization provisions for it. The
 // validator joins each member's declared slot through these rows.
-pub data IstBinding where slot <= 7 {
+public data IstBinding where slot <= 7 {
     slot: u8;
     dedicated_class: u16;
 }
@@ -56,12 +56,12 @@ pub data IstBinding where slot <= 7 {
 // produced image must satisfy and the IST bindings the installed task
 // state segment must realize. `declare` is evaluated at build time, so
 // the declaration is ordinary authored source, not compiler-held fixture.
-pub data InterruptTableMembership {
+public data InterruptTableMembership {
     members: [TableMemberDeclaration; 4];
     ist: [IstBinding; 4];
 }
 
-pub machine InterruptTableMembership::declare() -> InterruptTableMembership {
+public machine InterruptTableMembership::declare() -> InterruptTableMembership {
     let mut rows: [TableMemberDeclaration; 4];
     // The fatal-exception members: vectors 0, 13 and 14 on dedicated
     // critical stack classes 11, 12 and 13, each arriving through its own
@@ -95,15 +95,15 @@ pub machine InterruptTableMembership::declare() -> InterruptTableMembership {
 
 // The validator's terminal value: `Accepted` mints the established table
 // value; `Rejected` names the failing vector (or member index) and reason.
-pub data TableVerdict {
+public data TableVerdict {
     case Accepted;
     case Rejected(vector: u8, reason: u8);
 }
 
-pub data DescriptorTableValidation {
+public data DescriptorTableValidation {
 }
 
-pub machine DescriptorTableValidation::validate(
+public machine DescriptorTableValidation::validate(
     image: [[u8; 16]; 33],
     gates: [InterruptGate; 33],
     members: [TableMemberDeclaration; 4],
@@ -383,22 +383,22 @@ terminates by fuel;
 
 // The installed root record's arrival facts, decoded verbatim. The
 // compiler owns extracting them; this package owns what they may be.
-pub data MemberFacts {
+public data MemberFacts {
     entry_interrupt_return: bool;
     stack_dedicated_class: u16;
     acknowledgement_policy: bool;
     acknowledgement_parameter: bool;
 }
 
-pub data MemberAdmissionVerdict {
+public data MemberAdmissionVerdict {
     case Admitted;
     case Rejected(vector: u64, reason: u8);
 }
 
-pub data TableMemberAdmission {
+public data TableMemberAdmission {
 }
 
-pub machine TableMemberAdmission::admit(
+public machine TableMemberAdmission::admit(
     member: TableMemberDeclaration,
     facts: MemberFacts
 ) -> MemberAdmissionVerdict {

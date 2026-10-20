@@ -7,7 +7,7 @@
 use omega::language::core::float_operations;
 use domain::model;
 
-pub data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }
+public data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }
 machine clamp(value: f64, low: f64, high: f64) -> f64 {
     transition value < low { true -> lower(low) false -> upper(value, high) }
     state lower(low: f64) -> f64 { low }
@@ -59,7 +59,7 @@ machine fixed_second(problem: &Problem, normal: &Normal, fit: &mut Fit, second: 
     }
     state flat(problem: &Problem, fit: &mut Fit, second: f64) { consider(problem, fit, problem.low_first, second); }
 }
-pub machine solve(problem: &Problem) -> Fit {
+public machine solve(problem: &Problem) -> Fit {
     let mut normal: Normal;
     accumulate(&mut normal, &problem.rays[0]);
     accumulate(&mut normal, &problem.rays[1]);

@@ -27,7 +27,7 @@ use psi::types::types;
 
 // A call's write footprint. Named frames apply to field identities along
 // a scalar's path; whole/unknown frames apply to the entire referent.
-pub data WriteFootprint [copy] {
+public data WriteFootprint [copy] {
     place: u64 in Trapping;
     callee: u64 in Trapping;
     whole: bool;
@@ -74,7 +74,7 @@ crashes Trap
 
 // Snapshot every operand evaluated before the call `expression` whose value
 // reads the storage in `write`, lent exclusively by operand `lender`.
-pub machine Checker::snapshot_operands(
+public machine Checker::snapshot_operands(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     typing: &Typing,
@@ -269,7 +269,7 @@ crashes Trap
 // scratch window is separate from later guards/targets; value facts use the
 // same snapshots as call operands, so writes cannot reinterpret old reads.
 // Snapshotting is performed once before the arm zone is saved.
-pub machine Checker::capture_subject(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, present: bool) -> CapturedSubject
+public machine Checker::capture_subject(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, present: bool) -> CapturedSubject
 crashes Trap
 {
     let frame: TreeFrame = Checker::tree_frame(checker);

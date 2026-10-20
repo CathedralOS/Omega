@@ -2,7 +2,7 @@ use clearance::model;
 
 // Ten ASCII digits: H0 HE F1 C1 F2 C2 F3 C3 F4 C4.
 // Only complete ten-digit records are admitted by the entrypoint.
-pub machine parse(bytes: &[u8; 11], plan: &mut Plan) -> bool {
+public machine parse(bytes: &[u8; 11], plan: &mut Plan) -> bool {
     let mut digits: [i32 in Saturating; 10];
     transition { _ -> digit(bytes, plan, &mut digits, 0) }
     state digit(bytes: &[u8; 11], plan: &mut Plan, digits: &mut [i32 in Saturating; 10], index: u64) -> bool {

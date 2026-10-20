@@ -7,7 +7,7 @@ use omega::language::core::drop;
 
 data Worker { identifier: u32; last_round: u32; }
 data Workers { first: Worker; second: Worker; }
-pub data Ticket [linear] { number: u32; }
+public data Ticket [linear] { number: u32; }
 machine Ticket::drop(ticket: &mut Ticket) {}
 data Label { number: u32; }
 data Job { ticket: Ticket; label: Label; worker: &Worker; }

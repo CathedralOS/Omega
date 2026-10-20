@@ -28,7 +28,7 @@
 // wake edge on the word released the established wait. `Mismatched` means the
 // first observation already disagreed with `expected`, so the call completed
 // without waiting — the caller's own stale snapshot, never a lost wakeup.
-pub data WaitOutcome {
+public data WaitOutcome {
     case Woken;
     case Mismatched;
 }
@@ -37,7 +37,7 @@ pub data WaitOutcome {
 // every provider binds its realization beneath; admission of a concrete
 // provider remains a per-target selection, not a consequence of naming this
 // contract.
-pub boundary trait WaitWake {
+public boundary trait WaitWake {
     // Release the caller when the wait established on `word` is woken.
     // Completes `Mismatched` immediately if the first observation differs
     // from `expected`. Blocking is the published premise; no finite wait

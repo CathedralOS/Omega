@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // Four-point Gauss-Legendre on panels <=0.25, x capped at 80: the
 // omitted Wien tail is below 1e-19 W even at maximum area and temperature.
 // A source contract bounds work independently of runtime input validation.
-pub machine integral(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64
+public machine integral(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64
 requires panels >= 1 && panels <= 320
 {
     let divisor: f64 = panels as f64;
@@ -93,7 +93,7 @@ machine exponential(value: f64) -> f64 {
     }
 }
 
-pub machine band(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
+public machine band(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
     transition temperature == 0.0 { true -> (0.0) false -> bounds(temperature, minimum, maximum, contrast, difference) }
     state bounds(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
         let lower: f64 = 14387.768775039337 / (maximum * temperature);
@@ -116,7 +116,7 @@ pub machine band(temperature: f64, minimum: f64, maximum: f64, contrast: f64, di
     }
 }
 
-pub machine net_exitance(emitter: f64, ambient: f64, minimum: f64, maximum: f64) -> f64 {
+public machine net_exitance(emitter: f64, ambient: f64, minimum: f64, maximum: f64) -> f64 {
     transition {
         emitter == ambient -> (0.0)
         ambient == 0.0 -> absolute(emitter, minimum, maximum)

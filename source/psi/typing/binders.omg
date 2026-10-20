@@ -19,7 +19,7 @@ use psi::typing::typer;
 // result). A generic machine as an argument is not supported yet.
 
 // A callable signature: a contract's or a machine's parameters and result.
-pub data CallableSignature [copy] {
+public data CallableSignature [copy] {
     present: bool;
     first_parameter: u64 in Trapping;
     parameter_count: u64 in Trapping;
@@ -28,7 +28,7 @@ pub data CallableSignature [copy] {
 }
 
 // Whether a machine binder's argument selects a machine.
-pub machine Typer::selects_machine_argument(argument: MachineArgument) -> bool {
+public machine Typer::selects_machine_argument(argument: MachineArgument) -> bool {
     transition argument {
         MachineArgument::Absent -> no()
         _ -> yes()
@@ -44,7 +44,7 @@ pub machine Typer::selects_machine_argument(argument: MachineArgument) -> bool {
 }
 
 // Whether a static argument row names a machine (declared or forwarded).
-pub machine Typer::names_machine(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> bool
+public machine Typer::names_machine(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> bool
 crashes Trap
 {
     let argument: MachineArgument = NameResolution::machine_argument(syntax, resolution, row);
@@ -62,7 +62,7 @@ crashes Trap
     }
 }
 
-pub machine Typer::bind_machine(typer: &mut Typer, parameter: u64 in Trapping, argument: MachineArgument)
+public machine Typer::bind_machine(typer: &mut Typer, parameter: u64 in Trapping, argument: MachineArgument)
 crashes Trap
 {
     transition parameter < 256 {
@@ -83,7 +83,7 @@ crashes Trap
 }
 
 // The argument bound to machine binder `parameter` in the live set.
-pub machine Typer::machine_bound(typer: &Typer, parameter: u64 in Trapping) -> MachineArgument
+public machine Typer::machine_bound(typer: &Typer, parameter: u64 in Trapping) -> MachineArgument
 crashes Trap
 {
     transition parameter < 256 {
@@ -113,7 +113,7 @@ crashes Trap
 }
 
 // The callable contract of machine binder `parameter`, when it has one.
-pub machine Typer::binder_signature(syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping) -> CallableSignature
+public machine Typer::binder_signature(syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping) -> CallableSignature
 crashes Trap
 {
     let contract: BinderContract = NameResolution::binder_contract(resolution, parameter);
@@ -140,7 +140,7 @@ crashes Trap
 
 // A machine argument's signature: a declared non-generic machine's own, a
 // forwarded binder's contract.
-pub machine Typer::argument_signature(syntax: &SyntaxTrees, resolution: &NameResolution, argument: MachineArgument) -> CallableSignature
+public machine Typer::argument_signature(syntax: &SyntaxTrees, resolution: &NameResolution, argument: MachineArgument) -> CallableSignature
 crashes Trap
 {
     transition argument {
@@ -178,7 +178,7 @@ crashes Trap
 }
 
 // A signature's result type: its declared type, else Unit.
-pub machine Typer::signature_result(typer: &Typer, signature: CallableSignature) -> u64 in Trapping
+public machine Typer::signature_result(typer: &Typer, signature: CallableSignature) -> u64 in Trapping
 crashes Trap
 {
     let result: u64 in Trapping = Typer::declared_result(typer, signature.has_return_type, signature.return_type, typer.output.unit);
@@ -186,7 +186,7 @@ crashes Trap
 }
 
 // A signature parameter's declared type.
-pub machine Typer::signature_parameter(typer: &Typer, syntax: &SyntaxTrees, signature: CallableSignature, offset: u64 in Trapping) -> u64 in Trapping
+public machine Typer::signature_parameter(typer: &Typer, syntax: &SyntaxTrees, signature: CallableSignature, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let parameter: Parameter = SyntaxTrees::parameter(syntax, signature.first_parameter + offset);
@@ -197,7 +197,7 @@ crashes Trap
 // Unify each machine binder's contract in `first .. first + count` with its
 // bound argument's signature, binding the callee's other generic
 // parameters the contract names.
-pub machine Typer::unify_machine_arguments(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, first: u64 in Trapping, count: u64 in Trapping)
+public machine Typer::unify_machine_arguments(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, first: u64 in Trapping, count: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> next(typer, syntax, resolution, first, count, 0) }
@@ -278,7 +278,7 @@ crashes Trap
 // and an argument with exactly that signature under the live bindings:
 // the same arity, and each parameter and the result equal once the
 // contract's types are substituted.
-pub machine Typer::machine_arguments_refine(
+public machine Typer::machine_arguments_refine(
     typer: &mut Typer,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -386,7 +386,7 @@ crashes Trap
 // A call of machine binder `parameter`: its arguments meet its contract's
 // parameters and the call has the contract's result. A binder without a
 // contract cannot be called.
-pub machine Typer::type_binder_call(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, parameter: u64 in Trapping)
+public machine Typer::type_binder_call(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, parameter: u64 in Trapping)
 crashes Trap
 {
     let contract: CallableSignature = Typer::binder_signature(syntax, resolution, parameter);

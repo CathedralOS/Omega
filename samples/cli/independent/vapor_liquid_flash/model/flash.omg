@@ -4,14 +4,14 @@ use omega::language::core::float_operations;
 // Status: 0 liquid, 1 vapor, 2 two_phase, 3 non_identifiable,
 // 4 bubble_boundary, 5 dew_boundary. Only positive-abundance K values
 // constrain identifiability. Endpoints carry only the present phase.
-pub data Solution { status: u32; beta: f64; liquid: [f64; 8]; vapor: [f64; 8]; closure: [f64; 8]; reconstructed: [f64; 8]; }
+public data Solution { status: u32; beta: f64; liquid: [f64; 8]; vapor: [f64; 8]; closure: [f64; 8]; reconstructed: [f64; 8]; }
 // The trial is invocation-local mutable scalar storage. Updating it must not
 // change the caller's lower bracket; every subsequent read sees its new bits.
 machine midpoint(mut lower: f64, upper: f64) -> f64 {
     lower = (lower + upper) / 2.0;
     lower
 }
-pub machine residual(feed: &io::input::Feed, beta: f64) -> f64 {
+public machine residual(feed: &io::input::Feed, beta: f64) -> f64 {
     transition { _ -> scan(feed, beta, 0, 0.0) }
     state scan(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 {
         transition position < feed.count && position < 8 {
@@ -26,7 +26,7 @@ pub machine residual(feed: &io::input::Feed, beta: f64) -> f64 {
     }
     state done(total: f64) -> f64 { total }
 }
-pub machine solve(feed: &io::input::Feed, solution: &mut Solution) {
+public machine solve(feed: &io::input::Feed, solution: &mut Solution) {
     transition { _ -> identifiable(feed, solution, 0) }
     state identifiable(feed: &io::input::Feed, solution: &mut Solution, position: u32) {
         transition position < feed.count && position < 8 {
@@ -133,7 +133,7 @@ machine compose(feed: &io::input::Feed, solution: &mut Solution) {
     state done() { }
 }
 // Refuse a numerical result if closure or present-phase normalization fails.
-pub machine verify(feed: &io::input::Feed, solution: &Solution) -> bool {
+public machine verify(feed: &io::input::Feed, solution: &Solution) -> bool {
     transition { _ -> scan(feed, solution, 0, 0.0, 0.0) }
     state scan(feed: &io::input::Feed, solution: &Solution, position: u32, liquid_sum: f64, vapor_sum: f64) -> bool {
         transition position < feed.count && position < 8 {

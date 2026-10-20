@@ -1,4 +1,4 @@
-pub data Distribution {
+public data Distribution {
     box: i32;
     particles: i32 in Wrapping;
     snapshots: i32 in Wrapping;

@@ -12,7 +12,7 @@ machine snapshot(model: &Model, expected: &Inference) -> bool {
     actual.probability_tail == expected.probability_tail && actual.association_tail == expected.association_tail &&
     actual.ties == expected.ties
 }
-pub machine frozen_numerical_control() reaches Console
+public machine frozen_numerical_control() reaches Console
 invokes Console;
 {
     transition { _ -> case_0() }

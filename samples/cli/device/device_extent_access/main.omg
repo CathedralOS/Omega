@@ -36,16 +36,16 @@ use omega::language::core::representation;
 // `OpaqueRepresentation<DeviceLoan, DeviceLoanCarrier>` so the toolchain has a
 // concrete layout to realize, while source still cannot construct, copy, or
 // inspect one.
-pub data DeviceLoanCarrier {
+public data DeviceLoanCarrier {
     token: u64;
 }
-pub DeviceLoanRepresentation satisfies OpaqueRepresentation<DeviceLoan, DeviceLoanCarrier> { }
+public DeviceLoanRepresentation satisfies OpaqueRepresentation<DeviceLoan, DeviceLoanCarrier> { }
 
 // The same selected byte representation for the ordering occurrences.
-pub data DeviceOrderingEventCarrier {
+public data DeviceOrderingEventCarrier {
     token: u64;
 }
-pub DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
+public DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
     DeviceOrderingEvent,
     DeviceOrderingEventCarrier
 > { }
@@ -56,7 +56,7 @@ pub DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
 // pool ranges, lend revokes CPU access per direction and records the loan and
 // its ordering state, complete proves borrower release, acquire validates,
 // writes back, and restores `Granted` custody, and release returns the range.
-pub data LoopbackDeviceLoanProvider {}
+public data LoopbackDeviceLoanProvider {}
 
 macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: &mut LoopbackDeviceLoanProvider) {
     LoopbackDeviceLoanProvider::select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);

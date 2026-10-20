@@ -3,11 +3,11 @@
 // requirement admits the service reach, so only the hidden synchronous
 // invocation edge is refused.
 
-pub boundary trait Handler {
+public boundary trait Handler {
     machine handle();
 }
 
-pub boundary trait EventSource<Source> {
+public boundary trait EventSource<Source> {
     machine fire(source: &mut Source)
     reaches
         Handler;

@@ -7,25 +7,25 @@ use psi::resolution::resolution;
 // Arithmetic is exact: `valid` fails when a result leaves the magnitude
 // range, or a quotient is inexact or divides by zero. Zero is never
 // negative.
-pub data ExactInteger [copy] {
+public data ExactInteger [copy] {
     negative: bool;
     magnitude: u64 in Wrapping;
 }
 
-pub data ExactResult [copy] {
+public data ExactResult [copy] {
     valid: bool;
     value: ExactInteger;
 }
 
-pub machine ExactInteger::of(magnitude: u64 in Wrapping) -> ExactInteger {
+public machine ExactInteger::of(magnitude: u64 in Wrapping) -> ExactInteger {
     ExactInteger { negative: false, magnitude: magnitude }
 }
 
-pub machine ExactInteger::negate(value: ExactInteger) -> ExactInteger {
+public machine ExactInteger::negate(value: ExactInteger) -> ExactInteger {
     ExactInteger { negative: !value.negative && value.magnitude > 0, magnitude: value.magnitude }
 }
 
-pub machine ExactInteger::add(left: ExactInteger, right: ExactInteger) -> ExactResult {
+public machine ExactInteger::add(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition left.negative == right.negative {
         true -> same_sign(left, right)
         _ -> opposite(left, right)
@@ -62,13 +62,13 @@ pub machine ExactInteger::add(left: ExactInteger, right: ExactInteger) -> ExactR
     }
 }
 
-pub machine ExactInteger::subtract(left: ExactInteger, right: ExactInteger) -> ExactResult {
+public machine ExactInteger::subtract(left: ExactInteger, right: ExactInteger) -> ExactResult {
     let negated: ExactInteger = ExactInteger::negate(right);
     let result: ExactResult = ExactInteger::add(left, negated);
     result
 }
 
-pub machine ExactInteger::multiply(left: ExactInteger, right: ExactInteger) -> ExactResult {
+public machine ExactInteger::multiply(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition left.magnitude == 0 || right.magnitude == 0 {
         true -> zero()
         _ -> bounded(left, right)
@@ -98,7 +98,7 @@ pub machine ExactInteger::multiply(left: ExactInteger, right: ExactInteger) -> E
 }
 
 // Rational division keeps only an exact integral quotient.
-pub machine ExactInteger::divide(left: ExactInteger, right: ExactInteger) -> ExactResult {
+public machine ExactInteger::divide(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition right.magnitude > 0 {
         true -> divisible(left, right)
         _ -> inexact()
@@ -125,7 +125,7 @@ pub machine ExactInteger::divide(left: ExactInteger, right: ExactInteger) -> Exa
 }
 
 // Whether `left <= right`.
-pub machine ExactInteger::at_most(left: ExactInteger, right: ExactInteger) -> bool {
+public machine ExactInteger::at_most(left: ExactInteger, right: ExactInteger) -> bool {
     transition left.negative == right.negative {
         true -> same_sign(left, right)
         _ -> opposite(left.negative)
@@ -148,7 +148,7 @@ pub machine ExactInteger::at_most(left: ExactInteger, right: ExactInteger) -> bo
 }
 
 // The least value of a fixed-integer carrier; zero for any other type.
-pub machine ExactInteger::minimum(builtin: BuiltinType) -> ExactInteger {
+public machine ExactInteger::minimum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
         BuiltinType::I8 -> negative(128)
         BuiltinType::I16 -> negative(32768)
@@ -168,7 +168,7 @@ pub machine ExactInteger::minimum(builtin: BuiltinType) -> ExactInteger {
 
 // The greatest value of a fixed-integer carrier, one for a Boolean (true
 // is 1, false 0); zero for any other type.
-pub machine ExactInteger::maximum(builtin: BuiltinType) -> ExactInteger {
+public machine ExactInteger::maximum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
         BuiltinType::Bool -> positive(1)
         BuiltinType::I8 -> positive(127)
@@ -188,7 +188,7 @@ pub machine ExactInteger::maximum(builtin: BuiltinType) -> ExactInteger {
 }
 
 // Whether `builtin` is a fixed-width integer carrier.
-pub machine ExactInteger::is_carrier(builtin: BuiltinType) -> bool {
+public machine ExactInteger::is_carrier(builtin: BuiltinType) -> bool {
     transition builtin {
         BuiltinType::I8 -> yes()
         BuiltinType::I16 -> yes()
@@ -211,7 +211,7 @@ pub machine ExactInteger::is_carrier(builtin: BuiltinType) -> bool {
 }
 
 // Whether an exact integer fits a fixed-integer carrier.
-pub machine ExactInteger::fits(builtin: BuiltinType, value: ExactInteger) -> bool {
+public machine ExactInteger::fits(builtin: BuiltinType, value: ExactInteger) -> bool {
     let carrier: bool = ExactInteger::is_carrier(builtin);
     let least: ExactInteger = ExactInteger::minimum(builtin);
     let greatest: ExactInteger = ExactInteger::maximum(builtin);
@@ -224,7 +224,7 @@ pub machine ExactInteger::fits(builtin: BuiltinType, value: ExactInteger) -> boo
 // Wrapping operation's result (wiki/spec/language/numeric_values.md#overflow-policies).
 // The mask is the width's ones: the carrier's greatest magnitude plus its
 // least one.
-pub machine ExactInteger::wrap(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
+public machine ExactInteger::wrap(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
     let least: ExactInteger = ExactInteger::minimum(builtin);
     let greatest: ExactInteger = ExactInteger::maximum(builtin);
     let mask: u64 in Wrapping = greatest.magnitude + least.magnitude;
@@ -256,7 +256,7 @@ pub machine ExactInteger::wrap(builtin: BuiltinType, value: ExactInteger) -> Exa
 
 // `value` clamped to its carrier's range, as a Saturating operation's
 // result.
-pub machine ExactInteger::saturate(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
+public machine ExactInteger::saturate(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
     let least: ExactInteger = ExactInteger::minimum(builtin);
     let greatest: ExactInteger = ExactInteger::maximum(builtin);
     let above_least: bool = ExactInteger::at_most(least, value);
@@ -282,7 +282,7 @@ pub machine ExactInteger::saturate(builtin: BuiltinType, value: ExactInteger) ->
 // magnitudes' remainder and its sign the dividend's
 // (wiki/spec/language/numeric_values.md#integer-quotient-and-remainder).
 // Invalid for a zero divisor.
-pub machine ExactInteger::remainder(left: ExactInteger, right: ExactInteger) -> ExactResult {
+public machine ExactInteger::remainder(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition right.magnitude > 0 {
         true -> divided(left, right.magnitude)
         _ -> undefined(left)
@@ -305,22 +305,22 @@ pub machine ExactInteger::remainder(left: ExactInteger, right: ExactInteger) -> 
 // denominator with common factors removed, zero as `0/1`. Arithmetic is
 // exact; `valid` fails when a numerator or denominator leaves the magnitude
 // range, or a divisor is zero. An integral value has denominator 1.
-pub data Rational [copy] {
+public data Rational [copy] {
     numerator: ExactInteger;
     denominator: u64 in Wrapping;
 }
 
-pub data RationalResult [copy] {
+public data RationalResult [copy] {
     valid: bool;
     value: Rational;
 }
 
-pub machine Rational::of(value: ExactInteger) -> Rational {
+public machine Rational::of(value: ExactInteger) -> Rational {
     Rational { numerator: value, denominator: 1 }
 }
 
 // The greatest common divisor of two magnitudes, at least one nonzero.
-pub machine Rational::common_divisor(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+public machine Rational::common_divisor(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
     transition right == 0 {
         true -> found(left)
         _ -> step(right, left % right)
@@ -339,7 +339,7 @@ pub machine Rational::common_divisor(left: u64 in Wrapping, right: u64 in Wrappi
 }
 
 // `numerator / denominator` in lowest terms; a zero denominator is invalid.
-pub machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
+public machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
     transition denominator == 0 {
         true -> invalid()
         _ -> nonzero(numerator, denominator)
@@ -380,7 +380,7 @@ pub machine Rational::reduced(numerator: ExactInteger, denominator: u64 in Wrapp
 }
 
 // (a/b) + (c/d) = (a*d + c*b) / (b*d).
-pub machine Rational::add(left: Rational, right: Rational) -> RationalResult {
+public machine Rational::add(left: Rational, right: Rational) -> RationalResult {
     let left_scaled: ExactResult = ExactInteger::multiply(left.numerator, ExactInteger::of(right.denominator));
     let right_scaled: ExactResult = ExactInteger::multiply(right.numerator, ExactInteger::of(left.denominator));
     let sum: ExactResult = ExactInteger::add(left_scaled.value, right_scaled.value);
@@ -400,14 +400,14 @@ pub machine Rational::add(left: Rational, right: Rational) -> RationalResult {
     }
 }
 
-pub machine Rational::subtract(left: Rational, right: Rational) -> RationalResult {
+public machine Rational::subtract(left: Rational, right: Rational) -> RationalResult {
     let negated: Rational = Rational { numerator: ExactInteger::negate(right.numerator), denominator: right.denominator };
     let result: RationalResult = Rational::add(left, negated);
     result
 }
 
 // (a/b) * (c/d) = (a*c) / (b*d).
-pub machine Rational::multiply(left: Rational, right: Rational) -> RationalResult {
+public machine Rational::multiply(left: Rational, right: Rational) -> RationalResult {
     let product: ExactResult = ExactInteger::multiply(left.numerator, right.numerator);
     let scale: ExactResult = ExactInteger::multiply(ExactInteger::of(left.denominator), ExactInteger::of(right.denominator));
     transition product.valid && scale.valid {
@@ -427,7 +427,7 @@ pub machine Rational::multiply(left: Rational, right: Rational) -> RationalResul
 
 // (a/b) / (c/d) = (a*d) / (b*c), the sign on the numerator; a zero divisor
 // has no value.
-pub machine Rational::divide(left: Rational, right: Rational) -> RationalResult {
+public machine Rational::divide(left: Rational, right: Rational) -> RationalResult {
     let numerator: ExactResult = ExactInteger::multiply(left.numerator, ExactInteger::of(right.denominator));
     let scale: ExactResult = ExactInteger::multiply(ExactInteger::of(left.denominator), ExactInteger::of(right.numerator.magnitude));
     let signed: ExactInteger = ExactInteger { negative: numerator.value.negative != right.numerator.negative && numerator.value.magnitude > 0, magnitude: numerator.value.magnitude };

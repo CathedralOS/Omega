@@ -8,7 +8,7 @@ use psi::typing::typer;
 // membership names a case of the value's data, through references, and a
 // declared domain's carrier is the value's carrier. Joined domains (`&`,
 // `|`) bind no domain at resolution yet.
-pub machine Typer::type_membership(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+public machine Typer::type_membership(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
     let value_type: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);

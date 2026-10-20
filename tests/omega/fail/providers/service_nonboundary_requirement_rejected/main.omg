@@ -1,5 +1,5 @@
 use omega::language::core::binding;
 
-pub trait Local { machine ping(); }
+public trait Local { machine ping(); }
 data Main { service: Binding<Local>; }
 machine Main::main() { }

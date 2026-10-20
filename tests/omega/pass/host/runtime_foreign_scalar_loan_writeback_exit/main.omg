@@ -3,11 +3,11 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub data DescriptorIo {}
-pub boundary requirement DescriptorIo::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+public data DescriptorIo {}
+public boundary requirement DescriptorIo::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
 reaches Console
 blocks;
-pub boundary requirement DescriptorIo::write(descriptor: i32, buffer: &i32, count: u32) -> i32
+public boundary requirement DescriptorIo::write(descriptor: i32, buffer: &i32, count: u32) -> i32
 reaches Console;
 
 windows_x86_64 machine read_binding() -> ForeignBinding<10, 5, 0> {

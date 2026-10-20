@@ -1,5 +1,5 @@
-pub data Pair { first: f64; second: f64; }
-pub data Main { observed: f64; }
+public data Pair { first: f64; second: f64; }
+public data Main { observed: f64; }
 boundary machine Main::main(main: &mut Main, pair: Pair) -> i32 {
     main.observed = pair.second;
     transition { _ -> (0) }

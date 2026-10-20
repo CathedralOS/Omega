@@ -3,7 +3,7 @@
 // equality and the bound on `cap`, so nothing bounds `size` at the recast.
 // The pass sibling `pass/dependent/boundary_equality_recast_witness_compile`
 // is the same program without the write.
-pub boundary trait Firmware {
+public boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
     ensures size == cap && cap <= 8;
     machine refill(cap: &mut u32);

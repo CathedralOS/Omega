@@ -2,13 +2,13 @@
 // through an ordinary reference-taking observer; last use releases that loan.
 use omega::language::core::external_binding;
 
-pub data Output<'source> { value: &'source u8; }
-pub data TerminatedInput where terminator == 0, {
+public data Output<'source> { value: &'source u8; }
+public data TerminatedInput where terminator == 0, {
     digit: u8;
     marker: u8;
     terminator: u8;
 }
-pub boundary trait ParseNumber {
+public boundary trait ParseNumber {
     machine parse<'source>(source: &'source mut TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
     requires base == 10;
 }

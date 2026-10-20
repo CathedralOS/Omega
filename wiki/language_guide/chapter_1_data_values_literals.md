@@ -222,8 +222,8 @@ use it; fields describe state whose lifetime belongs to the record.
 A `const` names an evaluated value, not one addressable storage occurrence:
 
 ```omega
-pub const PAGE_SIZE: u64 = 4096;
-pub const IMPORT_NAME: [u8; 9] = "WriteFile";
+public const PAGE_SIZE: u64 = 4096;
+public const IMPORT_NAME: [u8; 9] = "WriteFile";
 ```
 
 Constants may be package/module-scoped or genuinely attached to a type. Their
@@ -255,7 +255,7 @@ A quoted literal is a shared byte view, not automatically text:
 
 ```omega
 let greeting: &[u8] = "Hello, Omega."; // no encoding qualification
-pub const DLL_NAME: [u8; 12] = "kernel32.dll";
+public const DLL_NAME: [u8; 12] = "kernel32.dll";
 ```
 
 The literal view has immutable image backing. An exact-width owned array context

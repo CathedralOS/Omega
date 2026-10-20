@@ -8,8 +8,8 @@ crashes Trap items[index] == 0
     transition items[index] == 0 { true -> bad() false -> (items[index]) }
     state bad() { crash Trap; }
 }
-pub data Selection [copy] { index: u64; }
-pub machine read_seven(items: &[u64; 2], selection: Selection) -> u64
+public data Selection [copy] { index: u64; }
+public machine read_seven(items: &[u64; 2], selection: Selection) -> u64
 requires selection.index < 2
 requires items[selection.index] == 7
 { maybe_zero(items, selection.index) }

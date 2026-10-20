@@ -1,4 +1,4 @@
 module digits;
-pub data Digit [copy] { value: i32; }
-pub let is_digit(value: i32): core::Strict<0> = value >= 0 && value <= 9;
-pub domain Digit::Decimal(digit) requires is_digit(digit.value);
+public data Digit [copy] { value: i32; }
+public let is_digit(value: i32): core::Strict<0> = value >= 0 && value <= 9;
+public domain Digit::Decimal(digit) requires is_digit(digit.value);

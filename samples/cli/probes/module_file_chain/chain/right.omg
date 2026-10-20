@@ -1,5 +1,5 @@
 use chain::left;
 
-pub data Right {
+public data Right {
     value: Left;
 }

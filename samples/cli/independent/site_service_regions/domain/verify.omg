@@ -4,7 +4,7 @@ use domain::geometry;
 // Independent distance checks inspect all vertices and edge midpoints. Squared
 // distance is affine after subtracting two site distances, so a convex cell's
 // vertex checks also certify its entire interior within the stated tolerance.
-pub machine nearest(partition: &Partition, owner: u64, x: f64, y: f64) -> bool
+public machine nearest(partition: &Partition, owner: u64, x: f64, y: f64) -> bool
 requires owner < 8
 {
     let own: f64 = distance(x, y, partition.site_x[owner], partition.site_y[owner]);
@@ -29,7 +29,7 @@ requires owner < 8
 }
 // Adjacency requires a positive-length edge on the exact pair's bisector.
 // Touching at only one vertex never creates an adjacency edge.
-pub machine shared(partition: &Partition, owner: u64, rival: u64) -> bool
+public machine shared(partition: &Partition, owner: u64, rival: u64) -> bool
 requires owner < 8 && rival < 8
 {
     transition owner == rival { true -> (false) false -> edge(partition, owner, rival, 0) }
@@ -60,7 +60,7 @@ requires owner < 8 && rival < 8
         }
     }
 }
-pub machine verify(partition: &mut Partition) {
+public machine verify(partition: &mut Partition) {
     partition.total = 0.0;
     partition.nearest = true;
     transition { _ -> cell(partition, 0) }

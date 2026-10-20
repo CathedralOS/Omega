@@ -3,10 +3,10 @@
 // provider retains the raw requirement as a static dependency, not source data.
 use omega_language_std::console;
 
-pub boundary trait RawMeasure {
+public boundary trait RawMeasure {
     machine measure(value: i32) -> i32;
 }
-pub boundary trait PortableMeasure {
+public boundary trait PortableMeasure {
     machine measure(value: i32) -> i32 invokes RawMeasure;
 }
 RawMeasureProvider satisfies RawMeasure {

@@ -1,7 +1,7 @@
 // Expected exit: 0.
 use omega::language::core::binding;
 
-pub boundary trait Character {
+public boundary trait Character {
     machine echo(value: i32) -> i32;
     machine store(output: &mut i32, value: i32);
 }

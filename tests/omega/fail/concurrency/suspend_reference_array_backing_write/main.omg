@@ -1,5 +1,5 @@
 
-pub boundary trait Scheduler { machine advance() suspends; }
+public boundary trait Scheduler { machine advance() suspends; }
 
 machine invalid() suspends; reaches Scheduler {
     let mut backing: i32 = 42;

@@ -6,13 +6,13 @@ use planner::input::TransportInput;
 // minimum in ascending enumeration gives deterministic lexicographic ties.
 // Wrapping only makes the arithmetic domain explicit; validated inputs bound
 // every quantity to 0..9 and the complete objective to -2673..2673.
-pub data TransportPlan {
+public data TransportPlan {
     shipments: [i32; 9];
     total: i32 in Wrapping;
     found: bool;
 }
 
-pub machine solve_transport(input: &TransportInput, plan: &mut TransportPlan) -> bool {
+public machine solve_transport(input: &TransportInput, plan: &mut TransportPlan) -> bool {
     plan.found = false;
     plan.total = 0;
     plan.shipments = [0,0,0,0,0,0,0,0,0];

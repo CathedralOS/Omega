@@ -1,6 +1,6 @@
 // The selected hook uses the boundary's published termination promise. The
 // caller can terminate through that cleanup, including a nested owned field.
-pub boundary trait Wait {
+public boundary trait Wait {
     machine wait() terminates reaches Wait;
 }
 data Token { value: u8; }

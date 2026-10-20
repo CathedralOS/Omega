@@ -1,5 +1,5 @@
 
-pub boundary trait Parent<Value> {
+public boundary trait Parent<Value> {
     machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value;
 }
 

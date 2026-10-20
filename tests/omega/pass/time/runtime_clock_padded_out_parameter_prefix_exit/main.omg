@@ -1,8 +1,8 @@
 // clock_gettime writes its two-word prefix, not the larger loan's tail padding.
 use omega::language::core::external_binding;
 
-pub data Instant { seconds: i64; nanoseconds: i64; marker: u8; }
-pub boundary trait ClockProbe {
+public data Instant { seconds: i64; nanoseconds: i64; marker: u8; }
+public boundary trait ClockProbe {
     machine read(selector: u32, instant: &mut Instant) -> i32;
 }
 data ClockImports {}

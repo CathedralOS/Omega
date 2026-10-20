@@ -1,4 +1,4 @@
-pub boundary trait Sink {
+public boundary trait Sink {
     machine emit(value: i32) reaches Sink;
     machine last() -> i32 reaches Sink;
 }
@@ -10,7 +10,7 @@ machine SinkProvider::last() -> i32
 satisfies Sink::last {
     7
 }
-pub data Main { }
+public data Main { }
 boundary machine Main::main(main: &mut Main)
 reaches Sink
 invokes Sink;

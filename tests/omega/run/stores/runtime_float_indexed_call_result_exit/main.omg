@@ -2,9 +2,9 @@ module indexed_float_store;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 
-pub data Main { values: [f64; 2]; }
+public data Main { values: [f64; 2]; }
 
-pub machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches Console
 invokes Console;
 blocks;
 crashes Trap

@@ -2,7 +2,7 @@
 // linear valve branches r1*q1=r2*q2=H-static, q1+q2=Q.
 // Validated coefficients keep every intermediate below 2^40. Wrapping is
 // explicit carrier policy; accepted inputs never approach a wrapping boundary.
-pub data Network [copy] {
+public data Network [copy] {
     a: i64 in Wrapping;
     b: i64 in Wrapping;
     c: i64 in Wrapping;
@@ -14,7 +14,7 @@ pub data Network [copy] {
     demand: i64 in Wrapping;
 }
 
-pub machine valid(network: &Network) -> bool {
+public machine valid(network: &Network) -> bool {
     network.a >= 0 && network.a <= 64
     && network.b >= -16 && network.b <= 16
     && network.c >= 0 && network.c <= 16
@@ -28,13 +28,13 @@ pub machine valid(network: &Network) -> bool {
         && network.b * (network.r1 + network.r2) == network.d * network.r1 * network.r2)
 }
 
-pub machine residual(network: &Network, ticks: i64 in Wrapping) -> i64 in Wrapping {
+public machine residual(network: &Network, ticks: i64 in Wrapping) -> i64 in Wrapping {
     ((network.a - network.elevation * network.d) * 1048576
         + network.b * ticks * 1024 - network.c * ticks * ticks)
         * (network.r1 + network.r2)
         - network.d * network.r1 * network.r2 * ticks * 1024
 }
 
-pub machine opposite(left: i64 in Wrapping, right: i64 in Wrapping) -> bool {
+public machine opposite(left: i64 in Wrapping, right: i64 in Wrapping) -> bool {
     (left < 0 && right > 0) || (left > 0 && right < 0)
 }

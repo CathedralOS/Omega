@@ -19,7 +19,7 @@ use psi::typing::typer;
 // parameters, a terminal machine call's result the body's result, and `-> {}`
 // completes a unit body (wiki/spec/language/state_contracts.md). Its arms
 // cover its subject (coverage.omg).
-pub machine Typer::type_body(
+public machine Typer::type_body(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -489,7 +489,7 @@ crashes Trap
 // compare intrinsically (wiki/spec/language/patterns.md: scalars use value
 // patterns); `_` has no pattern. The named case plus one; zero for any
 // other arm or a rejection.
-pub machine Typer::pattern_head(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) -> u64 in Trapping
+public machine Typer::pattern_head(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let base: u64 in Trapping = Typer::referent(typer, subject_type);

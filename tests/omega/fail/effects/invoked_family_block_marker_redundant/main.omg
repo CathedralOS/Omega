@@ -4,11 +4,11 @@
 // call's envelope is neither suspension nor blocking and a `block` marker is
 // redundant.
 
-pub boundary trait Device {
+public boundary trait Device {
     machine write(byte: i32) reaches Device;
     machine wait() reaches Device blocks;
 }
-pub boundary trait Sink {
+public boundary trait Sink {
     machine emit(byte: i32) reaches Device invokes Device;
 }
 // Provider dependencies select named checked implementations; no extra binding

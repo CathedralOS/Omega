@@ -1,7 +1,7 @@
 // The boundary contract cannot reenter the countdown. The rankless suffix
 // still executes its selected provider; the entry checks the observed result.
-pub boundary trait Output { machine value() -> u32; }
-pub data Provider {}
+public boundary trait Output { machine value() -> u32; }
+public data Provider {}
 machine Provider::value() -> u32 satisfies Output::value { 37 }
 // Each family member retains the abstract service it invokes. The generated
 // interface publishes their inferred reach even though it has no body.

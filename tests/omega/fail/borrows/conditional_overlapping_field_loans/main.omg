@@ -1,15 +1,15 @@
 module split_guard;
 use omega_language_std::console;
 
-pub data Cell { value: i32 in Wrapping; }
-pub data Main { left: Cell; right: Cell; }
+public data Cell { value: i32 in Wrapping; }
+public data Main { left: Cell; right: Cell; }
 
 machine split(source: &Cell, destination: &mut Cell) -> bool {
     destination.value = source.value + 1;
     destination.value == 66
 }
 
-pub machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches Console
 invokes Console;
 blocks;
 crashes Trap

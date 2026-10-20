@@ -1,5 +1,5 @@
 
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 suspends;
 }
 
@@ -12,7 +12,7 @@ machine InlineScheduler::advance(value: &i32, forwarded: &i32, stored: Envelope<
 
 machine observe(value: &i32) -> i32 { value }
 machine overwrite(value: &write i32) { value = 99; }
-pub data Envelope<T> { marker: i32; first: T; second: T; }
+public data Envelope<T> { marker: i32; first: T; second: T; }
 data Main { }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     let backing: i32 = 40;

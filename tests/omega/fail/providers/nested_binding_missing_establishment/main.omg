@@ -2,7 +2,7 @@
 // its nested shape nor the borrowed helper establishes runtime authority.
 use omega::language::core::binding;
 
-pub boundary trait Reading { machine read() -> u64; }
+public boundary trait Reading { machine read() -> u64; }
 data Session { reading: Binding<Reading>; }
 data Main { session: Session; }
 

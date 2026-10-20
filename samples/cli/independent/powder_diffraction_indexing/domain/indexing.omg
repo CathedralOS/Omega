@@ -2,14 +2,14 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use io::input;
 use io::output;
-pub data Problem {
+public data Problem {
     count: u64; wavelength: f64; tolerance: f64;
     angles: [f64; 6]; vectors: [f64; 6]; lines: [u64; 8];
     assignments: [u64; 6]; residuals: [f64; 6]; predictions: [f64; 6];
     selected: u64; missing: u64; last: u64; hypotheses: u64;
     scale: f64; lattice: f64;
 }
-pub machine decode(raw: &Raw, problem: &mut Problem) -> bool {
+public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
     let count: u64 in Saturating = U64::from_f64(raw.values[1]);
     transition raw.count >= 6 && raw.count <= 9 && count >= 3 && count <= 6
         && F64::from_u64(count as u64) == raw.values[1] && raw.count == 3 + (count as u64)
@@ -40,7 +40,7 @@ pub machine decode(raw: &Raw, problem: &mut Problem) -> bool {
 // On [0, pi/2], 16 Taylor terms have truncation error below 1e-29.
 // Bisection in the same monotone interval avoids a poorly conditioned asin
 // power series near 90 degrees. IEEE rounding dominates both calculations.
-pub machine sine(value: f64) -> f64 {
+public machine sine(value: f64) -> f64 {
     transition { _ -> term(value, 1, value, value) }
     state term(value: f64, index: u64, current: f64, total: f64) -> f64 {
         transition index < 16 { true -> add(value, index, current, total) false -> done(total) }
@@ -63,7 +63,7 @@ machine inverse_sine(value: f64) -> f64 {
     }
     state done(low: f64, high: f64) -> f64 { (low + high) * 0.5 }
 }
-pub machine allowed(kind: u64, h: u64, k: u64, l: u64) -> bool requires h < 5, k < 5, l < 5 {
+public machine allowed(kind: u64, h: u64, k: u64, l: u64) -> bool requires h < 5, k < 5, l < 5 {
     kind == 0 || (kind == 1 && (h + k + l) % 2 == 0) || (kind == 2 && h % 2 == k % 2 && k % 2 == l % 2)
 }
 // Canonical families h >= k >= l >= 0 remove sign/permutation duplicates.
@@ -95,7 +95,7 @@ machine collect(problem: &mut Problem, kind: u64, squared: u64, count: u64) {
     }
     state done() { }
 }
-pub machine enumerate(problem: &mut Problem) reaches Console invokes Console; {
+public machine enumerate(problem: &mut Problem) reaches Console invokes Console; {
     Console::write_line("units lattice/scale/angles/residuals 1e-12; indices/families exact");
     classes(problem, 0); Console::write("hypotheses"); integer(problem.hypotheses); Console::write_line("");
 }

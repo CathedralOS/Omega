@@ -1,6 +1,6 @@
 // Boolean tuples retain separate public coordinates despite equal runtime ABI.
 // Package review also retains the authored generic crash contract.
-pub boundary trait Service {
+public boundary trait Service {
     machine echo<const Selected: bool>(value: i32) -> i32
     where Selected == true || Selected == false
     crashes Trap value < 0;

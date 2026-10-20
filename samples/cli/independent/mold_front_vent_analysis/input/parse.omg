@@ -40,7 +40,7 @@ machine parse_hex(text: &[u8], start: i32 in Wrapping) -> i32 in Wrapping {
     }
 }
 
-pub machine parse_input(text: &[u8], cavity: &mut Cavity) -> bool {
+public machine parse_input(text: &[u8], cavity: &mut Cavity) -> bool {
     transition text.len >= 17 && text.len <= 19 {
         true -> ending(text, cavity)
         _ -> false

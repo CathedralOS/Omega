@@ -11,7 +11,7 @@
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
-pub boundary trait CText {
+public boundary trait CText {
     machine length(text: &u8) -> u64;
 }
 
@@ -39,11 +39,11 @@ macos_arm64 machine c_strlen(text: &u8) -> u64
 linux_x86_64 machine c_strlen(text: &u8) -> u64
     satisfies CText::length via linux_x86_64_c_strlen_binding();
 
-pub data Words {
+public data Words {
     bytes: [u8; 6];
 }
 
-pub boundary trait Measure {
+public boundary trait Measure {
     machine measure(text: &u8, words: &Words) -> i32 invokes CText;
 }
 

@@ -1,16 +1,16 @@
 // Interface identity is not an effect. A two-operation provider can expose
 // distinct capability rows; calling one operation does not reach the other.
-pub boundary trait Content {}
-pub boundary trait Read: Content {}
-pub boundary trait Write {}
-pub boundary trait Host {
+public boundary trait Content {}
+public boundary trait Read: Content {}
+public boundary trait Write {}
+public boundary trait Host {
     machine read() -> u64 reaches Read;
     machine write(value: u64) reaches Write;
     machine pure(value: u64) -> u64;
     machine wait() blocks;
 }
 
-pub boundary trait Portable {
+public boundary trait Portable {
     machine read() -> u64 reaches Read invokes Host;
     machine pure() -> u64 invokes Host;
 }
@@ -40,10 +40,10 @@ machine bound_pure() -> u64 {
 }
 
 // The implementation check retains the read capability's parent closure.
-pub trait ReadContract { machine read() -> u64 reaches Read invokes Host; }
+public trait ReadContract { machine read() -> u64 reaches Read invokes Host; }
 data Reader {}
 machine Reader::read() -> u64 satisfies ReadContract::read { read_only() }
 
-pub trait PureContract { machine pure() -> u64 invokes Host; }
+public trait PureContract { machine pure() -> u64 invokes Host; }
 data Pure {}
 machine Pure::pure() -> u64 satisfies PureContract::pure { pure_operation() }

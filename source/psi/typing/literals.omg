@@ -10,14 +10,14 @@ use psi::typing::typer;
 // typed at its suffix; an unsuffixed one is anonymous until it lands. Values
 // stay exact: a magnitude past 2^64 - 1 rejects instead of wrapping.
 
-pub data LiteralValue [copy] {
+public data LiteralValue [copy] {
     valid: bool;
     has_suffix: bool;
     suffix: BuiltinType;
     magnitude: u64 in Wrapping;
 }
 
-pub machine Typer::literal_value(sources: &SourceSet, span: SourceSpan) -> LiteralValue
+public machine Typer::literal_value(sources: &SourceSet, span: SourceSpan) -> LiteralValue
 crashes Trap
 {
     let first: u8 = SourceSet::byte_or_nul(sources, span.source, span.span.start);
@@ -176,7 +176,7 @@ machine Typer::digit_value(byte: u8) -> u64 in Wrapping {
     }
 }
 
-pub data SuffixCarrier [copy] {
+public data SuffixCarrier [copy] {
     known: bool;
     builtin: BuiltinType;
 }
@@ -265,7 +265,7 @@ crashes Trap
 // escapes decoded as the lexer decodes them. UTF-8 validity follows the
 // encoding's lead-byte classes: a lead owes `pending` continuation bytes,
 // the first of them within `low..=high`, and no sequence may be left open.
-pub machine Typer::quoted_roster(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
+public machine Typer::quoted_roster(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     transition span.span.start + 2 <= span.span.end {
@@ -519,7 +519,7 @@ crashes Trap
     }
 }
 
-pub machine Typer::quoted_length(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
+public machine Typer::quoted_length(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     transition span.span.start + 2 <= span.span.end {

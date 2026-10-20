@@ -17,7 +17,7 @@ are separate, and specified deployment routes are not necessarily implemented.
 A package owns source naming and dependency reach; a requirement owns behavior;
 a component is a selected independently deployable realization and its closed
 code/state/resource/version graph. A boundary is a trust, ABI, or external-supply
-crossing. These are distinct: `pub` alone exports neither a component ABI nor
+crossing. These are distinct: `public` alone exports neither a component ABI nor
 a replaceable edge.
 
 Provider selection is Fused by default; omission and explicit `CompositionMode::Fused`

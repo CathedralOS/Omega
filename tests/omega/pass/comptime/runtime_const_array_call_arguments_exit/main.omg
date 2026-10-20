@@ -1,8 +1,8 @@
 // Expected exit: 0. The assertions observe extent, stored value and copy.
 use omega::language::core::float_operations;
-pub machine area(rows: u64, columns: u64) -> u64
+public machine area(rows: u64, columns: u64) -> u64
 requires rows >= 1 && rows <= 4 && columns >= 1 && columns <= 4; { rows * columns }
-pub data Matrix<const Rows: u64, const Columns: u64> [copy]
+public data Matrix<const Rows: u64, const Columns: u64> [copy]
 where Rows >= 1 && Rows <= 4 && Columns >= 1 && Columns <= 4 {
     values: [f64; area(Rows, Columns)];
 }

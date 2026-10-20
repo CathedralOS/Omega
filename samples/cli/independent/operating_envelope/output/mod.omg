@@ -5,7 +5,7 @@ use geometry;
 
 // Integer text emission uses the existing byte provider; decimal coordinates
 // and areas are emitted in micro-units, with truncation error below one unit.
-pub machine integer(value: i32) reaches Console
+public machine integer(value: i32) reaches Console
 invokes Console;
 {
     transition value < 0 {
@@ -38,13 +38,13 @@ invokes Console;
     }
     state done() { }
 }
-pub machine micro(value: f64) reaches Console
+public machine micro(value: f64) reaches Console
 invokes Console;
 {
     let converted: i32 in Saturating = I32::from_f64(value * 1000000.0);
     integer(converted as i32);
 }
-pub machine report(envelope: &geometry::Envelope) reaches Console
+public machine report(envelope: &geometry::Envelope) reaches Console
 invokes Console;
 {
     transition envelope.count == 0 {

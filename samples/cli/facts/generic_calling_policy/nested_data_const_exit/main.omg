@@ -1,16 +1,16 @@
 // Expected exit: 0
 // A closed named policy specializes its inline plan before a boundary value call.
 use omega_language_std::calling;
-pub trait Forwarded<Policy satisfies CallingPolicy>: Calling<Policy> {}
-pub data Box<Element, const Count: u64> { value: [Element; Count]; }
-pub GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
+public trait Forwarded<Policy satisfies CallingPolicy>: Calling<Policy> {}
+public data Box<Element, const Count: u64> { value: [Element; Count]; }
+public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         value_plan(signature, false, Width)
     }
 }
-pub const PolicyWidth: u64 = 8;
-pub const PolicyCount: u64 = 1;
-pub boundary trait LocalEntry: Calling<GenericPolicy<[Box<u64, PolicyCount>; 1], PolicyWidth>> {
+public const PolicyWidth: u64 = 8;
+public const PolicyCount: u64 = 1;
+public boundary trait LocalEntry: Calling<GenericPolicy<[Box<u64, PolicyCount>; 1], PolicyWidth>> {
     machine value() -> u64;
 }
 LocalMap satisfies LocalEntry {

@@ -18,13 +18,13 @@ data Counter [copy] {
 domain Counter::Ready;
 domain Counter::ReadyAlias = Ready;
 
-pub data Receipt [linear] {
+public data Receipt [linear] {
     code: u64;
 }
 
 machine Receipt::drop(receipt: &mut Receipt) {}
 
-pub domain Receipt::Issued;
+public domain Receipt::Issued;
 
 data ReceiptBox {
     receipts: [Receipt in Receipt::Issued; 2];

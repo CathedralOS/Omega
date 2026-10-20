@@ -16,7 +16,7 @@
 // Contracts only; machine-shaped bodies are behind the same generic-machine
 // frontier recorded in source/library/core/fixed_vec.omg.
 
-pub data BoundedQueue<T, const N: u64> [linear] {
+public data BoundedQueue<T, const N: u64> [linear] {
     items: [T; N];
     head: u64;
     length: u64;

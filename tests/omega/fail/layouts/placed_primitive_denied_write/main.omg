@@ -1,8 +1,8 @@
 // Reject unauthorized placed-operation selection, including unused static operands.
 use omega::language::core::layout;
 
-pub data Value { number: u64; }
-pub data StablePlacement {}
+public data Value { number: u64; }
+public data StablePlacement {}
 
 machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];

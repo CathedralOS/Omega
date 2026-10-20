@@ -2,7 +2,7 @@ use domain::tables;
 use domain::statistics;
 // Enumerate the first two cells; margins determine the remaining four.
 // At most 81 candidates. Structural-zero conditioning renormalizes factorial weights.
-pub machine analyze(model: &Model) -> Inference {
+public machine analyze(model: &Model) -> Inference {
     let mut result: Inference;
     transition margins_valid(model) {
         true -> prepare(model, result)

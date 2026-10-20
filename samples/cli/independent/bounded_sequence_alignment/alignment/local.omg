@@ -5,7 +5,7 @@ use input::sequence;
 // Scores and directions are a nested 17 by 17 matrix. Cell reads travel through
 // a call result, a copied local row, a coordinate parameter, and a field store.
 // Strict updates preserve diagonal/up/left tie order and first row-major maximum.
-pub data Alignment {
+public data Alignment {
     scores: [[i32; 17]; 17];
     directions: [[u8; 17]; 17];
     first_trace: [u8; 32];
@@ -43,7 +43,7 @@ requires row >= 0 && row < 17, column >= 0 && column < 17
     grid[row][column]
 }
 
-pub machine align(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
+public machine align(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
     transition first.length > 0 && first.length <= 16 && second.length > 0 && second.length <= 16 {
         true -> initialize(first, second, result)
         false -> (false)

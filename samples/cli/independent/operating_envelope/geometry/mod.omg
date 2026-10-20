@@ -5,7 +5,7 @@ use input;
 // Sutherland-Hodgman clipping keeps counterclockwise order. Two fixed buffers
 // own all scratch: at most four window corners plus eight additional edges.
 // No external numerical package participates in admission or calculation.
-pub data Envelope {
+public data Envelope {
     x: [f64; 32]; y: [f64; 32];
     scratch_x: [f64; 32]; scratch_y: [f64; 32];
     a: [f64; 8]; b: [f64; 8]; limit: [f64; 8];
@@ -14,7 +14,7 @@ pub data Envelope {
     bound: f64; area: f64;
     valid: bool; window_active: bool;
 }
-pub machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
+public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
     transition packet.valid && packet.count >= 2 {
         true -> header(envelope, packet)
         _ -> false
@@ -88,7 +88,7 @@ machine append(envelope: &mut Envelope, x: f64, y: f64) {
     state overflow(envelope: &mut Envelope) { envelope.valid = false; }
 }
 
-pub machine solve(envelope: &mut Envelope) {
+public machine solve(envelope: &mut Envelope) {
     transition { _ -> constraint(envelope, 0) }
     state constraint(envelope: &mut Envelope, index: i32 in Wrapping) {
         transition index >= 0 && index < envelope.constraints && index < 8 {

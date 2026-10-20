@@ -1,5 +1,5 @@
 module units;
 
-pub domain u64::Distance(value)
+public domain u64::Distance(value)
 requires
     value > 0;

@@ -1,6 +1,6 @@
 // An array of references loans through a suspending boundary call and its
 // elements stay observable after it returns.
-pub boundary trait Scheduler {
+public boundary trait Scheduler {
     machine read(references: &[&i32; 2]) -> i64 suspends;
 }
 data InlineScheduler {}

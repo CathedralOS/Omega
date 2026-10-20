@@ -1,8 +1,8 @@
 // An inline-looking state parameter cannot hide a borrowed provider referent
 // or restore its mutation permission while a shared child survives.
-pub data Token { generation: u64; }
-pub data Cell { value: u8; }
-pub boundary trait Acquire {
+public data Token { generation: u64; }
+public data Cell { value: u8; }
+public boundary trait Acquire {
     machine view<'owner>(owner: &'owner mut Token) -> &'owner mut Cell;
 }
 machine exercise(owner: &mut Token) -> u8 reaches Acquire {

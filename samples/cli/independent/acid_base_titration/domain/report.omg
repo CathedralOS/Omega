@@ -70,7 +70,7 @@ machine emit_number(value: f64) reaches Console {
         Console::write_line("");
     }
 }
-pub machine report(volume: f64, result: &Equilibrium) reaches Console
+public machine report(volume: f64, result: &Equilibrium) reaches Console
 invokes Console;
 crashes Trap
 {

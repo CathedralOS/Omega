@@ -22,7 +22,7 @@ use psi::tokens::tokens;
 // One grammar serves every owner; which clauses an owner admits is
 // `Parser::clause_admitted`, and an inadmissible clause rejects at its word.
 // The range lands in `clause_first` and the table count.
-pub machine Parser::parse_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
+public machine Parser::parse_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
 crashes Trap
 {
     parser.clause_first = parser.output.clause_count as u64 in Trapping;
@@ -796,7 +796,7 @@ crashes Trap
 
 // What follows a `;` that ends a clause, read without moving the cursor,
 // which stays at the `;`.
-pub data ClauseContinuation [copy] {
+public data ClauseContinuation [copy] {
     // The declaration's body `{` or another clause word.
     case Clause;
     // Any other start of an expression: the next fact of a contract list.

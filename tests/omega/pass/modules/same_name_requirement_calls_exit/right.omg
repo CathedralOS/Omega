@@ -2,13 +2,13 @@ module right;
 
 use omega_language_std::console;
 
-pub boundary trait Sink {
+public boundary trait Sink {
     machine emit(byte: i32)
     reaches
         Console
     invokes Console;
 }
-pub data Provider {}
+public data Provider {}
 machine Provider::emit(byte: i32) satisfies Sink::emit
 reaches
     Console
@@ -16,8 +16,8 @@ reaches
     Console::write_byte(byte);
 }
 
-pub data Runner { }
-pub machine Runner::run(runner: &mut Runner) reaches Sink, Console
+public data Runner { }
+public machine Runner::run(runner: &mut Runner) reaches Sink, Console
 invokes Sink;
 invokes Console;
 {
@@ -29,6 +29,6 @@ invokes Console;
     }
 }
 
-pub ProviderSinkImplementation satisfies Sink {
+public ProviderSinkImplementation satisfies Sink {
     Sink::emit = Provider::emit;
 }

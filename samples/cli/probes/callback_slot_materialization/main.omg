@@ -19,7 +19,7 @@
 
 use omega::language::core::layout;
 
-pub boundary trait WindowProcedure {
+public boundary trait WindowProcedure {
     machine call(message: u64);
 }
 

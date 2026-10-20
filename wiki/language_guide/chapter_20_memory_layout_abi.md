@@ -54,11 +54,11 @@ data Command {
     case Say(text: [u8; 256]);
 }
 
-pub domain Command::Inert(value)
+public domain Command::Inert(value)
 requires
     value in Command::None;
 
-pub machine Command::empty() -> Command in Command::Inert {
+public machine Command::empty() -> Command in Command::Inert {
     Command::None
 }
 ```
@@ -396,7 +396,7 @@ explain these independent choices.
 An extent's address and length describe geometry, not authority:
 
 ```omega
-pub data Extent [linear] {
+public data Extent [linear] {
     base: addr;
     length: u64;
 }
@@ -437,7 +437,7 @@ data PacketCustody {
     authority: DeviceAuthority;
 }
 
-pub PacketNativeCustody satisfies PlacementCustody<PacketCustody, Native, Packet> {
+public PacketNativeCustody satisfies PlacementCustody<PacketCustody, Native, Packet> {
     // Exact required custody rows.
 }
 ```

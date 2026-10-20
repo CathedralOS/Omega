@@ -1,5 +1,5 @@
 // An unused phantom argument still owes its declared property.
 use omega::language::core::binding;
-pub boundary trait Parent<Value [copy]> { machine read() -> i32; }
+public boundary trait Parent<Value [copy]> { machine read() -> i32; }
 data Token { value: i32; }
 data Holder { slot: Binding<Parent<Token>>; }

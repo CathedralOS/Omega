@@ -6,7 +6,7 @@ use request::outcome;
 // `request_staging_bytes` Incomplete outcome, anchored at the first byte
 // that could not be staged and reporting the full observed length, so the
 // entry keeps counting after the buffer fills.
-pub data Request
+public data Request
 where
     length <= 65536,
 {
@@ -15,13 +15,13 @@ where
     observed: u64 in Trapping;
 }
 
-pub machine Request::clear(request: &mut Request) {
+public machine Request::clear(request: &mut Request) {
     request.length = 0;
     request.observed = 0;
 }
 
 // Stage one more stdin byte, or only count it past a full buffer.
-pub machine Request::stage(request: &mut Request, byte: u8)
+public machine Request::stage(request: &mut Request, byte: u8)
 crashes Trap
 {
     request.observed = request.observed + 1;
@@ -99,7 +99,7 @@ machine Request::identity_byte(index: u64 in Trapping) -> u64 in Trapping {
 }
 
 // The two sections the envelope frames, as request offsets.
-pub data Sections [copy] {
+public data Sections [copy] {
     subject_start: u64 in Trapping;
     subject_end: u64 in Trapping;
     invocation_start: u64 in Trapping;
@@ -112,7 +112,7 @@ machine Sections::none() -> Sections {
 
 // What a request phase concludes: it continues into `sections`, or it
 // publishes `outcome`.
-pub data Verdict [copy] {
+public data Verdict [copy] {
     complete: bool;
     sections: Sections;
     outcome: Outcome;
@@ -131,7 +131,7 @@ machine Verdict::refuse(outcome: Outcome) -> Verdict {
 // stream shorter than a fixed field is missing its byte at the stream end.
 // A request the staging provision could not hold is refused first, at the
 // first byte that could not be staged.
-pub machine Request::envelope(request: &Request) -> Verdict
+public machine Request::envelope(request: &Request) -> Verdict
 crashes Trap
 {
     let length: u64 in Trapping = Request::staged(request);
@@ -254,7 +254,7 @@ crashes Trap
 // `malformed_request` anchors: a missing byte at the section end, an invalid
 // value at its field, trailing bytes at the first one. Reads after a
 // failure take nothing and return zero.
-pub data SectionReader {
+public data SectionReader {
     cursor: u64 in Trapping;
     end: u64 in Trapping;
     failed: bool;
@@ -433,7 +433,7 @@ machine SectionReader::finish(reader: &mut SectionReader) {
 // snapshots, admissions, commitment) are not implemented yet, so it
 // publishes the `coverage_request_semantics` provision rather than a
 // verdict it cannot defend.
-pub machine Request::structure(request: &Request, sections: Sections) -> Outcome
+public machine Request::structure(request: &Request, sections: Sections) -> Outcome
 crashes Trap
 {
     let mut reader: SectionReader;

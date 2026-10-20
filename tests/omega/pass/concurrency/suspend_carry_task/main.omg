@@ -1,9 +1,9 @@
 // Suspend-carry surface (consumer side): a `suspends;` machine body
 // suspends through a boundary machine and a `Token in
 // Carry::AcrossSuspend` value survives the suspend edge.
-pub boundary data Sleeper;
+public boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
-pub data Token {
+public data Token {
     id: u64;
 }
 data Worker { }

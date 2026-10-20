@@ -305,7 +305,7 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
 #[test]
 fn parses_transparent_domain_alias_as_an_independent_record() {
     let source = r#"
-        pub domain Socket::Usable =
+        public domain Socket::Usable =
             Socket::Connected & Socket::Authenticated;
         "#;
 

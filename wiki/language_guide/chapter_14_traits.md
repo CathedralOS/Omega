@@ -85,7 +85,7 @@ trait Ranked<T> {
     machine rank_value(card: &T) -> u32;
 }
 
-pub PowerOrder satisfies Ranked<Card>
+public PowerOrder satisfies Ranked<Card>
 {
     machine before(card: &Card, other: &Card) -> bool {
         card.power < other.power
@@ -108,7 +108,7 @@ CostOrder satisfies Ranked<Card>
 }
 ```
 
-The `pub` on `PowerOrder` makes that conformance available to direct dependent
+The `public` on `PowerOrder` makes that conformance available to direct dependent
 packages. `CostOrder` stays package-private even if `Card` and `Ranked` are public.
 Consumers may select a public conformance without naming its private realization
 machines. Receiving a dynamic value carrying private evidence does not grant
@@ -135,11 +135,11 @@ A conformance targeting a lifetime-parameterized trait writes that complete
 trait application explicitly:
 
 ```omega
-pub trait Reads<'view, Item> {
+public trait Reads<'view, Item> {
     machine read(value: &'view Item);
 }
 
-pub BufferReads<'scope, Item> satisfies Reads<'scope, Item>
+public BufferReads<'scope, Item> satisfies Reads<'scope, Item>
 {
     // ...
 }
@@ -646,7 +646,7 @@ contract checking, not a runtime dictionary or required code duplication.
 A transparent refinement gives a reusable name to a narrower trait contract:
 
 ```omega
-pub trait LocalLogger<T> = Logger<T> {
+public trait LocalLogger<T> = Logger<T> {
     machine *
         reaches;
         suspends false;
@@ -654,7 +654,7 @@ pub trait LocalLogger<T> = Logger<T> {
         terminates;
 }
 
-pub trait BufferedLogger<T> = Logger<T> {
+public trait BufferedLogger<T> = Logger<T> {
     machine Logger::write
         reaches;
         suspends false;

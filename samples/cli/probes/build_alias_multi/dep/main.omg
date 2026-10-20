@@ -1,6 +1,6 @@
-pub machine v() -> i32 {
+public machine v() -> i32 {
     1
 }
-pub machine w() -> i32 {
+public machine w() -> i32 {
     2
 }

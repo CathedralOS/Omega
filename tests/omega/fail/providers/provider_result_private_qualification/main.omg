@@ -7,11 +7,11 @@
 use omega::language::core::drop;
 use omega_language_std::console;
 
-pub data Token [linear] { value: u64; }
+public data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
-pub domain Token::Issued;
+public domain Token::Issued;
 
-pub boundary trait TokenMint {
+public boundary trait TokenMint {
     machine issue(value: u64) -> Token;
 }
 

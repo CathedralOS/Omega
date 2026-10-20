@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-pub boundary trait ArrayReader {
+public boundary trait ArrayReader {
     machine inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32;
 }
 

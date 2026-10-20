@@ -1,2 +1,2 @@
 module second;
-pub data Choice<T> { case Empty; case Full(value: T); }
+public data Choice<T> { case Empty; case Full(value: T); }

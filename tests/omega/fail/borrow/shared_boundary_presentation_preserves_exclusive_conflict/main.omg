@@ -1,4 +1,4 @@
-pub boundary trait Observe {
+public boundary trait Observe {
     machine read(bytes: &[u8], destination: &mut [u8]);
 }
 machine conflict(bytes: &mut [u8]) {

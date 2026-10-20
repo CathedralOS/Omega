@@ -2,7 +2,7 @@
 // exact static provider demand without carrying a service value.
 use omega::language::core::drop;
 
-pub boundary trait Character {
+public boundary trait Character {
     machine echo(value: i32) -> i32 terminates;
 }
 CharacterImplementation satisfies Character {

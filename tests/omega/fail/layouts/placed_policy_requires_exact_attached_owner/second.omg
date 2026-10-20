@@ -1,14 +1,14 @@
 module second;
 use omega::language::core::layout;
 
-pub data Registers {
+public data Registers {
     status: u32;
     transmit: u8;
 }
 
-pub data RegPlacement {}
+public data RegPlacement {}
 
-pub machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+public machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

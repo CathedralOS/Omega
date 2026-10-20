@@ -56,7 +56,7 @@ machine true_residual(grid:&mut domain::grid::Grid) {
  }
  state done() { }
 }
-pub machine solve(grid:&mut domain::grid::Grid) -> i32 {
+public machine solve(grid:&mut domain::grid::Grid) -> i32 {
  transition domain::grid::valid(grid) {
   true -> start(grid)
   false -> 4

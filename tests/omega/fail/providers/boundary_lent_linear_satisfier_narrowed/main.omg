@@ -7,11 +7,11 @@
 // same program with the satisfier declared as the requirement is.
 use omega::language::core::drop;
 
-pub data Token [linear] { value: u64; }
+public data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
-pub domain Token::Issued;
+public domain Token::Issued;
 
-pub boundary trait TokenScale {
+public boundary trait TokenScale {
     machine weigh(token: &Token) -> u64;
 }
 

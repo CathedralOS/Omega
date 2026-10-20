@@ -10,16 +10,16 @@ use omega::language::core::nat;
 // A struct literal introduces one half-open member. Compiler normalization
 // lifts it into the canonical finite interval-set term used by `separate` and
 // residual difference; this proof-only carrier never acquires runtime layout.
-pub data IntervalSet<CoordinateSpace> {
+public data IntervalSet<CoordinateSpace> {
     start: Nat;
     end: Nat;
 }
 
-pub data CountedQuantity<Unit> {
+public data CountedQuantity<Unit> {
     magnitude: Nat;
 }
 
-pub trait Content<Owner, A> {
+public trait Content<Owner, A> {
     machine project(subject: &Owner) -> A;
 }
 

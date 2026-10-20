@@ -8,12 +8,12 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] proposition Name [<generic parameters>] [(parameters)] body`,
+// `[public] proposition Name [<generic parameters>] [(parameters)] body`,
 // entered at the `proposition` word. The body is `;` for a primitive
 // proposition, `evidence Type;` for a witness-bearing one, or `= fact;` for
 // a transparent one. The generic parameters and parameters share the data
 // and machine grammars; lifetime binders are a checking question.
-pub machine Parser::parse_proposition(
+public machine Parser::parse_proposition(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,

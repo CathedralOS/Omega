@@ -11,18 +11,18 @@
 // COUNT CARRIERS: byte sizes, alignments, counts, indices, register ordinals,
 // immediates, and nonnegative stack offsets use u64, never addr.
 
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
-pub data SystemVEightbyteClass {
+public data SystemVEightbyteClass {
     case Integer;
     case Sse;
 }
 
 // ABI descriptions are reusable pure data, not ownership of described storage.
 // Policies inspect and pass them repeatedly while assembling a plan.
-pub data ValueClass [copy] {
+public data ValueClass [copy] {
     case Integer;
     case Float;
     case Reference;
@@ -30,23 +30,23 @@ pub data ValueClass [copy] {
     case Record(first_field: u64, field_count: u64);
 }
 
-pub data ValueShape [copy] {
+public data ValueShape [copy] {
     class: ValueClass;
     byte_size: u64;
     alignment: u64;
 }
 
-pub data ValueField [copy] {
+public data ValueField [copy] {
     shape: u64;
     byte_offset: u64;
 }
 
-pub data CallbackBinderIdentity [copy] {
+public data CallbackBinderIdentity [copy] {
     binder: u64;
     requirement: u64;
 }
 
-pub data AbiValueClass {
+public data AbiValueClass {
     case Integer;
     case Float;
     case HomogeneousFloatAggregate(members: u64);
@@ -56,7 +56,7 @@ pub data AbiValueClass {
     );
 }
 
-pub data AbiValueShape {
+public data AbiValueShape {
     class: AbiValueClass;
     byte_size: u64;
     alignment: u64;
@@ -78,7 +78,7 @@ pub data AbiValueShape {
 // native entries but cannot create, reorder, or retarget them.
 // A native destination names a compiler-issued plan coordinate; copying the
 // coordinate grants no authority over the storage it describes.
-pub data NativePlace [copy] {
+public data NativePlace [copy] {
     case Parameter(parameter: u64);
     case Field(
         parameter: u64,
@@ -88,29 +88,29 @@ pub data NativePlace [copy] {
     ) where field_path_count >= 1, field_path_count <= 16;
 }
 
-pub data NativeCallbackDemandIdentity [copy] {
+public data NativeCallbackDemandIdentity [copy] {
     destination: NativePlace;
     requirement: u64;
 }
 
-pub data NativeParameterOrigin [copy] {
+public data NativeParameterOrigin [copy] {
     case SemanticFormal(formal_ordinal: u64);
     case PrivateCallback(binder: u64, requirement: u64);
 }
 
-pub data NativeParameterShape [copy] {
+public data NativeParameterShape [copy] {
     case Semantic(root: u64);
     case TargetFunctionPointer(byte_size: u64, alignment: u64);
 }
 
-pub data NativeParameterIdentity [copy] {
+public data NativeParameterIdentity [copy] {
     identity: u64;
     native_ordinal: u64;
     origin: NativeParameterOrigin;
     shape: NativeParameterShape;
 }
 
-pub data BoundarySignature [copy] where shape_count <= 256, field_count <= 256,
+public data BoundarySignature [copy] where shape_count <= 256, field_count <= 256,
     parameter_count <= 32, native_parameter_count <= 32,
     callback_binder_count <= 32, callback_demand_count <= 32 {
     shapes: [ValueShape; 256];
@@ -131,7 +131,7 @@ pub data BoundarySignature [copy] where shape_count <= 256, field_count <= 256,
 
 // Register names are plan values, not ownership of live hardware registers.
 // A policy may copy a name while assembling placements and clobber sets.
-pub data MachineRegister [copy] {
+public data MachineRegister [copy] {
     case X86Rax;
     case X86Rcx;
     case X86Rdx;
@@ -153,12 +153,12 @@ pub data MachineRegister [copy] {
     case Aarch64V(index: u64);
 }
 
-pub data IndirectPointerLocation {
+public data IndirectPointerLocation {
     case Register(register: MachineRegister);
     case Stack(stack_byte_offset: u64, alignment: u64);
 }
 
-pub data ValueLocation {
+public data ValueLocation {
     case Register(
         register: MachineRegister,
         value_byte_offset: u64,
@@ -179,13 +179,13 @@ pub data ValueLocation {
     );
 }
 
-pub data ValuePlacement where location_count <= 16 {
+public data ValuePlacement where location_count <= 16 {
     shape: AbiValueShape;
     locations: [ValueLocation; 16];
     location_count: u64;
 }
 
-pub data CallingConvention {
+public data CallingConvention {
     case MicrosoftX64;
     case SystemVAMD64;
     case Aapcs64;
@@ -193,12 +193,12 @@ pub data CallingConvention {
     case LinuxSyscallAarch64;
 }
 
-pub data RegisterSet where register_count <= 64 {
+public data RegisterSet where register_count <= 64 {
     registers: [MachineRegister; 64];
     register_count: u64;
 }
 
-pub data EntryControl {
+public data EntryControl {
     case CallReturn;
     case SupervisorCall(
         number_register: MachineRegister,
@@ -207,12 +207,12 @@ pub data EntryControl {
     case InterruptReturn;
 }
 
-pub data CallbackMaterialization {
+public data CallbackMaterialization {
     binder: u64;
     destination: NativePlace;
 }
 
-pub data CallPlan where parameter_count <= 32, callback_materialization_count <= 32 {
+public data CallPlan where parameter_count <= 32, callback_materialization_count <= 32 {
     convention: CallingConvention;
     parameters: [ValuePlacement; 32];
     parameter_count: u64;
@@ -226,12 +226,12 @@ pub data CallPlan where parameter_count <= 32, callback_materialization_count <=
     entry_control: EntryControl;
 }
 
-pub data MachineRegime {
+public data MachineRegime {
     case X86Long64;
     case Aarch64A64(exception_level: u64);
 }
 
-pub data MachineStateSet {
+public data MachineStateSet {
     general_registers: bool;
     vector_registers: bool;
     flags: bool;
@@ -243,20 +243,20 @@ pub data MachineStateSet {
     extended_state: bool;
 }
 
-pub data EntryStack {
+public data EntryStack {
     case Interrupted;
     case Dedicated(class: u64);
     case ProviderSelected;
 }
 
-pub data Preemption {
+public data Preemption {
     case NotApplicable;
     case Masked;
     case Nestable(maximum_depth: u64);
     case ProviderDefined;
 }
 
-pub data StatePlan {
+public data StatePlan {
     initial_regime: MachineRegime;
     interrupted_state: MachineStateSet;
     saved_state: MachineStateSet;
@@ -266,26 +266,26 @@ pub data StatePlan {
     preemption: Preemption;
 }
 
-pub data BoundaryEntryPlan {
+public data BoundaryEntryPlan {
     call: CallPlan;
     state: StatePlan;
 }
 
-pub data CallingPolicyRejection {
+public data CallingPolicyRejection {
     // Rejections borrow their diagnostic literal; qualification adds no storage.
     reason: &[u8] in Utf8;
 }
 
-pub data BoundaryPlanResult {
+public data BoundaryPlanResult {
     case Accepted(plan: BoundaryEntryPlan);
     case Rejected(reason: CallingPolicyRejection);
 }
 
-pub trait CallingPolicy {
+public trait CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
 }
 
 // The selected named implementation supplies the exact plan requirement row.
 // Data names and attached machines cannot select a policy implicitly.
-pub trait Calling<Policy satisfies CallingPolicy>
+public trait Calling<Policy satisfies CallingPolicy>
 { }

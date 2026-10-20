@@ -3,11 +3,11 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-pub const ROOT: f32 = F32::square_root(4.0f32);
-pub const ROOT64: f64 = F64::square_root(9.0f64);
-pub const NAN_CLASSIFIED: bool = F32::is_nan(F32::square_root(-1.0f32));
+public const ROOT: f32 = F32::square_root(4.0f32);
+public const ROOT64: f64 = F64::square_root(9.0f64);
+public const NAN_CLASSIFIED: bool = F32::is_nan(F32::square_root(-1.0f32));
 machine classify(value: f32) -> bool { F32::is_nan(value) }
-pub const THROUGH_CALL: bool = classify(F32::square_root(-1.0f32));
+public const THROUGH_CALL: bool = classify(F32::square_root(-1.0f32));
 
 data Main {
 }

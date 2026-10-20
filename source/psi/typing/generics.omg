@@ -19,11 +19,11 @@ use psi::typing::typer;
 // subtree once.
 
 // A fresh binding set.
-pub machine Typer::begin_bindings(typer: &mut Typer) {
+public machine Typer::begin_bindings(typer: &mut Typer) {
     typer.binding_generation = typer.binding_generation + 1;
 }
 
-pub machine Typer::bind(typer: &mut Typer, parameter: u64 in Trapping, handle: u64 in Trapping)
+public machine Typer::bind(typer: &mut Typer, parameter: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition parameter < 256 {
@@ -42,7 +42,7 @@ crashes Trap
 }
 
 // The type bound to `parameter` in the live set, or zero.
-pub machine Typer::bound_type(typer: &Typer, parameter: u64 in Trapping) -> u64 in Trapping
+public machine Typer::bound_type(typer: &Typer, parameter: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition parameter < 256 {
@@ -70,7 +70,7 @@ crashes Trap
 
 // Bind the generic parameters of data type `owner`'s declaration to its
 // arguments, in the order an application spells them (lifetimes aside).
-pub machine Typer::bind_data_arguments(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow)
+public machine Typer::bind_data_arguments(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow)
 crashes Trap
 {
     transition owner.kind == TypeKind::Data && owner.argument_count > 0 {
@@ -111,7 +111,7 @@ crashes Trap
 // Whether every non-lifetime generic parameter in `first .. first + count`
 // is bound in the live set: a machine binder to a static argument
 // (binders.omg), any other to a type.
-pub machine Typer::all_bound(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+public machine Typer::all_bound(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(typer, syntax, first, count, 0) }
@@ -146,7 +146,7 @@ crashes Trap
 
 // `handle` with every generic parameter bound in the live set replaced.
 // Unbound parameters stay as written.
-pub machine Typer::substitute_bound(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping
+public machine Typer::substitute_bound(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     typer.memo_generation = typer.memo_generation + 1;
@@ -325,7 +325,7 @@ crashes Trap
 // shared-reference parameter matches an owned argument by its referent, as
 // implicit lending admits it. Conflicts are not reported here: the caller
 // admits each argument at the substituted parameter type afterwards.
-pub machine Typer::unify(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, parameter: u64 in Trapping, argument: u64 in Trapping)
+public machine Typer::unify(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, parameter: u64 in Trapping, argument: u64 in Trapping)
 crashes Trap
 {
     Typer::work_store(typer, 0, parameter);

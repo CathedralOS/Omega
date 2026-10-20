@@ -1,7 +1,7 @@
 module values;
-pub data Window<T> { marker: T; len: u64; }
+public data Window<T> { marker: T; len: u64; }
 
 // This declaration computes a number, not a builtin slice descriptor.
-pub machine [..] Window::range<T>(window: &Window<T>, start: u64, end: u64) -> u64 {
+public machine [..] Window::range<T>(window: &Window<T>, start: u64, end: u64) -> u64 {
     ((window.len as u64 in Wrapping) * 10 + (end as u64 in Wrapping)) as u64
 }

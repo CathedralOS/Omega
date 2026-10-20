@@ -4,7 +4,7 @@
 // This checks contents, not pointer validity, firmware authority or lifetime.
 // https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html
 
-pub machine validate_table(
+public machine validate_table(
     bytes: &[u8],
     signature: u64,
     minimum_revision: u32,

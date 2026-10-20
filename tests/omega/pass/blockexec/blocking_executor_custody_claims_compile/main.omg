@@ -43,7 +43,7 @@ data Token {
 // the same machine-symbol argument shape as `TaskRuntime::start` — the
 // worker body is a compile-time machine selection, never a runtime function
 // value. Build composition picks the concrete provider.
-pub boundary trait WorkerProvider {
+public boundary trait WorkerProvider {
     machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(
         arguments: Arguments
     ) -> T
@@ -65,7 +65,7 @@ suspends; blocks;
 // The shared wait substrate: a small word/value wait plus wake boundary.
 // `park` suspends the calling activation at a canonical crossing; wake
 // operations are ordinary boundary calls on the same word identity.
-pub boundary data WaitSubstrate;
+public boundary data WaitSubstrate;
 boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
 boundary machine WaitSubstrate::wake_one(word: u64);
 boundary machine WaitSubstrate::wake_all(word: u64);

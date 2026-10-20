@@ -1,13 +1,13 @@
 use blocking;
 
-pub boundary trait Read {}
-pub boundary trait Write {}
-pub boundary trait Handler {
+public boundary trait Read {}
+public boundary trait Write {}
+public boundary trait Handler {
     machine read() -> u64 reaches Read;
     machine unrelated_write() reaches Write blocks;
 }
 
-pub boundary trait Registrar {
+public boundary trait Registrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies Handler::read;
     invokes Handler;

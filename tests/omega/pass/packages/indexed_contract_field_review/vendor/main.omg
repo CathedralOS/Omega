@@ -1,18 +1,18 @@
 // Review projects each receiver from the complete checked indexed place.
 // Repeated indexes share a receiver; nested receivers and equal field names
 // under different parameter roots must retain their own checked identities.
-pub data Packet { tag: u8; bytes: [u8; 8]; }
-pub data Envelope { packet: Packet; }
-pub data PacketBatch { packets: [Packet; 2]; }
+public data Packet { tag: u8; bytes: [u8; 8]; }
+public data Envelope { packet: Packet; }
+public data PacketBatch { packets: [Packet; 2]; }
 
-pub domain Packet::Tagged(packet)
+public domain Packet::Tagged(packet)
 requires packet.bytes[0] == 42 && packet.bytes[7] == 7;
 
-pub data TaggedPacket where bytes[0] == 42 {
+public data TaggedPacket where bytes[0] == 42 {
     bytes: [u8; 8];
 }
 
-pub boundary trait Inspect {
+public boundary trait Inspect {
     machine inspect(packet: &Packet)
     requires packet.tag == 42 && packet.bytes[0] == 42 && packet.bytes[7] == 7;
 

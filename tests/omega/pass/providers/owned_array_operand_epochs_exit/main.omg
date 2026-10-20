@@ -1,12 +1,12 @@
 // Owned array operands snapshot contents at their exact evaluation positions.
 // The same source home remains writable after each independent copy completes.
-pub data ArrayReader {}
+public data ArrayReader {}
 
-pub boundary requirement ArrayReader::capture(
+public boundary requirement ArrayReader::capture(
     first: u64, values: [u8; 4], last: u64
 ) -> i32;
 
-pub boundary requirement ArrayReader::epochs(
+public boundary requirement ArrayReader::epochs(
     before: [u8; 4], marker: u64, after: [u8; 4]
 ) -> i32;
 

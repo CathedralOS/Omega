@@ -5,7 +5,7 @@ use domain::model::InputBuffer;
 use omega_language_std::console;
 
 // Finite binary stdin protocol. One lookahead rejects over-capacity input.
-pub machine read_input(input: &mut InputBuffer) -> bool reaches Console
+public machine read_input(input: &mut InputBuffer) -> bool reaches Console
 invokes Console;
 blocks;
 crashes Trap
@@ -34,7 +34,7 @@ crashes Trap
     state invalid() -> bool { false }
 }
 
-pub machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> bool {
+public machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> bool {
     transition input.length >= 5 && input.length <= 35 {
         true -> header(input, records)
         _ -> invalid()
@@ -75,7 +75,7 @@ pub machine parse_records(input: &InputBuffer, records: &mut SensorBlock) -> boo
     state invalid() -> bool { false }
 }
 
-pub machine parse_stream(input: &InputBuffer, stream: &mut SensorStream) -> bool {
+public machine parse_stream(input: &InputBuffer, stream: &mut SensorStream) -> bool {
     transition input.length >= 7 && input.length <= 54 && input.bytes[0] == 1 {
         true -> begin(input, stream)
         _ -> invalid()

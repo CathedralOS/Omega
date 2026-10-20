@@ -1,7 +1,7 @@
 
 // Machines can be attached to an opaque boundary type: the type carries no
 // fields yet hosts the crossing's contract surface.
-pub boundary data WaitSubstrate;
+public boundary data WaitSubstrate;
 
 boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
 boundary machine WaitSubstrate::wake_one(word: u64);

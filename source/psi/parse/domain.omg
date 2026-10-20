@@ -8,14 +8,14 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] domain [<generic parameters>] Carrier::Name [<index arguments>]
+// `[public] domain [<generic parameters>] Carrier::Name [<index arguments>]
 // [(subject)] tail`, entered at the `domain` word. The carrier is a name or
 // a bracketed array or slice type, retained as a type reference; the index
 // arguments share the static argument grammar. The tail is a transparent
 // alias `= Path {& Path};`, or `[requires facts] [established by Path {,
 // Path}]` closed by `;` or by an empty body `{ }`. The item and its root are
 // retained at its last token.
-pub machine Parser::parse_domain(
+public machine Parser::parse_domain(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,

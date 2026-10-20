@@ -2,7 +2,7 @@
 // smallest mask on ties; unused bits therefore stay zero. Group membership
 // depends only on the numeric ID, never on input position.
 use data::dataset;
-pub data Allocation {
+public data Allocation {
     mask: i32 in Saturating;
     score: i32 in Saturating;
     total_error: i32 in Saturating;
@@ -10,10 +10,10 @@ pub data Allocation {
     test_count: i32 in Saturating;
     found: bool;
 }
-pub machine absolute(value: i32 in Saturating) -> i32 in Saturating {
+public machine absolute(value: i32 in Saturating) -> i32 in Saturating {
     transition value < 0 { true -> (-value) _ -> (value) }
 }
-pub machine selected(mask: i32 in Saturating, group: i32 in Saturating) -> bool {
+public machine selected(mask: i32 in Saturating, group: i32 in Saturating) -> bool {
     transition { _ -> power(mask, group, 1, 1) }
     state power(mask: i32 in Saturating, group: i32 in Saturating, index: i32 in Saturating, weight: i32 in Saturating) -> bool {
         transition index < group && index < 8 {
@@ -31,7 +31,7 @@ pub machine selected(mask: i32 in Saturating, group: i32 in Saturating) -> bool 
     requires weight > 0
     { (mask / weight) % 2 == 1 }
 }
-pub machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
+public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
     result.score = 10000;
     result.total_error = 10000;
     transition { _ -> candidate(result, data, 1) }

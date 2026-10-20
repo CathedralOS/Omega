@@ -1,15 +1,15 @@
 // A domain may ALIAS a compiler-owned carry permission:
-// `pub domain Token::SuspensionSafe = Carry::AcrossSuspend` names
+// `public domain Token::SuspensionSafe = Carry::AcrossSuspend` names
 // the suspend-carry authority as a package-local fact, and a
 // provider's `ensures result in Token::SuspensionSafe` grants it —
 // the claim is born strict, relaxing suspension without relaxing
 // CPU, thread, or address.
-pub data Token [linear] {
+public data Token [linear] {
     id: u64;
 }
 machine Token::drop(token: &mut Token) { }
 use omega::language::core::drop;
-pub domain Token::SuspensionSafe = Carry::AcrossSuspend;
+public domain Token::SuspensionSafe = Carry::AcrossSuspend;
 boundary trait ClaimProvider {
     machine grant(token: Token) -> Token
     ensures

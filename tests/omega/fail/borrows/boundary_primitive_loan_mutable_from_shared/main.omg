@@ -1,12 +1,12 @@
 use omega::language::core::external_binding;
 
-pub boundary trait ScalarInput {
+public boundary trait ScalarInput {
     machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 blocks;
 }
-pub data ScalarImports {}
+public data ScalarImports {}
 data Main { }
 
-pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }

@@ -4,15 +4,15 @@ module numeric_distinct;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 
-pub data Counter { calls: u32 in Wrapping; }
-pub data Main { counter: Counter; }
+public data Counter { calls: u32 in Wrapping; }
+public data Main { counter: Counter; }
 
 machine step(counter: &mut Counter, value: i32) -> f64 {
     counter.calls = counter.calls + 1u32;
     F64::from_i32(value)
 }
 
-pub machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches Console
 invokes Console;
 blocks;
 crashes Trap

@@ -2,10 +2,10 @@
 // original loans; clock writes cover only the native 16-byte prefix.
 use omega::language::core::external_binding;
 
-pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
+public data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
 data Main { holder: Holder; request: Instant; }
-pub boundary trait ClockProbe {
+public boundary trait ClockProbe {
     machine read(selector: i32, instant: &mut Instant) -> i64;
     machine sleep(request: &Instant, remainder: u64) -> i64;
     machine sleep_unit(request: &Instant, remainder: u64);

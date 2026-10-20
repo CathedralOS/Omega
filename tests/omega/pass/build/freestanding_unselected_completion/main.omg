@@ -3,6 +3,6 @@
 // This is a library: there is no program entry or firmware authority.
 use omega_language_std::calling;
 
-pub machine marker() -> i32 {
+public machine marker() -> i32 {
     42
 }

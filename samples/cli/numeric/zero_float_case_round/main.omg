@@ -8,19 +8,19 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
 
-pub data Reading [copy] {
+public data Reading [copy] {
     case Value(amount: f64);
     case Absent;
 }
-pub data Holder [copy] {
+public data Holder [copy] {
     reading: Reading;
     ready: bool;
 }
-pub data Table {
+public data Table {
     moment: [f64; 2];
     area: [f64; 2];
 }
-pub data Main {
+public data Main {
     slots: [Holder; 2];
     table: Table;
 }
@@ -52,7 +52,7 @@ requires index >= 0 && index < 2
     application.slots[index].ready = true;
 }
 
-pub machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches Console
 invokes Console;
 {
     arm(application, 0);

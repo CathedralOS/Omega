@@ -5,7 +5,7 @@ use omega_language_std::math;
 // zero impulse once; their subsequent radial speed is zero and is skipped.
 use omega::language::core::float_operations;
 use physics::model;
-pub machine contact(a:Disk,b:Disk)->f64 {
+public machine contact(a:Disk,b:Disk)->f64 {
  let dx:f64=b.x-a.x; let dy:f64=b.y-a.y;
  let vx:f64=b.vx-a.vx; let vy:f64=b.vy-a.vy;
  let speed:f64=vx*vx+vy*vy; let radial:f64=dx*vx+dy*vy;
@@ -22,7 +22,7 @@ pub machine contact(a:Disk,b:Disk)->f64 {
  state found(time:f64)->f64 {max_f64(0.0,time)}
  state absent()->f64 {100.0}
 }
-pub machine select_event(lab:&mut Lab) {
+public machine select_event(lab:&mut Lab) {
  lab.selected=false; lab.delay=100.0;
  transition { _ -> scan(lab,0,1) }
  state scan(lab:&mut Lab,left:u64,right:u64) {
@@ -49,7 +49,7 @@ pub machine select_event(lab:&mut Lab) {
  }
  state done() {}
 }
-pub machine advance(lab:&mut Lab,delay:f64) {
+public machine advance(lab:&mut Lab,delay:f64) {
  lab.time=lab.time+delay;
  transition { _ -> scan(lab,0,delay) }
  state scan(lab:&mut Lab,index:u64,delay:f64) {
@@ -62,7 +62,7 @@ pub machine advance(lab:&mut Lab,delay:f64) {
  }
  state done() {}
 }
-pub machine resolve(lab:&mut Lab) {
+public machine resolve(lab:&mut Lab) {
  transition lab.first < 4 && lab.second < 4 {true -> impulse(lab) _ -> done()}
  state impulse(lab:&mut Lab) requires lab.first < 4 && lab.second < 4 {
   let a:Disk=lab.disks[lab.first]; let b:Disk=lab.disks[lab.second];

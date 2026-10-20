@@ -4,21 +4,21 @@
 // source-unit boundary; the lexer never repairs invalid input or substitutes
 // host paths for authored source identity.
 
-pub data SourceId [copy] {
+public data SourceId [copy] {
     value: u32 in Trapping;
 }
 
-pub data Span [copy] {
+public data Span [copy] {
     start: u64 in Trapping;
     end: u64 in Trapping;
 }
 
-pub data SourceSpan [copy] {
+public data SourceSpan [copy] {
     source: SourceId;
     span: Span;
 }
 
-pub data SourceUnit
+public data SourceUnit
 where
     length <= 131072,
 {
@@ -85,7 +85,7 @@ machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
 // module within its package, by which a source unit belongs to its module
 // and `use` selects modules, or a one-segment package name or dependency
 // alias.
-pub data ModulePath
+public data ModulePath
 where
     length <= 256,
 {
@@ -93,12 +93,12 @@ where
     length: u64;
 }
 
-pub machine ModulePath::clear(module_path: &mut ModulePath) {
+public machine ModulePath::clear(module_path: &mut ModulePath) {
     module_path.length = 0;
 }
 
 // Append one byte; the path's provision is exhausted when it reports false.
-pub machine ModulePath::append(module_path: &mut ModulePath, byte: u8) -> bool {
+public machine ModulePath::append(module_path: &mut ModulePath, byte: u8) -> bool {
     transition module_path.length < 256 {
         true -> retain(module_path, byte)
         _ -> full()
@@ -115,7 +115,7 @@ pub machine ModulePath::append(module_path: &mut ModulePath, byte: u8) -> bool {
     }
 }
 
-pub data SourceRange [copy] {
+public data SourceRange [copy] {
     start: u64 in Trapping;
     length: u64 in Trapping;
 }
@@ -125,7 +125,7 @@ pub data SourceRange [copy] {
 // which carries no name and which every package selects through the
 // language's mount `omega::language::core` rather than by a dependency
 // alias (wiki/spec/packages/toolchain.md).
-pub data PackageRow [copy] {
+public data PackageRow [copy] {
     name: SourceRange;
     toolchain: bool;
 }
@@ -133,7 +133,7 @@ pub data PackageRow [copy] {
 // Which checked context a dependency edge authorizes: ordinary product
 // imports, or the build entry's and its local helpers' imports. An alias of
 // one scope never stands in for the other.
-pub data DependencyScope [copy] {
+public data DependencyScope [copy] {
     case Product;
     case Build;
 }
@@ -141,7 +141,7 @@ pub data DependencyScope [copy] {
 // A requester-local dependency edge, as the request's edge rows give it:
 // within package `requester`'s `scope` imports, `alias` (a range of the path
 // arena) names package `target`.
-pub data DependencyRow [copy] {
+public data DependencyRow [copy] {
     requester: u64 in Trapping;
     scope: DependencyScope;
     alias: SourceRange;
@@ -155,7 +155,7 @@ pub data DependencyRow [copy] {
 // through the set. Units, module paths, package names and aliases share
 // bounded arenas; the request's graph validation, not this set, rejects
 // duplicate aliases of one requester and scope.
-pub data SourceSet
+public data SourceSet
 where
     unit_count <= 128,
     byte_count <= 4194304,
@@ -177,7 +177,7 @@ where
     dependency_count: u64;
 }
 
-pub machine SourceSet::clear(sources: &mut SourceSet) {
+public machine SourceSet::clear(sources: &mut SourceSet) {
     sources.byte_count = 0;
     sources.path_byte_count = 0;
     sources.unit_count = 0;
@@ -188,7 +188,7 @@ pub machine SourceSet::clear(sources: &mut SourceSet) {
 // Add a unit of package `package` as the next `SourceId`, or report false
 // when the package is not in the set or the set's provisions cannot hold
 // the unit.
-pub machine SourceSet::add(
+public machine SourceSet::add(
     sources: &mut SourceSet,
     unit: &SourceUnit,
     package: u64 in Trapping,
@@ -281,7 +281,7 @@ crashes Trap
 // Add a package named `name`, or the toolchain package (whose name is
 // empty), as the next package index, or report false when the set's
 // provisions cannot hold it.
-pub machine SourceSet::add_package(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool
+public machine SourceSet::add_package(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool
 crashes Trap
 {
     transition sources.package_count < 64 && name.length <= 16384 - sources.path_byte_count {
@@ -314,7 +314,7 @@ crashes Trap
 // Add the edge by which `alias` names package `target` within package
 // `requester`'s `scope` imports, or report false when either package is not
 // in the set or the set's provisions cannot hold the edge.
-pub machine SourceSet::add_dependency(
+public machine SourceSet::add_dependency(
     sources: &mut SourceSet,
     requester: u64 in Trapping,
     scope: DependencyScope,
@@ -418,7 +418,7 @@ crashes Trap
 // The byte at `index` of unit `source`, or NUL past the unit's end; as for
 // `SourceUnit::byte_or_nul`, the fallback makes a violated coordinate fail a
 // comparison rather than read another unit.
-pub machine SourceSet::byte_or_nul(sources: &SourceSet, source: SourceId, index: u64 in Trapping) -> u8
+public machine SourceSet::byte_or_nul(sources: &SourceSet, source: SourceId, index: u64 in Trapping) -> u8
 crashes Trap
 {
     let unit: u64 in Trapping = source.value as u64 in Trapping;
@@ -460,7 +460,7 @@ crashes Trap
 // Whether two spans, of any units, spell the same bytes. Identifier
 // spellings are their source bytes under LEXICAL-PROFILE-V1 (no escapes), so
 // name comparison reads the units rather than a decoded copy.
-pub machine SourceSet::spans_equal(sources: &SourceSet, left: SourceSpan, right: SourceSpan) -> bool
+public machine SourceSet::spans_equal(sources: &SourceSet, left: SourceSpan, right: SourceSpan) -> bool
 crashes Trap
 {
     transition left.span.end - left.span.start == right.span.end - right.span.start {
@@ -494,7 +494,7 @@ crashes Trap
 }
 
 // Whether a span spells exactly `spelling`.
-pub machine SourceSet::span_spells(sources: &SourceSet, span: SourceSpan, spelling: &[u8]) -> bool
+public machine SourceSet::span_spells(sources: &SourceSet, span: SourceSpan, spelling: &[u8]) -> bool
 crashes Trap
 {
     transition span.span.end - span.span.start == spelling.len {
@@ -528,7 +528,7 @@ crashes Trap
 }
 
 // The byte at `index` of unit `unit`'s module path, or NUL past its end.
-pub machine SourceSet::path_byte_or_nul(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8
+public machine SourceSet::path_byte_or_nul(sources: &SourceSet, unit: u64 in Trapping, index: u64 in Trapping) -> u8
 crashes Trap
 {
     transition unit < sources.unit_count {
@@ -567,7 +567,7 @@ crashes Trap
 }
 
 // The length of unit `unit`'s module path; zero for no unit.
-pub machine SourceSet::path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
+public machine SourceSet::path_length(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
     transition unit < sources.unit_count && unit < 128 {
         true -> read(sources, unit)
         _ -> none()
@@ -583,7 +583,7 @@ pub machine SourceSet::path_length(sources: &SourceSet, unit: u64 in Trapping) -
 }
 
 // The package unit `unit` belongs to; zero for no unit.
-pub machine SourceSet::unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
+public machine SourceSet::unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
     transition unit < sources.unit_count && unit < 128 {
         true -> read(sources, unit)
         _ -> none()
@@ -599,7 +599,7 @@ pub machine SourceSet::unit_package(sources: &SourceSet, unit: u64 in Trapping) 
 }
 
 // Package `package`'s row; an unnamed ordinary package for no package.
-pub machine SourceSet::package_row(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
+public machine SourceSet::package_row(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
     transition package < sources.package_count && package < 64 {
         true -> read(sources, package)
         _ -> none()
@@ -616,7 +616,7 @@ pub machine SourceSet::package_row(sources: &SourceSet, package: u64 in Trapping
 
 // Dependency edge `index`; for no edge, a build edge of no requester (64 is
 // past every package index).
-pub machine SourceSet::dependency_row(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
+public machine SourceSet::dependency_row(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
     transition index < sources.dependency_count && index < 256 {
         true -> read(sources, index)
         _ -> none()
@@ -638,7 +638,7 @@ pub machine SourceSet::dependency_row(sources: &SourceSet, index: u64 in Trappin
 
 // Whether a span spells exactly the path-arena bytes of `name`, a package
 // name or dependency alias.
-pub machine SourceSet::span_names(sources: &SourceSet, span: SourceSpan, name: SourceRange) -> bool
+public machine SourceSet::span_names(sources: &SourceSet, span: SourceSpan, name: SourceRange) -> bool
 crashes Trap
 {
     transition span.span.end - span.span.start == name.length {

@@ -151,28 +151,28 @@ Fields simply use a qualified type. This is settled source design; compiler
 support remains an implementation task.
 
 ```omega
-pub data Cell {
+public data Cell {
     value: u32;
 }
 
-pub domain Cell::Controlled
+public domain Cell::Controlled
     established by Cell::create
     read by Cell::read
     written by Cell::set;
 
-pub data Counter {
+public data Counter {
     cell: Cell in Controlled;
 }
 
-pub machine Cell::create(value: u32) -> Cell in Controlled {
+public machine Cell::create(value: u32) -> Cell in Controlled {
     Cell { value: value }
 }
 
-pub machine Cell::read(cell: &Cell in Controlled) -> u32 {
+public machine Cell::read(cell: &Cell in Controlled) -> u32 {
     cell.value
 }
 
-pub machine Cell::set(cell: &write Cell in Controlled, value: u32) {
+public machine Cell::set(cell: &write Cell in Controlled, value: u32) {
     write_cell(cell, value);
 }
 
@@ -246,7 +246,7 @@ or forward the provenance. Copyable proof cannot mint Type-side authority.
 domain [u8]::Path(value)
     requires no_nul(value) == true;
 
-pub domain Reservation::Issued
+public domain Reservation::Issued
 established by Issues::issue;
 
 domain Reservation::Confirmed(value)
@@ -255,7 +255,7 @@ domain Reservation::Confirmed(value)
 ```
 
 A carrier-qualified domain is still an independently nameable declaration.
-It is private unless marked `pub`; it does not inherit visibility from its
+It is private unless marked `public`; it does not inherit visibility from its
 carrier. Conversely, publishing a domain does not publish a private carrier,
 and any public signature that names both must be able to name both.
 
@@ -279,7 +279,7 @@ A public domain can keep issuance private. For example, if `issue_reservation`
 names a private checked machine accessible to the domain author:
 
 ```omega
-pub domain Reservation::Issued
+public domain Reservation::Issued
 established by issue_reservation;
 ```
 
@@ -302,12 +302,12 @@ the requirement directly. Direction comes from the installed external-root
 occurrence, not from `boundary` and not from another source marker:
 
 ```omega
-pub boundary trait InterruptEntry {
+public boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
     reaches <= MachineControl + PortIo;
 }
 
-pub domain InterruptAcknowledgement::Pending
+public domain InterruptAcknowledgement::Pending
 established by InterruptEntry::enter;
 ```
 
@@ -527,7 +527,7 @@ A predicate alias gives a public name to a nonempty conjunction of compatible
 facts:
 
 ```omega
-pub domain Socket::Usable =
+public domain Socket::Usable =
     Socket::Connected & Socket::Authenticated;
 ```
 

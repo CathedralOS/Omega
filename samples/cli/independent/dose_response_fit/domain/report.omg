@@ -43,7 +43,7 @@ machine number(value: f64) reaches Console {
     }
     state emit(bytes: &[u8; 21]) { Console::write_line(bytes); }
 }
-pub machine report(observations: &Observations, fit: &Fit) reaches Console
+public machine report(observations: &Observations, fit: &Fit) reaches Console
 invokes Console;
 crashes Trap
 {

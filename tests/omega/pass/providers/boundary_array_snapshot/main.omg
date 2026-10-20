@@ -1,8 +1,8 @@
 // A boundary receives an owned primitive array between scalar arguments:
 // the later scalar operand mutates the source, but the provider observes
 // the array snapshot captured earlier — the caller still sees the write.
-pub data Thing {}
-pub boundary requirement Thing::take(first: u64, values: [u8; 4], last: u64) -> i32;
+public data Thing {}
+public boundary requirement Thing::take(first: u64, values: [u8; 4], last: u64) -> i32;
 data ThingProvider {}
 machine ThingProvider::take(first: u64, values: [u8; 4], last: u64) -> i32
 satisfies Thing::take {

@@ -1,11 +1,11 @@
 // Expected exit: 0. Invocation lifetimes come from the explicit source loan,
 // independently of the selected child provider map.
 
-pub boundary trait Parent {
+public boundary trait Parent {
     machine borrow<'source>(value: &'source i32) -> &'source i32;
     machine borrow_mut<'source>(value: &'source mut i32) -> &'source mut i32;
 }
-pub boundary trait Child: Parent { machine choose() -> i32; }
+public boundary trait Child: Parent { machine choose() -> i32; }
 ChildMap satisfies Child {
     Parent::borrow = borrow;
     Parent::borrow_mut = borrow_mut;

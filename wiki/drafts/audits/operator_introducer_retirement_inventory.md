@@ -13,7 +13,7 @@ order. Delete this inventory once the `operator` introducer,
 ## Source census: 212 `operator`-introduced declarations
 
 All declarations spelled with the `operator` introducer (`git ls-files
-'*.omg'`; `pub`-prefixed forms included):
+'*.omg'`; `public`-prefixed forms included):
 
 | Bucket | Count | Where |
 |---|---|---|

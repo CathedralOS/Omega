@@ -19,7 +19,7 @@ use psi::syntax::syntax;
 // `requires P(x)`; inside a larger fact (`P(x) && x > 0`) it rejects as
 // unsupported (wiki/language_guide/chapter_10_compile_time_proofs.md). A
 // domain's `requires` predicates name its subject binder.
-pub machine Resolver::bind_fact_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_fact_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next_machine(resolver, sources, syntax, 0) }

@@ -1,5 +1,5 @@
 module combat;
 
-pub machine damage() -> u32 { 7 }
+public machine damage() -> u32 { 7 }
 
-pub data Damage { amount: u32; }
+public data Damage { amount: u32; }

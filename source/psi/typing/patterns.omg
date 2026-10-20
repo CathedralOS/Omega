@@ -7,7 +7,7 @@ use psi::typing::typer;
 // Every field resolves before this check. Distinct field names must cover
 // the common fields and selected payload unless `..` opts out of drift
 // checking (wiki/spec/language/patterns.md#pattern-subjects-and-bindings).
-pub machine Typer::validate_pattern_fields(
+public machine Typer::validate_pattern_fields(
     typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees,
     arm: TransitionArm, expected: u64 in Trapping
 )

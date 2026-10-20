@@ -8,14 +8,14 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] [boundary] let Name [<generic parameters>] [(parameters)] : Type
+// `[public] [boundary] let Name [<generic parameters>] [(parameters)] : Type
 // [= term];`, a named mathematical definition (wiki/spec/proofs/
 // mathematical_bindings.md), entered at the `let` keyword. A checked
 // definition gives its term after `=`; `boundary let` is the same signature
 // without a term, an explicitly admitted assumption. The generic parameters
 // and parameters share the machine grammars. The item and its root are
 // retained at the closing `;`.
-pub machine Parser::parse_definition(
+public machine Parser::parse_definition(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,

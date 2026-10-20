@@ -1,4 +1,4 @@
 use build_package_decl::main;
-pub machine w() -> i32 {
+public machine w() -> i32 {
     0
 }

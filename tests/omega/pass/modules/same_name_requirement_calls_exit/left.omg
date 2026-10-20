@@ -2,13 +2,13 @@ module left;
 
 use omega_language_std::console;
 
-pub boundary trait Sink {
+public boundary trait Sink {
     machine emit(byte: i32)
     reaches
         Console
     invokes Console;
 }
-pub data Provider {}
+public data Provider {}
 machine Provider::emit(byte: i32) satisfies Sink::emit
 reaches
     Console
@@ -16,8 +16,8 @@ reaches
     Console::exit_process(66);
 }
 
-pub data Runner { }
-pub machine Runner::run(runner: &mut Runner) reaches Sink, Console
+public data Runner { }
+public machine Runner::run(runner: &mut Runner) reaches Sink, Console
 invokes Sink;
 invokes Console;
 {

@@ -1,14 +1,14 @@
-// `pub domain Folder::Writable established by Desktop::choose_folder,
+// `public domain Folder::Writable established by Desktop::choose_folder,
 // DesktopProvider::choose_folder` — the domain's establishment is
 // granted by named machines; a helper's capability-typed return hands
 // the minted `Folder` onward (`acquires` propagates up the call graph).
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-pub data Folder {}
-pub domain Folder::Writable
+public data Folder {}
+public domain Folder::Writable
 established by Desktop::choose_folder, DesktopProvider::choose_folder;
-pub boundary trait Desktop {
+public boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable

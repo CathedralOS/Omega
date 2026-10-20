@@ -20,18 +20,18 @@
 use omega::language::core::extent;
 use omega::language::core::content;
 
-pub data Slot [copy] {
+public data Slot [copy] {
     value: u32;
 }
 
-pub data SlotPlacement {}
+public data SlotPlacement {}
 
-pub data Retired {
+public data Retired {
     storage: Extent in Granted & Vacant;
     value: Slot;
 }
 
-pub boundary trait ResidentStorage {
+public boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
     ensures
         result in Granted & Resident<SlotPlacement, Slot>,

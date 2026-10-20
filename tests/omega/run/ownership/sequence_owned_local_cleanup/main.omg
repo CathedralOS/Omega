@@ -5,11 +5,11 @@ use omega::language::core::drop;
 use omega::language::core::content;
 // The fixture-local console assumes finite normal byte writes, as the
 // existing nominal-cleanup fixtures do; it does not strengthen std::Console.
-pub boundary trait Console {
+public boundary trait Console {
     machine write_byte(byte: i32) reaches Console terminates;
     machine exit_process(return_code: i32) reaches Console;
 }
-pub data ConsoleNativeProvider {}
+public data ConsoleNativeProvider {}
 linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte;
 linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)

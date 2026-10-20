@@ -1,13 +1,13 @@
 // Expected exit: 0.
 // The portable binding pins an explicitly selected raw implementation map.
 // An unrelated Build selection for RawSource must not retarget that map.
-pub data Observation { value: i32; }
+public data Observation { value: i32; }
 
-pub boundary trait RawSource {
+public boundary trait RawSource {
     machine read() -> i32;
     machine fill(destination: &mut Observation);
 }
-pub boundary trait PortableSource {
+public boundary trait PortableSource {
     machine read() -> i32 invokes RawSource;
 }
 data RawProvider {}

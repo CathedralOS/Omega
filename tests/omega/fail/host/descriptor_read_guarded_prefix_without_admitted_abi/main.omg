@@ -6,15 +6,15 @@
 // declaring it as `u32` states a call the guard cannot bound.
 use omega::language::core::external_binding;
 
-pub data Cell { value: u64; }
-pub data Packet { header: u64; reference: &Cell; tail: u64; }
-pub boundary trait DescriptorIo {
+public data Cell { value: u64; }
+public data Packet { header: u64; reference: &Cell; tail: u64; }
+public boundary trait DescriptorIo {
     machine read(descriptor: i32, packet: &mut Packet, count: u32) -> i64 blocks;
 }
-pub data DescriptorImports {}
+public data DescriptorImports {}
 data Main { cell: Cell; }
 
-pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }

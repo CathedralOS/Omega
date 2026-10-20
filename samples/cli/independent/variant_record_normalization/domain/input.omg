@@ -1,7 +1,7 @@
 use domain::sequence;
 // LF-delimited R<contig>:<reference> or V<contig>:<position>:<ref>:<alt>:<source>.
 // Coordinates and source ids are single decimal digits. '-' is an empty allele.
-pub data Input {
+public data Input {
     kind: u64 in Wrapping;
     contig: u64 in Wrapping;
     position: u64 in Wrapping;
@@ -19,7 +19,7 @@ machine character(line: &[u8; 64], count: u64 in Wrapping, index: u64 in Wrappin
         line[index] as u64 in Wrapping
     }
 }
-pub machine parse(line: &[u8; 64], count: u64 in Wrapping, input: &mut Input) {
+public machine parse(line: &[u8; 64], count: u64 in Wrapping, input: &mut Input) {
     input.valid = false;
     input.removed.length = 0;
     input.inserted.length = 0;

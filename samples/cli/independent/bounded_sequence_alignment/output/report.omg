@@ -12,7 +12,7 @@ ensures result.len == count as u64
     &bytes[0..count]
 }
 
-pub machine number(value: i32 in Wrapping) reaches Console
+public machine number(value: i32 in Wrapping) reaches Console
 invokes Console;
 {
     transition value >= 0 && value <= 48 { true -> digits(value) false -> bad() }
@@ -27,7 +27,7 @@ invokes Console;
     state bad() { Console::write_line("ERROR internal-number"); Console::exit_process(70); }
 }
 
-pub machine report(result: &alignment::local::Alignment) reaches Console
+public machine report(result: &alignment::local::Alignment) reaches Console
 invokes Console;
 {
     transition result.columns >= 0 && result.columns <= 32 {

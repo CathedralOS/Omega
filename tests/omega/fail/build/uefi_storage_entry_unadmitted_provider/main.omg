@@ -57,7 +57,7 @@ reaches PortIo
     }
 }
 
-pub data UnadmittedEntryProvider {}
-pub uefi_x86_64 boundary machine UnadmittedEntryProvider::enter(
+public data UnadmittedEntryProvider {}
+public uefi_x86_64 boundary machine UnadmittedEntryProvider::enter(
     image: Extent in Granted, storage: Extent in Granted
 ) satisfies ProgramStorageEntry::enter;

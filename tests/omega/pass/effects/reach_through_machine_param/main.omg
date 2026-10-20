@@ -2,12 +2,12 @@
 // invokes the bound machine and the call inherits the member's declared
 // `reaches Console` ceiling — effect reach computes through the
 // dictionary-free static dispatch.
-pub boundary trait Console {}
-pub trait StepContract {
+public boundary trait Console {}
+public trait StepContract {
     machine step(value: u64) -> u64 reaches Console;
 }
 machine note() reaches Console {}
-pub machine traverse<machine Step>(value: u64) -> u64
+public machine traverse<machine Step>(value: u64) -> u64
     where machine Step satisfies StepContract::step;
 { Step(value) }
 machine quiet(value: u64) -> u64 satisfies StepContract::step { value + 0 }

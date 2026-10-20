@@ -6,7 +6,7 @@ module model::courant;
 use io::input;
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
-pub data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
+public data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
 machine digits(coefficient:u64 in Wrapping,result:&mut Digits) {
  result.length=0;
  transition { _ -> read(coefficient,result) }
@@ -52,7 +52,7 @@ machine significant(number:&Digits,offset:u32 in Saturating) -> u64 in Wrapping 
  state zero() -> u64 in Wrapping { 0 }
 }
 // -1 means stable below one,0 exactly one,+1 unstable above one.
-pub machine classify(input:&io::input::Input) -> i32 in Wrapping {
+public machine classify(input:&io::input::Input) -> i32 in Wrapping {
  let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
  digits(input.coefficients[2],&mut speed);
  digits(input.coefficients[4],&mut duration);
@@ -65,7 +65,7 @@ pub machine classify(input:&io::input::Input) -> i32 in Wrapping {
 // or adjacent decimal-length cohorts, align the exact integers and subtract
 // their digits first. A36-digit product can need a37th spacing digit here.
 // Only the positive difference and denominator are converted to f64.
-pub machine complement(input:&io::input::Input,rounded_fraction:f64) -> f64 {
+public machine complement(input:&io::input::Input,rounded_fraction:f64) -> f64 {
  let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
  digits(input.coefficients[2],&mut speed);
  digits(input.coefficients[4],&mut duration);
@@ -123,7 +123,7 @@ machine subtract(product:&Digits,product_shift:i32 in Wrapping,spacing:&Digits,s
  state invalid() -> f64 { -1.0 }
 }
 // Compare exact nonnegative decimals, including distinct spellings and zero.
-pub machine compare_decimal(left:u64 in Wrapping,left_power:i32 in Wrapping,right:u64 in Wrapping,right_power:i32 in Wrapping) -> i32 in Wrapping {
+public machine compare_decimal(left:u64 in Wrapping,left_power:i32 in Wrapping,right:u64 in Wrapping,right_power:i32 in Wrapping) -> i32 in Wrapping {
  let mut first:Digits; let mut second:Digits;
  digits(left,&mut first); digits(right,&mut second);
  compare_digits(&first,left_power,&second,right_power)

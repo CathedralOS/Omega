@@ -7,17 +7,17 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// `[pub] data Name [<generic parameters>] [properties] [where facts]
+// `[public] data Name [<generic parameters>] [properties] [where facts]
 // { members }`, entered at the `data` keyword. Members are fields
 // `[#N] name: Type;` and cases `case [#N] Name [(payload fields)] [where
 // facts];`, in any order; `case: Type;` is a field named `case`. Payload
 // fields are `[#N] name: Type`. `#N` is a stable schema identity. Every
 // completed member is retained at once, so a rejection keeps each member
 // before it; the item and its root are retained at the closing `}`.
-// `[pub] boundary data Name [<generic parameters>] [properties];` leaves its
+// `[public] boundary data Name [<generic parameters>] [properties];` leaves its
 // representation to a crossing: no members, and no `where` facts over fields
 // it does not show.
-pub machine Parser::parse_data(
+public machine Parser::parse_data(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,
@@ -585,7 +585,7 @@ crashes Trap
 // `linear`, lands in `property_multiplicity` (affine when the list names
 // none). A repeated property rejects as a duplicate and the other one as a
 // conflict, at the second property.
-pub machine Parser::parse_properties(parser: &mut Parser, input: &TokenStream)
+public machine Parser::parse_properties(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
     Parser::take_current(parser, input);

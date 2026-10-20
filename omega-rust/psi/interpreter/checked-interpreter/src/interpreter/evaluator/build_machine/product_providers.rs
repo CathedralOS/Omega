@@ -2,7 +2,7 @@
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product provider declaration under the query
-//! occurrence's lexical package scope -- its own package, or a `pub`
+//! occurrence's lexical package scope -- its own package, or a `public`
 //! declaration inside a package the occurrence's package holds an authorized
 //! product dependency on -- and hands back an opaque
 //! `ProductProviderRef` marker. A provider declaration is the nominal data
@@ -87,7 +87,7 @@ impl<'program> Evaluator<'program> {
         // the nominal data type owning at least one `satisfies` machine, so
         // plain data and non-data names never qualify. A qualified
         // `alias::rest` spelling resolves `alias` through the occurrence
-        // package's retained product dependencies and selects a `pub`
+        // package's retained product dependencies and selects a `public`
         // declaration in that exact target package's product checked instance.
         // A helper borrowing Build keeps its operational capability, not the
         // caller's product namespace, and a build-scope alias authorizes nothing. A

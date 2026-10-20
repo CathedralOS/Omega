@@ -3,7 +3,7 @@
 // squaring. Terminal resistances are represented by exact limiting coefficients.
 use omega::language::core::float_operations;
 
-pub data LineModel [copy] {
+public data LineModel [copy] {
     first_impedance: f64;
     second_impedance: f64;
     source_reflection: f64;
@@ -13,7 +13,7 @@ pub data LineModel [copy] {
     alternate: bool;
 }
 
-pub machine preset(identifier: u64) -> LineModel {
+public machine preset(identifier: u64) -> LineModel {
     transition identifier {
         0 -> (LineModel { first_impedance: 50.0, second_impedance: 50.0, source_reflection: 0.0, load_reflection: 0.0, first_delay: 1, second_delay: 1, alternate: false })
         1 -> (LineModel { first_impedance: 50.0, second_impedance: 100.0, source_reflection: 0.5, load_reflection: 0.0, first_delay: 1, second_delay: 2, alternate: false })
@@ -24,7 +24,7 @@ pub machine preset(identifier: u64) -> LineModel {
     }
 }
 
-pub machine excitation(tick: u64, alternate: bool) -> f64 {
+public machine excitation(tick: u64, alternate: bool) -> f64 {
     transition tick < 2 {
         true -> (1.0)
         false -> later(tick, alternate)
@@ -37,11 +37,11 @@ pub machine excitation(tick: u64, alternate: bool) -> f64 {
     }
 }
 
-pub machine packet_energy(voltage: f64, impedance: f64) -> f64 {
+public machine packet_energy(voltage: f64, impedance: f64) -> f64 {
     (voltage * voltage / impedance)
 }
 
-pub data WaveRecord [copy] {
+public data WaveRecord [copy] {
     junction_left_in: f64;
     junction_right_in: f64;
     junction_left_out: f64;
@@ -55,7 +55,7 @@ pub data WaveRecord [copy] {
     load_voltage: f64;
 }
 
-pub data ReflectionTree {
+public data ReflectionTree {
     to_junction_left: [f64; 64];
     to_junction_right: [f64; 64];
     to_source: [f64; 64];
@@ -69,7 +69,7 @@ pub data ReflectionTree {
 
 // Runtime bounds checks precede every calendar access, including future
 // emissions. Zero initialization is the empty calendar and empty energy ledger.
-pub machine propagate(tree: &mut ReflectionTree, model: &LineModel, tick: u64) -> bool {
+public machine propagate(tree: &mut ReflectionTree, model: &LineModel, tick: u64) -> bool {
     transition tick < 24 && model.first_delay >= 1 && model.first_delay <= 3 && model.second_delay >= 1 && model.second_delay <= 3 {
         true -> schedule(tree, model, tick, tick + model.first_delay, tick + model.second_delay)
         false -> (false)

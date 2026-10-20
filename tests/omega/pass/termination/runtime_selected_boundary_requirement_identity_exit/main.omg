@@ -1,5 +1,5 @@
 
-pub boundary trait BoundaryRankReader {
+public boundary trait BoundaryRankReader {
     machine read(value: &u32) -> u32 terminates
     requires value <= 9
     ensures result == value;

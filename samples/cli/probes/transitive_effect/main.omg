@@ -3,16 +3,16 @@
 // reach WITHOUT repeating the declaration. Effects flow
 // caller-inferred, callee-declared.
 //
-//   * `pub boundary trait Console` + `pub domain [u8]::Utf8`.
+//   * `public boundary trait Console` + `public domain [u8]::Utf8`.
 //
 // Compile-checked only: declaration surface, no standard-library
 // dependency.
 
-pub domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
-pub boundary trait Console {
+public boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Console;

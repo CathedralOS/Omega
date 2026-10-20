@@ -34,7 +34,7 @@ machine number(value: f64) reaches Console {
     }
     state done() { }
 }
-pub machine emit(input: &io::input::Input, solution: &model::stages::Solution) reaches Console invokes Console; crashes Trap {
+public machine emit(input: &io::input::Input, solution: &model::stages::Solution) reaches Console invokes Console; crashes Trap {
     Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
     transition { _ -> node(input, solution, 0) }
     state node(input: &io::input::Input, solution: &model::stages::Solution, position: u32) {

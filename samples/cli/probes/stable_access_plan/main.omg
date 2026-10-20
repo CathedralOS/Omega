@@ -1,7 +1,7 @@
 use omega::language::core::layout;
 // `FieldAccess::Stable { read, write, exposure }` — a plain bool-grant
 // access row beside the External materialization kind.
-pub data Pair { readable: u32; hidden: u32; }
+public data Pair { readable: u32; hidden: u32; }
 data PairAccess {}
 machine PairAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
 satisfies Access::plan

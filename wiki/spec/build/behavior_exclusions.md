@@ -81,7 +81,7 @@ The selected product must then satisfy that exclusion under the checks below.
 The compiler-owned Build prelude provides:
 
 ```omega
-pub machine Build::exclude_physical_authority(
+public machine Build::exclude_physical_authority(
     builder: &mut Build,
     authority: PhysicalAuthorityClass
 ) {}

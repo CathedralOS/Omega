@@ -3,14 +3,14 @@
 // Saturating arithmetic is explicit; validated bounds keep all operations exact:
 // three contributors, |nominal|<=1000, tolerance<=100, |coefficients|<=10,
 // |temperature|<=100, |offset|<=10 imply |any endpoint|<=7200.
-pub data Contributor [copy] {
+public data Contributor [copy] {
     nominal: i32 in Saturating;
     tolerance: i32 in Saturating;
     thermal: i32 in Saturating;
     gauge_a: i32 in Saturating;
     gauge_b: i32 in Saturating;
 }
-pub data Assembly [copy] {
+public data Assembly [copy] {
     contributors: [Contributor; 3];
     temperature_low: i32 in Saturating;
     temperature_high: i32 in Saturating;
@@ -21,7 +21,7 @@ pub data Assembly [copy] {
     fit_low: i32 in Saturating;
     fit_high: i32 in Saturating;
 }
-pub data Audit [copy] {
+public data Audit [copy] {
     nominal: i32 in Saturating;
     radius: i32 in Saturating;
     thermal: i32 in Saturating;
@@ -31,10 +31,10 @@ pub data Audit [copy] {
     high: i32 in Saturating;
     status: i32;
 }
-pub machine bounded(value: i32 in Saturating, limit: i32 in Saturating) -> bool {
+public machine bounded(value: i32 in Saturating, limit: i32 in Saturating) -> bool {
     value >= 0 - limit && value <= limit
 }
-pub machine valid(assembly: &Assembly) -> bool {
+public machine valid(assembly: &Assembly) -> bool {
     transition bounded(assembly.temperature_low, 100) && bounded(assembly.temperature_high, 100)
         && assembly.temperature_low <= assembly.temperature_high
         && bounded(assembly.gauge_a_low, 10) && bounded(assembly.gauge_a_high, 10)
@@ -58,29 +58,29 @@ pub machine valid(assembly: &Assembly) -> bool {
         }
     }
 }
-pub machine lower_choice(coefficient: i32 in Saturating, low: i32 in Saturating, high: i32 in Saturating) -> i32 in Saturating {
+public machine lower_choice(coefficient: i32 in Saturating, low: i32 in Saturating, high: i32 in Saturating) -> i32 in Saturating {
     transition coefficient >= 0 { true -> (low) false -> (high) }
 }
 // The contributor row is a fixed array of three. Its length is a collection
 // measure, so the bound is `embed` of that measure: directly on the parameter,
 // on the assembly field at the call, through a local copy, and as the count
 // this machine returns.
-pub machine observe_span(count: u64) -> bool
+public machine observe_span(count: u64) -> bool
 requires embed(count) == 3
 {
     transition { _ -> (true) }
 }
-pub machine contributor_span(contributors: &[Contributor; 3]) -> u32
+public machine contributor_span(contributors: &[Contributor; 3]) -> u32
 requires embed(contributors.len) == 3
 {
     let count: u64 = contributors.len;
     let accepted: bool = observe_span(count);
     transition accepted { true -> (3) false -> (0) }
 }
-pub machine upper_choice(coefficient: i32 in Saturating, low: i32 in Saturating, high: i32 in Saturating) -> i32 in Saturating {
+public machine upper_choice(coefficient: i32 in Saturating, low: i32 in Saturating, high: i32 in Saturating) -> i32 in Saturating {
     transition coefficient >= 0 { true -> (high) false -> (low) }
 }
-pub machine calculate(assembly: &Assembly, audit: &mut Audit) {
+public machine calculate(assembly: &Assembly, audit: &mut Audit) {
     let span: u32 = contributor_span(&assembly.contributors);
     transition span == 3 { true -> begin(assembly, audit) false -> uncounted(audit) }
     state begin(assembly: &Assembly, audit: &mut Audit) {

@@ -1,1 +1,1 @@
-pub machine generation_value() -> i32 { 7 }
+public machine generation_value() -> i32 { 7 }

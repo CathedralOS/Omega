@@ -5,7 +5,7 @@
 // state-level `requires` carries the length across the boundary.
 // `pump` takes the host binding rather than the whole subject, so its
 // `buffer` is the only exclusive path to `control`.
-pub boundary trait ByteHost {
+public boundary trait ByteHost {
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
     requires
         count <= buffer.len;

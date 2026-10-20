@@ -5,8 +5,8 @@ module model::stages;
 use io::input;
 use omega::language::core::float_operations;
 
-pub data Pair { hot: f64; cold: f64; }
-pub data Solution { hot: [f64; 9]; cold: [f64; 9]; heat: [f64; 8]; total: f64; }
+public data Pair { hot: f64; cold: f64; }
+public data Solution { hot: [f64; 9]; cold: [f64; 9]; heat: [f64; 8]; total: f64; }
 
 machine transfer(input: &io::input::Input, pair: &mut Pair, position: u32) -> f64 requires position < 8 {
     let conductance: f64 = input.conductance[position];
@@ -30,7 +30,7 @@ machine trial(input: &io::input::Input, pair: &mut Pair) {
     }
     state done() { }
 }
-pub machine solve(input: &io::input::Input, solution: &mut Solution) -> bool {
+public machine solve(input: &io::input::Input, solution: &mut Solution) -> bool {
     let mut base: Pair;
     base.hot = input.hot_in;
     base.cold = 0.0;

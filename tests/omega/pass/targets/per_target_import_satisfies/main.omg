@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 
 // The reviewed console contract assumed by this program.
-pub boundary trait Console {
+public boundary trait Console {
     machine write_byte(byte: i32)
     reaches Console
     terminates;
@@ -10,7 +10,7 @@ pub boundary trait Console {
     reaches Console;
 }
 
-pub data ConsoleNativeProvider {}
+public data ConsoleNativeProvider {}
 
 // Per-target provider rows: each platform satisfies the same trait rows
 // through its own `boundary machine`; build composition picks the bound target.

@@ -1,9 +1,9 @@
 // Marked terminal machine calls retain their ordinary operational envelope.
 // Contextual acknowledgement words followed by '(' remain callable names.
-pub machine wait() -> bool blocks; { true }
+public machine wait() -> bool blocks; { true }
 machine block() -> bool { true }
 machine suspend() -> bool { true }
-pub machine relay_block() -> bool blocks; {
+public machine relay_block() -> bool blocks; {
     transition { _ -> block wait() }
 }
 machine contextual() -> bool { transition { _ -> block() } }

@@ -3,30 +3,30 @@ module gate;
 // The slot, its named map and the target-scoped families live in a sibling
 // module of the root package; the build selects the map before any entry
 // binding is spelled.
-pub boundary trait Gate {
+public boundary trait Gate {
     machine open() -> i32;
     machine close(ticket: i32) -> i32;
 }
-pub GateProvider satisfies Gate {
+public GateProvider satisfies Gate {
     Gate::open = open_gate;
     Gate::close = close_gate;
 }
-pub macos_arm64 machine open_gate() -> i32 { 7 }
+public macos_arm64 machine open_gate() -> i32 { 7 }
 
-pub linux_x86_64 machine open_gate() -> i32 { 7 }
-pub windows_x86_64 machine open_gate() -> i32 { 7 }
-pub macos_arm64 machine close_gate(ticket: i32) -> i32 {
+public linux_x86_64 machine open_gate() -> i32 { 7 }
+public windows_x86_64 machine open_gate() -> i32 { 7 }
+public macos_arm64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
     state accepted() -> i32 { 70 }
     state refused() -> i32 { 71 }
 }
 
-pub linux_x86_64 machine close_gate(ticket: i32) -> i32 {
+public linux_x86_64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
     state accepted() -> i32 { 70 }
     state refused() -> i32 { 71 }
 }
-pub windows_x86_64 machine close_gate(ticket: i32) -> i32 {
+public windows_x86_64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
     state accepted() -> i32 { 70 }
     state refused() -> i32 { 71 }

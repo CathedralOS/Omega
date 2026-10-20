@@ -3,13 +3,13 @@
 use omega_language_std::macos_gui;
 use omega_language_std::windows_gui_host;
 
-pub windows_x86_64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+public windows_x86_64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 reaches WindowsGuiHost invokes WindowsGuiHost; {
     let handle: u64 = WindowsGuiHost::window_create_client(&class_name, &title, style, x, y, width, height);
     Window { window: handle, view: 0, app: 0, space: 0, date: 0, mode: 0,
         psel: 0, mask: 0, evt: 0, relsel: 0, dsel: 0, vsel: 0, ksel: 0, pool: 0 }
 }
-pub macos_arm64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+public macos_arm64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 reaches AppKit + CoreGraphics + ObjectiveC invokes AppKit; invokes CoreGraphics; invokes ObjectiveC; {
     // Preserve the existing Cocoa adapter's outer-size convention without
     // imposing fixed dimensions on the shared target facade.
@@ -25,7 +25,7 @@ reaches AppKit + CoreGraphics + ObjectiveC invokes AppKit; invokes CoreGraphics;
     }
 }
 
-pub windows_x86_64 machine demo_window_destroy(window: Window, device: u64) -> bool
+public windows_x86_64 machine demo_window_destroy(window: Window, device: u64) -> bool
 reaches WindowsGuiHost invokes WindowsGuiHost; {
     transition device != 0 { true -> release(window, device) _ -> destroy(window, true) }
     state release(window: Window, device: u64) -> bool {
@@ -38,7 +38,7 @@ reaches WindowsGuiHost invokes WindowsGuiHost; {
         released && destroyed && !alive
     }
 }
-pub macos_arm64 machine demo_window_destroy(window: Window, device: u64) -> bool
+public macos_arm64 machine demo_window_destroy(window: Window, device: u64) -> bool
 reaches CoreGraphics + ObjectiveC invokes CoreGraphics; invokes ObjectiveC; {
     transition window.pool != 0 { true -> close(window) _ -> (true) }
     state close(window: Window) -> bool {
@@ -47,13 +47,13 @@ reaches CoreGraphics + ObjectiveC invokes CoreGraphics; invokes ObjectiveC; {
     }
 }
 
-pub windows_x86_64 machine demo_get_dc(window_state: &Window, window: u64) -> u64
+public windows_x86_64 machine demo_get_dc(window_state: &Window, window: u64) -> u64
 reaches WindowsGuiHost invokes WindowsGuiHost; { WindowsGuiHost::get_dc(window) }
-pub macos_arm64 machine demo_get_dc(window_state: &Window, window: u64) -> u64 {
+public macos_arm64 machine demo_get_dc(window_state: &Window, window: u64) -> u64 {
     macos_window_get_dc(window_state, window)
 }
 
-pub windows_x86_64 machine demo_pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32
+public windows_x86_64 machine demo_pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32
 reaches WindowsGuiHost invokes WindowsGuiHost; {
     let present: bool = WindowsGuiHost::pump_message(message);
     transition present { true -> inspect(window_state, message, close_requested) _ -> (0) }
@@ -73,7 +73,7 @@ reaches WindowsGuiHost invokes WindowsGuiHost; {
         1
     }
 }
-pub macos_arm64 machine demo_pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32
+public macos_arm64 machine demo_pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32
 reaches ObjectiveC invokes ObjectiveC; {
     let scratch: [u64; 6] = [0, 0, 0, 0, 0, 0];
     let present: u32 = macos_window_msg_peek(window_state, scratch);
@@ -85,15 +85,15 @@ reaches ObjectiveC invokes ObjectiveC; {
     }
 }
 
-pub windows_x86_64 machine demo_is_window(window_state: &Window, window: u64) -> u32
+public windows_x86_64 machine demo_is_window(window_state: &Window, window: u64) -> u32
 reaches WindowsGuiHost invokes WindowsGuiHost; {
     let alive: bool = WindowsGuiHost::is_window(window);
     transition alive { true -> (1) _ -> (0) }
 }
-pub macos_arm64 machine demo_is_window(window_state: &Window, window: u64) -> u32
+public macos_arm64 machine demo_is_window(window_state: &Window, window: u64) -> u32
 reaches ObjectiveC invokes ObjectiveC; { macos_window_is_window(window_state, window) }
 
-pub windows_x86_64 machine demo_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+public windows_x86_64 machine demo_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches WindowsGuiHost invokes WindowsGuiHost; {
     transition dest_width <= 2147483647 && dest_height <= 2147483647
         && source_width <= 2147483647 && source_height <= 2147483647 {
@@ -108,7 +108,7 @@ reaches WindowsGuiHost invokes WindowsGuiHost; {
     }
     state result(copied: i32) -> u32 requires copied > 0 { copied as u32 }
 }
-pub macos_arm64 machine demo_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+public macos_arm64 machine demo_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches CoreGraphics + ObjectiveC invokes CoreGraphics; invokes ObjectiveC; {
     macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
 }

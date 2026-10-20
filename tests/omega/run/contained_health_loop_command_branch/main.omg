@@ -3,7 +3,7 @@
 // explicit storage-and-length owner. Each iteration checks health, then
 // reads a line into the carrier, borrows it as a `&[u8] in LineUtf8` view, resolves a
 // Command enum directly, and loops until `quit`.
-pub domain [u8]::LineUtf8(bytes)
+public domain [u8]::LineUtf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;

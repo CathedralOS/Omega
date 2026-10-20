@@ -8,5 +8,5 @@
 // remains the sole semantic lifecycle authority. The representation, not
 // source-authored ABI numbers, supplies layout.
 
-pub trait OpaqueRepresentation<Opaque, Representation> {
+public trait OpaqueRepresentation<Opaque, Representation> {
 }

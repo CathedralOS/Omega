@@ -3,14 +3,14 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-pub data Reader {
+public data Reader {
     value: i64 in Wrapping;
     status: i32;
     consumed: i32 in Wrapping;
     digits: i32 in Wrapping;
 }
 
-pub machine Reader::next(reader: &mut Reader) reaches Console
+public machine Reader::next(reader: &mut Reader) reaches Console
 invokes Console;
 blocks;
 crashes Trap

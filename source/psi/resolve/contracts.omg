@@ -10,7 +10,7 @@ use psi::syntax::syntax;
 // than inferring it from calls, so a contract naming no such binder, or a
 // second contract for one binder, rejects. A binder without a contract has
 // none: calling it rejects in typing.
-pub machine Resolver::bind_machine_contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine Resolver::bind_machine_contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
     transition { _ -> clear(resolver, sources, syntax, 0) }

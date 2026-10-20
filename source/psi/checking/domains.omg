@@ -21,13 +21,13 @@ use psi::types::types;
 // restores its domain on return, so the facts of a forgotten field are
 // installed again. Installing runs between expression nodes, never inside
 // the creation of a place, so it never re-enters itself.
-pub data DomainMark [copy] {
+public data DomainMark [copy] {
     case Unseen;
     case Pending;
     case Installed;
 }
 
-pub machine Checker::domain_mark(checker: &Checker, index: u64 in Trapping) -> DomainMark
+public machine Checker::domain_mark(checker: &Checker, index: u64 in Trapping) -> DomainMark
 crashes Trap
 {
     transition index < 256 {
@@ -46,7 +46,7 @@ crashes Trap
     }
 }
 
-pub machine Checker::set_domain_mark(checker: &mut Checker, index: u64 in Trapping, mark: DomainMark)
+public machine Checker::set_domain_mark(checker: &mut Checker, index: u64 in Trapping, mark: DomainMark)
 crashes Trap
 {
     transition index < 256 {
@@ -66,7 +66,7 @@ crashes Trap
 }
 
 // A new field place (zero-based) owes the facts naming its field.
-pub machine Checker::note_field(checker: &mut Checker, index: u64 in Trapping)
+public machine Checker::note_field(checker: &mut Checker, index: u64 in Trapping)
 crashes Trap
 {
     Checker::set_domain_mark(checker, index, DomainMark::Pending);
@@ -74,7 +74,7 @@ crashes Trap
 }
 
 // Install every owed field's facts.
-pub machine Checker::install_domains(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
+public machine Checker::install_domains(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
 crashes Trap
 {
     transition checker.domains_pending {
@@ -155,7 +155,7 @@ crashes Trap
 // Whether the place (one-based) belongs to an established value: its root
 // is a parameter, a pattern binder, a call's result, a construction, an
 // operand's snapshot or a local with an initializer.
-pub machine Checker::established(checker: &Checker, syntax: &SyntaxTrees, place: u64 in Trapping) -> bool
+public machine Checker::established(checker: &Checker, syntax: &SyntaxTrees, place: u64 in Trapping) -> bool
 crashes Trap
 {
     transition place > 0 {
@@ -282,7 +282,7 @@ crashes Trap
 }
 
 // Whether a fact's tree names `field` (a data fact's bare field name).
-pub machine Checker::mentions_field(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
+public machine Checker::mentions_field(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);
@@ -321,7 +321,7 @@ crashes Trap
 
 // After a value is forgotten, the facts installed for its fields and for
 // fields inside it are owed again.
-pub machine Checker::reopen_domains(checker: &mut Checker, place: u64 in Trapping)
+public machine Checker::reopen_domains(checker: &mut Checker, place: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> next(checker, place, 0) }
@@ -355,7 +355,7 @@ crashes Trap
 // domain intact: every fact naming the field holds as the value's fields
 // now are. A field a case's own `where` fact names is not proved: which case
 // is active is not known here.
-pub machine Checker::domain_holds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, written: u64 in Trapping) -> bool
+public machine Checker::domain_holds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, written: u64 in Trapping) -> bool
 crashes Trap
 {
     let field: Place = Checker::place_or_absent(checker, written);
@@ -383,7 +383,7 @@ crashes Trap
 
 // Whether any case's own `where` fact of a data declaration names common
 // field `wanted`.
-pub machine Checker::case_facts_name(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping) -> bool
+public machine Checker::case_facts_name(syntax: &SyntaxTrees, resolution: &NameResolution, item: DataItem, wanted: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, resolution, item, wanted, 0) }
@@ -446,7 +446,7 @@ crashes Trap
 // contributes the selected case's conditions). Its payload fields stand for
 // the arm's binders, unknown for one the arm binds no name for, and its
 // common fields for the fields of the subject's place.
-pub machine Checker::assume_case_facts(
+public machine Checker::assume_case_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -542,7 +542,7 @@ crashes Trap
 
 // A payload member's offset among the selected case's payload fields, or
 // the case's payload count for any other member.
-pub machine Checker::payload_slot(selected: DataCase, member: MemberTarget) -> u64 in Trapping {
+public machine Checker::payload_slot(selected: DataCase, member: MemberTarget) -> u64 in Trapping {
     transition member {
         MemberTarget::Payload { field } -> payload(selected, field)
         _ -> none(selected)
@@ -572,7 +572,7 @@ pub machine Checker::payload_slot(selected: DataCase, member: MemberTarget) -> u
 // construction proves the domain; data_and_literals.md#case-constraints:
 // construction proves the selected case's conditions). Common and payload
 // fields together beyond 64 are not proved.
-pub machine Checker::construction_holds(
+public machine Checker::construction_holds(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -731,7 +731,7 @@ crashes Trap
 
 // The case a construction or arm selects, or, without one, a case with no
 // payload fields and no clauses.
-pub machine Checker::selected_case(syntax: &SyntaxTrees, has_case: bool, data_case: u64 in Trapping) -> DataCase
+public machine Checker::selected_case(syntax: &SyntaxTrees, has_case: bool, data_case: u64 in Trapping) -> DataCase
 crashes Trap
 {
     transition has_case {
@@ -757,7 +757,7 @@ crashes Trap
 // The argument slot a construction's member stands in while facts are
 // decided: a common field's offset, then the selected case's payload fields
 // after every common field; `total` and beyond for none.
-pub machine Checker::member_slot(item: DataItem, selected: DataCase, target: MemberTarget) -> u64 in Trapping
+public machine Checker::member_slot(item: DataItem, selected: DataCase, target: MemberTarget) -> u64 in Trapping
 crashes Trap
 {
     transition target {

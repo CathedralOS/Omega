@@ -1,6 +1,6 @@
 // Forwarding proves the public predicate from immutable caller facts; it does
 // not select a representative tuple or borrow a provider's runtime signature.
-pub boundary trait Service {
+public boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
     where Count == 4 || Count == 8;
 }

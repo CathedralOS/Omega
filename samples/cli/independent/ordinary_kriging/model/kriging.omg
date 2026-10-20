@@ -1,5 +1,5 @@
 use omega::language::core::float_operations;
-pub data Problem {
+public data Problem {
     count: u64; queries: u64; variance: f64; range: f64; noise: f64;
     x: [f64; 8]; y: [f64; 8]; values: [f64; 8]; query_x: [f64; 8]; query_y: [f64; 8];
     covariance: [f64; 64]; matrix: [f64; 90]; cross: [f64; 8];
@@ -11,7 +11,7 @@ pub data Problem {
 // constant mean; its multiplier has also been divided by process variance.
 // Partial-pivot Gauss-Jordan solves the full indefinite block system. No
 // jitter, deduplication, clipping of variance, or known-mean substitution.
-pub machine solve(problem: &mut Problem) -> bool {
+public machine solve(problem: &mut Problem) -> bool {
     training(problem, 0, 0);
     transition { _ -> queries(problem, 0) }
     state queries(problem: &mut Problem, query: u64) -> bool {
@@ -29,7 +29,7 @@ pub machine solve(problem: &mut Problem) -> bool {
     }
     state good() -> bool { true } state bad() -> bool { false }
 }
-pub machine magnitude(value: f64) -> f64 {
+public machine magnitude(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
     state negative(value: f64) -> f64 { 0.0 - value } state positive(value: f64) -> f64 { value }
 }

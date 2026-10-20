@@ -108,7 +108,7 @@ sibling board items, or when a later sweep supersedes it.
 ## Residual risk
 
 The sweep reads module structure and entry files; it does not trace every
-`pub` surface for ownership leaks, and it does not measure whether the
+`public` surface for ownership leaks, and it does not measure whether the
 policy tables under F3 would change owner under PIPELINE-OWNER-CONSOLIDATION.
 F2/F4 have
 sibling board items (`WRAPPER-OBJECT-OWNERSHIP`, `DURABLE-CODEC-RELOCATION`)

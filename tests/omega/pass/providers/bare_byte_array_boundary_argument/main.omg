@@ -4,30 +4,30 @@
 // and the native leg exercises the full argument path end to end.
 //
 // The domain-carrying spelling (`take(name: [u8; 7] in CName)` under
-// `pub domain [u8; 7]::CName(name) requires name[6] == 0`) remains the supported
+// `public domain [u8; 7]::CName(name) requires name[6] == 0`) remains the supported
 // contract surface — it engages the requires-contract check by name when the
 // caller has not discharged the domain obligation.
 
 use omega_language_std::console;
 
-pub boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
+public boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
 
-pub data SinkProvider { seen: u64; }
+public data SinkProvider { seen: u64; }
 
-pub macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
+public macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
     SinkProvider::select_provider<Sink, SinkProviderSinkImplementation>(defaults);
 }
 
-pub linux_x86_64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
+public linux_x86_64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
     SinkProvider::select_provider<Sink, SinkProviderSinkImplementation>(defaults);
 }
 
-pub macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
+public macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
     transition { _ -> ret() }
     state ret() -> u64 { 7 }
 }
 
-pub linux_x86_64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
+public linux_x86_64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
     transition { _ -> ret() }
     state ret() -> u64 { 7 }
 }

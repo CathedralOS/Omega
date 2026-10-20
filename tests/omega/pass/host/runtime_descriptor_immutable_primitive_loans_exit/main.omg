@@ -1,33 +1,33 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
-pub boundary trait ScalarIo {
+public boundary trait ScalarIo {
     machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 blocks;
     machine write(descriptor: i32, value: &f32, count: u64) -> i64;
     machine flag(descriptor: i32, value: &bool, count: u64) -> i64;
     machine byte(descriptor: i32, value: &u8, count: u64) -> i64;
 }
-pub data ScalarImports {}
+public data ScalarImports {}
 data Main { }
 
-pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
     } }
 }
 
-pub linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
+public linux_x86_64 machine linux_x86_64_read_binding() -> ForeignBinding<9, 4, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "read", version: "GLIBC_2.2.5"
     } }
 }
-pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
     } }
 }
 
-pub linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+public linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
     } }

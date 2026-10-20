@@ -2,14 +2,14 @@ use omega_language_std::calling;
 use omega_language_std::console;
 use omega::language::core::external_binding;
 
-pub data CallbackPolicies { }
-pub InitializerCalling satisfies CallingPolicy {
+public data CallbackPolicies { }
+public InitializerCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::initializer;
 }
-pub OnceCalling satisfies CallingPolicy {
+public OnceCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::once;
 }
-pub ProcessIdCalling satisfies CallingPolicy {
+public ProcessIdCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::process_id;
 }
 
@@ -149,13 +149,13 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan
     plan
 }
 
-pub boundary trait Initializer: Calling<InitializerCalling> {
+public boundary trait Initializer: Calling<InitializerCalling> {
     machine call() reaches Console + ProcessId
     invokes Console;
     invokes ProcessId;
 }
 
-pub boundary trait ProcessId: Calling<ProcessIdCalling> {
+public boundary trait ProcessId: Calling<ProcessIdCalling> {
     machine current() -> i32;
 }
 
@@ -175,9 +175,9 @@ via process_id_binding();
 
 // Darwin's public pthread_once_t is a long signature followed by eight opaque
 // bytes on LP64. This package owns the foreign control representation.
-pub data OnceControl { signature: u64; opaque: u64; }
+public data OnceControl { signature: u64; opaque: u64; }
 
-pub boundary trait OnceRegistrar: Calling<OnceCalling> {
+public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(control: &mut OnceControl, native callback initialize from Handler) -> i32
     where machine Handler satisfies Initializer::call;
     invokes Initializer;
@@ -206,8 +206,8 @@ machine emit(character: i32) reaches Console + ProcessId requires character >= 0
     state failed() { Console::exit_process(73); }
 }
 
-pub data Initialization { }
-pub machine Initialization::call() satisfies Initializer::call reaches Console + ProcessId
+public data Initialization { }
+public machine Initialization::call() satisfies Initializer::call reaches Console + ProcessId
 invokes Console;
 invokes ProcessId;
 {

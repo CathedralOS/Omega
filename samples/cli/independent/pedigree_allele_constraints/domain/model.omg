@@ -1,13 +1,13 @@
 // Synthetic single-locus model. IDs are one-based; zero means founder.
 // Observation bits 1,2,4 admit AA,AB,BB. No mutation or penetrance model.
-pub data Pedigree {
+public data Pedigree {
     count: i32 in Wrapping;
     father: [i32; 6];
     mother: [i32; 6];
     observed: [i32; 6];
 }
 
-pub machine valid(pedigree: &Pedigree) -> bool {
+public machine valid(pedigree: &Pedigree) -> bool {
     transition pedigree.count >= 1 && pedigree.count <= 6 {
         true -> person(pedigree, 0)
         _ -> false
@@ -32,7 +32,7 @@ pub machine valid(pedigree: &Pedigree) -> bool {
 }
 
 // Exactly four equally likely choices of parental chromosome copies.
-pub machine transmission(father: i32 in Wrapping, mother: i32 in Wrapping,
+public machine transmission(father: i32 in Wrapping, mother: i32 in Wrapping,
                          child: i32 in Wrapping) -> i32 in Wrapping {
     transition child {
         0 -> ((2 - father) * (2 - mother))

@@ -2,7 +2,7 @@
 // nanoseconds. Enumerate primary, double and triple round trips at each
 // boundary. A match window is inclusive; overlapping paths retain all matches.
 use model::records;
-pub machine build_boundaries(acquisition: &mut Acquisition) {
+public machine build_boundaries(acquisition: &mut Acquisition) {
     transition { _ -> step(acquisition, 0, 0) }
     state step(acquisition: &mut Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {
         transition layer < acquisition.layers && layer < 4 {
@@ -28,7 +28,7 @@ pub machine build_boundaries(acquisition: &mut Acquisition) {
     }
     state done() {}
 }
-pub machine match_echo(acquisition: &Acquisition, arrival: i64 in Saturating) -> EchoResult {
+public machine match_echo(acquisition: &Acquisition, arrival: i64 in Saturating) -> EchoResult {
     let result: EchoResult = EchoResult { matches: 0, layer: 0, order: 0, thickness: 0 };
     let relative: i64 in Saturating = arrival - acquisition.reference;
     transition { _ -> boundary(acquisition, relative, 0, 0, result) }

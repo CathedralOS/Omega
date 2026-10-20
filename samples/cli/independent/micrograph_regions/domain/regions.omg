@@ -3,7 +3,7 @@ use domain::input;
 // Row-major seeds, FIFO flood, mark before enqueue: a pixel enters the
 // private 64-slot queue at most once. Bounds guards prove every array access.
 // Coordinates are checked before linearization, preventing row wrapping.
-pub machine label_regions(image: &mut Image) -> bool {
+public machine label_regions(image: &mut Image) -> bool {
     image.components = 0;
     transition { _ -> scan(image, 0) }
     state scan(image: &mut Image, position: i32 in Wrapping) -> bool {
@@ -91,7 +91,7 @@ pub machine label_regions(image: &mut Image) -> bool {
     }
 }
 
-pub data Region {
+public data Region {
     area: i32 in Wrapping;
     sum_x: i32 in Wrapping;
     sum_y: i32 in Wrapping;
@@ -100,7 +100,7 @@ pub data Region {
     max_x: i32 in Wrapping;
     max_y: i32 in Wrapping;
 }
-pub machine measure(image: &Image, label: i32 in Wrapping, region: &mut Region) {
+public machine measure(image: &Image, label: i32 in Wrapping, region: &mut Region) {
     region.area = 0; region.sum_x = 0; region.sum_y = 0;
     region.min_x = 8; region.min_y = 8; region.max_x = 0; region.max_y = 0;
     transition { _ -> scan(image, label, region, 0) }

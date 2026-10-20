@@ -1,2 +1,2 @@
 module models;
-pub const MAX: u8 = 255;
+public const MAX: u8 = 255;

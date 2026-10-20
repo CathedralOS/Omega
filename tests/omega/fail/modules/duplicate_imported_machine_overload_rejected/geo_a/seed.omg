@@ -1,1 +1,1 @@
-pub machine seed() {}
+public machine seed() {}

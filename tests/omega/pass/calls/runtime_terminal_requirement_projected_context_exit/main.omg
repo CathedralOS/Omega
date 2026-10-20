@@ -1,6 +1,6 @@
-pub data Items { count: u64; }
+public data Items { count: u64; }
 data Request { items: Items; }
-pub boundary requirement Items::get_count(items: &Items) -> u64;
+public boundary requirement Items::get_count(items: &Items) -> u64;
 data ItemsProvider {}
 machine ItemsProvider::get_count(items: &Items) -> u64 satisfies Items::get_count { items.count }
 machine count(request: &Request, selected: bool) -> u64 {

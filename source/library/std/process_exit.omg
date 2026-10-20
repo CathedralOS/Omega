@@ -18,4 +18,4 @@ use targets::linux_arm64::process_exit_impl;
 // never assembles the row from unrelated implementations. Realizing the exact
 // canonical requirement preserves the terminal outcome and the exact i32
 // status; it does not grant the caller exit authority.
-pub data ProcessExitNativeProvider { }
+public data ProcessExitNativeProvider { }

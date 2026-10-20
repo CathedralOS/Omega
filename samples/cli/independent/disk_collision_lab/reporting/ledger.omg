@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 use physics::model;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // Model validation and 8-event cap keep all printed magnitudes below 10^9.
-pub machine integer(value:u64) reaches Console
+public machine integer(value:u64) reaches Console
 invokes Console;
 {
  transition { _ -> digits(value,1000000000000000,false) }
@@ -27,7 +27,7 @@ invokes Console;
  state invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
  state done() {}
 }
-pub machine number(value:f64) reaches Console
+public machine number(value:f64) reaches Console
 invokes Console;
 {
  transition value < 0.0 {true -> negative(value) _ -> positive(value)}
@@ -55,14 +55,14 @@ invokes Console;
  state invalid() {Console::write_line("FAIL output bound");Console::exit_process(4);}
  state done() {}
 }
-pub machine contact_row(lab:&Lab) reaches Console
+public machine contact_row(lab:&Lab) reaches Console
 invokes Console;
 {
  Console::write("contact ");integer(lab.first);Console::write(" ");integer(lab.second);
  Console::write(" time=");number(lab.time);Console::write(" impulse=");number(lab.impulse);
  Console::write(" error=");number(lab.contact_error);Console::write_line("");
 }
-pub machine totals_row(lab:&Lab) reaches Console
+public machine totals_row(lab:&Lab) reaches Console
 invokes Console;
 {
  Console::write("ledger time=");number(lab.time);
@@ -70,7 +70,7 @@ invokes Console;
  Console::write(" energy=");number(lab.energy);Console::write(" loss=");number(lab.loss);
  Console::write_line("");
 }
-pub machine disk_rows(lab:&Lab) reaches Console
+public machine disk_rows(lab:&Lab) reaches Console
 invokes Console;
 {
  transition { _ -> scan(lab,0) }

@@ -11,10 +11,10 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-pub data ParserHarness {
+public data ParserHarness {
 }
 
-pub machine ParserHarness::main(parser_harness: &mut ParserHarness)
+public machine ParserHarness::main(parser_harness: &mut ParserHarness)
 reaches Console
 invokes Console;
 crashes Trap

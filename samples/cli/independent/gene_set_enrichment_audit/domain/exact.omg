@@ -1,8 +1,8 @@
 // Exact combinatorics: admitted N <= 10 bounds every binomial to 252.
 // Wrapping arithmetic is deliberate; application admission gives the stronger range.
-pub data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }
+public data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }
 
-pub machine choose(total: u64 in Wrapping, selected: u64 in Wrapping) -> u64 in Wrapping {
+public machine choose(total: u64 in Wrapping, selected: u64 in Wrapping) -> u64 in Wrapping {
     transition selected <= total { true -> step(total, selected, 0, 1)
  false -> 0
  }
@@ -23,7 +23,7 @@ pub machine choose(total: u64 in Wrapping, selected: u64 in Wrapping) -> u64 in 
     }
 }
 
-pub machine tail(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, observed: u64 in Wrapping) -> Fraction {
+public machine tail(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, observed: u64 in Wrapping) -> Fraction {
     let denominator: u64 in Wrapping = choose(total, query);
     transition { _ -> step(total, annotated, query, observed, 0, denominator) }
     state step(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, hits: u64 in Wrapping, sum: u64 in Wrapping, denominator: u64 in Wrapping) -> Fraction {
@@ -38,16 +38,16 @@ pub machine tail(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 
     }
 }
 
-pub machine less(left: Fraction, right: Fraction) -> bool {
+public machine less(left: Fraction, right: Fraction) -> bool {
     left.numerator * right.denominator < right.numerator * left.denominator
 }
 
-pub machine minimum(left: Fraction, right: Fraction) -> Fraction {
+public machine minimum(left: Fraction, right: Fraction) -> Fraction {
     transition less(left, right) { true -> left
  false -> right
  }
 }
 
-pub machine scaled(value: Fraction, rank: u64 in Wrapping) -> Fraction {
+public machine scaled(value: Fraction, rank: u64 in Wrapping) -> Fraction {
     minimum(Fraction { numerator: value.numerator * 3, denominator: value.denominator * rank }, Fraction { numerator: 1, denominator: 1 })
 }
