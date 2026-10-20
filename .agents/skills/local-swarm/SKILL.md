@@ -165,28 +165,45 @@ helper actions before executing them.
 
 ### Purposeful witnesses and warm workbenches
 
-- **Each witness tests a distinct compiler mechanism:** A worker slot exists to
-  discover and prove a real compiler capability, not to stay busy for its own
-  sake. Before dispatching a fact row, ask what *new compiler mechanism or
-  physical boundary* (representation change, ABI transition, ownership rule, or
-  encoding boundary) this row tests that existing rows do not already exercise.
-  If a proposed row only increases the count of an already-proved mechanism, it
-  teaches the compiler nothing new—choose a genuinely uncovered mechanism or let
-  the slot drain.
+- **`TASKS.md` capability + 9-place fact row (never coverage-only or fixture-only):**
+  A worker slot exists to discover, repair, and prove a real `TASKS.md` compiler
+  capability end to end, not to stay busy for its own sake. Never select
+  assignments by filtering for `samples/cli/facts/<fact>/` folders that already
+  have all nine `<place>/main.omg` files and already pass on current main
+  (which produces coverage-only commits with zero `omega-rust/` changes), and
+  never assign an isolated `tests/omega/` fixture fix without carrying the
+  underlying construct through all nine standard transport places (`local`,
+  `field`, `parameter`, `call_result`, `match_join`, `const_name`,
+  `other_state`, `other_machine`, `target_body` + nine `<place>/invalid/` reject
+  twins + 18 `tests/omega/{pass,fail}/facts/<fact>_through_<place>_{exit,rejected}`
+  corpus fixtures). Always verify baseline failures against a fresh current-main
+  compiler build (`build/gate-cli`) rather than a stale cached binary
+  (`omega-latest.exe`). Transporting a `TASKS.md` construct across all nine
+  places surfaces the real `omega-rust/` checking, proof, and lowering bugs that
+  single-witness fixes miss. If a proposed row only increases the count of an
+  already-proved mechanism, it teaches the compiler nothing new—choose a
+  genuinely uncovered `TASKS.md` mechanism or let the slot drain.
 - **Treat a persistent worker as a warm workbench:** After its first slice, a
   worker in a persistent worktree already holds the nine-place structure,
   four-target `ProgramEntry` contract, and eight-layer evidence model in working
   memory. Subsequent messages to that worker only need to communicate what
-  distinguishes the new slice (the mechanism under test, its folder, and its
-  fact sentence). When a worker's conversation history grows long enough that
-  re-reading prior turns outweighs the benefit of shared context, start a fresh
-  conversation on the same clean worktree so the workbench stays warm while the
-  context window stays light.
+  distinguishes the new slice (the `TASKS.md` capability and mechanism under
+  test, its folder, and its fact sentence). When a worker's conversation history
+  grows long enough that re-reading prior turns outweighs the benefit of shared
+  context, start a fresh conversation on the same clean worktree so the
+  workbench stays warm while the context window stays light.
 - **Simple mechanical invariants:**
-  - Each worker owns its assignment end to end through validation, golden
-    recording, and authorized `tools/landing.py` publication on `main`—never
-    split work into stages where workers return partial unlanded candidates for
-    the coordinator to record or land.
+  - Each worker owns its assignment end to end through `omega-rust/` repair,
+    9-place sample gate validation, golden recording, and authorized
+    `tools/landing.py` publication on `main`—never split work into stages where
+    workers return partial unlanded candidates for the coordinator to record or
+    land.
+  - Note that `python tools/landing.py enqueue` takes `--owner "<owner>"` (and
+    optional `--priority`), **not** `--note`; passing `--note` causes `enqueue`
+    to fail with `unrecognized arguments: --note`.
+  - Never run recursive cleanup scripts that delete directories named `build`
+    under `tests/omega/pass/`, because `tests/omega/pass/build/` is a tracked
+    corpus category directory.
   - Batch claim registry mutations into single remote round-trips: use
     `--release-ticket` on `tools/claims.py claim` / `reserve` for atomic
     single-push handoffs when transitioning to the next slice, and pass repeated

@@ -188,15 +188,23 @@ capability.
    assignment. For new automatic work, choose an actionable `TASKS.md` outcome
    by its stated priority and release dependencies, then discharge it inside
    `samples/cli/facts`. Read its full acceptance
-   and verify its remaining gap against current main. Name the exact requirement
-   the next witness will discharge. `python3 tools/sample_queue.py --facts`
-   supplies failing fact witnesses; its smallest-first order does not set
-   product priority, and a green facts list does not fill an unfilled fact.
-   Use existing evidence or a focused run for the selected fact; run
-   `python3 tools/sample_native_gate.py --programs-only --find-work --facts`
-   when discovery is needed and no recent facts record exists. The same
-   commands without `--facts` remain the ordinary program queue and are not
-   compiler-advance selection. A genuinely missing owner decision
+   and verify its remaining gap against a fresh current-main compiler build
+   (`build/gate-cli`), never a stale cached binary (`omega-latest.exe`). Name
+   the exact requirement the next witness will discharge. Never filter discovery
+   solely to folders that already have all nine `<place>/main.omg` files and
+   already pass on current main (which produces coverage-only commits without
+   advancing `omega-rust/`), and never treat fixing an isolated `tests/omega/`
+   fixture as end-to-end completion without carrying the `TASKS.md` capability
+   across all nine transport places in `samples/cli/facts/<fact>/`. Query both
+   incomplete fact folders (`< 9` standard places present) and open `TASKS.md`
+   requirements whose mechanism lacks a complete nine-place row. `python3
+   tools/sample_queue.py --facts` supplies failing fact witnesses; its
+   smallest-first order does not set product priority, and a green facts list
+   does not fill an unfilled fact. Use existing evidence or a focused run for
+   the selected fact; run `python3 tools/sample_native_gate.py --programs-only
+   --find-work --facts` when discovery is needed and no recent facts record
+   exists. The same commands without `--facts` remain the ordinary program queue
+   and are not compiler-advance selection. A genuinely missing owner decision
    is cited in the sample README through `OWNER_QUESTIONS.md`.
 2. **Make it run and land.** Done for this witness means it compiles and runs
    natively with its authored result on main, with every compiler, library and fixture repair

@@ -79,9 +79,22 @@ encoding changes. When a repair adds or changes a construct, carrier, access
 mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
-Read the whole item's acceptance and verify its remaining gap against current
-main. Record the parent task and the exact requirement the next fact will
-discharge. Do not attach a task ID to an unrelated program after choosing it.
+Read the whole item's acceptance and verify its remaining gap against a fresh
+current-main compiler build (`build/gate-cli`), never an older cached binary
+(`omega-latest.exe`). Record the parent task and the exact requirement the next
+fact will discharge. Do not attach a task ID to an unrelated program after
+choosing it. Never filter discovery solely to folders that already have all nine
+`<place>/main.omg` files and already pass on current main (which yields
+coverage-only commits without advancing `omega-rust/`), and never treat fixing
+an isolated `tests/omega/` fixture as end-to-end completion without carrying
+the `TASKS.md` capability across all nine transport places in
+`samples/cli/facts/<fact>/`. Query incomplete `samples/cli/facts/<fact>/`
+folders (`< 9` standard places present) and open `TASKS.md` requirements whose
+mechanism lacks a complete nine-place row; transporting a `TASKS.md` construct
+through all nine places (`local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`, `other_state`, `other_machine`, `target_body`)
+routinely exposes real checking, proof, and lowering gaps in `omega-rust/` that
+a single root witness missed.
 Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
 each sample fact README lists how its nine places and reject twins prove out
 the eight end-to-end specification requirement layers—**establishment**,
