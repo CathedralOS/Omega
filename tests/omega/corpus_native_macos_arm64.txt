@@ -1059,6 +1059,7 @@ pass/domains/bodyless_owner_establishment checked 181ms
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 146ms
 pass/domains/call_requires_domain_intersection_preserved checked 198ms
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 186ms
+pass/domains/captured_predicate_readonly_call_exit built 905ms exit:0 @d89a799fd5dd
 pass/domains/case_payload_call_restore_exit built 1008ms exit:70 @c15189f4e04b
 pass/domains/case_payload_predicate_domain_member_exit built 881ms exit:70 @2efb222df04d
 pass/domains/domain_axis_cast checked 9408ms @5041ef1af684+wt

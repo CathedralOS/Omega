@@ -1447,6 +1447,8 @@ fail/domains/byte_predicate_operand_callee_crash rejected 815ms expected @ef7962
 fail/domains/call_requires_invalidated_by_mutation rejected 1674ms expected @a9ae30e1c334+wt
 fail/domains/call_requires_unproven rejected 1542ms expected @a9ae30e1c334+wt
 fail/domains/capacity_specializations_disagree_in_one_owner rejected 896ms expected @a9ae30e1c334+wt
+fail/domains/captured_predicate_write_retires_membership rejected 587ms expected @cc9e4517d62d+wt
+	cannot prove requires contract for call checked from producer: value.number in u64::Small in state `entry`
 fail/domains/case_child_membership_requires_issuance rejected 876ms expected @2ef2ab353498+wt
 fail/domains/case_payload_predicate_invalid_literal rejected 768ms expected @2ef2ab353498+wt
 fail/domains/checked_provider_result_without_selection rejected 6477ms expected @308fbdc54ba0
@@ -9145,6 +9147,7 @@ pass/domains/bodyless_owner_establishment checked 1760ms @a9ae30e1c334+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2263ms @a9ae30e1c334+wt
 pass/domains/call_requires_domain_intersection_preserved checked 1626ms @a9ae30e1c334+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1687ms @a9ae30e1c334+wt
+pass/domains/captured_predicate_readonly_call_exit checked 647ms @cc9e4517d62d+wt
 pass/domains/case_payload_call_restore_exit checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/case_payload_predicate_domain_member_exit checked 11675ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/domains/domain_axis_cast checked 9738ms @5041ef1af684+wt

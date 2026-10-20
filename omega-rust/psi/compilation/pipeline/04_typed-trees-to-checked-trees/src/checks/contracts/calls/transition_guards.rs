@@ -198,13 +198,15 @@ pub(super) fn transition_guard_proves_requires(
     // the captured predicate instead, and below require that predicate's
     // operands to survive the arm's own operand calls: the truth test says
     // nothing about them.
-    let captured_premise = captured_subject_predicate(
-        program,
-        caller_state,
-        call_flow.statement_index,
-        guard,
-    );
+    let captured_premise =
+        captured_subject_predicate(program, caller_state, call_flow.statement_index, guard);
     let matching_guard = captured_premise.unwrap_or(guard);
+    // Short-circuiting leaves a later conjunct's calls inside the capture.
+    // The truth test's empty frame cannot establish that the recovered
+    // predicate kept its earlier reads current through those calls.
+    if captured_premise.is_some() && !guard_preserves_values(machine, matching_guard, call_frames) {
+        return false;
+    }
     let Some(target_parameters) =
         validation::call_target_parameters(program, call_flow.target_symbol)
     else {
