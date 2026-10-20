@@ -5472,6 +5472,8 @@ fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2a
 fail/facts/write_only_target_family_nonhost_observation rejected 331ms expected @2ef2ab353498+wt
 	machine `lend` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_target_family_opaque_member rejected 268ms expected @2ef2ab353498+wt
+	machine `lend` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	machine `lend` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/facts/zero_byte_erased_carrier_unproved_call_result rejected 16584ms expected @7bfdc8af4bb2
 	cannot prove requires contract for call verify_carrier from main: produce().value >= 100 && produce().value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/zero_byte_erased_carrier_unproved_const_name rejected 16196ms expected @7bfdc8af4bb2
