@@ -2817,6 +2817,10 @@ fail/facts/ieee_guard_i32_from_f64_other_machine_invalid rejected 3892ms expecte
 fail/facts/ieee_guard_i32_from_f64_other_state_invalid rejected 3820ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_parameter_invalid rejected 3841ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_target_body_invalid rejected 3775ms expected @1cf00aa9ba90+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/independent_content_partition_through_call_result rejected 4134ms expected @61fab13095e7+wt
 	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
