@@ -321,6 +321,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     // bodies; no temporary ordinary plan stands in for a state graph.
     let targets = candidates
         .iter()
+        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
         .map(CheckedUnitEffectMachinePlan::callable_entry)
         .chain(
             composed_machines
@@ -752,6 +753,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     // signature names that type.
     for operation in candidates
         .iter()
+        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
         .flat_map(|plan| &plan.operations)
         .chain(composed_machines.iter().flat_map(|plan| {
             plan.states
@@ -859,6 +861,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     // observations rejoin the same exact identity requested by lowering.
     let loaned_storage_types = candidates
         .iter()
+        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
         .map(|plan| plan.machine)
         .chain(composed_machines.iter().map(|plan| plan.machine))
         .collect::<Vec<_>>();
@@ -1014,6 +1017,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     }
     let stored_operand_identities = candidates
         .iter()
+        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
         .flat_map(|plan| {
             plan.operations
                 .iter()

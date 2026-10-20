@@ -115,6 +115,14 @@ pub(crate) fn derive_checked_semantic_dependencies(
     let normal_exits = plans
         .machines
         .iter()
+        .chain(
+            facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .machines
+                .iter()
+                .map(|plan| &plan.machine),
+        )
         .map(|plan| (plan.machine, plan.normal_exit_cleanups))
         .chain(plans.composed_machines.iter().flat_map(|machine| {
             machine

@@ -3236,10 +3236,9 @@ crash and native exit behavior.
     select providers but lack an executable intrinsic, which
     **CHECKED-ASM-LABEL-CONTRACTS** owns;
     `fail/calls/struct_constant_requires_argument_rejected` is
-    **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**; the three stage 04/05
-    omissions `pass/concurrency/runtime_retained_reference_boundary_exit`,
-    `pass/text/runtime_mutable_string_parameter_concat_write_line` and
-    `pass/ownership/runtime_owned_carried_loan_extract_transform_exit` have a
+    **STRUCT-CONSTANT-REQUIRES-REFUTATION-DRIFT**; the two stage 04/05
+    omissions `pass/concurrency/runtime_retained_reference_boundary_exit` and
+    `pass/text/runtime_mutable_string_parameter_concat_write_line` have a
     live lane.
   - Unowned singletons: `pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit`
     (implicit store conversion),

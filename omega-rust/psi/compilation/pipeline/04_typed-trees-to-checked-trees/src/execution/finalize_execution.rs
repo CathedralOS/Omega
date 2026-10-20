@@ -84,6 +84,14 @@ pub(crate) fn finalize_execution(
     for state in terminal_unit_effects
         .machines
         .iter()
+        .chain(
+            facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .machines
+                .iter()
+                .map(|plan| &plan.machine),
+        )
         .map(|plan| plan.state)
         .chain(
             terminal_unit_effects

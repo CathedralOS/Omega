@@ -2433,7 +2433,7 @@ pass/ownership/runtime_known_case_scalar_call_exit built 13340ms exit:0 @91bbf3e
 pass/ownership/runtime_linear_case_payload_forward_exit built 13225ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_nested_borrowed_consumption_exit built 13467ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_nested_projected_claim_return_exit built 13175ms exit:0 @91bbf3e29aa9
-pass/ownership/runtime_owned_carried_loan_extract_transform_exit rejected 12476ms @91bbf3e29aa9
+pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 30780ms exit:42 @ecce693f370b
 pass/ownership/runtime_repeated_linear_result_forwarding_exit built 12994ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_retained_alias_referent_transform_exit built 12672ms exit:42 @91bbf3e29aa9
 pass/ownership/runtime_selected_linear_temporary_exit rejected 13344ms @91bbf3e29aa9

@@ -460,6 +460,14 @@ pub(crate) fn finalize_completion_actions(
             .terminal_unit_effects
             .machines
             .iter()
+            .chain(
+                facts
+                    .flow
+                    .terminal_partial_affine_unit_cleanups
+                    .machines
+                    .iter()
+                    .map(|plan| &plan.machine),
+            )
             .map(checked_trees::CheckedUnitEffectMachinePlan::callable_entry)
             .chain(
                 facts
@@ -481,6 +489,14 @@ pub(crate) fn finalize_completion_actions(
                 .terminal_unit_effects
                 .machines
                 .iter()
+                .chain(
+                    facts
+                        .flow
+                        .terminal_partial_affine_unit_cleanups
+                        .machines
+                        .iter()
+                        .map(|plan| &plan.machine),
+                )
                 .find(|plan| plan.machine == value.machine && plan.state == value.state)
                 .map(|plan| plan.structural_parameters.as_slice())
                 .or_else(|| {

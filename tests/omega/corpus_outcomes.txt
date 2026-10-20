@@ -10873,7 +10873,7 @@ pass/ownership/runtime_mutable_selector_window_exit checked 10846ms check-target
 pass/ownership/runtime_nested_borrowed_consumption_exit checked 11482ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_nested_projected_claim_return_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_nested_view_affine_window_exit checked 2979ms check-target:macos_arm64 @f48a7c9556ec+wt
-pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 5953ms check-target:macos_arm64 @46b51224f047+wt
+pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 23539ms check-target:macos_arm64 @ecce693f370b
 pass/ownership/runtime_owned_parameter_restoration_exit checked 11625ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit checked 10927ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_projected_constructor_operands_exit checked 11655ms check-target:macos_arm64 @a9ae30e1c334+wt
