@@ -293,7 +293,13 @@ pub(super) fn validate(
             arithmetic_domains::check_range_containment(
                 program,
                 local_data.type_reference,
-                interval,
+                arithmetic_domains::IntegerValueObservation {
+                    machine,
+                    state: current_state,
+                    expression: local_data.initial_value,
+                    environment: value_environment,
+                    interval,
+                },
                 &owner,
                 diagnostics,
             );

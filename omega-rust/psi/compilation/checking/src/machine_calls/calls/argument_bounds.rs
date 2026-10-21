@@ -51,7 +51,13 @@ pub(super) fn report_argument_bounds(
             arithmetic_domains::check_range_containment(
                 program,
                 parameter.type_reference,
-                interval,
+                arithmetic_domains::IntegerValueObservation {
+                    machine: current_machine,
+                    state: current_state,
+                    expression: argument,
+                    environment: value_environment,
+                    interval,
+                },
                 &owner,
                 diagnostics,
             );
@@ -113,7 +119,13 @@ pub(super) fn report_argument_bounds(
             arithmetic_domains::check_range_containment(
                 program,
                 parameter.type_reference,
-                interval,
+                arithmetic_domains::IntegerValueObservation {
+                    machine: current_machine,
+                    state: current_state,
+                    expression: argument,
+                    environment: value_environment,
+                    interval,
+                },
                 &owner,
                 diagnostics,
             );

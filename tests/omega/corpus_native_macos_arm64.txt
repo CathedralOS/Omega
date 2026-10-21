@@ -1479,6 +1479,15 @@ pass/facts/computed_subslice_extent_other_machine_exit built 70559ms exit:0 @b80
 pass/facts/computed_subslice_extent_other_state_exit built 70406ms exit:0 @b8051b06675a
 pass/facts/computed_subslice_extent_parameter_exit built 70774ms exit:0 @b8051b06675a
 pass/facts/computed_subslice_extent_target_body_exit built 70871ms exit:0 @b8051b06675a
+pass/facts/correlated_invariant_store_through_call_result_exit built 1257ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_const_name_exit built 1335ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_field_exit built 1503ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_local_exit built 1726ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_match_join_exit built 1655ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_other_machine_exit built 1186ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_other_state_exit built 1567ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_parameter_exit built 1419ms exit:0 @705856dc542f+wt
+pass/facts/correlated_invariant_store_through_target_body_exit built 1883ms exit:0 @705856dc542f+wt
 pass/facts/dependent_subtract_through_call_result_exit built 29726ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_const_name_exit built 29176ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_field_exit built 29872ms exit:0 @5de48c6e72e8+wt
@@ -2705,6 +2714,7 @@ pass/providers/unreached_console_provider_rows built 4695ms @e3e4be8878bd
 pass/range/data_parameter_counter_non_negative_exit built 850ms exit:11 @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit built 673ms exit:7
 pass/range/runtime_guarded_runtime_index_increment_exit built 1769ms exit:1 @fb2178def922
+pass/ranges/runtime_correlated_store_saved_values_exit built 1802ms exit:0 @705856dc542f+wt
 pass/ranges/runtime_subject_guard_compound_read_exit built 2389ms exit:70 @9beb2be72f2d+wt
 pass/ranges/subject_field_where_fact_index_bound checked 546ms @9beb2be72f2d+wt
 pass/ranges/subject_guard_compound_index_successor checked 567ms @9beb2be72f2d+wt

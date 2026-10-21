@@ -139,8 +139,8 @@ pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;
 pub(crate) use range_constraints::{
-    check_range_containment, check_range_under_non_exact_domain, check_where_interval_containment,
-    enforced_declared_range_interval, range_constraint_interval,
+    IntegerValueObservation, check_range_containment, check_range_under_non_exact_domain,
+    check_where_interval_containment, enforced_declared_range_interval, range_constraint_interval,
 };
 pub(crate) use return_ranges::{
     call_return_type, enforce_declared_return_range, enforce_symbolic_range,

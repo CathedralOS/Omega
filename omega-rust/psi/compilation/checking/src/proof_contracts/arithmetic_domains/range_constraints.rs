@@ -1,9 +1,68 @@
-//! Range constraint intervals, dependent maxima and containment.
+//! Range constraint intervals, dependent maxima and value admission.
+//!
+//! Intervals are a sufficient proof, not the complete meaning of a receiving
+//! bound. Preserve the evaluated value's live relation environment when a
+//! correlation such as `amount <= limit - used` supplies the tighter result.
+//! Operand formation precedes admission; the requested range is never a premise.
 
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use diagnostics::Diagnostic;
+use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+
+/// An already-formed integer value under the receiving validator's live facts.
+/// Statement validation has conservatively retired every nested call's writes,
+/// including destination selectors; transition arguments may carry their own
+/// separately fenced environments. No pre-effect storage fact is recovered here.
+/// The shared relation owner preserves identity and all-predecessor joins; this
+/// query neither executes an expression nor publishes the requested bound.
+#[derive(Clone, Copy)]
+pub(crate) struct IntegerValueObservation<'a> {
+    pub machine: &'a Machine,
+    pub state: Option<&'a State>,
+    pub expression: ExpressionHandle,
+    pub environment: &'a ValueEnvironment,
+    pub interval: Interval,
+}
+
+impl IntegerValueObservation<'_> {
+    fn fits(self, program: &dyn crate::CheckingInput, stated: Interval) -> bool {
+        if stated
+            .low
+            .zip(stated.high)
+            .is_some_and(|(low, high)| low > high)
+        {
+            return false;
+        }
+        let lower_proven = stated
+            .low
+            .is_none_or(|bound| self.interval.low.is_some_and(|low| low >= bound));
+        let upper_proven = stated
+            .high
+            .is_none_or(|bound| self.interval.high.is_some_and(|high| high <= bound));
+        if lower_proven && upper_proven {
+            return true;
+        }
+        let Some(state) = self.state else {
+            return false;
+        };
+        let minimum = stated.low.map(BigInt::from_i64);
+        let maximum = stated.high.map(BigInt::from_i64);
+        super::live_integer_constraints::proves_range(
+            program,
+            self.machine,
+            state,
+            self.environment,
+            self.expression,
+            if lower_proven { None } else { minimum.as_ref() },
+            if upper_proven { None } else { maximum.as_ref() },
+        )
+    }
+}
 
 /// S4: the value range a type declares via a `Range` constraint (`x: i32 [0..N]`),
 /// so a bounded value's exact arithmetic can be proven in-range instead of using
@@ -180,26 +239,14 @@ fn dependent_maximum_substituted(
 pub(crate) fn check_range_containment(
     program: &dyn crate::CheckingInput,
     target_type: TypeReferenceHandle,
-    interval: Interval,
+    value: IntegerValueObservation<'_>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(declared) = enforced_declared_range_interval(program, target_type) else {
         return;
     };
-    let contained_low = match (interval.low, declared.low) {
-        (Some(low), Some(declared_low)) => low >= declared_low,
-        _ => false,
-    };
-    let contained_high = match (interval.high, declared.high) {
-        (Some(high), Some(declared_high)) => high <= declared_high,
-        _ => false,
-    };
-    let empty = declared
-        .low
-        .zip(declared.high)
-        .is_some_and(|(low, high)| low > high);
-    if empty || !contained_low || !contained_high {
+    if !value.fits(program, declared) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} stores a value not provably within its declared range: the range is a \
              store-enforced invariant every read trusts (indexes, exact arithmetic), so the \
@@ -213,22 +260,13 @@ pub(crate) fn check_range_containment(
 /// that field's interval as a bracketed field owes its range. An unstated end
 /// constrains nothing; a stated end needs the matching proven end.
 pub(crate) fn check_where_interval_containment(
+    program: &dyn crate::CheckingInput,
     stated: Interval,
-    interval: Interval,
+    value: IntegerValueObservation<'_>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let contained_low = stated
-        .low
-        .is_none_or(|bound| interval.low.is_some_and(|low| low >= bound));
-    let contained_high = stated
-        .high
-        .is_none_or(|bound| interval.high.is_some_and(|high| high <= bound));
-    let empty = stated
-        .low
-        .zip(stated.high)
-        .is_some_and(|(low, high)| low > high);
-    if empty || !contained_low || !contained_high {
+    if !value.fits(program, stated) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} stores a value not provably within its data's `where` facts: every read \
              trusts them (indexes, exact arithmetic), so the stored value must be proven to \

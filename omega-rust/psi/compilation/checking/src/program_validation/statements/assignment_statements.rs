@@ -307,6 +307,13 @@ pub(super) fn validate<'a, 'p>(
     );
     // Only a clean value supplies a successful storage-fit judgment.
     if diagnostics.len() == before {
+        let observation = arithmetic_domains::IntegerValueObservation {
+            machine,
+            state: current_state,
+            expression: assignment.value,
+            environment: value_environment,
+            interval,
+        };
         let writes = arithmetic_domains::validate_stored_integer_write(
             program,
             machine,
@@ -340,7 +347,7 @@ pub(super) fn validate<'a, 'p>(
             arithmetic_domains::check_range_containment(
                 program,
                 handle,
-                interval,
+                observation,
                 &owner,
                 diagnostics,
             );
@@ -354,8 +361,9 @@ pub(super) fn validate<'a, 'p>(
             )
         }) {
             let contained = arithmetic_domains::check_where_interval_containment(
+                program,
                 stated,
-                interval,
+                observation,
                 &owner,
                 diagnostics,
             );
