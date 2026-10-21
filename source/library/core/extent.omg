@@ -59,10 +59,13 @@ public data VacantExtentParts {
     rest: Extent in Granted & Vacant;
 }
 
+// Keep the prefix base explicit in the contract: an empty interval has no
+// location, so content equality alone cannot recover its representable base.
 public machine split_vacant_extent(whole: Extent in Granted & Vacant, requested: u64)
     -> VacantExtentParts
 requires requested <= whole.length
 ensures
+    result.taken.base == whole.base,
     result.taken.length == requested,
     result.rest.length == whole.length - requested,
     Granted::content(old(&whole)) == separate(
