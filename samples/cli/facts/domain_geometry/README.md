@@ -5,11 +5,12 @@ when `requested < length`. This is a numeric prerequisite of Cathedral's
 backed allocator, not proof of storage custody or allocator completion.
 
 Acceptance command: `omega run samples/cli/facts/domain_geometry/main.omg`.
-The anchor and all nine places return native exit 0 and Terminal exit 0 on
-Linux x86-64: local, field, parameter, call result, match join, const name,
-another state, another machine, and target body. Each weakened-domain twin
-rejects the same exact address addition. The constant place retains its original
-`[copy]` carrier, predicate, bound, initializer and operation.
+The anchor and all nine places return native exit 0 and Terminal exit 0: local,
+field, parameter, call result, match join, const name, another state, another
+machine, and target body (see [Verification](#verification) for the recorded
+targets). Each weakened-domain twin rejects the same exact address addition. The
+constant place retains its original `[copy]` carrier, predicate, bound,
+initializer and operation.
 
 Qualified constants now check their completed initializer through the ordinary
 typed result judgment before publishing qualification. Substitution retains the
@@ -21,7 +22,9 @@ qualifications still reject, including unused constants.
 The source corpus mirrors all nine positive programs and their rejection twins
 under `tests/omega/{pass,fail}/facts/no_wrap_domain_through_*`. Additional constant
 controls cover selected module identity, qualified aliases and payloadless cases.
-Foreign target bodies are source-checked; runtime observations here cover Linux.
+Foreign target bodies are source-checked. The recorded native rows and the
+host-bound runs below cover `macos_arm64` and `macos_x86_64`; no runtime
+observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -36,10 +39,60 @@ Foreign target bodies are source-checked; runtime observations here cover Linux.
 | other machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) |
 | target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) |
 
+## Verification
+
+Recorded native rows: `tests/omega/corpus_native_macos_arm64.txt` carries
+`pass/facts/no_wrap_domain_through_*_exit built ... exit:0` for all nine places
+(recorded at `46693e28988c`), which is the authored result on a host that
+executes `macos_arm64`.
+
+Verified on Intel macOS (`macos_x86_64`) with a compiler built from
+`6e8f4d98f4ad813beba1d27d890b395df6adbede`, `opt_level` 1, binary digest
+`bdecc2229b060553`: with this host's `macos_x86_64::ProgramEntry` added to a
+scratch copy, bare `omega run --both <place>/main.omg` reports `native exit 0`
+and `interp exit: 0` for the anchor and all nine places, and `omega --check
+<place>/invalid/main.omg` rejects each of the nine weakened-domain twins with
+`exact arithmetic in machine `cut` state `entry` terminal expression may
+overflow `addr``. `target_body` additionally carries an identical
+`macos_x86_64 machine cut(..)` body in that scratch copy: as authored, its four
+bodies are inert siblings on this host and the refusal names them (`cut`, which
+is declared only for targets `linux_arm64`, `linux_x86_64`, `macos_arm64`,
+`windows_x86_64`).
+
+The scratch copy exists only because the authored places bind the four hosted
+targets: an unmodified `omega run --both` selects `macos_x86_64` and refuses
+`selected target macos_x86_64 has no bound required root slot` before execution.
+Nothing is recorded in `corpus_native_macos_x86_64.txt` for that reason, and
+`corpus_gate.py --native` on this host realizes these fixtures for their first
+declared target (`macos_arm64`) without executing it, so the authored `exit: 0`
+oracle is enforced there rather than blessed.
+
+A supplied `--target` performs compile-publication only. `omega run --both
+--target <name>` neither interprets nor executes — `ExecutionOutcome::TargetOnly`
+returns before both — so its exit 0 is not an engine observation and must not be
+read as one; `build/swarm/probe_fact.sh` reports such runs as `AGREES` and is
+therefore not a runtime check. Real observations need the bare form on a copy
+that binds the host target.
+
+The nine places were red before `2b96fbda3a1`: the captured computed transition
+subject `address == 30` kept the `Unit` inference sentinel, and the unit-plan
+builder refused `` `main` has no executable body: this compiler does not lower a
+statement of it yet (statement sequence: local data); in state `main::entry`,
+statement 2 ``. That commit types a Boolean-valued operator's captured temp from
+the operator itself, which is the owning layer; the comparison's result carrier
+is not inferred from an operand.
+
 This closes this numeric fact row only. [BUMP-ALLOCATOR-CANARY](../../../../TASKS.md) still requires the
 real backed allocator, custody and conservation, exclusive strategy borrowing,
 coexisting allocations, failure preservation, cleanup and return, reset only
 after every allocation returns, and lifecycle/authority rejection controls.
+Within this fact folder, `domain_geometry_conserved_result_exit` and
+`domain_geometry_projected_conserved_result_exit` run with native exit 0 and
+Terminal exit 0, while `owned_qualified_reference_carrier_exit`, its `field`,
+`returned` and `selected` siblings fail at terminal-artifact production with
+`Lowering(Unsupported("scalar qualification has no primitive carrier"))`; that
+owned-qualification lowering gap is the next remaining requirement of this
+capability.
 
 ## Requirements and Evidence
 
