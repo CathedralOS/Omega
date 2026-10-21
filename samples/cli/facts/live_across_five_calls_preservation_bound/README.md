@@ -45,7 +45,8 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `compute_*(60u64)` across five sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `state done() {}`, terminating with native exit 0. If preservation fails or corrupts the live value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `compute_*(60u64)` across five sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `state done() {}`, terminating with native exit 0. If preservation fails or corrupts the live value, execution branches to `state bad() { crash Trap; }`, causing exit 255 / crash Trap.
+- **Measured discrimination:** A 1-token perturbation of `head + underflow == 40` to `head + underflow == 41` in `main.omg` traps both engines (`native exit -1073741795`, `interp crash: Trap (host presentation agrees)`), confirming that the test discriminates semantic correctness. Restoring the condition returns to cleanly passing exit 0 across both engines.
 - Each invalid twin widens the bound contract to `saved >= 39 && saved <= 80` (or `SAVED = 39`), so `res - 40` may underflow. Exact subtraction `let underflow: u64 = res - 40;` fails closed at compile time with `exact arithmetic in machine ... local underflow may overflow u64`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -53,6 +54,12 @@ Check all nine invalid twins with:
 ```sh
 omega --check samples/cli/facts/live_across_five_calls_preservation_bound/<place>/invalid/main.omg
 ```
+
+### Pinned Corpus Fixtures
+
+All 18 corresponding fixtures are pinned in the compiler test corpus:
+- **Pass fixtures (9):** `tests/omega/pass/facts/live_across_five_calls_preservation_bound_through_<place>_exit/` for each place in `{local, field, parameter, call_result, match_join, const_name, other_state, other_machine, target_body}`.
+- **Fail fixtures (9):** `tests/omega/fail/facts/live_across_five_calls_preservation_bound_through_<place>_rejected/` for each place in `{local, field, parameter, call_result, match_join, const_name, other_state, other_machine, target_body}`.
 
 ### Acceptance Gate
 
@@ -67,6 +74,7 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Obligation class:** Storage / Calling Plans — Live-across-call register preservation and stack-frame home disjointness (`wiki/spec/build/calling_plans.md` & `wiki/spec/resources/activation_storage.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for live-across-call values across five sequential calls in callee-saved registers and stack spill homes (`[storage](wiki/spec/resources/storage.md)`, `[calling plans](wiki/spec/build/calling_plans.md)`). Specifically, a value live across five sequential machine calls preserves its static bound `40u64 <= saved <= 80u64` across all nine places so exact subtractions `80u64 - res` and `res - 40u64` are safe without underflow.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
