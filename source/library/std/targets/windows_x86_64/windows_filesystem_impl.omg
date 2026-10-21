@@ -52,6 +52,9 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     machine move_file(from: &[u8] in Path, to: &[u8] in Path, flags: u32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
         block WindowsFilesystemNativeProvider::move_file(from, to, flags)
     }
+    machine rename_file(from: &[u8] in Path, to: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation {
+        block WindowsFilesystemNativeProvider::rename_file(from, to)
+    }
     machine set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32 reaches FilesystemMetadataMutation {
         block WindowsFilesystemNativeProvider::set_file_time(handle, access_time, write_time)
     }

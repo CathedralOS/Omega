@@ -7,5 +7,15 @@ retains the exact POSIX or Windows raw-family closure.
 
 Acceptance: `omega run samples/cli/systems/file_journal/main.omg` exits 7
 after creating, writing, inspecting, reading, renaming and removing the file
-and its directory. macOS ARM64 and Linux x86-64 have the portable provider;
-the other authored targets remain under **FILESYSTEM-PLATFORM-SERVICES**.
+and its directory. macOS ARM64 and both Linux targets select the POSIX portable
+provider; matching-host execution remains separate evidence.
+
+Windows currently refuses `omega run --target windows_x86_64 main.omg` because
+no complete `FilesystemService` provider is selected. The raw Windows family
+alone does not satisfy that portable requirement. This remains under
+**FILESYSTEM-PLATFORM-SERVICES**; producing a Windows image will not establish
+the exit-7 oracle without execution on Windows.
+
+The authored `/tmp/omega_journal_dir` is rooted, not relative to the working
+directory. A Windows runner must explicitly provision a writable `\tmp` on
+its current drive. The library must not silently reinterpret that path.

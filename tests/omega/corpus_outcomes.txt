@@ -1820,6 +1820,8 @@ fail/effects/windows_metadata_requires_block rejected 2417ms expected @8fdb0071e
 	call to `metadata` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/windows_metadata_requires_query rejected 2399ms expected @8fdb0071edab
 	machine `inspect_without_query` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemMetadataQuery`
+fail/effects/windows_rename_cannot_enable_copy rejected 527ms expected @a6c6d1e26e69
+	cannot prove requires contract for call c_rename_file from copy_through_rename: 2 == 1 (needs fact `flags == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/expressions/anonymous_structural_match_undefined_pattern rejected 80ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_undefined_subject rejected 79ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_unselected_arm_type rejected 161ms expected @5c4c9bc0ebab
@@ -11594,6 +11596,7 @@ pass/filesystem/runtime_posix_native_storage_bounds_exit checked 9150ms check-ta
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/filesystem/windows_external_async_handle_exit checked 5855ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_namespace_rename_exit checked 6452ms check-target:windows_x86_64 @a6c6d1e26e69
 pass/filesystem/windows_native_create_write_close_exit checked 4007ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_argument_failures_exit checked 4134ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_bounded_view_exit checked 4305ms check-target:windows_x86_64 @034b5e35c420

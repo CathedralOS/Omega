@@ -116,6 +116,21 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         _ -> (-87)
     }
 }
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::rename_file(from: &[u8] in Path, to: &[u8] in Path) -> i32
+satisfies WindowsFilesystemHost::rename_file
+reaches FilesystemNamespaceMutation {
+    let mut wide_from: [u16; 4096];
+    let mut wide_to: [u16; 4096];
+    let from_count: i64 = windows_wide_path(from, &mut wide_from);
+    wide_from[4095] = 0;
+    let to_count: i64 = windows_wide_path(to, &mut wide_to);
+    wide_to[4095] = 0;
+    transition from_count > 0 && to_count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(block WindowsFilesystemIo::c_rename_file(&wide_from, &wide_to, 1)))
+        _ -> (-87)
+    }
+}
 // FILETIME is two little-endian DWORDs, not an arbitrary borrowed Omega u64.
 // Encode the public by-value timestamps into their native records before
 // lending them. A forwarded shared scalar loan may describe narrower storage;
