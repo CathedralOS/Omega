@@ -51,7 +51,18 @@ In each positive place, evaluating `probe(Packet::V18 { v: 60u64 })` extracts `r
 Because all eighteen variant arms enforce `v >= 40u64 && v <= 80u64`, the exhaustive match statically establishes `res in [40, 80]`.
 Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u64` and `margin = res - 40u64 = 20u64`) evaluate to `20u64 + 20u64 = 40u64`.
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255 (or trapping).
+
+Measured 1-token perturbation discrimination on `local/main.omg` (`combined == 40u64` -> `combined == 41u64`):
+- Native execution: traps with illegal instruction (exit code `3221225501` / `-1073741795`)
+- Terminal Psi interpreter: traps with `crash: Trap (host presentation agrees)`
+Restoring the oracle restores clean exit `0` on both execution engines.
+
+### Pinned fixtures
+
+The fact row is pinned under `tests/omega/` as 18 corpus fixtures:
+- 9 positive pass fixtures: `tests/omega/pass/facts/eighteen_variant_enum_payload_bound_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`)
+- 9 reject fail fixtures: `tests/omega/fail/facts/eighteen_variant_enum_payload_bound_through_<place>_rejected/` (`build.omg`, `main.omg`, `expected.txt`)
 
 ### Invalid controls and reject twins
 
@@ -61,15 +72,19 @@ The compiler strictly fails closed at compile time:
 
 | Place | `omega run --both` | Reject twin diagnostic |
 | --- | --- | --- |
-| `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
-| `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
-| `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
-| `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
-| `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
-| `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
-| `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+| `local` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
+| `field` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
+| `parameter` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
+| `call_result` | native 0 / interp 0 | `cannot prove ensures contract for exit from extract_payload at statement 35: result >= 40 && result <= 80` |
+| `match_join` | native 0 / interp 0 | `cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
+| `const_name` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
+| `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
+| `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
+| `target_body` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+
+The same nine twins are also mirrored under `invalid/<place>/` with an authored
+`expected.txt`, so the invalid controls are discoverable by both the per-place
+route and the batch route. Each mirror is byte-identical to its per-place twin.
 
 ## Requirements and Evidence (AGENTS.md)
 
