@@ -743,6 +743,26 @@ fn recognize_structural_state_leaves_from<'a>(
             }
         }
         if transitions.is_empty() {
+            // The completed prefix also exists after the final statement of
+            // a fallthrough body. Store observers must see that same state
+            // whether another statement follows or the body returns Unit.
+            // Explicit transitions own their paths below and never use this
+            // synthetic end coordinate.
+            if let Some(requirement) = requirement.as_deref_mut()
+                && requirement.site().state == state.symbol
+                && requirement.site().statement_index == state.statement_nodes.count() as usize
+                && !requirement.site().in_transition_target
+            {
+                requirement.visit(
+                    program,
+                    machine,
+                    judge,
+                    &environment,
+                    &case_hypotheses,
+                    &case_equations,
+                    &established_guarantees,
+                );
+            }
             if requirement.is_some() {
                 return Some(Vec::new());
             }

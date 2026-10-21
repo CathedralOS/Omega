@@ -24,6 +24,57 @@ pub(super) struct CapturedStorageCoordinate {
     segments: Vec<CapturedStorageSegment>,
 }
 
+impl CapturedStorageCoordinate {
+    /// Frame coordinates coarsen every collection selection to its container.
+    /// Captured indices remain exact for reading, but cannot claim disjointness
+    /// that the effect summary did not retain.
+    fn frame_path(&self, program: &dyn crate::CheckingInput) -> Option<String> {
+        let root = self.root.as_symbol()?;
+        let mut segments = Vec::new();
+        for segment in &self.segments {
+            match segment {
+                CapturedStorageSegment::Place(segment) => segments.push(*segment),
+                CapturedStorageSegment::Index(_) => break,
+            }
+        }
+        crate::frame_coordinate_path(program, root, &segments)
+    }
+
+    /// Owned reference-free storage has a stable backing namespace. An
+    /// incoming exclusive formal likewise names its caller-owned referent for
+    /// the invocation. Local reference aliases and nested descriptors require
+    /// an independently retained backing join; spelling alone cannot preserve
+    /// them against a write through another alias.
+    fn has_stable_backing(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+        frames: &crate::machine_calls::calls::CallFrameResolver<'_>,
+    ) -> bool {
+        let Some(root) = self.root.as_symbol() else {
+            return false;
+        };
+        let Some(reference) = crate::declaration_type_reference(program, root) else {
+            return false;
+        };
+        if frames.value_is_reference_free(reference) {
+            return true;
+        }
+        program
+            .state_parameter_by_symbol(state, root)
+            .is_some_and(|parameter| {
+                // Incoming exclusive formals lend their referent, not a rebindable
+                // descriptor slot (assignment_targets_parameter_referent). The
+                // parameter's is_mutable flag also describes referent access and
+                // cannot distinguish these from mutable descriptor bindings.
+                crate::reference_shell(program, parameter.type_reference).is_some_and(|shell| {
+                    shell.access == language_semantics::ReferenceAccess::Mutable
+                        && frames.value_is_reference_free(shell.referee)
+                })
+            })
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 enum CapturedStorageSegment {
     Place(facts::PlaceSegment),
@@ -123,14 +174,33 @@ impl StructuralJudge<'_> {
             return Some(());
         }
         self.storage_write_sequence += 1;
-        // Exact stored observations are live contents. Conservatively retire
-        // all of them on any subsequent write; detached copies keep their own
-        // value identities in the normal-return environment.
-        std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
-            stored.current = None;
-            stored.entry.is_some()
-        });
         let program = self.program;
+        let preservation = {
+            let frames = self.frame_resolver()?;
+            self.stored_values
+                .iter()
+                .map(|stored| {
+                    written.is_some_and(|written| {
+                        stored.coordinate.has_stable_backing(program, state, frames)
+                            && stored.coordinate.frame_path(program).is_some_and(|path| {
+                                written
+                                    .iter()
+                                    .all(|written| !crate::frame_paths_overlap(written, &path))
+                            })
+                    })
+                })
+                .collect::<Vec<_>>()
+        };
+        // Preserve only independently named, disjoint live storage. Completed
+        // values keep their identities regardless; this decision concerns the
+        // current contents at their former addresses, not detached copies.
+        let mut preservation = preservation.into_iter();
+        std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
+            if !preservation.next().unwrap_or(false) {
+                stored.current = None;
+            }
+            stored.entry.is_some() || stored.current.is_some()
+        });
         let frames = self.frame_resolver()?;
         let mut invalidated = Vec::new();
         let mut consider = |symbol: SymbolHandle, reference| {

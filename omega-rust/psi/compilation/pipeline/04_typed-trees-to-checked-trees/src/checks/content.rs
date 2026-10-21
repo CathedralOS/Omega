@@ -1,6 +1,10 @@
-//! Content-bearing signature conservation gates.
+//! Content-bearing conservation and returned-custody checks.
 //!
-//! A borrow lends access; it never supplies an owned claim. Retained custody
+//! A borrow alone never supplies an owned claim. Checked extraction through
+//! an exclusive loan can detach one while owing restoration of its source.
+//! Body custody and qualification checking establish those actual transfers;
+//! declaration-only crossings must instead justify supply from their contract.
+//! Retained custody
 //! may nevertheless remain lifetime-bound to one explicit shared input loan.
 //! This consumer admits only that exact whole-parameter/whole-result shape and
 //! otherwise requires owned custody. Compatibility keys on the retained

@@ -30,9 +30,6 @@ mod place_values;
 mod value_predicates;
 
 pub(super) use place_types::{canonical_place_is_borrowable, needs_copied_place_root};
-pub(super) use value_predicates::{
-    is_fixed_array_value, is_record_value, is_structural_case_value,
-};
 
 impl Builder<'_, '_> {
     /// Retain runtime children independently of the canonical endpoint's ordinal.

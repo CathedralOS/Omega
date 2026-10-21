@@ -436,6 +436,8 @@ pub(crate) fn handle_assignment<'program>(
                             program,
                             machine,
                             state,
+                            statement_index,
+                            member.receiver,
                             place,
                             written,
                             value,

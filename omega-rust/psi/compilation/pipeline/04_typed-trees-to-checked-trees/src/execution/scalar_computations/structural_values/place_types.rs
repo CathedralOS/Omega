@@ -6,74 +6,8 @@
 //! Copy selection uses the declared Copy property; result publication and
 //! retirement separately retain each stored carrier's custody.
 
-use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle, TypeReferenceNode};
+use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle};
 use typed_trees::types::TypeReferenceHandle;
-
-/// The declared type of a shared borrow's exact target without state scope: a
-/// whole local's declared type, or a projected leaf resolved through its
-/// root's declaration. `canonical_place_from_expression` keeps the root and
-/// every segment exact.
-pub(super) fn borrowed_place_leaf_type(
-    program: &dyn ::validation::CheckingInput,
-    target: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let leaf = match program.expression_table.expression(target) {
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && path.head_symbol == path.symbol
-                && path.members.count() == 1 =>
-        {
-            symbol_declared_type(program, path.symbol)
-        }
-        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            projected_leaf_type(program, target)
-        }
-        _ => None,
-    }?;
-    // Borrowing a stored descriptor captures its referent with the requested
-    // access; it does not borrow the descriptor's own storage as an &&T.
-    match program.type_reference_table.type_reference(leaf) {
-        TypeReferenceNode::Reference {
-            referee, access, ..
-        } if *access != language_semantics::ReferenceAccess::WriteOnly => Some(*referee),
-        TypeReferenceNode::Reference { .. } => None,
-        _ => Some(leaf),
-    }
-}
-
-/// The declared type of a field/fixed-index projection leaf, resolved through
-/// the authored root's own declaration: a whole local's declared type, or a
-/// producing call's declared return type. Only exact field and literal-index
-/// segments keep a statically checkable identity.
-pub(super) fn projected_leaf_type(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    if !matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-    ) {
-        return None;
-    }
-    let place = validation::canonical_place_from_expression(program, expression)?;
-    if !place.has_only_positional_segments() {
-        return None;
-    }
-    let root = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => symbol_declared_type(program, symbol)?,
-        facts::PlaceRoot::Expression(expression) => {
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Call(call) => validation::call_target_return_type(
-                    program,
-                    validation::call_target_symbol(program, call),
-                )?,
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
-    validation::project_type_reference_from_segments(program, root, &place.segments)
-}
 
 /// The place shape a shared-borrow arm target must canonicalize to: a named
 /// root reached through record fields and literal fixed indexes only. This is

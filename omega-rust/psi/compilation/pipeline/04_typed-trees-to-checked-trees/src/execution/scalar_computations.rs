@@ -58,7 +58,6 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> (
     CheckedScalarComputationPlans,
     checked_trees::CheckedStructuralValuePlans,
@@ -456,18 +455,12 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                 }
                 if let Some(assignment) = statement.as_assignment() {
-                    // A constructed assignment value is the same structural
-                    // constructor a `let` initializer roots. Each scalar field
-                    // initializer of a record keeps its own `RecordField`
-                    // computation coordinate for the decomposed store route;
-                    // a case literal, or a copy of an `Unrestricted` place
-                    // (`self.copy = self.items[0]` over a `[copy]` record), is
-                    // established whole and replaces its field through the
-                    // statement sequence's window pair. An array literal of
-                    // structural elements completes the same owned array as
-                    // a `let` initializer. Replacement consumes that completed
-                    // value, retaining each child's custody beneath its index;
-                    // it does not reopen the constructor's source expressions.
+                    // Every structural replacement uses the same value graph:
+                    // constructors, calls and owned projections differ in
+                    // their producers, not in the receiving store. Selecting
+                    // roots by source spelling loses ordinary moved fields.
+                    // The sequence completes the RHS before replacing the
+                    // destination and retaining its restoration obligations.
                     // Keep the destination's complete declared type. Carrier
                     // classifiers may inspect its underlying shape, but value
                     // custody must still distinguish arithmetic policies and
@@ -483,48 +476,11 @@ pub(crate) fn build_checked_value_computation_plans(
                     // A projected descriptor slot has the same value semantics
                     // as a local binding. Restricting this query to locals
                     // strips a field's reference shell and loses its producer.
-                    let replaces_reference = call_frames.as_ref().is_some_and(|frames| {
-                        frames.assignment_replaces_reference_binding(machine, statement)
-                            == Some(true)
-                    });
                     let written = validation::assignment_stored_value_type(
                         program, machine, state, assignment,
                     );
                     if let Some(expected) = written
-                        && (replaces_reference
-                            // Bounded bytes are owned structural values too.
-                            // Their complete assignment uses the same captured
-                            // destination and replacement as records and cases,
-                            // including writes through a local reference.
-                            || matches!(validation::byte_sequence_carrier(program, expected, &[]), Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }))
-                            || validation::is_closed_primitive_array_type(program, expected)
-                            || structural_values::is_record_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || validation::is_scalar_case_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_structural_case_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::needs_copied_place_root(
-                                program,
-                                state.symbol,
-                                statement_index,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_fixed_array_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            ))
+                        && program.primitive_type_reference(expected).is_none()
                         && let Some(root) = builder.structural_value(assignment.value, expected)
                     {
                         builder.push_structural_root(

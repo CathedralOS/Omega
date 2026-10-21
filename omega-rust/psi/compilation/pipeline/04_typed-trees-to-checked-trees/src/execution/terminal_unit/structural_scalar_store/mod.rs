@@ -196,31 +196,16 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.extend(planned);
             continue;
         }
-        // An assignment whose source is this statement's own call has no
-        // authored value to store yet. Its call operation is sequenced with
-        // the other calls, and the store consuming that result is appended
-        // there; it deliberately produces no row here. A whole structural
-        // local as the source is likewise the sequence's own business: it is
-        // the repair store of a borrowed-storage window. A constructed
-        // structural value the stores above do not decompose is established
-        // by the sequence too, and replaces its field through the same window
-        // pair a structural call result uses.
+        // Calls finish in the statement sequence. All other structural
+        // sources use the common value graph, independent of source spelling.
         if matches!(
             program.expression_table.expression(assignment.value),
             ExpressionNode::Call(_)
-        ) || restores_structural_local(program, state, assignment)
-            || bound_structural_parameter(
-                program,
-                state,
-                structural_parameters,
-                statement_index,
-                assignment,
-            )
-            || facts
-                .values
-                .structural_values
-                .root_for_expression(state.symbol, statement_index, assignment.value)
-                .is_some()
+        ) || facts
+            .values
+            .structural_values
+            .root_for_expression(state.symbol, statement_index, assignment.value)
+            .is_some()
         {
             trace.restore(&baseline);
             continue;
@@ -1009,76 +994,6 @@ fn closed_sum(
         && data.where_facts.is_empty()
         && !data.zero_gated
         && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
-}
-
-/// `place = local` where `local` is a structural (non-primitive) local of the
-/// same state: no scalar store row exists for it, so the statement sequence
-/// decides whether it repairs an open borrowed-storage window.
-fn restores_structural_local(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    assignment: &typed_trees::statement::TableAssignment,
-) -> bool {
-    let Some(path) = program.expression_table.name_path_node(assignment.value) else {
-        return false;
-    };
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return false;
-    }
-    program
-        .state_local_declaration(state, path.symbol)
-        .is_some_and(|(_, local)| {
-            program
-                .primitive_type_reference(local.type_reference)
-                .is_none()
-        })
-}
-
-/// The value is an owned structural parameter read whole: no scalar store
-/// decomposes it — the sequence's bound-value field store plans the move.
-/// Qualification rows stay on the declaration for the window's exact
-/// membership join; their presence cannot turn the value into a scalar.
-fn bound_structural_parameter(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-) -> bool {
-    let Ok(index) = usize::try_from(statement_index) else {
-        return false;
-    };
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        index,
-        assignment.value,
-    ) else {
-        return false;
-    };
-    if !place.segments.is_empty() {
-        return false;
-    }
-    let Some(symbol) = place.root.as_symbol() else {
-        return false;
-    };
-    let Some(position) =
-        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
-    else {
-        return false;
-    };
-    let Ok(position) = u32::try_from(position) else {
-        return false;
-    };
-    structural_parameters.iter().any(|parameter| {
-        parameter.position == position && parameter.access == CheckedStructuralAccess::Owned
-    })
 }
 
 /// Whether a declared slot type is a shared `&[u8]` view, through any domain

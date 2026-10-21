@@ -1,10 +1,15 @@
-//! Retained content requires owned sources or an exact lifetime-bound loan.
+//! Retained content needs checked transfers or declaration-level supply.
 //!
 //! The root check handles unique source retention; `borrowed_fields` applies
 //! the loan rule beneath structural shells. Bodyless multi-output authority
 //! additionally needs the closed partition equation checked by
 //! `partitioned_results`. Both structural gates share declaration traversal in
 //! `structural_sources`; none publishes call-result authority from annotations.
+//! A checked body may detach owned content from exclusive borrowed storage,
+//! restore that storage, and return the detached claim. Its parameter modes
+//! alone cannot describe that transfer: body qualification, linear disposition,
+//! and restoration checks own the proof. Keep declaration-only source checks
+//! off that route, while still publishing exact lifetime-bound loan receipts.
 
 mod borrowed_fields;
 mod partitioned_results;
@@ -37,6 +42,7 @@ pub(crate) fn check_callable(
     diagnostics: &mut Vec<Diagnostic>,
     retained_borrow_custodies: &mut Vec<RetainedBorrowCustodyFact>,
 ) {
+    let checked_body = validation::call_target_has_checked_body_contract(program, callable);
     let mut result_domains = Vec::new();
     append_type_domains(program, return_type, &mut result_domains);
     for contract in contracts
@@ -172,6 +178,10 @@ pub(crate) fn check_callable(
             }
         }
 
+        if checked_body {
+            continue;
+        }
+
         let result_name = domain_name(program, result_domain.symbol);
         if owned_sources.len() > 1 {
             let owned = owned_sources
@@ -195,6 +205,9 @@ pub(crate) fn check_callable(
         )));
     }
 
+    if checked_body {
+        return;
+    }
     borrowed_fields::check_structural_borrow_sources(
         program,
         facts,

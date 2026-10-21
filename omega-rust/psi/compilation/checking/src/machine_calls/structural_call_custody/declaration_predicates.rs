@@ -36,11 +36,12 @@
 //! the complete default domain. Machines publish this roster independently of
 //! their body topology. Failure to establish a row at a state arrival, call,
 //! or normal return rejects the proof instead of weakening the contract.
-//! A zero-excluding definition stays out: its construction owns its facts.
-//! A conservative declaration flag alone cannot exclude a prepared application:
-//! its static subjects read the exact retained argument tuple, not zeroed
-//! storage. Zero qualification and Terminal spelling share that readonly join;
-//! the authored template is never rewritten for a caller. Descent continues
+//! Zero-excluding definitions carry the same obligations once established;
+//! zero provisioning remains a separate construction judgment. A conservative
+//! declaration flag cannot erase an incoming value's default domain or refuse
+//! its replacement. Static subjects read the exact retained argument tuple;
+//! zero qualification and Terminal spelling share that readonly join.
+//! The authored template is never rewritten for a caller. Descent continues
 //! beneath definitions, and through literal-length arrays at each exact index.
 
 use super::super::super::proof_contracts::collection_predicates;
@@ -180,9 +181,6 @@ pub fn declaration_facts_carried(
         || crate::data_where_field_intervals(program, definition).is_some()
     {
         return true;
-    }
-    if definition.zero_gated && !crate::data_predicates_admit_zero(program, definition) {
-        return false;
     }
     program
         .proof_facts
@@ -443,11 +441,10 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
 }
 
 /// Whether `definition` contributes rows of its own: it has facts that are
-/// neither interval-only (carried by its fields' carriers) nor zero-gated
-/// (owned by its construction).
+/// not interval-only (those are carried by its fields' carriers). Zero
+/// provisioning does not change the obligations of an established value.
 fn definition_emits_rows(program: &dyn crate::CheckingInput, definition: &DataDefinition) -> bool {
-    !((definition.zero_gated && !crate::data_predicates_admit_zero(program, definition))
-        || definition.where_facts.is_empty()
+    !(definition.where_facts.is_empty()
         || crate::data_where_field_intervals(program, definition).is_some())
 }
 

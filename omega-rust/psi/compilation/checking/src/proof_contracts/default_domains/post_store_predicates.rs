@@ -1,5 +1,12 @@
 //! Interpret a declaration predicate over the store's actual value roster.
 //!
+//! The shared execution-prefix observer supplies completed values and call
+//! guarantees at the post-store coordinate. Disjoint storage retains its
+//! observations only when the write-frame owner proves their backing stable.
+//! The scalar arithmetic judgment below also handles retained static binders
+//! and immutable arrivals without assuming mutable storage still has its
+//! entry contents. Neither route imports the current domain as a premise.
+//!
 //! Literal valuation handles zero and IEEE facts independently. A runtime
 //! scalar instead owes an implication: the entered requirements must entail
 //! the predicate after its field reads the written value and its static
@@ -34,11 +41,24 @@ pub(super) fn post_store_predicate_holds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    statement_index: usize,
+    receiver: ExpressionHandle,
     place: &TrackedPlace<'_>,
     written_field: symbols::SymbolHandle,
     written_value: ExpressionHandle,
     predicate: ExpressionHandle,
 ) -> bool {
+    if crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
+        program,
+        machine,
+        state,
+        statement_index,
+        receiver,
+        place.definition,
+        predicate,
+    ) {
+        return true;
+    }
     let mut arrivals = Vec::new();
     for parameter in program.state_parameters(state) {
         if !parameter.is_mutable
