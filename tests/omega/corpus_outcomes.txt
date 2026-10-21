@@ -4595,23 +4595,23 @@ fail/facts/opaque_growing_carrier_family rejected 7637ms expected @1b897a2de67b
 	opaque representation carrier graph at `AddressCarrier<AddressWord>.payload` contains a recursive by-value carrier family; v1 carriers must be inert storage
 fail/facts/opaque_inactive_carrier_payload_cleanup rejected 15976ms expected @1b897a2de67b
 	opaque representation carrier graph at `Carrier<Leaf>::Full(value)` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_call_result_cleanup rejected 187ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_call_result_cleanup rejected 190ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_const_name_cleanup rejected 184ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_const_name_cleanup rejected 184ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_field_cleanup rejected 184ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_field_cleanup rejected 182ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_local_cleanup rejected 178ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_local_cleanup rejected 182ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_match_join_cleanup rejected 188ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_match_join_cleanup rejected 177ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_other_machine_cleanup rejected 188ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_other_machine_cleanup rejected 178ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_other_state_cleanup rejected 185ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_other_state_cleanup rejected 187ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_parameter_cleanup rejected 187ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_parameter_cleanup rejected 174ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
-fail/facts/opaque_independent_closed_carrier_through_target_body_cleanup rejected 182ms expected @59dd468cd329
+fail/facts/opaque_independent_closed_carrier_through_target_body_cleanup rejected 185ms expected @b25d58842d0a
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_nested_carrier_cleanup rejected 7156ms expected @1b897a2de67b
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
@@ -11333,15 +11333,15 @@ pass/facts/opaque_closed_carrier_through_other_state_exit checked 1653ms check-t
 pass/facts/opaque_closed_carrier_through_parameter_exit checked 1934ms check-target:macos_arm64 @30a3df3bc2fe
 pass/facts/opaque_closed_carrier_through_target_body_exit checked 1785ms check-target:macos_arm64 @30a3df3bc2fe
 pass/facts/opaque_inactive_carrier_payload_exit checked 46275ms check-target:macos_arm64 @1b897a2de67b
-pass/facts/opaque_independent_closed_carrier_through_call_result_exit checked 2998ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_const_name_exit checked 2829ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_field_exit checked 2936ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_local_exit checked 2896ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_match_join_exit checked 2900ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_other_machine_exit checked 3048ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_other_state_exit checked 2890ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 2975ms check-target:macos_arm64 @59dd468cd329
-pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 2885ms check-target:macos_arm64 @59dd468cd329
+pass/facts/opaque_independent_closed_carrier_through_call_result_exit checked 2858ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_const_name_exit checked 2820ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_field_exit checked 2816ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_local_exit checked 2969ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_match_join_exit checked 2893ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_other_machine_exit checked 2897ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_other_state_exit checked 2969ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 2877ms check-target:macos_arm64 @b25d58842d0a
+pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 2883ms check-target:macos_arm64 @b25d58842d0a
 pass/facts/opaque_nested_carrier_exchange_exit checked 144689ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @1b897a2de67b
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 65162ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @1b897a2de67b
 pass/facts/outcome_structural_evidence_call_result checked 8017ms check-target:macos_arm64 @97fca7a18f74+wt
