@@ -3189,6 +3189,27 @@ fail/facts/fixed_array_layout_geometry_through_parameter_rejected rejected 13247
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_target_body_rejected rejected 13500ms expected @a6b4f5c6d966+wt
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_call_result_rejected rejected 1871ms expected @00ef417922c0+wt
+	cannot prove index `picked_idx` is within length 128 in read_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_const_name_rejected rejected 1905ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 128 in read_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_field_rejected rejected 1934ms expected @00ef417922c0+wt
+	cannot prove index `container.idx` is within length 128 in read_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_local_rejected rejected 1770ms expected @00ef417922c0+wt
+	cannot prove index `local_idx` is within length 128 in read_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_match_join_rejected rejected 1741ms expected @00ef417922c0+wt
+	cannot prove index `joined_idx` is within length 128 in read_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_machine_rejected rejected 1672ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 128 in fetch_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_state_rejected rejected 1455ms expected @00ef417922c0+wt
+	cannot prove index `passed_idx` is within length 128 in read_element::element
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_parameter_rejected rejected 1385ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 128 in read_element::entry
+fail/facts/fixed_array_onetwentyeight_elem_index_bound_through_target_body_rejected rejected 1450ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 128 in read_element::entry
+	cannot prove index `idx` is within length 128 in read_element::entry
+	cannot prove index `idx` is within length 128 in read_element::entry
+	cannot prove index `idx` is within length 128 in read_element::entry
 fail/facts/fixed_array_sixteen_elem_index_bound_through_call_result_rejected rejected 1828ms expected @9ed829f6e62d+wt
 	cannot prove index `picked_index` is within length 16 in read_element::entry
 fail/facts/fixed_array_sixteen_elem_index_bound_through_const_name_rejected rejected 1714ms expected @9ed829f6e62d+wt
@@ -10681,6 +10702,15 @@ pass/facts/fixed_array_layout_geometry_through_other_machine_exit checked 32545m
 pass/facts/fixed_array_layout_geometry_through_other_state_exit checked 32703ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/fixed_array_layout_geometry_through_parameter_exit checked 32359ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/fixed_array_layout_geometry_through_target_body_exit checked 33682ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_call_result_exit checked 3622ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_const_name_exit checked 3646ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_field_exit checked 3994ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_local_exit checked 3584ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_match_join_exit checked 4251ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_machine_exit checked 3610ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_other_state_exit checked 3615ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_parameter_exit checked 3611ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_onetwentyeight_elem_index_bound_through_target_body_exit checked 3594ms check-target:macos_arm64 @00ef417922c0+wt
 pass/facts/fixed_array_sixteen_elem_index_bound_through_call_result_exit checked 2354ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_sixteen_elem_index_bound_through_const_name_exit checked 2355ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_sixteen_elem_index_bound_through_field_exit checked 2348ms check-target:macos_arm64 @9ed829f6e62d+wt
