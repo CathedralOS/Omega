@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     Build::member(builder, "source/library/std");
+    Build::member(builder, "source/library/alloc");
     Build::member(builder, "source/psi");
     Build::member(builder, "source/omega");
 }
