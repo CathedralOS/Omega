@@ -479,23 +479,6 @@ impl TypeReferenceTable {
         }
     }
 
-    /// The declared symbol behind a `Named` reference or a `Generic` with no
-    /// supplied arguments — the head symbol when no instantiation happens.
-    pub fn unparameterized_type_symbol(
-        &self,
-        handle: TypeReferenceHandle,
-    ) -> Option<&SymbolHandle> {
-        match self.type_reference(handle) {
-            TypeReferenceNode::Named { symbol, .. } => Some(symbol),
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.count() == 0 => Some(base_symbol),
-            _ => None,
-        }
-    }
-
     /// Whether an exact generational handle still names a live type node.
     /// A stale reference resolving to dummy Unit is not retained type custody.
     pub fn contains_type_reference(&self, handle: TypeReferenceHandle) -> bool {

@@ -573,18 +573,6 @@ impl<'program> AppliedTraitScope<'program> {
         program.scoped_type_identity(request, scopes)
     }
 
-    /// Portable exact argument matching is unavailable when ordinary identity
-    /// erases regions or the argument remains an uninstantiated binder.
-    pub fn region_free_parameter_identity(
-        &self,
-        program: &TypedTrees,
-        parameter: SymbolHandle,
-        qualification: TypeIdentityQualification,
-    ) -> Option<NormalizedTypeIdentity> {
-        let (request, scopes) = self.parameter_identity_request(parameter, qualification)?;
-        program.region_free_scoped_type_identity(request, scopes)
-    }
-
     fn parameter_identity_request(
         &self,
         parameter: SymbolHandle,

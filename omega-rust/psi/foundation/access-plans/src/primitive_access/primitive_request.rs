@@ -76,22 +76,6 @@ impl PrimitiveAccessRequest<'_, '_> {
         self.effect_footprint
     }
 
-    /// Whether this event and another event require mutually exclusive effect
-    /// footprints.
-    ///
-    /// Repeatable reads may share an overlapping transfer container. Atomic
-    /// events may share only the same exact atomic container; a partial or
-    /// mixed-width overlap rejects. Every destructive read, ordinary write,
-    /// or stable read-modify-write reserves its complete transfer footprint.
-    pub const fn conflicts_with(&self, other: &Self) -> bool {
-        effect_footprints_conflict(
-            self.effect_footprint,
-            self.operation,
-            other.effect_footprint,
-            other.operation,
-        )
-    }
-
     pub const fn observation(&self) -> ObservationModel {
         self.observation
     }

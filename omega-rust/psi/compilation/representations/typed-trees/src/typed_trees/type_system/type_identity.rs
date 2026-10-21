@@ -1224,16 +1224,6 @@ impl TypedTrees {
         }))
     }
 
-    /// Export a nominal data declaration's path without losing its module.
-    /// Exact symbol and package custody remain separate from this projection.
-    pub fn data_declaration_path(&self, definition: &crate::data::DataDefinition) -> String {
-        if self.symbols.symbol_module(definition.symbol).is_valid() {
-            self.symbols.display_path(definition.symbol, "::")
-        } else {
-            definition.name.as_str().to_owned()
-        }
-    }
-
     /// Export the attached owner's path using the same rule as data declarations.
     /// Source-free semantic trees retain complete paths in their authored names;
     /// a live module must never fall back to a leaf spelling.

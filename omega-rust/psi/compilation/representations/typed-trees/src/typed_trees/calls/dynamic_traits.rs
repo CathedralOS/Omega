@@ -124,20 +124,6 @@ impl TypedTrees {
         Ok(())
     }
 
-    /// Requirements that survive the currently implemented signature-only
-    /// dynamic-surface projection, in trait declaration order.
-    pub fn dynamic_signature_surface<'program>(
-        &'program self,
-        trait_definition: &'program TraitDefinition,
-    ) -> impl Iterator<Item = &'program StateSignature> + 'program {
-        self.trait_machine_signatures(trait_definition)
-            .iter()
-            .filter(|requirement| {
-                self.dynamic_signature_eligibility(trait_definition, requirement)
-                    .is_ok()
-            })
-    }
-
     /// Derive the non-signature portion of one requirement's local dynamic
     /// eligibility: contract privacy, lifetime projection, and operational
     /// envelope fitting. The signature judgment stays with

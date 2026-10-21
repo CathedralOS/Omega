@@ -5,14 +5,6 @@ use super::{CheckedBooleanExpression, CheckedScalarExpression, CheckedStorageRoo
 use crate::{CheckedIntegerComparisonKind, CheckedStructuralPredicatePathSegment};
 use typed_trees::types::PrimitiveType;
 impl CheckedBooleanExpression {
-    pub fn byte_literal_equality(
-        root: CheckedStorageRoot,
-        path: Vec<CheckedStructuralPredicatePathSegment>,
-        bytes: &[u8],
-    ) -> Option<Self> {
-        Self::byte_literal_equality_in_extent(root, path, bytes, None)
-    }
-
     pub fn byte_literal_equality_in_extent(
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,

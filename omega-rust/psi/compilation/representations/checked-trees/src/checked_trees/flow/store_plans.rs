@@ -59,16 +59,6 @@ impl CheckedStorePlan {
         }
     }
 
-    pub fn installed_value_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
-        match (&self.destination.leaf, &mut self.value) {
-            (
-                CheckedStoreLeaf::StructuralStore { .. } | CheckedStoreLeaf::OwnedRebind { .. },
-                CheckedStoreValue::Place(value),
-            ) => Some(value),
-            _ => None,
-        }
-    }
-
     /// The window ledger's spelling of a window repair's or local rebind's
     /// destination: a parameter root as its index in the dense
     /// `structural_parameters` roster the ledger and cleanup actions name,

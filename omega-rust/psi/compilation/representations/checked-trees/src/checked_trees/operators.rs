@@ -448,13 +448,6 @@ impl CheckedOperatorResolutionIssue<'_> {
         self.operator_use.status
     }
 
-    pub const fn is_missing(&self) -> bool {
-        matches!(
-            self.operator_use.status,
-            CheckedOperatorResolutionStatus::Missing
-        )
-    }
-
     pub const fn is_ambiguous(&self) -> bool {
         matches!(
             self.operator_use.status,

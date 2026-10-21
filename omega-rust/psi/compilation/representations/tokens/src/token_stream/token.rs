@@ -12,10 +12,6 @@ pub struct Token<'source> {
 }
 
 impl<'source> Token<'source> {
-    pub fn is_identifier(&self) -> bool {
-        matches!(self.kind, TokenKind::Identifier)
-    }
-
     pub fn is_string_literal(&self) -> bool {
         matches!(self.kind, TokenKind::StringLiteral)
     }

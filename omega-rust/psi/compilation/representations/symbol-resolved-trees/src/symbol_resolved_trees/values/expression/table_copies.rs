@@ -260,14 +260,6 @@ impl ExpressionTable {
         }
     }
 
-    pub fn copy_expression_handles_from(
-        &mut self,
-        source: &ExpressionTable,
-        expressions: HandleSpan<ExpressionHandle>,
-    ) -> HandleSpan<ExpressionHandle> {
-        self.copy_expression_handles_from_slice(source, source.expression_handles(expressions))
-    }
-
     pub fn copy_expression_handles_from_slice(
         &mut self,
         source: &ExpressionTable,

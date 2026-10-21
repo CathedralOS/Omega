@@ -208,15 +208,6 @@ impl StructuralTypeShape {
         }
     }
 
-    /// The unique live field `identity` names on a record shape — absent
-    /// when the name is missing, erased, or resolves to more than one id.
-    pub fn live_record_field(
-        &self,
-        identity: TerminalIdentityIndex,
-    ) -> Option<&StructuralFieldDeclaration> {
-        live_field(self.record_fields()?, identity)
-    }
-
     /// The case roster of a sum or mixed shape.
     pub fn sum_cases(&self) -> Option<&[StructuralCaseDeclaration]> {
         match self {

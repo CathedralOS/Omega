@@ -355,32 +355,6 @@ pub struct StructuralCaseSuccessorEdge {
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
-impl SuccessorEdge {
-    /// Homes whose custody or frame lifetime this edge ends. Retirement is
-    /// distinct from disposing their whole value or exact remaining subtrees.
-    pub fn affine_discard_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
-        self.cleanup_actions.iter().map(|action| match action {
-            TerminalAffineCleanupAction::DiscardRoot(place)
-            | TerminalAffineCleanupAction::RetireHome(place) => *place,
-            TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
-        })
-    }
-}
-
-impl StructuralCaseSuccessorEdge {
-    /// Homes whose custody or frame lifetime this edge ends. Retirement is
-    /// distinct from disposing their whole value or exact remaining subtrees.
-    pub fn affine_discard_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
-        self.cleanup_actions.iter().map(|action| match action {
-            TerminalAffineCleanupAction::DiscardRoot(place)
-            | TerminalAffineCleanupAction::RetireHome(place) => *place,
-            TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
-        })
-    }
-}
-
 #[macro_export]
 macro_rules! terminator_return_pair_pattern {
     ($($fields:tt)*) => {

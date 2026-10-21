@@ -74,14 +74,6 @@ impl ReferenceCustodyRow {
             .is_valid()
             .then_some((self.stored_loan_referent, self.stored_loan_access))
     }
-
-    /// The exclusive borrow's referent, as `(referent, access)`.
-    pub fn mutable_borrow_parts(&self) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-        self.mutable_borrow_referent.is_valid().then_some((
-            self.mutable_borrow_referent,
-            CheckedStructuralAccess::MutableBorrow,
-        ))
-    }
 }
 
 /// Every type reference's custody row, dense by arena index.

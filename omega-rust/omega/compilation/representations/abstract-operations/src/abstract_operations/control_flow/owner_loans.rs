@@ -87,17 +87,6 @@ pub fn is_shared_byte_view<'a>(
         })
 }
 
-/// [`is_shared_byte_view`] over a declaration slice whose identities are
-/// unique.
-pub fn is_shared_byte_view_in(
-    parameter: &StructuralParameterDeclaration,
-    types: &[StructuralTypeDeclaration],
-) -> bool {
-    is_shared_byte_view(parameter, |identity| {
-        unique_structural_type(types.iter(), identity)
-    })
-}
-
 /// An unrestricted bounded byte payload arriving by value. Qualifications
 /// remain declaration-owned obligations; layout does not erase or establish
 /// them. Consumers independently replay the signature and its aggregate ABI.
