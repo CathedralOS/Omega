@@ -1,1 +1,2 @@
-cannot prove requires contract for call consume
+cannot prove requires contract for call consume from visit:
+cannot prove requires contract for call consume from visit_nested:
