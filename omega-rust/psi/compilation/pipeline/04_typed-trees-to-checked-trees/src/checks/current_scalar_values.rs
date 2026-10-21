@@ -1486,7 +1486,10 @@ fn admitted(
         return false;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) => true,
+        // Boolean leaves belong to the scoped engine's predicate language.
+        // Admission grants only their syntax; the engine still distinguishes
+        // true from false when judging a conjunction or a whole predicate.
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Cast(_) => integer_cast_operand(program, machine, state, expression)
             .is_some_and(|operand| {
                 admitted(
@@ -1609,7 +1612,7 @@ fn scoped(
                     symbols.push(name.symbol);
                 }
             }
-            ExpressionNode::Integer(_) => {}
+            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
             ExpressionNode::Cast(_) => {
                 let operand = preserving_integer_cast_operand(
                     program,
