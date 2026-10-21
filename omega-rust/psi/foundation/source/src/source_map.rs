@@ -107,10 +107,12 @@ impl SourceMap {
     /// dependency scope: the two instances share source bytes and package
     /// identity but nothing else
     /// (wiki/spec/build/scoped_execution.md, "Two checked contexts").
+    /// Retained parser text shares its allocation; callers constructing new
+    /// text may transfer an owned string through the same boundary.
     pub fn add_checked_instance(
         &mut self,
         path: PathBuf,
-        source: String,
+        source: impl Into<Arc<str>>,
         package_root: PathBuf,
         package_identity: Option<PackageKeyIdentity>,
         origin: SourceOrigin,
@@ -125,7 +127,7 @@ impl SourceMap {
             dependency_scope,
             origin,
             resolution_stratum,
-            source: Arc::from(source),
+            source: source.into(),
         });
 
         self.files

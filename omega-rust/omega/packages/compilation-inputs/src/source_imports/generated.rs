@@ -117,7 +117,7 @@ pub fn admit_generated_extension(
         // instance semantics rather than growing a second checked instance.
         let added = sources.add_checked_instance(
             logical_path.clone(),
-            source.to_owned(),
+            source,
             package_root.to_path_buf(),
             package_identity,
             source::SourceOrigin::User,

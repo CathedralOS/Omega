@@ -210,7 +210,7 @@ impl SourceStorage {
                 self.source_metadata(&parsed_source.path, parsed_source.origin);
             let added = self.sources.add_checked_instance(
                 parsed_source.path.clone(),
-                parsed_source.source.to_string(),
+                parsed_source.source.clone(),
                 package_root,
                 package_identity,
                 origin,
@@ -379,5 +379,65 @@ pub(crate) fn validate_package_source_frontier(
         Ok(validated)
     } else {
         Err(diagnostics)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SourceStorage;
+    use source::{
+        DependencyScope, SourceId, SourceOrigin, SourceResolutionStratum, SourceSpan, Span,
+    };
+    use std::{path::PathBuf, sync::Arc};
+    use syntax_trees::{ParsedSource, ParsedSources};
+
+    #[test]
+    fn parsed_instances_retain_source_bytes_with_independent_checked_scopes() {
+        let text: Arc<str> = Arc::from("public data Shared {} // retained bytes");
+        let retained = Arc::downgrade(&text);
+        let mut parsed = ParsedSources::default();
+        parsed.batch = parsed.sources.insert_many(
+            [DependencyScope::Build, DependencyScope::Product]
+                .into_iter()
+                .enumerate()
+                .map(|(index, scope)| ParsedSource {
+                    source_id: SourceId(index),
+                    path: PathBuf::from("shared.omg"),
+                    source: text.clone(),
+                    origin: Some(SourceOrigin::Toolchain),
+                    root_items: Vec::new(),
+                    scope,
+                }),
+        );
+        let mut storage = SourceStorage::default();
+        storage.extend(parsed).expect("retained source batch");
+        let build = storage.sources.get(SourceId(0)).expect("build instance");
+        let product = storage.sources.get(SourceId(1)).expect("product instance");
+        assert!(Arc::ptr_eq(&build.source, &text));
+        assert!(Arc::ptr_eq(&product.source, &text));
+        assert_ne!(build.source_id, product.source_id);
+        assert_eq!(build.dependency_scope, DependencyScope::Build);
+        assert_eq!(product.dependency_scope, DependencyScope::Product);
+        assert_eq!(build.origin, SourceOrigin::Toolchain);
+        assert_eq!(product.origin, SourceOrigin::Toolchain);
+        assert_eq!(build.resolution_stratum, SourceResolutionStratum::Base);
+        assert_eq!(product.resolution_stratum, SourceResolutionStratum::Base);
+        let build_span = SourceSpan::new(build.source_id, Span::new(12, 18));
+        let product_span = SourceSpan::new(product.source_id, Span::new(12, 18));
+        assert!(
+            !storage
+                .sources
+                .same_checked_instance(build_span, product_span)
+        );
+        assert!(
+            !storage
+                .sources
+                .reference_can_see_declaration(build_span, product_span)
+        );
+        drop(text);
+        assert!(retained.upgrade().is_some());
+        assert_eq!(storage.sources.text_at(product_span), "Shared");
+        drop(storage);
+        assert!(retained.upgrade().is_none());
     }
 }
