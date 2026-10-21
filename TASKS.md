@@ -3953,14 +3953,18 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   theorem propagation under
   [content conservation](wiki/spec/resources/content_custody.md), using canonical
   `source/library/core/content.omg` identities.
-  - A wrapper returning a match-selected completed partition call cannot prove
-    its authored conservation guarantee. Retain each reachable arm's completed
-    value, exact invocation and current returned claims; prove the same normalized
-    equation for every ordinary-return alternative before exporting a callable
-    guarantee. Preserve capture epochs and branch correlations through nested
-    selections and transparent construction. Only proved bodies and admitted
-    declarations supply theorem roots; unproved guarantees and recursive cycles
-    cannot seed their own evidence.
+  - Wrapper composition through a value join proves and exports the authored
+    conservation guarantee: a match-selected completed partition call retains
+    each reachable arm's completed value, exact invocation and current returned
+    claims, and the same normalized equation is proved for every ordinary-return
+    alternative before a callable guarantee is exported
+    (`tests/omega/pass/core/content_conservation_wrapper_match_exit`), while a
+    single proving arm still rejects
+    (`tests/omega/fail/core/content_conservation_wrapper_match_unproved_alternative`).
+    Capture epochs and branch correlations through nested selections and
+    transparent construction remain to be preserved. Only proved bodies and
+    admitted declarations supply theorem roots; unproved guarantees and
+    recursive cycles cannot seed their own evidence.
   - `tests/omega/pass/core/content_retained_custody_round_trip` has an empty
     entry; its first claim depends on **BOUNDARY-ISSUANCE**. Existing-input
     conservation proceeds independently.

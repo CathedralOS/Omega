@@ -31,6 +31,12 @@ pub(crate) struct ReturnedPartitionInvocation {
     call_ordinal: usize,
     pub(crate) target_symbol: SymbolHandle,
     returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
+    /// The exact completed value this invocation returned: the outgoing
+    /// edge's capture, or one alternative of its value join. An alternative
+    /// is the arm's own completion, so the returned place and its custody are
+    /// read from that completed value rather than from the join that carries
+    /// every arm.
+    completed_value: arena::Handle<checked_trees::FlowOperandFact>,
     result: InvocationResult,
 }
 
@@ -91,6 +97,28 @@ pub(crate) fn ordinary_returns(
         .collect()
 }
 
+/// How many mutually exclusive completed values one outgoing edge can carry.
+/// A value join retains one alternative per reachable arm, so a callable
+/// guarantee needs the same normalized equation on every alternative rather
+/// than one theorem on the join.
+pub(crate) fn outgoing_completed_value_count(
+    facts: &CheckFacts,
+    returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
+) -> usize {
+    let outgoing = facts.flow.control.outgoing.get(returned_at);
+    if !outgoing.returned_value.is_valid() {
+        return 1;
+    }
+    let operand = facts.flow.control.operands.get(outgoing.returned_value);
+    facts
+        .flow
+        .control
+        .operands
+        .span_or_empty(operand.alternatives)
+        .len()
+        .max(1)
+}
+
 pub(crate) fn returned_partition_invocations(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -115,6 +143,12 @@ pub(crate) fn returned_partition_invocations(
     for returned_at in ordinary_returns(program, facts, state) {
         let outgoing = facts.flow.control.outgoing.get(returned_at);
         let claims = crate::checks::multiplicity::current_returned_claims(program, facts, outgoing);
+        let returned_operand = facts.flow.control.operands.get(outgoing.returned_value);
+        let alternatives = facts
+            .flow
+            .control
+            .operands
+            .span_or_empty(returned_operand.alternatives);
         for call in facts.flow.control.calls.span_or_empty(state_flow.calls) {
             let (Some(call_position), Some(return_position)) = (
                 order.position(call.statement_index),
@@ -151,6 +185,7 @@ pub(crate) fn returned_partition_invocations(
             ) else {
                 continue;
             };
+            let mut completed_value = outgoing.returned_value;
             let result = match site {
                 validation::CallSite::Expression { expression, .. } => {
                     // A syntax handle alone is not an invocation identity.
@@ -175,6 +210,17 @@ pub(crate) fn returned_partition_invocations(
                     let Ok(claims) = &claims else {
                         continue;
                     };
+                    // A call selected by a match completes into one
+                    // alternative of the edge's value join, not into the join
+                    // itself. Retain that exact completed value so the
+                    // wrapper's substitution reads the arm's own capture.
+                    if let Some(alternative) = alternatives.iter().find(|alternative| {
+                        alternative.expression == expression && alternative.type_reference.is_valid()
+                    }) {
+                        if let Some(handle) = facts.flow.control.operands.handle_of(alternative) {
+                            completed_value = handle;
+                        }
+                    }
                     InvocationResult::Captured {
                         expression,
                         claims: claims.clone(),
@@ -204,6 +250,7 @@ pub(crate) fn returned_partition_invocations(
                 call_ordinal: call.call_ordinal,
                 target_symbol: call.target_symbol,
                 returned_at,
+                completed_value,
                 result,
             });
         }
@@ -689,6 +736,12 @@ fn instantiate_partition_result_subject(
         return Some(subject.clone());
     };
     let source_path = content_segments_to_fact_path(&subject.segments)?;
+    let outgoing = facts.flow.control.outgoing.get(invocation.returned_at);
+    let returned_operand = facts.flow.control.operands.get(outgoing.returned_value);
+    // An arm of a value join completes into the join's returned place, so the
+    // establishment that names that place is the one the join produced there;
+    // a directly completed call establishes its own result at the same place.
+    let joined_result = invocation.completed_value != outgoing.returned_value;
     let mut identities = Vec::new();
     for (_, event) in facts.flow.ownership.permissions.iter() {
         if !permission_event_at_invocation(
@@ -709,7 +762,8 @@ fn instantiate_partition_result_subject(
             continue;
         };
         if statement == invocation.statement_index
-            && produced == *expression
+            && (produced == *expression
+                || (joined_result && produced == returned_operand.expression))
             && path == source_path
             && !identities.contains(&event.claim_identity)
         {
@@ -730,14 +784,13 @@ fn instantiate_partition_result_subject(
     // retained capture trace follows stores through every receiving home and
     // stops at writes; a claim surviving a field mutation cannot donate its
     // producer's content theorem to this exit.
-    let outgoing = facts.flow.control.outgoing.get(invocation.returned_at);
     let state_flow = facts
         .flow
         .control
         .states
         .iter()
         .find_map(|(_, flow)| (flow.state_symbol == caller_state.symbol).then_some(flow))?;
-    let operand = facts.flow.control.operands.get(outgoing.returned_value);
+    let operand = facts.flow.control.operands.get(invocation.completed_value);
     for observation in observations {
         let mut selected = returned.path.clone();
         selected.extend_from_slice(observation);

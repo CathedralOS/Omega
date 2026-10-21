@@ -1196,6 +1196,9 @@ fail/core/content_conservation_constructed_wrong_qualification rejected 1542ms e
 fail/core/content_conservation_incomplete_exits rejected 1593ms expected @94192499b002+wt
 fail/core/content_conservation_mixed_call_results rejected 1533ms expected @94192499b002+wt
 fail/core/content_conservation_unqualified_place rejected 928ms expected @a9ae30e1c334+wt
+fail/core/content_conservation_wrapper_match_unproved_alternative rejected 10182ms expected @4bd2529e7559+wt
+	cannot prove ensures contract for exit from Main::split_mixed at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from Main::split_proved at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_counted_partition_unconserved rejected 726ms expected @b794c35ad5f8+wt
 fail/core/content_issuance_consumed_constructed_claims rejected 1598ms expected @a9ae30e1c334+wt
 fail/core/content_membership_return_consumed_issuance rejected 1801ms expected @064c5aeb618a+wt
@@ -9375,6 +9378,7 @@ pass/core/content_conservation_projected_exit checked 6219ms check-target:macos_
 pass/core/content_conservation_state_arrival_exit checked 6825ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_unobserved_write_exit checked 6825ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_wrapper_exit checked 3399ms check-target:macos_arm64 @94192499b002+wt
+pass/core/content_conservation_wrapper_match_exit checked 10710ms check-target:macos_arm64 @4bd2529e7559+wt
 pass/core/content_counted_partition_exit checked 3956ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/content_membership_return checked 12484ms check-target:macos_arm64 @064c5aeb618a+wt
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt

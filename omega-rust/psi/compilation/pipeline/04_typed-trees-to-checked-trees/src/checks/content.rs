@@ -312,15 +312,25 @@ pub(crate) fn compose_partition_wrappers(
             };
             let outgoing = partition_wrappers::ordinary_returns(program, facts, state);
             // A theorem on one arm is not a callable guarantee. Keep each
-            // exact exit proof, and export a source only when the complete
-            // ordinary outgoing roster proves the same normalized equation.
-            if outgoing.is_empty()
-                || !outgoing.iter().all(|returned_at| {
-                    compositions.iter().any(|candidate| {
-                        candidate.returned_at == *returned_at && candidate.plan == composition.plan
+            // exact exit proof, and export a source only when every
+            // alternative of every ordinary outgoing completion proves the
+            // same normalized equation: a value join retains one completed
+            // value per reachable arm, so one covered edge is not enough.
+            let covered = outgoing.iter().all(|returned_at| {
+                let required =
+                    partition_wrappers::outgoing_completed_value_count(facts, *returned_at);
+                let matching = compositions
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.returned_at == *returned_at
+                            && candidate.machine_symbol == composition.machine_symbol
+                            && candidate.state_symbol == composition.state_symbol
+                            && candidate.plan == composition.plan
                     })
-                })
-            {
+                    .count();
+                matching >= required
+            });
+            if outgoing.is_empty() || !covered {
                 continue;
             }
             available.push(AvailablePartitionSource {
