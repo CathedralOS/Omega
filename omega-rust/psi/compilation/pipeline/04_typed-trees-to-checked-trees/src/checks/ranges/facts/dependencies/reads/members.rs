@@ -588,19 +588,28 @@ pub(super) fn has_builtin_index_meaning(
     } else {
         expression_type_reference(program, machine, state, expression).is_some()
     };
-    builtin_storage
-        && typed_trees::operator::resolve_indexed_spelling_for_operands(
+    let builtin_operator = if spelling == OperatorSpelling::Index {
+        typed_trees::operator::builtin_index_read_is_spelled(
+            program,
+            machine.symbol,
+            expression,
+            &operands,
+        )
+    } else {
+        typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
             spelling,
             &operands,
             program.expression_table.source_span(expression),
         )
         .is_empty()
-        && typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            machine.symbol,
-            expression,
-            spelling,
-            &operands,
-        )
+            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                machine.symbol,
+                expression,
+                spelling,
+                &operands,
+            )
+    };
+    builtin_storage && builtin_operator
 }

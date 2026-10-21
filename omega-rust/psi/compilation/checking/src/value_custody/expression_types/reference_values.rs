@@ -1186,28 +1186,26 @@ fn selected_value_type(
                 .is_valid()
                 .then_some(projection.owner_symbol)
                 .or_else(|| place_machine_symbol(program, indexed.collection));
+            let operands = [Some(collection), index_type];
+            // A by-value `[copy]` index operator does not own a store into the
+            // element slot. Builtin geometry admits that place when the
+            // occurrence does not copy the element.
             let meaning_is_builtin = if let Some(machine) = owner {
-                typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    machine,
-                    expression,
-                    language_core::OperatorSpelling::Index,
-                    &[Some(collection), index_type],
+                typed_trees::operator::builtin_index_read_is_spelled(
+                    program, machine, expression, &operands,
                 )
             } else {
                 crate::value_custody::places::has_retained_builtin_index_meaning(
                     program, expression,
-                )
-            };
-            if !meaning_is_builtin
-                || !typed_trees::operator::resolve_indexed_spelling_for_operands(
+                ) && typed_trees::operator::resolve_indexed_spelling_for_operands(
                     program,
                     language_core::OperatorSpelling::Index,
-                    &[Some(collection), index_type],
+                    &operands,
                     program.expression_table.source_span(expression),
                 )
                 .is_empty()
-            {
+            };
+            if !meaning_is_builtin {
                 return None;
             }
             let collection =

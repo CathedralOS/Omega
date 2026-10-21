@@ -4616,6 +4616,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `unit/attached_unit/view_ranges.rs` and
   `emission/operation_emission/view_subslice.rs` (shared `CheckedSubsliceSite`).
   Remaining:
+  - Non-copy array and slice places no longer instantiate `Slice::index`'s
+    `[copy]` element bound, and a computed `Slice::range` publishes
+    `result.len == end - start` into a later in-bounds index. Both
+    `samples/cli/facts/as_slice_views` and
+    `samples/cli/facts/computed_subslice_extent` run `omega run --both` at
+    exit 0 on every place (Windows x86-64 host, Terminal Psi and native);
+    their reject twins still reject only the broken fact. The pinned rows
+    under `tests/omega/{pass,fail}/facts/` agree.
   - Source checking of narrowed record-element slice arguments still lacks
     their default-domain window restoration. The predicate copy control
     `slices/runtime_predicate_qualified_scalar_copy_exit` exits 0 on both

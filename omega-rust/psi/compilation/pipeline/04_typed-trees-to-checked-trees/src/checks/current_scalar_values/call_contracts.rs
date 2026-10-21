@@ -74,7 +74,22 @@ impl CurrentScalarValues<'_> {
         let parameters = self.program.machine_type_parameters(source);
         let internal = site.is_internal_state_transfer(self.program, self.machine.symbol);
         if !internal && parameters.len() != arguments.len() {
-            return None;
+            // A type-only telescope carries no integer actual. An empty static
+            // roster then leaves the arithmetic requires on the value
+            // parameters; it is not an unknown static binding.
+            let integer_static = parameters.iter().any(|parameter| {
+                let reference = match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Value { type_reference }
+                    | typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                        type_reference
+                    }
+                    _ => return false,
+                };
+                integer_carrier(self.program, reference).is_some()
+            });
+            if integer_static || !arguments.is_empty() {
+                return None;
+            }
         }
         let mut values = Vec::new();
         for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -276,7 +291,8 @@ impl CurrentScalarValues<'_> {
         let mut fields = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
-                if let Some(value) = self.collection_length(*argument, 0)
+                let measured = self.collection_length(*argument, 0);
+                if let Some(value) = measured
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
                     && (validation::state_reference_parameter_binding_is_stable(
                         self.program,
@@ -287,6 +303,7 @@ impl CurrentScalarValues<'_> {
                         value,
                         ScopedArithmeticValue::Integer(_)
                             | ScopedArithmeticValue::BoundedInteger { .. }
+                            | ScopedArithmeticValue::IntegerOperation { .. }
                     ))
                 {
                     // A closed length is an entry observation. A mutable slice

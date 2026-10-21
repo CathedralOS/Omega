@@ -125,6 +125,256 @@ pub fn has_builtin_subslice_meaning(
     )
 }
 
+/// A range on array or slice geometry whose one matching operator ensures
+/// `result.len == end - start`. That contract is the window's extent. It does
+/// not by itself identify the result with the source storage: a custom
+/// operator can return a different collection of the same length. Callers
+/// that need storage identity keep `has_builtin_subslice_meaning`.
+pub fn range_operator_establishes_endpoint_extent(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+        return false;
+    };
+    if program.expression_table.range_node(indexed.index).is_none() {
+        return false;
+    }
+    let Some(collection) = declared_place_type_raw(program, machine, state, indexed.collection)
+    else {
+        return false;
+    };
+    if !reference_has_builtin_collection_geometry(program, collection) {
+        return false;
+    }
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
+        return false;
+    };
+    let mut operands = [Some(collection), None, None];
+    operands[1] = range
+        .start
+        .is_valid()
+        .then(|| declared_place_type_raw(program, machine, state, range.start))
+        .flatten();
+    operands[2] = range
+        .end
+        .is_valid()
+        .then(|| declared_place_type_raw(program, machine, state, range.end))
+        .flatten();
+    let trees = program.typed_program();
+    let candidates = typed_trees::operator::resolve_indexed_spelling_for_operands(
+        trees,
+        OperatorSpelling::Range,
+        &operands,
+        program.expression_table.source_span(expression),
+    );
+    if candidates.len() != 1 {
+        return false;
+    }
+    operator_ensures_result_length_is_endpoint_difference(trees, candidates[0].operator)
+}
+
+/// Endpoints of a completed call whose range operator, or the machine that
+/// realizes it, ensures `result.len == end - start`. The caller already
+/// discharged that contract's requires, so the difference is the result's
+/// length. This does not identify the result with the source storage.
+pub fn ensured_range_call_endpoints(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    let call = program.expression_table.call_node(expression)?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() < 3 || !call_target_ensures_endpoint_extent(program, call.target_symbol) {
+        return None;
+    }
+    Some((arguments[1], arguments[2]))
+}
+
+fn call_target_ensures_endpoint_extent(
+    program: &dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    let trees = program.typed_program();
+    if let Some(operator) = typed_trees::operator::declaration_by_symbol(trees, symbol)
+        && operator.spelling == Some(OperatorSpelling::Range)
+        && trees.operator_parameters(operator).len() == 3
+        && operator_ensures_result_length_is_endpoint_difference(trees, operator)
+    {
+        return true;
+    }
+    let state = program
+        .machine_by_symbol(symbol)
+        .and_then(|machine| program.machine_states(machine).first())
+        .or_else(|| program.state_by_symbol(symbol));
+    let Some(state) = state else {
+        return false;
+    };
+    let parameters = program.state_parameters(state);
+    let [_, start, end] = parameters else {
+        return false;
+    };
+    let mut established = program
+        .state_contracts(state)
+        .iter()
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| {
+            let typed_trees::domain::ProofFact::Expression(fact_expression) = fact else {
+                return false;
+            };
+            expression_equates_result_length_to_difference(
+                trees,
+                *fact_expression,
+                start.name.as_str(),
+                end.name.as_str(),
+            )
+        });
+    if !established && let Some(machine) = program.machine_holding_state(state.symbol) {
+        established = contracts_equate_result_length(
+            trees,
+            program.machine_contracts(machine),
+            start.name.as_str(),
+            end.name.as_str(),
+        ) || program
+            .machine_trait_conformances(machine)
+            .iter()
+            .filter_map(|conformance| {
+                typed_trees::operator::declaration_by_symbol(trees, conformance.requirement_symbol)
+            })
+            .any(|operator| {
+                operator.spelling == Some(OperatorSpelling::Range)
+                    && operator_ensures_result_length_is_endpoint_difference(trees, operator)
+            });
+    }
+    established
+}
+
+fn contracts_equate_result_length(
+    program: &typed_trees::TypedTrees,
+    contracts: &[typed_trees::signature::SignatureContract],
+    start: &str,
+    end: &str,
+) -> bool {
+    contracts
+        .iter()
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                return false;
+            };
+            expression_equates_result_length_to_difference(program, *expression, start, end)
+        })
+}
+
+fn reference_has_builtin_collection_geometry(
+    program: &dyn crate::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    for _ in 0..8 {
+        if !reference.is_valid() {
+            return false;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+            | typed_trees::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            | typed_trees::types::TypeReferenceNode::Slice { .. } => return true,
+            _ => return false,
+        }
+    }
+    false
+}
+
+fn operator_ensures_result_length_is_endpoint_difference(
+    program: &typed_trees::TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> bool {
+    let parameters = program.operator_parameters(operator);
+    let [_, start, end] = parameters else {
+        return false;
+    };
+    program
+        .operator_contracts(operator)
+        .iter()
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                return false;
+            };
+            expression_equates_result_length_to_difference(
+                program,
+                *expression,
+                start.name.as_str(),
+                end.name.as_str(),
+            )
+        })
+}
+
+fn expression_equates_result_length_to_difference(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    start: &str,
+    end: &str,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    match binary.operator {
+        typed_trees::expression::BinaryOperator::And => {
+            expression_equates_result_length_to_difference(program, binary.left, start, end)
+                || expression_equates_result_length_to_difference(program, binary.right, start, end)
+        }
+        typed_trees::expression::BinaryOperator::Equal => {
+            (expression_is_result_length(program, binary.left)
+                && expression_is_parameter_difference(program, binary.right, start, end))
+                || (expression_is_result_length(program, binary.right)
+                    && expression_is_parameter_difference(program, binary.left, start, end))
+        }
+        _ => false,
+    }
+}
+
+fn expression_is_result_length(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(member) = program.expression_table.member_node(expression) else {
+        return false;
+    };
+    member.case_variant.is_none()
+        && member.member.as_str() == "len"
+        && single_name(program, member.receiver) == Some("result")
+}
+
+fn expression_is_parameter_difference(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    start: &str,
+    end: &str,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    binary.operator == typed_trees::expression::BinaryOperator::Subtract
+        && single_name(program, binary.left) == Some(end)
+        && single_name(program, binary.right) == Some(start)
+}
+
+fn single_name(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<&str> {
+    let path = program.expression_table.name_path_node(expression)?;
+    let members = program.expression_table.name_path_members(path.members);
+    let [name] = members else {
+        return None;
+    };
+    Some(name.as_str())
+}
+
 /// Authenticate this indexed occurrence, independently of how its collection
 /// was produced. A call result or an earlier declared operator may supply a
 /// collection without granting storage geometry for that whole expression.

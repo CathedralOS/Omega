@@ -98,21 +98,12 @@ impl Evaluator<'_> {
             // landing cannot retroactively remove an authored index candidate.
             self.expression_type_reference(indexed.index, frame),
         ];
-        if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+        if !typed_trees::operator::builtin_index_read_is_spelled(
             self.program,
-            language_core::OperatorSpelling::Index,
+            frame.machine_symbol,
+            expression,
             &operands,
-            self.program.expression_table.source_span(expression),
-        )
-        .is_empty()
-            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                self.program,
-                frame.machine_symbol,
-                expression,
-                language_core::OperatorSpelling::Index,
-                &operands,
-            )
-        {
+        ) {
             return unsupported("array value projection has no exact builtin indexing meaning");
         }
         Ok(())

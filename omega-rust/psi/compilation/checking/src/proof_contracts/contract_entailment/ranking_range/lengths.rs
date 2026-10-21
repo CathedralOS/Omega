@@ -214,12 +214,20 @@ fn evaluate_length(
     if let Some(length) = coordinate(expression) {
         return Some(length);
     }
+    let contracted_extent =
+        crate::value_custody::places::range_operator_establishes_endpoint_extent(
+            program,
+            machine,
+            Some(state),
+            expression,
+        );
     if crate::value_custody::places::has_builtin_subslice_meaning(
         program,
         machine,
         Some(state),
         expression,
-    ) {
+    ) || contracted_extent
+    {
         let Some(indexed) = program.expression_table.indexed_node(expression) else {
             return None;
         };
@@ -227,10 +235,32 @@ fn evaluate_length(
         // Constant-extent queries also enter here without the call owner's
         // meaning pass. Never interpret an authored operator as arithmetic
         // merely because its operands happen to normalize to constants.
-        for endpoint in [range.start, range.end] {
-            if endpoint.is_valid() {
-                super::meanings::admitted_carrier(program, machine, state, endpoint, depth + 1)?;
+        // An operator that ensures `result.len == end - start` is that
+        // arithmetic: the endpoints are the extent, and the operator's
+        // `requires` own ordering and inclusion.
+        if !contracted_extent {
+            for endpoint in [range.start, range.end] {
+                if endpoint.is_valid() {
+                    super::meanings::admitted_carrier(
+                        program,
+                        machine,
+                        state,
+                        endpoint,
+                        depth + 1,
+                    )?;
+                }
             }
+        }
+        let start = if range.start.is_valid() {
+            engine.normalize(range.start)?
+        } else if contracted_extent {
+            return None;
+        } else {
+            Polynomial::default()
+        };
+        if contracted_extent && range.end.is_valid() && !range.end_inclusive {
+            let end = engine.normalize(range.end)?;
+            return Some(end.sub(&start));
         }
         let source = evaluate_length(
             program,
@@ -241,11 +271,6 @@ fn evaluate_length(
             engine,
             depth + 1,
         )?;
-        let start = if range.start.is_valid() {
-            engine.normalize(range.start)?
-        } else {
-            Polynomial::default()
-        };
         let mut end = if range.end.is_valid() {
             engine.normalize(range.end)?
         } else {

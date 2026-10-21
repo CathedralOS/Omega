@@ -191,6 +191,11 @@ impl CurrentScalarValues<'_> {
                     self.machine,
                     Some(self.state),
                     expression,
+                ) || validation::range_operator_establishes_endpoint_extent(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    expression,
                 ) =>
             {
                 let range = self.program.expression_table.range_node(indexed.index)?;
@@ -220,20 +225,33 @@ impl CurrentScalarValues<'_> {
                 } else {
                     authored_end.clone()
                 };
-                for (left, right) in [
-                    (&zero, &start),
-                    (&start, &end),
-                    (&end, &source),
-                    (&zero, &authored_end),
-                ] {
-                    if !self.proves_values_relation(
-                        self.program,
-                        self.machine,
-                        BinaryOperator::LessOrEqual,
-                        left,
-                        right,
-                    ) {
-                        return None;
+                // The operator's own `requires` discharge ordering and
+                // inclusion. Re-proving them here would drop the ensured
+                // extent whenever this capture roster has not yet unfolded
+                // the same premises. Builtin windows without that contract
+                // still owe the four relations before their length is real.
+                let contract_owns_bounds = validation::range_operator_establishes_endpoint_extent(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    expression,
+                );
+                if !contract_owns_bounds {
+                    for (left, right) in [
+                        (&zero, &start),
+                        (&start, &end),
+                        (&end, &source),
+                        (&zero, &authored_end),
+                    ] {
+                        if !self.proves_values_relation(
+                            self.program,
+                            self.machine,
+                            BinaryOperator::LessOrEqual,
+                            left,
+                            right,
+                        ) {
+                            return None;
+                        }
                     }
                 }
                 Some(ScopedArithmeticValue::IntegerOperation {
@@ -255,6 +273,9 @@ impl CurrentScalarValues<'_> {
                 })
                 .or_else(|| self.declared_extent(expression)),
             ExpressionNode::Call(call) => {
+                if let Some(length) = self.ensured_range_call_length(expression) {
+                    return Some(length);
+                }
                 let parameters =
                     validation::call_target_parameters(self.program, call.target_symbol)?;
                 let arguments = self
@@ -295,6 +316,23 @@ impl CurrentScalarValues<'_> {
             _ => super::field_collection_length(self.program, self.machine, self.state, expression)
                 .or_else(|| self.declared_extent(expression)),
         }
+    }
+
+    /// A range call that ensures `result.len == end - start` publishes that
+    /// difference as its length. The operator's requires already own ordering
+    /// and source inclusion; this observation does not replay them.
+    fn ensured_range_call_length(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        let (start, end) = validation::ensured_range_call_endpoints(self.program, expression)?;
+        let start = self.capture(self.program, self.machine, self.state, start)?;
+        let end = self.capture(self.program, self.machine, self.state, end)?;
+        Some(ScopedArithmeticValue::IntegerOperation {
+            operator: BinaryOperator::Subtract,
+            left: Box::new(end),
+            right: Box::new(start),
+        })
     }
 
     /// Every arm contributes its own length. One shared observation is the
