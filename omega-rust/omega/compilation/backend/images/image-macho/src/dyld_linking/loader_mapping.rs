@@ -22,13 +22,13 @@ fn invalid() -> Diagnostic {
     Diagnostic::error("Mach-O loader mapping differs from the supported final image")
 }
 
-pub(super) fn region(bytes: &[u8], offset: usize, count: usize) -> Result<&[u8], Diagnostic> {
+pub(crate) fn region(bytes: &[u8], offset: usize, count: usize) -> Result<&[u8], Diagnostic> {
     bytes
         .get(offset..offset.checked_add(count).ok_or_else(invalid)?)
         .ok_or_else(invalid)
 }
 
-pub(super) fn word(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
+pub(crate) fn word(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
     Ok(u32::from_le_bytes(
         region(bytes, offset, 4)?
             .try_into()
@@ -36,7 +36,7 @@ pub(super) fn word(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
     ))
 }
 
-pub(super) fn wide(bytes: &[u8], offset: usize) -> Result<u64, Diagnostic> {
+pub(crate) fn wide(bytes: &[u8], offset: usize) -> Result<u64, Diagnostic> {
     Ok(u64::from_le_bytes(
         region(bytes, offset, 8)?
             .try_into()
@@ -145,12 +145,25 @@ pub(crate) fn validate_macho_loader_mapping(
     bss_bytes: usize,
     isa: MachoIsa,
 ) -> Result<(), Diagnostic> {
+    validate_macho_container_mapping(bytes, layout, final_text, final_data, bss_bytes, isa, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_macho_container_mapping(
+    bytes: &[u8],
+    layout: FinalImageLayout,
+    final_text: &[u8],
+    final_data: &[u8],
+    bss_bytes: usize,
+    isa: MachoIsa,
+    identity: Option<&crate::dyld_linking::load_commands::MachoDylib>,
+) -> Result<(), Diagnostic> {
     let page_size = isa.page_size();
     if word(bytes, 0)? != 0xfeed_facf
         || word(bytes, 4)? != isa.cpu_type()
         || word(bytes, 8)? != isa.cpu_subtype()
-        || word(bytes, 12)? != 2
-        || word(bytes, 24)? != 0x20_0085
+        || word(bytes, 12)? != if identity.is_some() { 6 } else { 2 }
+        || word(bytes, 24)? != if identity.is_some() { 0x85 } else { 0x20_0085 }
         || word(bytes, 28)? != 0
     {
         return Err(invalid());
@@ -195,6 +208,35 @@ pub(crate) fn validate_macho_loader_mapping(
                 }
                 dylib_count += 1;
             }
+            0xd => {
+                let expected = identity.ok_or_else(invalid)?;
+                if singletons & (1 << 8) != 0
+                    || size != expected.command_size()
+                    || word(command, 8)? != 24
+                    || word(command, 12)? != expected.timestamp
+                    || word(command, 16)? != expected.current_version
+                    || word(command, 20)? != expected.compatibility_version
+                    || region(command, 24, expected.path.len())? != expected.path.as_ref()
+                    || command[24 + expected.path.len()..]
+                        .iter()
+                        .any(|byte| *byte != 0)
+                {
+                    return Err(invalid());
+                }
+                singletons |= 1 << 8;
+            }
+            0x8000_0033 => {
+                if identity.is_none() || size != 16 || singletons & (1 << 9) != 0 {
+                    return Err(invalid());
+                }
+                let offset = usize::try_from(word(command, 8)?).map_err(|_| invalid())?;
+                let count = usize::try_from(word(command, 12)?).map_err(|_| invalid())?;
+                if count == 0 {
+                    return Err(invalid());
+                }
+                region(bytes, offset, count)?;
+                singletons |= 1 << 9;
+            }
             kind => {
                 // Closed writer-supported commands. Their dynamic payloads are
                 // not certified by this segment correspondence check.
@@ -209,7 +251,10 @@ pub(crate) fn validate_macho_loader_mapping(
                     0x1d => (7, 16),
                     _ => return Err(invalid()),
                 };
-                if size != expected_size || singletons & (1 << bit) != 0 {
+                if (identity.is_some() && matches!(kind, 0xe | 0x8000_0028))
+                    || size != expected_size
+                    || singletons & (1 << bit) != 0
+                {
                     return Err(invalid());
                 }
                 singletons |= 1 << bit;
@@ -231,18 +276,27 @@ pub(crate) fn validate_macho_loader_mapping(
         }
         cursor = cursor.checked_add(size).ok_or_else(invalid)?;
     }
-    if cursor != commands.len() || singletons & 0xef != 0xef || dylib_count == 0 {
+    let required_singletons = if identity.is_some() { 0x3e6 } else { 0xef };
+    if cursor != commands.len()
+        || singletons & required_singletons != required_singletons
+        || dylib_count == 0
+    {
         return Err(invalid());
     }
-    let [Some(pagezero), Some(text), data, Some(linkedit)] = segments else {
+    let [pagezero, Some(text), data, Some(linkedit)] = segments else {
         return Err(invalid());
     };
-    if pagezero.address != 0
-        || pagezero.memory_size != MACHO_EXECUTABLE_BASE
-        || pagezero.file_offset != 0
-        || pagezero.file_size != 0
-        || !pagezero.sections.is_empty()
-        || text.address != MACHO_EXECUTABLE_BASE
+    match (identity, pagezero) {
+        (None, Some(pagezero))
+            if pagezero.address == 0
+                && pagezero.memory_size == MACHO_EXECUTABLE_BASE
+                && pagezero.file_offset == 0
+                && pagezero.file_size == 0
+                && pagezero.sections.is_empty() => {}
+        (Some(_), None) => {}
+        _ => return Err(invalid()),
+    }
+    if text.address != MACHO_EXECUTABLE_BASE
         || text.file_offset != 0
         || text.memory_size != text.file_size
         || text.sections.len() != 80
@@ -271,12 +325,14 @@ pub(crate) fn validate_macho_loader_mapping(
         return Err(invalid());
     }
     compare_file(bytes, text_file, final_text)?;
-    let entry = entry_file_offset.ok_or_else(invalid)?;
-    if entry < text_file
-        || entry >= end(text_file, final_text.len() as u64)?
-        || !entry.is_multiple_of(isa.entry_alignment())
-    {
-        return Err(invalid());
+    if identity.is_none() {
+        let entry = entry_file_offset.ok_or_else(invalid)?;
+        if entry < text_file
+            || entry >= end(text_file, final_text.len() as u64)?
+            || !entry.is_multiple_of(isa.entry_alignment())
+        {
+            return Err(invalid());
+        }
     }
     let text_end = end(text.address, text.memory_size)?;
     let mut mapped_end = text_end;

@@ -21,8 +21,14 @@ impl NormalizedComponentLocator {
         image_digest: [u8; 32],
         slot_commitment: [u8; 32],
     ) -> Result<Self, &'static str> {
-        if !matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64) {
-            return Err("component ELF linkage requires an admitted Linux target");
+        if !matches!(
+            target,
+            TargetProfile::LinuxX64
+                | TargetProfile::LinuxArm64
+                | TargetProfile::MacosX64
+                | TargetProfile::MacosArm64
+        ) {
+            return Err("component linkage requires an admitted ELF or Mach-O target");
         }
         if image_digest == [0; 32] || slot_commitment == [0; 32] {
             return Err("component linkage requires exact image and export-slot commitments");
@@ -77,7 +83,15 @@ impl NormalizedComponentLocator {
     /// A fixed adjacent filename, never an ambient package/library selector.
     /// Publication must retain and verify the exact bytes with this digest.
     pub fn image_filename(&self) -> String {
-        format!("libomega-component-{}.so", hexadecimal(&self.image_digest))
+        let suffix = match self.target {
+            TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => "so",
+            TargetProfile::MacosX64 | TargetProfile::MacosArm64 => "dylib",
+            _ => unreachable!("component locator construction admits only supported containers"),
+        };
+        format!(
+            "libomega-component-{}.{suffix}",
+            hexadecimal(&self.image_digest)
+        )
     }
     pub fn export_symbol(&self) -> String {
         format!("__omega_slot_{}", hexadecimal(&self.slot_commitment))

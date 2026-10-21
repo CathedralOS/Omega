@@ -76,6 +76,19 @@ impl MachoRebaseInfo {
 }
 
 pub(crate) fn macho_rebase_info(image: &FinalImage) -> Result<MachoRebaseInfo, Diagnostic> {
+    macho_rebase_info_for_segment(image, DATA_SEGMENT_INDEX)
+}
+
+pub(crate) fn macho_rebase_info_for_segment(
+    image: &FinalImage,
+    data_segment: u8,
+) -> Result<MachoRebaseInfo, Diagnostic> {
+    if data_segment > 0xf {
+        return Err(Diagnostic::error(
+            "Mach-O rebase segment index exceeds its four-bit immediate",
+        ));
+    }
+
     let mut sites = Vec::new();
     for (_, relocation) in image.relocation_table.relocations.iter() {
         if relocation.kind != RelocationKind::Absolute64 {
@@ -149,7 +162,7 @@ pub(crate) fn macho_rebase_info(image: &FinalImage) -> Result<MachoRebaseInfo, D
 
     let mut bytes = vec![REBASE_OPCODE_SET_TYPE_IMM | REBASE_TYPE_POINTER];
     for site in &sites {
-        bytes.push(REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB | DATA_SEGMENT_INDEX);
+        bytes.push(REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB | data_segment);
         write_uleb128(&mut bytes, site.offset as u64);
         bytes.push(REBASE_OPCODE_DO_REBASE_IMM_TIMES | 1);
     }

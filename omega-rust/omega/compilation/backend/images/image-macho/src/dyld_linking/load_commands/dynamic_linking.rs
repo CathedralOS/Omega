@@ -131,9 +131,17 @@ impl MachoDylib {
 
 /// Emit one `LC_LOAD_DYLIB` load command for `dylib`.
 pub(crate) fn write_macho_load_dylib_command(bytes: &mut Vec<u8>, dylib: &MachoDylib) {
+    write_macho_dylib_command(bytes, dylib, 0xc);
+}
+
+pub(crate) fn write_macho_id_dylib_command(bytes: &mut Vec<u8>, dylib: &MachoDylib) {
+    write_macho_dylib_command(bytes, dylib, 0xd);
+}
+
+fn write_macho_dylib_command(bytes: &mut Vec<u8>, dylib: &MachoDylib, command: u32) {
     let start = bytes.len();
     let command_size = dylib.command_size();
-    write_u32(bytes, 0xc); // LC_LOAD_DYLIB
+    write_u32(bytes, command);
     write_u32(bytes, command_size as u32);
     write_u32(bytes, 24); // dylib.name str offset (immediately after the header)
     write_u32(bytes, dylib.timestamp);

@@ -15,7 +15,7 @@ use platform_custody::file_publication::{install_staged_files, stage_exact_bytes
 /// A selected macOS GUI product instead installs one complete `.app`
 /// package.
 pub(super) fn publish(
-    report: CompileReport,
+    mut report: CompileReport,
     build_dir: &std::path::Path,
 ) -> Result<CompileReport, String> {
     if report.retained_dynamic_elf_artifact().is_some() {
@@ -46,6 +46,14 @@ pub(super) fn publish(
             Some(target::HostedApplicationIntent::Gui)
         );
     let container_digest = publication.container_digest();
+    let components = report
+        .runtime_provisions()
+        .map(|runtime| runtime.component_products().to_vec())
+        .unwrap_or_default();
+    if package && !components.is_empty() {
+        return Err("macOS application v1 publication admits only its exact executable/plist tree; component companion placement requires its separate package contract".into());
+    }
+    let mut component_receipts = Vec::new();
     let mut package_publication = None;
     let output_path = if package {
         let application_name = report
@@ -74,12 +82,15 @@ pub(super) fn publish(
     } else {
         let output_path = build_dir.join(&output.file_name);
 
-        let staged_products = vec![stage_exact_bytes(&output_path, &output.bytes, true)?];
-        install_staged_files(&staged_products)?;
+        component_receipts =
+            publish_flat_native_files(&output_path, &output.bytes, artifact.target(), components)?;
         output_path
     };
 
     let receipt = publication.into_receipt(output_path)?;
+    if !component_receipts.is_empty() {
+        report.record_component_publications(component_receipts)?;
+    }
 
     report.record_native_publication(receipt, package_publication)
 }
@@ -108,35 +119,52 @@ fn publish_dynamic_elf(
         .runtime_provisions()
         .map(|runtime| runtime.component_products().to_vec())
         .unwrap_or_default();
-    let mut staged_products = Vec::with_capacity(components.len() + 1);
-    let mut component_paths = Vec::with_capacity(components.len());
+    let receipts =
+        publish_flat_native_files(&output_path, &output.bytes, artifact.target(), components)?;
+    let receipt = publication.into_receipt(output_path);
+    if !receipts.is_empty() {
+        report.record_component_publications(receipts)?;
+    }
+    report.record_dynamic_elf_publication(receipt)
+}
+
+/// Stage the complete flat process graph before any member becomes visible.
+/// The caller retains its distinct ELF/Mach-O root receipt. Companions keep
+/// their own sealed producing products and content-addressed path/byte joins;
+/// neither file publication nor co-location supplies InstalledCode authority.
+fn publish_flat_native_files(
+    output_path: &std::path::Path,
+    output: &[u8],
+    target: target::NativeTarget,
+    components: Vec<std::sync::Arc<native_artifact::NativeComponentProduct>>,
+) -> Result<Vec<native_artifact::NativeComponentPublicationReceipt>, String> {
+    let directory = output_path
+        .parent()
+        .ok_or("native process root has no directory")?;
+    let mut staged = Vec::with_capacity(components.len() + 1);
+    let mut paths = Vec::with_capacity(components.len());
     for component in &components {
-        if component.locator().target().native_target() != artifact.target() {
+        if component.locator().target().native_target() != target {
             return Err("component file target differs from its selected process root".into());
         }
-        let path = build_dir.join(component.locator().image_filename());
+        let path = directory.join(component.locator().image_filename());
         component
             .verify_contents(component.image().image().contents())
             .map_err(str::to_owned)?;
-        staged_products.push(stage_exact_bytes(
+        staged.push(stage_exact_bytes(
             &path,
             component.image().image().contents(),
             false,
         )?);
-        component_paths.push(path);
+        paths.push(path);
     }
-    staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
-    install_staged_files(&staged_products)?;
-    let receipt = publication.into_receipt(output_path);
-    if !components.is_empty() {
-        let receipts = components
-            .into_iter()
-            .zip(component_paths)
-            .map(|(component, path)| {
-                native_artifact::NativeComponentPublicationReceipt::verify(component, path)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        report.record_component_publications(receipts)?;
-    }
-    report.record_dynamic_elf_publication(receipt)
+    staged.push(stage_exact_bytes(output_path, output, true)?);
+    install_staged_files(&staged)?;
+    components
+        .into_iter()
+        .zip(paths)
+        .map(|(component, path)| {
+            native_artifact::NativeComponentPublicationReceipt::verify(component, path)
+        })
+        .collect()
 }

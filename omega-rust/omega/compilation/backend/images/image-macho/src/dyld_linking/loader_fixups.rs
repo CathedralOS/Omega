@@ -270,6 +270,20 @@ pub fn validate_macho_aarch64_loader_fixups(
     rebases: &[MachoRebasePointer],
     imports: &[MachoImportPointer<'_>],
 ) -> Result<(), Diagnostic> {
+    validate_macho_loader_fixups_for_segment(bytes, final_data, rebases, imports, 2)
+}
+
+pub(crate) fn validate_macho_loader_fixups_for_segment(
+    bytes: &[u8],
+    final_data: &[u8],
+    rebases: &[MachoRebasePointer],
+    imports: &[MachoImportPointer<'_>],
+    expected_data_segment: u8,
+) -> Result<(), Diagnostic> {
+    if expected_data_segment > 0xf {
+        return Err(invalid());
+    }
+
     let commands = region(bytes, 32, word(bytes, 20)? as usize)?;
     let mut cursor = 0usize;
     let mut segment_count = 0usize;
@@ -340,7 +354,9 @@ pub fn validate_macho_aarch64_loader_fixups(
         };
     };
     // Weak, lazy, and export payloads would introduce unchecked loader behavior.
-    if info[24..].iter().any(|byte| *byte != 0) || data_segment != Some(2) {
+    if info[24..].iter().any(|byte| *byte != 0)
+        || data_segment != Some(usize::from(expected_data_segment))
+    {
         return Err(invalid());
     }
     let (linkedit_offset, linkedit_size) = linkedit.ok_or_else(invalid)?;
@@ -368,7 +384,7 @@ pub fn validate_macho_aarch64_loader_fixups(
     let mut previous_end = 0usize;
     for pointer in rebases {
         validate_slot(final_data, pointer.data_offset, previous_end)?;
-        rebase_stream.require(0x22)?; // SET_SEGMENT DATA, then offset.
+        rebase_stream.require(0x20 | expected_data_segment)?; // Exact __DATA index.
         if rebase_stream.unsigned()? != pointer.data_offset
             || wide(final_data, pointer.data_offset)? != pointer.preferred_address
         {
@@ -398,7 +414,7 @@ pub fn validate_macho_aarch64_loader_fixups(
             return Err(invalid());
         }
         bind_stream.require(0x51)?; // SET_TYPE POINTER.
-        bind_stream.require(0x72)?; // SET_SEGMENT DATA, then offset.
+        bind_stream.require(0x70 | expected_data_segment)?; // Exact __DATA index.
         if bind_stream.unsigned()? != pointer.data_offset {
             return Err(invalid());
         }

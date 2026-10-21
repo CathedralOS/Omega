@@ -16,6 +16,7 @@ use image::{FinalImage, FinalImageLayout};
 pub(crate) struct MachOImagePlan {
     pub(crate) has_dyld_info: bool,
     pub(crate) has_data_segment: bool,
+    pub(crate) data_segment_index: Option<u8>,
     pub(crate) command_count: usize,
     pub(crate) sizeofcmds: usize,
     pub(crate) text_offset: usize,
@@ -27,6 +28,7 @@ pub(crate) struct MachOImagePlan {
     pub(crate) data_vm_size: u64,
     pub(crate) rebase_offset: usize,
     pub(crate) bind_offset: usize,
+    pub(crate) export_offset: usize,
     pub(crate) code_signature_offset: usize,
     pub(crate) code_signature_size: usize,
     pub(crate) linkedit_vmaddr: u64,
@@ -45,6 +47,18 @@ impl MachOImagePlan {
     }
 }
 
+/// Index in the actual command-order segment roster. Executables begin with
+/// PAGEZERO; dylibs begin directly with TEXT. DATA exists only for emitted
+/// initialized storage or zero-fill. Bind/rebase encoders consume this plan,
+/// and the independent receiver recounts the segments in the finished file.
+pub(crate) fn macho_data_segment_index(image: &FinalImage, dylib: bool) -> Option<u8> {
+    if image.memory.data.is_empty() && image.memory.bss_size == 0 {
+        return None;
+    }
+    let pagezero_segments = u8::from(!dylib);
+    Some(pagezero_segments + 1) // TEXT precedes DATA.
+}
+
 /// `code_signature_identifier` is bound here, not at byte-writing time: its
 /// length sets the `LC_CODE_SIGNATURE` extent and `__LINKEDIT` size, so the
 /// signing identity is fixed before any load command is emitted.
@@ -57,6 +71,33 @@ pub(crate) fn plan_macho_image(
     code_signature_identifier: &str,
     isa: MachoIsa,
 ) -> MachOImagePlan {
+    plan_macho_container(
+        image,
+        import_count,
+        rebase_size,
+        bind_size,
+        dylibs,
+        code_signature_identifier,
+        isa,
+        None,
+        0,
+    )
+}
+
+/// Dylibs keep their own identity and exported symbol trie; process entry
+/// commands and PAGEZERO belong only to executable containers.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn plan_macho_container(
+    image: &FinalImage,
+    import_count: usize,
+    rebase_size: usize,
+    bind_size: usize,
+    dylibs: &[MachoDylib],
+    code_signature_identifier: &str,
+    isa: MachoIsa,
+    identity: Option<&MachoDylib>,
+    export_size: usize,
+) -> MachOImagePlan {
     let page_size = usize::try_from(isa.page_size()).expect("Mach-O page size");
     let has_imports = import_count > 0;
     let has_dyld_info = rebase_size > 0 || has_imports;
@@ -68,16 +109,25 @@ pub(crate) fn plan_macho_image(
     // LC_LOAD_DYLIB per linked dylib (≥1: libSystem) plus the optional data
     // segment + dyld_info(bind) commands.
     let dylib_commands_size: usize = dylibs.iter().map(MachoDylib::command_size).sum();
-    let command_count =
-        10 + dylibs.len() + usize::from(has_data_segment) + usize::from(has_dyld_info);
-    let sizeofcmds = MACHO_SEGMENT_COMMAND_SIZE
+    let (root_commands, root_size) = if let Some(identity) = identity {
+        (2, identity.command_size() + 16) // LC_ID_DYLIB and LC_DYLD_EXPORTS_TRIE.
+    } else {
+        (
+            3,
+            MACHO_SEGMENT_COMMAND_SIZE + MACHO_LOAD_DYLINKER_COMMAND_SIZE + MACHO_MAIN_COMMAND_SIZE,
+        )
+    };
+    let command_count = 7
+        + root_commands
+        + dylibs.len()
+        + usize::from(has_data_segment)
+        + usize::from(has_dyld_info);
+    let sizeofcmds = root_size
         + (MACHO_SEGMENT_COMMAND_SIZE + MACHO_SECTION_SIZE)
         + usize::from(has_data_segment)
             * (MACHO_SEGMENT_COMMAND_SIZE + data_section_count * MACHO_SECTION_SIZE)
-        + MACHO_LOAD_DYLINKER_COMMAND_SIZE
         + MACHO_UUID_COMMAND_SIZE
         + MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE
-        + MACHO_MAIN_COMMAND_SIZE
         + dylib_commands_size
         + usize::from(has_dyld_info) * MACHO_DYLD_INFO_COMMAND_SIZE
         + MACHO_SYMTAB_COMMAND_SIZE
@@ -112,7 +162,8 @@ pub(crate) fn plan_macho_image(
     };
     let rebase_offset = align_to(unsigned_file_end, page_size);
     let bind_offset = rebase_offset + rebase_size;
-    let code_signature_offset = align_to(bind_offset + bind_size, page_size);
+    let export_offset = bind_offset + bind_size;
+    let code_signature_offset = align_to(export_offset + export_size, page_size);
     let code_signature_size =
         code_signature_size(code_signature_offset, code_signature_identifier, isa);
     let linkedit_vmaddr = if has_data_segment {
@@ -131,6 +182,7 @@ pub(crate) fn plan_macho_image(
     MachOImagePlan {
         has_dyld_info,
         has_data_segment,
+        data_segment_index: macho_data_segment_index(image, identity.is_some()),
         command_count,
         sizeofcmds,
         text_offset,
@@ -142,6 +194,7 @@ pub(crate) fn plan_macho_image(
         data_vm_size,
         rebase_offset,
         bind_offset,
+        export_offset,
         code_signature_offset,
         code_signature_size,
         linkedit_vmaddr,

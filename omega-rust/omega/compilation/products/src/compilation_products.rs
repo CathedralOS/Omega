@@ -508,9 +508,20 @@ impl CompileReport {
         receipts: Vec<native_artifact::NativeComponentPublicationReceipt>,
     ) -> Result<(), String> {
         let runtime = match &mut self.product {
-            CompileProduct::RetainedDynamicElfArtifact(product) => product.runtime_provisions.as_mut(),
-            _ => return Err("component files require their distinct dynamically linked process root, not an installable direct image".into()),
-        }.ok_or("component publication lost its exact runtime product roster")?;
+            CompileProduct::RetainedDynamicElfArtifact(product) => {
+                product.runtime_provisions.as_mut()
+            }
+            CompileProduct::RetainedNativeArtifact(product)
+                if product.artifact.target().object_format == target::ObjectFormat::MachO =>
+            {
+                product.runtime_provisions.as_mut()
+            }
+            _ => return Err(
+                "component files require their distinct ELF or Mach-O process publication contract"
+                    .into(),
+            ),
+        }
+        .ok_or("component publication lost its exact runtime product roster")?;
         runtime
             .record_component_publications(receipts)
             .map_err(str::to_owned)

@@ -36,10 +36,17 @@
 mod codec_bytes;
 mod component_object;
 mod component_shared_image;
-pub use component_shared_image::{ComponentSharedImage, ComponentSharedImageEmissionError, emit_component_shared_image};
-pub use component_object::{ComponentFunctionImage, prepare_component_function_image, component_export_symbol};
+pub use component_object::{
+    ComponentFunctionImage, component_export_symbol, prepare_component_function_image,
+};
+pub use component_shared_image::{
+    ComponentSharedContainer, ComponentSharedImage, ComponentSharedImageEmissionError,
+    emit_component_shared_image,
+};
 mod callable_entry_transport;
-pub use callable_entry_transport::{create_callable_entry_transport, create_private_function_object};
+pub use callable_entry_transport::{
+    create_callable_entry_transport, create_private_function_object,
+};
 mod physical_entry;
 pub use physical_entry::{PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry};
 mod dynamic_elf;

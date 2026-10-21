@@ -13,7 +13,7 @@ use image::{
     PlacedDataRegionInventory, PlacedExecutableRegionInventory,
 };
 use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, NormalizedForeignLocator};
+use target::{ForeignLocatorCandidate, NormalizedImportLocator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachoImportThunk {
@@ -93,7 +93,7 @@ pub(crate) fn install_import_thunks(
         .filter(|handle| image.symbol_table.symbols.is_valid(*handle))
         .collect();
     let mut import_handles = Vec::new();
-    let mut normalized_imports = Vec::<(FinalImageSymbolHandle, NormalizedForeignLocator)>::new();
+    let mut normalized_imports = Vec::<(FinalImageSymbolHandle, NormalizedImportLocator)>::new();
     let mut prepared = Vec::new();
     for (_, import) in image.symbol_table.imports.iter() {
         if import_handles.contains(&import.symbol_handle) {
@@ -135,22 +135,31 @@ pub(crate) fn install_import_thunks(
                 let uses_objc = library == DARWIN_LIBOBJC_PATH.as_bytes();
                 (library, symbol.name.as_bytes().to_vec(), uses_objc)
             }
-            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Foreign(locator)) => {
-                let ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name,
-                    symbol,
-                } = locator.locator()
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "normalized non-Mach-O foreign locator 0x{:016x} reached Mach-O image planning",
-                        locator.non_authoritative_compatibility_fingerprint(),
-                    )));
+            FinalImageImportPlan::Normalized(locator) => {
+                let (library, binding_symbol) = match locator {
+                    NormalizedImportLocator::Foreign(foreign) => {
+                        let ForeignLocatorCandidate::MachODylibSymbol {
+                            install_name,
+                            symbol,
+                        } = foreign.locator()
+                        else {
+                            return Err(Diagnostic::error(format!(
+                                "normalized non-Mach-O foreign locator 0x{:016x} reached Mach-O image planning",
+                                foreign.non_authoritative_compatibility_fingerprint(),
+                            )));
+                        };
+                        (install_name.clone(), symbol.clone())
+                    }
+                    NormalizedImportLocator::Component(component) => (
+                        format!("@loader_path/{}", component.image_filename()).into_bytes(),
+                        component.export_symbol().into_bytes(),
+                    ),
                 };
                 if locator.target() != isa.target_profile()
                     || locator.target().native_target() != image.target
                 {
                     return Err(Diagnostic::error(format!(
-                        "Mach-O foreign locator 0x{:016x} targets `{}` but image planning targets {:?}",
+                        "Mach-O import locator 0x{:016x} targets `{}` but image planning targets {:?}",
                         locator.non_authoritative_compatibility_fingerprint(),
                         locator.target().target_name(),
                         image.target,
@@ -173,12 +182,7 @@ pub(crate) fn install_import_thunks(
                     )));
                 }
                 normalized_imports.push((import.symbol_handle, locator.clone()));
-                (install_name.clone(), symbol.clone(), false)
-            }
-            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Component(_)) => {
-                return Err(Diagnostic::error(
-                    "ELF component locator cannot enter Mach-O import planning",
-                ));
+                (library, binding_symbol, false)
             }
             FinalImageImportPlan::None => {
                 return Err(Diagnostic::error(format!(
@@ -403,6 +407,18 @@ pub(crate) fn validate_import_thunk_footprints(
 }
 
 pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
+    macho_bind_info_for_segment(thunks, 2).expect("executable DATA segment fits dyld immediate")
+}
+
+pub(crate) fn macho_bind_info_for_segment(
+    thunks: &[MachoImportThunk],
+    data_segment: u8,
+) -> Result<Vec<u8>, Diagnostic> {
+    if data_segment > 0xf {
+        return Err(Diagnostic::error(
+            "Mach-O bind segment index exceeds its four-bit immediate",
+        ));
+    }
     let mut bytes = Vec::new();
 
     for thunk in thunks {
@@ -419,7 +435,7 @@ pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
         bytes.extend(&thunk.bind_symbol);
         bytes.push(0);
         bytes.push(0x51); // SET_TYPE_IMM | BIND_TYPE_POINTER
-        bytes.push(0x72); // SET_SEGMENT_AND_OFFSET_ULEB | segment 2 (__DATA)
+        bytes.push(0x70 | data_segment); // SET_SEGMENT_AND_OFFSET_ULEB | exact __DATA index.
         write_uleb128(&mut bytes, thunk.data_offset as u64);
         bytes.push(0x90); // DO_BIND
     }
@@ -427,7 +443,7 @@ pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
         bytes.push(0);
     }
 
-    bytes
+    Ok(bytes)
 }
 
 fn patch_aarch64_adrp(

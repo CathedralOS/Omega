@@ -34,6 +34,22 @@ pub(super) fn macho_ad_hoc_code_signature(
     identifier: &str,
     isa: MachoIsa,
 ) -> Vec<u8> {
+    macho_ad_hoc_code_signature_for_container(
+        code_bytes,
+        executable_segment_limit,
+        identifier,
+        isa,
+        true,
+    )
+}
+
+pub(super) fn macho_ad_hoc_code_signature_for_container(
+    code_bytes: &[u8],
+    executable_segment_limit: usize,
+    identifier: &str,
+    isa: MachoIsa,
+    main_binary: bool,
+) -> Vec<u8> {
     let code_limit = code_bytes.len();
     let page_count = code_slot_count(code_limit, isa);
     let code_directory_header_size = 88usize;
@@ -115,7 +131,7 @@ pub(super) fn macho_ad_hoc_code_signature(
         &mut bytes,
         u64::try_from(executable_segment_limit).expect("CodeDirectory exec segment limit overflow"),
     );
-    write_be_u64(&mut bytes, 1);
+    write_be_u64(&mut bytes, u64::from(main_binary));
 
     debug_assert_eq!(bytes.len(), code_directory_start + identifier_offset);
     bytes.extend(identifier.as_bytes());

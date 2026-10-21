@@ -270,7 +270,8 @@ impl TerminalRuntimeProvisions {
     }
     /// Explicit preflight for the isolated process runtime, not native image
     /// installation. All dependency edges use these exact adjacent files and
-    /// protected version-qualified symbols for this immutable process lifetime.
+    /// version-qualified exports for this immutable process lifetime (protected
+    /// ELF symbols or exact two-level Mach-O dylib bindings).
     pub fn validate_component_process_inputs(&self, root: &std::path::Path) -> Result<(), String> {
         if self.components.is_empty() {
             return Ok(());

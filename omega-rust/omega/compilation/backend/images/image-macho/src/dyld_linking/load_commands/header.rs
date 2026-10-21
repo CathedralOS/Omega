@@ -24,6 +24,22 @@ pub(crate) fn write_macho_executable_header(
     );
 }
 
+pub(crate) fn write_macho_dylib_header(
+    bytes: &mut Vec<u8>,
+    command_count: usize,
+    sizeofcmds: usize,
+    isa: MachoIsa,
+) {
+    write_macho_header_for(
+        bytes,
+        6,
+        command_count,
+        sizeofcmds,
+        MACHO_HEADER_FLAGS_NOUNDEFS | MACHO_HEADER_FLAGS_DYLDLINK | MACHO_HEADER_FLAGS_TWOLEVEL,
+        isa,
+    );
+}
+
 pub(crate) fn write_macho_uuid_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x1b);
     write_u32(

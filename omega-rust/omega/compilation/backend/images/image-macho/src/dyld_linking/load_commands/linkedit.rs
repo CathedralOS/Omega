@@ -63,6 +63,16 @@ pub(crate) fn write_macho_dyld_info_command(
     write_reserved_u32s(bytes, 6);
 }
 
+pub(crate) fn write_macho_exports_trie_command(bytes: &mut Vec<u8>, offset: usize, size: usize) {
+    write_u32(bytes, 0x8000_0033);
+    write_u32(bytes, 16);
+    write_u32(
+        bytes,
+        u32::try_from(offset).expect("Mach-O export trie offset"),
+    );
+    write_u32(bytes, u32::try_from(size).expect("Mach-O export trie size"));
+}
+
 #[cfg(test)]
 mod tests {
     use super::write_macho_dyld_info_command;

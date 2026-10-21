@@ -87,6 +87,11 @@ use image::{
     place_executable_regions,
 };
 
+mod shared_component;
+pub use shared_component::{
+    MachoComponentExport, MachoSharedComponentEmissionError, MachoSharedComponentImage,
+    emit_macho_shared_component,
+};
 mod code_signature;
 pub use code_signature::code_signature_identifier;
 mod dyld_linking;
@@ -96,9 +101,8 @@ mod isa;
 #[cfg(test)]
 mod tests;
 
-use code_signature::macho_ad_hoc_code_signature;
 use dyld_linking::imports::{
-    install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
+    install_import_thunks, patch_import_thunks, validate_import_thunk_footprints,
 };
 pub use dyld_linking::imports::{
     validate_macho_aarch64_import_binding_pairing, validate_macho_x86_64_import_binding_pairing,
@@ -116,13 +120,10 @@ pub use dyld_linking::loader_fixups::{
     MachoImportPointer, MachoRebasePointer, validate_macho_aarch64_loader_fixups,
     validate_macho_aarch64_object_fixups, validate_macho_x86_64_object_fixups,
 };
-use dyld_linking::loader_mapping::validate_macho_loader_mapping;
 pub use dyld_linking::loader_mapping::{
     validate_macho_aarch64_loader_mapping, validate_macho_x86_64_loader_mapping,
 };
-use dyld_linking::rebases::macho_rebase_info;
 use entry_symbol::macho_entry_text_offset;
-use file_layout::plan::plan_macho_image;
 use isa::MachoIsa;
 
 /// The executable leaf published today; it doubles as the ad-hoc signing
@@ -173,10 +174,58 @@ pub fn emit_macho_x86_64_executable_signed(
 }
 
 fn emit_macho_executable_signed(
-    mut image: FinalImage,
+    image: FinalImage,
     code_signature_identifier: &str,
     isa: MachoIsa,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
+    let MachoContainerContents {
+        image,
+        bytes,
+        layout,
+        executable_regions,
+        data_regions,
+    } = emit_macho_container_contents(image, code_signature_identifier, isa, None, &[])?;
+    Ok(ExecutableImageOutput {
+        final_image_layout: layout,
+        final_text_bytes: image.memory.text.clone(),
+        final_data_bytes: image.memory.data.clone(),
+        // Mach-O binding slots already live inside `image.memory.data`, so the
+        // emitted file carries no separate import-data extent.
+        final_import_data_bytes: Vec::new(),
+        bytes,
+        file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
+        format: isa.format_name().to_owned(),
+        text_bytes: image.memory.text.len(),
+        data_bytes: image.memory.data.len(),
+        bss_bytes: image.memory.bss_size,
+        symbols: image.symbol_table.symbols.len(),
+        imports: image.symbol_table.imports.len(),
+        relocations: image.relocation_table.relocations.len(),
+        executable_regions,
+        data_regions,
+        import_data_regions: PlacedDataRegionInventory::empty(),
+    })
+}
+struct MachoContainerContents {
+    image: FinalImage,
+    bytes: Vec<u8>,
+    layout: image::FinalImageLayout,
+    executable_regions: image::PlacedExecutableRegionInventory,
+    data_regions: image::PlacedDataRegionInventory,
+}
+
+fn emit_macho_container_contents(
+    mut image: FinalImage,
+    code_signature_identifier: &str,
+    isa: MachoIsa,
+    identity: Option<&dyld_linking::load_commands::MachoDylib>,
+    exports: &[MachoComponentExport],
+) -> Result<MachoContainerContents, Diagnostic> {
+    if identity.is_some() != !exports.is_empty() {
+        return Err(Diagnostic::error(
+            "Mach-O container kind differs from its exact export roster",
+        ));
+    }
     if code_signature_identifier.is_empty() {
         return Err(Diagnostic::error(
             "Mach-O code signature identifier is empty",
@@ -194,9 +243,14 @@ fn emit_macho_executable_signed(
     // The exact ordered set of dylibs and every image-local ordinal were
     // preflighted before import-thunk installation mutated the final image.
     let dylibs = imports.dylibs;
-    let bind_info = macho_bind_info(&import_thunks);
-    let rebase_info = macho_rebase_info(&image)?;
-    let plan = plan_macho_image(
+    let data_segment = file_layout::plan::macho_data_segment_index(&image, identity.is_some());
+    let bind_info = dyld_linking::imports::macho_bind_info_for_segment(
+        &import_thunks,
+        data_segment.unwrap_or(0),
+    )?;
+    let rebase_info =
+        dyld_linking::rebases::macho_rebase_info_for_segment(&image, data_segment.unwrap_or(0))?;
+    let mut plan = file_layout::plan::plan_macho_container(
         &image,
         import_thunks.len(),
         rebase_info.bytes.len(),
@@ -204,8 +258,34 @@ fn emit_macho_executable_signed(
         &dylibs,
         code_signature_identifier,
         isa,
+        identity,
+        0,
     );
-    let entry_offset = plan.text_offset + macho_entry_text_offset(&image)?;
+    let export_bytes = shared_component::export_trie(&image, exports, plan.text_offset)?;
+    if identity.is_some() {
+        let text_offset = plan.text_offset;
+        plan = file_layout::plan::plan_macho_container(
+            &image,
+            import_thunks.len(),
+            rebase_info.bytes.len(),
+            bind_info.len(),
+            &dylibs,
+            code_signature_identifier,
+            isa,
+            identity,
+            export_bytes.len(),
+        );
+        if plan.text_offset != text_offset || plan.data_segment_index != data_segment {
+            return Err(Diagnostic::error(
+                "Mach-O export layout changed its admitted segment geometry",
+            ));
+        }
+    }
+    let entry_offset = if identity.is_none() {
+        Some(plan.text_offset + macho_entry_text_offset(&image)?)
+    } else {
+        None
+    };
     let layout = plan.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks, isa)?;
@@ -216,8 +296,17 @@ fn emit_macho_executable_signed(
     let data_regions = place_data_regions(&image, layout)?;
 
     let mut bytes = Vec::new();
-    write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds, isa);
-    write_macho_pagezero_segment(&mut bytes);
+    if identity.is_some() {
+        dyld_linking::load_commands::write_macho_dylib_header(
+            &mut bytes,
+            plan.command_count,
+            plan.sizeofcmds,
+            isa,
+        );
+    } else {
+        write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds, isa);
+        write_macho_pagezero_segment(&mut bytes);
+    }
     write_macho_executable_text_segment(
         &mut bytes,
         plan.text_offset,
@@ -236,10 +325,17 @@ fn emit_macho_executable_signed(
             image.memory.bss_alignment,
         );
     }
-    write_macho_load_dylinker_command(&mut bytes);
+    if identity.is_none() {
+        write_macho_load_dylinker_command(&mut bytes);
+    }
     write_macho_uuid_command(&mut bytes);
     write_macho_executable_build_version_command(&mut bytes);
-    write_macho_main_command(&mut bytes, entry_offset);
+    if let Some(entry_offset) = entry_offset {
+        write_macho_main_command(&mut bytes, entry_offset);
+    }
+    if let Some(identity) = identity {
+        dyld_linking::load_commands::write_macho_id_dylib_command(&mut bytes, identity);
+    }
     // One LC_LOAD_DYLIB per linked dylib, in ordinal order (libSystem first).
     for dylib in &dylibs {
         write_macho_load_dylib_command(&mut bytes, dylib);
@@ -251,6 +347,13 @@ fn emit_macho_executable_signed(
             rebase_info.bytes.len(),
             plan.bind_offset,
             bind_info.len(),
+        );
+    }
+    if identity.is_some() {
+        dyld_linking::load_commands::write_macho_exports_trie_command(
+            &mut bytes,
+            plan.export_offset,
+            export_bytes.len(),
         );
     }
     write_macho_linkedit_segment(
@@ -277,19 +380,27 @@ fn emit_macho_executable_signed(
     bytes.extend(&rebase_info.bytes);
     bytes.resize(plan.bind_offset, 0);
     bytes.extend(bind_info);
+    bytes.resize(plan.export_offset, 0);
+    bytes.extend(&export_bytes);
     bytes.resize(plan.code_signature_offset, 0);
-    let code_signature =
-        macho_ad_hoc_code_signature(&bytes, plan.text_file_size, code_signature_identifier, isa);
+    let code_signature = code_signature::macho_ad_hoc_code_signature_for_container(
+        &bytes,
+        plan.text_file_size,
+        code_signature_identifier,
+        isa,
+        identity.is_none(),
+    );
     debug_assert_eq!(code_signature.len(), plan.code_signature_size);
     bytes.extend(code_signature);
 
-    validate_macho_loader_mapping(
+    dyld_linking::loader_mapping::validate_macho_container_mapping(
         &bytes,
         layout,
         &image.memory.text,
         &image.memory.data,
         image.memory.bss_size,
         isa,
+        identity,
     )?;
     let import_pointers: Vec<_> = import_thunks
         .iter()
@@ -299,31 +410,22 @@ fn emit_macho_executable_signed(
             symbol: &thunk.bind_symbol,
         })
         .collect();
-    validate_macho_aarch64_loader_fixups(
+    dyld_linking::loader_fixups::validate_macho_loader_fixups_for_segment(
         &bytes,
         &image.memory.data,
         &rebase_pointers,
         &import_pointers,
+        data_segment.unwrap_or(0),
     )?;
+    if identity.is_some() {
+        shared_component::validate_export_trie(&bytes, &image, exports, plan.text_offset)?;
+    }
 
-    Ok(ExecutableImageOutput {
-        final_image_layout: layout,
-        final_text_bytes: image.memory.text.clone(),
-        final_data_bytes: image.memory.data.clone(),
-        // Mach-O binding slots already live inside `image.memory.data`, so the
-        // emitted file carries no separate import-data extent.
-        final_import_data_bytes: Vec::new(),
+    Ok(MachoContainerContents {
+        image,
         bytes,
-        file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
-        format: isa.format_name().to_owned(),
-        text_bytes: image.memory.text.len(),
-        data_bytes: image.memory.data.len(),
-        bss_bytes: image.memory.bss_size,
-        symbols: image.symbol_table.symbols.len(),
-        imports: image.symbol_table.imports.len(),
-        relocations: image.relocation_table.relocations.len(),
+        layout,
         executable_regions,
         data_regions,
-        import_data_regions: PlacedDataRegionInventory::empty(),
     })
 }
