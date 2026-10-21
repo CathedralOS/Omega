@@ -4,8 +4,9 @@ Parent: [OPAQUE-BY-VALUE-BOUNDARY-ABI](../../../../TASKS.md).
 Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,
 including replacement of one field without disturbing its sibling. This is
-host-boundary evidence; independently compiled Omega-component agreement remains
-open.
+host-boundary evidence and initial independent closed-result exchange. Complete
+opaque-input exchange, mismatch admission and replacement lifecycle acceptance
+remain open.
 
 **Closed nested Inert carrier transport preserves libc host numbers 66051 and
 513 and replacement 1027 while retaining the disjoint sibling.**
@@ -111,3 +112,72 @@ The parent also still requires independently compiled producer/consumer exchange
 and exact composition-edge rejection of provider, carrier, target, lifecycle,
 multiplicity and historical-selection drift. The host adapter and equal layouts
 do not establish that independent-component acceptance.
+
+
+## Independent closed results
+
+The [two-package root](independent/main.omg) and the places below keep the same
+fact, inputs and consuming operation. [The producing package](independent/producer/main.omg)
+returns each address through `AddressBridge::make`; the consumer selects
+`CompositionMode::Independent`. Both packages choose their own exact closed
+representation. The ordinary `AddressParts::host` operation consumes each
+returned value in the receiver. These witnesses establish the result direction;
+local parameters and forwarding do not claim opaque input arguments crossing a
+component edge.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| Local | [local](independent/local/main.omg) | [cleanup](independent/local/invalid/main.omg) |
+| Field | [field](independent/field/main.omg) | [cleanup](independent/field/invalid/main.omg) |
+| Parameter | [parameter](independent/parameter/main.omg) | [cleanup](independent/parameter/invalid/main.omg) |
+| Call result | [call result](independent/call_result/main.omg) | [cleanup](independent/call_result/invalid/main.omg) |
+| Match join | [both incoming arms](independent/match_join/main.omg) | [cleanup](independent/match_join/invalid/main.omg) |
+| Const name | [named construction inputs](independent/const_name/main.omg) | [cleanup](independent/const_name/invalid/main.omg) |
+| Another state | [owned arrivals](independent/other_state/main.omg) | [cleanup](independent/other_state/invalid/main.omg) |
+| Another machine | [owned forwarding](independent/other_machine/main.omg) | [cleanup](independent/other_machine/invalid/main.omg) |
+| Target body | [four checked bodies](independent/target_body/main.omg) | [cleanup](independent/target_body/invalid/main.omg) |
+
+Each twin changes only the producing carrier's nominal cleanup obligation in
+[the invalid producing package](independent/producer_invalid/main.omg). Its
+consumer source is identical to the positive. The four hosted entries remain
+in every positive build, while execution observations are Linux x86-64 only.
+The paired sources are pinned under
+`tests/omega/{pass,fail}/facts/opaque_independent_closed_carrier_through_*`.
+
+The applicable requirement categories above extend through the component edge:
+
+- Establishment uses each package's own checked callable and complete contract
+  capsule, selected representation and full calling application. The receiver
+  cannot donate a contract or geometry to the producer.
+- Identity and lifetime retain the producing artifact, actual child invocation
+  namespace and owned result until the receiver commits it. The shared host
+  store consumes the exact nonrecycled token; artifact-local type coordinates
+  are compared through their owning identities rather than as global numbers.
+- Composition joins the exact requirement, provider, target and full ABI/opaque
+  applications at each selected export. Every place performs the same field
+  replacement while preserving the sibling.
+- Soundness keeps provider selection, execution authority and publication
+  separate. Descriptions and equal layouts do not mint an installed address,
+  an opaque occurrence or a host result.
+- Checked-to-Terminal lowering retains the requirement's own source declaration
+  and checked contract. A real independently supplied child executes the
+  producer, with owned completion and separate effect namespaces; the driver
+  supplies no fabricated callback result.
+- Provider settlement and ABI realization retain independent producing inputs
+  and materialize the exported calling policy from those inputs. The consumer
+  independently checks its complete calling application and selected carrier.
+- Instruction and frame realization compile the export as a separate callable
+  object and entry bridge, carrying its actual stack contribution and checked
+  transitive authority into the receiving call plan.
+- Encoding emits a distinct Linux ELF shared component with a strong
+  image/slot-qualified protected export. The root names its content-addressed
+  sibling in `DT_NEEDED`; GNU version requirements cover actual versioned
+  foreign objects. Ordinary publication retains and validates the exact root
+  and component bytes before process execution. This initial process route
+  does not establish hot replacement, stable-handle eras or cross-host loading.
+
+Raw observations remain in the existing swarm qualification record, bound to
+actual producer revisions and accepted project locks. Full provider/carrier/
+target/lifecycle/multiplicity/historical-selection mismatch controls, opaque
+input arguments, qualified or linear carriers, and matching-host execution on
+the other hosted targets remain separate acceptance until demonstrated.
