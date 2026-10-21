@@ -9,7 +9,7 @@
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::const_integer::{self, ConstIntegerExpression};
+use typed_trees::const_integer;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
@@ -621,13 +621,10 @@ fn integer_const_argument(
     argument: &StaticMachineArgument,
 ) -> bool {
     const_expression_argument(program, argument).is_some_and(|expression| {
-        matches!(
-            const_integer::classify(
-                &program.expression_table,
-                expression,
-                &|symbol, spelling| const_binder(program, symbol, spelling),
-            ),
-            Some(ConstIntegerExpression::Closed(_) | ConstIntegerExpression::Open)
+        const_integer::is_integer_expression(
+            &program.expression_table,
+            expression,
+            &|symbol, spelling| const_binder(program, symbol, spelling),
         )
     })
 }

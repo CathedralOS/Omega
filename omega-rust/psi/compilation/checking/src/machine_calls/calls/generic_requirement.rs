@@ -54,6 +54,53 @@ pub fn selected_requirement_signature(
     Some((application.declaration, signature))
 }
 
+/// Resolve one invocation's complete public logical contract. The target's
+/// nominal declaration alone cannot identify a substituted trait/member view.
+/// Source evidence binders retain their exact owning bound; rewritten private
+/// bodies must rejoin the retained public dispatch before supplying a contract.
+pub fn requirement_contract_signature<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    site: &super::CallSite<'_>,
+) -> Option<(
+    &'program typed_trees::trait_definition::TraitDefinition,
+    &'program typed_trees::signature::StateSignature,
+)> {
+    let target = site.target_symbol(program);
+    let public_target = if let Some(dispatch) = site.static_requirement_dispatch() {
+        if !super::closed_requirement_dispatch_is_valid(program, caller, target, dispatch) {
+            return None;
+        }
+        dispatch.contract_symbol()
+    } else {
+        target
+    };
+    let (declaration, selected) = selected_requirement_signature(program, public_target)?;
+    let exact = match site {
+        super::CallSite::Expression { call, .. } => {
+            program.requirement_call_signature(caller, call)
+        }
+        super::CallSite::Statement(call) => {
+            program.requirement_statement_call_signature(caller, call)
+        }
+        super::CallSite::TransitionNamed { .. } => None,
+    };
+    if let Some(signature) = exact {
+        return (signature.symbol == selected.symbol).then_some((declaration, signature));
+    }
+    let requires_exact_application = match site {
+        super::CallSite::Expression { call, .. } => {
+            call.requirement_application.is_valid() || call.static_requirement_dispatch.is_some()
+        }
+        super::CallSite::Statement(call) => call.static_requirement_dispatch.is_some(),
+        super::CallSite::TransitionNamed { .. } => false,
+    };
+    if requires_exact_application {
+        return None;
+    }
+    Some((declaration, selected))
+}
+
 /// The requirement already selected its trait telescope. Raw signature handles
 /// still name that telescope (`&mut Message`, not the caller's `&mut M`), so a
 /// stored reference must compare under its bound rather than against raw ids.

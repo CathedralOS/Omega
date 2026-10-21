@@ -192,7 +192,38 @@ pub(super) fn retain_call(
         .expression_table
         .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
-    let bindings = candidate_bindings(program, candidate);
+    let mut bindings = candidate_bindings(program, candidate);
+    // Executable candidates retain only closed proposals. The source call also
+    // owns each explicitly supplied symbolic const, independently of whether
+    // a concrete instance exists yet. Missing/inferred operands stay missing;
+    // immutable checking still admits carrier, formation and every bound.
+    let parameters = program
+        .machine_by_symbol(candidate.template.template_symbol)
+        .map(|declaration| program.machine_type_parameters(declaration).to_vec())
+        .unwrap_or_default();
+    let arguments = program
+        .expression_table
+        .static_machine_application_arguments(application)
+        .to_vec();
+    for (parameter, argument) in parameters.iter().zip(&arguments) {
+        if !matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Const { .. }
+        ) || bindings
+            .iter()
+            .any(|binding| binding.parameter == parameter.symbol)
+        {
+            continue;
+        }
+        if let Ok(actual) =
+            program.static_operand_type_reference_in_scope(argument, selection.lexical_owner)
+        {
+            bindings.push(StaticMachineBinding {
+                parameter: parameter.symbol,
+                value: StaticMachineBindingValue::Const(actual),
+            });
+        }
+    }
     program
         .expression_table
         .set_static_machine_application_bindings(application, &bindings);

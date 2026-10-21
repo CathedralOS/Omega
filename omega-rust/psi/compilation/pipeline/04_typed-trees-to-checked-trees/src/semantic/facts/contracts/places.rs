@@ -11,16 +11,17 @@ use symbols::SymbolHandle;
 
 pub(crate) fn contract_fact_place(
     program: &dyn ::validation::CheckingInput,
+    proof: &ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> FactPlace {
     match program.proof_facts.get(contract.fact) {
         typed_trees::domain::ProofFact::Expression(expression) => FactPlace::Place(
-            contract_expression_place(program, facts, contract, *expression)
+            contract_expression_place(program, proof, facts, contract, *expression)
                 .unwrap_or_else(|| facts.append_place_from_expression(program, *expression)),
         ),
         typed_trees::domain::ProofFact::Membership(membership) => FactPlace::Place(
-            contract_expression_place(program, facts, contract, membership.value)
+            contract_expression_place(program, proof, facts, contract, membership.value)
                 .unwrap_or_else(|| facts.append_place_from_expression(program, membership.value)),
         ),
         typed_trees::domain::ProofFact::Proposition(application) => {
@@ -35,6 +36,7 @@ pub(crate) fn contract_fact_place(
 /// into a new membership subject.
 pub(crate) fn contract_fact_dependency_places(
     program: &dyn ::validation::CheckingInput,
+    proof: &ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> Vec<PlaceHandle> {
@@ -57,7 +59,8 @@ pub(crate) fn contract_fact_dependency_places(
         contract.fact,
         state,
     ) {
-        if let Some(place) = contract_expression_place(program, facts, contract, expression) {
+        if let Some(place) = contract_expression_place(program, proof, facts, contract, expression)
+        {
             push_unique_place(facts, &mut places, place);
         }
     }
@@ -148,6 +151,7 @@ fn push_unique_place(facts: &FactPlan, places: &mut Vec<PlaceHandle>, candidate:
 
 pub(super) fn contract_expression_place(
     program: &dyn ::validation::CheckingInput,
+    proof: &ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
     expression: ExpressionHandle,
@@ -164,7 +168,8 @@ pub(super) fn contract_expression_place(
             | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
                 machine_symbol == result.machine_symbol
             }
-            ContractProofFactOwner::StateSignature { state_symbol, .. } => {
+            ContractProofFactOwner::StateSignature { state_symbol, .. }
+            | ContractProofFactOwner::CallSignature { state_symbol, .. } => {
                 state_symbol == result.machine_symbol
             }
             _ => false,
@@ -184,12 +189,17 @@ pub(super) fn contract_expression_place(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            contract_expression_place(program, facts, contract, inner.target)
+            contract_expression_place(program, proof, facts, contract, inner.target)
         }
-        ExpressionNode::Name(path) => contract_name_path_place(program, facts, contract, path),
+        ExpressionNode::Name(path) => {
+            contract_name_path_place(program, proof, facts, contract, path)
+        }
         ExpressionNode::Member(member) => {
-            let receiver = contract_expression_place(program, facts, contract, member.receiver)
-                .unwrap_or_else(|| facts.append_place_from_expression(program, member.receiver));
+            let receiver =
+                contract_expression_place(program, proof, facts, contract, member.receiver)
+                    .unwrap_or_else(|| {
+                        facts.append_place_from_expression(program, member.receiver)
+                    });
             let symbol = {
                 let symbol = effective_member_symbol(program, member.receiver, member);
                 if symbol.is_valid() {
@@ -213,7 +223,7 @@ pub(super) fn contract_expression_place(
         }
         ExpressionNode::Indexed(indexed) => {
             let collection =
-                contract_expression_place(program, facts, contract, indexed.collection)
+                contract_expression_place(program, proof, facts, contract, indexed.collection)
                     .unwrap_or_else(|| {
                         facts.append_place_from_expression(program, indexed.collection)
                     });
@@ -229,6 +239,7 @@ pub(super) fn contract_expression_place(
 
 fn contract_name_path_place(
     program: &dyn ::validation::CheckingInput,
+    proof: &ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
     path: &typed_trees::expression::TableNamePath,
@@ -246,7 +257,7 @@ fn contract_name_path_place(
     } else if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)
     } else if let Some(parameter_symbol) =
-        contract_owner_parameter_symbol(program, contract.owner, path, members.first())
+        contract_owner_parameter_symbol(program, proof, contract.owner, path, members.first())
     {
         // A head name that resolves to a parameter of the contract's owner
         // (for example `item` in `requires item in Item::Ready`) roots the
@@ -285,6 +296,7 @@ fn contract_name_path_place(
 /// is how call-site obligations instantiate the same contract.
 fn contract_owner_parameter_symbol(
     program: &dyn ::validation::CheckingInput,
+    proof: &ProofFacts,
     owner: ContractProofFactOwner,
     path: &typed_trees::expression::TableNamePath,
     head_name: Option<&typed_trees::name::Identifier>,
@@ -294,18 +306,26 @@ fn contract_owner_parameter_symbol(
         return None;
     }
 
-    contract_owner_parameter(program, owner, |parameter| {
+    contract_owner_parameter(program, proof, owner, |parameter| {
         parameter.name.as_str() == head_name
             || (path.symbol.is_valid() && parameter.symbol == path.symbol)
     })
     .map(|parameter| parameter.symbol)
 }
 
-fn contract_owner_parameter(
-    program: &dyn ::validation::CheckingInput,
+fn contract_owner_parameter<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    proof: &'program ProofFacts,
     owner: ContractProofFactOwner,
     mut matches: impl FnMut(&typed_trees::signature::StateParameter) -> bool,
-) -> Option<&typed_trees::signature::StateParameter> {
+) -> Option<&'program typed_trees::signature::StateParameter> {
+    if let ContractProofFactOwner::CallSignature { .. } = owner {
+        let signature = crate::proof::contracts::call_signatures::signature(proof, owner)?;
+        return program
+            .state_signature_parameters(signature)
+            .iter()
+            .find(|parameter| matches(parameter));
+    }
     let state_symbol = match owner {
         ContractProofFactOwner::MachineState { state_symbol, .. }
         | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
@@ -328,7 +348,9 @@ fn contract_owner_parameter(
                         .find(|parameter| matches(parameter))
                 });
         }
-        ContractProofFactOwner::Unknown | ContractProofFactOwner::OperatorUse { .. } => {
+        ContractProofFactOwner::Unknown
+        | ContractProofFactOwner::OperatorUse { .. }
+        | ContractProofFactOwner::CallSignature { .. } => {
             return None;
         }
     };

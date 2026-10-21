@@ -42,12 +42,15 @@ impl<'program> Collector<'program> {
         if self.follow_dependencies && !self.expanded_constants.contains(&symbol) {
             self.expanded_constants.push(symbol);
             self.types.push(&declaration.declared_type);
-            self.expressions
-                .push(if declaration.authored_initializer.is_valid() {
-                    declaration.authored_initializer
-                } else {
-                    declaration.initializer
-                });
+            let initializer = if declaration.authored_initializer.is_valid() {
+                declaration.authored_initializer
+            } else {
+                declaration.initializer
+            };
+            self.expressions.push(initializer);
+            if !self.initializer_expressions.contains(&initializer) {
+                self.initializer_expressions.push(initializer);
+            }
         }
         Ok(())
     }
@@ -153,6 +156,9 @@ impl<'program> Collector<'program> {
     }
 
     pub(super) fn type_declaration(&mut self, symbol: SymbolHandle) -> Result<(), String> {
+        if self.program.symbols.get(symbol).kind == SymbolKind::Conformance {
+            return self.conformance_declaration(symbol);
+        }
         if !self.follow_dependencies
             || self.program.symbols.get(symbol).kind != SymbolKind::Data
             || self.visited_type_declarations.contains(&symbol)
@@ -191,6 +197,42 @@ impl<'program> Collector<'program> {
                         .extend(fields.iter().map(|field| &field.type_reference));
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn conformance_declaration(&mut self, symbol: SymbolHandle) -> Result<(), String> {
+        if !self.follow_dependencies
+            || self.purpose != super::DependencyPurpose::DeclarationReadiness
+            || self.visited_type_declarations.contains(&symbol)
+        {
+            return Ok(());
+        }
+        let definitions = self
+            .program
+            .conformances
+            .iter()
+            .filter(|definition| definition.symbol == symbol)
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            return Err(
+                "constant dependency lost its exact selected implementation declaration".into(),
+            );
+        };
+        self.visited_type_declarations.push(symbol);
+        self.type_parameters(definition.type_parameters)?;
+        self.type_arguments(definition.arguments)?;
+        // A selected named implementation is a complete source member map.
+        // Complete its owned declarations for readiness and checking; this
+        // discovers constant dependencies but grants no invocation authority.
+        for row in &definition.rows {
+            let machine = crate::symbols::owned_conformance_realization(self.program, row)?;
+            if crate::symbols::owned_conformance_namespace(self.program, machine)? != symbol {
+                return Err(
+                    "constant dependency implementation member lost its exact owner".into(),
+                );
+            }
+            self.machines.push(machine);
         }
         Ok(())
     }
@@ -261,6 +303,9 @@ impl<'program> Collector<'program> {
             return Ok(());
         }
         for argument in arguments {
+            if self.program.symbols.get(argument.symbol).kind == SymbolKind::Conformance {
+                self.conformance_declaration(argument.symbol)?;
+            }
             if argument.type_reference.is_valid() {
                 self.type_child(argument.type_reference)?;
             }

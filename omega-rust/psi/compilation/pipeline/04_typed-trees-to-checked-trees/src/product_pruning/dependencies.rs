@@ -212,9 +212,7 @@ pub(super) fn collect_machine_edges(
     // Contract evidence calls owned by a machine are call edges into the
     // exact evidence target.
     for call in &facts.proof.contract_expression_evidence_calls {
-        if let checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } = call.owner
-        {
+        if let Some(machine_symbol) = contract_caller(&facts.proof, call.owner) {
             push_edge(
                 &mut edges,
                 machine_symbol,
@@ -226,10 +224,7 @@ pub(super) fn collect_machine_edges(
         .proof
         .contract_expression_static_conformance_applications
     {
-        if let checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } =
-            application.owner
-        {
+        if let Some(machine_symbol) = contract_caller(&facts.proof, application.owner) {
             for argument in application.application.machine_arguments.iter() {
                 push_edge(&mut edges, machine_symbol, index.machine_of(*argument));
             }
@@ -363,5 +358,30 @@ fn retain_symbol(
 ) {
     if let Some(machine) = index.machine_of(symbol) {
         output.extend([machine]);
+    }
+}
+
+fn contract_caller(
+    proof: &checked_trees::ProofFacts,
+    owner: checked_trees::ContractProofFactOwner,
+) -> Option<SymbolHandle> {
+    match owner {
+        checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
+            Some(machine_symbol)
+        }
+        checked_trees::ContractProofFactOwner::CallSignature { application, .. } => {
+            (crate::proof::contracts::call_signatures::owner(
+                &proof.call_contract_signatures,
+                application,
+            ) == Some(owner))
+            .then(|| {
+                proof
+                    .call_contract_signatures
+                    .get(application)
+                    .caller_machine_symbol
+            })
+        }
+        _ => None,
     }
 }

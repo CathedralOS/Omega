@@ -73,6 +73,24 @@ pub(super) fn index_argument(
         }
         IndexIdentityArgument::StaticArgument(argument) => {
             if argument.type_reference.is_valid() {
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(argument.type_reference)
+                {
+                    return rejected(context);
+                }
+                // A typed const expression is a value operand, including when
+                // supplied through a declaration substitution. Keep the same
+                // index grammar as its retained Const binding; ordinary type
+                // arguments continue to use the structural type grammar.
+                if matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(argument.type_reference),
+                    TypeReferenceNode::ConstExpression(_)
+                ) {
+                    return index_reference(program, argument.type_reference, context);
+                }
                 return normalize_type_reference(program, argument.type_reference, context);
             }
             if let Some(literal) = &argument.const_literal {

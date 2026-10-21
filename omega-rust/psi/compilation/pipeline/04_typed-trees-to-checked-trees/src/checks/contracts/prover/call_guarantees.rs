@@ -31,6 +31,7 @@ pub(in crate::checks) mod arithmetic;
 pub(in crate::checks) mod callable;
 use callable::Callable;
 mod availability;
+mod static_operands;
 pub(crate) use availability::GuaranteeUse;
 pub(in crate::checks) use availability::{AvailableGuarantee, available};
 
@@ -414,6 +415,7 @@ fn capture_preserved(
         if validation::reserved_result_place(program, occurrence)
             .is_some_and(|result| result.machine_symbol == supplied.callable.owner_symbol())
             || bound_literal(program, supplied, occurrence).is_some()
+            || static_operands::immutable(program, occurrence)
         {
             return true;
         }
@@ -647,16 +649,12 @@ fn invocation<'program>(
         CallSite::Statement(call) => call.target_symbol,
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
-    let callable = if let Some(dispatch) = site.static_requirement_dispatch() {
-        if !validation::closed_requirement_dispatch_is_valid(
-            program,
-            caller.machine_symbol,
-            target,
-            dispatch,
-        ) {
-            return None;
-        }
-        Callable::resolve(program, dispatch.contract_symbol())?
+    let requirement = site.static_requirement_dispatch().is_some()
+        || validation::selected_requirement_signature(program, target).is_some();
+    let callable = if requirement {
+        let (_, signature) =
+            validation::requirement_contract_signature(program, caller.machine_symbol, &site)?;
+        Callable::Requirement { signature }
     } else {
         match &site {
             CallSite::TransitionNamed { .. } => validation::find_state(program, target)
@@ -684,13 +682,13 @@ fn ordinary_arguments(
     // Receiver, static and evidence substitution retain their own owners.
     let ordinary = match &invocation.site {
         CallSite::Expression { call, .. } => {
-            call.machine_arguments.is_empty()
+            static_operands::admitted(program, invocation)
                 && call.evidence_arguments.is_empty()
                 && (call.static_requirement_dispatch.is_none()
                     || matches!(invocation.callable, Callable::Requirement { .. }))
         }
         CallSite::Statement(call) => {
-            call.machine_arguments.is_empty()
+            static_operands::admitted(program, invocation)
                 && call.evidence_arguments.is_empty()
                 && (call.static_requirement_dispatch.is_none()
                     || matches!(invocation.callable, Callable::Requirement { .. }))
@@ -727,8 +725,9 @@ fn stable_predicate_inputs(
         if let Some(result) = validation::reserved_result_place(program, occurrence) {
             return result.machine_symbol == invocation.callable.owner_symbol();
         }
-        actual_projection(program, invocation, occurrence)
-            .is_some_and(|(actual, _)| stable_value(program, actual, &mut Vec::new()))
+        static_operands::immutable(program, occurrence)
+            || actual_projection(program, invocation, occurrence)
+                .is_some_and(|(actual, _)| stable_value(program, actual, &mut Vec::new()))
     })
 }
 

@@ -54,28 +54,33 @@ impl TypedTrees {
                     ..StaticMachineArgument::default()
                 })
             }
-            TypeReferenceNode::ConstExpression(value) => match self
-                .expression_table
-                .expression(*value)
-            {
-                ExpressionNode::Name(path) => Ok(StaticMachineArgument {
-                    symbol: path.resolved_symbol().unwrap_or_default(),
-                    path: self
-                        .expression_table
-                        .name_path_members(path.members)
-                        .to_vec()
-                        .into_boxed_slice(),
-                    ..StaticMachineArgument::default()
-                }),
-                ExpressionNode::Boolean(value) => Ok(StaticMachineArgument {
-                    path: Box::from([crate::name::Identifier::generated(
-                        language_semantics::const_value::CanonicalConstValue::boolean(*value)
-                            .atom(),
-                    )]),
-                    ..StaticMachineArgument::default()
-                }),
-                _ => Err("static operand requires a retained declaration or evaluated const value"),
-            },
+            TypeReferenceNode::ConstExpression(value) => {
+                match self.expression_table.expression(*value) {
+                    ExpressionNode::Name(path) => Ok(StaticMachineArgument {
+                        symbol: path.resolved_symbol().unwrap_or_default(),
+                        path: self
+                            .expression_table
+                            .name_path_members(path.members)
+                            .to_vec()
+                            .into_boxed_slice(),
+                        ..StaticMachineArgument::default()
+                    }),
+                    ExpressionNode::Boolean(value) => Ok(StaticMachineArgument {
+                        path: Box::from([crate::name::Identifier::generated(
+                            language_semantics::const_value::CanonicalConstValue::boolean(*value)
+                                .atom(),
+                        )]),
+                        ..StaticMachineArgument::default()
+                    }),
+                    // The receiving telescope decides the category and checks the
+                    // carrier. Transport keeps the exact expression, including
+                    // its resolved declaration leaves and supplying owner.
+                    _ => Ok(StaticMachineArgument {
+                        type_reference: reference,
+                        ..StaticMachineArgument::default()
+                    }),
+                }
+            }
             _ => Ok(StaticMachineArgument {
                 type_reference: reference,
                 ..StaticMachineArgument::default()

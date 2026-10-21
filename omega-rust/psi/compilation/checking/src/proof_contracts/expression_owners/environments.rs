@@ -43,6 +43,7 @@ pub(super) fn executable_site_environment(
 
 pub(super) fn contract_owner_environment(
     program: &dyn crate::CheckingInput,
+    call_signatures: Option<&arena::Arena<checked_trees::CallContractSignature>>,
     owner: ContractProofFactOwner,
 ) -> Option<TypeEnvironment> {
     match owner {
@@ -58,6 +59,27 @@ pub(super) fn contract_owner_environment(
             let machine = program.machine_by_symbol(machine_symbol)?;
             let state = program.state_in_machine(machine, state_symbol)?;
             Some(machine_environment(program, machine, Some(state)))
+        }
+        ContractProofFactOwner::CallSignature {
+            owner_symbol,
+            state_symbol,
+            application,
+        } => {
+            let signatures = call_signatures?;
+            if !signatures.is_valid(application) {
+                return None;
+            }
+            let retained = signatures.get(application);
+            if retained.declaring_trait != owner_symbol || retained.signature.symbol != state_symbol
+            {
+                return None;
+            }
+            Some(environment_from_parameters(
+                state_symbol,
+                program.state_signature_parameters(&retained.signature),
+                retained.signature.return_type,
+                None,
+            ))
         }
         ContractProofFactOwner::StateSignature {
             owner_symbol,
@@ -168,7 +190,7 @@ pub(super) fn exact_owner_environments(
         if !proof_fact_contains_expression(program, contract.fact, expression) {
             continue;
         }
-        if let Some(environment) = contract_owner_environment(program, contract.owner) {
+        if let Some(environment) = contract_owner_environment(program, None, contract.owner) {
             environments.push(environment);
         }
     }

@@ -40,6 +40,18 @@ pub(crate) fn contract_parameter_position(
     declared: SymbolHandle,
 ) -> Result<Option<usize>, ()> {
     let parameters = validation::call_target_parameters(program, target).ok_or(())?;
+    if let checked_trees::ContractProofFactOwner::CallSignature { .. } = contract.owner {
+        let signature =
+            crate::proof::contracts::call_signatures::signature(proof, contract.owner).ok_or(())?;
+        let required = program.state_signature_parameters(signature);
+        let Some(position) = typed_trees::signature::state_parameter_position(required, declared)
+        else {
+            return Ok(None);
+        };
+        return (required.len() == parameters.len() && position < parameters.len())
+            .then_some(Some(position))
+            .ok_or(());
+    }
     if let Some(position) = typed_trees::signature::state_parameter_position(parameters, declared) {
         return Ok(Some(position));
     }

@@ -114,6 +114,7 @@ fn detached_result_projection(
 /// declaration or an inherited foreign parameter as an entry observation.
 pub(super) fn append_requirement(
     program: &dyn validation::CheckingInput,
+    proof: &checked_trees::ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
     declaration: &Fact,
@@ -135,16 +136,18 @@ pub(super) fn append_requirement(
     };
     for (expression, variant) in selected_cases(program, machine, state, contract) {
         let Some(place) =
-            super::places::contract_expression_place(program, facts, contract, expression)
+            super::places::contract_expression_place(program, proof, facts, contract, expression)
         else {
             continue;
         };
         let dependencies = selector_occurrences(program, expression)
             .into_iter()
             .map(|expression| {
-                super::places::contract_expression_place(program, facts, contract, expression)
-                    .map(FactPlace::Place)
-                    .unwrap_or(FactPlace::Unknown)
+                super::places::contract_expression_place(
+                    program, proof, facts, contract, expression,
+                )
+                .map(FactPlace::Place)
+                .unwrap_or(FactPlace::Unknown)
             })
             .collect();
         append_context(

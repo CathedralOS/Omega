@@ -27,6 +27,70 @@ pub(super) fn declaration_type_scope(
     parameters
 }
 
+/// Resolve the construction ordinal and finalized declaration through the same
+/// exact row owner. Inline member machines are root declarations; their symbol
+/// parent is not the conformance's lexical ownership roster.
+pub(crate) fn owned_conformance_realization(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    row: &symbol_resolved_trees::trait_definition::ConformanceRow,
+) -> Result<SymbolHandle, &'static str> {
+    if !row.source.owns_realization() {
+        return Err("referenced conformance row has no owned realization");
+    }
+    let provisional = row
+        .provisional_realization_ordinal
+        .and_then(|ordinal| program.machines.iter().nth(ordinal))
+        .map(|machine| machine.symbol);
+    if row.provisional_realization_ordinal.is_some() && provisional.is_none() {
+        return Err("owned conformance realization has an invalid construction ordinal");
+    }
+    let retained = row.realization_machine;
+    let selected = if retained.is_valid() {
+        provisional
+            .is_none_or(|symbol| symbol == retained)
+            .then_some(retained)
+    } else {
+        provisional.filter(|symbol| symbol.is_valid())
+    }
+    .ok_or("owned conformance realization lost its exact enclosing capture scope")?;
+    if program
+        .machines
+        .iter()
+        .filter(|machine| machine.symbol == selected)
+        .count()
+        != 1
+    {
+        return Err("owned conformance realization has no unique retained machine declaration");
+    }
+    Ok(selected)
+}
+
+/// Exact namespace owning this machine, if it is a retained map member.
+/// A second row cannot lend its capture or normalization domain to the first.
+pub(crate) fn owned_conformance_namespace(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    machine: SymbolHandle,
+) -> Result<SymbolHandle, &'static str> {
+    let mut owner = SymbolHandle::invalid();
+    for conformance in program.conformances.iter() {
+        for row in conformance
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization())
+        {
+            if owned_conformance_realization(program, row)? == machine {
+                if owner.is_valid() {
+                    return Err(
+                        "owned conformance realization has ambiguous enclosing capture scope",
+                    );
+                }
+                owner = conformance.symbol;
+            }
+        }
+    }
+    Ok(owner)
+}
+
 /// Source lexical captures of owned map rows. Invocation binders remain in
 /// the machine's own telescope; an ordinary referenced row captures nothing.
 pub(super) struct ConformanceTypeScopes {
@@ -45,57 +109,25 @@ impl ConformanceTypeScopes {
                 .iter()
                 .filter(|row| row.source.owns_realization())
             {
-                let provisional = row
-                    .provisional_realization_ordinal
-                    .and_then(|ordinal| program.machines.iter().nth(ordinal))
-                    .map(|machine| machine.symbol);
-                let retained = row.realization_machine;
-                if row.provisional_realization_ordinal.is_some() && provisional.is_none() {
+                let machine = match owned_conformance_realization(program, row) {
+                    Ok(machine) => machine,
+                    Err(reason) => {
+                        diagnostics.push(diagnostics::Diagnostic::error(reason));
+                        continue;
+                    }
+                };
+                if owned.iter().any(|(owner, _)| *owner == machine) {
                     diagnostics.push(diagnostics::Diagnostic::error(
-                        "owned conformance realization has an invalid construction ordinal",
+                        "owned conformance realization has ambiguous enclosing capture scope",
                     ));
                     continue;
                 }
-                let selected = if retained.is_valid() {
-                    // Completion consumes the finalized row after selection
-                    // clears its construction ordinal. Retain that exact
-                    // declaration instead of losing its enclosing binders.
-                    provisional
-                        .is_none_or(|symbol| symbol == retained)
-                        .then_some(retained)
-                } else {
-                    provisional.filter(|symbol| symbol.is_valid())
-                };
-                if let Some(machine) = selected {
-                    if program
-                        .machines
-                        .iter()
-                        .filter(|declaration| declaration.symbol == machine)
-                        .count()
-                        != 1
-                    {
-                        diagnostics.push(diagnostics::Diagnostic::error(
-                            "owned conformance realization has no unique retained machine declaration",
-                        ));
-                        continue;
-                    }
-                    if owned.iter().any(|(owner, _)| *owner == machine) {
-                        diagnostics.push(diagnostics::Diagnostic::error(
-                            "owned conformance realization has ambiguous enclosing capture scope",
-                        ));
-                        continue;
-                    }
-                    owned.push((
-                        machine,
-                        program
-                            .data_type_parameters(conformance.type_parameters)
-                            .to_vec(),
-                    ));
-                } else {
-                    diagnostics.push(diagnostics::Diagnostic::error(
-                        "owned conformance realization lost its exact enclosing capture scope",
-                    ));
-                }
+                owned.push((
+                    machine,
+                    program
+                        .data_type_parameters(conformance.type_parameters)
+                        .to_vec(),
+                ));
             }
         }
         if diagnostics.is_empty() {

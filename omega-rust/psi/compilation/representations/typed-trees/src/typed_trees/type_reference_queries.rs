@@ -160,10 +160,39 @@ impl TypedTrees {
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
                 StaticMachineBindingValue::Const(actual),
-            ) => self
-                .static_const_argument_identity(argument)
-                .zip(self.static_const_type_reference_identity(*actual))
-                .is_some_and(|(expected, actual)| expected == actual),
+            ) => {
+                if let Some((expected, actual)) = self
+                    .static_const_argument_identity(argument)
+                    .zip(self.static_const_type_reference_identity(*actual))
+                {
+                    return expected == actual;
+                }
+                // A source invocation can retain an open const expression even
+                // when no closed specialization value exists. Rejoin its value
+                // role under the two supplying scopes; rendered source text and
+                // an equal runtime carrier are not operand identity. Carrier and
+                // formation admission remain independent checking obligations.
+                let expression = argument.type_reference.is_valid()
+                    && matches!(
+                        self.type_reference_table
+                            .type_reference(argument.type_reference),
+                        types::TypeReferenceNode::ConstExpression(_)
+                    );
+                expression
+                    && crate::type_identity::applied_index_identity(
+                        self,
+                        crate::type_identity::IndexIdentityArgument::StaticArgument(argument),
+                        source_owner,
+                        &[],
+                    )
+                    .zip(crate::type_identity::applied_index_identity(
+                        self,
+                        crate::type_identity::IndexIdentityArgument::TypeReference(*actual),
+                        binding_owner,
+                        &[],
+                    ))
+                    .is_some_and(|(expected, actual)| expected == actual)
+            }
             (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual)) => {
                 argument == actual
             }

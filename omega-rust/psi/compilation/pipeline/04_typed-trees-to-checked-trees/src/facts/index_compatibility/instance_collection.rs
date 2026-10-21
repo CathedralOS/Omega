@@ -322,7 +322,14 @@ pub(super) fn append_call_result_ensured_instances(
         .span_or_empty(contract_call.ensures)
     {
         let contract = proof.contract_facts.get(reference.fact);
-        if contract.kind != ContractProofFactKind::Ensures {
+        if contract.kind != ContractProofFactKind::Ensures
+            || !crate::proof::contracts::call_signatures::owns_contract(
+                program,
+                proof,
+                contract_call,
+                contract,
+            )
+        {
             continue;
         }
         let mut selected_fact = program.proof_facts.get(contract.fact);

@@ -14,6 +14,7 @@ use typed_trees::{
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
 };
 
+mod call_selections;
 mod types;
 
 #[derive(Default)]
@@ -226,6 +227,27 @@ pub(super) fn collect(
     )
 }
 
+/// Declaration-source custody before private realization. This traversal cannot
+/// import a concrete implementation body through an abstract requirement.
+pub(super) fn collect_authored_roots(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    roots: &[ExpressionHandle],
+    syntax: &SyntaxTrees,
+) -> Result<Custody, String> {
+    collect_internal(
+        program,
+        machine,
+        state,
+        roots,
+        false,
+        Some(syntax),
+        false,
+        true,
+    )
+}
+
 /// The same closure walk over several expression roots: a structured leaf
 /// probe's normalized body may hoist its terminal call into a `let`
 /// initializer beside the return transition, so custody covers every
@@ -309,9 +331,14 @@ fn validate(
         return Err("constant call receipt has a stale materialized root".into());
     }
     let mut expected = Vec::new();
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(materialized)
+    for occurrence in
+        program
+            .expression_table
+            .authored_selection_occurrences(if specialized_calls {
+                materialized
+            } else {
+                root
+            })
     {
         let selection = program
             .authored_declaration_selections()
@@ -433,44 +460,154 @@ impl<'program> Collector<'program> {
         if initializer && !self.specialized_calls {
             return Ok(target);
         }
-        let symbol = self.program.symbols.get(target);
-        let owner = match symbol.kind {
-            SymbolKind::Machine => target,
-            SymbolKind::State => symbol.parent,
-            _ => return Ok(target),
-        };
-        let mut instances = self
-            .program
-            .machine_specializations
-            .iter()
-            .filter(|instance| instance.instance == owner);
-        let Some(instance) = instances.next() else {
-            return Ok(target);
-        };
-        if instances.next().is_some() {
-            return Err("constant call has ambiguous specialization custody".into());
+        let mut target = target;
+        let mut visited = Vec::new();
+        loop {
+            let symbol = self.program.symbols.get(target);
+            let owner = match symbol.kind {
+                SymbolKind::Machine => target,
+                SymbolKind::State => symbol.parent,
+                _ => return Ok(target),
+            };
+            if visited.contains(&owner) {
+                return Err("constant call has cyclic executable source custody".into());
+            }
+            visited.push(owner);
+            let Some(template) = self.program.executable_application_template(owner)? else {
+                return Ok(target);
+            };
+            let captures = self
+                .program
+                .captured_machine_applications
+                .iter()
+                .filter(|(_, capture)| capture.instance == owner)
+                .map(|(_, capture)| capture)
+                .collect::<Vec<_>>();
+            if let [capture] = captures.as_slice() {
+                let entry = if symbol.kind == SymbolKind::Machine {
+                    let machine = self
+                        .program
+                        .machine_by_symbol(owner)
+                        .ok_or("constant capture lost its concrete machine")?;
+                    self.program
+                        .machine_states(machine)
+                        .first()
+                        .ok_or("constant capture lost its entry state")?
+                        .symbol
+                } else {
+                    target
+                };
+                let (source_machine, source_state) = self
+                    .program
+                    .realization_entry_template(entry, &capture.conformance_application)
+                    .ok_or("constant capture lost its exact source-state correspondence")?;
+                return Ok(if symbol.kind == SymbolKind::Machine {
+                    source_machine
+                } else {
+                    source_state
+                });
+            }
+            if !captures.is_empty() {
+                return Err("constant call has ambiguous capture custody".into());
+            }
+            // Ordinary invocation copies preserve source-state order. Captured
+            // states above use their retained exact mapping instead of ordinals.
+            if symbol.kind == SymbolKind::Machine {
+                target = template;
+                continue;
+            }
+            let concrete = self
+                .program
+                .machine_by_symbol(owner)
+                .ok_or("constant call lost its concrete specialization")?;
+            let source = self
+                .program
+                .machine_by_symbol(template)
+                .ok_or("constant call lost its authored template")?;
+            let states = self.program.machine_states(concrete);
+            let templates = self.program.machine_states(source);
+            if states.len() != concrete.states.len() || templates.len() != states.len() {
+                return Err("constant call specialization lost its state correspondence".into());
+            }
+            let ordinal = states
+                .iter()
+                .position(|state| state.symbol == target)
+                .ok_or("constant call has no exact specialization state")?;
+            target = templates[ordinal].symbol;
         }
-        if symbol.kind == SymbolKind::Machine {
-            return Ok(instance.template);
+    }
+
+    fn call_selection_matches(
+        &self,
+        site: &validation::CallSite<'_>,
+        context: Context<'program>,
+        authored: SymbolHandle,
+    ) -> Result<bool, String> {
+        let target = call_selections::retained_target(site);
+        if authored == self.authored_target(target, context.initializer)? {
+            return Ok(true);
         }
-        let concrete = self
-            .program
-            .machine(instance.instance)
-            .ok_or("constant call lost its concrete specialization")?;
-        let template = self
-            .program
-            .machine(instance.template)
-            .ok_or("constant call lost its authored template")?;
-        let states = self.program.machine_states(concrete);
-        let templates = self.program.machine_states(template);
-        if states.len() != concrete.states.len() || templates.len() != states.len() {
-            return Err("constant call specialization lost its state correspondence".into());
+        call_selections::logical_requirement_matches(
+            self.program,
+            context.machine.symbol,
+            site,
+            authored,
+        )
+    }
+
+    fn selected_call(
+        &mut self,
+        site: &validation::CallSite<'_>,
+        context: Context<'program>,
+        authored: SymbolHandle,
+        reference: SourceSpan,
+    ) -> Result<(), String> {
+        let target = call_selections::retained_target(site);
+        if authored == self.authored_target(target, context.initializer)? {
+            return self.call(target, reference, context.initializer);
         }
-        let ordinal = states
-            .iter()
-            .position(|state| state.symbol == target)
-            .ok_or("constant call has no exact specialization state")?;
-        Ok(templates[ordinal].symbol)
+        if !self.call_selection_matches(site, context, authored)? {
+            return Err("constant call differs from its exact logical selection".into());
+        }
+        // Retain the source's abstract dependency pair. It supplies no body;
+        // the independently checked dispatch identifies the private closure.
+        self.call(authored, reference, context.initializer)?;
+        if self.expand_callees && site.static_requirement_dispatch().is_some() {
+            let machine = self
+                .program
+                .machine_holding_state(target)
+                .ok_or("constant logical call lost its selected executable body")?;
+            self.machines.push(machine.symbol);
+        }
+        Ok(())
+    }
+
+    fn selected_retained_call(
+        &mut self,
+        site: validation::CallSite<'_>,
+        context: Context<'program>,
+        reference: SourceSpan,
+        occurrence: Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
+    ) -> Result<(), String> {
+        let selection = occurrence
+            .and_then(|occurrence| {
+                self.program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+            })
+            .ok_or("constant call lost its authored selection occurrence")?;
+        let authored = selection
+            .target()
+            .as_resolved()
+            .ok_or("constant call has no resolved authored target")?
+            .selected_symbol();
+        if selection.kind() != Kind::Call
+            || selection.source_span() != reference
+            || !self.call_selection_matches(&site, context, authored)?
+        {
+            return Err("constant call differs from its exact authored selection".into());
+        }
+        self.selected_call(&site, context, authored, reference)
     }
 
     fn retained_call(
@@ -504,17 +641,22 @@ impl<'program> Collector<'program> {
         let executable = target;
         let target = self.authored_target(target, initializer)?;
         let symbol = self.program.symbols.get(target);
-        if symbol.kind == SymbolKind::Operator {
-            // A named boundary operator (`F32::square_root`) has no machine
-            // body to traverse, but the call still owes its exact authored
-            // declaration pair: the interpreter's named-requirement route
-            // supplies the value while custody keeps the occurrence/operator
-            // join for receipt comparison.
+        let bound_requirement = symbol.kind == SymbolKind::State
+            && symbol.parent.is_valid()
+            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
+            && validation::selected_requirement_signature(self.program, target).is_some();
+        if symbol.kind == SymbolKind::Operator || bound_requirement {
+            // An abstract bound call retains the exact public declaration
+            // selected by its authored template. It owns no body to evaluate.
+            // The ordinary checked specialization/dispatch and interpreter still
+            // owe a concrete admitted implementation; this custody row grants
+            // neither that selection nor permission to execute it. Boundary
+            // operators use the same source-pair retention without a body.
             let declaration = self
                 .program
                 .symbols
                 .symbol_source_span(target)
-                .ok_or("constant operator call lost its exact declaration source")?;
+                .ok_or("constant logical call lost its exact declaration source")?;
             let selection = (reference, declaration);
             if !self.custody.calls.contains(&selection) {
                 self.custody.calls.push(selection);
@@ -667,7 +809,54 @@ impl<'program> Collector<'program> {
         }
         self.expanded_constants.push(symbol);
         self.type_dependencies(types::Root::Type(declaration.declared_type), context)?;
-        if declaration.authored_initializer.is_valid() {
+        if self.specialized_calls && declaration.authored_initializer.is_valid() {
+            // This ready declaration owns another normalization job. Its
+            // materialized capsule supplies that job's retained realized roster;
+            // receiving replay validates every such owner before evaluating any
+            // dependency value. Never specialize its detached source recipe as
+            // though it were the current invocation's body.
+            let materialized = declaration.materialized_initializer;
+            if !self
+                .program
+                .expression_table
+                .expression_is_valid(materialized)
+                || self.program.expression_table.source_span(materialized)
+                    != declaration.initializer_source_span
+            {
+                return Err("constant dependency lost its owned materialized custody".into());
+            }
+            let calls = self
+                .program
+                .expression_table
+                .authored_selection_occurrences(materialized)
+                .map(|occurrence| {
+                    let selection = self
+                        .program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .ok_or("constant dependency lost its retained selection")?;
+                    if selection.kind() != Kind::Call {
+                        return Ok(None);
+                    }
+                    let target = selection
+                        .target()
+                        .as_resolved()
+                        .ok_or("constant dependency retained an unresolved call")?
+                        .selected_symbol();
+                    Ok(Some((selection.source_span(), target)))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            for (reference, target) in calls.into_iter().flatten() {
+                self.call(target, reference, false)?;
+            }
+            self.expressions.push((
+                materialized,
+                Context {
+                    initializer: true,
+                    ..context
+                },
+            ));
+        } else if declaration.authored_initializer.is_valid() {
             self.expressions.push((
                 declaration.authored_initializer,
                 Context {
@@ -691,6 +880,41 @@ impl<'program> Collector<'program> {
         }
         self.type_dependencies(types::Root::Expression(expression), context)?;
         for occurrence in table.authored_selection_occurrences(expression) {
+            if !self.specialized_calls {
+                let reference = table.source_span(expression);
+                let inherited = table
+                    .authored_selection_occurrences(expression)
+                    .any(|direct| {
+                        program
+                            .authored_declaration_selections()
+                            .get(direct)
+                            .is_some_and(|selection| {
+                                if selection.source_span() != reference {
+                                    return false;
+                                }
+                                let selected_target = selection.target();
+                                let Some(selected) = selected_target.as_resolved() else {
+                                    return false;
+                                };
+                                let Some(owner) = program
+                                    .const_declarations()
+                                    .iter()
+                                    .find(|owner| owner.symbol == selected.selected_symbol())
+                                else {
+                                    return false;
+                                };
+                                owner.materialized_initializer.is_valid()
+                                    && table
+                                        .authored_selection_occurrences(
+                                            owner.materialized_initializer,
+                                        )
+                                        .any(|owned| owned == occurrence)
+                            })
+                    });
+                if inherited {
+                    continue;
+                }
+            }
             let selection = program
                 .authored_declaration_selections()
                 .get(occurrence)
@@ -768,26 +992,47 @@ impl<'program> Collector<'program> {
         let children = expression_children(program, expression)?;
         match table.expression(expression) {
             ExpressionNode::Call(call) => {
-                let authored_target =
-                    self.authored_target(call.target_symbol, context.initializer)?;
-                let mut selections = table
-                    .authored_selection_occurrences(expression)
-                    .filter_map(|occurrence| {
-                        program.authored_declaration_selections().get(occurrence)
-                    })
-                    .filter(|selection| {
-                        selection.kind() == Kind::Call
-                            && matches!(selection.target(), Target::Resolved(selected)
-                            if selected.selected_symbol() == authored_target)
-                    });
-                let reference = selections
-                    .next()
-                    .ok_or("constant call lost its exact authored target selection")?
-                    .source_span();
-                if selections.next().is_some() {
-                    return Err("constant call has ambiguous authored target selections".into());
+                let site = validation::CallSite::Expression { expression, call };
+                let mut selections = Vec::new();
+                for occurrence in table.authored_selection_occurrences(expression) {
+                    let Some(selection) = program.authored_declaration_selections().get(occurrence)
+                    else {
+                        return Err("constant call lost an attached authored selection".into());
+                    };
+                    if selection.kind() != Kind::Call {
+                        continue;
+                    }
+                    // A retained recipe root also carries its transitive
+                    // authored inventory. Only this expression's own source
+                    // point annotates its call; nested occurrences are checked
+                    // when their exact helper or dependency is traversed.
+                    let reference = selection.source_span();
+                    if reference != table.source_span(expression) {
+                        continue;
+                    }
+                    let Some(target) = selection
+                        .target()
+                        .as_resolved()
+                        .map(|target| target.selected_symbol())
+                    else {
+                        continue;
+                    };
+                    if self.call_selection_matches(&site, context, target)? {
+                        let selected = (target, selection.source_span());
+                        if !selections.contains(&selected) {
+                            selections.push(selected);
+                        }
+                    }
                 }
-                self.call(call.target_symbol, reference, context.initializer)?;
+                let [(authored, reference)] = selections.as_slice() else {
+                    return Err(if selections.is_empty() {
+                        "constant call lost its exact authored target selection"
+                    } else {
+                        "constant call has ambiguous authored target selections"
+                    }
+                    .into());
+                };
+                self.selected_call(&site, context, *authored, *reference)?;
             }
             ExpressionNode::Name(name)
                 if program.symbols.get(name.symbol).kind == SymbolKind::Const =>
@@ -883,8 +1128,9 @@ impl<'program> Collector<'program> {
                         expressions.extend([assignment.target, assignment.value])
                     }
                     StatementNode::Call(call) => {
-                        self.retained_call(
-                            call.target_symbol,
+                        self.selected_retained_call(
+                            validation::CallSite::Statement(call),
+                            context,
                             call.source_span,
                             call.authored_call_selection,
                         )?;

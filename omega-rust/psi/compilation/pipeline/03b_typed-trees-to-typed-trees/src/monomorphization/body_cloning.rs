@@ -108,10 +108,10 @@ pub(super) fn clone_single_specialized_machine(
     let specialized_attached_data =
         specialized_attached_data(source.unwrap_or(program), candidate, &source_machine);
     // Arena indices are one-based, so the clone region begins one past the
-    // last pre-existing node; bounding substitutions at count()+1 keeps an
-    // already-materialized endpoint or binder sentinel out of the sweep.
+    // last pre-existing node; using the backing arena count keeps retained source
+    // predicates out of the sweep even when iteration roots were projected.
     let type_start = program.type_reference_table.type_reference_count() + 1;
-    let expression_start = program.expression_table.iter_expressions().count() + 1;
+    let expression_start = program.expression_table.expression_count() + 1;
 
     let type_arguments = bound_type_displays(&candidate.type_bindings, source, program);
     let type_identities = bound_type_identities(&candidate.type_bindings, source, program);

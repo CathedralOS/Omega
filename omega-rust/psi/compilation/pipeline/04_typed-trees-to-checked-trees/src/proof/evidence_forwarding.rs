@@ -136,87 +136,108 @@ pub(crate) fn bind_evidence_projection_facts(
             applications.push(lower_checked_proposition_application(normalized));
             continue;
         }
-        let owners = proof
-            .contract_facts
-            .iter()
-            .filter_map(|(_, contract)| (contract.fact == fact_handle).then_some(contract.owner))
-            .collect::<Vec<_>>();
-        let [owner] = owners.as_slice() else {
+        let mut owners = Vec::new();
+        for (_, contract) in proof.contract_facts.iter() {
+            if contract.fact == fact_handle && !owners.contains(&contract.owner) {
+                owners.push(contract.owner);
+            }
+        }
+        if owners.is_empty() {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "carrierless evidence projection in proposition `{}` has no unique named-contract scope",
+                "carrierless evidence projection in proposition `{}` has no named-contract scope",
                 application.name
             )));
             continue;
-        };
-        let mut checked = lower_checked_proposition_application(normalized);
-        let mut bound_projections = Vec::new();
-        for typed_argument in application.binder_arguments.iter() {
-            let Some(projection) = &typed_argument.evidence_projection else {
-                continue;
-            };
-            let Some(term) =
-                evidence_term_in_scope(&proof.evidence_terms, *owner, projection.term.as_str())
-            else {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
+        }
+        // A shared typed clause may occur in several invocation-owned logical
+        // signatures. Resolve every projection under its own complete owner;
+        // never merge evidence terms merely because the nominal clause agrees.
+        let prepared = lower_checked_proposition_application(normalized);
+        for owner in owners {
+            let mut checked = prepared.clone();
+            let mut bound_projections = Vec::new();
+            for typed_argument in application.binder_arguments.iter() {
+                let Some(projection) = &typed_argument.evidence_projection else {
+                    continue;
+                };
+                let Some(term) =
+                    evidence_term_in_scope(&proof.evidence_terms, owner, projection.term.as_str())
+                else {
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "carrierless evidence projection `{}.{}` names no retained evidence term in this contract scope",
                     projection.term, projection.member
                 )));
-                continue;
-            };
-            let term_definition = proof.evidence_terms.get(term);
-            let Some(interface) = &term_definition.evidence_interface else {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                    continue;
+                };
+                let term_definition = proof.evidence_terms.get(term);
+                let Some(interface) = &term_definition.evidence_interface else {
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "carrierless evidence projection `{}.{}` uses an unresolved evidence interface",
                     projection.term, projection.member
                 )));
-                continue;
-            };
-            let matching_rows = interface
-                .requirements
-                .iter()
-                .filter(|row| program.symbols.name(row.requirement) == projection.member.as_str())
-                .collect::<Vec<_>>();
-            let [row] = matching_rows.as_slice() else {
-                let reason = if matching_rows.is_empty() {
-                    "does not contain"
-                } else {
-                    "contains more than one requirement named"
+                    continue;
                 };
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "carrierless evidence interface `{}` {reason} `{}` for projection `{}.{}`",
-                    term_definition.evidence_type,
-                    projection.member,
-                    projection.term,
-                    projection.member
-                )));
-                continue;
-            };
-            bound_projections.push((
-                format!("{}.{}", projection.term, projection.member),
-                CheckedEvidenceProjection {
-                    term,
-                    declaring_trait: row.declaring_trait,
-                    declaring_trait_arguments: row.declaring_trait_arguments.clone(),
-                    requirement: row.requirement,
-                },
-            ));
-        }
-        for (label, projection) in bound_projections {
-            let mut matched = false;
-            for checked_argument in &mut checked.binder_arguments {
-                if checked_argument.diagnostic_label == label {
-                    checked_argument.diagnostic_label.clear();
-                    checked_argument.evidence_projection = Some(projection.clone());
-                    matched = true;
-                }
+                let matching_rows = interface
+                    .requirements
+                    .iter()
+                    .filter(|row| {
+                        program.symbols.name(row.requirement) == projection.member.as_str()
+                    })
+                    .collect::<Vec<_>>();
+                let [row] = matching_rows.as_slice() else {
+                    let reason = if matching_rows.is_empty() {
+                        "does not contain"
+                    } else {
+                        "contains more than one requirement named"
+                    };
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
+                        "carrierless evidence interface `{}` {reason} `{}` for projection `{}.{}`",
+                        term_definition.evidence_type,
+                        projection.member,
+                        projection.term,
+                        projection.member
+                    )));
+                    continue;
+                };
+                bound_projections.push((
+                    format!("{}.{}", projection.term, projection.member),
+                    CheckedEvidenceProjection {
+                        term,
+                        declaring_trait: row.declaring_trait,
+                        declaring_trait_arguments: row.declaring_trait_arguments.clone(),
+                        requirement: row.requirement,
+                    },
+                ));
             }
-            if !matched {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
+            for (label, projection) in bound_projections {
+                let mut matched = false;
+                for checked_argument in &mut checked.binder_arguments {
+                    if checked_argument.diagnostic_label == label {
+                        checked_argument.diagnostic_label.clear();
+                        checked_argument.evidence_projection = Some(projection.clone());
+                        matched = true;
+                    }
+                }
+                if !matched {
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "carrierless evidence projection `{label}` is not retained by the normalized proposition endpoint"
                 )));
+                }
             }
+            let terms = proof
+                .contract_facts
+                .iter()
+                .filter_map(|(_, contract)| {
+                    (contract.fact == fact_handle && contract.owner == owner)
+                        .then_some(contract.evidence_term)
+                        .flatten()
+                })
+                .collect::<Vec<_>>();
+            for term in terms {
+                proof.evidence_terms.get_mut(term).proposition = checked.clone();
+            }
+            applications.push(checked);
         }
-        applications.push(checked);
     }
     if diagnostics.is_empty() {
         proof.proposition_vocabulary.applications = applications;

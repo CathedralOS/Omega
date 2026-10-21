@@ -439,6 +439,8 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
     let value = source.expressions.insert(ExpressionNode::Boolean(true));
     source.expressions.set_source_span(value, span(20));
     let normalization = crate::item::ConstInitializerNormalization {
+        authored_custody: Default::default(),
+        declaration_custody: Default::default(),
         authored_expression,
         result_value: "boolean4:true".to_owned().into(),
         selections: vec![crate::types::ConstArgumentOrigin {

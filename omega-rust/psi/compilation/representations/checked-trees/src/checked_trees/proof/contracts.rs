@@ -26,6 +26,13 @@ pub enum ContractProofFactOwner {
         owner_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     },
+    /// The entire public logical contract selected by one source invocation.
+    /// Equal nominal signatures cannot merge independently applied evidence lanes.
+    CallSignature {
+        owner_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        application: Handle<CallContractSignature>,
+    },
     OperatorDeclaration {
         operator_symbol: SymbolHandle,
     },
@@ -401,6 +408,22 @@ pub struct ProofOutputFact {
     pub output: Option<Handle<CheckedEvidenceTerm>>,
 }
 
+/// Source-owned logical signature snapshot. This is checking derivation data,
+/// not provider selection or normal-return authority. Every requires/ensures
+/// clause and named proof lane belongs to this same exact occurrence.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CallContractSignature {
+    pub caller_machine_symbol: SymbolHandle,
+    pub caller_state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub source_statement: typed_trees::statement::StatementHandle,
+    pub source_expression: ExpressionHandle,
+    pub source_target: SymbolHandle,
+    pub declaring_trait: SymbolHandle,
+    pub signature: typed_trees::signature::StateSignature,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContractCallFact {
     pub caller_machine_symbol: SymbolHandle,
@@ -409,6 +432,9 @@ pub struct ContractCallFact {
     pub call_ordinal: usize,
     pub target_machine_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
+    /// Zero for an ordinary executable callable; otherwise the complete public
+    /// requirement view whose call-owned facts and evidence terms are retained.
+    pub signature: Handle<CallContractSignature>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
     pub evidence_arguments: HandleSpan<ContractEvidenceArgument>,

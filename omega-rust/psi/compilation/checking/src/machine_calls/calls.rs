@@ -39,7 +39,8 @@ mod expression_scanning;
 mod generic_bounds;
 mod generic_requirement;
 pub use generic_requirement::{
-    named_conformance_target_requirement, selected_requirement_signature,
+    named_conformance_target_requirement, requirement_contract_signature,
+    selected_requirement_signature,
 };
 mod inline_assembly;
 mod machine_parameter_arguments;

@@ -25,6 +25,10 @@ pub(crate) enum PackagePolicyConformanceConstArgument {
         declared_carrier: PackageReviewTypeIdentity,
         canonical_value_encoding: String,
     },
+    CallerExpression {
+        parameter_carrier: PackageReviewTypeIdentity,
+        expression: PackageReviewTypeIdentity,
+    },
     CallerBinder {
         parameter_carrier: PackageReviewTypeIdentity,
         binder: PackageReviewNominalIdentity,

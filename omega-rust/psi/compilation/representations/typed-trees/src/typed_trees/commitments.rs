@@ -152,6 +152,13 @@ pub enum ClosedConformanceConstArgument {
         declared_carrier: types::TypeReferenceHandle,
         value: language_semantics::const_value::CanonicalConstIdentity,
     },
+    /// A static expression retained in its supplying declaration's scope.
+    /// The complete node survives simultaneous substitution until selected
+    /// evaluation closes it; it is never a type argument or an evaluated value.
+    CallerExpression {
+        parameter_carrier: types::TypeReferenceHandle,
+        expression: types::TypeReferenceHandle,
+    },
     CallerBinder {
         parameter_carrier: types::TypeReferenceHandle,
         binder: symbols::SymbolHandle,

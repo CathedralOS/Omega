@@ -568,7 +568,10 @@ pub(crate) fn checked_application_telescope(
                     // Nothing substitutes a caller's const binder
                     // into a retained application, and Terminal's
                     // telescope names only evaluated values.
-                    Some(ClosedConformanceConstArgument::CallerBinder { .. }) => {
+                    Some(
+                        ClosedConformanceConstArgument::CallerExpression { .. }
+                        | ClosedConformanceConstArgument::CallerBinder { .. },
+                    ) => {
                         return Err(LoweringError::Unsupported(
                             "closed conformance application has an open const binder argument",
                         ));

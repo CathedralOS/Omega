@@ -11,8 +11,9 @@ pub fn closed_requirement_dispatch_is_valid(
     target: SymbolHandle,
     dispatch: &StaticRequirementDispatch,
 ) -> bool {
+    let reject = |_reason: &str| false;
     if dispatch.application_commitment.is_zero() || dispatch.application_report_fingerprint == 0 {
-        return false;
+        return reject("missing-application-commitment");
     }
     let applications = program.selected_conformance_applications(
         owner,
@@ -22,11 +23,11 @@ pub fn closed_requirement_dispatch_is_valid(
         dispatch.application_commitment,
     );
     let [application] = applications.as_slice() else {
-        return false;
+        return reject("application-not-unique");
     };
     let mut executable = match program.machine_holding_state(target) {
         Some(machine) => machine.symbol,
-        None => return false,
+        None => return reject("missing-executable-target-owner"),
     };
     let supplying_application = if dispatch.selection_application.is_valid() {
         dispatch.selection_application
@@ -37,7 +38,7 @@ pub fn closed_requirement_dispatch_is_valid(
             .filter(|row| row.instance == owner)
             .collect::<Vec<_>>();
         let [supplying] = supplying.as_slice() else {
-            return false;
+            return reject("supplying-specialization-not-unique");
         };
         supplying.binding_application
     };
@@ -48,7 +49,7 @@ pub fn closed_requirement_dispatch_is_valid(
     let mut visited = Vec::new();
     loop {
         if visited.contains(&executable) {
-            return false;
+            return reject("executable-template-cycle");
         }
         visited.push(executable);
         for (_, capture) in program
@@ -63,39 +64,41 @@ pub fn closed_requirement_dispatch_is_valid(
                     .lexical_owner
                     != supplying_owner
             {
-                return false;
+                return reject("capture-binding-or-supplying-owner");
             }
         }
         match program.executable_application_template(executable) {
             Ok(Some(template)) => executable = template,
             Ok(None) => break,
-            Err(_) => return false,
+            Err(_) => {
+                return reject("executable-template-error");
+            }
         }
     }
     if program.realization_entry_template(target, application)
         != Some((dispatch.realization_machine, dispatch.realization_state))
     {
-        return false;
+        return reject("realization-entry-template");
     }
     if dispatch.contract_signature.is_valid() {
         let Some(closed) = program.closed_requirement_application(dispatch.contract_signature)
         else {
-            return false;
+            return reject("missing-closed-public-contract");
         };
         let Some(scope) = application.trait_scope.scope(program) else {
-            return false;
+            return reject("missing-public-trait-scope");
         };
         if closed.declaring_trait != dispatch.declaring_trait
             || closed.template != dispatch.requirement
             || !program.requirement_application_matches_scope(dispatch.contract_signature, &scope)
         {
-            return false;
+            return reject("closed-public-contract-scope");
         }
     }
     let requirement = dispatch.requirement;
     let Some(application_trait) = program.trait_definition_by_symbol(application.trait_definition)
     else {
-        return false;
+        return reject("missing-application-trait");
     };
     let mut pending = vec![application_trait];
     let mut visited = Vec::new();
@@ -116,10 +119,10 @@ pub fn closed_requirement_dispatch_is_valid(
         }
     }
     if !declares {
-        return false;
+        return reject("requirement-not-declared-by-selected-trait");
     }
     let Some(declaration) = program.trait_definition_by_symbol(dispatch.declaring_trait) else {
-        return false;
+        return reject("missing-requirement-owner");
     };
     if program
         .trait_machine_signatures(declaration)
@@ -128,10 +131,10 @@ pub fn closed_requirement_dispatch_is_valid(
         .count()
         != 1
     {
-        return false;
+        return reject("requirement-roster-not-unique");
     }
     let Some(selected) = program.conformance_by_symbol(application.declaration) else {
-        return false;
+        return reject("missing-selected-conformance");
     };
     // A requirement owns one selection, not merely one matching tuple among
     // conflicting alternatives. Check cardinality before the private identity.
@@ -153,7 +156,7 @@ pub fn closed_requirement_dispatch_is_valid(
     let ([selected_row], [application_row]) =
         (selected_rows.as_slice(), application_rows.as_slice())
     else {
-        return false;
+        return reject("selected-row-not-unique");
     };
     selected_row.realization_machine == dispatch.realization_machine
         && selected_row.realization_state == dispatch.realization_state

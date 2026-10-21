@@ -204,6 +204,26 @@ impl ContractFacts {
             requires: Vec::new(),
             ensures: Vec::new(),
         };
+        // Invocation and lexical const binders denote the same exact values
+        // on both sides of this contract refinement. Correspondence already
+        // owns their declaration-symbol mapping; arithmetic must use that same
+        // namespace instead of separate opaque expression occurrences.
+        for (symbol, identity) in &generic {
+            let Some(parameter) = program.data_type_parameter_by_symbol(*symbol) else {
+                continue;
+            };
+            let (typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                continue;
+            };
+            facts.bind_integer(
+                program,
+                ScopedArithmeticBinder::Symbol(*symbol),
+                type_reference,
+                format!("\0contract-generic:{identity}"),
+            );
+        }
         for (position, parameter) in parameters.iter().enumerate() {
             facts.bind_integer(
                 program,

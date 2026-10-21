@@ -257,26 +257,58 @@ pub(super) fn check_call_result_qualifications(
                     (None, _) => false,
                 }
                 && (facts.proof.contract_facts.iter().any(|(_, contract)| {
-                    let checked_trees::ContractProofFactOwner::StateSignature {
-                        owner_symbol,
-                        state_symbol,
-                    } = contract.owner
-                    else {
-                        return false;
+                    let exact_call = crate::flow::proof_contract_call(
+                        &facts.proof,
+                        invocation.machine,
+                        invocation.state,
+                        invocation.statement,
+                        invocation.ordinal,
+                    );
+                    let (owner_symbol, state_symbol, applied) = match contract.owner {
+                        checked_trees::ContractProofFactOwner::CallSignature {
+                            owner_symbol,
+                            state_symbol,
+                            ..
+                        } => {
+                            let Some(exact_call) = exact_call else {
+                                return false;
+                            };
+                            if !crate::proof::contracts::call_signatures::owns_contract(
+                                program,
+                                &facts.proof,
+                                exact_call,
+                                contract,
+                            ) {
+                                return false;
+                            }
+                            (owner_symbol, state_symbol, true)
+                        }
+                        checked_trees::ContractProofFactOwner::StateSignature {
+                            owner_symbol,
+                            state_symbol,
+                        } if !exact_call.is_some_and(|call| call.signature.is_valid()) => {
+                            (owner_symbol, state_symbol, false)
+                        }
+                        _ => return false,
                     };
                     if state_symbol != call.target_symbol
                         || contract.kind != checked_trees::ContractProofFactKind::Ensures
                     {
                         return false;
                     }
-                    let Some(membership) = invocation_contract_fact(
-                        program,
-                        selected,
-                        owner_symbol,
-                        state_symbol,
-                        contract.fact,
-                    )
-                    .and_then(|fact| fact.as_membership()) else {
+                    let selected_fact = if applied {
+                        Some(program.proof_facts.get(contract.fact))
+                    } else {
+                        invocation_contract_fact(
+                            program,
+                            selected,
+                            owner_symbol,
+                            state_symbol,
+                            contract.fact,
+                        )
+                    };
+                    let Some(membership) = selected_fact.and_then(|fact| fact.as_membership())
+                    else {
                         return false;
                     };
                     if membership.domain_symbol != domain_symbol

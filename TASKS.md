@@ -265,10 +265,15 @@ helper that passes does not close an item.
     Provider planning installs each through the
     implementation's own plan and resolves installation reach from its rows.
     Remaining: product-producer parity for positional trait implementation
-    binders and their ordered mixed telescopes; const-expression closure over
-    open binders and package projection for generic implementation applications;
-    calling-policy/member kinds beyond the reference compiler's closed inline
-    calling-policy path. The reference producer now
+    binders and their ordered mixed telescopes; const-expression closure and
+    package projection outside the reference producer's qualified scalar inline
+    member path; calling-policy/member kinds beyond the closed inline
+    calling-policy path. The reference producer's
+    `samples/cli/facts/open_const_implementation` row preserves the exact
+    `Selected<Base + 4>` application and its lower-bound contract through all
+    nine places, including const evaluation and private package projection,
+    with native/Terminal exit 0 on Linux x86-64 and construct-only reject twins.
+    Other hosts remain unexecuted for that row. The reference producer now
     specializes exact named calling-policy inline plan captures and nested data
     arguments before plan evaluation. `samples/cli/facts/generic_calling_policy`
     qualifies the closed `GenericPolicy<Box<u64>, 8>` result placement across all

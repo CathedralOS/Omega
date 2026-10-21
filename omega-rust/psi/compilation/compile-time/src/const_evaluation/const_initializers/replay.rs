@@ -36,6 +36,7 @@ pub(crate) fn validate(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
+    let mut floating_declarations = Vec::new();
     for declaration in typed.const_declarations() {
         if !domain.contains(declaration.symbol) {
             continue;
@@ -114,40 +115,24 @@ pub(crate) fn validate(
                     "floating constant result encoding lost its exact declared format",
                 )
             })?;
-            let execution = domain.execution_program(typed);
-            validate_anonymous_float(
-                &execution,
-                declaration,
-                destination,
-                authority.clone(),
-                retained_call || authored_call,
-            )
-            .map_err(|reason| super::failure(reference, reason))?;
+            if retained_call || authored_call {
+                validate_replay_roots(typed, declaration, true)
+                    .map_err(|reason| super::failure(reference, reason))?;
+                replay_declarations.push(declaration);
+                floating_declarations.push((declaration, destination));
+            } else {
+                let execution = domain.execution_program(typed);
+                validate_anonymous_float(&execution, declaration, destination, authority.clone())
+                    .map_err(|reason| super::failure(reference, reason))?;
+            }
             continue;
         }
         let has_calls = retained_call || authored_call;
         if !has_calls && !contains_floating_component(typed, declaration.declared_type) {
             continue;
         }
-        if !typed
-            .expression_table
-            .expression_is_valid(declaration.authored_initializer)
-            || (has_calls
-                && declaration.authored_initializer == declaration.materialized_initializer)
-            || typed
-                .expression_table
-                .source_span(declaration.authored_initializer)
-                != reference
-            || typed
-                .expression_table
-                .source_span(declaration.materialized_initializer)
-                != reference
-        {
-            return Err(super::failure(
-                reference,
-                "retained declaration lost its source-owned initializer roots",
-            ));
-        }
+        validate_replay_roots(typed, declaration, has_calls)
+            .map_err(|reason| super::failure(reference, reason))?;
         let first_leaf = leaves.len();
         let identity = CanonicalConstIdentity {
             type_name: String::new(),
@@ -195,7 +180,7 @@ pub(crate) fn validate(
             ));
         }
     }
-    if leaves.is_empty() {
+    if leaves.is_empty() && floating_declarations.is_empty() {
         return Ok(());
     }
     let mut probe = domain.execution_program(typed);
@@ -221,7 +206,16 @@ pub(crate) fn validate(
         });
         owners.push((original, materialized));
     }
-    let probe_symbols = owners
+    let mut replay_owners = Vec::new();
+    for (leaf, (owner, _)) in leaves.iter().zip(&owners) {
+        if !replay_owners
+            .iter()
+            .any(|(declaration, _)| *declaration == leaf.owner)
+        {
+            replay_owners.push((leaf.owner, *owner));
+        }
+    }
+    let mut probe_symbols = owners
         .iter()
         .flat_map(|(original, materialized)| {
             materialized.map_or_else(
@@ -230,50 +224,120 @@ pub(crate) fn validate(
             )
         })
         .collect::<Vec<_>>();
+    for (ordinal, (declaration, _)) in floating_declarations.iter().enumerate() {
+        let owner = super::invocations::append_probe(
+            &mut probe,
+            declaration.symbol,
+            format!("@const-float-custody-{ordinal}"),
+            declaration.authored_initializer,
+            declaration.declared_type,
+        );
+        replay_owners.push((declaration.symbol, owner));
+        probe_symbols.push(owner);
+    }
     // The actual source recipe must precede specialization. Prepared target
     // custody alone cannot distinguish another valid instance of one template.
     for declaration in &replay_declarations {
-        let ordinal = leaves
+        let owner = replay_owners
             .iter()
-            .position(|leaf| leaf.owner == declaration.symbol)
+            .find(|(symbol, _)| *symbol == declaration.symbol)
             .ok_or_else(|| {
                 super::failure(
                     declaration.initializer_source_span,
                     "constant lost its authored replay owner",
                 )
-            })?;
-        validate_authored_custody(&probe, owners[ordinal].0, declaration)
+            })?
+            .1;
+        validate_authored_custody(&probe, owner, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
     let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
-    let checked =
-        super::invocations::CheckedInitializers::prepare(&prepared, authority, &probe_symbols)?;
+    let checked = super::invocations::CheckedInitializers::prepare(
+        &prepared,
+        authority.clone(),
+        &probe_symbols,
+    )?;
     let program = checked.typed();
-    for declaration in replay_declarations {
-        let index = leaves
+    // A dependency capsule names a separate declaration job. Validate every
+    // owner's exact realized roster before trusting any capsule or replaying a
+    // selected value. A declaration outside this replay domain cannot silently
+    // lend its retained calls to an admitted owner.
+    let mut dependency_jobs = Vec::new();
+    for declaration in &replay_declarations {
+        let owner = replay_owners
             .iter()
-            .position(|leaf| leaf.owner == declaration.symbol)
+            .find(|(symbol, _)| *symbol == declaration.symbol)
             .ok_or_else(|| {
                 super::failure(
                     declaration.initializer_source_span,
-                    "retained call declaration has no replayable leaf",
+                    "constant lost its realized replay owner",
                 )
-            })?;
-        checked
-            .calls_for_symbol(owners[index].0)
+            })?
+            .1;
+        let dependencies = checked
+            .calls_for_symbol(owner)
             .and_then(|calls| {
-                let dependencies = calls.validate_custody(
+                calls.validate_custody(
                     declaration.authored_initializer,
                     declaration.materialized_initializer,
-                )?;
-                validate_dependency_values(program, &dependencies, |expression, destination| {
-                    calls
-                        .evaluate_scalar(expression, destination)
-                        .map(|(value, _)| value)
-                })?;
-                Ok(())
+                )
             })
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+        for dependency in &dependencies {
+            let owner = program
+                .const_declarations()
+                .iter()
+                .find(|owner| owner.symbol == dependency.declaration)
+                .ok_or_else(|| {
+                    super::failure(
+                        declaration.initializer_source_span,
+                        "dependency capsule lost its declaration owner",
+                    )
+                })?;
+            let has_calls = program.expression_table.authored_selection_occurrences(owner.materialized_initializer)
+                .any(|occurrence| program.authored_declaration_selections().get(occurrence)
+                    .is_some_and(|selection| selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call))
+                || crate::const_evaluation::const_generic_expressions::initializer_contains_call(program, owner.authored_initializer)
+                    .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+            if has_calls
+                && !replay_declarations
+                    .iter()
+                    .any(|candidate| candidate.symbol == owner.symbol)
+            {
+                return Err(super::failure(
+                    declaration.initializer_source_span,
+                    "call-bearing dependency has no independently checked replay owner",
+                ));
+            }
+        }
+        dependency_jobs.push((declaration, owner, dependencies));
+    }
+    for (declaration, owner, dependencies) in dependency_jobs {
+        let calls = checked
+            .calls_for_symbol(owner)
+            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+        if let Some((_, destination)) = floating_declarations
+            .iter()
+            .find(|(candidate, _)| candidate.symbol == declaration.symbol)
+        {
+            validate_float_value(
+                program,
+                declaration,
+                *destination,
+                owner,
+                authority.as_deref(),
+                Some(&calls),
+                &dependencies,
+            )
+            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+        } else {
+            validate_dependency_values(program, &dependencies, |expression, destination| {
+                calls
+                    .evaluate_scalar(expression, destination)
+                    .map(|(value, _)| value)
+            })
+            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+        }
     }
     for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
@@ -361,6 +425,25 @@ fn contains_floating_component(program: &TypedTrees, root: TypeReferenceHandle) 
     false
 }
 
+fn validate_replay_roots(
+    program: &TypedTrees,
+    declaration: &typed_trees::constant::ConstDeclaration,
+    has_calls: bool,
+) -> Result<(), String> {
+    let table = &program.expression_table;
+    if !table.expression_is_valid(declaration.authored_initializer)
+        || !table.expression_is_valid(declaration.materialized_initializer)
+        || (has_calls && declaration.authored_initializer == declaration.materialized_initializer)
+        || table.source_span(declaration.authored_initializer)
+            != declaration.initializer_source_span
+        || table.source_span(declaration.materialized_initializer)
+            != declaration.initializer_source_span
+    {
+        return Err("retained declaration lost its source-owned initializer roots".into());
+    }
+    Ok(())
+}
+
 fn validate_authored_custody(
     program: &TypedTrees,
     owner: symbols::SymbolHandle,
@@ -404,13 +487,8 @@ fn validate_anonymous_float(
     declaration: &typed_trees::constant::ConstDeclaration,
     destination: PrimitiveType,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    has_calls: bool,
 ) -> Result<(), String> {
-    use crate::const_evaluation::const_generic_expressions::value::{ScalarValue, evaluate_scalar};
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
-    };
+    use crate::const_evaluation::const_generic_expressions::value::ScalarValue;
     use numerics::literals::FloatFormat;
 
     let original = declaration.authored_initializer;
@@ -467,31 +545,49 @@ fn validate_anonymous_float(
         original,
         declaration.declared_type,
     );
-    if has_calls {
-        validate_authored_custody(&probe, owner, declaration)?;
-    }
-    let checked = has_calls
-        .then(|| {
-            let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
-            super::invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &[owner])
-        })
-        .transpose()
-        .map_err(|diagnostics| {
-            format!(
-                "floating initializer call preparation failed: {}",
-                diagnostics::join_messages(&diagnostics)
-            )
-        })?;
-    let probe = checked
-        .as_ref()
-        .map_or(&probe, super::invocations::CheckedInitializers::typed);
-    let calls = checked
-        .as_ref()
-        .map(|checked| checked.calls_for_symbol(owner))
-        .transpose()?;
-    let scalar_calls = calls.as_ref().map(|calls| {
-        calls as &dyn crate::const_evaluation::const_generic_expressions::value::ConstantCalls
-    });
+    let machine = probe
+        .machine(owner)
+        .ok_or("floating constant lost its receiving probe")?;
+    let [state] = probe.machine_states(machine) else {
+        return Err("floating constant lost its receiving expression state".into());
+    };
+    let dependencies = crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
+        &probe, machine, state, original, materialized,
+    )?;
+    validate_float_value(
+        &probe,
+        declaration,
+        destination,
+        owner,
+        authority.as_deref(),
+        None,
+        &dependencies,
+    )
+}
+
+/// Value/format replay consumes an exact prepared owner. Call-bearing jobs use
+/// the shared checked batch instead of preparing their same helper closure
+/// again for every floating declaration; call-free roots need no such batch.
+fn validate_float_value(
+    probe: &TypedTrees,
+    declaration: &typed_trees::constant::ConstDeclaration,
+    destination: PrimitiveType,
+    owner: symbols::SymbolHandle,
+    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    scalar_calls: Option<
+        &dyn crate::const_evaluation::const_generic_expressions::value::ConstantCalls,
+    >,
+    dependencies: &[crate::const_evaluation::const_generic_expressions::DependencyValue],
+) -> Result<(), String> {
+    use crate::const_evaluation::const_generic_expressions::value::{ScalarValue, evaluate_scalar};
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+    use numerics::literals::FloatFormat;
+
+    let original = declaration.authored_initializer;
+    let materialized = declaration.materialized_initializer;
     let machine = probe
         .machine(owner)
         .ok_or("floating constant lost its receiving probe")?;
@@ -502,16 +598,10 @@ fn validate_anonymous_float(
         probe,
         machine,
         declaration.initializer_source_span,
-        authority.as_deref(),
+        authority,
     )?;
-    let dependencies = match &calls {
-        Some(calls) => calls.validate_custody(original, materialized)?,
-        None => crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
-            probe, machine, state, original, materialized,
-        )?,
-    };
     let dependency_roots =
-        validate_dependency_values(probe, &dependencies, |expression, destination| {
+        validate_dependency_values(probe, dependencies, |expression, destination| {
             evaluate_scalar(probe, machine, state, expression, destination, scalar_calls)
                 .map(|(value, _)| value)
         })?;

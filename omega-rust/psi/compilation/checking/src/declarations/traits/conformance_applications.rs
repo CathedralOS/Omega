@@ -356,7 +356,7 @@ pub fn close_conformance_application(
         &trait_lifetime_arguments,
         &trait_arguments,
         rows,
-    );
+    )?;
     Ok(ClosedConformanceApplication {
         declaration: conformance.symbol,
         trait_scope: Default::default(),
@@ -452,6 +452,46 @@ fn close_const_argument(
             literal.text().to_owned(),
         ));
     }
+    if argument.type_reference.is_valid()
+        && let TypeReferenceNode::ConstExpression(expression) = program
+            .type_reference_table
+            .type_reference(argument.type_reference)
+    {
+        if argument.symbol.is_valid()
+            || !argument.path.is_empty()
+            || argument.application.is_some()
+            || argument.evidence_projection.is_some()
+        {
+            return Err(category_error(conformance, parameter, "const", argument));
+        }
+        // This is category/carrier closure, not arithmetic formation evidence.
+        // The ordinary selected-expression checker still discharges each
+        // operation under the supplying declaration's contracts.
+        if !typed_trees::const_integer::is_integer_expression(
+            &program.expression_table,
+            *expression,
+            &|symbol, _| {
+                program
+                    .data_type_parameter_by_symbol(symbol)
+                    .is_some_and(|binder| {
+                        matches!(binder.kind, TypeParameterKind::Const { type_reference }
+                        if crate::value_custody::type_references::type_references_match(
+                            program, type_reference, parameter_carrier))
+                    })
+            },
+        ) {
+            return Err(category_error(conformance, parameter, "const", argument));
+        }
+        let identity = const_expression_identity(program, argument.type_reference)
+            .ok_or_else(|| category_error(conformance, parameter, "canonical const", argument))?;
+        return Ok((
+            ClosedConformanceConstArgument::CallerExpression {
+                parameter_carrier,
+                expression: argument.type_reference,
+            },
+            identity,
+        ));
+    }
     if program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter {
         // Lowered realization signatures may retain copies of their owner's
         // telescope. The exact symbol names one declaration, not one arena row.
@@ -525,6 +565,21 @@ fn close_const_argument(
         },
         substitution_identity,
     ))
+}
+
+fn const_expression_identity(
+    program: &dyn crate::CheckingInput,
+    expression: TypeReferenceHandle,
+) -> Option<String> {
+    let identity = typed_trees::type_identity::applied_index_identity(
+        program.typed_program(),
+        typed_trees::type_identity::IndexIdentityArgument::TypeReference(expression),
+        program
+            .type_reference_table
+            .operand_lifetime_owner(expression),
+        &[],
+    )?;
+    program.type_identity_text(identity)
 }
 
 pub fn static_argument_identity(
@@ -685,8 +740,9 @@ fn application_identity(
     trait_lifetime_arguments: &[String],
     trait_arguments: &[String],
     rows: &[typed_trees::trait_definition::ConformanceRow],
-) -> ApplicationIdentity {
+) -> Result<ApplicationIdentity, Diagnostic> {
     let mut bytes = Vec::new();
+
     let singleton_lanes = [declaration, trait_name];
     for lane in singleton_lanes {
         bytes.extend(1u64.to_le_bytes());
@@ -707,6 +763,7 @@ fn application_identity(
         }
         bytes.push(0xff);
     }
+
     bytes.extend((const_arguments.len() as u64).to_le_bytes());
     for argument in const_arguments {
         let append = |bytes: &mut Vec<u8>, value: &str| {
@@ -731,6 +788,24 @@ fn application_identity(
                 append(&mut bytes, value.type_name.as_str());
                 append(&mut bytes, value.encoding.as_str());
             }
+            ClosedConformanceConstArgument::CallerExpression {
+                parameter_carrier,
+                expression,
+            } => {
+                bytes.push(2);
+                append(
+                    &mut bytes,
+                    &program.normalized_type_identity_text(*parameter_carrier),
+                );
+                // Closure already requires this canonical declaration-owned
+                // identity; source display text never participates.
+                append(
+                    &mut bytes,
+                    &const_expression_identity(program, *expression).ok_or_else(|| {
+                        Diagnostic::error("closed const expression lost its canonical identity")
+                    })?,
+                );
+            }
             ClosedConformanceConstArgument::CallerBinder {
                 parameter_carrier,
                 binder,
@@ -753,6 +828,7 @@ fn application_identity(
         }
         bytes.push(0xfd);
     }
+
     for machine in machine_arguments {
         let identity = program
             .machines()
@@ -769,12 +845,14 @@ fn application_identity(
         bytes.extend((identity.len() as u64).to_le_bytes());
         bytes.extend(identity.as_bytes());
     }
+
     // The declaration symbol alone aliases explicit callback applications.
     // Retain the complete authored tuple independently of executable selection.
     bytes.extend((machine_operands.len() as u64).to_le_bytes());
     for operand in machine_operands {
         encode_machine_operand(program, operand, &mut bytes);
     }
+
     for row in rows {
         for item in [
             row.declaring_trait_name.as_str(),
@@ -784,6 +862,7 @@ fn application_identity(
             bytes.extend((item.len() as u64).to_le_bytes());
             bytes.extend(item.as_bytes());
         }
+
         if let Some(signature) = program
             .trait_definition_by_symbol(row.declaring_trait)
             .and_then(|definition| {
@@ -806,12 +885,12 @@ fn application_identity(
     );
     strong.raw(&bytes);
     hash.bytes(&bytes);
-    ApplicationIdentity {
+    Ok(ApplicationIdentity {
         report_fingerprint: hash.finish(),
         commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
             strong.finish(),
         ),
-    }
+    })
 }
 
 fn encode_machine_operand(

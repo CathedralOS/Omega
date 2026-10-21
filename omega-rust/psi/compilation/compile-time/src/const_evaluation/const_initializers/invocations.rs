@@ -723,74 +723,20 @@ impl Invocation<'_> {
         Ok(self.admit_call(expression)?.warnings)
     }
 
-    /// Every expression root in this probe's single state: the return value
-    /// plus compiler-hoisted `let` initializers and named-transition arguments
-    /// produced by ordinary terminal-call normalization for aggregate results.
+    /// Source custody and checked replay observe the same normalized captures
+    /// and original value exit, including an ordinary hoisted direct call.
     fn probe_roots(&self) -> Result<Vec<ExpressionHandle>, String> {
-        let typed = self.program.typed();
-        let mut roots = Vec::new();
-        for statement in typed.statement_table.statements(self.state.statement_nodes) {
-            match statement {
-                typed_trees::statement::StatementNode::LocalData(local) => {
-                    if local.initial_value.is_valid() {
-                        roots.push(local.initial_value);
-                    }
-                }
-                typed_trees::statement::StatementNode::Transition(transition) => {
-                    for target in transition.targets() {
-                        match typed.statement_table.transition_target(target) {
-                            typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                                roots.push(*expression);
-                            }
-                            typed_trees::statement::TransitionTargetNode::Named {
-                                arguments,
-                                ..
-                            } => {
-                                let handles = typed.statement_table.expression_handles(*arguments);
-                                if handles.len() != arguments.len() {
-                                    return Err(
-                                        "typed probe transition has a stale argument span".into()
-                                    );
-                                }
-                                roots.extend(handles.iter().copied());
-                            }
-                            _ => {}
-                        }
-                    }
-                    if let typed_trees::statement::TransitionGuardNode::When(guard) =
-                        transition.guard
-                    {
-                        roots.push(guard);
-                    }
-                }
-                typed_trees::statement::StatementNode::Expression(expression) => {
-                    roots.push(*expression);
-                }
-                typed_trees::statement::StatementNode::Assignment(assignment) => {
-                    roots.extend([assignment.target, assignment.value]);
-                }
-                typed_trees::statement::StatementNode::AssemblyFact(fact) => {
-                    roots.extend(typed.tables.proof_fact_expression_roots(fact.fact));
-                }
-                _ => {}
-            }
-        }
-        if roots.is_empty() {
-            return Err("typed probe lost its expression return".into());
-        }
-        Ok(roots)
+        Ok(
+            super::super::initializer_probe::value_probe_body(self.program.typed(), self.state)?
+                .roots,
+        )
     }
 
-    /// The leaf span this probe answers for: its transition statement retains
-    /// the authored coordinate through normalization.
     fn probe_reference(&self) -> Result<source::SourceSpan, String> {
-        let typed = self.program.typed();
-        for statement in typed.statement_table.statements(self.state.statement_nodes) {
-            if let Some(transition) = statement.as_transition() {
-                return Ok(transition.source_span);
-            }
-        }
-        Err("typed probe lost its expression return".into())
+        Ok(
+            super::super::initializer_probe::value_probe_body(self.program.typed(), self.state)?
+                .reference,
+        )
     }
 
     /// Establish the selected structured result independently of its destination.
@@ -1016,10 +962,10 @@ impl Invocation<'_> {
     pub(super) fn evaluate_leaf(
         &self,
         reference: source::SourceSpan,
-        expected_origins: &[syntax_trees::types::ConstArgumentOrigin],
-        expected_calls: &[(source::SourceSpan, source::SourceSpan)],
+        authored: &crate::const_evaluation::const_generic_expressions::AuthoredProbeCustody,
         syntax: &syntax_trees::SyntaxTrees,
     ) -> Result<LeafEvaluation, String> {
+        authored.rejoin(reference, self.machine.symbol)?;
         let typed = self.program.typed();
         let roots = self.probe_roots()?;
         crate::machine_execution::admission::require_const_expression_selection(
@@ -1037,21 +983,6 @@ impl Invocation<'_> {
                 false,
                 syntax,
             )?;
-        if calls.len() != expected_calls.len()
-            || calls.iter().any(|call| !expected_calls.contains(call))
-        {
-            return Err("standalone probe changed the original call declaration selection".into());
-        }
-        if origins.len() != expected_origins.len()
-            || origins
-                .iter()
-                .any(|origin| !expected_origins.contains(origin))
-        {
-            return Err(
-                "standalone probe changed the original constant selection or selected a pending value"
-                    .into(),
-            );
-        }
         let mut warnings = Vec::new();
         for call in
             crate::const_evaluation::const_generic_expressions::call_expressions(typed, &roots)?
@@ -1068,6 +999,7 @@ impl Invocation<'_> {
             destination: self.state.return_type,
             origins,
             operators,
+            calls,
             warnings,
         })
     }
@@ -1220,6 +1152,7 @@ pub(super) struct LeafEvaluation {
     pub(super) destination: typed_trees::types::TypeReferenceHandle,
     pub(super) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(super) operators: Vec<source::SourceSpan>,
+    pub(super) calls: Vec<(source::SourceSpan, source::SourceSpan)>,
     pub(super) warnings: Vec<Diagnostic>,
 }
 

@@ -49,9 +49,10 @@ pub(crate) fn finalize_checked_authored_selections(
     // single pass instead of a whole-program rescan per occurrence.
     let owner_index = {
         let _s = phase_profile::guard("05.d.11_13.a.1.owner_index");
-        validation::expression_owners::OwnerEnvironmentIndex::new(
+        validation::expression_owners::OwnerEnvironmentIndex::with_call_signatures(
             program,
             &facts.proof.contract_facts,
+            &facts.proof.call_contract_signatures,
         )
     };
 

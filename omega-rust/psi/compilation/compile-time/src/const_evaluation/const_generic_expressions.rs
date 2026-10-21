@@ -256,6 +256,7 @@ pub(crate) fn evaluate(
             origins,
             operators,
             warnings,
+            ..
         } = evaluate_probe_internal(
             &typed,
             reference,
@@ -798,6 +799,78 @@ pub(super) fn leaf_call_custody(
     Ok((custody.origins, custody.operators, custody.calls))
 }
 
+/// A checked source-boundary join. Only source-custody validation constructs
+/// this token; a realized evaluator must rejoin its exact probe owner.
+pub(super) struct AuthoredProbeCustody {
+    reference: SourceSpan,
+    owner: symbols::SymbolHandle,
+}
+
+impl AuthoredProbeCustody {
+    pub(super) fn rejoin(
+        &self,
+        reference: SourceSpan,
+        owner: symbols::SymbolHandle,
+    ) -> Result<(), String> {
+        if self.reference != reference || self.owner != owner {
+            return Err(
+                "realized initializer differs from its checked authored probe owner".into(),
+            );
+        }
+        Ok(())
+    }
+}
+
+/// Check the original source point before any checked realization changes its
+/// helper closure. The resulting execution receipt belongs to a later boundary.
+pub(super) fn validate_authored_probe_custody(
+    program: &typed_trees::TypedTrees,
+    reference: SourceSpan,
+    expected_origins: &[ConstArgumentOrigin],
+    expected_calls: &[(SourceSpan, SourceSpan)],
+    syntax: &SyntaxTrees,
+) -> Result<AuthoredProbeCustody, String> {
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|machine| program.symbols.symbol_source_span(machine.symbol) == Some(reference));
+    let machine = machines
+        .next()
+        .ok_or("authored initializer probe lost its source owner")?;
+    if machines.next().is_some() {
+        return Err("authored initializer probe has ambiguous source owners".into());
+    }
+    let [state] = program.machine_states(machine) else {
+        return Err("authored initializer probe lost its single state".into());
+    };
+    let body = super::initializer_probe::value_probe_body(program, state)?;
+    if body.reference != reference {
+        return Err("authored initializer probe changed its value source point".into());
+    }
+    let custody =
+        call_custody::collect_authored_roots(program, machine, state, &body.roots, syntax)?;
+    if custody.calls.len() != expected_calls.len()
+        || custody
+            .calls
+            .iter()
+            .any(|call| !expected_calls.contains(call))
+    {
+        return Err("authored probe changed the original call declaration selection".into());
+    }
+    if custody.origins.len() != expected_origins.len()
+        || custody
+            .origins
+            .iter()
+            .any(|origin| !expected_origins.contains(origin))
+    {
+        return Err("authored probe changed the original constant declaration selection".into());
+    }
+    Ok(AuthoredProbeCustody {
+        reference,
+        owner: machine.symbol,
+    })
+}
+
 /// Detect invocation demand from actual initializer nodes while validating the
 /// complete expression graph, independently of retained selection receipts.
 pub(crate) fn initializer_contains_call(
@@ -857,19 +930,29 @@ pub(super) fn evaluate_probe_with_calls(
     reference: SourceSpan,
     public: bool,
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
-    expected_origins: Option<&[ConstArgumentOrigin]>,
+    authored: &AuthoredProbeCustody,
     syntax: &SyntaxTrees,
-    expected_calls: &[(SourceSpan, SourceSpan)],
     calls: &dyn value::ConstantCalls,
 ) -> Result<ScalarProbeResult, String> {
+    let mut owners = typed
+        .machines()
+        .iter()
+        .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(reference));
+    let owner = owners
+        .next()
+        .ok_or("realized initializer lost its source probe")?;
+    if owners.next().is_some() {
+        return Err("realized initializer has ambiguous source probes".into());
+    }
+    authored.rejoin(reference, owner.symbol)?;
     evaluate_probe_internal(
         typed,
         reference,
         public,
         authority,
-        expected_origins,
+        None,
         syntax,
-        Some((expected_calls, calls)),
+        Some(calls),
         None,
         false,
     )
@@ -882,7 +965,7 @@ fn evaluate_probe_internal(
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     expected_origins: Option<&[ConstArgumentOrigin]>,
     syntax: &SyntaxTrees,
-    calls: Option<(&[(SourceSpan, SourceSpan)], &dyn value::ConstantCalls)>,
+    calls: Option<&dyn value::ConstantCalls>,
     owner: Option<symbols::SymbolHandle>,
     extent: bool,
 ) -> Result<ScalarProbeResult, String> {
@@ -936,19 +1019,11 @@ fn evaluate_probe_internal(
     crate::machine_execution::admission::require_const_expression_selection(
         typed, machine, reference, authority,
     )?;
-    let (origins, operators) = if let Some((expected_calls, _)) = calls {
+    let (origins, operators, call_selections) = if calls.is_some() {
         let custody = call_custody::collect(typed, machine, state, *expression, public, syntax)?;
-        if custody.calls.len() != expected_calls.len()
-            || custody
-                .calls
-                .iter()
-                .any(|call| !expected_calls.contains(call))
-        {
-            return Err("standalone probe changed the original call declaration selection".into());
-        }
-        (custody.origins, custody.operators)
+        (custody.origins, custody.operators, custody.calls)
     } else {
-        expression_custody(
+        let (origins, operators) = expression_custody(
             typed,
             machine,
             state,
@@ -956,7 +1031,8 @@ fn evaluate_probe_internal(
             public,
             syntax,
             &std::collections::HashSet::new(),
-        )?
+        )?;
+        (origins, operators, Vec::new())
     };
     if expected_origins.is_some_and(|expected| {
         origins.len() != expected.len() || origins.iter().any(|origin| !expected.contains(origin))
@@ -973,7 +1049,7 @@ fn evaluate_probe_internal(
         *expression,
         destination,
         policy,
-        calls.map(|(_, calls)| calls),
+        calls,
     )?;
     if value.type_name() != destination.name() {
         return Err(format!(
@@ -986,6 +1062,7 @@ fn evaluate_probe_internal(
         value,
         origins,
         operators,
+        call_selections,
         warnings,
     })
 }
@@ -994,5 +1071,6 @@ pub(super) struct ScalarProbeResult {
     pub(super) value: value::ScalarValue,
     pub(super) origins: Vec<ConstArgumentOrigin>,
     pub(super) operators: Vec<SourceSpan>,
+    pub(super) call_selections: Vec<(SourceSpan, SourceSpan)>,
     pub(super) warnings: Vec<Diagnostic>,
 }

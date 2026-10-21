@@ -200,6 +200,11 @@ fn project_term(
         | checked_trees::ContractProofFactOwner::OperatorUse {
             operator_symbol, ..
         } => operator_symbol,
+        checked_trees::ContractProofFactOwner::CallSignature { .. } => {
+            return Err(vec![Diagnostic::error(
+                "invocation-owned evidence cannot be exported as a declaration-owned contract lane",
+            )]);
+        }
         checked_trees::ContractProofFactOwner::Unknown => {
             return Err(vec![Diagnostic::error(
                 "checked evidence term has no stable semantic owner",

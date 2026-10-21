@@ -192,7 +192,7 @@ pub use operators::{
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{
-    BoundaryQualificationAuthorization, CheckedDirectBlockFloatParameter,
+    BoundaryQualificationAuthorization, CallContractSignature, CheckedDirectBlockFloatParameter,
     CheckedDirectCallFloatResult, CheckedDirectMachineFloatParameter,
     CheckedDirectMachineFloatResult, CheckedDirectOperationFloatResult,
     CheckedDirectStructuralFloatLeaf, CheckedEvidenceInterfaceIdentity, CheckedEvidenceProjection,

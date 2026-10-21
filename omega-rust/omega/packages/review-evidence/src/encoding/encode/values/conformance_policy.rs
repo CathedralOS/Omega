@@ -84,6 +84,16 @@ fn const_argument(
                 encoder.string(canonical_value_encoding)
             })
         }
+        PackagePolicyConformanceConstArgument::CallerExpression {
+            parameter_carrier,
+            expression,
+        } => {
+            encoder.tag("caller_expression", 2);
+            encoder.field("parameter_carrier", |encoder| {
+                type_identity(encoder, parameter_carrier)
+            })?;
+            encoder.field("expression", |encoder| type_identity(encoder, expression))
+        }
         PackagePolicyConformanceConstArgument::CallerBinder {
             parameter_carrier,
             binder,

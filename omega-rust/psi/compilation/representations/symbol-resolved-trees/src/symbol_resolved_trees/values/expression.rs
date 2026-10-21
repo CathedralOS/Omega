@@ -207,7 +207,6 @@ impl ExpressionTable {
         handle: ExpressionHandle,
         occurrences: impl IntoIterator<Item = AuthoredDeclarationSelectionOccurrenceId>,
     ) {
-        let index = source_span_index(handle);
         let mut combined = self
             .authored_selection_occurrences(handle)
             .collect::<Vec<_>>();
@@ -218,9 +217,26 @@ impl ExpressionTable {
             }
         }
 
-        self.nodes.authored_selection_occurrences[index] =
+        self.replace_authored_selection_occurrences(handle, combined);
+    }
+
+    /// Replace the association at an exact owned preparation boundary. The
+    /// caller must independently validate the complete replacement inventory;
+    /// attaching a different phase's transitive inventory is not that proof.
+    pub fn replace_authored_selection_occurrences(
+        &mut self,
+        handle: ExpressionHandle,
+        occurrences: impl IntoIterator<Item = AuthoredDeclarationSelectionOccurrenceId>,
+    ) {
+        let mut unique = Vec::new();
+        for occurrence in occurrences {
+            if !unique.contains(&occurrence) {
+                unique.push(occurrence);
+            }
+        }
+        self.nodes.authored_selection_occurrences[source_span_index(handle)] =
             self.spans.authored_selection_occurrence_ids.insert_many(
-                combined
+                unique
                     .into_iter()
                     .map(StoredAuthoredSelectionOccurrenceId::new),
             );

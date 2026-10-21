@@ -20,21 +20,57 @@ impl TypedTrees {
         lexical_owner: SymbolHandle,
         call: &crate::expression::TableCallExpression,
     ) -> Option<&signature::StateSignature> {
-        let target = call
-            .static_requirement_dispatch
-            .as_ref()
-            .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
+        self.requirement_invocation_signature(
+            lexical_owner,
+            call.target_symbol,
+            call.static_requirement_dispatch.as_ref(),
+            call.requirement_application,
+            call.authored_machine_application,
+        )
+    }
+
+    /// Statement calls select the same complete public logical view as an
+    /// expression call. Their erased result syntax cannot discard the enclosing
+    /// conformance application or the independently supplied member telescope.
+    pub fn requirement_statement_call_signature(
+        &self,
+        lexical_owner: SymbolHandle,
+        call: &crate::statement::TableCall,
+    ) -> Option<&signature::StateSignature> {
+        self.requirement_invocation_signature(
+            lexical_owner,
+            call.target_symbol,
+            call.static_requirement_dispatch.as_ref(),
+            Default::default(),
+            call.authored_machine_application,
+        )
+    }
+
+    fn requirement_invocation_signature(
+        &self,
+        lexical_owner: SymbolHandle,
+        target: SymbolHandle,
+        dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
+        requirement_application: crate::types::TypeReferenceHandle,
+        authored_application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Option<&signature::StateSignature> {
+        let target = dispatch.map_or(target, |dispatch| dispatch.contract_symbol());
         if let Some(closed) = self.closed_requirement_application(target) {
-            if call.requirement_application.is_valid() {
+            if requirement_application.is_valid() {
                 let scope =
-                    self.applied_requirement_scope(lexical_owner, call.requirement_application)?;
+                    self.applied_requirement_scope(lexical_owner, requirement_application)?;
                 if !self.requirement_application_matches_scope(target, &scope) {
                     return None;
                 }
             }
             return Some(closed.signature);
         }
-        let outer = self.requirement_outer_signature(lexical_owner, call, target)?;
+        let outer = self.requirement_outer_signature(
+            lexical_owner,
+            target,
+            dispatch,
+            requirement_application,
+        )?;
         if let Some(signature) =
             self.applied_callable_signatures
                 .iter()
@@ -43,7 +79,7 @@ impl TypedTrees {
                 application,
                 lexical_owner: owner,
                 ..
-            } if application == call.authored_machine_application
+            } if application == authored_application
                 && application.is_valid()
                 && owner == lexical_owner
                 && prepared.signature.symbol == target)
@@ -52,18 +88,18 @@ impl TypedTrees {
         {
             return Some(signature);
         }
-        (call.static_requirement_dispatch.is_none() || outer.type_parameters.is_empty())
-            .then_some(outer)
+        (dispatch.is_none() || outer.type_parameters.is_empty()).then_some(outer)
     }
 
     fn requirement_outer_signature(
         &self,
         lexical_owner: SymbolHandle,
-        call: &crate::expression::TableCallExpression,
         target: SymbolHandle,
+        dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
+        requirement_application: crate::types::TypeReferenceHandle,
     ) -> Option<&signature::StateSignature> {
         let (declaration, signature) = self.trait_machine_signature(target)?;
-        if let Some(dispatch) = &call.static_requirement_dispatch {
+        if let Some(dispatch) = dispatch {
             // A map qualifier supplies an independent outer telescope even
             // inside an open generic body. Its exact retained selection, not
             // the realizer's private signature, owns this logical contract.
@@ -89,9 +125,9 @@ impl TypedTrees {
                     .then_some(signature)
                 });
         }
-        if call.requirement_application.is_valid() {
+        if requirement_application.is_valid() {
             let scope = self
-                .applied_requirement_scope(lexical_owner, call.requirement_application)?
+                .applied_requirement_scope(lexical_owner, requirement_application)?
                 .declaring_scope(self, declaration.symbol)?;
             return self.applied_callable_signature(&scope, signature.symbol);
         }
@@ -129,7 +165,12 @@ impl TypedTrees {
         // Preparation revisits mutable applications. Derive from the canonical
         // outer view, never a previously substituted invocation output.
         let Some(selected) = self
-            .requirement_outer_signature(lexical_owner, call, target)
+            .requirement_outer_signature(
+                lexical_owner,
+                target,
+                call.static_requirement_dispatch.as_ref(),
+                call.requirement_application,
+            )
             .cloned()
         else {
             return Ok(None);

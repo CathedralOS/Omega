@@ -11,15 +11,31 @@ use symbols::{SymbolHandle, SymbolKind};
 
 mod types;
 
+/// Declaration preparation may visit every owned implementation member. An
+/// authored invocation closure stops at its logical bound until realization.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DependencyPurpose {
+    Authored,
+    DeclarationReadiness,
+}
+
 /// Exact source occurrence/declaration pairs. Body dependencies are retained
 /// even when execution later selects another branch.
 #[derive(Debug, Default)]
 pub struct ConstInitializerDependencies {
     pub constants: Vec<(SourceSpan, SourceSpan)>,
     pub calls: Vec<(SourceSpan, SourceSpan)>,
+    pub initializer_operators: Vec<SourceSpan>,
     /// Exact authored owners whose type applications belong to this dependency closure.
     pub normalization_owners: Vec<SourceSpan>,
-    pub(crate) call_targets: Vec<(SourceSpan, SymbolHandle)>,
+    pub(crate) call_targets: Vec<AuthoredCallDependency>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AuthoredCallDependency {
+    pub reference: SourceSpan,
+    pub declaration: SourceSpan,
+    pub target: SymbolHandle,
 }
 
 /// Exact machine roots and their resolved call dependencies. A deferred body
@@ -40,7 +56,11 @@ pub(crate) fn collect_machine_body_demand(
     let mut collector = Collector {
         machines: machine_roots.iter().rev().copied().collect(),
         expressions: expression_roots.iter().rev().copied().collect(),
+        initializer_expressions: expression_roots.to_vec(),
         deferred_machines: Some(Vec::new()),
+        // This route completes declarations before source or realized custody
+        // is collected. Visiting an owned member here grants no invocation.
+        purpose: DependencyPurpose::DeclarationReadiness,
         ..Collector::new(program)
     };
     collector.collect()?;
@@ -56,6 +76,7 @@ pub(crate) fn collect(
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![root],
+        initializer_expressions: vec![root],
         ..Collector::new(program)
     };
     collector.collect()?;
@@ -69,10 +90,13 @@ pub(crate) fn collect_declaration(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
     destination: &symbol_resolved_trees::types::TypeReference,
+    purpose: DependencyPurpose,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![root],
+        initializer_expressions: vec![root],
         types: vec![destination],
+        purpose,
         ..Collector::new(program)
     };
     collector.collect()?;
@@ -82,10 +106,21 @@ pub(crate) fn collect_declaration(
         .chain(&collector.visited_type_declarations)
         .chain(&collector.expanded_constants)
     {
+        let declaration = collector.program.symbols.get(*symbol);
+        let namespace = if declaration.kind == SymbolKind::Machine {
+            crate::symbols::owned_conformance_namespace(collector.program, *symbol)?
+        } else {
+            SymbolHandle::invalid()
+        };
+        let owner = if namespace.is_valid() {
+            namespace
+        } else {
+            *symbol
+        };
         let source = collector
             .program
             .symbols
-            .symbol_source_span(*symbol)
+            .symbol_source_span(owner)
             .ok_or("initializer normalization owner lost its declaration source")?;
         if !collector
             .dependencies
@@ -130,17 +165,23 @@ struct Collector<'program> {
     program: &'program SymbolResolvedTrees,
     dependencies: ConstInitializerDependencies,
     expressions: Vec<ExpressionHandle>,
+    /// Exact expression-tree membership, independent of diagnostic spans.
+    /// Machine bodies and declaration type work enter their separate queues;
+    /// following a call does not make its body an initializer expression.
+    initializer_expressions: Vec<ExpressionHandle>,
     machines: Vec<SymbolHandle>,
     types: Vec<&'program symbol_resolved_trees::types::TypeReference>,
     visited_type_children: Vec<arena::Handle<symbol_resolved_trees::types::TypeReference>>,
     visited_type_declarations: Vec<SymbolHandle>,
     expanded_constants: Vec<SymbolHandle>,
     visited_expressions: Vec<ExpressionHandle>,
+    visited_initializer_expressions: Vec<ExpressionHandle>,
     visited_machines: Vec<SymbolHandle>,
     /// Only a retained-body owner can request an incomplete dependency frontier.
     /// Ordinary initializer collection requires every reached body to exist.
     deferred_machines: Option<Vec<SymbolHandle>>,
     follow_dependencies: bool,
+    purpose: DependencyPurpose,
 }
 
 impl<'program> Collector<'program> {
@@ -149,25 +190,39 @@ impl<'program> Collector<'program> {
             program,
             dependencies: ConstInitializerDependencies::default(),
             expressions: Vec::new(),
+            initializer_expressions: Vec::new(),
             machines: Vec::new(),
             types: Vec::new(),
             visited_type_children: Vec::new(),
             visited_type_declarations: Vec::new(),
             expanded_constants: Vec::new(),
             visited_expressions: Vec::new(),
+            visited_initializer_expressions: Vec::new(),
             visited_machines: Vec::new(),
             deferred_machines: None,
             follow_dependencies: true,
+            purpose: DependencyPurpose::Authored,
         }
     }
 
     fn collect(&mut self) -> Result<(), String> {
         while !self.expressions.is_empty() || !self.machines.is_empty() || !self.types.is_empty() {
             if let Some(expression) = self.expressions.pop() {
-                if self.visited_expressions.contains(&expression) {
+                let initializer = self.initializer_expressions.contains(&expression);
+                if self.visited_expressions.contains(&expression)
+                    && (!initializer || self.visited_initializer_expressions.contains(&expression))
+                {
                     continue;
                 }
-                self.visited_expressions.push(expression);
+                if !self.visited_expressions.contains(&expression) {
+                    self.visited_expressions.push(expression);
+                }
+                if initializer {
+                    // A shared handle may first be reached by type/body work.
+                    // Revisit its children once under initializer ownership;
+                    // the two finite visited frontiers still terminate cycles.
+                    self.visited_initializer_expressions.push(expression);
+                }
                 self.expression(expression)?;
             } else if let Some(machine) = self.machines.pop() {
                 if self.visited_machines.contains(&machine) {
@@ -184,27 +239,47 @@ impl<'program> Collector<'program> {
 
     fn call(&mut self, target: SymbolHandle, reference: SourceSpan) -> Result<(), String> {
         let symbol = self.program.symbols.get(target);
-        if symbol.kind == SymbolKind::Operator {
-            // A named boundary operator (`F32::square_root`) keeps its exact
-            // declaration identity but owns no machine body to traverse: its
-            // contract is admission evidence, not an evaluation dependency.
-            // Typed named-call selection and the checked interpreter own the
-            // exact selected execution of this call.
+        let bound_requirement = symbol.kind == SymbolKind::State
+            && symbol.parent.is_valid()
+            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
+            && self.program.machines.iter().any(|machine| {
+                machine.symbol == self.program.symbols.get(symbol.parent).parent
+                    && machine
+                        .conformance_bounds
+                        .iter()
+                        .filter(|bound| bound.binder == symbol.parent)
+                        .count()
+                        == 1
+            })
+            && self
+                .program
+                .symbols
+                .child_handles(symbol.parent)
+                .is_some_and(|mut children| children.any(|child| child == target));
+        if symbol.kind == SymbolKind::Operator || bound_requirement {
+            // A logical requirement is an exact authored selection, not an
+            // ordinary body. Evidence-binder children were installed from this
+            // machine's explicit bound; the typed invocation must independently
+            // rejoin its complete application before selecting executable code.
+            // Named boundary operators likewise retain their declaration here.
+            // This source dependency row grants no execution permission and
+            // cannot substitute for the checked selected-body custody closure.
             let declaration = self
                 .program
                 .symbols
                 .symbol_source_span(target)
-                .ok_or("constant operator call lost its exact declaration source")?;
+                .ok_or("constant logical call lost its exact declaration source")?;
             let selection = (reference, declaration);
             if !self.dependencies.calls.contains(&selection) {
                 self.dependencies.calls.push(selection);
             }
-            if !self
-                .dependencies
-                .call_targets
-                .contains(&(reference, target))
-            {
-                self.dependencies.call_targets.push((reference, target));
+            let dependency = AuthoredCallDependency {
+                reference,
+                declaration,
+                target,
+            };
+            if !self.dependencies.call_targets.contains(&dependency) {
+                self.dependencies.call_targets.push(dependency);
             }
             return Ok(());
         }
@@ -261,12 +336,13 @@ impl<'program> Collector<'program> {
         if !self.dependencies.calls.contains(&selection) {
             self.dependencies.calls.push(selection);
         }
-        if !self
-            .dependencies
-            .call_targets
-            .contains(&(reference, target))
-        {
-            self.dependencies.call_targets.push((reference, target));
+        let dependency = AuthoredCallDependency {
+            reference,
+            declaration,
+            target,
+        };
+        if !self.dependencies.call_targets.contains(&dependency) {
+            self.dependencies.call_targets.push(dependency);
         }
         if self.follow_dependencies {
             self.machines.push(machine);
@@ -275,10 +351,41 @@ impl<'program> Collector<'program> {
     }
 
     fn expression(&mut self, expression: ExpressionHandle) -> Result<(), String> {
+        let initializer = self.initializer_expressions.contains(&expression);
+        let child_frontier = self.expressions.len();
+        self.expression_dependencies(expression)?;
+        if initializer {
+            // Only expression children appended by this visit inherit this
+            // boundary. Deferred machine bodies and type geometry do not.
+            for index in child_frontier..self.expressions.len() {
+                let child = self.expressions[index];
+                if !self.initializer_expressions.contains(&child) {
+                    self.initializer_expressions.push(child);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn expression_dependencies(&mut self, expression: ExpressionHandle) -> Result<(), String> {
         let program = self.program;
         let table = &program.tables.bodies.expressions;
         if !table.expression_is_valid(expression) {
             return Err("constant initializer dependency has a stale expression".to_owned());
+        }
+        if matches!(
+            table.expression(expression),
+            ExpressionNode::Binary(_) | ExpressionNode::Unary(_)
+        ) {
+            let reference = table.source_span(expression);
+            // A binary's diagnostic span may name only its operator token:
+            // the outer '*' span cannot contain the inner '/' in 7 / 2 * 2.
+            // Custody follows exact expression children, never span nesting.
+            if self.initializer_expressions.contains(&expression)
+                && !self.dependencies.initializer_operators.contains(&reference)
+            {
+                self.dependencies.initializer_operators.push(reference);
+            }
         }
         let direct_constant = super::selected_expression_constant(program, expression);
         let terminal_segment = match table.expression(expression) {

@@ -191,8 +191,13 @@ pub(crate) fn declaration_call_dependencies(
             program.operator_contracts(operator),
             &mut dependencies,
         );
-    } else if let Some(signature) = program
-        .trait_machine_signature(symbol)
+    // An evidence-child state is a logical requirement, not an executable
+    // machine row. Rejoin its unique authored bound and complete application
+    // through the same owner used by call admission. Its full public contracts
+    // remain dependencies; neither missing states nor provider bodies supply
+    // independence. Keep `symbol` as graph owner so distinct evidence binders
+    // do not collapse into the trait's nominal declaration.
+    } else if let Some(signature) = crate::selected_requirement_signature(program, symbol)
         .map(|(_, signature)| signature)
         .or_else(|| {
             program

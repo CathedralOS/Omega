@@ -3,11 +3,11 @@ use arena::{Arena, Handle, OwnedIndex};
 use symbols::SymbolHandle;
 
 use crate::{
-    CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
-    ContractExpressionEvidenceCallFact, ContractExpressionStaticConformanceApplicationFact,
-    ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-    InheritedContractScope, OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact,
-    ProofObligationFact, ProofOutputCallFact,
+    CallContractSignature, CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument,
+    ContractExitFact, ContractExpressionEvidenceCallFact,
+    ContractExpressionStaticConformanceApplicationFact, ContractOperatorUseFact, ContractProofFact,
+    ContractProofFactRef, EvidenceForwardingFact, InheritedContractScope, OutcomeSpecificArmFact,
+    OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -27,6 +27,7 @@ pub struct ProofFacts {
     pub proof_output_calls: Arena<ProofOutputCallFact>,
     pub contract_fact_refs: Arena<ContractProofFactRef>,
     pub contract_calls: Arena<ContractCallFact>,
+    pub call_contract_signatures: Arena<CallContractSignature>,
     pub contract_expression_evidence_calls: Vec<ContractExpressionEvidenceCallFact>,
     pub contract_expression_static_conformance_applications:
         Vec<ContractExpressionStaticConformanceApplicationFact>,

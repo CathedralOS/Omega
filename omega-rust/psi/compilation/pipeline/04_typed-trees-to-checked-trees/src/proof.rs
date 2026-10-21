@@ -11,7 +11,7 @@
 //! Mathematical declaration elaboration belongs to the independent proof
 //! package; this owner only transfers its completed records into `ProofFacts`.
 
-mod contracts;
+pub(crate) mod contracts;
 mod evidence_forwarding;
 mod float_meaning;
 mod obligations;
@@ -171,7 +171,8 @@ pub(crate) fn build_proof_facts(
             program.machine_type_parameters(machine),
             &mut contract_facts,
             &mut evidence_terms,
-        );
+        )
+        .map_err(|error| vec![error])?;
     }
     for definition in program.data_definitions() {
         append_parameter_evidence_contract_facts(
@@ -179,7 +180,8 @@ pub(crate) fn build_proof_facts(
             program.data_type_parameters(definition),
             &mut contract_facts,
             &mut evidence_terms,
-        );
+        )
+        .map_err(|error| vec![error])?;
     }
     for definition in program.domain_definitions() {
         append_parameter_evidence_contract_facts(
@@ -187,7 +189,8 @@ pub(crate) fn build_proof_facts(
             program.domain_type_parameters(definition),
             &mut contract_facts,
             &mut evidence_terms,
-        );
+        )
+        .map_err(|error| vec![error])?;
     }
     for trait_definition in program.traits() {
         append_parameter_evidence_contract_facts(
@@ -195,14 +198,16 @@ pub(crate) fn build_proof_facts(
             program.trait_type_parameters(trait_definition),
             &mut contract_facts,
             &mut evidence_terms,
-        );
+        )
+        .map_err(|error| vec![error])?;
         for requirement in program.trait_machine_signatures(trait_definition) {
             append_parameter_evidence_contract_facts(
                 program,
                 program.state_signature_type_parameters(requirement),
                 &mut contract_facts,
                 &mut evidence_terms,
-            );
+            )
+            .map_err(|error| vec![error])?;
         }
         append_state_signature_contract_facts(
             program,
@@ -210,7 +215,8 @@ pub(crate) fn build_proof_facts(
             program.trait_machine_signatures(trait_definition),
             &mut contract_facts,
             &mut evidence_terms,
-        );
+        )
+        .map_err(|error| vec![error])?;
     }
     // Applied contracts need their own signature identity: using the authored
     // template as owner would combine facts from distinct const/type tuples.
@@ -222,13 +228,14 @@ pub(crate) fn build_proof_facts(
             std::slice::from_ref(application.signature),
             &mut contract_facts,
             &mut evidence_terms,
-        );
+        )
+        .map_err(|error| vec![error])?;
     }
     for operator in program.all_operators() {
         append_operator_declaration_contract_facts(program, operator, &mut contract_facts);
     }
-    let (mut contract_fact_refs, contract_calls) =
-        build_contract_call_facts(program, borrow, &contract_facts);
+    let (mut contract_fact_refs, contract_calls, call_contract_signatures) =
+        build_contract_call_facts(program, borrow, &mut contract_facts, &mut evidence_terms)?;
     let contract_operator_uses = build_contract_operator_use_facts(
         program,
         operators,
@@ -247,6 +254,7 @@ pub(crate) fn build_proof_facts(
         evidence_terms,
         contract_fact_refs,
         contract_calls,
+        call_contract_signatures,
         contract_exits,
         contract_operator_uses,
         proposition_vocabulary,

@@ -24,16 +24,16 @@ mod propositions;
 mod roots;
 
 pub use contracts::{
-    BoundaryQualificationAuthorization, CheckedEvidenceTerm, ContractCallFact,
-    ContractEvidenceArgument, ContractExitFact, ContractExpressionEvidenceArgumentFact,
-    ContractExpressionEvidenceCallFact, ContractExpressionStaticConformanceApplicationFact,
-    ContractOperatorUseFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
-    ContractProofFactRef, EvidenceAssignmentSource, EvidenceForwardingFact, InheritedContractScope,
-    OutcomeOccurrenceRoot, OutcomeReferencedOccurrence, OutcomeSpecificArmFact,
-    OutcomeSpecificArmRowFact, OutcomeSpecificEvidenceInterfaceScopeFact,
-    OutcomeSpecificGuaranteeFact, OutcomeSpecificValidityFact, ProofOutputCallFact,
-    ProofOutputEvidenceArgumentFact, ProofOutputFact, ProofOutputRuntimeCallFact,
-    StaticRequirementDispatchFact,
+    BoundaryQualificationAuthorization, CallContractSignature, CheckedEvidenceTerm,
+    ContractCallFact, ContractEvidenceArgument, ContractExitFact,
+    ContractExpressionEvidenceArgumentFact, ContractExpressionEvidenceCallFact,
+    ContractExpressionStaticConformanceApplicationFact, ContractOperatorUseFact, ContractProofFact,
+    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, EvidenceAssignmentSource,
+    EvidenceForwardingFact, InheritedContractScope, OutcomeOccurrenceRoot,
+    OutcomeReferencedOccurrence, OutcomeSpecificArmFact, OutcomeSpecificArmRowFact,
+    OutcomeSpecificEvidenceInterfaceScopeFact, OutcomeSpecificGuaranteeFact,
+    OutcomeSpecificValidityFact, ProofOutputCallFact, ProofOutputEvidenceArgumentFact,
+    ProofOutputFact, ProofOutputRuntimeCallFact, StaticRequirementDispatchFact,
 };
 pub use float_meaning::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,

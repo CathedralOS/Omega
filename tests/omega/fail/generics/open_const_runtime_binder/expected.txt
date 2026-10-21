@@ -1,0 +1,1 @@
+conformance `Selected` parameter `Value` requires a const argument, but `<structural type>` has another static category

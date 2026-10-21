@@ -29,23 +29,28 @@ pub(super) fn append_contract_semantic_facts(
     let mut semantic_handles = Vec::with_capacity(proof.contract_facts.len());
 
     for (contract_handle, contract) in proof.contract_facts.iter() {
-        let point = contract_fact_point(program, contract);
-        let place = contract_fact_place(program, facts, contract);
+        let Some(point) = contract_fact_point(program, contract) else {
+            continue;
+        };
+        let Some(origin) = contract_fact_origin(contract) else {
+            continue;
+        };
+        let place = contract_fact_place(program, proof, facts, contract);
         let mut payload = semantic_contract_payload(program, contract);
         instantiate_inherited_contract_payload(program, proof, facts, contract, &mut payload);
         let declaration_fact = Fact {
             place,
             point,
-            origin: contract_fact_origin(contract),
+            origin,
             evidence: QualificationEvidence::default(),
             payload,
         };
         seed_current_requirement(program, operators, facts, &declaration_fact);
-        case_observations::append_requirement(program, facts, contract, &declaration_fact);
+        case_observations::append_requirement(program, proof, facts, contract, &declaration_fact);
         let fact = match contract.kind {
             ContractProofFactKind::Requires => {
                 let dependency_places =
-                    places::contract_fact_dependency_places(program, facts, contract);
+                    places::contract_fact_dependency_places(program, proof, facts, contract);
                 let fact = facts.append_fact(declaration_fact);
                 let mut refs = HandleSpan::empty();
                 facts.append_ref(&mut refs, fact);
@@ -74,7 +79,9 @@ pub(super) fn append_contract_semantic_facts(
                 // just as requires retain their read subjects. These remain
                 // obligations: do not append an assumption context or import
                 // the extra rows into an executable exit's premises.
-                for place in places::contract_fact_dependency_places(program, facts, contract) {
+                for place in
+                    places::contract_fact_dependency_places(program, proof, facts, contract)
+                {
                     if !facts.fact_place_equals(declaration_fact.place, place) {
                         facts.append_fact(Fact {
                             place: FactPlace::Place(place),
@@ -706,6 +713,11 @@ fn append_call_semantic_contract_refs(
 ) {
     for source_ref in source_refs {
         let contract = proof.contract_facts.get(source_ref.fact);
+        let owns =
+            crate::proof::contracts::call_signatures::owns_contract(program, proof, call, contract);
+        if !owns {
+            continue;
+        }
         let place = instantiate_call_contract_place(program, proof, facts, call, contract);
         let mut payload = semantic_contract_payload(program, contract);
         instantiate_call_contract_payload(program, proof, facts, call, contract, &mut payload);

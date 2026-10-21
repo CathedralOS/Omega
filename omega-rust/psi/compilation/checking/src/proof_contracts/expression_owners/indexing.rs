@@ -18,6 +18,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 pub(super) fn build_owner_environment_index(
     program: &dyn crate::CheckingInput,
     contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
+    call_signatures: &arena::Arena<checked_trees::CallContractSignature>,
 ) -> OwnerIndex {
     let mut index = OwnerIndex::default();
     for (handle, contract) in contract_facts.iter() {
@@ -30,7 +31,9 @@ pub(super) fn build_owner_environment_index(
                 .contract_facts
                 .push(handle);
         }
-        let Some(environment) = contract_owner_environment(program, contract.owner) else {
+        let Some(environment) =
+            contract_owner_environment(program, Some(call_signatures), contract.owner)
+        else {
             continue;
         };
         index.add_all(reached, || environment);

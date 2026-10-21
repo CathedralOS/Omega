@@ -331,7 +331,10 @@ impl CallableApplication {
         if !original.is_valid() {
             return Ok(original);
         }
-        let first = program.expression_table.iter_expressions().count() + 1;
+        // A private execution projection narrows iteration roots while keeping
+        // backing handles stable. Only the backing arena's frontier separates
+        // this copy from retained source predicates with larger handles.
+        let first = program.expression_table.expression_count() + 1;
         let copied = program.expression_table.insert_copy(original);
         // Snapshot only this copy's rows. Applying a type payload can append
         // another expression graph; that graph is applied by its own invocation.

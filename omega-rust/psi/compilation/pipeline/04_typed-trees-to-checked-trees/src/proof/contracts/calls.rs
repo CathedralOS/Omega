@@ -11,13 +11,19 @@ use symbols::SymbolHandle;
 pub(crate) fn build_contract_call_facts(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
-    contract_facts: &arena::Arena<ContractProofFact>,
-) -> (
-    arena::Arena<ContractProofFactRef>,
-    arena::Arena<ContractCallFact>,
-) {
+    contract_facts: &mut arena::Arena<ContractProofFact>,
+    evidence_terms: &mut arena::Arena<checked_trees::CheckedEvidenceTerm>,
+) -> Result<
+    (
+        arena::Arena<ContractProofFactRef>,
+        arena::Arena<ContractCallFact>,
+        arena::Arena<checked_trees::CallContractSignature>,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let mut fact_refs = arena::Arena::with_capacity(contract_facts.len());
     let mut calls = arena::Arena::with_capacity(borrow.calls.len());
+    let mut signatures = arena::Arena::with_capacity(borrow.calls.len());
 
     for state in borrow.states.iter().map(|(_, state)| state) {
         for call in borrow.calls.span_or_empty(state.calls) {
@@ -44,6 +50,30 @@ pub(crate) fn build_contract_call_facts(
                 call.statement_index,
                 call.call_ordinal,
             );
+            if call_site.is_none()
+                && validation::selected_requirement_signature(program, call.target_symbol).is_some()
+            {
+                return Err(vec![diagnostics::Diagnostic::error(
+                    "public requirement contract has no exact source invocation",
+                )]);
+            }
+            let signature = if let Some(site) = &call_site {
+                super::call_signatures::retain(
+                    program,
+                    &mut signatures,
+                    contract_facts,
+                    evidence_terms,
+                    state.machine_symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                    site,
+                )
+                .map_err(|error| vec![error])?
+            } else {
+                Default::default()
+            };
+            let signature_owner = super::call_signatures::owner(&signatures, signature);
             let contract_target = call_site
                 .as_ref()
                 .and_then(validation::CallSite::static_requirement_dispatch)
@@ -74,6 +104,8 @@ pub(crate) fn build_contract_call_facts(
                     target_state_symbol,
                     contract_machine_symbol: contract_target.0,
                     contract_state_symbol: contract_target.1,
+                    signature,
+                    signature_owner,
                     targets_machine_entry: program.machines().iter().any(|machine| {
                         machine.symbol == target_machine_symbol
                             && program
@@ -92,7 +124,7 @@ pub(crate) fn build_contract_call_facts(
         }
     }
 
-    (fact_refs, calls)
+    Ok((fact_refs, calls, signatures))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -105,6 +137,8 @@ struct ContractCallSite {
     target_state_symbol: SymbolHandle,
     contract_machine_symbol: SymbolHandle,
     contract_state_symbol: SymbolHandle,
+    signature: arena::Handle<checked_trees::CallContractSignature>,
+    signature_owner: Option<ContractProofFactOwner>,
     targets_machine_entry: bool,
     is_state_transfer: bool,
 }
@@ -125,6 +159,7 @@ fn append_contract_call(
         // Entry backedges renew machine preconditions even though they do not
         // return and cannot import the machine's postconditions.
         !site.is_state_transfer || site.targets_machine_entry,
+        site.signature_owner,
     );
     // A jump does not return to its source or establish the machine's
     // postconditions. Those remain obligations at the eventual normal exit.
@@ -138,6 +173,7 @@ fn append_contract_call(
             Some(site.contract_state_symbol),
             ContractProofFactKind::Ensures,
             true,
+            site.signature_owner,
         )
     };
 
@@ -152,6 +188,7 @@ fn append_contract_call(
         call_ordinal: site.call_ordinal,
         target_machine_symbol: site.target_machine_symbol,
         target_state_symbol: site.target_state_symbol,
+        signature: site.signature,
         requires,
         ensures,
         evidence_arguments: HandleSpan::empty(),
@@ -180,6 +217,7 @@ pub(crate) fn build_contract_exit_facts(
                 Some(state.symbol),
                 ContractProofFactKind::Ensures,
                 true,
+                None,
             );
 
             let mut has_transition = false;
@@ -256,34 +294,42 @@ fn append_contract_fact_refs(
     state_symbol: Option<SymbolHandle>,
     kind: ContractProofFactKind,
     include_machine_contracts: bool,
+    signature_owner: Option<ContractProofFactOwner>,
 ) -> HandleSpan<ContractProofFactRef> {
     let mut span = HandleSpan::empty();
 
     for (handle, fact) in contract_facts.iter() {
-        let owner_matches = match fact.owner {
-            ContractProofFactOwner::Machine {
-                machine_symbol: owner_symbol,
-            } => include_machine_contracts && owner_symbol == machine_symbol,
-            ContractProofFactOwner::MachineState {
-                machine_symbol: owner_machine_symbol,
-                state_symbol: owner_state_symbol,
-            } => {
-                owner_machine_symbol == machine_symbol
-                    && state_symbol.is_some_and(|state_symbol| state_symbol == owner_state_symbol)
+        let owner_matches = if let Some(owner) = signature_owner {
+            fact.owner == owner
+        } else {
+            match fact.owner {
+                ContractProofFactOwner::Machine {
+                    machine_symbol: owner_symbol,
+                } => include_machine_contracts && owner_symbol == machine_symbol,
+                ContractProofFactOwner::MachineState {
+                    machine_symbol: owner_machine_symbol,
+                    state_symbol: owner_state_symbol,
+                } => {
+                    owner_machine_symbol == machine_symbol
+                        && state_symbol
+                            .is_some_and(|state_symbol| state_symbol == owner_state_symbol)
+                }
+                // A trait machine signature's contracts (boundary trait `requires`/
+                // `ensures`) are owned by the trait symbol plus the signature symbol;
+                // calls through trait-typed receivers target exactly that pair.
+                ContractProofFactOwner::StateSignature {
+                    owner_symbol,
+                    state_symbol: owner_state_symbol,
+                } => {
+                    owner_symbol == machine_symbol
+                        && state_symbol
+                            .is_some_and(|state_symbol| state_symbol == owner_state_symbol)
+                }
+                ContractProofFactOwner::Unknown
+                | ContractProofFactOwner::CallSignature { .. }
+                | ContractProofFactOwner::OperatorDeclaration { .. }
+                | ContractProofFactOwner::OperatorUse { .. } => false,
             }
-            // A trait machine signature's contracts (boundary trait `requires`/
-            // `ensures`) are owned by the trait symbol plus the signature symbol;
-            // calls through trait-typed receivers target exactly that pair.
-            ContractProofFactOwner::StateSignature {
-                owner_symbol,
-                state_symbol: owner_state_symbol,
-            } => {
-                owner_symbol == machine_symbol
-                    && state_symbol.is_some_and(|state_symbol| state_symbol == owner_state_symbol)
-            }
-            ContractProofFactOwner::Unknown
-            | ContractProofFactOwner::OperatorDeclaration { .. }
-            | ContractProofFactOwner::OperatorUse { .. } => false,
         };
 
         if owner_matches && fact.kind == kind {

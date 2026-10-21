@@ -514,6 +514,58 @@ fn validate_const_binding(
     actual: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let TypeReferenceNode::ConstExpression(expression) =
+        program.type_reference_table.type_reference(actual)
+        && let TypeParameterKind::Const {
+            type_reference: expected,
+        } = parameter.kind
+        && let Some(caller) = program.machine_by_symbol(application.lexical_owner)
+        && let Some(entry) = program.machine_states(caller).first()
+        && program
+            .primitive_type_reference(expected)
+            .is_some_and(|primitive| primitive.accepts_integer_literal())
+        && typed_trees::const_integer::is_integer_expression(
+            &program.expression_table,
+            *expression,
+            &|symbol, _| {
+                program.data_type_parameter_by_symbol(symbol).is_some_and(|binder| {
+                matches!(binder.kind, TypeParameterKind::Const { type_reference }
+                    if crate::value_custody::type_references::type_references_match(program, type_reference, expected))
+            })
+            },
+        )
+    {
+        // Retention of a source expression is not admission of its operations.
+        // Immutable const leaves keep their declared carrier; the ordinary
+        // selected-result and arithmetic owners check the supplying contract.
+        let environment = crate::proof_contracts::arithmetic_domains::requires_value_environment(
+            program, caller, entry,
+        );
+        crate::proof_contracts::arithmetic_domains::validate_value_range(
+            program,
+            caller,
+            Some(entry),
+            *expression,
+            &environment,
+            program.primitive_type_reference(expected),
+            program.arithmetic_domain_for_type_reference(expected),
+            &format!(
+                "machine `{}` const argument `{}`",
+                caller.name, parameter.name
+            ),
+            diagnostics,
+        );
+        if !crate::expression_result_type_reference(program, caller, entry, *expression)
+            .is_some_and(|actual| {
+                crate::value_custody::type_references::type_references_match(
+                    program, actual, expected,
+                )
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!("const expression for parameter `{}` of `{}` has no selected result with its declared carrier", parameter.name, machine.name)));
+        }
+        return;
+    }
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(actual)
         && symbol.is_valid()

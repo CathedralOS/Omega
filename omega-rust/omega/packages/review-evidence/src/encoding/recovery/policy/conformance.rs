@@ -41,6 +41,9 @@ pub(in crate::encoding::recovery) fn const_argument(
             parameter_carrier: type_identity(reader)?,
             declared_carrier: type_identity(reader)?,
             canonical_value_encoding: reader.string()?},
+        2 => PackagePolicyConformanceConstArgument::CallerExpression {
+            parameter_carrier: type_identity(reader)?,
+            expression: type_identity(reader)?},
         1 => PackagePolicyConformanceConstArgument::CallerBinder {
             parameter_carrier: type_identity(reader)?,
             binder: nominal(reader)?,

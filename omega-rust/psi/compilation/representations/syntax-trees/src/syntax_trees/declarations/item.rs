@@ -96,13 +96,27 @@ pub struct ConstQualification {
     pub initializer: crate::expression::ExpressionHandle,
 }
 
+/// Custody at one preparation boundary. Exact rosters have one owner: source
+/// declaration readiness must never become an invocation or effect grant.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConstInitializerCustody {
+    pub selections: Vec<crate::types::ConstArgumentOrigin>,
+    pub builtin_operators: Vec<source::SourceSpan>,
+    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
+}
+
 /// Authored syntax and exact source custody retained when a constant initializer
 /// becomes an evaluated value. Source coordinates remain unchanged on copying;
 /// the authored expression is remapped into the destination syntax arena.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConstInitializerNormalization {
+    /// Original source closure before private implementation realization.
+    pub authored_custody: ConstInitializerCustody,
+    /// Complete selected declaration preparation, including uninvoked members.
+    pub declaration_custody: ConstInitializerCustody,
     pub authored_expression: crate::expression::ExpressionHandle,
     pub result_value: language_core::constant_value::EvaluatedConstant,
+    /// Realized value custody, reconstructed again before receiving execution.
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
     pub builtin_operators: Vec<source::SourceSpan>,
     /// Original call occurrence and exact selected declaration source. These

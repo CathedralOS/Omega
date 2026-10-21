@@ -1261,6 +1261,9 @@ impl ExpressionTable {
                 .all(|(x, y)| self.expressions_structurally_equal(*x, *y))
     }
 
+    /// Backing arena length, independent of the current iteration roster.
+    /// Use this insertion frontier when a derived copy must not mutate retained
+    /// source nodes; a projected root count does not bound existing handles.
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }

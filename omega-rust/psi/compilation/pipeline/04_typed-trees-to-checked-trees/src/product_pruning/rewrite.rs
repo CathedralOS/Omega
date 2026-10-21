@@ -142,11 +142,15 @@ fn apply_fact_pruning(
     facts
         .proof
         .contract_expression_evidence_calls
-        .retain(|row| contract_owner_retained(row.owner, pruned));
+        .retain(|row| {
+            contract_owner_retained(row.owner, pruned, &facts.proof.call_contract_signatures)
+        });
     facts
         .proof
         .contract_expression_static_conformance_applications
-        .retain(|row| contract_owner_retained(row.owner, pruned));
+        .retain(|row| {
+            contract_owner_retained(row.owner, pruned, &facts.proof.call_contract_signatures)
+        });
 
     // Machine-keyed roster arenas with no inbound handles or spans are
     // rebuilt so iteration sees exactly the retained product. Arenas whose
@@ -248,11 +252,16 @@ fn apply_fact_pruning(
 fn contract_owner_retained(
     owner: checked_trees::ContractProofFactOwner,
     pruned: &HashSet<SymbolHandle>,
+    signatures: &arena::Arena<checked_trees::CallContractSignature>,
 ) -> bool {
     match owner {
         checked_trees::ContractProofFactOwner::Machine { machine_symbol }
         | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
             !pruned.contains(&machine_symbol)
+        }
+        checked_trees::ContractProofFactOwner::CallSignature { application, .. } => {
+            crate::proof::contracts::call_signatures::owner(signatures, application) == Some(owner)
+                && !pruned.contains(&signatures.get(application).caller_machine_symbol)
         }
         _ => true,
     }

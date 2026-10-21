@@ -62,6 +62,22 @@ pub(crate) fn argument_type_reference(
             }));
     }
     if argument.type_reference.is_valid() {
+        if kind.is_const_or_value()
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(argument.type_reference),
+                TypeReferenceNode::ConstExpression(_)
+            )
+            && !argument.symbol.is_valid()
+            && argument.path.is_empty()
+            && argument.application.is_none()
+        {
+            // The checked closed application owns category/carrier admission.
+            // Publication preserves the same typed expression for exact-owner
+            // identity and selected-operation validation below.
+            return Ok(argument.type_reference);
+        }
         if !matches!(kind, TypeParameterKind::Type) {
             return Err(rejected("a type payload outside its exact type slot"));
         }
@@ -278,35 +294,52 @@ pub(super) fn argument_context(
     if depth >= 64 {
         return Err(rejected("an over-deep argument context"));
     }
+    // Reuse the typed ownership traversal, including const-expression leaves;
+    // a nested static operand cannot lose its supplying declaration merely
+    // because its outer storage lane is a type-reference handle.
+    struct ArgumentSymbols(Vec<SymbolHandle>);
+    impl Extend<SymbolHandle> for ArgumentSymbols {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+            self.0.extend(symbols);
+        }
+    }
+    impl typed_trees::references::TypedReferences for ArgumentSymbols {}
     for argument in arguments {
-        if matches!(
-            compilation.symbols.get(argument.symbol).kind,
-            SymbolKind::TypeParameter | SymbolKind::MachineParameter
-        ) && !binders.iter().any(|(symbol, _)| *symbol == argument.symbol)
-        {
-            let nominal =
-                super::policy_callables::caller_binder_identity(compilation, argument.symbol)?;
-            let owner = match nominal.owner {
-                crate::record::PackageReviewNominalOwner::Package(package) => {
-                    super::super::encoding::canonical_digest_label("package", package.digest())
-                }
-                crate::record::PackageReviewNominalOwner::ToolchainSource(source) => {
-                    super::super::encoding::canonical_digest_label(
-                        "toolchain-source",
-                        source.digest(),
-                    )
-                }
-                crate::record::PackageReviewNominalOwner::Unresolved => {
-                    return Err(rejected("an unowned caller binder"));
-                }
-            };
-            binders.push((
-                argument.symbol,
-                super::super::encoding::framed_identity(
-                    "conformance-caller-binder",
-                    &[owner, nominal.path],
-                ),
-            ));
+        let mut symbols = ArgumentSymbols(Vec::new());
+        typed_trees::references::visit_static_argument(
+            compilation.checking_input.typed_program(),
+            &mut symbols,
+            argument,
+        );
+        for symbol in symbols.0 {
+            if matches!(
+                compilation.symbols.get(symbol).kind,
+                SymbolKind::TypeParameter | SymbolKind::MachineParameter
+            ) && !binders.iter().any(|(candidate, _)| *candidate == symbol)
+            {
+                let nominal = super::policy_callables::caller_binder_identity(compilation, symbol)?;
+                let owner = match nominal.owner {
+                    crate::record::PackageReviewNominalOwner::Package(package) => {
+                        super::super::encoding::canonical_digest_label("package", package.digest())
+                    }
+                    crate::record::PackageReviewNominalOwner::ToolchainSource(source) => {
+                        super::super::encoding::canonical_digest_label(
+                            "toolchain-source",
+                            source.digest(),
+                        )
+                    }
+                    crate::record::PackageReviewNominalOwner::Unresolved => {
+                        return Err(rejected("an unowned caller binder"));
+                    }
+                };
+                binders.push((
+                    symbol,
+                    super::super::encoding::framed_identity(
+                        "conformance-caller-binder",
+                        &[owner, nominal.path],
+                    ),
+                ));
+            }
         }
         if let Some(application) = &argument.application {
             for lifetime in &application.lifetime_arguments {

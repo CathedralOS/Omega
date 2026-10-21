@@ -70,38 +70,53 @@ pub(in crate::checks) fn proves_at_exit(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
-    statement: usize,
+    exit: &checked_trees::FlowExitFact,
     contexts: &[FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
     goal: &ScopedArithmeticExpression,
 ) -> bool {
-    let hypotheses = super::available(
+    if caller.machine_symbol != exit.machine_symbol || caller.state_symbol != exit.state_symbol {
+        return false;
+    }
+    let frontier =
+        if crate::checks::contracts::return_values::completed_return_operand(program, facts, exit)
+            .is_some()
+        {
+            // This capture is published after evaluating the selected return, not
+            // at entry to the statement that contains it. Live context ownership
+            // still authenticates every imported normal-return guarantee.
+            super::GuaranteeUse::EvaluatedContext(exit.statement_index)
+        } else {
+            super::GuaranteeUse::StatementEntry(exit.statement_index)
+        };
+    let hypotheses = super::available(program, facts, caller, frontier, contexts, frames)
+        .into_iter()
+        .filter_map(|guarantee| {
+            at_invocation(
+                program,
+                facts,
+                caller,
+                &guarantee.invocation,
+                guarantee.expression,
+                guarantee.post_return_writes.as_deref()?,
+                frames,
+            )
+            .map(|proposition| ScopedArithmeticHypothesis {
+                proposition,
+                holds: true,
+            })
+        })
+        .collect::<Vec<_>>();
+    proves_bound(
         program,
         facts,
         caller,
-        super::GuaranteeUse::StatementEntry(statement),
+        exit.statement_index,
         contexts,
+        goal,
+        hypotheses,
         frames,
-    )
-    .into_iter()
-    .filter_map(|guarantee| {
-        at_invocation(
-            program,
-            facts,
-            caller,
-            &guarantee.invocation,
-            guarantee.expression,
-            guarantee.post_return_writes.as_deref()?,
-            frames,
-        )
-        .map(|proposition| ScopedArithmeticHypothesis {
-            proposition,
-            holds: true,
-        })
-    })
-    .collect::<Vec<_>>();
-    proves_bound(
-        program, facts, caller, statement, contexts, goal, hypotheses, frames, None,
+        None,
     )
 }
 
@@ -327,11 +342,14 @@ pub(super) fn at_invocation(
     post_return_writes: &[validation::CanonicalPlace],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Option<ScopedArithmeticExpression> {
-    proposition(
+    let static_actuals = super::static_operands::bindings(program, facts, invocation, expression);
+    let static_actuals = static_actuals?;
+    let result = proposition_with_static_actuals(
         program,
         facts,
         &invocation.callable,
         expression,
+        &static_actuals,
         |occurrence, primitive| {
             if let Some((actual, remaining)) = actual_projection(program, invocation, occurrence)
                 && remaining.is_empty()
@@ -409,7 +427,8 @@ pub(super) fn at_invocation(
                 atom(place, primitive)
             })
         },
-    )
+    );
+    result
 }
 
 pub(in crate::checks) fn value_origin(
@@ -560,13 +579,24 @@ pub(in crate::checks) fn proposition(
     expression: ExpressionHandle,
     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticExpression> {
+    proposition_with_static_actuals(program, facts, callable, expression, &[], value)
+}
+
+fn proposition_with_static_actuals(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+    static_actuals: &[ScopedArithmeticBinding],
+    value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
+) -> Option<ScopedArithmeticExpression> {
     if !super::super::has_builtin_operators(program, &facts.operators, expression)
         || !callable.builtin_meaning(program, expression)
         || !predicate(program, &facts.operators, callable, expression)
     {
         return None;
     }
-    bind_occurrences(program, facts, callable, expression, value)
+    bind_occurrences(program, facts, callable, expression, static_actuals, value)
 }
 
 pub(in crate::checks) fn scalar_term(
@@ -576,8 +606,10 @@ pub(in crate::checks) fn scalar_term(
     expression: ExpressionHandle,
     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticValue> {
-    let (expression, remainder) = admitted_scalar_expression(program, facts, callable, expression)?;
-    let term = bind_occurrences(program, facts, callable, expression, value)?;
+    let admitted = admitted_scalar_expression(program, facts, callable, expression);
+    let (expression, remainder) = admitted?;
+    let term = bind_occurrences(program, facts, callable, expression, &[], value);
+    let term = term?;
     Some(if remainder {
         ScopedArithmeticValue::AdmittedIntegerRemainder(term)
     } else {
@@ -609,6 +641,7 @@ fn bind_occurrences(
     facts: &CheckFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
+    static_actuals: &[ScopedArithmeticBinding],
     mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticExpression> {
     let mut occurrences = Vec::new();
@@ -679,13 +712,17 @@ fn bind_occurrences(
                     // not a storage observation at the call/return frontier.
                     // Goal and premises share its exact generational identity;
                     // unrelated same-spelled binders remain distinct atoms.
-                    ScopedArithmeticValue::Atom {
-                        identity: format!("\0static-parameter:{symbol:?}"),
-                        unsigned: matches!(
-                            primitive,
-                            typed_trees::unsigned_integer_primitive_pattern!()
-                        ),
-                    }
+                    static_actuals
+                        .iter()
+                        .find(|binding| binding.binder == binder)
+                        .map(|binding| binding.value.clone())
+                        .unwrap_or_else(|| ScopedArithmeticValue::Atom {
+                            identity: format!("\0static-parameter:{symbol:?}"),
+                            unsigned: matches!(
+                                primitive,
+                                typed_trees::unsigned_integer_primitive_pattern!()
+                            ),
+                        })
                 }
                 _ => value(occurrence, primitive)?,
             },

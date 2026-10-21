@@ -134,6 +134,24 @@ pub(crate) fn project_checked_conformance_policy<'a>(
                         canonical_value_encoding: value.encoding.clone(),
                     }
                 }
+                ClosedConformanceConstArgument::CallerExpression {
+                    parameter_carrier,
+                    expression,
+                } => PackagePolicyConformanceConstArgument::CallerExpression {
+                    parameter_carrier: project_type(*parameter_carrier)?,
+                    expression: signature_type_identity(
+                        compilation,
+                        &instantiated,
+                        compilation.custody.sources().exact_toolchain_sources(),
+                        *expression,
+                        &binders,
+                        lifetimes,
+                        &substitutions,
+                        &lifetime_substitutions,
+                        true,
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+                    )?,
+                },
                 ClosedConformanceConstArgument::CallerBinder {
                     parameter_carrier,
                     binder,

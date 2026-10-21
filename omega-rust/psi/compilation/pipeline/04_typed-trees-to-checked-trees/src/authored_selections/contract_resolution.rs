@@ -227,6 +227,10 @@ fn checked_resultless_law_equality(
     for handle in containing {
         let contract = facts.proof.contract_facts.get(handle);
         let resultless = match contract.owner {
+            ContractProofFactOwner::CallSignature { .. } => {
+                crate::proof::contracts::call_signatures::signature(&facts.proof, contract.owner)
+                    .is_some_and(|signature| type_reference_is_unit(program, signature.return_type))
+            }
             ContractProofFactOwner::StateSignature {
                 owner_symbol,
                 state_symbol,

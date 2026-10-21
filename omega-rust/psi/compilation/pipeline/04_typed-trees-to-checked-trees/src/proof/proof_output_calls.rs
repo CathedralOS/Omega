@@ -98,7 +98,90 @@ pub(crate) fn bind_proof_output_call_facts(
             )));
             continue;
         }
-        let (target_machine_symbol, target_state_symbol, return_type, immediate) =
+        // A package with a runtime value names the already retained ordinary
+        // call. An erased-only package retains its own exact source expression.
+        // Both paths use one owner for every input and output evidence lane.
+        let signature_application =
+            if let Some(statement_index) = package.runtime_call_statement_index {
+                let mut calls = proof.contract_calls.iter().filter_map(|(_, call)| {
+                    (call.caller_machine_symbol == package.machine_symbol
+                        && call.caller_state_symbol == package.state_symbol
+                        && call.statement_index == statement_index
+                        && call.call_ordinal == 0)
+                        .then_some(call.signature)
+                });
+                let application = calls.next();
+                if application.is_none() || calls.next().is_some() {
+                    diagnostics.push(diagnostics::Diagnostic::error(
+                        "proof-output package has no unique exact ordinary invocation",
+                    ));
+                    continue;
+                }
+                application.unwrap_or_default()
+            } else {
+                match super::contracts::call_signatures::retain(
+                    program,
+                    &mut proof.call_contract_signatures,
+                    &mut proof.contract_facts,
+                    &mut proof.evidence_terms,
+                    package.machine_symbol,
+                    package.state_symbol,
+                    package.statement_index,
+                    0,
+                    &validation::CallSite::Expression {
+                        expression: package.call,
+                        call,
+                    },
+                ) {
+                    Ok(application) => application,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        continue;
+                    }
+                }
+            };
+        let public_owner = super::contracts::call_signatures::owner(
+            &proof.call_contract_signatures,
+            signature_application,
+        );
+        if (open_requirement.is_some() || static_requirement.is_some()) && public_owner.is_none() {
+            diagnostics.push(diagnostics::Diagnostic::error(
+                "proof-output requirement lost its invocation-owned logical signature",
+            ));
+            continue;
+        }
+        let logical_signature = public_owner.map(|_| {
+            proof
+                .call_contract_signatures
+                .get(signature_application)
+                .signature
+                .clone()
+        });
+        if let Some(signature) = logical_signature.as_ref() {
+            let source_site = validation::CallSite::Expression {
+                expression: package.call,
+                call,
+            };
+            let matches = validation::requirement_contract_signature(
+                program,
+                package.machine_symbol,
+                &source_site,
+            )
+            .is_some_and(|(declaration, selected)| {
+                selected == signature
+                    && public_owner.is_some_and(|owner| {
+                        matches!(owner, ContractProofFactOwner::CallSignature { owner_symbol, .. }
+                            if owner_symbol == declaration.symbol)
+                    })
+            });
+            if !matches {
+                diagnostics.push(diagnostics::Diagnostic::error(
+                    "proof-output package does not select its ordinary invocation's complete logical contract",
+                ));
+                continue;
+            }
+        }
+        let (target_machine_symbol, target_state_symbol, mut return_type, immediate) =
             if let Some((machine, state)) = machine_target {
                 (
                     machine.symbol,
@@ -118,6 +201,9 @@ pub(crate) fn bind_proof_output_call_facts(
             } else {
                 continue;
             };
+        if let Some(signature) = logical_signature.as_ref() {
+            return_type = signature.return_type;
+        }
         let runtime_value_type = return_type
             .is_valid()
             .then(|| program.primitive_type_reference(return_type))
@@ -131,32 +217,9 @@ pub(crate) fn bind_proof_output_call_facts(
             continue;
         }
 
-        let public_owner = static_requirement
+        let target_parameters = logical_signature
             .as_ref()
-            .map(|(_, requirement)| ContractProofFactOwner::StateSignature {
-                owner_symbol: call
-                    .static_requirement_dispatch
-                    .as_ref()
-                    .expect("checked static requirement dispatch")
-                    .declaring_trait,
-                state_symbol: requirement.symbol,
-            })
-            .or_else(|| {
-                open_requirement.as_ref().map(|requirement| {
-                    ContractProofFactOwner::StateSignature {
-                        owner_symbol: requirement.application.declaration.symbol,
-                        state_symbol: requirement.signature.symbol,
-                    }
-                })
-            });
-        let target_parameters = static_requirement
-            .as_ref()
-            .map(|(_, requirement)| program.state_signature_parameters(requirement))
-            .or_else(|| {
-                open_requirement
-                    .as_ref()
-                    .map(|requirement| program.state_signature_parameters(requirement.signature))
-            })
+            .map(|signature| program.state_signature_parameters(signature))
             .or_else(|| machine_target.map(|(_, state)| program.state_parameters(state)))
             .unwrap_or_default();
         let mut callee_inputs = proof

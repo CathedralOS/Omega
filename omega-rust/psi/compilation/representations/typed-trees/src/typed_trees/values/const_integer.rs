@@ -26,24 +26,81 @@ pub fn classify(
     expression: ExpressionHandle,
     is_binder: &impl Fn(SymbolHandle, &str) -> bool,
 ) -> Option<ConstIntegerExpression> {
+    fold(
+        expressions,
+        expression,
+        &|leaf| match leaf {
+            IntegerLeaf::Literal(literal) => literal
+                .value_i64()
+                .map(i128::from)
+                .or_else(|| literal.value_u64().map(i128::from))
+                .map(ConstIntegerExpression::Closed),
+            IntegerLeaf::Name { symbol, spelling } => {
+                if !symbol.is_valid()
+                    && let Ok(value) = spelling.parse::<i128>()
+                {
+                    return Some(ConstIntegerExpression::Closed(value));
+                }
+                is_binder(symbol, spelling).then_some(ConstIntegerExpression::Open)
+            }
+        },
+        &|operator, left, right| match (left, right) {
+            (ConstIntegerExpression::Closed(left), ConstIntegerExpression::Closed(right)) => {
+                apply(operator, left, right).map(ConstIntegerExpression::Closed)
+            }
+            _ => Some(ConstIntegerExpression::Open),
+        },
+    )
+}
+
+/// Classify the retained operand's static category without evaluating it.
+/// Selected operation meaning, carrier landing and partial-operand formation
+/// remain independent checking obligations. In particular, an unresolved or
+/// undefined calculation is not silently evaluated by its operator token.
+pub fn is_integer_expression(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    is_binder: &impl Fn(SymbolHandle, &str) -> bool,
+) -> bool {
+    fold(
+        expressions,
+        expression,
+        &|leaf| match leaf {
+            IntegerLeaf::Literal(_) => Some(()),
+            IntegerLeaf::Name { symbol, spelling } => ((!symbol.is_valid()
+                && spelling.parse::<i128>().is_ok())
+                || is_binder(symbol, spelling))
+            .then_some(()),
+        },
+        &|_, (), ()| Some(()),
+    )
+    .is_some()
+}
+
+enum IntegerLeaf<'expression> {
+    Literal(&'expression numerics::literals::IntegerLiteral),
+    Name {
+        symbol: SymbolHandle,
+        spelling: &'expression str,
+    },
+}
+
+fn fold<Value>(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    leaf: &impl Fn(IntegerLeaf<'_>) -> Option<Value>,
+    operation: &impl Fn(BinaryOperator, Value, Value) -> Option<Value>,
+) -> Option<Value> {
     match expressions.expression(expression) {
-        ExpressionNode::Integer(literal) => literal
-            .value_i64()
-            .map(i128::from)
-            .or_else(|| literal.value_u64().map(i128::from))
-            .map(ConstIntegerExpression::Closed),
+        ExpressionNode::Integer(literal) => leaf(IntegerLeaf::Literal(literal)),
         ExpressionNode::Name(path) => {
-            let members = expressions.name_path_members(path.members);
-            let [member] = members else {
+            let [member] = expressions.name_path_members(path.members) else {
                 return None;
             };
-            let spelling = member.as_str();
-            if !path.symbol.is_valid()
-                && let Ok(value) = spelling.parse::<i128>()
-            {
-                return Some(ConstIntegerExpression::Closed(value));
-            }
-            is_binder(path.symbol, spelling).then_some(ConstIntegerExpression::Open)
+            leaf(IntegerLeaf::Name {
+                symbol: path.symbol,
+                spelling: member.as_str(),
+            })
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -55,14 +112,11 @@ pub fn classify(
                     | BinaryOperator::Modulo
             ) =>
         {
-            let left = classify(expressions, binary.left, is_binder)?;
-            let right = classify(expressions, binary.right, is_binder)?;
-            match (left, right) {
-                (ConstIntegerExpression::Closed(left), ConstIntegerExpression::Closed(right)) => {
-                    apply(binary.operator, left, right).map(ConstIntegerExpression::Closed)
-                }
-                _ => Some(ConstIntegerExpression::Open),
-            }
+            operation(
+                binary.operator,
+                fold(expressions, binary.left, leaf, operation)?,
+                fold(expressions, binary.right, leaf, operation)?,
+            )
         }
         _ => None,
     }

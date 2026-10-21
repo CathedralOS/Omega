@@ -327,6 +327,9 @@ fn realize_capture(
                                     )
                                 }
                                 Some(
+                                    typed_trees::typed_trees::ClosedConformanceConstArgument::CallerExpression {
+                                        ..
+                                    } |
                                     typed_trees::typed_trees::ClosedConformanceConstArgument::CallerBinder {
                                         ..
                                     },

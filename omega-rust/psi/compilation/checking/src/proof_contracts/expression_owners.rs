@@ -129,8 +129,18 @@ impl OwnerEnvironmentIndex {
         program: &dyn crate::CheckingInput,
         contract_facts: &arena::Arena<ContractProofFact>,
     ) -> Self {
+        Self::with_call_signatures(program, contract_facts, &arena::Arena::default())
+    }
+
+    /// Checked invocation signatures retain their complete applied parameter
+    /// environment. Preparation has no such authority and uses `new` instead.
+    pub fn with_call_signatures(
+        program: &dyn crate::CheckingInput,
+        contract_facts: &arena::Arena<ContractProofFact>,
+        call_signatures: &arena::Arena<checked_trees::CallContractSignature>,
+    ) -> Self {
         Self {
-            index: build_owner_environment_index(program, contract_facts),
+            index: build_owner_environment_index(program, contract_facts, call_signatures),
             program_only: std::cell::OnceCell::new(),
         }
     }

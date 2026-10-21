@@ -196,6 +196,37 @@ fn instance_in_scope(
     application.signature.symbol
 }
 
+/// Evidence packaging retains a separate expression for the same source
+/// invocation. Its complete logical selection must be prepared and retargeted
+/// alongside the ordinary statement; the binding's later statement position is
+/// not a second invocation. Erased-only packages keep their own source point.
+fn source_expression_roster(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    position: usize,
+    statement: &typed_trees::statement::StatementNode,
+) -> Vec<typed_trees::expression::ExpressionHandle> {
+    let mut expressions = Vec::new();
+    validation::collect_statement_expression_trees(program, statement, &mut expressions);
+    for package in &program.proof_output_calls {
+        if package.machine_symbol == machine
+            && package.state_symbol == state
+            && package
+                .runtime_call_statement_index
+                .unwrap_or(package.statement_index)
+                == position
+        {
+            validation::expression_traversal::collect_expression_tree(
+                program,
+                package.call,
+                &mut expressions,
+            );
+        }
+    }
+    expressions
+}
+
 /// Static calls instantiate their own complete invocation tuples. These rows
 /// are public contract applications, never a finite dynamic-dispatch roster.
 pub(super) fn invocation_tuples(
@@ -268,11 +299,12 @@ pub(super) fn invocation_tuples(
                         occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
                     )?;
                 }
-                let mut expressions = Vec::new();
-                validation::collect_statement_expression_trees(
+                let expressions = source_expression_roster(
                     program,
+                    machine.symbol,
+                    state.symbol,
+                    position,
                     statement,
-                    &mut expressions,
                 );
                 for expression in expressions {
                     if let Some(call) = program.expression_table.call_node(expression) {
@@ -395,11 +427,12 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             .push((state.statement_nodes.handle_at(position as u32), selected));
                     }
                 }
-                let mut expressions = Vec::new();
-                validation::collect_statement_expression_trees(
+                let expressions = source_expression_roster(
                     program,
+                    machine.symbol,
+                    state.symbol,
+                    position,
                     statement,
-                    &mut expressions,
                 );
                 for expression in expressions {
                     let Some(call) = program.expression_table.call_node(expression) else {

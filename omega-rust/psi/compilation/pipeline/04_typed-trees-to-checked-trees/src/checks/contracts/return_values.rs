@@ -57,6 +57,37 @@ pub(super) fn check_activation_return(
     diagnostics.push(diagnostic);
 }
 
+/// The completed operand belongs to this exact outgoing occurrence. An exit's
+/// source position alone does not establish that its expression has finished:
+/// same-statement call inputs still use their earlier evaluation frontier.
+pub(in crate::checks::contracts) fn completed_return_operand<'facts>(
+    program: &dyn ::validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    exit: &FlowExitFact,
+) -> Option<&'facts checked_trees::FlowOperandFact> {
+    if !facts.flow.control.operands.is_valid(exit.returned_value) {
+        return None;
+    }
+    let operand = facts.flow.control.operands.get(exit.returned_value);
+    let returned = exit_return_expression(program, exit);
+    if !returned.is_valid()
+        || operand.expression != returned
+        || operand.state_symbol != exit.state_symbol
+        || operand.statement_index != exit.statement_index
+    {
+        return None;
+    }
+    let mut outgoing = facts.flow.control.outgoing.iter().filter(|(_, outgoing)| {
+        outgoing.machine_symbol == exit.machine_symbol
+            && outgoing.state_symbol == exit.state_symbol
+            && outgoing.statement_index == exit.statement_index
+            && outgoing.transition_target == exit.transition_target
+            && outgoing.returned_value == exit.returned_value
+    });
+    outgoing.next()?;
+    outgoing.next().is_none().then_some(operand)
+}
+
 /// Rejoin a returned invocation to its exact retained call occurrence, whether
 /// the return spells a value call or names an external tail target.
 pub(super) fn exit_return_call<'facts>(

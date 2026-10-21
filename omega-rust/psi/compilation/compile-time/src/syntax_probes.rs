@@ -120,6 +120,12 @@ pub(crate) fn extend_normalization_owners(
                     syntax_trees::item::Item::Const(definition) => &definition.name,
                     syntax_trees::item::Item::Data(definition) => &definition.name,
                     syntax_trees::item::Item::Machine(definition) => &definition.name,
+                    syntax_trees::item::Item::Conformance(definition) => {
+                        let Some(alias) = &definition.alias else {
+                            return false;
+                        };
+                        alias
+                    }
                     _ => return false,
                 };
                 name.source_span() == *owner

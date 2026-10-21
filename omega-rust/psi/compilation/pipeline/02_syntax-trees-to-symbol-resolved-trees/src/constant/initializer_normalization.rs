@@ -28,6 +28,26 @@ pub(crate) struct PendingInitializer {
     receipt: syntax_trees::item::ConstInitializerNormalization,
 }
 
+/// The exact inventory validated before constant substitution. Substitution may
+/// inherit another declaration's realized rows; this owner rejoins the same
+/// root afterward without re-resolving or manufacturing occurrence identities.
+pub(crate) struct InitializerRootCustody {
+    root: ExpressionHandle,
+    reference: SourceSpan,
+    declaration: SourceSpan,
+    occurrences: Vec<symbol_resolved_trees::AuthoredDeclarationSelectionOccurrenceId>,
+}
+
+pub(crate) fn rejoin_after_substitution(
+    program: &mut SymbolResolvedTrees,
+    custody: &[InitializerRootCustody],
+) -> Result<(), Diagnostic> {
+    for owner in custody {
+        replace_initializer_lanes(program, owner)?;
+    }
+    Ok(())
+}
+
 fn error(reference: SourceSpan, reason: &str) -> Diagnostic {
     Diagnostic::error(format!("constant initializer normalization: {reason}"))
         .with_source_span(reference)
@@ -189,6 +209,7 @@ pub(crate) fn retain(
 fn declaration_custody(
     program: &SymbolResolvedTrees,
     record: &PendingInitializer,
+    purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<super::initializer_dependencies::ConstInitializerDependencies, Diagnostic> {
     let mut owners = program.const_declarations.iter().filter(|declaration| {
         program.symbols.symbol_source_span(declaration.symbol) == Some(record.declaration)
@@ -210,6 +231,7 @@ fn declaration_custody(
         program,
         record.authored,
         &owner.declared_type,
+        purpose,
     )
     .map_err(|reason| error(record.declaration, &reason))
 }
@@ -218,6 +240,7 @@ fn reconstruct(
     program: &SymbolResolvedTrees,
     records: &[PendingInitializer],
     root: usize,
+    purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<(Vec<ConstArgumentOrigin>, Vec<SourceSpan>), Diagnostic> {
     let mut origins = Vec::new();
     let mut operators = Vec::new();
@@ -248,7 +271,13 @@ fn reconstruct(
                 })?;
             dependencies.push((*reference, selected));
         }
-        let closure = declaration_custody(program, record)?;
+        let closure = declaration_custody(program, record, purpose)?;
+        for operator in &closure.initializer_operators {
+            if !operators.contains(operator) {
+                operators.push(*operator);
+            }
+        }
+
         for (reference, declaration) in closure.constants {
             let selected = program
                 .const_declarations
@@ -302,6 +331,7 @@ fn reconstruct(
                     records[root].declaration,
                     &mut origins,
                     &mut operators,
+                    purpose,
                 )?;
             }
         }
@@ -318,13 +348,22 @@ fn append_retained_custody(
     root: SourceSpan,
     origins: &mut Vec<ConstArgumentOrigin>,
     operators: &mut Vec<SourceSpan>,
+    purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<(), Diagnostic> {
     let owner_source = program.symbols.symbol_source_span(owner.symbol);
     for occurrence in program
         .tables
         .bodies
         .expressions
-        .authored_selection_occurrences(owner.initializer)
+        .authored_selection_occurrences(
+            if purpose == super::initializer_dependencies::DependencyPurpose::Authored
+                && owner.authored_initializer.is_valid()
+            {
+                owner.authored_initializer
+            } else {
+                owner.initializer
+            },
+        )
     {
         let selection = program
             .authored_declaration_selections()
@@ -465,94 +504,271 @@ pub(crate) fn finalize_operator_obligations(
     Ok(())
 }
 
+fn attach_custody(
+    program: &mut SymbolResolvedTrees,
+    root: ExpressionHandle,
+    custody: &syntax_trees::item::ConstInitializerCustody,
+    available: &super::initializer_dependencies::ConstInitializerDependencies,
+    declaration: SourceSpan,
+) -> Result<InitializerRootCustody, Diagnostic> {
+    let mut occurrences = Vec::new();
+    for (reference, selected_source) in &custody.call_selections {
+        let mut candidates = available.call_targets.iter().filter(|candidate| {
+            candidate.reference == *reference && candidate.declaration == *selected_source
+        });
+        let candidate = candidates.next().ok_or_else(|| {
+            error(
+                *reference,
+                "realized call has no exact source declaration dependency",
+            )
+        })?;
+        if candidates.next().is_some() {
+            return Err(error(
+                *reference,
+                "realized call has ambiguous source declaration custody",
+            ));
+        }
+        occurrences.push(
+            program
+                .record_resolved_authored_declaration_selection(
+                    *reference,
+                    Exposure::PrivateImplementation,
+                    Kind::Call,
+                    candidate.target,
+                )
+                .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
+        );
+    }
+    for origin in &custody.selections {
+        let mut candidates = program.const_declarations.iter().filter(|candidate| {
+            program.symbols.symbol_source_span(candidate.symbol) == Some(origin.declaration)
+        });
+        let selected = candidates
+            .next()
+            .ok_or_else(|| error(origin.reference, "selected declaration disappeared"))?
+            .symbol;
+        if candidates.next().is_some() {
+            return Err(error(
+                origin.reference,
+                "selected declaration has ambiguous source custody",
+            ));
+        }
+        occurrences.push(
+            program
+                .record_resolved_authored_declaration_selection(
+                    origin.reference,
+                    Exposure::PrivateImplementation,
+                    Kind::StaticPathSegment,
+                    selected,
+                )
+                .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
+        );
+    }
+    for operator in &custody.builtin_operators {
+        let occurrence = program
+            .record_late_bound_authored_declaration_selection(
+                *operator,
+                Exposure::PrivateImplementation,
+                Kind::Operator,
+                LateBinding::CheckedOperator,
+            )
+            .map_err(crate::constant::selections::const_selection_record_diagnostic)?;
+        program
+            .finalize_intrinsic_authored_declaration_selection(
+                occurrence,
+                LateBinding::CheckedOperator,
+                Intrinsic::BuiltinOperator,
+            )
+            .map_err(|reason| {
+                error(
+                    declaration,
+                    &format!("builtin selection finalization failed: {reason:?}"),
+                )
+            })?;
+        occurrences.push(occurrence);
+    }
+    let owner = InitializerRootCustody {
+        root,
+        reference: program.tables.bodies.expressions.source_span(root),
+        declaration,
+        occurrences,
+    };
+    replace_initializer_lanes(program, &owner)?;
+    Ok(owner)
+}
+
+fn replace_initializer_lanes(
+    program: &mut SymbolResolvedTrees,
+    owner: &InitializerRootCustody,
+) -> Result<(), Diagnostic> {
+    if !program
+        .tables
+        .bodies
+        .expressions
+        .expression_is_valid(owner.root)
+        || program.tables.bodies.expressions.source_span(owner.root) != owner.reference
+    {
+        return Err(error(
+            owner.declaration,
+            "initializer substitution changed its exact custody root",
+        ));
+    }
+    // Substituting another constant may have copied its realized inventory
+    // onto this root. The declaration owner has independently reconstructed the
+    // complete inventory for this boundary; retain unrelated type/case custody,
+    // then replace only the initializer's call, constant and operator lanes.
+    let mut retained = Vec::new();
+    for occurrence in program
+        .tables
+        .bodies
+        .expressions
+        .authored_selection_occurrences(owner.root)
+    {
+        let selection = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .ok_or_else(|| {
+                error(
+                    owner.declaration,
+                    "initializer root lost an attached selection",
+                )
+            })?;
+        let initializer_lane = matches!(selection.kind(), Kind::Call | Kind::Operator)
+            || (selection.kind() == Kind::StaticPathSegment
+                && matches!(selection.target(), Target::Resolved(selected)
+                    if program.symbols.get(selected.selected_symbol()).kind == SymbolKind::Const));
+        if !initializer_lane {
+            retained.push(occurrence);
+        }
+    }
+    retained.extend(owner.occurrences.iter().copied());
+    program
+        .tables
+        .bodies
+        .expressions
+        .replace_authored_selection_occurrences(owner.root, retained);
+    Ok(())
+}
+
+fn same_custody(
+    expected: &syntax_trees::item::ConstInitializerCustody,
+    actual: &syntax_trees::item::ConstInitializerCustody,
+) -> bool {
+    expected.selections.len() == actual.selections.len()
+        && expected
+            .selections
+            .iter()
+            .all(|value| actual.selections.contains(value))
+        && expected.builtin_operators.len() == actual.builtin_operators.len()
+        && expected
+            .builtin_operators
+            .iter()
+            .all(|value| actual.builtin_operators.contains(value))
+        && expected.call_selections.len() == actual.call_selections.len()
+        && expected
+            .call_selections
+            .iter()
+            .all(|value| actual.call_selections.contains(value))
+}
+
 pub(crate) fn finalize(
     program: &mut SymbolResolvedTrees,
     records: &[PendingInitializer],
-) -> Result<(), Diagnostic> {
+) -> Result<Vec<InitializerRootCustody>, Diagnostic> {
+    use super::initializer_dependencies::DependencyPurpose;
+    use syntax_trees::item::ConstInitializerCustody;
+    let mut roots = Vec::new();
     for (ordinal, record) in records.iter().enumerate() {
-        let (origins, operators) = reconstruct(program, records, ordinal)?;
-        let call_custody = declaration_custody(program, record)?;
-        let calls = &call_custody.calls;
-        if origins.len() != record.receipt.selections.len()
-            || origins
-                .iter()
-                .any(|origin| !record.receipt.selections.contains(origin))
-            || operators.len() != record.receipt.builtin_operators.len()
-            || operators
-                .iter()
-                .any(|operator| !record.receipt.builtin_operators.contains(operator))
-            || calls.len() != record.receipt.call_selections.len()
-            || calls
-                .iter()
-                .any(|call| !record.receipt.call_selections.contains(call))
+        let (authored_origins, authored_operators) =
+            reconstruct(program, records, ordinal, DependencyPurpose::Authored)?;
+        let authored_calls = declaration_custody(program, record, DependencyPurpose::Authored)?;
+        let authored = ConstInitializerCustody {
+            selections: authored_origins,
+            builtin_operators: authored_operators,
+            call_selections: authored_calls.calls.clone(),
+        };
+        let (origins, operators) = reconstruct(
+            program,
+            records,
+            ordinal,
+            DependencyPurpose::DeclarationReadiness,
+        )?;
+        let declaration_calls =
+            declaration_custody(program, record, DependencyPurpose::DeclarationReadiness)?;
+        let preparation = ConstInitializerCustody {
+            selections: origins,
+            builtin_operators: operators,
+            call_selections: declaration_calls.calls.clone(),
+        };
+        if !same_custody(&authored, &record.receipt.authored_custody)
+            || !same_custody(&preparation, &record.receipt.declaration_custody)
         {
             return Err(error(
                 record.declaration,
-                "authored declaration, value, or operator custody drifted",
+                "authored or declaration readiness custody drifted",
             ));
         }
-        let mut occurrences = Vec::new();
-        for (reference, selected) in call_custody.call_targets {
-            occurrences.push(
-                program
-                    .record_resolved_authored_declaration_selection(
-                        reference,
-                        Exposure::PrivateImplementation,
-                        Kind::Call,
-                        selected,
-                    )
-                    .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
-            );
-        }
-        for origin in origins {
-            let selected = program
-                .const_declarations
+        let realized = ConstInitializerCustody {
+            selections: record.receipt.selections.clone(),
+            builtin_operators: record.receipt.builtin_operators.clone(),
+            call_selections: record.receipt.call_selections.clone(),
+        };
+        if realized
+            .selections
+            .iter()
+            .enumerate()
+            .any(|(index, value)| realized.selections[..index].contains(value))
+            || realized
+                .builtin_operators
                 .iter()
-                .find(|declaration| {
-                    program.symbols.symbol_source_span(declaration.symbol)
-                        == Some(origin.declaration)
-                })
-                .ok_or_else(|| error(origin.reference, "selected declaration disappeared"))?
-                .symbol;
-            occurrences.push(
-                program
-                    .record_resolved_authored_declaration_selection(
-                        origin.reference,
-                        Exposure::PrivateImplementation,
-                        Kind::StaticPathSegment,
-                        selected,
-                    )
-                    .map_err(crate::constant::selections::const_selection_record_diagnostic)?,
-            );
+                .enumerate()
+                .any(|(index, value)| realized.builtin_operators[..index].contains(value))
+            || realized
+                .call_selections
+                .iter()
+                .enumerate()
+                .any(|(index, value)| realized.call_selections[..index].contains(value))
+        {
+            return Err(error(
+                record.declaration,
+                "realized custody contains duplicate occurrences",
+            ));
         }
-        for operator in operators {
-            let occurrence = program
-                .record_late_bound_authored_declaration_selection(
-                    operator,
-                    Exposure::PrivateImplementation,
-                    Kind::Operator,
-                    LateBinding::CheckedOperator,
-                )
-                .map_err(crate::constant::selections::const_selection_record_diagnostic)?;
-            program
-                .finalize_intrinsic_authored_declaration_selection(
-                    occurrence,
-                    LateBinding::CheckedOperator,
-                    Intrinsic::BuiltinOperator,
-                )
-                .map_err(|reason| {
-                    error(
-                        operator,
-                        &format!("builtin selection finalization failed: {reason:?}"),
-                    )
-                })?;
-            occurrences.push(occurrence);
+        // Source preparation establishes which declarations exist, never which
+        // member was invoked. The checked receiver independently reconstructs
+        // this realized roster and requires exact equality before replay.
+        if realized
+            .selections
+            .iter()
+            .any(|value| !preparation.selections.contains(value))
+            || realized
+                .builtin_operators
+                .iter()
+                .any(|value| !preparation.builtin_operators.contains(value))
+            || realized
+                .call_selections
+                .iter()
+                .any(|value| !preparation.call_selections.contains(value))
+        {
+            return Err(error(
+                record.declaration,
+                "realized custody has no exact source preparation dependency",
+            ));
         }
-        program
-            .tables
-            .bodies
-            .expressions
-            .attach_authored_selection_occurrences(record.materialized, occurrences);
+        roots.push(attach_custody(
+            program,
+            record.authored,
+            &authored,
+            &authored_calls,
+            record.declaration,
+        )?);
+        roots.push(attach_custody(
+            program,
+            record.materialized,
+            &realized,
+            &declaration_calls,
+            record.declaration,
+        )?);
     }
-    Ok(())
+    Ok(roots)
 }

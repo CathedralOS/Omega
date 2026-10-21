@@ -216,8 +216,9 @@ pub(crate) fn finalize(
             .chain(lowerer.pending_const_argument_expressions.iter().copied()),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    initializer_normalization::finalize(program, &lowerer.pending_const_initializers)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let initializer_custody =
+        initializer_normalization::finalize(program, &lowerer.pending_const_initializers)
+            .map_err(|diagnostic| vec![diagnostic])?;
     substitute_resolved_constants(
         program,
         &lowerer.pending_authored_expressions,
@@ -226,6 +227,8 @@ pub(crate) fn finalize(
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     finalize_const_selections(program, &lowerer.pending_const_selections)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    initializer_normalization::rejoin_after_substitution(program, &initializer_custody)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
 }

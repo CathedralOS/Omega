@@ -406,14 +406,22 @@ fn bound_contract_predicate(
                 machine_symbol,
                 state_symbol,
             } => (machine_symbol, state_symbol),
-            ContractProofFactOwner::StateSignature { state_symbol, .. } => {
+            ContractProofFactOwner::StateSignature { state_symbol, .. }
+            | ContractProofFactOwner::CallSignature { state_symbol, .. } => {
                 (state_symbol, state_symbol)
             }
             _ => return None,
         }
     };
     let actual = validation::call_target_parameters(program, target)?;
-    let parameters = validation::call_target_parameters(program, declared)?
+    let declared_parameters = if let ContractProofFactOwner::CallSignature { .. } = contract.owner {
+        let signature =
+            crate::proof::contracts::call_signatures::signature(&facts.proof, contract.owner)?;
+        program.state_signature_parameters(signature)
+    } else {
+        validation::call_target_parameters(program, declared)?
+    };
+    let parameters = declared_parameters
         .iter()
         .map(|parameter| {
             let position = crate::semantic::facts::contract_parameter_position(

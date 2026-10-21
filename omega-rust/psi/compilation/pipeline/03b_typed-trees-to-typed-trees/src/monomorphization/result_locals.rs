@@ -181,10 +181,10 @@ pub(super) fn refresh_generic_call_results(
             continue;
         }
         // Arena indices are one-based, so the copied result begins one past
-        // the last pre-existing node; bounding substitution at count()+1 keeps
-        // an already-materialized endpoint or binder sentinel out of the sweep.
+        // the last pre-existing node; using the backing arena count keeps retained source
+        // predicates out of the sweep even when iteration roots were projected.
         let type_start = program.type_reference_table.type_reference_count() + 1;
-        let expression_start = program.expression_table.iter_expressions().count() + 1;
+        let expression_start = program.expression_table.expression_count() + 1;
         let lifetimes = program
             .expression_table
             .static_machine_application_lifetimes(candidate.binding_application)

@@ -47,8 +47,8 @@ pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> Progra
 pub(super) fn contract_fact_point(
     program: &dyn ::validation::CheckingInput,
     contract: &ContractProofFact,
-) -> ProgramPoint {
-    match contract.owner {
+) -> Option<ProgramPoint> {
+    Some(match contract.owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
             // A machine precondition is an entry assumption, not an invariant
             // to regrant at every state. Ensures keep their declaration owner
@@ -58,10 +58,10 @@ pub(super) fn contract_fact_point(
                     .machine(machine_symbol)
                     .and_then(|machine| program.machine_states(machine).first())
             {
-                return ProgramPoint::State {
+                return Some(ProgramPoint::State {
                     machine_symbol,
                     state_symbol: entry.symbol,
-                };
+                });
             }
             ProgramPoint::Machine { machine_symbol }
         }
@@ -99,12 +99,13 @@ pub(super) fn contract_fact_point(
             statement_index,
         },
         ContractProofFactOwner::OperatorUse { .. } => ProgramPoint::Global,
+        ContractProofFactOwner::CallSignature { .. } => return None,
         ContractProofFactOwner::Unknown => ProgramPoint::Global,
-    }
+    })
 }
 
-pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
-    match contract.owner {
+pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> Option<FactOrigin> {
+    Some(match contract.owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
             FactOrigin::MachineContract { machine_symbol }
         }
@@ -132,6 +133,7 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
             ContractProofFactKind::Requires => FactOrigin::OperatorRequires { operator_symbol },
             ContractProofFactKind::Ensures => FactOrigin::OperatorEnsures { operator_symbol },
         },
+        ContractProofFactOwner::CallSignature { .. } => return None,
         ContractProofFactOwner::Unknown => FactOrigin::Unknown,
-    }
+    })
 }

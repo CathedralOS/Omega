@@ -72,6 +72,33 @@ impl ConstInitializerSelection {
         crate::constant::initializer_dependencies::ConstInitializerDependencies,
         Vec<Diagnostic>,
     > {
+        self.declaration_dependencies(
+            definition,
+            crate::constant::initializer_dependencies::DependencyPurpose::DeclarationReadiness,
+        )
+    }
+
+    pub fn initializer_authored_dependencies(
+        &self,
+        definition: &syntax_trees::item::ConstDefinition,
+    ) -> Result<
+        crate::constant::initializer_dependencies::ConstInitializerDependencies,
+        Vec<Diagnostic>,
+    > {
+        self.declaration_dependencies(
+            definition,
+            crate::constant::initializer_dependencies::DependencyPurpose::Authored,
+        )
+    }
+
+    fn declaration_dependencies(
+        &self,
+        definition: &syntax_trees::item::ConstDefinition,
+        purpose: crate::constant::initializer_dependencies::DependencyPurpose,
+    ) -> Result<
+        crate::constant::initializer_dependencies::ConstInitializerDependencies,
+        Vec<Diagnostic>,
+    > {
         let declaration = self
             .trees
             .const_declaration_at_source_span(definition.name.source_span())
@@ -88,6 +115,7 @@ impl ConstInitializerSelection {
                 declaration.initializer
             },
             &declaration.declared_type,
+            purpose,
         )
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]

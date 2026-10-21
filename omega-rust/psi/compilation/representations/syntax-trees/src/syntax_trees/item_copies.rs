@@ -325,6 +325,8 @@ impl SyntaxCopy<'_> {
                     value,
                     normalization: constant.normalization.as_ref().map(|normalization| {
                         crate::item::ConstInitializerNormalization {
+                            authored_custody: normalization.authored_custody.clone(),
+                            declaration_custody: normalization.declaration_custody.clone(),
                             authored_expression: self
                                 .copy_expression_handle(other, normalization.authored_expression),
                             result_value: normalization.result_value.clone(),

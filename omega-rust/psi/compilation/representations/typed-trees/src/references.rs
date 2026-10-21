@@ -864,6 +864,10 @@ fn visit_closed_conformance_inner(
                 declared_carrier,
                 ..
             } => (*parameter_carrier, *declared_carrier),
+            ClosedConformanceConstArgument::CallerExpression {
+                parameter_carrier,
+                expression,
+            } => (*parameter_carrier, *expression),
             ClosedConformanceConstArgument::CallerBinder {
                 parameter_carrier,
                 binder_carrier,

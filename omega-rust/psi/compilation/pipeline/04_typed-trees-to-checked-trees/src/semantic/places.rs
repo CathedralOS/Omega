@@ -75,7 +75,7 @@ pub(crate) fn instantiate_call_contract_place(
         typed_trees::domain::ProofFact::Proposition(_) => {}
     }
 
-    let original_place = contract_fact_place(program, facts, contract);
+    let original_place = contract_fact_place(program, proof, facts, contract);
     let Some(original_place_handle) = original_place.as_place() else {
         return original_place;
     };
