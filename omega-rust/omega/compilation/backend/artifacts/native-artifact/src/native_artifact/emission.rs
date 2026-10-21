@@ -36,6 +36,8 @@ impl RequestedNativeArtifact {
             boundary_applications::TerminalBoundaryApplicationCoverage,
         >,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let terminal_authority_closure_review =
+            providers.terminal_authority_closure_review().clone();
         Self::emit(NativeArtifactEmissionParts {
             target,
             psi_artifact: terminal,
@@ -55,7 +57,7 @@ impl RequestedNativeArtifact {
             terminal_authority_policy_identity: providers.terminal_authority_policy_identity,
             terminal_authority_permission_policy_identity: providers
                 .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review: providers.terminal_authority_closure_review,
+            terminal_authority_closure_review,
             boundary_application_coverage,
             physical_evidence_scope: published.physical_evidence_scope,
         })

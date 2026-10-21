@@ -76,7 +76,7 @@ fn resolved_linkage(
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: handle,
             import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
+                (normalize_foreign_locator(
                     ForeignLocatorCandidate::ElfVersioned {
                         object: b"libassembled-file.so".to_vec(),
                         symbol: symbol.to_vec(),
@@ -84,7 +84,8 @@ fn resolved_linkage(
                     },
                     target,
                 )
-                .unwrap(),
+                .unwrap(),)
+                    .into(),
             ),
         });
         imports.push(handle);

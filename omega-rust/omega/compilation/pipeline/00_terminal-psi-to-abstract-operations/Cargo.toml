@@ -10,6 +10,7 @@ name = "terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
+component-description = { path = "../../backend/artifacts/component-description" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 function-identity = { path = "../../../foundation/function-identity" }
 numerics = { path = "../../../../psi/foundation/numerics" }

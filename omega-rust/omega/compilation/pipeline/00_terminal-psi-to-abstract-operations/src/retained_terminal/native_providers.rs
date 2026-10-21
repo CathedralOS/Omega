@@ -32,6 +32,7 @@ pub struct PreparedNativeExecution {
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     demands: BTreeSet<String>,
     compiler_builtins: Vec<crate::provider_admission::TerminalCompilerBuiltinProposal>,
+    local_adapters: Vec<crate::SelectedProviderAdapter>,
 }
 
 /// Invocation-owned preparation, not provider or publication authority.
@@ -87,7 +88,7 @@ impl PreparedRetainedNativeProviders<'_> {
             providers: ProviderAdmissionRequest {
                 profile: proposal.target_profile(),
                 selected_provider_plans: &self.execution.selection,
-                checked_adapters: &proposal.providers().checked_adapters,
+                checked_adapters: &self.execution.local_adapters,
                 external_binding_rows: &self.execution.external_bindings,
                 settlements,
                 compiler_builtins: &self.compiler_builtins,
@@ -110,6 +111,55 @@ impl TerminalNativeRealizationProposal {
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
     ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
     {
+        self.prepare_native_execution_with_components(artifact, private_entry_ram, &[])
+    }
+
+    /// A checked component crossing is an executable scope boundary. Its
+    /// producer closure is emitted separately, never added to the receiver's
+    /// local provider roots. Admission still owes the selected call settlement.
+    pub fn prepare_native_execution_with_components(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        components: &[&super::AdmittedNativeComponentCall<'_>],
+    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
+    {
+        if components
+            .iter()
+            .any(|component| component.selection().receiver() != artifact.view().identity())
+        {
+            return Err(vec![Diagnostic::error(
+                "component scope selection names another receiving artifact",
+            )]);
+        }
+        for (position, component) in components.iter().enumerate() {
+            if components[..position].iter().any(|earlier| {
+                earlier.selection().receiving_boundary()
+                    == component.selection().receiving_boundary()
+            }) || self
+                .providers()
+                .checked_adapters
+                .iter()
+                .filter(|adapter| component.replaces_local_adapter(adapter))
+                .count()
+                != 1
+            {
+                return Err(vec![Diagnostic::error(
+                    "component scope selection has competing or missing exact local adapter coordinates",
+                )]);
+            }
+        }
+        let local_adapters = self
+            .providers()
+            .checked_adapters
+            .iter()
+            .filter(|adapter| {
+                !components
+                    .iter()
+                    .any(|component| component.replaces_local_adapter(adapter))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let entry = self.program_entry().as_settlement();
         let root = entry.physical_adapter().map_or(
             terminal_psi::TargetMachineCallable::Machine(
@@ -142,13 +192,13 @@ impl TerminalNativeRealizationProposal {
         .select_target_execution(
             artifact,
             self.target_profile(),
-            &self.providers().checked_adapters,
+            &local_adapters,
             &self.providers().selection,
             &roots,
             &self.occurrences().callbacks,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        self.finish_native_execution(artifact, input)
+        self.finish_native_execution(artifact, input, local_adapters)
     }
 
     /// Prepare an exported callable with ordinary parameter/result transport,
@@ -180,7 +230,7 @@ impl TerminalNativeRealizationProposal {
             &self.occurrences().callbacks,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        self.finish_native_execution(artifact, input)
+        self.finish_native_execution(artifact, input, self.providers().checked_adapters.clone())
     }
 
     /// Retain the selected body's exact boundary demand and its original whole
@@ -190,6 +240,7 @@ impl TerminalNativeRealizationProposal {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         input: crate::VerifiedNativeArtifactInput,
+        local_adapters: Vec<crate::SelectedProviderAdapter>,
     ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
     {
         let module = artifact.semantic_module();
@@ -355,6 +406,7 @@ impl TerminalNativeRealizationProposal {
                 external_bindings,
                 demands,
                 compiler_builtins,
+                local_adapters,
             },
         ))
     }

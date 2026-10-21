@@ -23,6 +23,7 @@ use target_operations::{
 fn entry_family(call: &LegalizedNormalizedForeignCall) -> register_model::RegisterConstraintFamily {
     match call.binding.mechanism {
         target_operations::NormalizedForeignCallMechanism::Import { .. }
+        | target_operations::NormalizedForeignCallMechanism::Component { .. }
         | target_operations::NormalizedForeignCallMechanism::Table { .. } => {
             register_model::RegisterConstraintFamily::Call
         }

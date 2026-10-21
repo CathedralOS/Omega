@@ -41,7 +41,7 @@ pub(super) fn emit(
             .get(ordinal as usize)
             .filter(|call| call.instruction == instruction.id && call.call.boundary == boundary)
             .ok_or(ResolvedFragmentEmissionError::RootMismatch)?;
-        call.call.binding.import().is_none()
+        call.call.binding.symbolic_import().is_none()
     } else {
         false
     };

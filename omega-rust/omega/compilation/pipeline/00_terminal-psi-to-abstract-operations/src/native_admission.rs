@@ -187,7 +187,7 @@ pub fn admit_prepared_native_realization<'execution>(
     // caller makes no receiver-permission claim.
     request
         .behavior_exclusions
-        .validate_physical_authority_closure(&providers.terminal_authority_closure_review)?;
+        .validate_physical_authority_closure(providers.terminal_authority_closure_review())?;
     let mut input = input;
     input.retain_admitted_assumed_bindings(
         providers

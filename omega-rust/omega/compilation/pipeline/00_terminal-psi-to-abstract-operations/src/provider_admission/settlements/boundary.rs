@@ -14,6 +14,7 @@ pub(super) fn settle_boundary<'request>(
     input: &NativeRealizationInput,
     request: &ProviderAdmissionRequest<'_, 'request>,
     settlement: &NativeProviderSettlement<'request>,
+    receiver: terminal_psi::TerminalPsiIdentity,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
@@ -63,6 +64,24 @@ pub(super) fn settle_boundary<'request>(
                 )?,
             )
         }
+        NativeBoundaryRealization::Component {
+            call,
+            authority,
+            locator,
+            same_stack,
+        } => target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+            super::component_call::rejoin_component_call(
+                call,
+                authority,
+                locator,
+                same_stack,
+                selected_plan,
+                requirement,
+                request.selected_provider_plans.identities(),
+                receiver,
+                request.profile,
+            )?,
+        ),
         NativeBoundaryRealization::Builtin(realization) => {
             target_operations::BoundarySettlementRealization::Builtin(realization)
         }
@@ -92,6 +111,13 @@ pub(super) fn settle_boundary<'request>(
     }
     let mut admitted = Vec::with_capacity(matching_boundaries.len());
     for boundary in matching_boundaries {
+        if let NativeBoundaryRealization::Component { call, .. } = settlement.realization
+            && boundary.id != call.selection().receiving_boundary()
+        {
+            return Err(vec![Diagnostic::error(
+                "component execution cannot cover another artifact-local boundary occurrence",
+            )]);
+        }
         if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
             boundary,
             selected_plan,

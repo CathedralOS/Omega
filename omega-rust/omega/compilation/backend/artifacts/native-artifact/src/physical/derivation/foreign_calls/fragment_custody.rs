@@ -106,7 +106,11 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
             candidate.resolution.caller == occurrence.machine()
                 && candidate.resolution.invocation_site == invocation_site
         });
-    let import = match (record.call.binding.import(), fields.next(), fields.next()) {
+    let import = match (
+        record.call.binding.symbolic_import(),
+        fields.next(),
+        fields.next(),
+    ) {
         (Some(_), Some(field), None) => {
             let resolution = &field.resolution;
             if resolution.call_function_offset != call_span.function_offset

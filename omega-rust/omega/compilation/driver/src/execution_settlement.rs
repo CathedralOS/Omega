@@ -54,7 +54,8 @@ pub(crate) struct SelectedProductTarget {
     pub(crate) retained_checks: RetainedCompilationChecks,
     package_inputs: Option<PackageCompilationInputs>,
     permit_unsettled_fused_service_fields: bool,
-    independent_component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
+    pub(crate) independent_component_products:
+        Vec<Arc<compilation_products::IndependentComponentProduct>>,
 }
 
 impl SelectedProductTarget {

@@ -75,7 +75,7 @@ fn callback_image(target: TargetProfile) -> FinalImage {
     image.symbol_table.imports.insert(FinalImageImport {
         symbol_handle: import,
         import: FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
+            (normalize_foreign_locator(
                 ForeignLocatorCandidate::ElfVersioned {
                     object: b"libcallback-registrar.so".to_vec(),
                     symbol: b"register_callback".to_vec(),
@@ -83,7 +83,8 @@ fn callback_image(target: TargetProfile) -> FinalImage {
                 },
                 target,
             )
-            .unwrap(),
+            .unwrap(),)
+                .into(),
         ),
     });
 

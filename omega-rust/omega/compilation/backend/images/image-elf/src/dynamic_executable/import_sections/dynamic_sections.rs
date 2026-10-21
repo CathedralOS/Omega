@@ -333,6 +333,18 @@ fn ordered_import_requests(
                 symbol,
                 version,
             }),
+            ElfImportLocator::Component {
+                locator,
+                object,
+                symbol,
+            } => Ok(OrderedImport {
+                request_index,
+                compatibility_report_identity: locator
+                    .non_authoritative_compatibility_fingerprint(),
+                object,
+                symbol,
+                version: &[],
+            }),
             ElfImportLocator::StringBackedBootstrap { .. } => Err(Diagnostic::error(
                 "string-backed ELF import reached normalized dynamic-section planning",
             )),
@@ -359,6 +371,7 @@ fn canonical_strings(ordered: &[OrderedImport<'_>]) -> Vec<Vec<u8>> {
     let mut strings = ordered
         .iter()
         .flat_map(|import| [import.object, import.symbol, import.version])
+        .filter(|string| !string.is_empty())
         .map(<[u8]>::to_vec)
         .collect::<Vec<_>>();
     strings.sort();
@@ -379,6 +392,7 @@ fn canonical_objects(ordered: &[OrderedImport<'_>]) -> Vec<Vec<u8>> {
 fn canonical_version_pairs(ordered: &[OrderedImport<'_>]) -> Vec<(Vec<u8>, Vec<u8>)> {
     let mut pairs = ordered
         .iter()
+        .filter(|import| !import.version.is_empty())
         .map(|import| (import.object.to_vec(), import.version.to_vec()))
         .collect::<Vec<_>>();
     pairs.sort();
@@ -431,6 +445,11 @@ fn version_index(
     object: &[u8],
     version: &[u8],
 ) -> Result<u16, Diagnostic> {
+    // A component's version-qualified symbol is an ordinary global symbol;
+    // its image and slot commitments supply identity outside GNU ABI versions.
+    if version.is_empty() {
+        return Ok(1);
+    }
     indexes
         .binary_search_by(|((candidate_object, candidate_version), _)| {
             (candidate_object.as_slice(), candidate_version.as_slice()).cmp(&(object, version))
@@ -500,7 +519,11 @@ fn build_version_needs(
     strings: &[(Vec<u8>, u32)],
 ) -> Result<Vec<ElfVersionNeed>, Diagnostic> {
     let mut needs = Vec::with_capacity(objects.len());
-    for (object_index, object) in objects.iter().enumerate() {
+    let objects = objects
+        .iter()
+        .filter(|object| pairs.iter().any(|(candidate, _)| candidate == *object))
+        .collect::<Vec<_>>();
+    for (object_index, object) in objects.iter().copied().enumerate() {
         let versions = pairs
             .iter()
             .filter(|(candidate, _)| candidate == object)

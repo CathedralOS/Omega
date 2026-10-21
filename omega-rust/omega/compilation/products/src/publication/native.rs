@@ -89,7 +89,7 @@ pub(super) fn publish(
 ///
 /// Dynamic output is always Linux ELF, so only the flat route applies.
 fn publish_dynamic_elf(
-    report: CompileReport,
+    mut report: CompileReport,
     build_dir: &std::path::Path,
 ) -> Result<CompileReport, String> {
     let artifact = report.retained_dynamic_elf_artifact().ok_or_else(|| {
@@ -104,8 +104,39 @@ fn publish_dynamic_elf(
         )
     })?;
     let output_path = build_dir.join(&output.file_name);
-    let staged_products = vec![stage_exact_bytes(&output_path, &output.bytes, true)?];
+    let components = report
+        .runtime_provisions()
+        .map(|runtime| runtime.component_products().to_vec())
+        .unwrap_or_default();
+    let mut staged_products = Vec::with_capacity(components.len() + 1);
+    let mut component_paths = Vec::with_capacity(components.len());
+    for component in &components {
+        if component.locator().target().native_target() != artifact.target() {
+            return Err("component file target differs from its selected process root".into());
+        }
+        let path = build_dir.join(component.locator().image_filename());
+        component
+            .verify_contents(component.image().image().contents())
+            .map_err(str::to_owned)?;
+        staged_products.push(stage_exact_bytes(
+            &path,
+            component.image().image().contents(),
+            false,
+        )?);
+        component_paths.push(path);
+    }
+    staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
     install_staged_files(&staged_products)?;
     let receipt = publication.into_receipt(output_path);
+    if !components.is_empty() {
+        let receipts = components
+            .into_iter()
+            .zip(component_paths)
+            .map(|(component, path)| {
+                native_artifact::NativeComponentPublicationReceipt::verify(component, path)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        report.record_component_publications(receipts)?;
+    }
     report.record_dynamic_elf_publication(receipt)
 }

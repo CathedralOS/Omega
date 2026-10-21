@@ -244,7 +244,10 @@ pub(crate) fn check_with_private_entry_ram(
                             Some(AdmittedBoundarySupply::CheckedProvider(selected)) => {
                                 Some(*selected)
                             }
-                            Some(AdmittedBoundarySupply::HostImport) => {
+                            Some(
+                                AdmittedBoundarySupply::HostImport
+                                | AdmittedBoundarySupply::ComponentProvider { .. },
+                            ) => {
                                 imports.insert(*boundary);
                                 None
                             }

@@ -102,7 +102,7 @@ impl CoveredInvocationIntervals {
         } else {
             // The object producer's import-site contract is E8+rel32 or BL,
             // not a four-byte operand mistaken for the complete x86 call.
-            if foreign.binding.import().is_none() {
+            if foreign.binding.symbolic_import().is_none() {
                 return Err("kernel entry lacks retained instruction custody");
             }
             match architecture {

@@ -12,7 +12,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
     realization_error,
 };
 
-use crate::component_inputs::ComponentNativeInputs;
+use terminal_psi_to_abstract_operations::ComponentNativeInputs;
 
 pub struct ComponentExportRequest<'input> {
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
@@ -24,20 +24,68 @@ pub struct ComponentExportRequest<'input> {
 /// A symbolic export and its exact separately emitted closure. This is not a
 /// callback identity, loader mapping, installed address or runtime era.
 pub struct ComponentNativeExport<'input> {
-    pub component: &'input component_description::VerifiedComponent,
-    pub candidate: &'input terminal_psi::ProviderCandidateConformance,
-    pub calling_application: &'input BoundaryCallingApplication,
-    pub body: image_emission::ObjectArtifact,
-    pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    component: &'input component_description::VerifiedComponent,
+    candidate: &'input terminal_psi::ProviderCandidateConformance,
+    calling_application: &'input BoundaryCallingApplication,
+    body: image_emission::ObjectArtifact,
+    entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    runtime: native_artifact::TerminalCallableRuntimeProvisions,
+    authority:
+        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
 }
 
 /// Complete semantic/native export relationship after shared-container emission.
 /// Still not a loaded occurrence or installed entry capability.
 pub struct ComponentExportImage<'input> {
-    pub component: &'input component_description::VerifiedComponent,
-    pub candidate: &'input terminal_psi::ProviderCandidateConformance,
-    pub calling_application: &'input BoundaryCallingApplication,
-    pub image: image_emission::ComponentSharedImage,
+    component: &'input component_description::VerifiedComponent,
+    candidate: &'input terminal_psi::ProviderCandidateConformance,
+    calling_application: &'input BoundaryCallingApplication,
+    image: image_emission::ComponentSharedImage,
+    runtime: native_artifact::TerminalCallableRuntimeProvisions,
+    authority:
+        terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority,
+}
+
+impl<'input> ComponentExportImage<'input> {
+    pub fn into_product(
+        self,
+        call: &terminal_psi_to_abstract_operations::AdmittedNativeComponentCall<'_>,
+    ) -> Result<native_artifact::NativeComponentProduct, &'static str> {
+        if self.component.artifact() != call.component().artifact()
+            || self.candidate.candidate != call.selection().candidate()
+            || self.calling_application != call.application()
+        {
+            return Err("component product conversion changed its checked export owner");
+        }
+        native_artifact::NativeComponentProduct::from_emitted(
+            call,
+            self.image,
+            self.runtime,
+            self.authority,
+        )
+    }
+
+    pub const fn component(&self) -> &'input component_description::VerifiedComponent {
+        self.component
+    }
+    pub const fn candidate(&self) -> &'input terminal_psi::ProviderCandidateConformance {
+        self.candidate
+    }
+    pub const fn calling_application(&self) -> &'input BoundaryCallingApplication {
+        self.calling_application
+    }
+    pub const fn image(&self) -> &image_emission::ComponentSharedImage {
+        &self.image
+    }
+    pub const fn runtime(&self) -> &native_artifact::TerminalCallableRuntimeProvisions {
+        &self.runtime
+    }
+    pub const fn authority(
+        &self,
+    ) -> &terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority
+    {
+        &self.authority
+    }
 }
 
 impl<'input> ComponentNativeExport<'input> {
@@ -48,11 +96,13 @@ impl<'input> ComponentNativeExport<'input> {
             calling_application,
             body,
             entry_bridge,
+            runtime,
+            authority,
         } = self;
         let function = image_emission::prepare_component_function_image(
             body,
             entry_bridge,
-            calling_application.commitment,
+            component_export_slot(component.subject(), &calling_application.commitment),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let image = image_emission::emit_component_shared_image(function)
@@ -62,6 +112,8 @@ impl<'input> ComponentNativeExport<'input> {
             candidate,
             calling_application,
             image,
+            runtime,
+            authority,
         })
     }
 
@@ -72,19 +124,37 @@ impl<'input> ComponentNativeExport<'input> {
         image_emission::prepare_component_function_image(
             self.body,
             self.entry_bridge,
-            self.calling_application.commitment,
+            component_export_slot(
+                self.component.subject(),
+                &self.calling_application.commitment,
+            ),
         )
     }
 }
 
+/// Physical linkage identifies one component version as well as its complete
+/// calling application. Equal ABI contracts from another historical component
+/// must not become interchangeable ELF symbols under loader interposition.
+/// This digest names linkage only; selection and installation remain separate.
+pub fn component_export_slot(
+    component: terminal_psi::TerminalPsiIdentity,
+    application: &[u8; 32],
+) -> [u8; 32] {
+    target::component_export_slot(
+        component.vocabulary_marker.get(),
+        component.program_fingerprint.as_bytes(),
+        application,
+    )
+}
+
 pub fn emit_component_exports<'input>(
-    inputs: &'input ComponentNativeInputs<'input>,
+    inputs: &ComponentNativeInputs<'input>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
-    let artifact = inputs.component.artifact();
-    let proposal = inputs.proposal;
-    let mut exports = Vec::with_capacity(inputs.exports.len());
-    for export in &inputs.exports {
+    let artifact = inputs.component().artifact();
+    let proposal = inputs.proposal();
+    let mut exports = Vec::with_capacity(inputs.exports().len());
+    for export in inputs.exports() {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
         let (_, execution) = proposal.prepare_native_callable_execution(artifact, entry)?;
         let selections = proposal.post_terminal_optimizations().selections();
@@ -109,9 +179,13 @@ pub fn emit_component_exports<'input>(
             crate::request::native_optimization_budget(),
             artifact,
             entry,
+            &proposal.boundary_applications().calling,
         )?;
+        let runtime = projection.runtime;
+        let authority = projection.authority;
+        let projection = projection.projection;
         let boundary = inputs
-            .component
+            .component()
             .module()
             .boundary_machine(export.candidate.boundary)
             .ok_or_else(|| {
@@ -121,7 +195,7 @@ pub fn emit_component_exports<'input>(
                 )
             })?;
         let body = inputs
-            .component
+            .component()
             .module()
             .machine(export.candidate.candidate)
             .ok_or_else(|| {
@@ -194,11 +268,13 @@ pub fn emit_component_exports<'input>(
         )
         .map_err(|error| realization_error("component entry ABI", error))?;
         exports.push(ComponentNativeExport {
-            component: inputs.component,
+            component: inputs.component(),
             candidate: export.candidate,
             calling_application: application,
             body,
             entry_bridge,
+            runtime,
+            authority,
         });
     }
     Ok(exports)

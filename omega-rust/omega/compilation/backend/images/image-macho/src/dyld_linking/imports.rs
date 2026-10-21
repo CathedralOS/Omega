@@ -135,7 +135,7 @@ pub(crate) fn install_import_thunks(
                 let uses_objc = library == DARWIN_LIBOBJC_PATH.as_bytes();
                 (library, symbol.name.as_bytes().to_vec(), uses_objc)
             }
-            FinalImageImportPlan::Normalized(locator) => {
+            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Foreign(locator)) => {
                 let ForeignLocatorCandidate::MachODylibSymbol {
                     install_name,
                     symbol,
@@ -174,6 +174,11 @@ pub(crate) fn install_import_thunks(
                 }
                 normalized_imports.push((import.symbol_handle, locator.clone()));
                 (install_name.clone(), symbol.clone(), false)
+            }
+            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Component(_)) => {
+                return Err(Diagnostic::error(
+                    "ELF component locator cannot enter Mach-O import planning",
+                ));
             }
             FinalImageImportPlan::None => {
                 return Err(Diagnostic::error(format!(

@@ -14,8 +14,10 @@
 //! preparation never replaces independent native admission.
 
 mod adapters;
+mod callable_authority;
 pub use adapters::NativeProviderPlanDeclaration;
 pub(crate) use adapters::retain_selected_provider_adapters;
+pub use callable_authority::AdmittedNativeCallableAuthority;
 mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;
@@ -79,8 +81,19 @@ pub struct AdmittedNativeProviders<'execution> {
     /// `None` means the artifact makes no receiver-admission claim.
     pub terminal_authority_permission_policy_identity:
         Option<effects::TerminalAuthorityPermissionPolicyIdentity>,
-    pub terminal_authority_closure_review: effects::TerminalAuthorityClosureReviewReceipt,
+    callable_authority: AdmittedNativeCallableAuthority,
     pub installation: Option<AdmittedProviderInstallation>,
+}
+
+impl AdmittedNativeProviders<'_> {
+    pub const fn callable_authority(&self) -> &AdmittedNativeCallableAuthority {
+        &self.callable_authority
+    }
+    pub const fn terminal_authority_closure_review(
+        &self,
+    ) -> &effects::TerminalAuthorityClosureReviewReceipt {
+        self.callable_authority.review()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,7 +121,7 @@ pub(crate) fn admit_native_providers<'request>(
             request.terminal_authority_policy,
         )?;
     let (settlements, executions, mut mechanisms, cohort_rows) =
-        settlements::settle_provider_executions(input, request)?;
+        settlements::settle_provider_executions(input, request, artifact.view().identity())?;
     let mut settlements = settlements;
     let (builtin_settlements, builtin_mechanisms) =
         compiler_builtins::settle_compiler_builtins(input, request)?;
@@ -181,6 +194,7 @@ pub(crate) fn admit_native_providers<'request>(
                 .as_ref()
                 .map(AdmittedProviderInstallation::installed_candidates)
                 .unwrap_or_default(),
+            request.settlements,
         )
         .map_err(|error| {
             diagnostics::realization_error("terminal-authority closure review", error)
@@ -199,7 +213,11 @@ pub(crate) fn admit_native_providers<'request>(
             .terminal_authority_permission_policy
             .as_ref()
             .map(|policy| policy.identity()),
-        terminal_authority_closure_review,
+        callable_authority: AdmittedNativeCallableAuthority::from_admission(
+            artifact.view().identity(),
+            input.plan().entry,
+            terminal_authority_closure_review,
+        ),
         installation,
     })
 }

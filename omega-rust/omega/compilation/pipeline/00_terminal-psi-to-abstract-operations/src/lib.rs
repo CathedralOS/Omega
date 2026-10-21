@@ -58,6 +58,7 @@ pub use provider_admission::{
     NativeCallbackArgumentProposal,
 };
 pub use retained_terminal::{
+    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
     PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
     RetainedTerminalArtifact, SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
     TerminalCallbackThunkArtifact, TerminalCompilerBuiltinProposal,

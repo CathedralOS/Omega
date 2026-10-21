@@ -294,6 +294,9 @@ fn request_compatibility_report_identity(request: &ElfImportRequest) -> Result<u
             compatibility_report_identity,
             ..
         } => Ok(*compatibility_report_identity),
+        ElfImportLocator::Component { locator, .. } => {
+            Ok(locator.non_authoritative_compatibility_fingerprint())
+        }
         ElfImportLocator::StringBackedBootstrap { .. } => Err(Diagnostic::error(
             "string-backed import reached normalized ELF procedure linkage",
         )),

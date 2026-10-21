@@ -2,6 +2,11 @@
 //! match it occurrence for occurrence - every boundary demand, callback and
 //! nearest-FMA site - before native realization is allowed to begin.
 
+mod component_inputs;
+pub use component_inputs::{
+    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
+};
+
 mod native_providers;
 mod proposal;
 

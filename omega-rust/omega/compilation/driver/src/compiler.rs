@@ -308,8 +308,12 @@ pub(crate) fn finish_compilations(
         pending
             .iter_mut()
             .map(
-                |(_, realization, _, _, rollback, _)| TerminalProductRequest {
-                    view: TerminalProductionView::selection(&mut realization.custody),
+                |(_, realization, _, requested, rollback, _)| TerminalProductRequest {
+                    view: TerminalProductionView::selection(
+                        &mut realization.custody,
+                        matches!(requested, CompilationProduct::Native(_))
+                            .then_some(realization.independent_component_products.as_slice()),
+                    ),
                     selections: rollback.effective(),
                 },
             )

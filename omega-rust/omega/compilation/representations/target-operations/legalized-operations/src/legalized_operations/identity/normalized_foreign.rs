@@ -136,6 +136,23 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             encode_locator(bytes, locator);
             same_stack_contribution
         }
+        target_operations::NormalizedForeignCallMechanism::Component {
+            locator,
+            provider,
+            candidate,
+            application_commitment,
+            same_stack_contribution,
+        } => {
+            encode_string(bytes, "@component");
+            encode_string(bytes, locator.target().target_name());
+            bytes.extend_from_slice(&provider.vocabulary_marker.get().to_le_bytes());
+            bytes.extend_from_slice(provider.program_fingerprint.as_bytes());
+            bytes.extend_from_slice(&candidate.get().to_le_bytes());
+            bytes.extend_from_slice(application_commitment);
+            bytes.extend_from_slice(locator.image_digest());
+            bytes.extend_from_slice(locator.slot_commitment());
+            same_stack_contribution
+        }
         target_operations::NormalizedForeignCallMechanism::Table {
             target,
             byte_offset,

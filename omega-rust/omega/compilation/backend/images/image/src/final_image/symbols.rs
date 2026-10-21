@@ -1,7 +1,6 @@
 use crate::final_image::FinalImage;
 use arena::{Arena, Handle};
 use object_file::SymbolKind;
-use target::NormalizedForeignLocator;
 
 /// Domain-separated commitment to the exact object-owned symbol table copied
 /// into one final image. Object-local handles remain compact coordinates; this
@@ -150,7 +149,7 @@ pub enum FinalImageImportPlan {
     StringBackedBootstrap {
         library: String,
     },
-    Normalized(NormalizedForeignLocator),
+    Normalized(target::NormalizedImportLocator),
 }
 
 #[cfg(test)]

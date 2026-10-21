@@ -20,6 +20,7 @@
 
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
+mod component_product;
 mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;
@@ -27,6 +28,7 @@ mod package_publication;
 mod physical;
 mod publication;
 mod runtime_provisions;
+pub use component_product::{NativeComponentProduct, NativeComponentPublicationReceipt};
 
 pub use entry_receiver::admit_executable_entry;
 pub use fragment_object_publication::{
@@ -42,7 +44,10 @@ pub(crate) use native_artifact::{
 pub use package_publication::{
     NativePackagePublicationReceipt, PackagePublicationComponent, publish_macos_application_package,
 };
-pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
+pub use runtime_provisions::{
+    TerminalCallableRuntimeProvisions, TerminalRuntimeHostProvision, TerminalRuntimeHostProvisions,
+    TerminalRuntimeProvisions,
+};
 
 pub(crate) use physical::{
     BoundaryInternalCallCustody, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,

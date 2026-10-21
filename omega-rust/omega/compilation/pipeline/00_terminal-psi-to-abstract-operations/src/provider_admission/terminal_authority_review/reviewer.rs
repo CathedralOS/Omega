@@ -123,6 +123,35 @@ impl<'a> Reviewer<'a> {
             .assumed_supplier_identity(requirement)?;
         let (selected_plan, selected_row, specialization) =
             self.context.selected_requirement(requirement)?;
+        if let Some(authority) = self.context.component_authority(boundary)? {
+            // This witness came from actual producer native admission, not a
+            // descriptive receipt reconstructed by the receiver. Every leaf is
+            // nevertheless classified and permission-checked again here.
+            // Producer-local identity indices resolve in its own retained table.
+            for leaf in authority.review().leaves() {
+                let effects::TerminalAuthorityClosureCustody::SelectedRequirement {
+                    service_schema,
+                    requirement_identity,
+                    provider_plan,
+                } = leaf.custody()
+                else {
+                    return Err("component direct-root authority requires an explicit receiving subject; it cannot inherit a foreign or boundary permission".into());
+                };
+                let requirement = authority
+                    .review()
+                    .identities()
+                    .text(requirement_identity)
+                    .ok_or("component authority leaf lost its original identity table")?;
+                self.admit_leaf(
+                    service_schema,
+                    requirement,
+                    provider_plan,
+                    leaf.mechanism(),
+                    leaf.origin(),
+                )?;
+            }
+            return Ok(());
+        }
         match &selected_row.binding {
             ProviderBinding::CheckedAdapter {
                 machine_identity,

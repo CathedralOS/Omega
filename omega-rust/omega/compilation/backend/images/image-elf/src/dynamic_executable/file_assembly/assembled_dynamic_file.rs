@@ -381,7 +381,9 @@ fn procedure_got_import_custody(
         let request = imports.get(slot.request_index).ok_or_else(|| {
             Diagnostic::error("dynamic ELF slot names an import outside the canonical requests")
         })?;
-        let ElfImportLocator::Versioned { symbol, .. } = &request.locator else {
+        let (ElfImportLocator::Versioned { symbol, .. }
+        | ElfImportLocator::Component { symbol, .. }) = &request.locator
+        else {
             return Err(Diagnostic::error(
                 "dynamic ELF slot binds a non-versioned import locator",
             ));

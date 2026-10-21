@@ -28,6 +28,7 @@ pub(super) struct ReviewContext<'a> {
     pub(super) mechanisms: BTreeMap<BoundaryMachineId, TerminalMechanismIdentity>,
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
+    components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
 }
 
 impl<'a> ReviewContext<'a> {
@@ -39,6 +40,7 @@ impl<'a> ReviewContext<'a> {
         permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
         mechanisms: &[AdmittedTerminalMechanism],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
+        components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
     ) -> Result<Self, String> {
         let plan = input.plan();
         let graph = AuthorityGraph::new(input, target_profile)?;
@@ -76,7 +78,31 @@ impl<'a> ReviewContext<'a> {
             mechanisms: mechanism_map,
             installed_candidates,
             target_profile,
+            components,
         })
+    }
+
+    pub(super) fn component_authority(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Result<Option<&'a crate::provider_admission::AdmittedNativeCallableAuthority>, String>
+    {
+        let mut matches =
+            self.components
+                .iter()
+                .filter_map(|settlement| match settlement.realization {
+                    crate::provider_admission::NativeBoundaryRealization::Component {
+                        call,
+                        authority,
+                        ..
+                    } if call.selection().receiving_boundary() == boundary => Some(authority),
+                    _ => None,
+                });
+        let result = matches.next();
+        if matches.next().is_some() {
+            return Err("component authority has competing separately emitted executions for one receiving boundary".into());
+        }
+        Ok(result)
     }
 
     /// The selected plan row serving one reachable requirement, plus the

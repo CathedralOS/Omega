@@ -137,6 +137,15 @@ pub enum NormalizedForeignCallMechanism {
         locator: target::NormalizedForeignLocator,
         same_stack_contribution: task_plans::AdmittedSameStackContribution,
     },
+    /// A checked separately emitted component, not an authored ForeignBinding.
+    /// Exact semantic/native admission precedes this physical transport record.
+    Component {
+        locator: target::NormalizedComponentLocator,
+        provider: terminal_psi::TerminalPsiIdentity,
+        candidate: semantic_vocabulary::MachineId,
+        application_commitment: [u8; 32],
+        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+    },
     SystemCall(NormalizedSystemCallBinding),
     Table {
         target: target::TargetProfile,
@@ -206,6 +215,9 @@ impl NormalizedForeignCallBinding {
             NormalizedForeignCallMechanism::Import { locator, .. } => {
                 Some(locator.target().native_target())
             }
+            NormalizedForeignCallMechanism::Component { locator, .. } => {
+                Some(locator.target().native_target())
+            }
             NormalizedForeignCallMechanism::Table { target, .. } => Some(target.native_target()),
             NormalizedForeignCallMechanism::SystemCall(binding) => match binding.target {
                 target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64 => {
@@ -228,6 +240,10 @@ impl NormalizedForeignCallBinding {
                 same_stack_contribution,
                 ..
             }
+            | NormalizedForeignCallMechanism::Component {
+                same_stack_contribution,
+                ..
+            }
             | NormalizedForeignCallMechanism::Table {
                 same_stack_contribution,
                 ..
@@ -241,6 +257,10 @@ impl NormalizedForeignCallBinding {
     pub fn provider_plan_report_identity(&self) -> u64 {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            }
+            | NormalizedForeignCallMechanism::Component {
                 same_stack_contribution,
                 ..
             }
@@ -265,6 +285,22 @@ impl NormalizedForeignCallBinding {
         };
         let call = &self.boundary_entry_plan.call;
         match &self.mechanism {
+            NormalizedForeignCallMechanism::Component {
+                locator,
+                provider,
+                application_commitment,
+                ..
+            } => {
+                call.policy == CallingPolicy::native_for_target(target)
+                    && call.entry_control == EntryControl::CallReturn
+                    && *application_commitment != [0; 32]
+                    && *locator.slot_commitment()
+                        == target::component_export_slot(
+                            provider.vocabulary_marker.get(),
+                            provider.program_fingerprint.as_bytes(),
+                            application_commitment,
+                        )
+            }
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::Table { .. } => {
                 call.policy == CallingPolicy::native_for_target(target)
@@ -296,6 +332,7 @@ impl NormalizedForeignCallBinding {
         match &self.mechanism {
             NormalizedForeignCallMechanism::SystemCall(binding) => Some(binding),
             NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => None,
         }
     }
@@ -312,6 +349,36 @@ impl NormalizedForeignCallBinding {
                 same_stack_contribution,
             } => Some((locator, same_stack_contribution)),
             NormalizedForeignCallMechanism::SystemCall(_)
+            | NormalizedForeignCallMechanism::Component { .. }
+            | NormalizedForeignCallMechanism::Table { .. } => None,
+        }
+    }
+
+    /// Borrow ordinary physical import coordinates while preserving the
+    /// distinct foreign/component semantic admission in `mechanism`.
+    pub fn symbolic_import(
+        &self,
+    ) -> Option<(
+        target::NormalizedImportLocatorRef<'_>,
+        &task_plans::AdmittedSameStackContribution,
+    )> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import {
+                locator,
+                same_stack_contribution,
+            } => Some((
+                target::NormalizedImportLocatorRef::Foreign(locator),
+                same_stack_contribution,
+            )),
+            NormalizedForeignCallMechanism::Component {
+                locator,
+                same_stack_contribution,
+                ..
+            } => Some((
+                target::NormalizedImportLocatorRef::Component(locator),
+                same_stack_contribution,
+            )),
+            NormalizedForeignCallMechanism::SystemCall(_)
             | NormalizedForeignCallMechanism::Table { .. } => None,
         }
     }
@@ -321,6 +388,10 @@ impl NormalizedForeignCallBinding {
     pub fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            }
+            | NormalizedForeignCallMechanism::Component {
                 same_stack_contribution,
                 ..
             }

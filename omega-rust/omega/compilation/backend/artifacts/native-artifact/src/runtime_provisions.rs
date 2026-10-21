@@ -30,59 +30,25 @@ struct RuntimeHostRequirement {
     calling_application: Option<calling_conventions::BoundaryCallingApplication>,
 }
 
-/// Entry and provider facts for the exact produced Terminal program. Source
-/// arena handles and physical wrapper storage do not cross this record.
+/// Exact callable host and selected-provider companions. These are shared
+/// by application entries and separately emitted callable entries; no
+/// ProgramEntry receipt or field establishment is inferred for a component.
 #[derive(Debug, Clone)]
-pub struct TerminalRuntimeProvisions {
-    identity: TerminalPsiIdentity,
-    entry: MachineId,
-    source_signature_identity: [u8; 32],
-    target_slot: target::ProgramEntrySlotDeclaration,
-    receiver: Option<CheckedProgramEntryReceiverEligibility>,
-    fused_services: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
-    /// The ProgramEntry signature's plan-local identity table — establishment
-    /// rows index it, never the module's table.
-    plan_identities: terminal_psi::TerminalIdentityTable,
-    /// The selection facts table the admitted same-stack requirement indices
-    /// resolve against — provider-side texts never enter the module table.
+pub struct TerminalRuntimeHostProvisions {
     selection_identities: terminal_psi::TerminalIdentityTable,
-    /// Parallel to `fused_services`: exact retained requirement slots of the
-    /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
-    fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
     installation: Option<terminal_installation::AdmittedProviderSelections>,
-    target_provider_proposals:
-        Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
     host: Vec<TerminalRuntimeHostProvision>,
     host_requirements: Vec<RuntimeHostRequirement>,
     borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
-    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
-impl TerminalRuntimeProvisions {
-    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
-        &self.private_entry_ram
-    }
-    pub fn with_private_entry_ram(
-        mut self,
-        recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
-    ) -> Self {
-        self.private_entry_ram = recipes;
-        self
-    }
-
-    /// Capture already admitted facts while they still accompany the image
-    /// request. This is not another admission or a runtime authority grant.
+impl TerminalRuntimeHostProvisions {
     pub fn capture_native_admission(
-        checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-        fused_services: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-        candidates: &[terminal_psi::ProviderCandidateConformance],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
-        plan_identities: &terminal_psi::TerminalIdentityTable,
-        target_slot: target::ProgramEntrySlotDeclaration,
         calling_applications: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Self, &'static str> {
         let mut host_requirements = Vec::new();
@@ -141,6 +107,270 @@ impl TerminalRuntimeProvisions {
                 calling_application,
             });
         }
+        Ok(Self {
+            selection_identities: selected.identities().clone(),
+            installation: installation.cloned(),
+            host,
+            host_requirements,
+            borrowed_storage_layouts: Vec::new(),
+        })
+    }
+    /// Rejoin one original boundary contract to its captured foreign provider
+    /// row before offering a host implementation. This establishes identity
+    /// correspondence only; the adapter must still admit the complete contract,
+    /// ABI and actual host capability independently.
+    pub fn matches_host_requirement(
+        &self,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        selected_requirement: &str,
+        provider_plan_report_identity: u64,
+        identities: &terminal_psi::TerminalIdentityTable,
+    ) -> bool {
+        let mut matching = self
+            .host_requirements
+            .iter()
+            .filter(|row| row.boundary == declaration.id);
+        matching.next().is_some_and(|row| {
+            identities.text(declaration.identity) == Some(row.boundary_identity.as_str())
+                && row.selected_requirement_identity == selected_requirement
+                && row.provider_plan_report_identity == provider_plan_report_identity
+        }) && matching.next().is_none()
+    }
+
+    /// The admitted foreign row's complete source-free calling application.
+    /// Runtime adapters must inspect this geometry before interpreting opaque
+    /// owned bytes; equal-sized native placements do not establish a C shape.
+    pub fn host_calling_application(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&calling_conventions::BoundaryCallingApplication> {
+        self.host_requirements
+            .iter()
+            .find(|row| row.boundary == boundary)?
+            .calling_application
+            .as_ref()
+    }
+
+    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+        self.installation.as_ref()
+    }
+    pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.selection_identities
+    }
+    pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
+        &self.host
+    }
+    pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
+        &self.borrowed_storage_layouts
+    }
+    pub fn with_borrowed_storage_layouts(
+        mut self,
+        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    ) -> Self {
+        self.borrowed_storage_layouts = layouts;
+        self
+    }
+}
+
+/// Callable-specific reference provisions captured from its own native
+/// admission, without impersonating an application ProgramEntry.
+#[derive(Debug, Clone)]
+pub struct TerminalCallableRuntimeProvisions {
+    identity: TerminalPsiIdentity,
+    entry: MachineId,
+    target: target::TargetProfile,
+    host: TerminalRuntimeHostProvisions,
+}
+
+impl TerminalCallableRuntimeProvisions {
+    pub fn capture_native_admission(
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+        entry: MachineId,
+        target: target::TargetProfile,
+        host: TerminalRuntimeHostProvisions,
+    ) -> Result<Self, &'static str> {
+        if artifact.module().machine(entry).is_none()
+            || host
+                .installation()
+                .is_some_and(|selection| selection.terminal_psi() != artifact.identity())
+        {
+            return Err("callable runtime provisions name another artifact or absent entry");
+        }
+        Ok(Self {
+            identity: artifact.identity(),
+            entry,
+            target,
+            host,
+        })
+    }
+    pub const fn identity(&self) -> TerminalPsiIdentity {
+        self.identity
+    }
+    pub const fn entry(&self) -> MachineId {
+        self.entry
+    }
+    pub const fn target(&self) -> target::TargetProfile {
+        self.target
+    }
+    pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions {
+        &self.host
+    }
+}
+
+/// Entry and provider facts for the exact produced Terminal program. Source
+/// arena handles and physical wrapper storage do not cross this record.
+#[derive(Debug, Clone)]
+pub struct TerminalRuntimeProvisions {
+    identity: TerminalPsiIdentity,
+    entry: MachineId,
+    source_signature_identity: [u8; 32],
+    target_slot: target::ProgramEntrySlotDeclaration,
+    receiver: Option<CheckedProgramEntryReceiverEligibility>,
+    fused_services: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+    /// The ProgramEntry signature's plan-local identity table — establishment
+    /// rows index it, never the module's table.
+    plan_identities: terminal_psi::TerminalIdentityTable,
+    /// Parallel to `fused_services`: exact retained requirement slots of the
+    /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
+    fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
+    target_provider_proposals:
+        Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
+    host_provisions: TerminalRuntimeHostProvisions,
+    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
+    component_publications: Vec<crate::NativeComponentPublicationReceipt>,
+}
+
+impl TerminalRuntimeProvisions {
+    pub fn record_component_publications(
+        &mut self,
+        receipts: Vec<crate::NativeComponentPublicationReceipt>,
+    ) -> Result<(), &'static str> {
+        if !self.component_publications.is_empty() || receipts.len() != self.components.len() {
+            return Err(
+                "component publication must cover the current immutable product roster exactly once",
+            );
+        }
+        for (receipt, component) in receipts.iter().zip(&self.components) {
+            if receipt.product().locator() != component.locator()
+                || receipt.product().selection() != component.selection()
+                || receipt.product().application() != component.application()
+                || receipt.product().artifact().manifest().identity()
+                    != component.artifact().manifest().identity()
+                || receipt.product().authority().review().identity()
+                    != component.authority().review().identity()
+            {
+                return Err(
+                    "component publication receipt belongs to another exact producing image or historical input graph",
+                );
+            }
+        }
+        self.component_publications = receipts;
+        Ok(())
+    }
+    /// Explicit preflight for the isolated process runtime, not native image
+    /// installation. All dependency edges use these exact adjacent files and
+    /// protected version-qualified symbols for this immutable process lifetime.
+    pub fn validate_component_process_inputs(&self, root: &std::path::Path) -> Result<(), String> {
+        if self.components.is_empty() {
+            return Ok(());
+        }
+        if self.component_publications.len() != self.components.len() {
+            return Err(
+                "component process has no complete exact publication receipt roster".into(),
+            );
+        }
+        let directory = root
+            .parent()
+            .ok_or("component process root has no publication directory")?;
+        for receipt in &self.component_publications {
+            if receipt.path().parent() != Some(directory) {
+                return Err("component process dependency is outside the selected root's adjacent immutable publication graph".into());
+            }
+            receipt.revalidate()?;
+        }
+        Ok(())
+    }
+    pub fn component_products(&self) -> &[std::sync::Arc<crate::NativeComponentProduct>] {
+        &self.components
+    }
+    pub fn with_component_products(
+        mut self,
+        components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
+    ) -> Result<Self, &'static str> {
+        let mut expected = 0;
+        for provision in self.host() {
+            let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
+                &provision.realization
+            else {
+                continue;
+            };
+            let target_operations::NormalizedForeignCallMechanism::Component {
+                locator,
+                provider,
+                candidate,
+                application_commitment,
+                ..
+            } = &binding.mechanism
+            else {
+                continue;
+            };
+            expected += 1;
+            let mut matches = components.iter().filter(|component| {
+                component.selection().receiver() == self.identity
+                    && component.selection().receiving_boundary() == provision.boundary
+                    && component.selection().provider() == *provider
+                    && component.selection().candidate() == *candidate
+                    && component.locator() == locator
+                    && component.application().commitment == *application_commitment
+                    && component.application().plan.plan() == &binding.boundary_entry_plan
+            });
+            if matches.next().is_none() || matches.next().is_some() {
+                return Err(
+                    "component runtime roster does not exactly cover an admitted independent native call",
+                );
+            }
+        }
+        if expected != components.len() {
+            return Err("component runtime roster contains an unconsumed or duplicated image");
+        }
+        self.components = components;
+        Ok(self)
+    }
+    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+        &self.private_entry_ram
+    }
+    pub fn with_private_entry_ram(
+        mut self,
+        recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    ) -> Self {
+        self.private_entry_ram = recipes;
+        self
+    }
+
+    /// Capture already admitted facts while they still accompany the image
+    /// request. This is not another admission or a runtime authority grant.
+    pub fn capture_native_admission(
+        checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
+        fused_services: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
+        installation: Option<&terminal_installation::AdmittedProviderSelections>,
+        host: Vec<TerminalRuntimeHostProvision>,
+        boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+        candidates: &[terminal_psi::ProviderCandidateConformance],
+        selected: &effects::SelectedProviderPlanFacts,
+        identities: &terminal_psi::TerminalIdentityTable,
+        plan_identities: &terminal_psi::TerminalIdentityTable,
+        target_slot: target::ProgramEntrySlotDeclaration,
+        calling_applications: &[calling_conventions::BoundaryCallingApplication],
+    ) -> Result<Self, &'static str> {
+        let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
+            installation,
+            host,
+            boundaries,
+            selected,
+            identities,
+            calling_applications,
+        )?;
         let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
         for establishment in fused_services {
             let mut matching_plans = selected.plans().iter().filter(|plan| {
@@ -195,8 +425,9 @@ impl TerminalRuntimeProvisions {
             fused_service_boundary_slots.push(slots);
         }
         Ok(Self {
-            borrowed_storage_layouts: Vec::new(),
             private_entry_ram: Vec::new(),
+            components: Vec::new(),
+            component_publications: Vec::new(),
             identity: checked.terminal_psi_identity(),
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),
@@ -204,19 +435,16 @@ impl TerminalRuntimeProvisions {
             receiver: checked.receiver_eligibility().cloned(),
             fused_services: fused_services.to_vec(),
             plan_identities: plan_identities.clone(),
-            selection_identities: selected.identities().clone(),
             fused_service_boundary_slots,
-            installation: installation.cloned(),
             target_provider_proposals: Vec::new(),
-            host,
-            host_requirements,
+            host_provisions,
         })
     }
 
-    /// Rejoin one original boundary contract to its captured foreign provider
-    /// row before offering a host implementation. This establishes identity
-    /// correspondence only; the adapter must still admit the complete contract,
-    /// ABI and actual host capability independently.
+    pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions {
+        &self.host_provisions
+    }
+
     pub fn matches_host_requirement(
         &self,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
@@ -224,29 +452,19 @@ impl TerminalRuntimeProvisions {
         provider_plan_report_identity: u64,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
-        let mut matching = self
-            .host_requirements
-            .iter()
-            .filter(|row| row.boundary == declaration.id);
-        matching.next().is_some_and(|row| {
-            identities.text(declaration.identity) == Some(row.boundary_identity.as_str())
-                && row.selected_requirement_identity == selected_requirement
-                && row.provider_plan_report_identity == provider_plan_report_identity
-        }) && matching.next().is_none()
+        self.host_provisions.matches_host_requirement(
+            declaration,
+            selected_requirement,
+            provider_plan_report_identity,
+            identities,
+        )
     }
 
-    /// The admitted foreign row's complete source-free calling application.
-    /// Runtime adapters must inspect this geometry before interpreting opaque
-    /// owned bytes; equal-sized native placements do not establish a C shape.
     pub fn host_calling_application(
         &self,
         boundary: BoundaryMachineId,
     ) -> Option<&calling_conventions::BoundaryCallingApplication> {
-        self.host_requirements
-            .iter()
-            .find(|row| row.boundary == boundary)?
-            .calling_application
-            .as_ref()
+        self.host_provisions.host_calling_application(boundary)
     }
 
     pub const fn identity(&self) -> TerminalPsiIdentity {
@@ -275,12 +493,12 @@ impl TerminalRuntimeProvisions {
         mut self,
         layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
     ) -> Self {
-        self.borrowed_storage_layouts = layouts;
+        self.host_provisions.borrowed_storage_layouts = layouts;
         self
     }
 
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
-        &self.borrowed_storage_layouts
+        self.host_provisions.borrowed_storage_layouts()
     }
 
     pub const fn entry(&self) -> MachineId {
@@ -310,7 +528,7 @@ impl TerminalRuntimeProvisions {
     /// The selection facts table admitted same-stack requirement indices
     /// resolve against.
     pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.selection_identities
+        self.host_provisions.selection_identities()
     }
 
     pub fn fused_services(&self) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
@@ -335,11 +553,11 @@ impl TerminalRuntimeProvisions {
     }
 
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
-        self.installation.as_ref()
+        self.host_provisions.installation()
     }
 
     pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
-        &self.host
+        self.host_provisions.host()
     }
 }
 

@@ -34,10 +34,15 @@ pub(crate) struct TerminalProductionView<'a> {
     plan_facts: &'a effects::SelectedProviderPlanFacts,
     callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
     timings: &'a mut CompileTimings,
+    native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
+    component_verdicts: &'a [Arc<component_description::VerifiedComponent>],
 }
 
 impl<'a> TerminalProductionView<'a> {
-    pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
+    pub(crate) fn selection(
+        selection: &'a mut SelectedProviderCustody,
+        native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
+    ) -> Self {
         Self {
             program: &selection.checked.program,
             sources: &selection.sources,
@@ -48,6 +53,8 @@ impl<'a> TerminalProductionView<'a> {
             plan_facts: &selection.checked.selected_provider_plan_facts,
             callbacks: &selection.checked.callback_placements,
             timings: &mut selection.timings,
+            native_components,
+            component_verdicts: &selection.settlement.verified_independent_components,
         }
     }
 
@@ -65,6 +72,8 @@ impl<'a> TerminalProductionView<'a> {
             plan_facts: &checked.execution().selected_provider_plan_facts,
             callbacks: &checked.execution().callback_placements,
             timings,
+            native_components: None,
+            component_verdicts: &checked.providers().verified_independent_components,
         }
     }
 }
@@ -97,7 +106,13 @@ pub(crate) fn produce_retained_terminal_artifacts(
     let entries: Vec<_> = requests
         .iter()
         .map(|request| {
-            admit_terminal_production(request.view.entry, request.view.provenance).map(|entry| {
+            admit_terminal_production(
+                request.view.entry,
+                request.view.provenance,
+                request.view.native_components,
+                request.view.component_verdicts,
+            )
+            .map(|entry| {
                 let selected_machine = entry.machine_symbol();
                 TerminalEntry {
                     selected_machine,
@@ -355,15 +370,59 @@ pub(crate) fn produce_retained_terminal_artifacts(
         .collect()
 }
 
-/// Product admission is a selection-custody check: an Independent edge has no
-/// product carrier yet, and production requires one exact selected entry.
+/// Bare Terminal publication still has no component process carrier. A native
+/// request may produce its portable input only when the exact independently
+/// verified products are retained; actual native/ABI/resource/loader admission
+/// follows source-free. Catalog code retention grants no local provider supply.
 fn admit_terminal_production<'a>(
     selected_program_entry: Option<
         &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
     >,
     provenance: &[provider_planning::SelectedProviderReviewProvenance],
+    native_components: Option<&[Arc<compilation_products::IndependentComponentProduct>]>,
+    verdicts: &[Arc<component_description::VerifiedComponent>],
 ) -> Result<&'a provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>> {
-    provider_planning::verify_selected_compositions_are_realized(provenance)?;
+    if let Some(products) = native_components {
+        for selected in provenance {
+            let mode = selected
+                .selected_by
+                .composition_mode()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            if mode == provider_planning::CompositionMode::Fused {
+                continue;
+            }
+            let mut candidates = verdicts
+                .iter()
+                .filter(|component| component.realizes_selected_plan(&selected.plan).is_ok());
+            let component = candidates.next().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "independent native production has no exact verified component",
+                )]
+            })?;
+            if candidates.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "independent native production has competing component verdicts",
+                )]);
+            }
+            let mut matching = products.iter().filter(|product| {
+                product.description().expected_subject() == component.subject()
+                    && product.retained().artifact() == component.artifact()
+                    && product
+                        .retained()
+                        .native_realization_proposal()
+                        .is_some_and(|proposal| {
+                            proposal.target_profile().target_name() == selected.plan.target
+                        })
+            });
+            if matching.next().is_none() || matching.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "independent native production requires exactly one complete retained producing product",
+                )]);
+            }
+        }
+    } else {
+        provider_planning::verify_selected_compositions_are_realized(provenance)?;
+    }
     // Preserve the build operand's lexical package choice, including when
     // another package contains a machine with the same display name.
     selected_program_entry.ok_or_else(|| {

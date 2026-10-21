@@ -80,7 +80,7 @@ fn image_with_normalized_import(
         .expect("one referenced import")
         .0;
     image.symbol_table.imports.get_mut(import_handle).import =
-        FinalImageImportPlan::Normalized(locator);
+        FinalImageImportPlan::Normalized((locator).into());
     image
 }
 
@@ -273,7 +273,7 @@ fn normalized_macho_imports_deduplicate_raw_install_names_and_share_ordinal() {
     .expect("second normalized locator");
     image.symbol_table.imports.insert(FinalImageImport {
         symbol_handle: second_symbol,
-        import: FinalImageImportPlan::Normalized(second_locator),
+        import: FinalImageImportPlan::Normalized((second_locator).into()),
     });
     image
         .relocation_table
@@ -311,7 +311,7 @@ fn wrong_normalized_locator_case_rejects_without_image_mutation() {
     .expect("valid PE locator");
     let import_handle = image.symbol_table.imports.iter().next().unwrap().0;
     image.symbol_table.imports.get_mut(import_handle).import =
-        FinalImageImportPlan::Normalized(locator);
+        FinalImageImportPlan::Normalized((locator).into());
     let before = image.clone();
 
     let diagnostic = install_import_thunks(&mut image, MachoIsa::Aarch64)
@@ -356,7 +356,7 @@ fn repeated_normalized_identity_rejects_without_image_mutation() {
     });
     image.symbol_table.imports.insert(FinalImageImport {
         symbol_handle: second_symbol,
-        import: FinalImageImportPlan::Normalized(locator),
+        import: FinalImageImportPlan::Normalized((locator).into()),
     });
     let before = image.clone();
 
@@ -393,7 +393,7 @@ fn excessive_dylib_ordinals_reject_before_image_mutation() {
         .expect("valid distinct locator");
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            import: FinalImageImportPlan::Normalized(locator),
+            import: FinalImageImportPlan::Normalized((locator).into()),
         });
         image
             .relocation_table

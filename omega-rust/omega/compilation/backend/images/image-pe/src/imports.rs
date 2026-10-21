@@ -85,7 +85,7 @@ pub(crate) fn install_import_thunks(
                 };
                 (library, PeImportLookup::ByName(symbol.as_bytes().to_vec()))
             }
-            FinalImageImportPlan::Normalized(locator) => {
+            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Foreign(locator)) => {
                 if locator.target() != TargetProfile::WindowsX64
                     || locator.target().native_target() != image.target
                     || matches!(subsystem, 10..=12)
@@ -115,6 +115,11 @@ pub(crate) fn install_import_thunks(
                         )));
                     }
                 }
+            }
+            FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Component(_)) => {
+                return Err(Diagnostic::error(
+                    "ELF component locator cannot enter PE import planning",
+                ));
             }
             FinalImageImportPlan::None => {
                 return Err(Diagnostic::error(format!(
@@ -538,7 +543,7 @@ mod tests {
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            import: FinalImageImportPlan::Normalized(locator),
+            import: FinalImageImportPlan::Normalized((locator).into()),
         });
         image
     }

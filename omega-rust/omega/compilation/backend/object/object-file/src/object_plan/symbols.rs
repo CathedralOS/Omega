@@ -31,7 +31,7 @@ pub type ObjectSymbolHandle = Handle<SymbolPlan>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedImportPlan {
     pub symbol: ObjectSymbolHandle,
-    pub locator: target::NormalizedForeignLocator,
+    pub locator: target::NormalizedImportLocator,
 }
 
 /// Canonical linkage from one lowered function identity to its object symbol.

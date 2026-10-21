@@ -10,6 +10,7 @@ use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 
 mod boundary;
+mod component_call;
 mod exact_plan;
 mod normalized_foreign_call;
 mod source_imports;
@@ -21,6 +22,7 @@ use source_imports::derive_source_evaluated_mechanisms;
 pub(crate) fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
     request: &ProviderAdmissionRequest<'_, 'request>,
+    receiver: terminal_psi::TerminalPsiIdentity,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
@@ -43,7 +45,7 @@ pub(crate) fn settle_provider_executions<'request>(
 
     for settlement in request.settlements {
         let (admitted_settlement, provider_execution) =
-            settle_boundary(input, request, settlement)?;
+            settle_boundary(input, request, settlement, receiver)?;
         admitted.extend(admitted_settlement);
         provider_executions.push(provider_execution);
     }

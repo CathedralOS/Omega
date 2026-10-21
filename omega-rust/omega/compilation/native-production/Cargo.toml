@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+installation-evidence = { path = "../backend/runtime/installation-evidence" }
+task-plans = { path = "../backend/runtime/task-plans" }
 component-description = { path = "../backend/artifacts/component-description" }
 effects = { path = "../backend/plans/provider-evidence" }
 abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }

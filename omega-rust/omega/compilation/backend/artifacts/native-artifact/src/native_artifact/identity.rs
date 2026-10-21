@@ -343,6 +343,21 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 digest.raw(&locator.identity_digest().as_bytes());
                 same_stack_contribution
             }
+            target_operations::NormalizedForeignCallMechanism::Component {
+                locator,
+                provider,
+                candidate,
+                application_commitment,
+                same_stack_contribution,
+            } => {
+                digest.raw(&[4]);
+                digest.raw(locator.identity_digest());
+                digest.raw(&provider.vocabulary_marker.get().to_le_bytes());
+                digest.raw(provider.program_fingerprint.as_bytes());
+                digest.raw(&candidate.get().to_le_bytes());
+                digest.raw(application_commitment);
+                same_stack_contribution
+            }
             target_operations::NormalizedForeignCallMechanism::Table {
                 target,
                 byte_offset,

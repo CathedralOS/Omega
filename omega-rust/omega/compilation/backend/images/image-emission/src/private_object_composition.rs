@@ -187,7 +187,7 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             {
                 import.symbol
             } else {
-                let name = object_file::normalized_foreign_import_symbol_name(&locator.locator);
+                let name = object_file::normalized_import_symbol_name(locator.locator.as_ref());
                 if linked
                     .object
                     .layout
@@ -197,7 +197,10 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
                 {
                     return Err(Error::Mismatch("private import symbol name collision"));
                 }
-                linked.object.layout.insert_import(name, &locator.locator)
+                linked
+                    .object
+                    .layout
+                    .insert_normalized_import(name, locator.locator.as_ref())
             }
         } else {
             let mut relocated = symbol.clone();

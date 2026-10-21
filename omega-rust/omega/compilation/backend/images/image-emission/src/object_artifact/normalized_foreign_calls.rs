@@ -117,7 +117,11 @@ pub fn derive_normalized_foreign_call_custody(
                     field.caller == function.machine
                         && field.invocation_site == record.invocation_site
                 });
-            let field = match (record.call.binding.import(), fields.next(), fields.next()) {
+            let field = match (
+                record.call.binding.symbolic_import(),
+                fields.next(),
+                fields.next(),
+            ) {
                 (Some(_), Some(field), None) => {
                     if field.instruction != record.instruction
                         || field.boundary != record.call.boundary

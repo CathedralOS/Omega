@@ -26,7 +26,7 @@ fn final_image_keeps_normalized_import_atomic_and_ignores_symbol_spelling() {
     });
     object.layout.normalized_imports.push(NormalizedImportPlan {
         symbol,
-        locator: locator.clone(),
+        locator: locator.clone().into(),
     });
     let relocations = RelocationPlan::with_target(target);
 
@@ -40,7 +40,7 @@ fn final_image_keeps_normalized_import_atomic_and_ignores_symbol_spelling() {
     let import = image.symbol_table.imports.iter().next().unwrap().1;
     assert_eq!(
         &import.import,
-        &FinalImageImportPlan::Normalized(locator),
+        &FinalImageImportPlan::Normalized((locator).into()),
         "normalized coordinates must win atomically over legacy symbol fields"
     );
 }

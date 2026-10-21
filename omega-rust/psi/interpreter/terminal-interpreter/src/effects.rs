@@ -45,6 +45,17 @@ pub enum TerminalEffect {
         completion_receipts: Vec<CompletionReceipt>,
         result: BoundaryMachineResult,
     },
+    /// Receipt of a real checked component invocation. Nested operation and
+    /// boundary IDs stay under their producing artifact/instance namespace;
+    /// flattening them into the receiver's ID table would change their meaning.
+    ComponentCall {
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider: terminal_psi::TerminalPsiIdentity,
+        candidate: MachineId,
+        instance_namespace: u64,
+        effects: Vec<TerminalEffect>,
+    },
     PortWrite {
         operation: OperationId,
         service: ServiceId,
@@ -152,6 +163,11 @@ pub struct TerminalRuntimeSupplies {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AdmittedBoundarySupply {
     CheckedProvider(MachineId),
+    ComponentProvider {
+        provider: terminal_psi::TerminalPsiIdentity,
+        provider_boundary: BoundaryMachineId,
+        candidate: MachineId,
+    },
     HostImport,
 }
 
@@ -203,6 +219,30 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
 }
 
 impl TerminalRuntimeSupplies {
+    /// Add an explicitly selected cross-artifact route. This establishes no
+    /// instance or adapter and cannot replace an existing local/host selection.
+    pub fn with_component_provider(
+        mut self,
+        selected: &terminal_installation::AdmittedComponentProvider,
+    ) -> Result<Self, TerminalInterpretError> {
+        let boundary = selected.receiving_boundary();
+        if selected.receiver() != self.terminal_psi || self.supplies.contains_key(&boundary) {
+            return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
+                boundary,
+                reason: "component selection names another receiver or an already selected slot",
+            });
+        }
+        self.supplies.insert(
+            boundary,
+            AdmittedBoundarySupply::ComponentProvider {
+                provider: selected.provider(),
+                provider_boundary: selected.provider_boundary(),
+                candidate: selected.candidate(),
+            },
+        );
+        Ok(self)
+    }
+
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
         self.terminal_psi
     }

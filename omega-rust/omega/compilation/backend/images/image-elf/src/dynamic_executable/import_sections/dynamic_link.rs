@@ -115,16 +115,20 @@ pub(crate) fn plan_elf_dynamic_link_inputs(
     }
 
     for import in &imports {
-        let ElfImportLocator::Versioned { target_profile, .. } = &import.locator else {
-            return reject(
-                image,
-                interpreter,
-                Diagnostic::error(
-                    "string-backed ELF bootstrap imports cannot enter the normalized dynamic-link input plan",
-                ),
-            );
+        let target_profile = match &import.locator {
+            ElfImportLocator::Versioned { target_profile, .. } => *target_profile,
+            ElfImportLocator::Component { locator, .. } => locator.target(),
+            ElfImportLocator::StringBackedBootstrap { .. } => {
+                return reject(
+                    image,
+                    interpreter,
+                    Diagnostic::error(
+                        "string-backed ELF bootstrap imports cannot enter normalized dynamic-link planning",
+                    ),
+                );
+            }
         };
-        if *target_profile != interpreter.target()
+        if target_profile != interpreter.target()
             || !matches!(
                 target_profile,
                 TargetProfile::LinuxArm64 | TargetProfile::LinuxX64
@@ -198,7 +202,7 @@ mod tests {
         version: &[u8],
     ) -> FinalImageImportPlan {
         FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
+            (normalize_foreign_locator(
                 ForeignLocatorCandidate::ElfVersioned {
                     object: object.to_vec(),
                     symbol: symbol.to_vec(),
@@ -206,7 +210,8 @@ mod tests {
                 },
                 target,
             )
-            .expect("valid versioned ELF locator"),
+            .expect("valid versioned ELF locator"),)
+                .into(),
         )
     }
 
@@ -330,7 +335,8 @@ mod tests {
             TargetProfile::LinuxX64,
         )
         .expect("valid locator");
-        let mut image = image_with_import(FinalImageImportPlan::Normalized(locator.clone()));
+        let mut image =
+            image_with_import(FinalImageImportPlan::Normalized((locator.clone()).into()));
         let duplicated = image
             .symbol_table
             .imports

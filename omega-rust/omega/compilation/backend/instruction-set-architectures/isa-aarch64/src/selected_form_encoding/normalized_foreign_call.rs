@@ -213,7 +213,7 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
     };
     if record.call.boundary != boundary
         || record.call.binding.native_target() != Some(target)
-        || record.call.binding.import().is_none()
+        || record.call.binding.symbolic_import().is_none()
     {
         return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
     }

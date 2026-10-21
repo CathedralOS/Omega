@@ -46,6 +46,14 @@ impl ObjectFileLayout {
         name: String,
         locator: &target::NormalizedForeignLocator,
     ) -> ObjectSymbolHandle {
+        self.insert_normalized_import(name, target::NormalizedImportLocatorRef::Foreign(locator))
+    }
+
+    pub fn insert_normalized_import(
+        &mut self,
+        name: String,
+        locator: target::NormalizedImportLocatorRef<'_>,
+    ) -> ObjectSymbolHandle {
         let symbol = self.symbols.insert(SymbolPlan {
             name,
             section: SymbolSection::None,
@@ -56,7 +64,7 @@ impl ObjectFileLayout {
         });
         self.normalized_imports.push(NormalizedImportPlan {
             symbol,
-            locator: locator.clone(),
+            locator: locator.to_owned(),
         });
         symbol
     }

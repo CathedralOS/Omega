@@ -21,11 +21,21 @@ pub fn object_symbol_handle_by_foreign_locator(
     object: &ObjectPlan,
     locator: &NormalizedForeignLocator,
 ) -> ObjectSymbolHandle {
+    object_symbol_handle_by_import_locator(
+        object,
+        target::NormalizedImportLocatorRef::Foreign(locator),
+    )
+}
+
+pub fn object_symbol_handle_by_import_locator(
+    object: &ObjectPlan,
+    locator: target::NormalizedImportLocatorRef<'_>,
+) -> ObjectSymbolHandle {
     let mut matches = object
         .layout
         .normalized_imports
         .iter()
-        .filter(|import| &import.locator == locator);
+        .filter(|import| import.locator.as_ref() == locator);
     let Some(import) = matches.next() else {
         return arena::Handle::invalid();
     };
@@ -54,6 +64,23 @@ pub fn normalized_foreign_import_symbol_name(locator: &NormalizedForeignLocator)
         "__omega_foreign_import_{:016x}",
         locator.non_authoritative_compatibility_fingerprint()
     )
+}
+
+/// Physical symbolic import label, preserving the distinct linkage domains.
+pub fn normalized_import_symbol_name(locator: target::NormalizedImportLocatorRef<'_>) -> String {
+    match locator {
+        target::NormalizedImportLocatorRef::Foreign(locator) => {
+            normalized_foreign_import_symbol_name(locator)
+        }
+        target::NormalizedImportLocatorRef::Component(locator) => {
+            use std::fmt::Write;
+            let mut name = String::from("__omega_component_import_");
+            for byte in locator.identity_digest() {
+                write!(&mut name, "{byte:02x}").expect("writing a String");
+            }
+            name
+        }
+    }
 }
 
 pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &str {
@@ -168,7 +195,7 @@ mod tests {
 
         object.layout.normalized_imports.push(NormalizedImportPlan {
             symbol,
-            locator: locator.clone(),
+            locator: locator.clone().into(),
         });
         assert!(
             !object_symbol_handle_by_foreign_locator(&object, &locator).is_valid(),

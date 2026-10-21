@@ -503,6 +503,39 @@ impl CompileReport {
         Ok(self)
     }
 
+    pub(crate) fn record_component_publications(
+        &mut self,
+        receipts: Vec<native_artifact::NativeComponentPublicationReceipt>,
+    ) -> Result<(), String> {
+        let runtime = match &mut self.product {
+            CompileProduct::RetainedDynamicElfArtifact(product) => product.runtime_provisions.as_mut(),
+            _ => return Err("component files require their distinct dynamically linked process root, not an installable direct image".into()),
+        }.ok_or("component publication lost its exact runtime product roster")?;
+        runtime
+            .record_component_publications(receipts)
+            .map_err(str::to_owned)
+    }
+
+    pub fn validate_component_process_inputs(
+        &self,
+        executable: &std::path::Path,
+    ) -> Result<(), String> {
+        if self
+            .runtime_provisions()
+            .is_none_or(|runtime| runtime.component_products().is_empty())
+        {
+            return Ok(());
+        }
+        if self.checked_native_executable_path() != Some(executable) {
+            return Err(
+                "component process root differs from its exact native publication receipt".into(),
+            );
+        }
+        self.runtime_provisions()
+            .ok_or("component process lost runtime provisions")?
+            .validate_component_process_inputs(executable)
+    }
+
     pub const fn runtime_provisions(&self) -> Option<&crate::TerminalRuntimeProvisions> {
         match &self.product {
             CompileProduct::RetainedNativeArtifact(product) => product.runtime_provisions.as_ref(),

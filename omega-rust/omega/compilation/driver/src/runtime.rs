@@ -27,6 +27,7 @@
 //! model shared across slots. Guest calibration/retry code remains executable;
 //! simulated waits neither sleep the host nor establish native latency evidence.
 
+mod components;
 mod entry;
 mod host_imports;
 
@@ -96,6 +97,7 @@ pub enum TerminalRuntimeError {
     Artifact(TerminalArtifactInterpretError),
     Requirements(TerminalInterpretError),
     Binding(TerminalBindingRejection),
+    ComponentBinding(String),
     Execution(TerminalInstanceError),
 }
 
@@ -118,6 +120,9 @@ impl std::fmt::Display for TerminalRuntimeError {
             Self::Artifact(error) => std::fmt::Display::fmt(error, formatter),
             Self::Requirements(error) => std::fmt::Display::fmt(error, formatter),
             Self::Binding(error) => write!(formatter, "runtime binding rejected: {error:?}"),
+            Self::ComponentBinding(error) => {
+                write!(formatter, "component binding rejected: {error}")
+            }
             Self::Execution(error) => write!(formatter, "runtime execution failed: {error:?}"),
         }
     }
@@ -199,6 +204,12 @@ pub fn execute(
     let mut host_imports = Vec::new();
     if let Some(provisions) = request.provisions {
         for provision in provisions.host() {
+            if matches!(&provision.realization,
+                target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                    if matches!(binding.mechanism, target_operations::NormalizedForeignCallMechanism::Component { .. }))
+            {
+                continue;
+            }
             // A placed RAM event is an internal semantic handler, not a host
             // crossing. Leave its demand unresolved here: the entry-relative
             // origin analysis below must prove captured or checked private RAM
@@ -219,7 +230,7 @@ pub fn execute(
             }
         }
     }
-    let installation = program
+    let mut installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: request.x86_flags,
             entry: request
@@ -231,6 +242,13 @@ pub fn execute(
             target_layouts: target_layouts.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
+    if let Some(provisions) = request.provisions {
+        for component in provisions.component_products() {
+            installation = installation
+                .with_component_provider(component.selection())
+                .map_err(TerminalRuntimeError::Requirements)?;
+        }
+    }
     let installed_entry = program
         .entry_installed(&installation)
         .map_err(TerminalRuntimeError::Requirements)?;
@@ -276,14 +294,40 @@ pub fn execute(
     let mut instance = program
         .instantiate_installed(&[], inputs, &installation)
         .map_err(TerminalRuntimeError::Artifact)?;
+    let host = host_imports::HostContext::new(request.standard_input, request.clock);
+    let component_slots = request
+        .provisions
+        .map(|provisions| {
+            provisions
+                .component_products()
+                .iter()
+                .map(|component| component.selection().receiving_boundary())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let imports = requirements
+        .imports
+        .iter()
+        .copied()
+        .filter(|boundary| !component_slots.contains(boundary))
+        .collect::<Vec<_>>();
     let output = host_imports::bind(
         &program,
         &mut instance,
-        request.provisions,
-        &requirements.imports,
-        request.standard_input,
-        request.clock,
+        request
+            .provisions
+            .map(TerminalRuntimeProvisions::host_provisions),
+        &imports,
+        &host,
     )?;
+    if let Some(provisions) = request.provisions {
+        for component in provisions.component_products() {
+            let binding = components::prepare(component, &host, request.x86_flags)?;
+            instance
+                .bind_component(binding)
+                .map_err(TerminalRuntimeError::ComponentBinding)?;
+        }
+    }
     // Service occurrences and containing-domain authority are independent.
     // This host explicitly accepted domain death above. All guest storage is
     // private, outputs are buffered, and placed host loans are refused. The

@@ -101,6 +101,7 @@ pub fn instantiate_foreign_call_constraint(
     let target = call.binding.native_target()?;
     let expected_family = match call.binding.mechanism {
         NormalizedForeignCallMechanism::Import { .. }
+        | NormalizedForeignCallMechanism::Component { .. }
         | NormalizedForeignCallMechanism::Table { .. } => RegisterConstraintFamily::Call,
         NormalizedForeignCallMechanism::SystemCall(_) => RegisterConstraintFamily::SystemCall,
     };

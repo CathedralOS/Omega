@@ -542,6 +542,10 @@ pub(crate) fn derive_normalized_foreign_child(
             same_stack_contribution,
             ..
         }
+        | target_operations::NormalizedForeignCallMechanism::Component {
+            same_stack_contribution,
+            ..
+        }
         | target_operations::NormalizedForeignCallMechanism::Table {
             same_stack_contribution,
             ..
@@ -638,7 +642,7 @@ pub(crate) fn derive_normalized_foreign_child(
     // relocation-free object plan — the unresolved import field plus its
     // declared import symbol — where the object route binds it through
     // relocation records and an object-plan import row.
-    let (mutable_intervals, relocation) = if foreign.binding.import().is_none() {
+    let (mutable_intervals, relocation) = if foreign.binding.symbolic_import().is_none() {
         if fragment_rejoin.is_none_or(|rejoin| rejoin.import.is_some()) {
             return Err("kernel entry lacks independently replayed fragment custody");
         }
@@ -655,7 +659,7 @@ pub(crate) fn derive_normalized_foreign_child(
     } else {
         let (locator, _) = foreign
             .binding
-            .import()
+            .symbolic_import()
             .ok_or("normalized external call has no entry mechanism")?;
         if let Some((field_record, import)) = fragment_rejoin.and_then(|rejoin| rejoin.import) {
             let plan = publication
@@ -748,7 +752,7 @@ pub(crate) fn derive_normalized_foreign_child(
                                 .normalized_imports
                                 .iter()
                                 .any(|import| {
-                                    import.locator == *locator
+                                    import.locator.as_ref() == locator
                                         && import.symbol == relocation.symbol_handle
                                 })
                     })
@@ -899,7 +903,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .layout
                 .normalized_imports
                 .iter()
-                .filter(|import| import.locator == *locator)
+                .filter(|import| import.locator.as_ref() == locator)
                 .collect::<Vec<_>>();
             let [import] = matching_imports.as_slice() else {
                 return Err("normalized foreign D41 child does not rejoin one object import");

@@ -710,33 +710,44 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-        self.entry_storage_open = false;
-        self.resume_operations(meter, handler).map_err(|error| {
-            // Report the execution cursor that declined the operation, including
-            // failures reached in a callee. A missing operation means the block
-            // terminator failed; source-free execution retains canonical IDs.
-            // Preserve the cause for every refusal, not only malformed rows:
-            // a missing home needs its consuming operation or cleanup edge.
-            let operation = self
-                .program
-                .machines()
-                .get(&self.current_machine)
-                .and_then(|machine| machine.block(&self.current))
-                .and_then(|block| block.operations.get(self.next_operation))
-                .map(|operation| operation.id);
-            TerminalInterpretError::ExecutionSite {
-                machine: self.current_machine,
-                block: self.current,
-                operation,
-                cause: Box::new(error),
-            }
-        })
+        self.resume_with_components(meter, handler, None)
     }
 
-    fn resume_operations(
+    pub(crate) fn resume_with_components<'host>(
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
+        components: Option<&mut crate::instance::ComponentBindings<'host, 'artifact>>,
+    ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        self.entry_storage_open = false;
+        self.resume_operations(meter, handler, components)
+            .map_err(|error| {
+                // Report the execution cursor that declined the operation, including
+                // failures reached in a callee. A missing operation means the block
+                // terminator failed; source-free execution retains canonical IDs.
+                // Preserve the cause for every refusal, not only malformed rows:
+                // a missing home needs its consuming operation or cleanup edge.
+                let operation = self
+                    .program
+                    .machines()
+                    .get(&self.current_machine)
+                    .and_then(|machine| machine.block(&self.current))
+                    .and_then(|block| block.operations.get(self.next_operation))
+                    .map(|operation| operation.id);
+                TerminalInterpretError::ExecutionSite {
+                    machine: self.current_machine,
+                    block: self.current,
+                    operation,
+                    cause: Box::new(error),
+                }
+            })
+    }
+
+    fn resume_operations<'host>(
+        &mut self,
+        meter: &mut TerminalFuelMeter,
+        handler: &mut impl TerminalEffectHandler,
+        mut components: Option<&mut crate::instance::ComponentBindings<'host, 'artifact>>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(completion) = &self.external_completion {
             return Ok(TerminalExecutionStatus::ExternalCompletion(
@@ -785,7 +796,21 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .operations
                 .get(self.next_operation)
             {
-                if let Err(error) = meter.charge_operation(operation) {
+                // A component call already paid its parent operation before
+                // entering the retained child. Only the child's next step is
+                // charged after suspension; neither effects nor call fuel replay.
+                let pending_component = components.as_deref().is_some_and(|bindings| {
+                    if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } =
+                        operation.kind
+                    {
+                        bindings
+                            .get(&boundary)
+                            .is_some_and(|binding| binding.pending_at(operation.id))
+                    } else {
+                        false
+                    }
+                });
+                if !pending_component && let Err(error) = meter.charge_operation(operation) {
                     return meter_status(error);
                 }
                 let selected;
@@ -833,7 +858,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         OperationFlow::Advance
                                     }
                                     OperationKind::BoundaryCall { .. } => {
-                                        self.execute_boundary_call(operation, handler)?
+                                        self.execute_boundary_call(operation, handler, meter, components.as_deref_mut())?
                                     }
                                     OperationKind::PortWrite { .. } => {
                                         self.execute_port_write(operation, handler)?

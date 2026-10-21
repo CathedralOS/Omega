@@ -13,13 +13,18 @@ use image::{
     FinalImageSymbolHandle,
 };
 use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
+use target::{ForeignLocatorCandidate, NormalizedImportLocator, TargetProfile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ElfImportLocator {
     StringBackedBootstrap {
         library: String,
         symbol: String,
+    },
+    Component {
+        locator: target::NormalizedComponentLocator,
+        object: Vec<u8>,
+        symbol: Vec<u8>,
     },
     Versioned {
         target_profile: TargetProfile,
@@ -42,7 +47,7 @@ pub(crate) fn canonical_referenced_imports(
 ) -> Result<Vec<ElfImportRequest>, Diagnostic> {
     let mut requests = Vec::new();
     let mut import_handles = Vec::new();
-    let mut normalized_imports = Vec::<(FinalImageSymbolHandle, NormalizedForeignLocator)>::new();
+    let mut normalized_imports = Vec::<(FinalImageSymbolHandle, NormalizedImportLocator)>::new();
 
     for (_, import) in image.symbol_table.imports.iter() {
         if import_handles.contains(&import.symbol_handle) {
@@ -87,16 +92,32 @@ pub(crate) fn canonical_referenced_imports(
                 }
             }
             FinalImageImportPlan::Normalized(locator) => {
-                let ForeignLocatorCandidate::ElfVersioned {
-                    object,
-                    symbol,
-                    version,
-                } = locator.locator()
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "normalized non-ELF foreign locator 0x{:016x} reached ELF image planning",
-                        locator.non_authoritative_compatibility_fingerprint(),
-                    )));
+                let normalized = match locator {
+                    NormalizedImportLocator::Foreign(foreign) => {
+                        let ForeignLocatorCandidate::ElfVersioned {
+                            object,
+                            symbol,
+                            version,
+                        } = foreign.locator()
+                        else {
+                            return Err(Diagnostic::error(
+                                "normalized non-ELF foreign locator reached ELF image planning",
+                            ));
+                        };
+                        ElfImportLocator::Versioned {
+                            target_profile: foreign.target(),
+                            compatibility_report_identity: foreign
+                                .non_authoritative_compatibility_fingerprint(),
+                            object: object.clone(),
+                            symbol: symbol.clone(),
+                            version: version.clone(),
+                        }
+                    }
+                    NormalizedImportLocator::Component(component) => ElfImportLocator::Component {
+                        locator: component.clone(),
+                        object: format!("$ORIGIN/{}", component.image_filename()).into_bytes(),
+                        symbol: component.export_symbol().into_bytes(),
+                    },
                 };
                 if locator.target().native_target() != image.target
                     || !matches!(
@@ -130,14 +151,7 @@ pub(crate) fn canonical_referenced_imports(
                     )));
                 }
                 normalized_imports.push((import.symbol_handle, locator.clone()));
-                ElfImportLocator::Versioned {
-                    target_profile: locator.target(),
-                    compatibility_report_identity: locator
-                        .non_authoritative_compatibility_fingerprint(),
-                    object: object.clone(),
-                    symbol: symbol.clone(),
-                    version: version.clone(),
-                }
+                normalized
             }
             FinalImageImportPlan::None => {
                 return Err(Diagnostic::error(format!(
@@ -301,7 +315,7 @@ mod tests {
                 "__omega_foreign_import_{:016x}",
                 locator.non_authoritative_compatibility_fingerprint()
             ),
-            FinalImageImportPlan::Normalized(locator.clone()),
+            FinalImageImportPlan::Normalized((locator.clone()).into()),
             &[3, 15],
         );
         (image, locator)
@@ -390,7 +404,7 @@ mod tests {
         });
         duplicate.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: second_symbol,
-            import: FinalImageImportPlan::Normalized(locator),
+            import: FinalImageImportPlan::Normalized((locator).into()),
         });
         let diagnostic = canonical_referenced_imports(&duplicate)
             .expect_err("one exact locator attached to two symbols must reject");
@@ -425,7 +439,7 @@ mod tests {
             .symbol_table
             .imports
             .get_mut(import_handle)
-            .import = FinalImageImportPlan::Normalized(pe_locator);
+            .import = FinalImageImportPlan::Normalized((pe_locator).into());
         let diagnostic = canonical_referenced_imports(&wrong_case)
             .expect_err("a PE locator must not be reinterpreted as ELF coordinates");
         assert!(diagnostic.message.contains("normalized non-ELF"));

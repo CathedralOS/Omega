@@ -151,6 +151,21 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(&locator.identity_digest().as_bytes());
             digest.raw(&same_stack_contribution.commitment().as_bytes());
         }
+        target_operations::NormalizedForeignCallMechanism::Component {
+            locator,
+            provider,
+            candidate,
+            application_commitment,
+            same_stack_contribution,
+        } => {
+            digest.byte(4);
+            digest.raw(locator.identity_digest());
+            digest.raw(&provider.vocabulary_marker.get().to_le_bytes());
+            digest.raw(provider.program_fingerprint.as_bytes());
+            digest.raw(&candidate.get().to_le_bytes());
+            digest.raw(application_commitment);
+            digest.raw(&same_stack_contribution.commitment().as_bytes());
+        }
         target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
             digest.byte(2);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());

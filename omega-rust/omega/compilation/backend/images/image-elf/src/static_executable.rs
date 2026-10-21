@@ -59,6 +59,10 @@ fn emit_elf_executable(
                 "ELF direct image relocation references unknown symbol `{symbol}`; canonical dynamic import request names library `{library}` at {} relocation site(s), but ELF loader binding is not implemented",
                 import.relocations.len(),
             ),
+            ElfImportLocator::Component { locator, .. } => format!(
+                "component ELF image {} requires the selected loader and separate-image publication; static emission cannot resolve this slot",
+                locator.image_filename(),
+            ),
             ElfImportLocator::Versioned {
                 target_profile,
                 compatibility_report_identity,

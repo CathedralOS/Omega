@@ -10,7 +10,24 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 /// returns the original complete image request, including its interpreter.
 pub fn compile(
     retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
+    request: NativeCompileRequest<'_>,
+) -> Result<
+    crate::RealizedNativeProduct,
+    (
+        image_emission::ExecutableImageEmissionRequest,
+        Vec<Diagnostic>,
+    ),
+> {
+    compile_with_components(retained, request, &[])
+}
+
+/// Compile the receiver with explicitly retained separately emitted component
+/// calls. Their producers remain independent object/image owners; only exact
+/// symbolic call settlements enter this program's ordinary native pipeline.
+pub fn compile_with_components(
+    retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
     mut request: NativeCompileRequest<'_>,
+    components: &[crate::ComponentNativeCall<'_>],
 ) -> Result<
     crate::RealizedNativeProduct,
     (
@@ -54,7 +71,15 @@ pub fn compile(
                 .map_err(|reason| vec![Diagnostic::error(reason)])
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let (input, execution) = proposal.prepare_native_execution(&artifact, &recipes)?;
+        let component_selections = components
+            .iter()
+            .map(|component| component.call())
+            .collect::<Vec<_>>();
+        let (input, execution) = proposal.prepare_native_execution_with_components(
+            &artifact,
+            &recipes,
+            &component_selections,
+        )?;
         let prepared = proposal.prepare_native_providers(
             &artifact,
             RetainedNativeProviderInputs {
@@ -65,7 +90,8 @@ pub fn compile(
                 imports: request.imports,
             },
         )?;
-        let native_settlements = prepared.program_settlements();
+        let mut native_settlements = prepared.program_settlements();
+        native_settlements.extend(components.iter().map(|component| component.settlement()));
         let admission = prepared.admission_request(
             &native_settlements,
             &request.terminal_authority_policy,

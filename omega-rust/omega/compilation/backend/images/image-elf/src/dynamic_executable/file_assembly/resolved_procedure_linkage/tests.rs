@@ -73,7 +73,7 @@ fn envelope(
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: handle,
             import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
+                (normalize_foreign_locator(
                     ForeignLocatorCandidate::ElfVersioned {
                         object: b"libresolved-procedure.so".to_vec(),
                         symbol: symbol.to_vec(),
@@ -81,7 +81,8 @@ fn envelope(
                     },
                     target,
                 )
-                .unwrap(),
+                .unwrap(),)
+                    .into(),
             ),
         });
         imports.push(handle);

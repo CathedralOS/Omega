@@ -48,8 +48,8 @@ use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind}
 use object_file::{
     ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
     StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
-    boundary_relocation_origin, normalized_foreign_import_symbol_name, object_function_reference,
-    object_symbol_handle_by_foreign_locator,
+    boundary_relocation_origin, normalized_import_symbol_name, object_function_reference,
+    object_symbol_handle_by_import_locator,
 };
 
 pub(super) fn publish(
@@ -60,7 +60,11 @@ pub(super) fn publish(
 ) -> Result<RelocationPlan, Error> {
     let import_calls = calls
         .iter()
-        .filter_map(|call| call.binding.import().map(|(locator, _)| (call, locator)))
+        .filter_map(|call| {
+            call.binding
+                .symbolic_import()
+                .map(|(locator, _)| (call, locator))
+        })
         .collect::<Vec<_>>();
     let fields = &source
         .source()
@@ -134,11 +138,11 @@ pub(super) fn publish(
             .layout
             .normalized_imports
             .iter()
-            .find(|import| import.locator == *locator)
+            .find(|import| import.locator.as_ref() == locator)
         {
             import.symbol
         } else {
-            let name = normalized_foreign_import_symbol_name(locator);
+            let name = normalized_import_symbol_name(locator);
             if object
                 .layout
                 .symbols
@@ -147,7 +151,7 @@ pub(super) fn publish(
             {
                 return Err(Error::Mismatch("fragment import symbol name collision"));
             }
-            object.layout.insert_import(name, locator)
+            object.layout.insert_normalized_import(name, locator)
         };
         relocations.push_record(RelocationRecord {
             origin,
@@ -169,7 +173,11 @@ pub(super) fn validate(
     let calls = derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
     let import_calls = calls
         .iter()
-        .filter_map(|call| call.binding.import().map(|(locator, _)| (call, locator)))
+        .filter_map(|call| {
+            call.binding
+                .symbolic_import()
+                .map(|(locator, _)| (call, locator))
+        })
         .collect::<Vec<_>>();
     let fields = &source
         .source()
@@ -230,9 +238,9 @@ pub(super) fn validate(
         let (Some(import), Some((symbol_handle, symbol))) = (imports.next(), symbols.next()) else {
             return Err(Error::Mismatch("fragment import is missing"));
         };
-        if import.locator != *locator
+        if import.locator.as_ref() != locator
             || import.symbol != symbol_handle
-            || symbol.name != normalized_foreign_import_symbol_name(locator)
+            || symbol.name != normalized_import_symbol_name(locator)
             || symbol.kind != SymbolKind::Import
             || symbol.section != SymbolSection::None
             || symbol.offset != 0
@@ -336,7 +344,7 @@ pub(super) fn validate(
                 }
             }
         }
-        let symbol = object_symbol_handle_by_foreign_locator(&artifact.object, locator);
+        let symbol = object_symbol_handle_by_import_locator(&artifact.object, locator);
         let Some((_, relocation)) = records.next() else {
             return Err(Error::Mismatch("fragment import relocation roster changed"));
         };
@@ -360,9 +368,18 @@ pub(super) fn validate(
 /// Selected roster order need not equal placed instruction order. Join by
 /// semantic owner and exact field offset, never by a positional zip.
 fn call_for_import_field<'a>(
-    calls: &[(&'a ObjectForeignCall, &'a target::NormalizedForeignLocator)],
+    calls: &[(
+        &'a ObjectForeignCall,
+        target::NormalizedImportLocatorRef<'a>,
+    )],
     field: &machine_code::PlacedNormalizedForeignCallResolution,
-) -> Result<(&'a ObjectForeignCall, &'a target::NormalizedForeignLocator), Error> {
+) -> Result<
+    (
+        &'a ObjectForeignCall,
+        target::NormalizedImportLocatorRef<'a>,
+    ),
+    Error,
+> {
     let mut matches = calls.iter().copied().filter(|(call, _)| {
         call.machine == field.caller
             && call.owner == target_operations::CallSiteOwner::from(field.invocation_site)

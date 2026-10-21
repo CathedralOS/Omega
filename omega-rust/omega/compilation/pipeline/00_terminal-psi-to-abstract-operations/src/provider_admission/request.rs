@@ -10,6 +10,14 @@ use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
 pub enum NativeBoundaryRealization<'execution> {
     Builtin(BoundaryRealization),
     NormalizedForeignCall(&'execution task_plans::AdmittedSameStackContribution),
+    /// A separately emitted checked provider. The complete semantic/ABI join
+    /// and exact image locator remain distinct from ForeignBinding admission.
+    Component {
+        call: &'execution crate::AdmittedNativeComponentCall<'execution>,
+        authority: &'execution super::AdmittedNativeCallableAuthority,
+        locator: &'execution target::NormalizedComponentLocator,
+        same_stack: &'execution task_plans::AdmittedSameStackContribution,
+    },
     /// A direct kernel entry has no foreign callee on the receiver stack.
     /// Admission must still rejoin its number, target and evaluated call plan.
     SystemCall,

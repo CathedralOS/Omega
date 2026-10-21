@@ -28,6 +28,7 @@ pub(crate) fn review_terminal_authority_closure(
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
     mechanisms: &[AdmittedTerminalMechanism],
     installed_candidates: &[terminal_psi::ProviderCandidateConformance],
+    components: &[crate::provider_admission::NativeProviderSettlement<'_>],
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
     let context = ReviewContext::new(
         target_profile,
@@ -37,6 +38,7 @@ pub(crate) fn review_terminal_authority_closure(
         permission_policy,
         mechanisms,
         installed_candidates,
+        components,
     )?;
     let root_edges = context
         .graph

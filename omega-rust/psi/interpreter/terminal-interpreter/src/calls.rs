@@ -9,6 +9,8 @@ pub(crate) mod arguments;
 pub(crate) mod frames;
 pub(crate) mod target_families;
 
+mod component_calls;
+
 use crate::custody::{
     bind_active_structural_arguments, bind_arguments, bind_boundary_arguments, complete_claims,
     remove_affine_root, validate_boundary_requirements,
@@ -34,7 +36,7 @@ fn select_positions<T: Clone>(
         .collect()
 }
 
-impl TerminalExecution<'_> {
+impl<'artifact> TerminalExecution<'artifact> {
     /// Suspend the live frame onto the call stack: every place map, the affine
     /// frontier, claims, and the instruction position move into a
     /// `SuspendedCall` carrying `result` as its continuation.
@@ -312,10 +314,12 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Redispatch)
     }
 
-    pub(crate) fn execute_boundary_call(
+    pub(crate) fn execute_boundary_call<'host>(
         &mut self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
+        meter: &mut terminal_fuel::TerminalFuelMeter,
+        components: Option<&mut crate::instance::ComponentBindings<'host, 'artifact>>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let OperationKind::BoundaryCall {
             boundary,
@@ -433,6 +437,9 @@ impl TerminalExecution<'_> {
             }
         }
         let supply = self.boundary_supplies.get(&boundary).copied();
+        if let Some(crate::effects::AdmittedBoundarySupply::ComponentProvider { .. }) = supply {
+            return self.execute_component_call(operation, &scalar_arguments, meter, components);
+        }
         if matches!(
             supply,
             Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(_))

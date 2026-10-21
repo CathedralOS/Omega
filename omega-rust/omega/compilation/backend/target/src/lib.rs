@@ -16,6 +16,7 @@ pub(crate) use optimization_core::codec_bytes;
 
 mod application;
 pub mod compatibility_fingerprint;
+mod component_locator;
 pub(crate) use optimization_core::digest_encoder;
 mod elf_loader;
 mod explicit_target_set;
@@ -25,6 +26,10 @@ mod target_semantics;
 mod x86_features;
 
 pub use application::{ApplicationIdentifier, HostedApplicationIntent, NativeApplicationMetadata};
+pub use component_locator::{
+    ImportLocatorIdentityDigest, NormalizedComponentLocator, NormalizedImportLocator,
+    NormalizedImportLocatorRef, component_export_slot,
+};
 pub use elf_loader::{
     ELF_INTERPRETER_TARGET_PROFILES, NormalizedElfInterpreterPlan,
     declared_elf_interpreter_default, normalize_elf_interpreter_plan,

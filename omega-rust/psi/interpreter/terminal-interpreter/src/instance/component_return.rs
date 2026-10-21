@@ -21,7 +21,7 @@ pub(crate) struct ComponentOwnedReturn<'host, 'artifact> {
     owner: TerminalInstance<'host, 'artifact>,
 }
 
-impl ComponentOwnedReturn<'_, '_> {
+impl<'host, 'artifact> ComponentOwnedReturn<'host, 'artifact> {
     pub(crate) const fn provider(&self) -> TerminalPsiIdentity {
         self.provider
     }
@@ -38,10 +38,11 @@ impl ComponentOwnedReturn<'_, '_> {
     /// The caller authenticates the receiving slot and its result declaration
     /// before this consuming acknowledgement. The old instance can never run
     /// again, and there is no second result retained in it.
-    pub(crate) fn acknowledge(self) -> TerminalExecutionResult {
+    pub(crate) fn acknowledge(
+        self,
+    ) -> (TerminalExecutionResult, TerminalInstance<'host, 'artifact>) {
         let Self { value, owner, .. } = self;
-        drop(owner);
-        value
+        (value, owner)
     }
 }
 

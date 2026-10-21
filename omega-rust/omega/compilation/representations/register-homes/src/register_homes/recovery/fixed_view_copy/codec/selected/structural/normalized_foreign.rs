@@ -299,11 +299,34 @@ fn decode_call_binding(
         }
         return Ok(binding);
     }
+    let mut component = None;
     let (locator, table) = if target_name == "@table" {
         let target_name = decode_string(cursor)?;
         let target = TargetProfile::from_canonical_target_name(&target_name)
             .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         (None, Some((target, cursor.u32()?, decode_bool(cursor)?)))
+    } else if target_name == "@component" {
+        let target_name = decode_string(cursor)?;
+        let target = TargetProfile::from_canonical_target_name(&target_name)
+            .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        let vocabulary_marker = terminal_psi::VocabularyMarker::new(cursor.u16()?)
+            .ok_or(FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        let provider = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes(
+                cursor.array::<32>()?,
+            ),
+        };
+        let candidate = decode_id(cursor, semantic_vocabulary::MachineId::new)?;
+        let application_commitment = cursor.array::<32>()?;
+        let locator = target::NormalizedComponentLocator::new(
+            target,
+            cursor.array::<32>()?,
+            cursor.array::<32>()?,
+        )
+        .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        component = Some((locator, provider, candidate, application_commitment));
+        (None, None)
     } else {
         (Some(decode_locator_for_target(cursor, &target_name)?), None)
     };
@@ -339,9 +362,17 @@ fn decode_call_binding(
     {
         return Err(FixedViewCopyDecodeError::InvalidSameStackContribution);
     }
-    Ok(NormalizedForeignCallBinding {
-        boundary_entry_plan: calling_conventions::BoundaryEntryPlan { call, state },
-        mechanism: match (locator, table) {
+    let mechanism = if let Some((locator, provider, candidate, application_commitment)) = component
+    {
+        target_operations::NormalizedForeignCallMechanism::Component {
+            locator,
+            provider,
+            candidate,
+            application_commitment,
+            same_stack_contribution: contribution,
+        }
+    } else {
+        match (locator, table) {
             (Some(locator), None) => target_operations::NormalizedForeignCallMechanism::Import {
                 locator,
                 same_stack_contribution: contribution,
@@ -355,8 +386,20 @@ fn decode_call_binding(
                 }
             }
             _ => return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile),
-        },
-    })
+        }
+    };
+    let binding = NormalizedForeignCallBinding {
+        boundary_entry_plan: calling_conventions::BoundaryEntryPlan { call, state },
+        mechanism,
+    };
+    if matches!(
+        binding.mechanism,
+        target_operations::NormalizedForeignCallMechanism::Component { .. }
+    ) && !binding.has_valid_entry_mechanism()
+    {
+        return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile);
+    }
+    Ok(binding)
 }
 
 #[cfg(test)]

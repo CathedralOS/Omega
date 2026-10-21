@@ -178,6 +178,9 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                 (None, Some(Ok(_))) => Stdio::null(),
                 (None, _) => Stdio::inherit(),
             };
+            report
+                .validate_component_process_inputs(&executable)
+                .map_err(RunError::Publication)?;
             let mut command = Command::new(&executable);
             command.stdin(standard_input);
             let (output, private_entry_ram, private_frames) =
@@ -310,6 +313,9 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
             .file_stem()
             .map(|stem| stem.to_string_lossy().into_owned())
             .unwrap_or_default();
+        report
+            .validate_component_process_inputs(&executable)
+            .map_err(RunError::Publication)?;
         let mut command = Command::new(&executable);
         command.stdin(Stdio::from(
             std::fs::File::open(input).map_err(RunError::StandardInput)?,

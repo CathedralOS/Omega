@@ -130,9 +130,9 @@ pub use machine_code::{
     relocation_free_text_section_identity,
 };
 pub use names::{
-    entry_symbol_name, normalized_foreign_import_symbol_name, object_function_reference,
-    object_function_symbol, object_symbol_handle_by_foreign_locator, object_symbol_name,
-    section_name,
+    entry_symbol_name, normalized_foreign_import_symbol_name, normalized_import_symbol_name,
+    object_function_reference, object_function_symbol, object_symbol_handle_by_foreign_locator,
+    object_symbol_handle_by_import_locator, object_symbol_name, section_name,
 };
 pub use object_plan::ObjectPlan;
 pub use object_plan::container::ObjectContainerOutput;

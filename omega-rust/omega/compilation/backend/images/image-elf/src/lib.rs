@@ -100,7 +100,10 @@
 //! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
 
 mod shared_component;
-pub use shared_component::{ElfComponentExport, ElfSharedComponentImage, ElfSharedComponentEmissionError, emit_elf_shared_component};
+pub use shared_component::{
+    ElfComponentExport, ElfSharedComponentEmissionError, ElfSharedComponentImage,
+    emit_elf_shared_component,
+};
 
 mod bytes;
 mod constants;
@@ -680,7 +683,7 @@ pub(crate) mod test_support {
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: imported,
             import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
+                (normalize_foreign_locator(
                     ForeignLocatorCandidate::ElfVersioned {
                         object: object.to_vec(),
                         symbol: symbol.to_vec(),
@@ -688,7 +691,8 @@ pub(crate) mod test_support {
                     },
                     target,
                 )
-                .expect(locator_expect),
+                .expect(locator_expect),)
+                    .into(),
             ),
         });
         imported

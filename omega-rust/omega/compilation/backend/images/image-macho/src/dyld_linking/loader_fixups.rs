@@ -159,10 +159,13 @@ fn validate_macho_object_fixups(
             if locators.next().is_some() || import.locator.target() != isa.target_profile() {
                 return Err(invalid());
             }
+            let target::NormalizedImportLocator::Foreign(locator) = &import.locator else {
+                return Err(invalid());
+            };
             let target::ForeignLocatorCandidate::MachODylibSymbol {
                 install_name,
                 symbol,
-            } = import.locator.locator()
+            } = locator.locator()
             else {
                 return Err(invalid());
             };

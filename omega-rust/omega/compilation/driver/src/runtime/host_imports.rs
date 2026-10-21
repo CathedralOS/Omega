@@ -26,7 +26,7 @@ mod network_address;
 mod numeric;
 mod standard_input;
 
-use compilation_products::TerminalRuntimeProvisions;
+use native_artifact::TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{TerminalImportSignature, TerminalInstance, TerminalProgram};
@@ -40,24 +40,77 @@ enum OutputKind {
     Byte,
 }
 
+/// One explicitly supplied host capability root shared by the receiver and
+/// real component instances of this invocation. Tokens and stream cursors keep
+/// their same owned stores across a checked cross-artifact call.
+pub(super) struct HostContext<'host> {
+    output: buffered_output::BufferedStreams,
+    input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
+    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
+    addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
+}
+impl<'host> HostContext<'host> {
+    pub(super) fn new(
+        input: Option<Box<dyn std::io::Read + Send + 'host>>,
+        clock: Option<clock::TerminalClockSnapshot>,
+    ) -> Self {
+        Self {
+            output: buffered_output::BufferedStreams::new(),
+            input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
+            clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
+            addresses: std::sync::Arc::new(std::sync::Mutex::new(
+                network_address::AddressValues::default(),
+            )),
+        }
+    }
+}
+
+pub(super) trait HostBindingTarget<'host> {
+    fn import(&self, slot: BoundaryMachineId) -> Option<&terminal_psi::BoundaryMachineDeclaration>;
+    fn bind_import(
+        &mut self,
+        slot: BoundaryMachineId,
+        adapter: impl terminal_interpreter::TerminalImportAdapter + 'host,
+    ) -> Result<(), TerminalRuntimeError>;
+}
+impl<'host> HostBindingTarget<'host> for TerminalInstance<'host, '_> {
+    fn import(&self, slot: BoundaryMachineId) -> Option<&terminal_psi::BoundaryMachineDeclaration> {
+        self.import(slot)
+    }
+    fn bind_import(
+        &mut self,
+        slot: BoundaryMachineId,
+        adapter: impl terminal_interpreter::TerminalImportAdapter + 'host,
+    ) -> Result<(), TerminalRuntimeError> {
+        self.bind_import(slot, adapter)
+            .map_err(TerminalRuntimeError::Binding)
+    }
+}
+impl<'host> HostBindingTarget<'host> for terminal_interpreter::TerminalComponentBinding<'host, '_> {
+    fn import(&self, slot: BoundaryMachineId) -> Option<&terminal_psi::BoundaryMachineDeclaration> {
+        self.import(slot)
+    }
+    fn bind_import(
+        &mut self,
+        slot: BoundaryMachineId,
+        adapter: impl terminal_interpreter::TerminalImportAdapter + 'host,
+    ) -> Result<(), TerminalRuntimeError> {
+        self.bind_import(slot, adapter)
+            .map_err(TerminalRuntimeError::ComponentBinding)
+    }
+}
+
 pub(super) fn bind<'host>(
     program: &TerminalProgram,
-    instance: &mut TerminalInstance<'host, '_>,
-    provisions: Option<&TerminalRuntimeProvisions>,
+    instance: &mut impl HostBindingTarget<'host>,
+    provisions: Option<&TerminalRuntimeHostProvisions>,
     imports: &[BoundaryMachineId],
-    input: Option<Box<dyn std::io::Read + Send + 'host>>,
-    clock: Option<clock::TerminalClockSnapshot>,
+    context: &HostContext<'host>,
 ) -> Result<buffered_output::BufferedStreams, TerminalRuntimeError> {
-    let output = buffered_output::BufferedStreams::new();
-    // Every selected stdin leaf in this instance consumes the same logical
-    // stream. Independent adapter cursors would replay bytes after a slot switch.
-    let input = input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader)));
-    // Different selected poll and clock slots inhabit one invocation, not
-    // independent timelines. Another execute request gets another backing.
-    let clock = clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot)));
-    let addresses = std::sync::Arc::new(std::sync::Mutex::new(
-        network_address::AddressValues::default(),
-    ));
+    let output = context.output.clone();
+    let input = &context.input;
+    let clock = &context.clock;
+    let addresses = &context.addresses;
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
@@ -91,9 +144,7 @@ pub(super) fn bind<'host>(
                     declaration,
                     std::sync::Arc::clone(reader),
                 )?;
-                instance
-                    .bind_import(*slot, adapter)
-                    .map_err(TerminalRuntimeError::Binding)?;
+                instance.bind_import(*slot, adapter)?;
                 continue;
             }
             BoundarySettlementRealization::Builtin(BoundaryRealization::LinuxWriteLine(_)) => {
@@ -113,9 +164,7 @@ pub(super) fn bind<'host>(
                         ))?;
                 let adapter =
                     numeric::NumericImport::for_import(program, declaration, realization)?;
-                instance
-                    .bind_import(*slot, adapter)
-                    .map_err(TerminalRuntimeError::Binding)?;
+                instance.bind_import(*slot, adapter)?;
                 continue;
             }
             BoundarySettlementRealization::NormalizedForeignCall(ref binding) => {
@@ -145,25 +194,21 @@ pub(super) fn bind<'host>(
                 if let Some(adapter) = clock::ClockImport::admit(
                     declaration,
                     binding,
-                    provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
+                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                     clock.as_ref().cloned(),
                 )? {
-                    instance
-                        .bind_import(*slot, adapter)
-                        .map_err(TerminalRuntimeError::Binding)?;
+                    instance.bind_import(*slot, adapter)?;
                     continue;
                 }
                 if let Some(adapter) = descriptor_io::DescriptorIoImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
+                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
                 )? {
-                    instance
-                        .bind_import(*slot, adapter)
-                        .map_err(TerminalRuntimeError::Binding)?;
+                    instance.bind_import(*slot, adapter)?;
                     continue;
                 }
                 if let Some(adapter) = network_address::NetworkAddressImport::admit(
@@ -172,9 +217,7 @@ pub(super) fn bind<'host>(
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
                     std::sync::Arc::clone(&addresses),
                 )? {
-                    instance
-                        .bind_import(*slot, adapter)
-                        .map_err(TerminalRuntimeError::Binding)?;
+                    instance.bind_import(*slot, adapter)?;
                     continue;
                 }
                 let Some(adapter) =
@@ -185,9 +228,7 @@ pub(super) fn bind<'host>(
                         "no trusted host implementation matches this exact foreign binding",
                     ));
                 };
-                instance
-                    .bind_import(*slot, adapter)
-                    .map_err(TerminalRuntimeError::Binding)?;
+                instance.bind_import(*slot, adapter)?;
                 continue;
             }
             _ => {
@@ -224,12 +265,10 @@ pub(super) fn bind<'host>(
                 "buffered host operation differs from its admitted declaration",
             ));
         }
-        instance
-            .bind_import(
-                *slot,
-                buffered_output::BufferedOutput::new(signature, kind, output.stdout.clone()),
-            )
-            .map_err(TerminalRuntimeError::Binding)?;
+        instance.bind_import(
+            *slot,
+            buffered_output::BufferedOutput::new(signature, kind, output.stdout.clone()),
+        )?;
     }
     Ok(output)
 }

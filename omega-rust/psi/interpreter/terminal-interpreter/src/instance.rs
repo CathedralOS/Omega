@@ -15,6 +15,9 @@
 //! Same-requirement slots bind different host objects because dispatch keys
 //! on the slot's `BoundaryMachineId`, never on a trait or name.
 
+mod component_binding;
+pub(crate) use component_binding::ComponentBindings;
+pub use component_binding::TerminalComponentBinding;
 mod component_return;
 pub(crate) use component_return::ComponentOwnedReturn;
 
@@ -204,6 +207,7 @@ pub struct TerminalInstance<'host, 'artifact> {
     /// Established import bindings by exact slot. Empty at construction;
     /// `invoke` refuses to start while a demanded import is unbound.
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
+    components: ComponentBindings<'host, 'artifact>,
     /// Whether `invoke` has admitted the entry. Close of a paused activation
     /// rejects `Busy` only once the entry has actually started.
     invoked: bool,
@@ -225,6 +229,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             execution: Some(execution),
             required_imports,
             bindings: BTreeMap::new(),
+            components: BTreeMap::new(),
             invoked: false,
             closed: false,
         }
@@ -281,11 +286,22 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                 },
             );
         }
+        if self.execution.as_ref().is_some_and(|execution| {
+            matches!(
+                execution.boundary_supplies.get(&slot),
+                Some(crate::effects::AdmittedBoundarySupply::ComponentProvider { .. })
+            )
+        }) {
+            return Err(TerminalBindingRejection::ProviderRealized { boundary: slot });
+        }
         let Some(declaration) = self.import(slot) else {
             return if self.execution.as_ref().is_some_and(|execution| {
                 matches!(
                     execution.boundary_supplies.get(&slot),
-                    Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(_))
+                    Some(
+                        crate::effects::AdmittedBoundarySupply::CheckedProvider(_)
+                            | crate::effects::AdmittedBoundarySupply::ComponentProvider { .. }
+                    )
                 )
             }) {
                 Err(TerminalBindingRejection::ProviderRealized { boundary: slot })
@@ -309,6 +325,45 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                 adapter: Box::new(adapter),
             },
         );
+        Ok(())
+    }
+
+    /// Establish the exact independently selected provider. A component route
+    /// is not a host import and cannot replace another binding or supply.
+    pub fn bind_component(
+        &mut self,
+        binding: TerminalComponentBinding<'host, 'artifact>,
+    ) -> Result<(), String> {
+        let selected = binding.selected();
+        let boundary = selected.receiving_boundary();
+        if self.closed
+            || self.invoked
+            || selected.receiver() != self.program.terminal_psi()
+            || !self.required_imports.contains(&boundary)
+            || self.bindings.contains_key(&boundary)
+            || self.components.contains_key(&boundary)
+        {
+            return Err(
+                "component binding names another, inactive or already bound receiver slot".into(),
+            );
+        }
+        let expected = crate::effects::AdmittedBoundarySupply::ComponentProvider {
+            provider: selected.provider(),
+            provider_boundary: selected.provider_boundary(),
+            candidate: selected.candidate(),
+        };
+        if self
+            .execution
+            .as_ref()
+            .and_then(|execution| execution.boundary_supplies.get(&boundary))
+            != Some(&expected)
+        {
+            return Err(
+                "component binding differs from the receiver's exact admitted supply".into(),
+            );
+        }
+        binding.require_ready()?;
+        self.components.insert(boundary, binding);
         Ok(())
     }
 
@@ -381,10 +436,9 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     /// A closed instance's roster is consumed, not pending — it reports none.
     pub fn unbound_imports(&self) -> impl Iterator<Item = BoundaryMachineId> + '_ {
         let closed = self.closed;
-        self.required_imports
-            .iter()
-            .copied()
-            .filter(move |slot| !closed && !self.bindings.contains_key(slot))
+        self.required_imports.iter().copied().filter(move |slot| {
+            !closed && !self.bindings.contains_key(slot) && !self.components.contains_key(slot)
+        })
     }
 
     /// The contract `slot`'s established binding was checked against —
@@ -426,11 +480,12 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .ok_or(TerminalInstanceError::Closed)?;
         self.invoked = true;
         execution
-            .resume(
+            .resume_with_components(
                 meter,
                 &mut ImportDispatch {
                     bindings: &mut self.bindings,
                 },
+                Some(&mut self.components),
             )
             .map_err(TerminalInstanceError::Execution)
     }
@@ -517,6 +572,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         }
         self.execution = None;
         self.bindings.clear();
+        self.components.clear();
         self.closed = true;
         Ok(())
     }
@@ -567,6 +623,9 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
             TerminalEffect::BoundaryCall { boundary, .. } => self
                 .adapter_at(*boundary)?
                 .handle_effect_with_buffers(effect, byte_buffers, storage_buffers),
+            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
+                "a component completion receipt is not a host effect request",
+            )),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
@@ -578,6 +637,9 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
             TerminalEffect::BoundaryCall { boundary, .. } => {
                 self.adapter_at(*boundary)?.handle_effect(effect)
             }
+            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
+                "a component completion receipt is not a host effect request",
+            )),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
@@ -593,6 +655,9 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
             TerminalEffect::BoundaryCall { boundary, .. } => self
                 .adapter_at(*boundary)?
                 .handle_effect_with_byte_buffers(effect, byte_buffers),
+            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
+                "a component completion receipt is not a host effect request",
+            )),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
@@ -607,6 +672,9 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
             TerminalEffect::BoundaryCall { boundary, .. } => {
                 self.adapter_at(*boundary)?.handle_effect_result(effect)
             }
+            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
+                "a component completion receipt is not a host effect request",
+            )),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
