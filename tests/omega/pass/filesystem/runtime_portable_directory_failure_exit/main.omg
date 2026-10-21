@@ -9,10 +9,10 @@ data Main {
     release_index: u64 in Wrapping;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    let result: UnitResult = Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
+    let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
     transition result { UnitResult::Ok -> refuse(main) _ -> bad(10) }
     state refuse(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth");
+        let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth");
         transition result { UnitResult::Error { kind } -> released(main) _ -> bad(11) }
     }
     state released(main: &mut Main) {
@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.acquisition_count < 17 { true -> acquire(main) _ -> release_batch(main) }
     }
     state acquire(main: &mut Main) {
-        let result: OpenResult = Filesystem::open(&mut main.filesystem, "/dev/null");
+        let result: OpenResult = block Filesystem::open(&mut main.filesystem, "/dev/null");
         transition result { OpenResult::Ok { file } -> acquired(main, file) _ -> bad(12) }
     }
     state acquired(main: &mut Main, file: File) {
@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state release_one(main: &mut Main) {
         let file: File = main.acquisitions[main.release_index];
-        let result: UnitResult = Filesystem::close(&mut main.filesystem, file);
+        let result: UnitResult = block Filesystem::close(&mut main.filesystem, file);
         transition result { UnitResult::Ok -> next_release(main) _ -> bad(12) }
     }
     state next_release(main: &mut Main) {
@@ -47,15 +47,15 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> release_batch(main) }
     }
     state intact(main: &mut Main) {
-        let present: bool = Filesystem::exists(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
+        let present: bool = block Filesystem::exists(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
         transition present { true -> subtree(main) _ -> bad(13) }
     }
     state subtree(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c");
+        let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c");
         transition result { UnitResult::Ok -> cleanup(main) _ -> bad(14) }
     }
     state cleanup(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth");
+        let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth");
         transition result { UnitResult::Ok -> good() _ -> bad(15) }
     }
     state good() { Console::exit_process(0); }

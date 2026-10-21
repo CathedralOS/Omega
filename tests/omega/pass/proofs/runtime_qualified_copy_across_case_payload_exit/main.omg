@@ -8,7 +8,7 @@ data Outcome [copy] {
 }
 machine inspect(path: &[u8] in Path) -> u64 { path.len }
 machine measure(filesystem: &mut Filesystem, outcome: Outcome) -> u64 {
-    _ = Filesystem::exists(filesystem, "omega_case_capture_absent");
+    _ = block Filesystem::exists(filesystem, "omega_case_capture_absent");
     let before: u64 = inspect("pre");
     transition outcome {
         Outcome::Count { value } -> count(value, before)
@@ -31,10 +31,10 @@ machine measure(filesystem: &mut Filesystem, outcome: Outcome) -> u64 {
 }
 data Main { filesystem: Filesystem; outcome: Outcome; }
 machine Main::main(main: &mut Main) crashes Trap {
-    let initial: u64 = measure(&mut main.filesystem, main.outcome);
-    let first: u64 = measure(&mut main.filesystem, Outcome::Count { value: 17u64 });
-    let second: u64 = measure(&mut main.filesystem, Outcome::Signed { value: -7i32 });
-    let third: u64 = measure(&mut main.filesystem, Outcome::Flag { value: true });
+    let initial: u64 = block measure(&mut main.filesystem, main.outcome);
+    let first: u64 = block measure(&mut main.filesystem, Outcome::Count { value: 17u64 });
+    let second: u64 = block measure(&mut main.filesystem, Outcome::Signed { value: -7i32 });
+    let third: u64 = block measure(&mut main.filesystem, Outcome::Flag { value: true });
     transition initial == 9 && first == 9 && second == 9 && third == 9 {
         true -> done()
         _ -> bad()

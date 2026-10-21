@@ -3,13 +3,14 @@ use omega::language::core::filesystem_authority;
 
 // Direct boundary use needs the write capability, even for a closed handle.
 public machine read_only(filesystem: &mut Filesystem) -> IoResult
+blocks;
 reaches FilesystemContentRead
 invokes FilesystemService;
 {
-    FilesystemService::write(File { handle: 0 }, "x")
+    block FilesystemService::write(File { handle: 0 }, "x")
 }
 
 data Main { filesystem: Filesystem; }
 machine Main::main(main: &mut Main) {
-    let result: IoResult = read_only(&mut main.filesystem);
+    let result: IoResult = block read_only(&mut main.filesystem);
 }

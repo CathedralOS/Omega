@@ -12,8 +12,6 @@ use targets::linux_x86_64::filesystem_impl;
 use targets::linux_arm64::filesystem_impl;
 use targets::macos_arm64::filesystem_impl;
 
-data FilesystemProviderDefaults { }
-
 // Native mode bits are decoded only inside the POSIX family. The portable
 // metadata kind is not an alias for a POSIX permission or file-type bitfield.
 machine posix_metadata_kind(mode: u32) -> FileKind {

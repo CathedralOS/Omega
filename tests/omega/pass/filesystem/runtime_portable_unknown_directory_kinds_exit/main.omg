@@ -204,26 +204,26 @@ macos_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && resul
 
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
 machine Main::main(main: &mut Main) reaches Console {
-    let result: UnitResult = Filesystem::create_dir_all(&mut main.filesystem, "omega_unknown_kinds/sub");
+    let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_unknown_kinds/sub");
     transition result { UnitResult::Ok -> payload(main) _ -> bad(10) }
     state payload(main: &mut Main) {
-        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_unknown_kinds/sub/file", "contents");
+        let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_unknown_kinds/sub/file", "contents");
         transition result { UnitResult::Ok -> outside(main) _ -> bad(11) }
     }
     state outside(main: &mut Main) {
-        let result: UnitResult = Filesystem::create_dir(&mut main.filesystem, "omega_unknown_outside");
+        let result: UnitResult = block Filesystem::create_dir(&mut main.filesystem, "omega_unknown_outside");
         transition result { UnitResult::Ok -> outside_file(main) _ -> bad(12) }
     }
     state outside_file(main: &mut Main) {
-        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_unknown_outside/keep", "keep");
+        let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_unknown_outside/keep", "keep");
         transition result { UnitResult::Ok -> link(main) _ -> bad(13) }
     }
     state link(main: &mut Main) {
-        let result: UnitResult = Filesystem::symlink(&mut main.filesystem, "../omega_unknown_outside", "omega_unknown_kinds/link");
+        let result: UnitResult = block Filesystem::symlink(&mut main.filesystem, "../omega_unknown_outside", "omega_unknown_kinds/link");
         transition result { UnitResult::Ok -> read(main) _ -> bad(14) }
     }
     state read(main: &mut Main) {
-        let result: DirEntryResult = Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds", main.index as u64);
+        let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds", main.index as u64);
         transition result { DirEntryResult::Ok { entry } -> classify(main, entry) DirEntryResult::End -> listed(main) _ -> bad(15) }
     }
     state classify(main: &mut Main, entry: DirEntry) {
@@ -243,23 +243,23 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.index == 2 && main.seen == 3 { true -> read_file(main) _ -> bad(18) }
     }
     state read_file(main: &mut Main) {
-        let result: DirEntryResult = Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds/sub", 0);
+        let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds/sub", 0);
         transition result { DirEntryResult::Ok { entry } -> file_kind(main, entry) _ -> bad(19) }
     }
     state file_kind(main: &mut Main, entry: DirEntry) {
         transition entry.is_file && !entry.is_dir { true -> remove(main) _ -> bad(20) }
     }
     state remove(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_kinds");
+        let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_kinds");
         transition result { UnitResult::Ok -> preserved(main) _ -> bad(21) }
     }
     state preserved(main: &mut Main) {
-        let present: bool = Filesystem::exists(&mut main.filesystem, "omega_unknown_outside/keep");
-        let removed: bool = Filesystem::exists(&mut main.filesystem, "omega_unknown_kinds");
+        let present: bool = block Filesystem::exists(&mut main.filesystem, "omega_unknown_outside/keep");
+        let removed: bool = block Filesystem::exists(&mut main.filesystem, "omega_unknown_kinds");
         transition present && !removed { true -> cleanup(main) _ -> bad(22) }
     }
     state cleanup(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_outside");
+        let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_outside");
         transition result { UnitResult::Ok -> short_output() _ -> bad(23) }
     }
     state short_output() {

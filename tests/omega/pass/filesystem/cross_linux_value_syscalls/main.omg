@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
     }
     state classify_missing(main: &mut Main) {
         let options: OpenOptions = OpenOptions { read: true };
-        let result: OpenResult = Filesystem::open_with(&mut main.semantic_fs, "/omega_definitely_absent_linux", options);
+        let result: OpenResult = block Filesystem::open_with(&mut main.semantic_fs, "/omega_definitely_absent_linux", options);
         transition result {
             OpenResult::Error { kind } -> check_missing(main, kind)
             _ -> fail_error_kind(main)
@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
         transition kind { ErrorKind::NotFound -> classify_bad_fd(main) _ -> fail_error_kind(main) }
     }
     state classify_bad_fd(main: &mut Main) {
-        let result: IoResult = Filesystem::read(&mut main.semantic_fs, File { handle: 0 }, &mut main.buffer, 1);
+        let result: IoResult = block Filesystem::read(&mut main.semantic_fs, File { handle: 0 }, &mut main.buffer, 1);
         transition result {
             IoResult::Error { kind } -> check_bad_fd(main, kind)
             _ -> fail_error_kind(main)
@@ -85,7 +85,7 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
         transition kind { ErrorKind::BadDescriptor -> remove_missing(main) _ -> fail_error_kind(main) }
     }
     state remove_missing(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove(&mut main.semantic_fs, "/omega_definitely_absent_linux");
+        let result: UnitResult = block Filesystem::remove(&mut main.semantic_fs, "/omega_definitely_absent_linux");
         transition result {
             UnitResult::Error { kind } -> check_remove_missing(main, kind)
             _ -> fail_error_kind(main)
@@ -95,7 +95,7 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
         transition kind { ErrorKind::NotFound -> read_missing_directory(main) _ -> fail_error_kind(main) }
     }
     state read_missing_directory(main: &mut Main) {
-        let result: DirEntryResult = Filesystem::read_dir_nth(&mut main.semantic_fs, "/omega_definitely_absent_linux", 0);
+        let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.semantic_fs, "/omega_definitely_absent_linux", 0);
         transition result {
             DirEntryResult::Error { kind } -> check_directory_missing(main, kind)
             _ -> fail_error_kind(main)
@@ -105,7 +105,7 @@ machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + Fil
         transition kind { ErrorKind::NotFound -> remove_missing_tree(main) _ -> fail_error_kind(main) }
     }
     state remove_missing_tree(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove_dir_all(&mut main.semantic_fs, "/omega_definitely_absent_linux");
+        let result: UnitResult = block Filesystem::remove_dir_all(&mut main.semantic_fs, "/omega_definitely_absent_linux");
         transition result {
             UnitResult::Error { kind } -> check_tree_missing(main, kind)
             _ -> fail_error_kind(main)

@@ -18,20 +18,20 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     // The sample owns these paths. Remove its prior interrupted run first.
-    main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
-    main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
-    main.result = Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
-    main.result = Filesystem::create_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+    main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+    main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
+    main.result = block Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+    main.result = block Filesystem::create_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
     transition main.result { UnitResult::Ok -> made_directory(main) _ -> done(main) }
 
     state made_directory(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.opened = Filesystem::create(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        main.opened = block Filesystem::create(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> write(main, file) _ -> done(main) }
     }
     state write(main: &mut Main, file: File) {
-        main.transferred = Filesystem::write(&mut main.filesystem, file, "omega fs journal\n");
-        main.result = Filesystem::close(&mut main.filesystem, file);
+        main.transferred = block Filesystem::write(&mut main.filesystem, file, "omega fs journal\n");
+        main.result = block Filesystem::close(&mut main.filesystem, file);
         transition main.result { UnitResult::Ok -> written(main) _ -> done(main) }
     }
     state written(main: &mut Main) {
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state inspect(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.metadata = Filesystem::metadata_path(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        main.metadata = block Filesystem::metadata_path(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
         transition main.metadata { MetadataResult::Ok { meta } -> inspected(main, meta) _ -> done(main) }
     }
     state inspected(main: &mut Main, metadata: Metadata) {
@@ -50,12 +50,12 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state open_for_read(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.opened = Filesystem::open(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        main.opened = block Filesystem::open(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> read(main, file) _ -> done(main) }
     }
     state read(main: &mut Main, file: File) {
-        main.transferred = Filesystem::read(&mut main.filesystem, file, &mut main.buffer, 17);
-        main.result = Filesystem::close(&mut main.filesystem, file);
+        main.transferred = block Filesystem::read(&mut main.filesystem, file, &mut main.buffer, 17);
+        main.result = block Filesystem::close(&mut main.filesystem, file);
         transition main.result { UnitResult::Ok -> read_complete(main) _ -> done(main) }
     }
     state read_complete(main: &mut Main) {
@@ -77,17 +77,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state rename(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.result = Filesystem::rename(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
+        main.result = block Filesystem::rename(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> renamed(main) _ -> done(main) }
     }
     state renamed(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
+        main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> removed_file(main) _ -> done(main) }
     }
     state removed_file(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.result = Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+        main.result = block Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
         transition main.result { UnitResult::Ok -> removed_directory(main) _ -> done(main) }
     }
     state removed_directory(main: &mut Main) {

@@ -22,12 +22,12 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     // Bad path: the parent directory does not exist -> create fails -> Error.
-    main.res = Filesystem::write_all(&mut main.fs, "/no_such_dir_xyz_999/f.txt", "hi");
+    main.res = block Filesystem::write_all(&mut main.fs, "/no_such_dir_xyz_999/f.txt", "hi");
     transition main.res { UnitResult::Ok -> bad_err(main) _ -> after_err(main) }
 
     state after_err(main: &mut Main) {
         // Good path: write succeeds -> Ok.
-        main.res = Filesystem::write_all(&mut main.fs, "/tmp/omega_wa_result.txt", "hello");
+        main.res = block Filesystem::write_all(&mut main.fs, "/tmp/omega_wa_result.txt", "hello");
         transition main.res { UnitResult::Ok -> good(main) _ -> bad_ok(main) }
     }
     state good(main: &mut Main)    { Console::write_line("PASS: write_all result Error-then-Ok correct"); }

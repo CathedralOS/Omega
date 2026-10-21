@@ -11,20 +11,20 @@ machine Main::main(main: &mut Main) reaches Console {
         transition kind { ErrorKind::Other -> create(main) _ -> bad(11) }
     }
     state create(main: &mut Main) {
-        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_metadata.txt", "metadata");
+        let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_metadata.txt", "metadata");
         transition result { UnitResult::Ok -> link(main) _ -> bad(12) }
     }
     state link(main: &mut Main) {
-        let result: UnitResult = Filesystem::hard_link(&mut main.filesystem, "omega_metadata.txt", "omega_metadata.link");
+        let result: UnitResult = block Filesystem::hard_link(&mut main.filesystem, "omega_metadata.txt", "omega_metadata.link");
         transition result { UnitResult::Ok -> open(main) _ -> bad(13) }
     }
     state open(main: &mut Main) {
-        let result: OpenResult = Filesystem::open(&mut main.filesystem, "omega_metadata.txt");
+        let result: OpenResult = block Filesystem::open(&mut main.filesystem, "omega_metadata.txt");
         transition result { OpenResult::Ok { file } -> descriptor(main, file) _ -> bad(14) }
     }
     state descriptor(main: &mut Main, file: File) {
         main.file = file;
-        let result: MetadataResult = Filesystem::metadata(&mut main.filesystem, file);
+        let result: MetadataResult = block Filesystem::metadata(&mut main.filesystem, file);
         transition result { MetadataResult::Ok { meta } -> inspect(main, meta) _ -> bad(15) }
     }
     state inspect(main: &mut Main, metadata: Metadata) {
@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition expected { true -> path(main) _ -> bad(17) }
     }
     state path(main: &mut Main) {
-        let result: MetadataResult = Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.link");
+        let result: MetadataResult = block Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.link");
         transition result { MetadataResult::Ok { meta } -> same(main, meta) _ -> bad(19) }
     }
     state same(main: &mut Main, metadata: Metadata) {
@@ -61,11 +61,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state times(main: &mut Main) {
-        let result: UnitResult = Filesystem::set_times(&mut main.filesystem, main.file, 1700000000, 1700000010);
+        let result: UnitResult = block Filesystem::set_times(&mut main.filesystem, main.file, 1700000000, 1700000010);
         transition result { UnitResult::Ok -> changed(main) _ -> bad(21) }
     }
     state changed(main: &mut Main) {
-        let result: MetadataResult = Filesystem::metadata(&mut main.filesystem, main.file);
+        let result: MetadataResult = block Filesystem::metadata(&mut main.filesystem, main.file);
         transition result { MetadataResult::Ok { meta } -> changed_times(main, meta) _ -> bad(22) }
     }
     state changed_times(main: &mut Main, metadata: Metadata) {
@@ -74,19 +74,19 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state close(main: &mut Main) {
-        let result: UnitResult = Filesystem::close(&mut main.filesystem, main.file);
+        let result: UnitResult = block Filesystem::close(&mut main.filesystem, main.file);
         transition result { UnitResult::Ok -> remove_link(main) _ -> bad(24) }
     }
     state remove_link(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_metadata.link");
+        let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "omega_metadata.link");
         transition result { UnitResult::Ok -> remove(main) _ -> bad(25) }
     }
     state remove(main: &mut Main) {
-        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_metadata.txt");
+        let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "omega_metadata.txt");
         transition result { UnitResult::Ok -> missing(main) _ -> bad(26) }
     }
     state missing(main: &mut Main) {
-        let result: MetadataResult = Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.txt");
+        let result: MetadataResult = block Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.txt");
         transition result { MetadataResult::Error { kind } -> missing_error(kind) _ -> bad(27) }
     }
     state missing_error(kind: ErrorKind) {

@@ -6,5 +6,5 @@ machine mutate_without_query(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    FilesystemService::set_permissions(path, Permissions::Readonly { value: true })
+    block FilesystemService::set_permissions(path, Permissions::Readonly { value: true })
 }
