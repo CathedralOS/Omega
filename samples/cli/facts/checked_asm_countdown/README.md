@@ -89,19 +89,45 @@ omega run --both samples/cli/facts/checked_asm_countdown/other_machine/main.omg
 omega run --both samples/cli/facts/checked_asm_countdown/target_body/main.omg
 ```
 
-Measured observations (producer built at the recording revision, `opt-level = 1`):
+Measured observations (producer built at `fa165e504cf` with `opt-level = 1`, realized on `6e8f4d98f4a`; the corpus rows below were recorded there too):
 
-| Leg | Engine | Target | Result |
+| Leg | Invocation (which engine observes the run) | Target | Result |
 | --- | --- | --- | --- |
-| root + nine places | Intel macOS host, real process launch | `macos_x86_64` (host) | `native exit 0` and `interp exit: 0`, 10/10 |
-| root | `linux/amd64` container (docker) on the Intel macOS host | `linux_x86_64` | ELF x86-64 built by `omega --build-dir … --target linux_x86_64`; container exit 0 |
-| root + nine places | Terminal Psi interpreter | `macos_x86_64` | `interp exit: 0` |
-| Windows | not executable on this host | `windows_x86_64` | bound and source-checked; no native observation claimed |
-| arm64 | not realizable for this cohort | `macos_arm64`, `linux_arm64` | refused by the catalog demand (above) |
+| root + nine places | bare `omega run --both <place>/main.omg`, no `--target`: the CLI resolves the host target, launches the image, then interprets it | `macos_x86_64` (host) | `native exit 0` and `interp exit: 0`, 10/10 |
+| root + nine places | `python3 tools/sample_native_gate.py --facts --filter cli/facts/checked_asm_countdown`, which launches each scored sample with bare `omega run <entry>` and reads the wrapper's native status line | `macos_x86_64` (host) | 10/10 oracle met, 9/9 intended-invalid matched |
+| nine fixtures | `corpus_gate.py --native --record --filter facts/checked_asm_countdown`, whose runner realizes and launches each image in a scratch directory | `macos_x86_64` (host) | nine `built … exit:0` rows |
+| root | ELF x86-64 published by `omega --build-dir … --target linux_x86_64` (compile-publication only) and executed by the `linux/amd64` container engine | `linux_x86_64` | container exit 0; the execution observation belongs to docker, not to `omega` |
+| Windows | no observation on this host | `windows_x86_64` | bound and source-checked only |
+| arm64 | no observation; the cohort has no arm64 realization | `macos_arm64`, `linux_arm64` | refused by the catalog demand (above) |
 
-The Linux ELF is a real native program observation; the macOS arm64 and Linux
-arm64 legs are deliberately not claimed because this host cannot execute them
-and the cohort has no arm64 realization.
+The invocation forms are not interchangeable on this producer, so each runtime
+claim names the form that produced it. Measured here: `omega run --target
+<name>` and `omega run --both --target <name>` are compile-publication only —
+for the root they print `compiled for target macos_x86_64 OK` and exit 0
+without executing or interpreting anything. No execution claim below uses those
+forms; the executing forms are bare `omega run` (which resolves the host target,
+bound by every place) and bare `omega run --both`.
+
+The macOS arm64 and Linux arm64 legs are deliberately not claimed: this host
+cannot execute them and the cohort has no arm64 realization.
+
+### Integration delta
+
+The nine native rows and the discrimination probe were produced with a producer
+built at `fa165e504cf` (this change's `omega` commit; its rebased form on the
+integrated base is `6d4fdd5a7b7`) on `6e8f4d98f4a`. The only compiler change
+between that measurement and the integrated base `17e6a5912df` is
+`omega-rust/omega/application/cli/src/execution/mod.rs` (commit `70e6e7b2207`,
+bounded activation claims end to end), beside library and fixture work for
+recursive directory creation. The behavioral checks were re-run on the
+integrated base with a producer rebuilt there: `sample_native_gate.py --facts`
+reports 10/10 oracle met with 9/9 intended-invalid matched, bare `omega run
+--both` reports `native exit 0` with `interp exit: 0` for the root and all nine
+places, the corpus check leg reports the fact's 18 fixtures clean (`9` checked,
+`9` rejected, `0` rejected without their expected fragment, only perf-faster
+noise), and the published ELF x86-64 image still exits 0 under the `linux/amd64`
+container engine. The recorded rows keep the revision they were measured at;
+the fact sources and fixtures are unchanged by the integration.
 
 ### The oracle discriminates
 
@@ -111,12 +137,18 @@ still proves `done requires eax == 0` — leaves `output` at its initial 99, so
 the enclosing `transition output == 0` routes to `bad()` and `crash Trap;`:
 
 ```text
-omega run --both <probe>/main.omg    # exit 255
+omega run --both <scratch-probe>/main.omg   # bare form; CLI exit 255
 native signal 4
 interp crash: Trap (host presentation agrees)
 ```
 
-Both engines refuse; neither silently accepts a skipped store.
+The scratch probe is a copy of the root whose `build.omg` binds
+`macos_x86_64::ProgramEntry`, so the bare form resolves it and both engines
+launch it. Neither silently accepts a skipped store. The corpus `built …
+exit:0` rows are execution observations for the same reason: a temporary
+fixture whose oracle said 0 while its program routed to `crash Trap;` was
+observed by `corpus_gate.py --native` as `built {'exit': 'signal', 'signal':
+'4'}`, so the runner launches the image instead of only publishing it.
 
 The nine reject twins are discriminated at checking time: at the conditional
 fallthrough from `jnz loop`, ZF is set (`eax == 0`), which cannot satisfy
@@ -136,9 +168,12 @@ python3 tools/sample_native_gate.py --cli target/debug/omega --facts \
     --filter cli/facts/checked_asm_countdown --jobs 2
 ```
 
-Measured on the Intel macOS host: `10/10 samples meet their documented oracle on
-macos_x86_64 (0 unscored: no oracle or not host-runnable)` and `9/9
-intended-invalid controls match their authored rejection` in 455s wall.
+Measured on the Intel macOS host with a producer at `fa165e504cf`: `10/10
+samples meet their documented oracle on macos_x86_64 (0 unscored: no oracle or
+not host-runnable)` and `9/9 intended-invalid controls match their authored
+rejection`. The gate's runtime leg is a real launch: for every sample with an
+authored oracle it runs bare `omega run <entry>` and scores the wrapper's native
+status line.
 
 ## Pinned fixtures
 
@@ -146,8 +181,10 @@ The row is pinned under `tests/omega/{pass,fail}/facts/checked_asm_countdown_*`:
 nine `..._exit` positives with `expected_native_exit.txt` (0) and nine
 `..._wrong_fallthrough` twins with `expected.txt`. The positives bind the same
 three x86_64 targets as the samples. `tests/omega/corpus_native_macos_x86_64.txt`
-records their native rows (`built … exit:0`) measured on the Intel macOS host;
-`tests/omega/corpus_outcomes.txt` records the check rows and the nine rejections.
+records their native rows (`built … exit:0`), which the corpus runner observed by
+launching each image on the Intel macOS host at `fa165e504cf`;
+`tests/omega/corpus_outcomes.txt` records the check rows and the nine
+rejections.
 
 ## Requirements and Evidence
 

@@ -2419,9 +2419,10 @@ fail/facts/checked_asm_countdown_other_state_wrong_fallthrough rejected 3843ms e
 	cannot prove requires contract for call done from main$assembly$portable$4$next: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_parameter_wrong_fallthrough rejected 3837ms expected @fb19bb8df981
 	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_target_body_wrong_fallthrough rejected 3858ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_target_body_wrong_fallthrough rejected 2733ms expected @fa165e504cfa
 	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: asm#scratch#46#eax$version$1 == 1 (needs fact `asm#scratch#46#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: asm#scratch#47#eax$version$1 == 1 (needs fact `asm#scratch#47#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: asm#scratch#87#eax$version$1 == 1 (needs fact `asm#scratch#87#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_flag_snapshot_call_result_false rejected 6963ms expected @7df3e6a600f1+wt
 	cannot prove ensures contract for exit from capture at statement 29: result & 64 == 64
 fail/facts/checked_asm_flag_snapshot_const_name_false rejected 4855ms expected @7df3e6a600f1+wt

@@ -191,8 +191,16 @@ helper that passes does not close an item.
   through shared flow and Terminal/native execution. The bounded 32-bit GPR
   mov/sub/jnz cohort now transports immutable register/ZF versions through
   conditional and backward edges, retaining exact target demands and ordinary
-  custody; `samples/cli/facts/checked_asm_countdown` covers nine places and false
-  fallthrough twins with Linux native/Terminal agreement. Catalog-admitted u32
+  custody; `samples/cli/facts/checked_asm_countdown` pins nine places and nine
+  false-fallthrough twins on the x86_64 targets its catalog admits, with
+  `macos_x86_64` native rows recorded in
+  `tests/omega/corpus_native_macos_x86_64.txt`, a `linux/amd64` execution of the
+  emitted ELF, and Terminal Psi agreement on every place. Its arm64 entry
+  bindings are removed rather than realized: `sub` and `jnz` are catalogued
+  `AsmTargetApplicability::X86_64` and the modeled scratch viewport is the x86
+  GPR/flags set, so an arm64 countdown is the ISA/register-view work named below,
+  not a compiler defect, and this row does not meet the four-hosted-target form.
+  Catalog-admitted u32
   SUB and structured PUSHFQ now carry all six arithmetic flags through ordinary
   label obligations, retained values, field stores, parameter contracts, call
   `ensures` guarantees and exhaustive match joins;
