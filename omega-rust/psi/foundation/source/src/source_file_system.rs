@@ -5,17 +5,42 @@
 //! retain ordinary physical behavior for toolchain and published dependencies.
 
 use crate::CapturedSourceTree;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// An invocation's source filesystem view. Canonical absolute capture roots
 /// share immutable trees; overlapping roots dispatch to the most specific root.
 /// Mount configuration is explicit and does not materialize or acquire sources.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// Routing a host path asks whether each of its prefixes is a link that could
+/// alias into a capture. Sources share almost all of their prefixes, so the
+/// view asks the host once per prefix and reuses the answer for its lifetime:
+/// one compile routed 870 prefixes but only 34 distinct ones. Clones share
+/// those observations; equality and debug output compare mounts only.
+#[derive(Clone, Default)]
 pub struct SourceFileSystem {
     captures: BTreeMap<PathBuf, Arc<CapturedSourceTree>>,
+    host_links: Arc<Mutex<HashMap<PathBuf, Option<PathBuf>>>>,
+}
+
+impl PartialEq for SourceFileSystem {
+    fn eq(&self, other: &Self) -> bool {
+        self.captures == other.captures
+    }
+}
+
+impl Eq for SourceFileSystem {}
+
+impl fmt::Debug for SourceFileSystem {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SourceFileSystem")
+            .field("captures", &self.captures)
+            .finish()
+    }
 }
 
 impl SourceFileSystem {
@@ -150,7 +175,7 @@ impl SourceFileSystem {
             let mut redirected = None;
             while let Some(component) = components.next() {
                 prefix.push(component.as_os_str());
-                if let Ok(target) = std::fs::read_link(&prefix) {
+                if let Some(target) = self.host_link(&prefix) {
                     let mut destination = if target.is_absolute() {
                         target
                     } else {
@@ -183,6 +208,21 @@ impl SourceFileSystem {
                 path.display()
             ),
         ))
+    }
+
+    /// The host link target of one path prefix, observed once per view. A
+    /// prefix that is not a link, or cannot be read as one, answers `None`.
+    fn host_link(&self, prefix: &Path) -> Option<PathBuf> {
+        let mut links = self
+            .host_links
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(target) = links.get(prefix) {
+            return target.clone();
+        }
+        let target = std::fs::read_link(prefix).ok();
+        links.insert(prefix.to_path_buf(), target.clone());
+        target
     }
 
     fn route_capture(&self, absolute: &Path) -> io::Result<Option<SourcePath<'_>>> {
@@ -232,3 +272,6 @@ enum SourcePath<'a> {
     },
     Physical(PathBuf),
 }
+
+#[cfg(test)]
+mod tests;
