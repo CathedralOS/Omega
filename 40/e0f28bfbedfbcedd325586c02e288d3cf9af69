@@ -1,0 +1,4 @@
+owner: local-swarm / worker_two
+provenance: agent=Codex model=gpt-6.1-sol effort=medium; local-swarm worker_two; independently reviewed by worker_one; /home/jarod/development/Omega/.codex/worktrees/local-oct20-worker_two/build/swarm-evidence/generic-policy
+ticket: b4f9947add2c4c6aa583d0943e2987cd
+published_utc: 2026-10-21T00:31:36.058175+00:00
