@@ -5,9 +5,9 @@ use super::lock::same_std_and_capability_file_identity;
 use super::platform::verify_windows_open_cache_ancestry_identity;
 use super::platform::{
     same_capability_file_identity, verify_cache_node_owner_and_mode,
-    verify_capability_cache_node_owner_and_mode, verify_macos_cache_link_extended_acl_custody,
-    verify_macos_open_cache_directory_acl_custody, verify_macos_open_cache_extended_acl_custody,
-    verify_macos_open_cache_regular_file_acl_custody,
+    verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
+    verify_macos_cache_link_extended_acl_custody, verify_macos_open_cache_directory_acl_custody,
+    verify_macos_open_cache_extended_acl_custody, verify_macos_open_cache_regular_file_acl_custody,
     verify_macos_opened_cache_directory_acl_custody, verify_windows_open_cache_directory_identity,
     verify_windows_open_cache_link_identity, verify_windows_open_cache_regular_file_identity,
 };
@@ -189,12 +189,19 @@ pub(crate) fn verify_retained_cache_custody_root(
     Ok(())
 }
 
+/// Check every directory above `root`, from the filesystem root down. `root`
+/// itself is left to its caller, which applies a stricter owner and mode check
+/// and its own descriptor-bound ACL check immediately afterwards. On macOS
+/// each ancestor is opened from its verified parent's handle, so one walk
+/// opens each ancestor once instead of reopening every prefix from `/`.
 #[cfg(unix)]
 fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::MetadataExt;
 
     let effective_user = nix::unistd::Uid::effective().as_raw();
-    for ancestor in root.ancestors() {
+    let ancestors: Vec<&Path> = root.ancestors().skip(1).collect();
+    let mut verified_parent: Option<CapabilityDirectory> = None;
+    for ancestor in ancestors.into_iter().rev() {
         let metadata =
             std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -219,7 +226,12 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry is externally writable without sticky-entry protection",
             ));
         }
-        verify_macos_open_cache_directory_acl_custody(kind, ancestor, &metadata)?;
+        verified_parent = verify_macos_cache_ancestor_acl_custody(
+            kind,
+            ancestor,
+            &metadata,
+            verified_parent.as_ref(),
+        )?;
     }
     Ok(())
 }

@@ -325,6 +325,61 @@ pub(crate) fn verify_macos_open_cache_directory_acl_custody(
     Ok(())
 }
 
+/// One step of the no-follow ancestry walk. Open `path` from `parent`, the
+/// handle of its already verified parent (`None` opens the filesystem root),
+/// require the opened directory to be the one just classified, and read its
+/// ACL facts through that handle. The handle continues the walk, so each
+/// ancestor is opened once and is provably the parent of the next.
+#[cfg(target_os = "macos")]
+pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+    parent: Option<&CapabilityDirectory>,
+) -> Result<Option<CapabilityDirectory>, SourceResolveError> {
+    use cap_fs_ext::DirExt;
+
+    let opened = match parent {
+        None => open_absolute_directory_nofollow(path),
+        Some(parent) => match path.file_name() {
+            Some(name) => parent.open_dir_nofollow(name),
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "cache ancestry component has no name",
+            )),
+        },
+    }
+    .map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain cache custody directory: {error}"),
+        )
+    })?;
+    let metadata = opened
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !metadata.is_dir() || !same_std_and_capability_file_identity(classified, &metadata) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody directory changed between classification and no-follow open",
+        ));
+    }
+    verify_macos_opened_cache_directory_acl_custody(kind, path, &opened)?;
+    Ok(Some(opened))
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+    _parent: Option<&CapabilityDirectory>,
+) -> Result<Option<CapabilityDirectory>, SourceResolveError> {
+    Ok(None)
+}
+
 /// Read a directory's ACL facts through a handle the caller already opened
 /// no-follow and reconciled with its classification.
 #[cfg(target_os = "macos")]

@@ -1,10 +1,76 @@
 use super::{
     CacheCustodyKind, LocalSourceLimits, OpenOptions, SourceResolveError, change_macos_acl,
-    create_git_source, git_cache_entry_root, local_git_request,
+    create_git_source, git_cache_entry_root, local_git_request, open_absolute_directory_nofollow,
     resolve_git_source_from_hardened_base, resolve_local_source_snapshot_from_hardened_base,
-    temp_root, verify_cache_custody, verify_cache_lock_path_identity_for_test,
+    temp_root, verify_cache_custody, verify_cache_custody_root,
+    verify_cache_lock_path_identity_for_test, verify_macos_cache_ancestor_acl_custody,
     verify_macos_open_cache_directory_acl_custody,
 };
+
+#[cfg(target_os = "macos")]
+#[test]
+fn cache_ancestry_rejects_an_extended_acl_allow_entry_on_a_parent() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let parent = temp_root("cache-ancestry-acl-parent");
+    let root = parent.join("cache");
+    std::fs::create_dir_all(&root).expect("create cache below its parent");
+    let parent = parent.canonicalize().expect("canonicalize parent");
+    let root = root.canonicalize().expect("canonicalize cache");
+    for directory in [&parent, &root] {
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))
+            .expect("make directory private");
+    }
+    verify_cache_custody_root(&root, CacheCustodyKind::Git).expect("private ancestry verifies");
+
+    change_macos_acl(&parent, &["+a", "everyone allow write"]);
+    let error = verify_cache_custody_root(&root, CacheCustodyKind::Git)
+        .expect_err("an allow ACL on an ancestor must reject the cache below it");
+    assert!(
+        matches!(
+            &error,
+            SourceResolveError::GitCacheInvalid { path, message }
+                if path == &parent && message.contains("extended ACL allow")
+        ),
+        "unexpected ancestry ACL error: {error:?}"
+    );
+
+    change_macos_acl(&parent, &["-N"]);
+    let _ = std::fs::remove_dir_all(&parent);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn cache_ancestry_walk_rejects_an_ancestor_replaced_after_classification() {
+    let parent = temp_root("cache-ancestry-walk-replacement");
+    let ancestor = parent.join("ancestor");
+    std::fs::create_dir_all(&ancestor).expect("create classified ancestor");
+    let parent = parent.canonicalize().expect("canonicalize parent");
+    let ancestor = ancestor.canonicalize().expect("canonicalize ancestor");
+    let classified = std::fs::symlink_metadata(&ancestor).expect("classify ancestor");
+    let verified_parent = open_absolute_directory_nofollow(&parent).expect("open verified parent");
+
+    let retained = parent.join("ancestor-retained");
+    std::fs::rename(&ancestor, &retained).expect("relocate classified ancestor");
+    std::fs::create_dir(&ancestor).expect("create replacement ancestor");
+    change_macos_acl(&ancestor, &["+a", "everyone allow write"]);
+
+    let error = verify_macos_cache_ancestor_acl_custody(
+        CacheCustodyKind::Git,
+        &ancestor,
+        &classified,
+        Some(&verified_parent),
+    )
+    .expect_err("a replaced ancestor must reject before its ACL can contribute");
+    assert!(matches!(
+        error,
+        SourceResolveError::GitCacheInvalid { message, .. }
+            if message.contains("changed between classification")
+    ));
+
+    change_macos_acl(&ancestor, &["-N"]);
+    let _ = std::fs::remove_dir_all(&parent);
+}
 
 #[cfg(target_os = "macos")]
 #[test]
