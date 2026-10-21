@@ -3171,6 +3171,27 @@ fail/facts/fixed_array_sixteen_elem_index_bound_through_target_body_rejected rej
 	cannot prove index `idx` is within length 16 in read_element::entry
 	cannot prove index `idx` is within length 16 in read_element::entry
 	cannot prove index `idx` is within length 16 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_call_result_rejected rejected 2948ms expected @00ef417922c0+wt
+	cannot prove index `picked_idx` is within length 64 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_const_name_rejected rejected 2771ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 64 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_field_rejected rejected 3026ms expected @00ef417922c0+wt
+	cannot prove index `container.idx` is within length 64 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_local_rejected rejected 2747ms expected @00ef417922c0+wt
+	cannot prove index `local_idx` is within length 64 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_match_join_rejected rejected 2577ms expected @00ef417922c0+wt
+	cannot prove index `joined_idx` is within length 64 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_other_machine_rejected rejected 3473ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 64 in fetch_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_other_state_rejected rejected 2674ms expected @00ef417922c0+wt
+	cannot prove index `passed_idx` is within length 64 in read_element::element
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_parameter_rejected rejected 2850ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 64 in read_element::entry
+fail/facts/fixed_array_sixtyfour_elem_index_bound_through_target_body_rejected rejected 2539ms expected @00ef417922c0+wt
+	cannot prove index `idx` is within length 64 in read_element::entry
+	cannot prove index `idx` is within length 64 in read_element::entry
+	cannot prove index `idx` is within length 64 in read_element::entry
+	cannot prove index `idx` is within length 64 in read_element::entry
 fail/facts/fixed_array_thirtytwo_elem_index_bound_through_call_result_rejected rejected 1920ms expected @9ed829f6e62d+wt
 	cannot prove index `picked_idx` is within length 32 in read_element::entry
 fail/facts/fixed_array_thirtytwo_elem_index_bound_through_const_name_rejected rejected 1922ms expected @9ed829f6e62d+wt
@@ -10616,6 +10637,15 @@ pass/facts/fixed_array_sixteen_elem_index_bound_through_other_machine_exit check
 pass/facts/fixed_array_sixteen_elem_index_bound_through_other_state_exit checked 2356ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_sixteen_elem_index_bound_through_parameter_exit checked 2408ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_sixteen_elem_index_bound_through_target_body_exit checked 2413ms check-target:macos_arm64 @9ed829f6e62d+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_call_result_exit checked 4636ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_const_name_exit checked 4222ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_field_exit checked 4071ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_local_exit checked 4082ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_match_join_exit checked 4279ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_other_machine_exit checked 4107ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_other_state_exit checked 5169ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_parameter_exit checked 4448ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/fixed_array_sixtyfour_elem_index_bound_through_target_body_exit checked 4896ms check-target:macos_arm64 @00ef417922c0+wt
 pass/facts/fixed_array_thirtytwo_elem_index_bound_through_call_result_exit checked 2589ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_thirtytwo_elem_index_bound_through_const_name_exit checked 2623ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_thirtytwo_elem_index_bound_through_field_exit checked 2634ms check-target:macos_arm64 @9ed829f6e62d+wt
