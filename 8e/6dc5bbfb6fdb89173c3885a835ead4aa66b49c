@@ -1,0 +1,4 @@
+owner: local-swarm / worker_two
+provenance: agent=Codex model=gpt-6.1-sol effort=medium; local-swarm worker_two; independent exact-candidate semantic review; /home/jarod/development/Omega/build/swarm/local-oct20/evidence/worker_two/continuation-open-const/postpublished-open-const
+ticket: 752ff65c209b40bfa51faf5d0970c78a
+published_utc: 2026-10-21T12:58:57.296979+00:00
