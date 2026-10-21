@@ -310,13 +310,13 @@ impl<'a> DescriptorAnalysis<'a> {
                     path: location.path.clone(),
                 }
             }
-            DescriptorSourceOrigin::IncomingContents(query) => {
+            DescriptorSourceOrigin::IncomingContents { query, projection } => {
                 let (position, _, root_type) = self.replay.parameter(callee, query.root)?;
                 query.validate(self.replay.types, root_type)?;
                 DescriptorStoredOrigin::IncomingContents {
                     position,
                     steps: query.steps.clone(),
-                    projection: Projection::new(&[]),
+                    projection: projection.clone().without_runtime_coordinates(),
                 }
             }
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {

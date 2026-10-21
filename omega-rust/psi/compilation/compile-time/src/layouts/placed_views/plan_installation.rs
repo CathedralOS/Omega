@@ -193,8 +193,14 @@ pub(super) fn install_placed_view_plan(
                 entry.field()
             ))]);
         }
+        let mut accessor_leaf = view_field.type_reference;
+        while let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+            typed.type_reference_table.type_reference(accessor_leaf)
+        {
+            accessor_leaf = *element_type;
+        }
         let accessor_name = typed
-            .named_type_reference(view_field.type_reference)
+            .named_type_reference(accessor_leaf)
             .map(|name| name.as_str().to_owned())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(

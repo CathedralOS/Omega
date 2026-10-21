@@ -364,6 +364,7 @@ impl<'a> Replay<'a> {
                 matches!(
                     origin,
                     Origin::Incoming(_)
+                        | Origin::IncomingContents(_, _)
                         | Origin::Backing(DescriptorCallOrigin::PlacedFormation { .. })
                 )
             }) {
@@ -1030,7 +1031,7 @@ impl<'a> Replay<'a> {
                 Some(DescriptorStoredOrigin::IncomingContents {
                     position,
                     steps: query.steps.clone(),
-                    projection: projection.clone(),
+                    projection: projection.clone().without_runtime_coordinates(),
                 })
             }
             Origin::Backing(DescriptorCallOrigin::Literal { machine, place }) => {
@@ -1224,19 +1225,7 @@ impl<'a> Replay<'a> {
                 )),
                 Origin::Incoming(location) => Some(DescriptorSourceOrigin::IncomingSlot(location)),
                 Origin::IncomingContents(query, projection) => {
-                    if projection == Projection::new(&[]) {
-                        Some(DescriptorSourceOrigin::IncomingContents(query))
-                    } else {
-                        let root_type = *machine.place_types.get(&query.root)?;
-                        Some(DescriptorSourceOrigin::Backing(
-                            DescriptorCallOrigin::Argument {
-                                source: query.root,
-                                projection: query
-                                    .conservative_projection(self.types, root_type)?
-                                    .then(&projection),
-                            },
-                        ))
-                    }
+                    Some(DescriptorSourceOrigin::IncomingContents { query, projection })
                 }
             })
             .collect()
@@ -1260,11 +1249,13 @@ impl<'a> Replay<'a> {
                 projection.indirect = true;
                 Some(DescriptorCallOrigin::Argument { source, projection })
             }
-            DescriptorSourceOrigin::IncomingContents(query) => {
+            DescriptorSourceOrigin::IncomingContents { query, projection } => {
                 let root_type = *machine.place_types.get(&query.root)?;
                 Some(DescriptorCallOrigin::Argument {
                     source: query.root,
-                    projection: query.conservative_projection(self.types, root_type)?,
+                    projection: query
+                        .conservative_projection(self.types, root_type)?
+                        .then(&projection),
                 })
             }
         }

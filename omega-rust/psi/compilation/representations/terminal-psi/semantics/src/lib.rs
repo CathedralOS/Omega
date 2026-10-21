@@ -41,7 +41,9 @@ pub use placed_ram_correspondence::{
     PlacedRamCorrespondence, PlacedRamFieldCorrespondence, placed_ram_correspondence,
     placed_ram_plan_correspondence, placed_reference_correspondence,
 };
-pub use placed_scalar_boundaries::{PlacedScalarBoundaryDemand, placed_scalar_boundary_demand};
+pub use placed_scalar_boundaries::{
+    PlacedScalarBoundaryDemand, placed_region_projection, placed_scalar_boundary_demand,
+};
 pub use placement_lifecycles::{
     PlacementResultContract, placement_result_contract, validate_placement_lifecycle_plans,
 };

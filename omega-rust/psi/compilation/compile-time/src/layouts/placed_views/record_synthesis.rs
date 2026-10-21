@@ -63,14 +63,16 @@ pub(super) fn synthesize_probe_records(
             .fields
             .iter()
             .map(|field| {
+                let value_leaf = projection_leaf(syntax, field.type_reference);
                 let arguments = syntax
                     .tables
                     .type_references
-                    .insert_type_reference_handles([field.type_reference]);
+                    .insert_type_reference_handles([value_leaf]);
                 let accessor = syntax
                     .tables
                     .type_references
                     .insert_generic(template.clone(), arguments);
+                let accessor = projection_shape(syntax, field.type_reference, accessor);
                 DataMember::Field(DataField {
                     identity: field.identity,
                     name: field.name.clone(),
@@ -143,6 +145,7 @@ pub(super) fn synthesize_exact_records(
             }
 
             let provenance = application_provenance(application);
+            let value_leaf = projection_leaf(syntax, field.type_reference);
             let accessor_name = accessor_name(syntax, application, field, entry.access())?;
             let is_exported = access_is_exported(entry.access());
             syntax.push_root_item(Item::Data(DataDefinition {
@@ -179,7 +182,7 @@ pub(super) fn synthesize_exact_records(
                     &template,
                     machine,
                     &accessor_name,
-                    field.type_reference,
+                    value_leaf,
                     is_exported && application.generated_is_public,
                     provenance,
                 );
@@ -188,6 +191,7 @@ pub(super) fn synthesize_exact_records(
                 .tables
                 .type_references
                 .insert_named(Identifier::generated(accessor_name));
+            let field_type = projection_shape(syntax, field.type_reference, field_type);
             members.push(DataMember::Field(DataField {
                 identity: field.identity,
                 name: field.name.clone(),
@@ -212,6 +216,43 @@ pub(super) fn synthesize_exact_records(
     rewrite_applications(syntax, rewrites);
     retire_accessor_templates(syntax, sources);
     Ok(())
+}
+
+/// Accessor structure mirrors the schema's projection structure. There is one
+/// sealed leaf declaration per parent field, not one permission or callable per
+/// element. Keeping dimensions intact lets ordinary indexing prove each bound.
+fn projection_leaf(
+    syntax: &SyntaxTrees,
+    mut reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::FixedArray { element_type, .. } =
+        syntax.type_references.type_reference(reference)
+    {
+        reference = *element_type;
+    }
+    reference
+}
+
+fn projection_shape(
+    syntax: &mut SyntaxTrees,
+    source: TypeReferenceHandle,
+    accessor: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    match syntax.type_references.type_reference(source).clone() {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let element_type = projection_shape(syntax, element_type, accessor);
+            syntax
+                .type_references
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                })
+        }
+        _ => accessor,
+    }
 }
 
 fn accessor_name(
@@ -356,6 +397,9 @@ fn access_is_exported(access: &FieldAccess) -> bool {
     matches!(
         access,
         FieldAccess::Stable {
+            exposure: AccessExposure::Exported,
+            ..
+        } | FieldAccess::StableRegion {
             exposure: AccessExposure::Exported,
             ..
         } | FieldAccess::External {

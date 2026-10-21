@@ -201,16 +201,15 @@ impl PlacedAccessPrimitive {
         }
         // A wrapper containing an accessor is not that accessor. Nominal-head
         // lookup above locates the plan, but cannot establish the operand type.
-        if program.normalized_type_identity(field.accessor_type)
+        let (value_leaf, accessor_leaf) = field.scalar_projection_leaf(program)?;
+        if program.normalized_type_identity(accessor_leaf)
             != program.normalized_type_identity(accessor)
         {
             return Err(invalid(
                 "requires the exact accessor type, not a reference or collection of accessors",
             ));
         }
-        if program.normalized_type_identity(field.value_type)
-            != program.normalized_type_identity(value)
-        {
+        if program.normalized_type_identity(value_leaf) != program.normalized_type_identity(value) {
             return Err(invalid(
                 "value type does not match the placed field's exact value type",
             ));

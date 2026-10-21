@@ -71,6 +71,9 @@ pub(super) fn validate(
         access_plans::FieldAccess::Stable {
             exposure: access_plans::AccessExposure::BindingPrivate,
             ..
+        } | access_plans::FieldAccess::StableRegion {
+            exposure: access_plans::AccessExposure::BindingPrivate,
+            ..
         } | access_plans::FieldAccess::External {
             exposure: access_plans::AccessExposure::BindingPrivate,
             ..

@@ -288,9 +288,24 @@ impl<'program> ShapeCollector<'program> {
                 .map(|field| (view, field))
         })?;
         let descriptor = view.placement.access().field_descriptor(field.access_key);
+        let byte_size = if view
+            .placement
+            .access()
+            .stable_region(field.access_key)
+            .is_some()
+        {
+            let (value, _) = field.scalar_projection_leaf(self.program).ok()?;
+            u64::try_from(
+                self.program
+                    .primitive_type_reference(value)?
+                    .scalar_byte_size()?,
+            )
+            .ok()?
+        } else {
+            descriptor.map_or(0, |descriptor| descriptor.effect_footprint().length_bytes())
+        };
         let storage = semantic_vocabulary::AuthoredRecordStorage {
-            byte_size: descriptor
-                .map_or(0, |descriptor| descriptor.effect_footprint().length_bytes()),
+            byte_size,
             byte_alignment: 1,
         };
         let identity = closed_data_identity(self.program, data, binders);
@@ -1153,6 +1168,14 @@ impl<'program> ShapeCollector<'program> {
                 {
                     field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: descriptor.container_byte_offset(),
+                    });
+                } else if let Some(region) = view
+                    .placement
+                    .access()
+                    .stable_region(placed_field.access_key)
+                {
+                    field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
+                        byte_offset: region.byte_offset(),
                     });
                 }
             }

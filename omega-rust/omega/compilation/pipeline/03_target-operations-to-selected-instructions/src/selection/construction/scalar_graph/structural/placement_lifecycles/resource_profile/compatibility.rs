@@ -329,9 +329,9 @@ fn effective_alignment(
     let one = emission.constant(builder, 1)?;
     emission.write_scratch(builder, ALIGNMENT, zero)?;
     match access {
-        FieldAccess::Inaccessible => {
+        FieldAccess::Inaccessible | FieldAccess::StableRegion { .. } => {
             return Err(failure(
-                "inaccessible field acquired a runtime transfer descriptor",
+                "field without primitive transfer geometry acquired a runtime transfer descriptor",
             ));
         }
         FieldAccess::Stable {
@@ -492,9 +492,16 @@ fn combine_alignment(
     })
 }
 
-/// Extend coverage through adjacent rows. `same_as` requires one normalized
-/// region for a field transfer; None instead requires the whole-image operation's
-/// Stable read or write and reach at every row. Both accept unordered raw regions.
+#[derive(Clone, Copy)]
+enum CoverageDemand {
+    SameRegion(VirtualRegisterId),
+    Stable { read: bool, write: bool },
+}
+
+/// Extend coverage through containing/adjacent rows. Primitive transfers require
+/// one normalized supply rule; structural Stable regions and complete images
+/// require their operations and reach on every covered byte. All accept unordered
+/// raw rows; none can cross a gap or acquire a missing capability.
 fn extend_coverage(
     emission: Emission<'_>,
     builder: &mut Builder<'_>,
@@ -502,9 +509,8 @@ fn extend_coverage(
     pointer: VirtualRegisterId,
     count: VirtualRegisterId,
     target_end: VirtualRegisterId,
-    same_as: Option<VirtualRegisterId>,
+    demand: CoverageDemand,
     reach: &BoundaryReach,
-    operation: terminal_psi::TerminalPlacementLifecycleOperation,
 ) -> Result<(), SelectedInstructionError> {
     emission.repeat(builder, count, WALK, |builder, _| {
         emission.repeat(builder, count, CANDIDATE, |builder, position| {
@@ -513,27 +519,44 @@ fn extend_coverage(
             let incomplete = emission.invert(builder, complete)?;
             let candidate = emission.element(builder, pointer, layout.regions, position)?;
             let start = emission.load(builder, candidate, layout.start)?;
-            let adjacent = emission.equal(builder, covered, start)?;
+            let length = emission.load(builder, candidate, layout.length)?;
+            let end = emission.binary(
+                builder,
+                SelectedInstructionKind::WrappingAddI64,
+                start,
+                length,
+            )?;
+            let after_start = emission.at_most(builder, start, covered)?;
+            let after_end = emission.at_most(builder, end, covered)?;
+            let before_end = emission.invert(builder, after_end)?;
+            let contains = emission.binary(
+                builder,
+                SelectedInstructionKind::BitwiseAndI64,
+                after_start,
+                before_end,
+            )?;
             let consider = emission.binary(
                 builder,
                 SelectedInstructionKind::BitwiseAndI64,
                 incomplete,
-                adjacent,
+                contains,
             )?;
             operation_control::when_nonzero(builder, emission.row, consider, |builder| {
-                let supported = if let Some(original) = same_as {
-                    equivalent(emission, builder, layout, original, candidate)?
-                } else {
-                    let read =
-                        operation == terminal_psi::TerminalPlacementLifecycleOperation::MoveOut;
-                    let stable = stable_permits(emission, builder, layout, candidate, read, !read)?;
-                    let reachable = reaches(emission, builder, layout, candidate, reach)?;
-                    emission.binary(
-                        builder,
-                        SelectedInstructionKind::BitwiseAndI64,
-                        stable,
-                        reachable,
-                    )?
+                let supported = match demand {
+                    CoverageDemand::SameRegion(original) => {
+                        equivalent(emission, builder, layout, original, candidate)?
+                    }
+                    CoverageDemand::Stable { read, write } => {
+                        let stable =
+                            stable_permits(emission, builder, layout, candidate, read, write)?;
+                        let reachable = reaches(emission, builder, layout, candidate, reach)?;
+                        emission.binary(
+                            builder,
+                            SelectedInstructionKind::BitwiseAndI64,
+                            stable,
+                            reachable,
+                        )?
+                    }
                 };
                 operation_control::when_nonzero(builder, emission.row, supported, |builder| {
                     let length = emission.load(builder, candidate, layout.length)?;
@@ -597,9 +620,11 @@ pub(in super::super) fn assess(
             pointer,
             count,
             length,
-            None,
+            CoverageDemand::Stable {
+                read: operation == terminal_psi::TerminalPlacementLifecycleOperation::MoveOut,
+                write: operation == terminal_psi::TerminalPlacementLifecycleOperation::Initialize,
+            },
             placement.reach(),
-            operation,
         )?;
         let covered = emission.read_scratch(builder, COVERED)?;
         let complete = emission.at_most(builder, length, covered)?;
@@ -645,9 +670,8 @@ pub(in super::super) fn assess(
                         pointer,
                         count,
                         end,
-                        Some(region),
+                        CoverageDemand::SameRegion(region),
                         placement.reach(),
-                        operation,
                     )?;
                     let covered = emission.read_scratch(builder, COVERED)?;
                     let contained = emission.at_most(builder, end, covered)?;
@@ -675,6 +699,33 @@ pub(in super::super) fn assess(
             })?;
             let found = emission.read_scratch(builder, FOUND)?;
             intersect(emission, builder, COMPATIBLE, found)?;
+        }
+        for region in placement.access().stable_regions() {
+            let start = emission.constant(builder, region.byte_offset())?;
+            let end = region
+                .byte_offset()
+                .checked_add(region.byte_length())
+                .ok_or_else(|| failure("stable structural region interval overflows"))?;
+            let end = emission.constant(builder, end)?;
+            emission.write_scratch(builder, COVERED, start)?;
+            extend_coverage(
+                emission,
+                builder,
+                &layout,
+                pointer,
+                count,
+                end,
+                CoverageDemand::Stable {
+                    read: region.permits_read(),
+                    write: region.permits_write(),
+                },
+                placement.reach(),
+            )?;
+            let covered = emission.read_scratch(builder, COVERED)?;
+            let complete = emission.at_most(builder, end, covered)?;
+            intersect(emission, builder, COMPATIBLE, complete)?;
+            let alignment = emission.constant(builder, region.byte_alignment())?;
+            combine_alignment(emission, builder, alignment, region.byte_offset())?;
         }
         Ok(())
     })?;

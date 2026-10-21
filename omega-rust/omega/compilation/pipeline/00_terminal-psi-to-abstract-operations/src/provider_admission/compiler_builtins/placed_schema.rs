@@ -109,24 +109,31 @@ pub(super) fn validate(
         .entries()
         .get(demand.access_slot as usize)
         .ok_or_else(invalid)?;
-    let descriptor = placement
-        .placement
-        .access()
-        .field_descriptor(entry.key())
-        .ok_or_else(invalid)?;
-    let fragments = descriptor.logical_extent().fragments();
+    let descriptor = placement.placement.access().field_descriptor(entry.key());
     let logical_bits = match demand.scalar {
         ScalarType::Boolean => 8,
         ScalarType::Integer(integer) => u64::from(integer.bits()),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => 32,
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => 64,
     };
-    if !matches!(fragments, [fragment]
+    let complete = if let Some(descriptor) = descriptor {
+        matches!(descriptor.logical_extent().fragments(), [fragment]
         if fragment.source_bit_offset() == 0
             && fragment.layout_bit_offset() == descriptor.container_byte_offset() * 8
             && fragment.width_bits() == u64::from(descriptor.transfer_width_bits())
             && fragment.width_bits() == logical_bits)
-    {
+    } else {
+        // The Terminal catalog independently joins every array dimension and
+        // the exact scalar leaf. A region is not itself a giant transfer: the
+        // checked argument path supplies the selected element displacement.
+        placement
+            .placement
+            .access()
+            .stable_region(entry.key())
+            .is_some()
+            && u64::from(demand.transfer_width_bits) == logical_bits
+    };
+    if !complete {
         return Err("native placed scalar access requires a complete scalar container; fragmented or narrowed codecs require an explicit native realization".to_owned());
     }
     Ok(())

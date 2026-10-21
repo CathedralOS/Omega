@@ -287,6 +287,20 @@ fn decode_exposure(reader: &mut Reader<'_>) -> Result<AccessExposure, CodecError
 fn encode_access(writer: &mut Writer, access: &FieldAccess) {
     match access {
         FieldAccess::Inaccessible => writer.u8(0),
+        FieldAccess::StableRegion {
+            byte_length,
+            byte_alignment,
+            read,
+            write,
+            exposure: scope,
+        } => {
+            writer.u8(4);
+            writer.u64(*byte_length);
+            writer.u64(*byte_alignment);
+            writer.boolean(*read);
+            writer.boolean(*write);
+            exposure(writer, *scope);
+        }
         FieldAccess::Stable {
             transfer_width_bits,
             read,
@@ -345,6 +359,13 @@ fn encode_access(writer: &mut Writer, access: &FieldAccess) {
 fn decode_access(reader: &mut Reader<'_>) -> Result<FieldAccess, CodecError> {
     Ok(match reader.u8()? {
         0 => FieldAccess::Inaccessible,
+        4 => FieldAccess::StableRegion {
+            byte_length: reader.u64()?,
+            byte_alignment: reader.u64()?,
+            read: reader.boolean()?,
+            write: reader.boolean()?,
+            exposure: decode_exposure(reader)?,
+        },
         1 => FieldAccess::Stable {
             transfer_width_bits: reader.u16()?,
             read: reader.boolean()?,

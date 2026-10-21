@@ -118,7 +118,7 @@ impl DescriptorAnalysis<'_> {
                                 }
                             }
                             DescriptorSourceOrigin::IncomingSlot(_)
-                            | DescriptorSourceOrigin::IncomingContents(_) => {
+                            | DescriptorSourceOrigin::IncomingContents { .. } => {
                                 let requirement = DescriptorCompatibilityRequirement {
                                     position,
                                     loan,

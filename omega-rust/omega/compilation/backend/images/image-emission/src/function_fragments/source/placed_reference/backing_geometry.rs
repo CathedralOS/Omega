@@ -149,7 +149,7 @@ impl<'a> BackingGeometry<'a> {
                 (*source, false)
             }
             DescriptorSourceOrigin::IncomingSlot(location) => (location.root, true),
-            DescriptorSourceOrigin::IncomingContents(query) => (query.root, true),
+            DescriptorSourceOrigin::IncomingContents { query, .. } => (query.root, true),
             _ => return Err("backing provenance has no allocation geometry guarantee"),
         };
         let current = descriptor_machine(self.graph, machine)

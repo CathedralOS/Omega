@@ -121,11 +121,14 @@ impl PlacedScalarAccessorDeclaration {
                 "field policy does not rejoin the normalized placement",
             ));
         }
-        if typed.primitive_type_reference(field.value_type).is_none() {
+        if typed.primitive_type_reference(field.value_type).is_none()
+            && !matches!(field.access, access_plans::FieldAccess::StableRegion { .. })
+        {
             // Another provider catalog owns structural carriers; absence here
             // must not reject a valid declaration that this entry never calls.
             return Ok(None);
         }
+        let (value_leaf, accessor_leaf) = field.scalar_projection_leaf(typed)?;
         let data = typed
             .data_definition_by_symbol(view.data_symbol)
             .ok_or_else(|| invalid("view definition is absent"))?;
@@ -200,7 +203,7 @@ impl PlacedScalarAccessorDeclaration {
         else {
             return Err(invalid("accessor argument is not borrowed"));
         };
-        if typed.type_reference_table.type_symbol(*referee) != field.accessor_data_symbol
+        if typed.normalized_type_identity(*referee) != typed.normalized_type_identity(accessor_leaf)
             || *access
                 != if operation == PlacedScalarAccessorOperation::Read {
                     language_core::ReferenceAccess::Shared
@@ -226,7 +229,7 @@ impl PlacedScalarAccessorDeclaration {
                 "scalar parameter modifiers or runtime relevance were substituted",
             ));
         }
-        let value_identity = typed.normalized_type_identity(field.value_type);
+        let value_identity = typed.normalized_type_identity(value_leaf);
         let signature_matches = match operation {
             PlacedScalarAccessorOperation::Read | PlacedScalarAccessorOperation::Take => {
                 parameters.len() == 1

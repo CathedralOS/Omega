@@ -13,6 +13,7 @@ mod provider_content;
 mod resident_custody;
 mod resource_profiles;
 mod schema_correspondence;
+mod stable_regions;
 mod stable_specialization;
 
 use crate::placements::placement_authority::PlacementAuthorityRef;

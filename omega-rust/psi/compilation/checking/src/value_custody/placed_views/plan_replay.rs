@@ -137,6 +137,12 @@ pub(crate) fn validate_plans(
             }
             field_symbols.push(field.field_symbol);
             accessor_data_symbols.push(field.accessor_data_symbol);
+            if matches!(field.access, FieldAccess::StableRegion { .. })
+                && let Err(diagnostic) = field.scalar_projection_leaf(program.typed_program())
+            {
+                diagnostics.push(diagnostic);
+                continue;
+            }
 
             let Some(schema_field) = program
                 .data_members(schema)

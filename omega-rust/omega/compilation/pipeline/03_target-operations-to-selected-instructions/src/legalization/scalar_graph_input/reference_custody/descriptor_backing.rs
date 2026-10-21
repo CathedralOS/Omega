@@ -269,7 +269,8 @@ pub(super) fn overlaps(
         // ordinary in-body backing still protects its actual owned region.
         Backing::Descriptor {
             origin:
-                DescriptorSourceOrigin::IncomingSlot(_) | DescriptorSourceOrigin::IncomingContents(_),
+                DescriptorSourceOrigin::IncomingSlot(_)
+                | DescriptorSourceOrigin::IncomingContents { .. },
             ..
         } if activation_local => false,
         Backing::Descriptor { geometry, .. } => match geometry {

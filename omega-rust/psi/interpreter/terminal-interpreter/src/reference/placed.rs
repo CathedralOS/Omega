@@ -25,6 +25,10 @@ pub(crate) struct PlacedReference {
     pub(crate) presentation: TerminalStructuralValue,
     pub(crate) access: StructuralAccess,
     pub(crate) selected_field: Option<u32>,
+    /// Captured coordinates below the permission-bearing field, never a new
+    /// backing or independent element permission. Runtime selectors are frozen
+    /// by ordinary reference projection before entering this path.
+    projection: Vec<terminal_psi::StructuralPathSegment>,
     /// The original source owner: initialized T for RAM, qualified Extent for
     /// resident backing. Presentation fields never replace its custody.
     pub(crate) source: TerminalStructuralValue,
@@ -233,6 +237,7 @@ impl TerminalExecution<'_> {
                 presentation,
                 access: recipe.input().access,
                 selected_field: None,
+                projection: Vec::new(),
                 source: allocation.clone(),
             });
             self.private_entry_ram.push(PrivateEntryRamAllocation {
@@ -419,6 +424,7 @@ impl TerminalExecution<'_> {
             presentation,
             access,
             selected_field: None,
+            projection: Vec::new(),
             source: source.clone(),
         };
         // Contents belong to that captured schema, not the accessor's opaque
@@ -433,11 +439,56 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-            let scalar = field.field_type.scalar_type().ok_or(
-                TerminalInterpretError::UnsupportedSemanticVariant(
-                    "placed RAM source requires initialized scalar field coverage",
-                ),
-            )?;
+            let Some(scalar) = field.field_type.scalar_type() else {
+                let root = field.field_type.as_structural().ok_or_else(malformed)?;
+                let (scalar, count) = terminal_semantics::scalar_array_leaf_shape(
+                    self.program.structural_types().values(),
+                    root,
+                )
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "placed RAM initialization requires a supported scalar storage tree",
+                ))?;
+                let PlacedStorage::Ram {
+                    home:
+                        PlacedRamHome::Frame {
+                            depth,
+                            machine,
+                            place,
+                            allocation,
+                        },
+                    ..
+                } = &captured.storage
+                else {
+                    return Err(malformed());
+                };
+                let home = crate::primitive_storage::PrimitiveStorageHome::captured_frame(
+                    *depth,
+                    *machine,
+                    *place,
+                    allocation.structural_type,
+                );
+                let mut path = source.path[allocation.path.len()..].to_vec();
+                path.push(terminal_psi::StructuralPathSegment::Field(field.identity));
+                let prefix_length = path.len();
+                for ordinal in 0..count {
+                    path.truncate(prefix_length);
+                    path.extend(
+                        terminal_semantics::scalar_array_leaf_path(
+                            self.program.structural_types().values(),
+                            root,
+                            ordinal,
+                        )
+                        .ok_or_else(malformed)?,
+                    );
+                    // Observe the original live home, including a suspended
+                    // caller's cells. Shape alone never establishes contents.
+                    let value = self.read_primitive_home(home, &path, scalar)?;
+                    if !crate::scalar_operations::terminal_scalar_belongs_to_type(value) {
+                        return Err(malformed());
+                    }
+                }
+                continue;
+            };
             let value = self
                 .structural_scalar_fields
                 .get(&StructuralScalarRuntimeField::member(
@@ -558,6 +609,7 @@ impl TerminalExecution<'_> {
             presentation,
             access: result_access,
             selected_field: None,
+            projection: Vec::new(),
             source: source.clone(),
         })
     }
@@ -636,12 +688,6 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         self.validate_placed_backing(captured)?;
         if !prefix.is_empty() {
-            let [terminal_psi::StructuralPathSegment::Field(identity)] = prefix else {
-                return Err(malformed());
-            };
-            if captured.selected_field.is_some() {
-                return Err(malformed());
-            }
             let plan = self
                 .program
                 .catalogs
@@ -649,15 +695,41 @@ impl TerminalExecution<'_> {
                 .iter()
                 .find(|plan| plan.carrier == captured.carrier())
                 .ok_or_else(malformed)?;
-            let field = plan
-                .fields
-                .iter()
-                .find(|field| field.view_field == *identity)
-                .ok_or_else(malformed)?;
-            if presentation.structural_type != field.accessor {
+            let (field, relative) = if let Some(slot) = captured.selected_field {
+                (
+                    plan.fields
+                        .iter()
+                        .find(|field| field.access_slot == slot)
+                        .ok_or_else(malformed)?,
+                    prefix,
+                )
+            } else {
+                let Some((terminal_psi::StructuralPathSegment::Field(identity), relative)) =
+                    prefix.split_first()
+                else {
+                    return Err(malformed());
+                };
+                (
+                    plan.fields
+                        .iter()
+                        .find(|field| field.view_field == *identity)
+                        .ok_or_else(malformed)?,
+                    relative,
+                )
+            };
+            let mut projection = captured.projection.clone();
+            projection.extend_from_slice(relative);
+            let selected = terminal_semantics::runtime_structural_path_tip(
+                self.program.structural_types().values(),
+                field.accessor,
+                &projection,
+            )
+            .ok_or_else(malformed)?;
+            if presentation.structural_type != selected.id {
                 return Err(malformed());
             }
             captured.selected_field = Some(field.access_slot);
+            captured.projection = projection;
         }
         captured.presentation = presentation.clone();
         Ok(())
@@ -722,7 +794,10 @@ impl TerminalExecution<'_> {
             || !super::access_covers(ram.access, required)
             || ram.carrier() != plan.carrier
             || ram.selected_field != Some(field.access_slot)
-            || presentation.structural_type != field.accessor
+            || declaration
+                .structural_parameters
+                .first()
+                .is_none_or(|parameter| presentation.structural_type != parameter.structural_type)
         {
             return Err(malformed());
         }
@@ -741,29 +816,52 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let returned = match &ram.storage {
-            PlacedStorage::Resident { binding, .. } => {
-                self.execute_resident_field(*binding, plan, field, kind, ram.access, arguments)?
-            }
+            PlacedStorage::Resident { binding, .. } => self.execute_resident_field(
+                *binding,
+                plan,
+                field,
+                &ram.projection,
+                kind,
+                ram.access,
+                arguments,
+            )?,
             PlacedStorage::Ram {
                 correspondence,
                 byte_offset,
-                ..
+                home,
             } => {
                 let source = correspondence
                     .fields
                     .iter()
                     .find(|source| source.access_slot == field.access_slot)
                     .ok_or_else(malformed)?;
+                let selected_projection = if ram.projection.is_empty() {
+                    terminal_semantics::ReferenceStorageProjection {
+                        byte_offset: source.byte_offset,
+                        logical_scalar: source.logical_scalar,
+                        stored_scalar: source.stored_scalar,
+                    }
+                } else {
+                    terminal_semantics::placed_region_projection(
+                        &program.catalogs.structural_types,
+                        plan,
+                        field,
+                        &ram.projection,
+                    )
+                    .map_err(TerminalInterpretError::PlacedReference)?
+                };
                 let width = u64::from(source.transfer_width_bits)
                     .checked_div(8)
                     .ok_or_else(malformed)?;
                 if width == 0
                     || source.transfer_width_bits % 8 != 0
-                    || source
+                    || selected_projection
                         .byte_offset
                         .checked_add(width)
                         .is_none_or(|end| end > correspondence.source_byte_length)
-                    || byte_offset.checked_add(source.byte_offset).is_none()
+                    || byte_offset
+                        .checked_add(selected_projection.byte_offset)
+                        .is_none()
                 {
                     return Err(malformed());
                 }
@@ -779,22 +877,63 @@ impl TerminalExecution<'_> {
                     .iter()
                     .find(|field| field.id == source.source_field)
                     .ok_or_else(malformed)?;
-                let cell = StructuralScalarRuntimeField::member(
-                    StructuralRuntimePlace::from(&ram.source),
-                    source.source_field,
-                );
-                let storage = crate::primitive_storage::PrimitiveStorage {
-                    endpoint: crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(cell),
-                    encoding: Some(crate::primitive_storage::PrimitiveStorageEncoding {
-                        source: source.stored_scalar,
-                        view: source.stored_scalar,
-                    }),
+                let storage = if !ram.projection.is_empty() {
+                    let PlacedRamHome::Frame {
+                        depth,
+                        machine,
+                        place,
+                        allocation,
+                    } = home
+                    else {
+                        return Err(malformed());
+                    };
+                    let mut path = ram.source.path[allocation.path.len()..].to_vec();
+                    path.push(terminal_psi::StructuralPathSegment::Field(
+                        source_field.identity,
+                    ));
+                    path.extend_from_slice(&ram.projection);
+                    let (storage, scalar, _) = self.primitive_home_access(
+                        crate::primitive_storage::PrimitiveStorageHome::captured_frame(
+                            *depth,
+                            *machine,
+                            *place,
+                            allocation.structural_type,
+                        ),
+                        kind == terminal_psi::TerminalPlacedAccessorKind::Write,
+                        &path,
+                    )?;
+                    if scalar != selected_projection.logical_scalar {
+                        return Err(malformed());
+                    }
+                    storage
+                } else {
+                    // Scalar record fields retain their admitted storage
+                    // codec. An ordinary primitive reference is deliberately
+                    // unavailable for several such field representations.
+                    let cell = StructuralScalarRuntimeField::member(
+                        StructuralRuntimePlace::from(&ram.source),
+                        source.source_field,
+                    );
+                    crate::primitive_storage::PrimitiveStorage {
+                        endpoint: crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
+                            cell,
+                        ),
+                        encoding: Some(crate::primitive_storage::PrimitiveStorageEncoding {
+                            source: source.stored_scalar,
+                            view: source.stored_scalar,
+                        }),
+                    }
+                };
+                let value_type = if ram.projection.is_empty() {
+                    source_field.field_type.clone()
+                } else {
+                    terminal_psi::StructuralFieldType::Scalar(selected_projection.logical_scalar)
                 };
                 let write = match (kind, arguments) {
                     (terminal_psi::TerminalPlacedAccessorKind::Read, []) => None,
                     (terminal_psi::TerminalPlacedAccessorKind::Write, [value])
                         if value.scalar_type() == source.logical_scalar
-                            && value.satisfies_field(&source_field.field_type) =>
+                            && value.satisfies_field(&value_type) =>
                     {
                         Some(*value)
                     }
@@ -824,7 +963,7 @@ impl TerminalExecution<'_> {
                         source.logical_scalar,
                         false,
                     )?;
-                    if !value.satisfies_field(&source_field.field_type) {
+                    if !value.satisfies_field(&value_type) {
                         return Err(malformed());
                     }
                     crate::effects::results::TerminalEffectResult::Scalar(value)

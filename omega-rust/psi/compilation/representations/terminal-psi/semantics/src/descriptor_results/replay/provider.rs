@@ -78,8 +78,8 @@ impl Replay<'_> {
             }
             DescriptorSourceOrigin::Backing(origin) => Origin::Backing(origin.clone()),
             DescriptorSourceOrigin::IncomingSlot(location) => Origin::Incoming(location.clone()),
-            DescriptorSourceOrigin::IncomingContents(query) => {
-                Origin::IncomingContents(query.clone(), Projection::new(&[]))
+            DescriptorSourceOrigin::IncomingContents { query, projection } => {
+                Origin::IncomingContents(query.clone(), projection.clone())
             }
         })
     }

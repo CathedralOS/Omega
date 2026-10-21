@@ -1291,6 +1291,7 @@ pub(super) fn adapt(
 enum CapturedBacking {
     StorageAddress,
     ElementViewPayload,
+    PlacedInterpretation,
 }
 
 fn captured_storage_source(
@@ -1326,6 +1327,8 @@ fn captured_storage_source(
         // appending this position-bound projection preserves both; capturing
         // the descriptor cell as owned storage would lose that relationship.
         CapturedBacking::ElementViewPayload
+    } else if crate::placed_view_plans::is_placed_projection_shape(types, prefix_type) {
+        CapturedBacking::PlacedInterpretation
     } else {
         return None;
     };

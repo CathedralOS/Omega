@@ -36,7 +36,9 @@ pub use contents::{
     element_payload_memberships, element_payload_memberships_in, payload_memberships,
     terminal_payload_contract,
 };
-pub use payload_history::{PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract};
+pub use payload_history::{
+    PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
+};
 pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
 pub use payload_versions::{
     ProducedPayloadVersion, require_unchanged_observed_storage, require_unchanged_produced_payload,
@@ -150,7 +152,12 @@ pub enum DescriptorSourceOrigin {
     Provider(DescriptorProviderOrigin<DescriptorSourceOrigin>),
     Backing(DescriptorCallOrigin),
     IncomingSlot(DescriptorLocation),
-    IncomingContents(DescriptorContentsQuery),
+    IncomingContents {
+        query: DescriptorContentsQuery,
+        /// Projection of the value captured at entry, not an address in the
+        /// descriptor's own storage. Preserve it until caller substitution.
+        projection: Projection,
+    },
 }
 
 /// Opaque provider storage and its captured lifetime obligations are independent.

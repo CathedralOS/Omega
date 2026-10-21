@@ -102,7 +102,7 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                     .map(move |operation| (plan, field, operation.kind))
             })
         });
-        let (Some((plan, _, kind)), None) = (accesses.next(), accesses.next()) else {
+        let (Some((plan, field, kind)), None) = (accesses.next(), accesses.next()) else {
             return None;
         };
         if !matches!(
@@ -134,11 +134,39 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                     .structural_type
             }
         };
+        // Resolve the permission-bearing parent occurrence before interpreting
+        // its projection. Array indices select bytes within that occurrence;
+        // they are not alternative descriptor origins to enumerate.
+        let mut descriptor_prefix = argument.path.as_slice();
+        for prefix_length in 0..=argument.path.len() {
+            let selected = crate::structural_window_projection(
+                self.module.structural_types.iter(),
+                root_type,
+                &argument.path[..prefix_length],
+                None,
+            )?;
+            if selected.structural_type == field.accessor {
+                let leaf = crate::structural_window_projection(
+                    self.module.structural_types.iter(),
+                    field.accessor,
+                    &argument.path[prefix_length..],
+                    None,
+                )?;
+                let declaration = self.module.boundary_machine(boundary)?;
+                if declaration.structural_parameters.first()?.structural_type
+                    != leaf.structural_type
+                {
+                    return None;
+                }
+                descriptor_prefix = &argument.path[..prefix_length];
+                break;
+            }
+        }
         let location = descriptor_location(
             &self.module.structural_types,
             argument.place,
             root_type,
-            &argument.path,
+            descriptor_prefix,
             None,
         )?;
         let formations = self.resolve(machine, position, location, &mut Vec::new())?;
@@ -165,32 +193,30 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
         machine: MachineId,
         position: DescriptorPosition,
         location: DescriptorLocation,
-        pending: &mut Vec<(MachineId, DescriptorPosition, DescriptorLocation)>,
-    ) -> Option<BTreeSet<PlacedRamOrigin>> {
-        let query = (machine, position, location.clone());
-        if pending.contains(&query) {
-            return None;
-        }
-        pending.push(query);
-        let result = self.resolve_current(machine, position, location, pending);
-        pending.pop();
-        result
-    }
-    fn resolve_current(
-        &mut self,
-        machine: MachineId,
-        position: DescriptorPosition,
-        location: DescriptorLocation,
-        pending: &mut Vec<(MachineId, DescriptorPosition, DescriptorLocation)>,
+        pending: &mut Vec<(MachineId, DescriptorPosition, DescriptorSourceOrigin)>,
     ) -> Option<BTreeSet<PlacedRamOrigin>> {
         let origins = self
             .analysis
             .symbolic_source_origins(machine, position, &location)?;
+        self.resolve_origins(machine, position, origins, pending)
+    }
+    fn resolve_origins(
+        &mut self,
+        machine: MachineId,
+        position: DescriptorPosition,
+        origins: Vec<DescriptorSourceOrigin>,
+        pending: &mut Vec<(MachineId, DescriptorPosition, DescriptorSourceOrigin)>,
+    ) -> Option<BTreeSet<PlacedRamOrigin>> {
         if origins.is_empty() {
             return None;
         }
         let mut complete = BTreeSet::new();
         for origin in origins {
+            let query = (machine, position, origin.clone());
+            if pending.contains(&query) {
+                return None;
+            }
+            pending.push(query);
             match origin {
                 DescriptorSourceOrigin::Backing(DescriptorCallOrigin::PlacedFormation {
                     machine,
@@ -232,7 +258,13 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                         PlacedRamOrigin::Formation(formation)
                     });
                 }
-                DescriptorSourceOrigin::IncomingSlot(incoming) => {
+                incoming @ (DescriptorSourceOrigin::IncomingSlot(_)
+                | DescriptorSourceOrigin::IncomingContents { .. }) => {
+                    let incoming_root = match &incoming {
+                        DescriptorSourceOrigin::IncomingSlot(location) => location.root,
+                        DescriptorSourceOrigin::IncomingContents { query, .. } => query.root,
+                        _ => return None,
+                    };
                     // The executable entry's incoming occurrence belongs to
                     // its host lender, even if another machine also calls it.
                     // A callback's external ingress is a separate obligation;
@@ -259,7 +291,7 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                         let row = self.private_entry_roots.iter().find(|row| {
                             row.machine == machine
                                 && crate::placed_view_input_parameter(self.module, row)
-                                    .is_ok_and(|parameter| parameter.place == incoming.root)
+                                    .is_ok_and(|parameter| parameter.place == incoming_root)
                         })?;
                         if !self.module.placed_view_inputs.contains(row) {
                             return None;
@@ -270,17 +302,15 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                             input: row.clone(),
                             carrier: parameter.structural_type,
                         });
+                        pending.pop();
                         continue;
                     }
                     let current = self.graph.iter().find(|row| row.id == machine)?;
                     let parameter = current
                         .places
                         .iter()
-                        .find(|row| row.place == incoming.root)?;
-                    let DescriptorDefinition::Parameter {
-                        position: formal, ..
-                    } = parameter.definition
-                    else {
+                        .find(|row| row.place == incoming_root)?;
+                    let DescriptorDefinition::Parameter { .. } = parameter.definition else {
                         return None;
                     };
                     let callers = self
@@ -292,28 +322,24 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                                 .calls
                                 .iter()
                                 .filter(move |(_, call)| call.callee() == Some(machine))
-                                .map(move |(position, call)| {
-                                    (
-                                        caller.id,
-                                        *position,
-                                        call.arguments.get(formal).cloned().flatten(),
-                                    )
-                                })
+                                .map(move |(position, _)| (caller.id, *position))
                         })
                         .collect::<Vec<_>>();
                     if callers.is_empty() {
                         return None;
                     }
-                    for (caller, position, actual) in callers {
-                        let mut actual = actual?;
-                        actual.path.extend_from_slice(&incoming.path);
-                        complete.extend(self.resolve(caller, position, actual, pending)?);
+                    for (caller, position) in callers {
+                        let actual = self
+                            .analysis
+                            .substitute_call_source(caller, position, &incoming)?;
+                        complete.extend(self.resolve_origins(caller, position, actual, pending)?);
                     }
                 }
                 // An ordinary backing address, literal or unselected slot
                 // supplies no placed formation or internally bound RAM loan.
                 _ => return None,
             }
+            pending.pop();
         }
         (!complete.is_empty()).then_some(complete)
     }

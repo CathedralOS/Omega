@@ -79,6 +79,21 @@ pub(crate) struct PrimitiveStorageHome {
 }
 
 impl PrimitiveStorageHome {
+    /// Reuse a separately captured live frame home. Every access rejoins this
+    /// tuple to the still-suspended activation and its original storage type.
+    pub(crate) fn captured_frame(
+        depth: usize,
+        machine: MachineId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Self {
+        Self {
+            depth,
+            machine,
+            place,
+            structural_type,
+        }
+    }
     /// The activation that owns the lent scalar array. Byte windows reuse this
     /// home; they do not allocate a second payload.
     pub(crate) fn scalar_array_frame(self) -> (usize, PlaceId, StructuralTypeId) {

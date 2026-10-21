@@ -124,6 +124,59 @@ pub struct PlacedFieldPlan {
     pub atomic_resident: Option<PlacedAtomicResidentContract>,
 }
 
+impl PlacedFieldPlan {
+    /// Follow the retained schema/accessor correspondence to its operation leaf.
+    /// Parent arrays remain arrays: their counts must agree at every projection,
+    /// and neither an outer collection nor an unrelated opaque carrier is the
+    /// leaf authorized by this field's generated boundary declaration.
+    pub fn scalar_projection_leaf(
+        &self,
+        program: &crate::TypedTrees,
+    ) -> Result<
+        (
+            crate::types::TypeReferenceHandle,
+            crate::types::TypeReferenceHandle,
+        ),
+        diagnostics::Diagnostic,
+    > {
+        let mut value = self.value_type;
+        let mut accessor = self.accessor_type;
+        loop {
+            use crate::types::{FixedArrayLength, TypeReferenceNode};
+            match (
+                program.type_reference_table.type_reference(value),
+                program.type_reference_table.type_reference(accessor),
+            ) {
+                (
+                    TypeReferenceNode::FixedArray {
+                        element_type: value_element,
+                        length: FixedArrayLength::Literal(value_count),
+                    },
+                    TypeReferenceNode::FixedArray {
+                        element_type: accessor_element,
+                        length: FixedArrayLength::Literal(accessor_count),
+                    },
+                ) if value_count == accessor_count && *value_count != 0 => {
+                    value = *value_element;
+                    accessor = *accessor_element;
+                }
+                (_, TypeReferenceNode::Named { symbol, .. })
+                    if *symbol == self.accessor_data_symbol
+                        && program.primitive_type_reference(value).is_some() =>
+                {
+                    return Ok((value, accessor));
+                }
+                _ => {
+                    return Err(diagnostics::Diagnostic::error(format!(
+                        "placed field `{}` requires corresponding fixed-array dimensions with one exact scalar accessor leaf",
+                        self.field_name,
+                    )));
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedAtomicResidentContract {
     /// Exact source field whose resident type is described.

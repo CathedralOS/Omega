@@ -37,6 +37,112 @@ pub enum PlacedPlanError {
     CarrierStorageMismatch,
 }
 
+/// Rejoin each projection dimension before selecting the scalar operation leaf.
+/// The outer field remains the permission identity; this does not authorize a
+/// particular index, establish a loan, or manufacture per-element access slots.
+pub(crate) fn placed_field_leaf(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    value: &terminal_psi::StructuralFieldType,
+    mut accessor: semantic_vocabulary::StructuralTypeId,
+) -> Result<
+    (
+        terminal_psi::StructuralFieldType,
+        semantic_vocabulary::StructuralTypeId,
+    ),
+    PlacedPlanError,
+> {
+    let mut value = value.clone();
+    let mut visited = BTreeSet::new();
+    loop {
+        if !visited.insert(accessor) {
+            return Err(PlacedPlanError::AccessorMissing);
+        }
+        if value.scalar_type().is_some() {
+            return Ok((value, accessor));
+        }
+        let source = value
+            .as_structural()
+            .and_then(|identity| declarations.iter().find(|row| row.id == identity))
+            .ok_or(PlacedPlanError::SchemaFieldMismatch)?;
+        let view = declarations
+            .iter()
+            .find(|row| row.id == accessor)
+            .ok_or(PlacedPlanError::AccessorMissing)?;
+        match (&source.shape, &view.shape) {
+            (
+                StructuralTypeShape::FixedArray {
+                    element: source_element,
+                    length: source_length,
+                },
+                StructuralTypeShape::FixedArray {
+                    element: view_element,
+                    length: view_length,
+                },
+            ) if source_length == view_length && *source_length != 0 => {
+                let element = declarations
+                    .iter()
+                    .find(|row| row.id == *source_element)
+                    .ok_or(PlacedPlanError::SchemaFieldMismatch)?;
+                value = match element.shape {
+                    StructuralTypeShape::PrimitiveScalar(scalar) => {
+                        terminal_psi::StructuralFieldType::Scalar(scalar)
+                    }
+                    _ => terminal_psi::StructuralFieldType::Structural(*source_element),
+                };
+                accessor = *view_element;
+            }
+            _ => return Err(PlacedPlanError::SchemaFieldMismatch),
+        }
+    }
+}
+
+fn contains_accessor_leaf(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    mut root: semantic_vocabulary::StructuralTypeId,
+    leaf: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    let mut visited = BTreeSet::new();
+    while visited.insert(root) {
+        if root == leaf {
+            return true;
+        }
+        match declarations
+            .iter()
+            .find(|row| row.id == root)
+            .map(|row| &row.shape)
+        {
+            Some(StructuralTypeShape::FixedArray { element, .. }) => root = *element,
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Projection shapes do not own storage. This classification only permits the
+/// descriptor replay to retain a path below an already captured interpretation;
+/// it cannot create a placement origin or lend ordinary backing bytes.
+pub(crate) fn is_placed_projection_shape(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    mut root: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    let mut visited = BTreeSet::new();
+    while visited.insert(root) {
+        match declarations
+            .iter()
+            .find(|row| row.id == root)
+            .map(|row| &row.shape)
+        {
+            Some(StructuralTypeShape::FixedArray { element, .. }) => root = *element,
+            Some(StructuralTypeShape::Record {
+                storage: terminal_psi::StructuralRecordStorage::PlacedAccessor(_),
+                fields,
+            }) => return fields.is_empty(),
+            _ => return false,
+        }
+    }
+    false
+}
+
 /// Rejoin complete normalized geometry and scalar declarations without
 /// manufacturing machine-input coverage or an active storage/loan grant.
 pub fn validate_placed_view_catalog(
@@ -48,6 +154,7 @@ pub fn validate_placed_view_catalog(
     let mut carriers = BTreeSet::new();
     let mut seen_boundaries = BTreeSet::new();
     let mut accessors = BTreeSet::new();
+    let mut operation_leaves = BTreeSet::new();
     for declaration in declarations {
         if matches!(
             declaration.shape,
@@ -58,10 +165,9 @@ pub fn validate_placed_view_catalog(
             }
         ) && !plans.iter().any(|plan| {
             plan.carrier == declaration.id
-                || plan
-                    .fields
-                    .iter()
-                    .any(|field| field.accessor == declaration.id)
+                || plan.fields.iter().any(|field| {
+                    contains_accessor_leaf(declarations, field.accessor, declaration.id)
+                })
         }) {
             return Err(PlacedPlanError::CarrierStorageMismatch);
         }
@@ -160,9 +266,17 @@ pub fn validate_placed_view_catalog(
             if text(field.schema_field)? != canonical_member {
                 return Err(PlacedPlanError::SchemaFieldMismatch);
             }
+            let (value_leaf, accessor_leaf) =
+                placed_field_leaf(declarations, &schema_field.field_type, field.accessor)?;
+            // Native custody identifies the canonical permission field through
+            // its scalar operation type. Distinct array wrappers must not hide
+            // a shared leaf, including a collision with an ordinary scalar.
+            if !operation_leaves.insert(accessor_leaf) {
+                return Err(PlacedPlanError::DuplicateAccessor);
+            }
             let accessor = declarations
                 .iter()
-                .find(|row| row.id == field.accessor)
+                .find(|row| row.id == accessor_leaf)
                 .ok_or(PlacedPlanError::AccessorMissing)?;
             let StructuralTypeShape::Record {
                 fields: accessor_fields,
@@ -172,14 +286,41 @@ pub fn validate_placed_view_catalog(
                 return Err(PlacedPlanError::AccessorMissing);
             };
             let descriptor = plan.placement.access().field_descriptor(access.key());
-            let expected_size =
-                descriptor.map_or(0, |descriptor| descriptor.effect_footprint().length_bytes());
-            let expected_storage =
-                descriptor.map(
+            let region = plan.placement.access().stable_region(access.key());
+            if let Some(region) = region {
+                let source_type = schema_field
+                    .field_type
+                    .as_structural()
+                    .ok_or(PlacedPlanError::SchemaFieldMismatch)?;
+                if crate::reference_storage_layout(declarations.iter(), source_type)
+                    != Some((region.byte_length(), region.byte_alignment()))
+                {
+                    return Err(PlacedPlanError::CarrierStorageMismatch);
+                }
+            }
+            let expected_size = if region.is_some() {
+                u64::from(
+                    crate::reference_storage_byte_width(
+                        value_leaf
+                            .scalar_type()
+                            .ok_or(PlacedPlanError::SchemaFieldMismatch)?,
+                    )
+                    .ok_or(PlacedPlanError::SchemaFieldMismatch)?,
+                )
+            } else {
+                descriptor.map_or(0, |descriptor| descriptor.effect_footprint().length_bytes())
+            };
+            let expected_storage = descriptor
+                .map(
                     |descriptor| semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: descriptor.container_byte_offset(),
                     },
-                );
+                )
+                .or_else(|| {
+                    region.map(|region| semantic_vocabulary::AuthoredFieldStorage::Direct {
+                        byte_offset: region.byte_offset(),
+                    })
+                });
             if !accessor_fields.is_empty()
                 || accessor_geometry.byte_size != expected_size
                 || accessor_geometry.byte_alignment != 1
@@ -211,13 +352,11 @@ pub fn validate_placed_view_catalog(
                 } else {
                     StructuralAccess::MutableBorrow
                 };
-                if parameter.structural_type != field.accessor
-                    || parameter.access != expected_access
+                if parameter.structural_type != accessor_leaf || parameter.access != expected_access
                 {
                     return Err(PlacedPlanError::BoundaryCarrierMismatch);
                 }
-                let signature_matches = if let Some(scalar) = schema_field.field_type.scalar_type()
-                {
+                let signature_matches = if let Some(scalar) = value_leaf.scalar_type() {
                     match operation.kind {
                         TerminalPlacedAccessorKind::Read | TerminalPlacedAccessorKind::Take => {
                             boundary.structural_parameters.len() == 1
@@ -254,10 +393,18 @@ pub fn validate_placed_view_catalog(
         }
         // Inaccessible fields remain in the complete layout/image roster, but
         // the view producer never gives them an accessor. Require exactly the
-        // exposed descriptor slots, not all represented schema fields. Each
+        // exposed permission slots, not all represented schema fields. Each
         // retained slot above must itself be accessible, so equal cardinality
         // cannot replace a missing exposed field with an inaccessible one.
-        if slots.len() != plan.placement.access().field_descriptors().len()
+        if slots.len()
+            != plan
+                .placement
+                .access()
+                .plan()
+                .entries()
+                .iter()
+                .filter(|entry| !matches!(entry.access(), access_plans::FieldAccess::Inaccessible))
+                .count()
             || view_fields.len() != plan.fields.len()
         {
             return Err(PlacedPlanError::FieldSlotMismatch);

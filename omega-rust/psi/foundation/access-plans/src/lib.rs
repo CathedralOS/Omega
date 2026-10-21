@@ -48,7 +48,7 @@ pub use access_plan::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessPermissions, AccessPlan, AccessPlanId,
     AtomicPermissions, AuthorizedFieldAccess, EffectFootprint, ExternalRead, FieldAccess,
     FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment, ObservationModel,
-    RelativeEffectFootprint, ValidatedAccessPlan,
+    RelativeEffectFootprint, StableFieldRegion, ValidatedAccessPlan,
 };
 pub use placements::atomic_resident_views::{
     BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentPlacement,
@@ -129,8 +129,8 @@ pub use resources::resource_compatibility::{
     BaseCongruence, EffectiveFieldSupply, EffectiveSupplyKind, PlacementResourceCompatibility,
 };
 pub use resources::resource_compatibility::{
-    InitializationResourceCompatibility, validate_initialization_resources,
-    validate_placement_resources,
+    InitializationResourceCompatibility, require_stable_region_supply,
+    validate_initialization_resources, validate_placement_resources,
 };
 pub use resources::resource_profile::{
     AtomicCapability, AtomicTransferRule, ExternalCapability, ExternalReadBehavior,

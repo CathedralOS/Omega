@@ -247,7 +247,17 @@ impl TypedTrees {
         self.placed_view_plans.iter().find_map(|view| {
             view.fields
                 .iter()
-                .find(|field| field.accessor_type == accessor_type)
+                .find(|field| {
+                    // The field roster retains the whole projection shape;
+                    // operation lookup accepts only its exact nominal leaf.
+                    self.type_reference_table.type_symbol(accessor_type)
+                        == field.accessor_data_symbol
+                        && (field.accessor_type == accessor_type
+                            || field.scalar_projection_leaf(self).is_ok_and(|(_, leaf)| {
+                                self.normalized_type_identity(leaf)
+                                    == self.normalized_type_identity(accessor_type)
+                            }))
+                })
                 .map(|field| (view, field))
         })
     }

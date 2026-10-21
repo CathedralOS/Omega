@@ -13,9 +13,7 @@ use crate::effects::results::TerminalEffectResult;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
-use access_plans::{
-    AccessOperation, BorrowPolarity, EffectiveSupplyKind, ObservationModel, StableCapability,
-};
+use access_plans::{AccessOperation, BorrowPolarity, EffectiveSupplyKind, ObservationModel};
 use layout_plans::{
     AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
 };
@@ -30,6 +28,7 @@ impl TerminalExecution<'_> {
         binding: ProviderStorageBinding,
         plan: &TerminalPlacedViewPlan,
         field: &TerminalPlacedFieldPlan,
+        projection: &[StructuralPathSegment],
         kind: TerminalPlacedAccessorKind,
         source_access: StructuralAccess,
         arguments: &[TerminalScalarValue],
@@ -59,14 +58,43 @@ impl TerminalExecution<'_> {
             StructuralAccess::MutableBorrow => BorrowPolarity::Exclusive,
             _ => return Err(malformed()),
         };
-        let authorized = access
-            .authorize(
+        let projected = if access.stable_region(entry.key()).is_some() {
+            Some(
+                terminal_semantics::placed_region_projection(
+                    &self.program.catalogs.structural_types,
+                    plan,
+                    field,
+                    projection,
+                )
+                .map_err(TerminalInterpretError::PlacedReference)?,
+            )
+        } else {
+            if !projection.is_empty() {
+                return Err(malformed());
+            }
+            None
+        };
+        let authorized = if let Some(projected) = projected {
+            access.authorize_stable_projection(
+                entry.key(),
+                projected.byte_offset,
+                u16::from(
+                    terminal_semantics::reference_storage_byte_width(projected.stored_scalar)
+                        .ok_or_else(malformed)?,
+                ) * 8,
+                operation.receiver_polarity(),
+                source_borrow,
+                operation,
+            )
+        } else {
+            access.authorize(
                 entry.key(),
                 operation.receiver_polarity(),
                 source_borrow,
                 operation,
             )
-            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        }
+        .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
         let descriptor = authorized.descriptor();
         if descriptor.observation() != ObservationModel::Stable {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -104,16 +132,28 @@ impl TerminalExecution<'_> {
             .placement()
             .fields()
             .iter()
-            .find(|row| row.key() == entry.key())
-            .ok_or_else(malformed)?;
+            .find(|row| row.key() == entry.key());
         let footprint = descriptor.effect_footprint();
-        if supply.kind() != EffectiveSupplyKind::Stable
-            || supply.offset() != footprint.byte_offset()
-            || u64::from(supply.width_bits())
-                != footprint
-                    .length_bytes()
-                    .checked_mul(8)
-                    .ok_or_else(malformed)?
+        let supplied = if let Some(supply) = supply {
+            supply.kind() == EffectiveSupplyKind::Stable
+                && supply.offset() == footprint.byte_offset()
+                && u64::from(supply.width_bits())
+                    == footprint
+                        .length_bytes()
+                        .checked_mul(8)
+                        .ok_or_else(malformed)?
+        } else {
+            compatibility
+                .placement()
+                .stable_regions()
+                .iter()
+                .any(|region| {
+                    region.key() == entry.key()
+                        && footprint.byte_offset() >= region.byte_offset()
+                        && footprint.end() <= region.byte_offset() + region.byte_length()
+                })
+        };
+        if !supplied
             || footprint.end() > compatibility.byte_length()
             || footprint.end() > binding.length
         {
@@ -135,25 +175,30 @@ impl TerminalExecution<'_> {
         if initialized.image_fields.get(field.access_slot as usize) != Some(&source_field.id) {
             return Err(malformed());
         }
-        let scalar = source_field.field_type.scalar_type().ok_or(
-            TerminalInterpretError::UnsupportedSemanticVariant(
-                "resident accessor requires a scalar value contract",
-            ),
-        )?;
+        let value_type = projected.map_or_else(
+            || source_field.field_type.clone(),
+            |projection| terminal_psi::StructuralFieldType::Scalar(projection.logical_scalar),
+        );
+        let scalar =
+            value_type
+                .scalar_type()
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "resident accessor requires a scalar value contract",
+                ))?;
         let width =
             terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?;
         let write = match (kind, arguments) {
             (TerminalPlacedAccessorKind::Read, []) => None,
             (TerminalPlacedAccessorKind::Write, [value])
-                if value.scalar_type() == scalar
-                    && value.satisfies_field(&source_field.field_type) =>
+                if value.scalar_type() == scalar && value.satisfies_field(&value_type) =>
             {
                 Some(*value)
             }
             _ => return Err(malformed()),
         };
         if write.is_some() {
-            let path = [StructuralPathSegment::Field(source_field.identity)];
+            let mut path = vec![StructuralPathSegment::Field(source_field.identity)];
+            path.extend_from_slice(projection);
             if !custody.value.qualifications.is_empty()
                 || custody
                     .value
@@ -197,27 +242,16 @@ impl TerminalExecution<'_> {
         let actual = profile
             .restrict_to_loan(&loan)
             .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
-        let region = actual
-            .regions()
-            .iter()
-            .find(|region| {
-                footprint.byte_offset() >= region.offset
-                    && footprint.end() <= region.offset + region.length
-            })
-            .ok_or_else(malformed)?;
-        let reads = matches!(
-            region.stable,
-            StableCapability::Read | StableCapability::ReadWrite
-        );
-        let writes = matches!(
-            region.stable,
-            StableCapability::Write | StableCapability::ReadWrite
-        );
-        if (needs_read && !reads) || (write.is_some() && !writes) {
-            return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "resident field event lacks actual Stable transfer supply",
-            ));
-        }
+        access_plans::require_stable_region_supply(
+            &actual,
+            footprint.byte_offset(),
+            footprint.length_bytes(),
+            needs_read,
+            write.is_some(),
+            plan.placement.reach(),
+            "resident field event",
+        )
+        .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
         let start = binding
             .offset
             .checked_add(footprint.byte_offset())
@@ -231,12 +265,26 @@ impl TerminalExecution<'_> {
         } else {
             vec![0; length]
         };
-        let layout = field_window(
-            plan.placement.layout(),
-            entry.field(),
-            footprint.byte_offset(),
-            footprint.length_bytes(),
-        )?;
+        let layout = if projected.is_some() {
+            let mut layout = field_window(
+                plan.placement.layout(),
+                entry.field(),
+                access
+                    .stable_region(entry.key())
+                    .ok_or_else(malformed)?
+                    .byte_offset(),
+                footprint.length_bytes(),
+            )?;
+            layout.size = Some(footprint.length_bytes());
+            layout
+        } else {
+            field_window(
+                plan.placement.layout(),
+                entry.field(),
+                footprint.byte_offset(),
+                footprint.length_bytes(),
+            )?
+        };
         let member = layout
             .entries
             .first()
@@ -289,7 +337,7 @@ impl TerminalExecution<'_> {
                 .copy_from_slice(&decoded);
             let value =
                 crate::primitive_storage::encoding::decode(scalar, u128::from_le_bytes(encoded))?;
-            if !value.satisfies_field(&source_field.field_type) {
+            if !value.satisfies_field(&value_type) {
                 return Err(malformed());
             }
             TerminalEffectResult::Scalar(value)

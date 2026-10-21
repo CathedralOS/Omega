@@ -1,7 +1,8 @@
 use crate::{AccessFieldKey, PlacementPlanId, ResourceProfileId};
 use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalRead, ExternalReadBehavior,
-    FieldAccess, ResourceRegion, ValidatedPlacementPlan, ValidatedResourceProfile,
+    FieldAccess, ResourceRegion, StableFieldRegion, ValidatedPlacementPlan,
+    ValidatedResourceProfile,
 };
 
 /// Normalized power-of-two constraint on the concrete loan base.
@@ -36,6 +37,7 @@ pub struct PlacementResourceCompatibility {
     profile: ResourceProfileId,
     pub(crate) base: BaseCongruence,
     pub(crate) fields: Vec<EffectiveFieldSupply>,
+    pub(crate) stable_regions: Vec<StableFieldRegion>,
 }
 
 /// Supply compatibility for writing a complete initial image and then using
@@ -72,38 +74,76 @@ pub fn validate_initialization_resources(
 ) -> Result<InitializationResourceCompatibility, AccessPlanDiagnostic> {
     let placement = validate_placement_resources(plan, profile)?;
     let byte_length = plan.access.layout_size_bytes;
-    let mut covered = 0;
-    for region in &profile.regions {
-        if covered == byte_length {
-            break;
-        }
-        if region.offset != covered {
-            return Err(AccessPlanDiagnostic(format!(
-                "initialization image has no resource supply at byte {covered}"
-            )));
-        }
-        if !region.stable.permits(false, true) {
-            return Err(AccessPlanDiagnostic(format!(
-                "initialization image requires Stable write supply at byte {covered}"
-            )));
-        }
-        if !region.reach.contains_all(&plan.reach) {
-            return Err(AccessPlanDiagnostic(format!(
-                "initialization image lacks the placement's complete boundary reach at byte {covered}"
-            )));
-        }
-        // Normalized regions have non-overflowing ends bounded by the profile.
-        covered = (region.offset + region.length).min(byte_length);
-    }
-    if covered != byte_length {
-        return Err(AccessPlanDiagnostic(format!(
-            "initialization image has no resource supply at byte {covered}"
-        )));
-    }
+    require_stable_region_supply(
+        profile,
+        0,
+        byte_length,
+        false,
+        true,
+        &plan.reach,
+        "initialization image",
+    )?;
     Ok(InitializationResourceCompatibility {
         placement,
         byte_length,
     })
+}
+
+/// Stable storage is not a single device transfer. Adjacent compatible supply
+/// regions can cover one structural field, but a gap, missing operation or
+/// insufficient reach rejects the complete interpretation before any access.
+#[allow(clippy::too_many_arguments)]
+pub fn require_stable_region_supply(
+    profile: &ValidatedResourceProfile,
+    byte_offset: u64,
+    byte_length: u64,
+    read: bool,
+    write: bool,
+    reach: &crate::BoundaryReach,
+    description: &str,
+) -> Result<(), AccessPlanDiagnostic> {
+    let end = byte_offset.checked_add(byte_length).ok_or_else(|| {
+        AccessPlanDiagnostic(format!("{description} resource interval overflows"))
+    })?;
+    let mut covered = byte_offset;
+    for region in &profile.regions {
+        if covered == end {
+            break;
+        }
+        let region_end = region.offset + region.length;
+        if region_end <= covered {
+            continue;
+        }
+        if region.offset > covered {
+            return Err(AccessPlanDiagnostic(format!(
+                "{description} has no resource supply at byte {covered}"
+            )));
+        }
+        if !region.stable.permits(read, write) {
+            let operations = match (read, write) {
+                (true, true) => "read/write",
+                (true, false) => "read",
+                (false, true) => "write",
+                (false, false) => "none",
+            };
+            return Err(AccessPlanDiagnostic(format!(
+                "{description} requires Stable {operations} supply at byte {covered}"
+            )));
+        }
+        if !region.reach.contains_all(reach) {
+            return Err(AccessPlanDiagnostic(format!(
+                "{description} lacks the placement's complete boundary reach at byte {covered}"
+            )));
+        }
+        // Normalized regions have non-overflowing ends bounded by the profile.
+        covered = region_end.min(end);
+    }
+    if covered != end {
+        return Err(AccessPlanDiagnostic(format!(
+            "{description} has no resource supply at byte {covered}"
+        )));
+    }
+    Ok(())
 }
 
 impl BaseCongruence {
@@ -161,6 +201,10 @@ impl PlacementResourceCompatibility {
 
     pub fn fields(&self) -> &[EffectiveFieldSupply] {
         &self.fields
+    }
+
+    pub fn stable_regions(&self) -> &[StableFieldRegion] {
+        &self.stable_regions
     }
 
     pub(crate) fn field(&self, key: AccessFieldKey) -> Option<&EffectiveFieldSupply> {
@@ -244,11 +288,29 @@ pub fn validate_placement_resources(
             kind,
         });
     }
+    for region in &plan.access.stable_regions {
+        require_stable_region_supply(
+            profile,
+            region.byte_offset,
+            region.byte_length,
+            region.read,
+            region.write,
+            &plan.reach,
+            &format!("stable structural field `{}`", region.field),
+        )?;
+        require_base_congruence(
+            &mut congruence,
+            &region.field,
+            region.byte_offset,
+            region.byte_alignment,
+        )?;
+    }
     Ok(PlacementResourceCompatibility {
         placement: plan.identity,
         profile: profile.identity,
         base: congruence.value,
         fields,
+        stable_regions: plan.access.stable_regions.clone(),
     })
 }
 
@@ -258,6 +320,9 @@ fn select_effective_supply(
     region: &ResourceRegion,
 ) -> Result<(EffectiveSupplyKind, u64), AccessPlanDiagnostic> {
     match access {
+        FieldAccess::StableRegion { .. } => Err(AccessPlanDiagnostic(
+            "structural Stable supply cannot be selected as one primitive transfer".into(),
+        )),
         FieldAccess::Inaccessible => {
             unreachable!("inaccessible fields do not have validated descriptors")
         }

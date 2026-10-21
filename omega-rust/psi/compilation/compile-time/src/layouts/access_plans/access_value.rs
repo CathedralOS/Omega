@@ -204,7 +204,21 @@ fn parse_field_access(
             Ok(FieldAccess::Inaccessible)
         }
         "Stable" => {
-            require_scalar_access_field(schema_field)?;
+            if schema_field.primitive.is_none() {
+                if schema_field.repeated.is_none() {
+                    return Err(format!(
+                        "field `{}` requires a supported scalar-leaf array projection for Stable aggregate access",
+                        schema_field.name
+                    ));
+                }
+                return Ok(FieldAccess::StableRegion {
+                    byte_length: schema_field.size,
+                    byte_alignment: schema_field.align,
+                    read: bool_payload(payload, "read")?,
+                    write: bool_payload(payload, "write")?,
+                    exposure: exposure_payload(payload)?,
+                });
+            }
             let width = transfer_width_bits(schema_field, layout)?;
             Ok(FieldAccess::Stable {
                 transfer_width_bits: width,

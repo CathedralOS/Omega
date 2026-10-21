@@ -120,18 +120,40 @@ pub fn placed_ram_plan_correspondence(
         };
         // Only the actual source declaration supplies its codec and location.
         // Opaque accessor geometry and the requested plan do not prove these.
-        let source = crate::reference_storage_projection(
-            declarations.iter(),
-            source_schema,
-            &[StructuralPathSegment::Field(source_field.identity)],
-        )
-        .ok_or_else(|| "RAM source field has no complete scalar storage projection".to_owned())?;
-        let descriptor = plan
-            .placement
-            .access()
-            .field_descriptor(access.key())
+        let mut path = vec![StructuralPathSegment::Field(source_field.identity)];
+        if let Some(region) = plan.placement.access().stable_region(access.key()) {
+            let source_region =
+                crate::reference_storage_region(declarations.iter(), source_schema, &path)
+                    .ok_or_else(|| "RAM array source has no complete storage region".to_owned())?;
+            if source_region.byte_offset != region.byte_offset()
+                || source_region.byte_length != region.byte_length()
+            {
+                return Err(
+                    "RAM placement region differs from its initialized source array".to_owned(),
+                );
+            }
+            let mut child = source_field
+                .field_type
+                .as_structural()
+                .ok_or_else(|| "RAM region source is not structural".to_owned())?;
+            loop {
+                match declarations
+                    .iter()
+                    .find(|row| row.id == child)
+                    .map(|row| &row.shape)
+                {
+                    Some(StructuralTypeShape::FixedArray { element, length }) if *length != 0 => {
+                        path.push(StructuralPathSegment::FixedIndex(0));
+                        child = *element;
+                    }
+                    Some(StructuralTypeShape::PrimitiveScalar(_)) => break,
+                    _ => return Err("RAM region source has no scalar array leaf".to_owned()),
+                }
+            }
+        }
+        let source = crate::reference_storage_projection(declarations.iter(), source_schema, &path)
             .ok_or_else(|| {
-                "RAM interpretation lost its normalized transfer descriptor".to_owned()
+                "RAM source field has no complete scalar storage projection".to_owned()
             })?;
         let source_width = u16::from(
             crate::reference_storage_byte_width(source.stored_scalar)
@@ -139,25 +161,28 @@ pub fn placed_ram_plan_correspondence(
         )
         .checked_mul(8)
         .ok_or_else(|| "RAM source scalar width overflows".to_owned())?;
-        let [fragment] = descriptor.logical_extent().fragments() else {
-            return Err(
-                "RAM interpretation must preserve one complete source scalar encoding".to_owned(),
-            );
-        };
-        if descriptor.container_byte_offset() != source.byte_offset
-            || descriptor.transfer_width_bits() != source_width
-            || fragment.layout_bit_offset()
-                != source
-                    .byte_offset
-                    .checked_mul(8)
-                    .ok_or_else(|| "RAM source field bit offset overflows".to_owned())?
-            || fragment.source_bit_offset() != 0
-            || fragment.width_bits() != u64::from(source_width)
-        {
-            return Err(
-                "RAM placement transfer differs from the initialized source field encoding"
-                    .to_owned(),
-            );
+        if let Some(descriptor) = plan.placement.access().field_descriptor(access.key()) {
+            let [fragment] = descriptor.logical_extent().fragments() else {
+                return Err(
+                    "RAM interpretation must preserve one complete source scalar encoding"
+                        .to_owned(),
+                );
+            };
+            if descriptor.container_byte_offset() != source.byte_offset
+                || descriptor.transfer_width_bits() != source_width
+                || fragment.layout_bit_offset()
+                    != source
+                        .byte_offset
+                        .checked_mul(8)
+                        .ok_or_else(|| "RAM source field bit offset overflows".to_owned())?
+                || fragment.source_bit_offset() != 0
+                || fragment.width_bits() != u64::from(source_width)
+            {
+                return Err(
+                    "RAM placement transfer differs from the initialized source field encoding"
+                        .to_owned(),
+                );
+            }
         }
         fields.push(PlacedRamFieldCorrespondence {
             access_slot: field.access_slot,

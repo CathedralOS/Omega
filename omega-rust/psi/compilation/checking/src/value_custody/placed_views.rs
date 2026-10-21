@@ -366,6 +366,7 @@ fn access_exposure(access: &FieldAccess) -> Option<AccessExposure> {
     match access {
         FieldAccess::Inaccessible => None,
         FieldAccess::Stable { exposure, .. }
+        | FieldAccess::StableRegion { exposure, .. }
         | FieldAccess::External { exposure, .. }
         | FieldAccess::Atomic { exposure, .. } => Some(*exposure),
     }

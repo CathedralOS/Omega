@@ -4,7 +4,7 @@ use crate::plan_policy::normalized_identities::non_authoritative_access_plan_com
 use crate::{
     AccessExposure, AccessFieldEntry, AccessPermissions, AccessPlan, AccessPlanDiagnostic,
     ExternalRead, FieldAccess, FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment,
-    ObservationModel, RelativeEffectFootprint, ValidatedAccessPlan,
+    ObservationModel, RelativeEffectFootprint, StableFieldRegion, ValidatedAccessPlan,
 };
 
 /// Validate one complete normalized access policy against its retained layout.
@@ -37,7 +37,54 @@ pub fn validate_access_plan(
     }
 
     let mut descriptors = Vec::with_capacity(plan.entries.len());
+    let mut stable_regions = Vec::new();
     for entry in &plan.entries {
+        if let FieldAccess::StableRegion {
+            byte_length,
+            byte_alignment,
+            read,
+            write,
+            exposure,
+        } = entry.access
+        {
+            if !read && !write {
+                return Err(AccessPlanDiagnostic(format!(
+                    "stable field `{}` exposes no operation; use Inaccessible",
+                    entry.field
+                )));
+            }
+            if byte_length == 0 || !byte_alignment.is_power_of_two() {
+                return Err(AccessPlanDiagnostic(format!(
+                    "stable structural field `{}` requires a nonempty extent and power-of-two alignment",
+                    entry.field
+                )));
+            }
+            let mut placements = layout.entries.iter().filter(|row| row.field == entry.field);
+            let (Some(row), None) = (placements.next(), placements.next()) else {
+                return Err(AccessPlanDiagnostic(format!(
+                    "stable structural field `{}` requires one complete At placement",
+                    entry.field
+                )));
+            };
+            let LayoutPlacementReport::At { offset } = row.placement else {
+                return Err(AccessPlanDiagnostic(format!(
+                    "stable structural field `{}` requires one complete At placement",
+                    entry.field
+                )));
+            };
+            validate_transfer_range(&entry.field, offset, byte_length, layout_size)?;
+            stable_regions.push(StableFieldRegion {
+                key: entry.key,
+                field: entry.field.clone(),
+                byte_offset: offset,
+                byte_length,
+                byte_alignment,
+                read,
+                write,
+                exposure,
+            });
+            continue;
+        }
         let Some(policy) = validate_entry_policy(entry)? else {
             continue;
         };
@@ -61,6 +108,24 @@ pub fn validate_access_plan(
     }
     validate_external_write_units(&descriptors)?;
     validate_destructive_access_units(&descriptors)?;
+    for descriptor in descriptors
+        .iter()
+        .filter(|descriptor| descriptor.permissions.take)
+    {
+        if let Some(region) = stable_regions.iter().find(|region| {
+            descriptor
+                .effect_footprint
+                .overlaps(RelativeEffectFootprint {
+                    byte_offset: region.byte_offset,
+                    length_bytes: region.byte_length,
+                })
+        }) {
+            return Err(AccessPlanDiagnostic(format!(
+                "destructive field `{}` overlaps stable structural field `{}`; one destructive unit derives one whole-snapshot take",
+                descriptor.field, region.field,
+            )));
+        }
+    }
     validate_atomic_transfer_units(&descriptors)?;
 
     let layout_report_fingerprint = plan.layout_report_fingerprint;
@@ -73,6 +138,7 @@ pub fn validate_access_plan(
         layout_commitment,
         plan,
         fields: descriptors,
+        stable_regions,
         layout_size_bytes: layout_size,
     })
 }
@@ -205,6 +271,11 @@ fn validate_entry_policy(
 ) -> Result<Option<ValidatedEntryPolicy>, AccessPlanDiagnostic> {
     let policy = match entry.access {
         FieldAccess::Inaccessible => return Ok(None),
+        FieldAccess::StableRegion { .. } => {
+            return Err(AccessPlanDiagnostic(
+                "structural Stable permission is not a primitive transfer policy".into(),
+            ));
+        }
         FieldAccess::Stable {
             transfer_width_bits,
             read,

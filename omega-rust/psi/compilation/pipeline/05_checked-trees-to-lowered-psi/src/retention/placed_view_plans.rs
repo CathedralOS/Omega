@@ -55,15 +55,29 @@ pub(crate) fn retain(
                 .ok_or(LoweringError::Unsupported(
                     "placed field lost exact schema member",
                 ))?;
-            let accessor_data = checked
-                .typed
-                .data_definition_by_symbol(field.accessor_data_symbol)
+            // Retain the complete generated field shape, including projection
+            // dimensions. Its attached machine names the leaf declaration;
+            // that nominal attachment is not the outer field's storage type.
+            let view_member_identity = checked_trees::CheckedMemberIdentity::of_member(
+                view_member.identity,
+                view_member.name.clone(),
+            )
+            .spelling();
+            let accessor = module
+                .structural_type(carrier)
+                .and_then(|declaration| match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
+                        .iter()
+                        .find(|candidate| {
+                            module.identities.text(candidate.identity)
+                                == Some(view_member_identity.as_str())
+                        })
+                        .and_then(|candidate| candidate.field_type.as_structural()),
+                    _ => None,
+                })
                 .ok_or(LoweringError::Unsupported(
-                    "placed field lost exact accessor carrier",
+                    "retained placed field lost its exact structural projection shape",
                 ))?;
-            let accessor = declared_type(accessor_data).ok_or(LoweringError::Unsupported(
-                "retained placed field lost accessor carrier",
-            ))?;
             let mut operations = Vec::new();
             for target in &field.accessor_targets {
                 let identity = crate::machine_lowering::declarations::nominal(
