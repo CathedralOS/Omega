@@ -493,6 +493,17 @@ pass/facts/source_indexed_family_through_other_machine_exit built 5978ms exit:0 
 pass/facts/source_indexed_family_through_other_state_exit built 6397ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
 pass/facts/source_indexed_family_through_parameter_exit built 17313ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @e0550ac3bf28
 pass/facts/source_indexed_family_through_target_body_exit built 5770ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_type_parameter_exit built 6464ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_call_result_exit built 3106ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_const_name_exit built 3677ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_field_exit built 3644ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_local_exit built 3679ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_match_join_exit built 7156ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_other_machine_exit built 3722ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_other_state_exit built 3086ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_parameter_exit built 7188ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_target_body_exit built 3115ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_u64_payload_exit built 2843ms exit:0 interpreter-exit:0 interpreter:agrees @aeadcd4f5ced
 pass/facts/target_scoped_constant_multi_method_exit built 57001ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
 pass/facts/target_scoped_constant_realization_exit built 50490ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
 pass/facts/target_scoped_constant_zero_extent_exit built 55113ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec

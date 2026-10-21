@@ -5665,6 +5665,30 @@ fail/facts/source_indexed_family_wrong_recursion_rank rejected 8419ms expected @
 	indexed logical machine `vector_bound` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
 	indexed logical machine `vector_bound$specialized$28f2ad5c8a0d7f24$0` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
 	indexed logical machine `vector_bound$specialized$a212890a0bf267ce$1` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+fail/facts/source_indexed_type_parameter_head_rejected rejected 1107ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_call_result_rejected rejected 1043ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_const_name_rejected rejected 804ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_field_rejected rejected 925ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_local_rejected rejected 850ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_match_join_rejected rejected 833ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_other_machine_rejected rejected 950ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_other_state_rejected rejected 949ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_parameter_rejected rejected 927ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_through_target_body_rejected rejected 695ms expected @aeadcd4f5ced
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected rejected 1167ms expected @aeadcd4f5ced
+	argument `evidence` for state `entry` expects `Vector<u64, 1, 7>`, got `named value`
+fail/facts/source_indexed_type_parameter_wrong_value_fiber_rejected rejected 412ms expected @aeadcd4f5ced
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/stack_frame_slot_isolation_unproved_call_result rejected 2409ms expected @45cbafd80d9c
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/stack_frame_slot_isolation_unproved_const_name rejected 2328ms expected @45cbafd80d9c
@@ -11673,6 +11697,17 @@ pass/facts/source_indexed_family_through_other_machine_exit checked 5252ms check
 pass/facts/source_indexed_family_through_other_state_exit checked 4896ms check-target:macos_arm64 @e0550ac3bf28
 pass/facts/source_indexed_family_through_parameter_exit checked 14663ms check-target:macos_arm64 terminal-inspections:match @e0550ac3bf28
 pass/facts/source_indexed_family_through_target_body_exit checked 5341ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_type_parameter_exit checked 7476ms check-target:macos_arm64 terminal-inspections:match @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_call_result_exit checked 3583ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_const_name_exit checked 4014ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_field_exit checked 3402ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_local_exit checked 4014ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_match_join_exit checked 7543ms check-target:macos_arm64 terminal-inspections:match @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_other_machine_exit checked 3645ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_other_state_exit checked 3823ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_parameter_exit checked 7824ms check-target:macos_arm64 terminal-inspections:match @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_through_target_body_exit checked 3318ms check-target:macos_arm64 @aeadcd4f5ced
+pass/facts/source_indexed_type_parameter_u64_payload_exit checked 3903ms check-target:macos_arm64 @aeadcd4f5ced
 pass/facts/stack_frame_slot_isolation_through_call_result_exit checked 7758ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_const_name_exit checked 7782ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_field_exit checked 7886ms check-target:macos_arm64 @45cbafd80d9c
