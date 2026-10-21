@@ -1239,6 +1239,18 @@ fail/core/content_projected_duplicate_consumption rejected 287ms expected @7bd69
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
 fail/core/content_projection_foreign_owner rejected 827ms expected @a9ae30e1c334+wt
 fail/core/content_retained_custody_from_borrow rejected 1571ms expected @a9ae30e1c334+wt
+fail/core/content_reunion_anonymous_mutation rejected 1009ms expected @51666ce89b10
+	cannot prove ensures contract for exit from rejoin at statement 11: result in Region::Owned
+	cannot prove initializer of `left` in rejoin is in domain `Region::Owned`; an annotation cannot establish routed qualification
+fail/core/content_reunion_exchanged_empty rejected 1008ms expected @51666ce89b10
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+fail/core/content_reunion_fresh_callee rejected 1052ms expected @51666ce89b10
+	cannot derive content custody in `rejoin`, state `entry` at statement 7: equal content does not relate a freshly established callee root to an input
+fail/core/content_reunion_mixed_origin rejected 1069ms expected @51666ce89b10
+	cannot derive content custody in `rejoin`, state `entry` at statement 7: equal content does not relate a freshly established callee root to an input
+fail/core/content_reunion_mutated_result rejected 926ms expected @51666ce89b10
+	cannot prove requires contract for call partition from rejoin: returned in Region::Owned (invalidated by prior mutation of returned.base; returned is part of Region::Owned) in state `entry`
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
 fail/core/content_target_family_unselected_body rejected 2672ms expected @61fab13095e7+wt
 	machine `exercise` state `entry` value call to `partition` violates required fact `whole.base == 10 && whole.length == 48 && requested == 16`: the instantiated fact is structurally false (`whole.base == 10 && whole.length == 48 && 17 == 16`)
 fail/core/content_transform_active_payload rejected 1926ms expected @42423ab60d61+wt
@@ -7207,6 +7219,8 @@ fail/ownership/selected_constructor_source_reuse rejected 690ms expected @f77f2a
 fail/ownership/selected_linear_temporary_double_consumption rejected 349ms expected @a81c7e227ee2+wt
 	cannot use `receipt` in machine `invalid` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c334+wt
+fail/ownership/selected_result_move_after_consumption rejected 469ms expected @51666ce89b10
+	cannot use `token` in machine `invalid` state `entry` (statement 0) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/selected_retired_sibling_reuse rejected 194ms expected @1a353f2e117b+wt
 fail/ownership/selective_constructed_owner_reuse rejected 1174ms expected @a9ae30e1c334+wt
 fail/ownership/stored_view_element_missing_repair rejected 270ms expected @f329f97f57f7+wt
@@ -13933,6 +13947,7 @@ run/contained_health_loop_command_branch checked 6266ms check-target:macos_arm64
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
 run/contracts/qualified_result_forwarding_exit checked 10542ms check-target:macos_arm64 @7c5ee11ecfb7+wt
 run/contracts/target_family_forwarded_result checked 71300ms check-target:linux_x86_64 @46f9e865d179+wt
+run/core/content_reunion checked 1641ms check-target:macos_arm64 @51666ce89b10
 run/domains/byte_view_predicates_keep_selected_extent checked 6676ms check-target:macos_arm64 @a0e6514a9ab2
 run/domains/checked_provider_issued_field checked 11143ms check-target:macos_arm64 @03d6ab4d9d4c
 run/domains/checked_provider_issued_root checked 10896ms check-target:macos_arm64 @03d6ab4d9d4c
@@ -14010,6 +14025,7 @@ run/ownership/linear_result_crash_ceiling checked 3661ms check-target:macos_arm6
 run/ownership/linear_result_guarded_terminal_call checked 3661ms check-target:macos_arm64 @45cbafd80d9c+wt
 run/ownership/owned_parameter_member_moves_exit checked 9269ms check-target:macos_arm64 @4a0ccff8236e+wt
 run/ownership/owned_parameter_narrow_member_moves_exit checked 9238ms check-target:macos_arm64 @e47dcb1ff6d8+wt
+run/ownership/selected_owned_constructor_moves checked 966ms check-target:macos_arm64 @51666ce89b10
 run/ownership/sequence_owned_local_cleanup checked 6945ms check-target:macos_arm64 @8e4a9b2fb97a
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument checked 5449ms check-target:macos_arm64 @0e81fb3e4cce+wt
