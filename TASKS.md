@@ -4402,12 +4402,16 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   are construction inputs, not compile-time opaque occurrences. Matching-host
   qualification on macOS/Linux ARM64 and a verified Windows provider remain;
   entry declarations do not establish those results. Independent two-package
-  closed Inert results now preserve the same exchange across all nine places
-  with Linux native/Terminal agreement and cleanup twins; canonical macOS
-  checking realizes separate dylib products, without macOS execution evidence.
-  Same-layout carrier drift rejects at the exact composition join. Opaque input
-  arguments and the remaining provider, target, lifecycle, multiplicity and
-  historical-selection mismatch controls remain open.
+  closed Affine Inert inputs and results now preserve the same exchange across
+  all nine places with Linux native/Terminal agreement and cleanup twins;
+  canonical macOS checking realizes separate dylib products, without macOS
+  execution evidence. Selected satisfied exports are retained independently
+  of outgoing calls. Real child suspension preserves the captured owned input
+  and disjoint sibling without replaying effects or ownership tokens.
+  Same-layout carrier drift rejects at the exact composition join. Copy,
+  linear, qualified and view-backed opaque inputs, and the remaining provider,
+  target, lifecycle, multiplicity and historical-selection mismatch controls
+  remain open.
   `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
   derives occurrence paths and placements; connect them to provider call-frame
   transport and backend emission. Physical copies preserve one semantic
