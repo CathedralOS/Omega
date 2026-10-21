@@ -42,10 +42,36 @@ omega run --both samples/cli/facts/live_across_eight_calls_preservation_bound/ta
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
+### Pinned Corpus Fixtures
+
+All 18 positive and negative witness fixtures are pinned in the corpus suite:
+
+- Pass fixtures (`tests/omega/pass/facts/`):
+  - [`live_across_eight_calls_preservation_bound_through_local_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_local_exit)
+  - [`live_across_eight_calls_preservation_bound_through_field_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_field_exit)
+  - [`live_across_eight_calls_preservation_bound_through_parameter_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_parameter_exit)
+  - [`live_across_eight_calls_preservation_bound_through_call_result_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_call_result_exit)
+  - [`live_across_eight_calls_preservation_bound_through_match_join_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_match_join_exit)
+  - [`live_across_eight_calls_preservation_bound_through_const_name_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_const_name_exit)
+  - [`live_across_eight_calls_preservation_bound_through_other_state_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_other_state_exit)
+  - [`live_across_eight_calls_preservation_bound_through_other_machine_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_other_machine_exit)
+  - [`live_across_eight_calls_preservation_bound_through_target_body_exit`](../../../../tests/omega/pass/facts/live_across_eight_calls_preservation_bound_through_target_body_exit)
+- Fail fixtures (`tests/omega/fail/facts/`):
+  - [`live_across_eight_calls_preservation_bound_through_local_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_local_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_field_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_field_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_parameter_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_parameter_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_call_result_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_call_result_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_match_join_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_match_join_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_const_name_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_const_name_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_other_state_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_other_state_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_other_machine_rejected)
+  - [`live_across_eight_calls_preservation_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_target_body_rejected)
+
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
 - In every positive place, evaluating `compute_*(60u64)` across eight sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `state done() {}`, terminating with native exit 0. If preservation fails or corrupts the live value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- Discrimination was measured via 1-token perturbation: mutating `transition head + underflow == 40` to `41` immediately branches to `bad()`, producing `interp crash: Trap (host presentation agrees)` and native trap `exit -1073741795`, confirming sensitivity to the preserved value in both engines.
 - Each invalid twin widens the bound contract to `saved >= 39 && saved <= 80` (or `SAVED = 39`), so `res - 40` may underflow. Exact subtraction `let underflow: u64 = res - 40;` fails closed at compile time with `exact arithmetic in machine ... local underflow may overflow u64`. None reaches native execution.
 
 Check all nine invalid twins with:
