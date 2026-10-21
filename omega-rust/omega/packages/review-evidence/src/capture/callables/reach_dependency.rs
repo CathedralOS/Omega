@@ -6,6 +6,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_service_row;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
+use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyServiceReachDependency,
     PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
@@ -69,7 +70,8 @@ pub(super) fn project(
             "checked service-reach dependency differs from independent inference",
         ));
     }
-    let parameters = compilation.machine_type_parameters(machine);
+    let scope = callable_declaration_scope(compilation, machine)?;
+    let parameters = scope.type_parameters;
     let mut ordinals = Vec::with_capacity(checked_parameters.len());
     for symbol in checked_parameters {
         let mut matches = parameters

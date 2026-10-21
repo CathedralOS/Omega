@@ -1,5 +1,6 @@
 use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
+use super::super::semantics::signatures::callable_declaration_scope;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::boundary_operators::{
     validate_fixed_token_checked_adapter_dispatch_shape,
@@ -25,6 +26,7 @@ pub(super) fn callable_conformance(
     machine: &typed_trees::machine::Machine,
     alias: Option<String>,
 ) -> Result<PackagePolicyCallableConformance, Vec<Diagnostic>> {
+    let scope = callable_declaration_scope(compilation, machine)?;
     Ok(PackagePolicyCallableConformance {
         trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
         requirement_identity: trait_requirement_identity(
@@ -46,7 +48,7 @@ pub(super) fn callable_conformance(
                     compilation,
                     *argument,
                     binders,
-                    &machine.lifetime_parameters,
+                    scope.lifetime_parameters,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?,

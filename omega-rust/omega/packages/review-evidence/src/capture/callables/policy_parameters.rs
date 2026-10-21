@@ -2,6 +2,7 @@
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
+use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;
@@ -13,12 +14,15 @@ pub(super) fn type_parameters(
     subject: &str,
     public_nominals: bool,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackagePolicyTypeParameter>), Vec<Diagnostic>> {
-    let mut parameters = compilation.machine_type_parameters(machine).to_vec();
+    let scope = callable_declaration_scope(compilation, machine)?;
+    let mut parameters = scope.type_parameters.to_vec();
     if parameters.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let mut projected = validation::CheckingProjection::new(compilation.checking_input);
-    let lifetimes = machine
+    // Owner telescope handles belong to immutable checked custody. Equal
+    // candidate handles alone cannot authenticate their nested type/contracts.
+    let mut projected = validation::CheckingProjection::new(scope.source.checking_input);
+    let lifetimes = scope
         .lifetime_parameters
         .iter()
         .cloned()
@@ -30,19 +34,19 @@ pub(super) fn type_parameters(
         &mut parameters,
         &[],
         &lifetimes,
-        &machine.lifetime_parameters,
+        scope.lifetime_parameters,
         &mut scopes,
         0,
     )?;
     project_type_parameters(
         &projected,
-        compilation,
+        &scope.source,
         &parameters,
-        compilation.machine_type_parameters(machine),
+        scope.type_parameters,
         subject,
         &[],
         0,
-        &machine.lifetime_parameters,
+        scope.lifetime_parameters,
         &[],
         &scopes,
         public_nominals,

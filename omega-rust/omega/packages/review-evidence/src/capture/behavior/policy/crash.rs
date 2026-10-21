@@ -4,6 +4,7 @@ use crate::capture::contracts::{
     expressions::projection::project_contract_expression, facts::ContractProjectionContext,
 };
 use crate::capture::semantics::facts::exactly_one;
+use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::record::{
     PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
     PackagePolicyInferredCrash, PackageReviewCrashInterface,
@@ -47,6 +48,7 @@ pub(crate) fn crash(
             "authored crash routes do not equal their exact checked entry plan and envelope",
         ));
     }
+    let scope = callable_declaration_scope(compilation, machine)?;
     let context = ContractProjectionContext {
         subject_kind: "callable",
         subject_name: machine.name.as_str(),
@@ -59,7 +61,7 @@ pub(crate) fn crash(
         parameters: compilation.state_parameters(entry),
         domain_symbol: None,
         data_symbol: None,
-        lifetime_binders: &machine.lifetime_parameters,
+        lifetime_binders: scope.lifetime_parameters,
         lifetime_substitutions: &[],
         selection_exposure: crate::capture::contracts::facts::callable_contract_exposure(machine),
     };

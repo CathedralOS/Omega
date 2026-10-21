@@ -6,6 +6,7 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
+use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::capture::semantics::{
     conformances::project_conformance_bounds, signatures::policy::project_type_parameters,
     types::review_signature_type_identity_with_binders,
@@ -27,10 +28,11 @@ pub(super) fn project(
     ),
     Vec<Diagnostic>,
 > {
-    let mut prepared = validation::CheckingProjection::new(compilation.checking_input);
-    let source_parameters = compilation.machine_type_parameters(machine);
+    let scope = callable_declaration_scope(compilation, machine)?;
+    let mut prepared = validation::CheckingProjection::new(scope.source.checking_input);
+    let source_parameters = scope.type_parameters;
     let mut parameters = source_parameters.to_vec();
-    let lifetimes = machine
+    let lifetimes = scope
         .lifetime_parameters
         .iter()
         .cloned()
@@ -43,7 +45,7 @@ pub(super) fn project(
             &mut parameters,
             &[],
             &lifetimes,
-            &machine.lifetime_parameters,
+            scope.lifetime_parameters,
             &mut scopes,
             0,
         )?;
@@ -51,13 +53,13 @@ pub(super) fn project(
     let exposure = crate::capture::contracts::facts::callable_contract_exposure(machine);
     let (binders, static_parameters) = project_type_parameters(
         &prepared,
-        compilation,
+        &scope.source,
         &parameters,
         source_parameters,
         machine.name.as_str(),
         &[],
         0,
-        &machine.lifetime_parameters,
+        scope.lifetime_parameters,
         &[],
         &scopes,
         false,
@@ -67,7 +69,7 @@ pub(super) fn project(
         compilation,
         &machine.conformance_bounds,
         &binders,
-        &machine.lifetime_parameters,
+        scope.lifetime_parameters,
         "external policy",
         machine.name.as_str(),
     )?;
@@ -80,7 +82,7 @@ pub(super) fn project(
             compilation,
             reference,
             &binders,
-            &machine.lifetime_parameters,
+            scope.lifetime_parameters,
         )
     };
     let parameters = compilation
@@ -102,7 +104,7 @@ pub(super) fn project(
     Ok((
         binders,
         PackagePolicyExternalCallableSignature {
-            lifetime_parameter_count: machine.lifetime_parameters.len(),
+            lifetime_parameter_count: scope.lifetime_parameters.len(),
             static_parameters,
             conformance_bounds,
             parameters,

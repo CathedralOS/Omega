@@ -4,6 +4,7 @@ use super::policy_arguments::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::encoding::framed_identity;
+use crate::capture::semantics::signatures::callable_declaration_scope;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::PackageReviewNominalIdentity;
 use diagnostics::Diagnostic;
@@ -88,8 +89,9 @@ pub(crate) fn callable_identity(
         Some(spelling) => framed_identity("token-bound", &[overload, spelling.symbol().to_owned()]),
         None => overload,
     };
-    let binders = compilation
-        .machine_type_parameters(machine)
+    let scope = callable_declaration_scope(compilation, machine)?;
+    let binders = scope
+        .type_parameters
         .iter()
         .enumerate()
         .map(|(ordinal, parameter)| (parameter.symbol, format!("$parameter{ordinal}")))
@@ -99,7 +101,7 @@ pub(crate) fn callable_identity(
             compilation,
             reference,
             &binders,
-            &machine.lifetime_parameters,
+            scope.lifetime_parameters,
         )
         .map(|identity| identity.canonical)
     };

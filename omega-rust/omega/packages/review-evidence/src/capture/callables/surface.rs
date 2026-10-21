@@ -7,6 +7,7 @@ use super::super::behavior::{
 use super::super::contracts::facts::{callable_contract_exposure, project_callable_contracts};
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::facts::exactly_one;
+use super::super::semantics::signatures::callable_declaration_scope;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
 use crate::capture::PackageReviewInput;
@@ -76,6 +77,7 @@ pub(super) fn project<'a>(
     crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
     let publishes_interface = callable_contract_exposure(machine)
         == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface;
+    let scope = callable_declaration_scope(compilation, machine)?;
     let (binders, policy_type_parameters) = super::policy_parameters::type_parameters(
         compilation,
         machine,
@@ -86,7 +88,7 @@ pub(super) fn project<'a>(
         compilation,
         &machine.conformance_bounds,
         &binders,
-        &machine.lifetime_parameters,
+        scope.lifetime_parameters,
         "reviewed callable",
         subject,
     )?;
@@ -100,7 +102,7 @@ pub(super) fn project<'a>(
                     compilation,
                     parameter.type_reference,
                     &binders,
-                    &machine.lifetime_parameters,
+                    scope.lifetime_parameters,
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
@@ -111,7 +113,7 @@ pub(super) fn project<'a>(
         compilation,
         entry.return_type,
         &binders,
-        &machine.lifetime_parameters,
+        scope.lifetime_parameters,
     )?;
     let (policy_conformances, operator_realizations, requirement_realizations) = if matches!(
         machine.supply_mode,
@@ -324,7 +326,7 @@ pub(super) fn project<'a>(
             // callable coordinate or a satisfier row cannot reconstruct this
             // declaration-owned part of its public signature.
             spelling: machine.spelling,
-            lifetime_parameter_count: machine.lifetime_parameters.len(),
+            lifetime_parameter_count: scope.lifetime_parameters.len(),
             policy_type_parameters,
             conformance_bounds,
             parameters,
