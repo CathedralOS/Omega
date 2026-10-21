@@ -6798,6 +6798,22 @@ fail/layouts/qualified_record_reference_is_not_inline rejected 731ms expected @9
 	plan-laid value type `Packed<Payload>`: error: schema data `Payload` field `word` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes
 fail/layouts/recast_integer_at_store_requires_fit rejected 3748ms expected @a9ae30e1c334+wt
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 1600ms expected @a9ae30e1c334+wt
+fail/layouts/resident_extraction_requires_ended_view rejected 2467ms expected @e2a6d051c734
+	state `move_out` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	state `move_out` receives `retained` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `retained` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/layouts/resident_extraction_requires_plan rejected 330ms expected @e2a6d051c734
+	policy `WordPlacement::plan` produced an invalid plan: field `value` ends at bit 128, past the fixed size 64 bits
+fail/layouts/resident_field_write_preserves_qualification rejected 708ms expected @e2a6d051c734
+	placed write application: value type does not match the placed field's exact value type
+fail/layouts/resident_field_write_preserves_schema_predicate rejected 1337ms expected @e2a6d051c734
+	placed write to schema field `value` does not preserve its source declaration predicate
+fail/layouts/resident_initialization_requires_plan rejected 345ms expected @e2a6d051c734
+	policy `WordPlacement::plan` produced an invalid plan: field `value` ends at bit 128, past the fixed size 64 bits
+fail/layouts/resident_selected_lifecycle_requires_plan rejected 324ms expected @e2a6d051c734
+	policy `WordPlacement::plan` produced an invalid plan: field `value` ends at bit 128, past the fixed size 64 bits
+fail/layouts/resident_shared_view_cannot_write rejected 1312ms expected @e2a6d051c734
+	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/resource_profile_exceeds_region_capacity rejected 401ms expected @ec089e4c2b1b
 fail/layouts/runtime_restricted_shared_unbounded rejected 1523ms expected @a9ae30e1c334+wt
 fail/layouts/runtime_value_is_not_layout_constant rejected 533ms expected @e63c4b1e202d+wt
@@ -6850,8 +6866,15 @@ fail/memory/indexed_resident_wrong_replacement rejected 770ms expected @226fbdd4
 fail/memory/native_allocation_direct_issuance_rejected rejected 339ms expected @d7fd01f47497+wt
 fail/memory/native_allocation_double_release_rejected rejected 496ms expected @d7fd01f47497+wt
 fail/memory/native_allocation_unissued_release_rejected rejected 1267ms expected @d7fd01f47497+wt
+fail/memory/resident_content_destructive_view rejected 994ms expected @e2a6d051c734
+	resident placed view with destructive read requires tracked content restoration before loan return
+fail/memory/resident_content_opaque_carrier_handback rejected 919ms expected @e2a6d051c734
+	cannot prove default-domain field requirement for return from exercise, state entry, at statement 1: storage requires Extent::Granted
+	cannot prove default-domain field requirement for return from exercise, state entry, at statement 1: storage requires Resident
 fail/memory/resident_qualification_wrong_index rejected 2292ms expected @d012ed8f0bae+wt
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/memory/resident_result_requires_execution_contract rejected 356ms expected @e2a6d051c734
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 fail/memory/resident_transfer_cast_forgery rejected 2082ms expected @d012ed8f0bae+wt
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/memory/vacant_transfer_checked_adapter_forgery rejected 1917ms expected @d012ed8f0bae+wt
@@ -7058,10 +7081,14 @@ fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c3
 fail/ownership/selected_retired_sibling_reuse rejected 194ms expected @1a353f2e117b+wt
 fail/ownership/selective_constructed_owner_reuse rejected 1174ms expected @a9ae30e1c334+wt
 fail/ownership/stored_view_element_missing_repair rejected 270ms expected @f329f97f57f7+wt
+fail/ownership/successor_argument_write_keeps_linear_debt rejected 725ms expected @e2a6d051c734
+	linear value `slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/successor_carried_cleanup_keeps_child_loan rejected 688ms expected @9365eb0d537b+wt
 	state `entered` receives `counter` while local borrow `cleanup` is still active
 	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
 fail/ownership/temporary_projected_linear_residual_rejected rejected 515ms expected @93ba1f664f65+wt
+fail/ownership/terminal_successor_write_keeps_linear_debt rejected 768ms expected @e2a6d051c734
+	linear value `slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/view_element_window_live_borrow rejected 1605ms expected @a9ae30e1c334+wt
 fail/ownership/view_element_window_missing_repair rejected 1349ms expected @a9ae30e1c334+wt
 fail/ownership/view_element_window_unproven_index rejected 1625ms expected @a9ae30e1c334+wt
@@ -7070,6 +7097,8 @@ fail/ownership/whole_borrowed_live_descendant rejected 1568ms expected @a9ae30e1
 fail/ownership/whole_borrowed_missing_repair rejected 1215ms expected @a9ae30e1c334+wt
 fail/ownership/whole_borrowed_shared_extraction rejected 1173ms expected @a9ae30e1c334+wt
 fail/ownership/whole_borrowed_stale_observation rejected 1213ms expected @a9ae30e1c334+wt
+fail/ownership/whole_linear_parent_move_keeps_unique_custody rejected 509ms expected @e2a6d051c734
+	cannot use `original` in machine `main` state `entry` (statement 3) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/packages/indexed_contract_out_of_bounds rejected 1585ms expected @c4d3eedf9f1d+wt
 fail/packages/std_missing_dependency_rejected rejected 50ms expected @2cc7258c36bd+wt
 fail/packages/std_mount_path_rejected rejected 0ms expected @a9ae30e1c334+wt
@@ -12184,6 +12213,20 @@ pass/layouts/placed_view_source_access_compile checked 13118ms @a9ae30e1c334+wt
 pass/layouts/portable_data_layout_queries checked 11681ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/private_callback_slot_demand_compile checked 12688ms @a9ae30e1c334+wt
 pass/layouts/private_callback_slot_untaken_compile checked 2062ms @a9ae30e1c334+wt
+pass/layouts/resident_aggregate_extraction checked 1419ms @e2a6d051c734
+pass/layouts/resident_field_access checked 3002ms @e2a6d051c734
+pass/layouts/resident_forwarding_needs_no_plan checked 1406ms @e2a6d051c734
+pass/layouts/resident_fragment_field_access checked 2902ms @e2a6d051c734
+pass/layouts/resident_image_complete_schema checked 1410ms @e2a6d051c734
+pass/layouts/resident_initialization_ready checked 1416ms @e2a6d051c734
+pass/layouts/resident_initialization_rejection checked 1456ms @e2a6d051c734
+pass/layouts/resident_lifecycle_plan_discovery checked 1483ms @e2a6d051c734
+pass/layouts/resident_qualified_schema_result checked 1455ms @e2a6d051c734
+pass/layouts/resident_returned_field_access checked 3955ms @e2a6d051c734
+pass/layouts/resident_signed_field_access checked 2915ms @e2a6d051c734
+pass/layouts/resident_unused_lifecycle_scope checked 1215ms @e2a6d051c734
+pass/layouts/resident_view_without_local_initialization checked 1824ms @e2a6d051c734
+pass/layouts/resident_whole_extraction checked 1380ms @e2a6d051c734
 pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 10870ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_callee_owned_local_origins_exit checked 10758ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_captured_encoded_reference_replacement_exit checked 10928ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -12264,6 +12307,7 @@ pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
 pass/memory/bump_allocator_canary checked 13436ms check-target:linux_x86_64 @61fab13095e7+wt
 pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
+pass/memory/resident_content_mutation_transport checked 2669ms @e2a6d051c734
 pass/memory/runtime_indexed_resident_exchange_exit checked 9214ms check-target:macos_arm64 @226fbdd49549+wt
 pass/memory/runtime_large_entry_record_field_exit checked 12386ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit checked 11752ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -12532,11 +12576,12 @@ pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-targe
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
 pass/ownership/runtime_staged_read_before_owned_move_exit checked 4277ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/ownership/runtime_stored_byte_view_return_exit checked 2808ms check-target:macos_arm64 @096f2ecfd243+wt
-pass/ownership/runtime_successor_cleanup_before_writes_exit checked 3814ms check-target:macos_arm64 @9365eb0d537b+wt
+pass/ownership/runtime_successor_cleanup_before_writes_exit checked 1110ms check-target:macos_arm64 @e2a6d051c734
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 10704ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_view_parameter_element_window_exit checked 11550ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 12004ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 11009ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_whole_linear_parent_move_exit checked 1348ms check-target:macos_arm64 @e2a6d051c734
 pass/ownership/selected_constructor_fresh_field checked 11765ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/ownership/selected_constructor_swapped_fields checked 11720ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/ownership/shared_array_view_compile checked 1580ms @a9ae30e1c334+wt
@@ -12783,6 +12828,8 @@ pass/providers/provider_const_endpoint checked 19169ms @5041ef1af684+wt
 pass/providers/provider_type_target_default_override checked 11443ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/qualified_foreign_result_forwarding checked 8911ms @23cea4bf3b2f+wt
 pass/providers/qualified_foreign_structural_arguments checked 13698ms check-target:macos_arm64 @d75fe4ba5012+wt
+pass/providers/resource_profile_initialization_coverage_exit checked 17299ms check-target:macos_arm64 @e2a6d051c734
+pass/providers/resource_profile_supply_observation checked 4672ms check-target:macos_arm64 @e2a6d051c734
 pass/providers/runtime_adapter_dispatch_exit checked 10056ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_boundary_address_model_exit checked 3842ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/runtime_boundary_array_construction_exit checked 8832ms check-target:macos_arm64 @03d6ab4d9d4c

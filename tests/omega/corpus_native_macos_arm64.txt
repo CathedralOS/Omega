@@ -2481,8 +2481,10 @@ pass/ownership/runtime_selected_reference_local_exit built 7447ms exit:0 @4a00cf
 pass/ownership/runtime_selective_constructed_owner_custody_exit built 3425ms exit:0 @1a353f2e117b+wt
 pass/ownership/runtime_staged_read_before_owned_move_exit built 4429ms exit:0 @cc35a4f0d368+wt
 pass/ownership/runtime_stored_byte_view_return_exit built 2906ms exit:0 @096f2ecfd243+wt
+pass/ownership/runtime_successor_cleanup_before_writes_exit built 905ms exit:0 @e2a6d051c734
 pass/ownership/runtime_view_parameter_element_window_exit built 2034ms exit:0 @37c6aa84a411+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit built 1867ms exit:signal signal:5 @7d761e0fef5f
+pass/ownership/runtime_whole_linear_parent_move_exit built 1034ms exit:0 @e2a6d051c734
 pass/ownership/state_graph_construction_operand_moves_exit built 2686ms exit:0 @c70a706629c8+wt
 pass/parameters/byte_store_root_after_scalar_formal_exit built 2002ms exit:70 @8fa15c53cbf3+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 205ms
@@ -2682,6 +2684,8 @@ pass/providers/portable_contract checked 9492ms @5041ef1af684+wt
 pass/providers/provider_const_endpoint checked 19171ms @5041ef1af684+wt
 pass/providers/provider_type_target_default_override built 257ms
 pass/providers/qualified_foreign_structural_arguments built 14991ms exit:70 @d75fe4ba5012+wt
+pass/providers/resource_profile_initialization_coverage_exit built 18446ms exit:0 @e2a6d051c734
+pass/providers/resource_profile_supply_observation built 4455ms exit:0 @e2a6d051c734
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 2510ms exit:70 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit built 6861ms exit:70 @72a43a5bee12+wt
