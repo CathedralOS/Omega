@@ -6,12 +6,12 @@ public boundary trait NativeBytes {
     machine release(pointer: addr);
 }
 public data LibSystemBytes {}
-macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {
+public macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "libSystem.B.dylib", symbol: "_calloc",
     } }
 }
-macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
+public macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "libSystem.B.dylib", symbol: "_free",
     } }

@@ -6,7 +6,7 @@ public boundary trait NativeRelease {
     machine release(pointer: addr);
 }
 public data LibSystemRelease {}
-macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
+public macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "libSystem.B.dylib", symbol: "_free",
     } }
