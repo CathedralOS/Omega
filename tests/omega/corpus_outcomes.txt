@@ -12315,7 +12315,7 @@ pass/providers/module_named_operator_result_domain_satisfaction checked 12148ms 
 pass/providers/named_boundary_applied_issuance checked 756ms @d75fe4ba5012+wt
 pass/providers/named_boundary_issuance_ordinary_guarantee checked 728ms @d75fe4ba5012+wt
 pass/providers/named_boundary_mutable_issuance checked 748ms @d75fe4ba5012+wt
-pass/providers/named_foreign_record_result_contract checked 71284ms @46f9e865d179+wt
+pass/providers/named_foreign_record_result_contract checked 20650ms check-target:uefi_x86_64 @1306d4a37d10+wt
 pass/providers/nested_binding_borrowed_call_exit checked 792ms check-target:macos_arm64 @ff11b3a0f8c7
 pass/providers/occurrence_region_binding_exit checked 5895ms check-target:macos_arm64 @f523463c7783+wt
 pass/providers/occurrence_region_binding_forwarding_exit checked 5870ms check-target:macos_arm64 @f523463c7783+wt
