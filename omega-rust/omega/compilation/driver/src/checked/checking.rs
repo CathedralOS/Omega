@@ -29,6 +29,7 @@ use std::path::Path;
 pub(crate) fn prepare_checked_source(
     root_path: &Path,
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
+    build_source_only: bool,
     collect_timings: bool,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
@@ -39,6 +40,7 @@ pub(crate) fn prepare_checked_source(
     let sources = ImmutableSourceParseCheckpoint::prepare_from_sources(
         root_path,
         package_sources,
+        build_source_only,
         &mut timings,
     )?;
     Ok(PreparedCheckedSource::from_parsed(sources, timings))

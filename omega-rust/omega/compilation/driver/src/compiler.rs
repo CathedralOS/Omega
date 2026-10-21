@@ -59,6 +59,7 @@ pub(crate) fn compile_with_session(
                     .prepare_source_with_inputs(
                         &shared.root_path,
                         shared.package_sources.clone(),
+                        false,
                         shared.timings,
                     )
                     .map_err(CompileFailure::into_diagnostics)?;

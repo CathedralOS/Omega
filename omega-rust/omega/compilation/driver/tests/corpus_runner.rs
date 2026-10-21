@@ -2410,6 +2410,32 @@ fn main() {
     // alphabetical interleaves heavy groups with light ones naturally.
     // `order` still exists so record output stays alphabetical even if a
     // future scheduler reorders execution.
+    // The bundled ProgramEntry binding is one check per target per process.
+    // Derive it before any fixture clock starts so a record is that fixture's
+    // compile, not whichever fixture happened to miss the memo.
+    if env::var_os("OMEGA_CORPUS_NATIVE").is_none() {
+        let mut entry_targets = Vec::new();
+        for (_, _, main, _) in &jobs {
+            if let Some(target) = check_leg_realization_target(main)
+                && !entry_targets.iter().any(|seen| seen == &target)
+            {
+                entry_targets.push(target);
+            }
+        }
+        for target in entry_targets {
+            if let Err(errors) = fixture_package_inputs::prewarm_bundled_program_entry(&target) {
+                eprintln!(
+                    "corpus_runner: program entry prewarm failed: {}",
+                    errors
+                        .iter()
+                        .map(|error| error.message.clone())
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                );
+                process::exit(1);
+            }
+        }
+    }
     let order: Vec<usize> = (0..jobs.len()).collect();
     let order = std::sync::Arc::new(order);
     let jobs = std::sync::Arc::new(jobs);

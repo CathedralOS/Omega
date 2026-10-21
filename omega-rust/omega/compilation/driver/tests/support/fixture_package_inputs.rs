@@ -1251,14 +1251,22 @@ fn dependency_requests(
             };
             Some(profile.target_name().to_owned())
         };
+        let build = snapshot.join("build.omg");
         let main = snapshot.join("main.omg");
-        let entry = if main.is_file() {
+        // The occurrence executes the dependency build and joins its generated
+        // source. Typing `main.omg`'s product closure here repeats the root
+        // product's own library check and is not an input to that build.
+        let build_source_only = build.is_file();
+        let entry = if build_source_only {
+            build
+        } else if main.is_file() {
             main
         } else {
-            snapshot.join("build.omg")
+            build
         };
         requests.push(CheckedCompileRequest {
             package_inputs: Some(occurrence_inputs),
+            build_source_only,
             build_execution_profile: execution_profile,
             build_dir: Some(staging.join(format!(
                 "{}-{}",
@@ -1431,6 +1439,20 @@ fn accepted_supplier_program_entry_binding(
             "accepted entry supplier `{supplier_name}` has no reviewed ProgramEntry candidate for {target_name}"
         ))]
     })
+}
+
+/// Derive the bundled library's program-entry binding before fixture timing.
+///
+/// The derivation checks the target entry once per process. Doing it on the
+/// first fixture charges that check to one record. Later fixtures already hit
+/// the memo and record only their own compile.
+pub fn prewarm_bundled_program_entry(target_name: &str) -> Result<(), Vec<Diagnostic>> {
+    memoized_program_entry_binding(
+        target_name,
+        &bundled_standard_library_root(),
+        fixture_package_identity(2),
+    )
+    .map(|_| ())
 }
 
 /// The entry binding depends only on the target and the bundled library, and

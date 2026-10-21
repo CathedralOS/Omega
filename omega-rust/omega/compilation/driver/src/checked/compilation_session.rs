@@ -37,6 +37,7 @@ pub struct CompilationSession {
 struct PreparedSource {
     root: PathBuf,
     inputs: Option<Arc<PackageCompilationSourceInputs>>,
+    build_source_only: bool,
     source: PreparedCheckedSource,
 }
 
@@ -157,26 +158,38 @@ impl CompilationSession {
             .package_inputs
             .as_ref()
             .map(PackageCompilationInputs::source_inputs);
-        self.prepare_source_with_inputs(&request.root_path, inputs, request.collect_timings)
+        self.prepare_source_with_inputs(
+            &request.root_path,
+            inputs,
+            request.build_source_only,
+            request.collect_timings,
+        )
     }
 
     pub(crate) fn prepare_source_with_inputs(
         &mut self,
         root_path: &std::path::Path,
         inputs: Option<Arc<PackageCompilationSourceInputs>>,
+        build_source_only: bool,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
-        if let Some(prepared) = self
-            .sources
-            .iter()
-            .find(|prepared| prepared.root == root_path && prepared.inputs == inputs)
-        {
+        if let Some(prepared) = self.sources.iter().find(|prepared| {
+            prepared.root == root_path
+                && prepared.inputs == inputs
+                && prepared.build_source_only == build_source_only
+        }) {
             return Ok(prepared.source.clone());
         }
-        let source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
+        let source = prepare_checked_source(
+            root_path,
+            inputs.clone(),
+            build_source_only,
+            collect_timings,
+        )?;
         self.sources.push(PreparedSource {
             root: root_path.to_path_buf(),
             inputs,
+            build_source_only,
             source: source.clone(),
         });
         Ok(source)

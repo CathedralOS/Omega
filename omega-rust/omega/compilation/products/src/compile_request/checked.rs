@@ -35,6 +35,11 @@ pub struct CheckedCompileRequest {
     /// Discovery leaves unsettled fields unestablished; the bound recompile must
     /// derive or diagnose them under its own inputs.
     pub permit_unsettled_fused_service_fields: bool,
+    /// Execute this package's build entry without taking its product companion
+    /// (`main.omg` and that file's import closure) as a source root. Product
+    /// modules the build file itself imports still join. Callers that check or
+    /// realize the product leave this false.
+    pub build_source_only: bool,
 }
 
 /// Compiler-owned prior language judgments. Psi matches complete inputs before
@@ -60,6 +65,7 @@ impl CheckedCompileRequest {
             restricted_build_grants: None,
             collect_timings: false,
             permit_unsettled_fused_service_fields: false,
+            build_source_only: false,
         }
     }
 }

@@ -165,22 +165,6 @@ helper that passes does not close an item.
   Next: preserve this graph boundary and remove measured repeated checking;
   demonstrate the timing bound through public checks and invalid controls.
 
-- **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Finish restoring the float
-  case-payload cohort's full corpus-check path to its historical 4–5s bound.
-  `pass/control_flow/runtime_{float_payload_snapshot_after_case_replacement,projected_float_case_payload,root_float_case_payload}_exit`
-  now meets that bound through public `--check` on macOS ARM64; the corpus
-  check leg, which also realizes the bound entry, still records 6.4–7.3s at
-  one worker. Profile that remaining work before choosing another repair.
-  Linux's last 20–26s measurement predates shared family analysis, exact
-  declaration lookups and immutable case-reference reuse; remeasure there
-  rather than extrapolating from this Mac. Use an optimized dev compiler
-  (`CARGO_PROFILE_DEV_OPT_LEVEL=1`), comparable host/load and the same path
-  when comparing with `a800cc9ab970`; retain native/Terminal exit 70.
-  Any reuse must preserve raw versus observed values, nested observation
-  types, scalar/indexed authority and literal landings: structural semantic
-  equality deliberately erases authority and landing metadata and cannot
-  key returned payloads.
-
 - **CHECKED-ASM-LABEL-CONTRACTS.** (split-of:STATIC-MACHINE-MIGRATION)
   Implement the ratified checked-assembly control-flow model in
   [assembly](wiki/spec/language/assembly.md#blocks-and-assertions): explicit
