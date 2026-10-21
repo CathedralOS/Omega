@@ -335,6 +335,7 @@ pub(crate) fn finish_compilations(
                         &product.checked,
                         produced,
                         rollback.effective(),
+                        &[],
                     )
                     .map_err(CompilationProductError::Production)?;
                     finish_product(product, terminal).map(CompilationOutput::Report)

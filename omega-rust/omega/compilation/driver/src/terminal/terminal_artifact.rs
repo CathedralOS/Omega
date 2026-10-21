@@ -441,12 +441,14 @@ pub(crate) fn finish_terminal_application(
     checked: &CheckedCompilation,
     produced: ProducedTerminalApplication,
     selections: &OptimizationSelections,
+    exported_provider_plans: &[&effects::provider_plan::ProviderPlan],
 ) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
     let proposal = native_proposal::project_terminal_native_realization_proposal(
         checked,
         &produced.artifact,
         produced.receipt,
         selections,
+        exported_provider_plans,
     )?;
     let providers = publish_target_providers(checked, &produced.artifact, selections);
     Ok(

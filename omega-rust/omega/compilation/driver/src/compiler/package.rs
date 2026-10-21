@@ -76,6 +76,12 @@ pub(crate) fn publish_checked_component_products(
                 &checked,
                 produced,
                 selections.effective(),
+                &checked
+                    .execution()
+                    .selected_provider_plan_facts
+                    .plans()
+                    .iter()
+                    .collect::<Vec<_>>(),
             )?;
             let description = component_publication::describe_component(&checked, &retained)?;
             let accepted_permissions =

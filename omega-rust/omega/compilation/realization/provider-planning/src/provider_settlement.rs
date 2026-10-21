@@ -242,6 +242,9 @@ pub struct ProviderSettlement {
     /// declarations and selected opaque representations coexist and closed
     /// over outbound callbacks by checking. Presence publishes no package ABI.
     pub boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
+    /// Complete applications for explicitly Independent checked boundaries.
+    /// These are neither foreign binding rows nor fused internal-call ABIs.
+    pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
     pub provider_plans: Vec<ProviderPlan>,
@@ -294,6 +297,21 @@ impl ProviderSettlement {
                     return Err(
                         "default native policies disagree on one exact calling application"
                             .to_owned(),
+                    );
+                }
+            } else {
+                applications.push(application.clone());
+            }
+        }
+        for application in &self.component_calling_applications {
+            if let Some(existing) = applications.iter().find(|existing| {
+                existing.requirement_identity == application.requirement_identity
+                    && existing.target == application.target
+            }) {
+                if existing != application {
+                    return Err(
+                        "component ABI differs from its complete selected boundary application"
+                            .into(),
                     );
                 }
             } else {
@@ -642,11 +660,31 @@ pub fn settle_checked_providers(
             )]);
         }
     }
+    let mut component_plans = Vec::new();
+    for selected in &selected_provider_provenance {
+        if selected
+            .selected_by
+            .composition_mode()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            == crate::CompositionMode::Independent
+        {
+            component_plans.push(&selected.plan);
+        }
+    }
+    let component_calling_applications =
+        crate::calling_policy_plans::component_calling_applications(
+            typed,
+            provider_selection_target,
+            &component_plans,
+            &boundary_calling_plan_realizations,
+            opaque_representation_selections,
+        )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
             direct_boundary_leaves,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
+            component_calling_applications,
             provider_plans,
             evaluated_via_bindings,
             external_binding_rows,

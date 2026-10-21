@@ -21,6 +21,9 @@ mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
 mod policy_implementations;
+mod selected_application;
+pub use selected_application::component_calling_applications;
+pub(crate) use selected_application::selected_source_calling_application;
 
 pub use boundary_signatures::{
     BoundaryCallbackBinder, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
