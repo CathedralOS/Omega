@@ -208,28 +208,48 @@ fn invocation_bindings(
                             .static_operand_type_reference(argument)
                             .map_err(|message| vec![Diagnostic::error(message)])?,
                     ),
-                    typed_trees::data::TypeParameterKind::Const { .. }
-                    | typed_trees::data::TypeParameterKind::Value { .. } => {
-                        // Retained bindings use the ordinary static-value
-                        // namespace, not a new expression recipe. Authored
-                        // operands remain on the application for carrier and
-                        // bounds admission. Other operands retain their exact
-                        // reference; immutable checking still judges closure.
-                        let actual = if let Some(atom) =
-                            super::const_arguments::spelling(program, argument)
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        // A runtime subject is not a closed value. Retain the
+                        // exact subject beside its declared carrier, the same
+                        // representation candidate selection uses; its roster
+                        // membership is discharged at the call's own proof.
+                        // The subject shape alone also fits an unresolved
+                        // spelling such as a boolean atom, so require that no
+                        // canonical const identity closes this operand.
+                        if super::const_arguments::is_runtime_value_subject(program, argument)
+                            && program.static_const_argument_identity(argument).is_none()
                         {
-                            program.type_reference_table.insert(
-                                typed_trees::types::TypeReferenceNode::Named {
-                                    symbol: symbols::SymbolHandle::invalid(),
-                                    name: typed_trees::name::Identifier::generated(atom),
-                                },
-                            )
+                            StaticMachineBindingValue::RuntimeValue {
+                                type_reference: *type_reference,
+                                subject: argument.symbol,
+                                expression: super::const_arguments::runtime_subject_expression(
+                                    program, argument,
+                                )
+                                .unwrap_or_else(typed_trees::expression::ExpressionHandle::invalid),
+                            }
                         } else {
-                            program
-                                .static_operand_type_reference(argument)
-                                .map_err(|message| vec![Diagnostic::error(message)])?
-                        };
-                        StaticMachineBindingValue::Const(actual)
+                            // Retained bindings use the ordinary static-value
+                            // namespace, not a new expression recipe. Authored
+                            // operands remain on the application for carrier and
+                            // bounds admission. Other operands retain their exact
+                            // reference; immutable checking still judges closure.
+                            let actual = if let Some(atom) =
+                                super::const_arguments::spelling(program, argument)
+                            {
+                                program.type_reference_table.insert(
+                                    typed_trees::types::TypeReferenceNode::Named {
+                                        symbol: symbols::SymbolHandle::invalid(),
+                                        name: typed_trees::name::Identifier::generated(atom),
+                                    },
+                                )
+                            } else {
+                                program
+                                    .static_operand_type_reference(argument)
+                                    .map_err(|message| vec![Diagnostic::error(message)])?
+                            };
+                            StaticMachineBindingValue::Const(actual)
+                        }
                     }
                     typed_trees::data::TypeParameterKind::Machine { .. } => {
                         StaticMachineBindingValue::Machine(argument.clone())

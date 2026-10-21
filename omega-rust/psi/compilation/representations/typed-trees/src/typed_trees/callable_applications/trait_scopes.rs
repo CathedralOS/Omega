@@ -155,7 +155,11 @@ impl TypedTrees {
                         .static_arguments
                         .push((parameter, actual.clone()));
                 }
-                _ => return Err("requirement invocation has an unsupported runtime binding"),
+                crate::static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
+                    // A runtime subject supplies no static substitution. The
+                    // invocation contract stays over the declared carrier and
+                    // the call's own proof discharges roster membership.
+                }
             }
         }
         let signature = application.signature(self, &selected)?;

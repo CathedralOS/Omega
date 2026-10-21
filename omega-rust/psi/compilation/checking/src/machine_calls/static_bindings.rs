@@ -280,6 +280,23 @@ pub fn validate_static_machine_bindings(
                 .iter()
                 .filter(|(source, _, _)| *source == handle)
             {
+                // Stage 04 retargets a selector call to its instantiated slot.
+                // That slot is this occurrence's exact applied requirement and
+                // names the declaration the authored tuple was written
+                // against, so the tuple is judged against that declaration --
+                // the same rejoin the call graph, receiver topology and
+                // dynamic selector checks already perform. A slot of another
+                // requirement is not this tuple's application.
+                if let Some(slot) = program.dynamic_slot_by_symbol(*target) {
+                    if slot.requirement != application.binding_declaration
+                        || selected.is_some_and(|previous| previous != slot.requirement)
+                    {
+                        valid = false;
+                        break;
+                    }
+                    selected = Some(slot.requirement);
+                    continue;
+                }
                 let Some(closed) = program.closed_requirement_application(*target) else {
                     // A live universal call keeps its exact authored declaration
                     // until its own operands close. It still owes every ordinary
