@@ -6,15 +6,15 @@ public boundary trait NativeRelease {
     machine release(pointer: addr);
 }
 public data LibSystemRelease {}
-public macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
+public macos_arm64 machine release_binding() -> ForeignBinding<17, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "libSystem.B.dylib", symbol: "_free",
     } }
 }
 macos_arm64 boundary machine LibSystemRelease::release(pointer: addr)
-satisfies NativeRelease::release via free_binding();
+satisfies NativeRelease::release via release_binding();
 
-machine main() reaches RawAllocation, NativeRelease crashes Trap {
+machine main() reaches RawAllocation, NativeRelease, NativeBytes crashes Trap {
     let pointer: addr = RawAllocation::acquire();
     transition pointer != 0 {
         true -> release(pointer)
