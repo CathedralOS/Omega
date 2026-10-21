@@ -723,12 +723,14 @@ fn try_parse_static_argument<'tokens, 'source>(
 /// authored tree until the selected declaration supplies its expected carrier;
 /// parsing must not choose integer division or erase named operand custody.
 fn try_parse_static_value_argument<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
+    scratch: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
-    let mut scratch = SyntaxTrees::new(input.source_id);
-    let parsed =
-        super::parse_expression::parse_const_integer_expression_handle(&mut scratch, input);
+    // The enclosing tentative argument pack owns these nodes. Failed value
+    // alternatives remain private until that pack is dropped; publication
+    // traverses only the returned arguments. Reuse that region instead of
+    // allocating a nested forest and copying the accepted expression twice.
+    let parsed = super::parse_expression::parse_const_integer_expression_handle(scratch, input);
     let (expression, rest) = match parsed {
         Ok(parsed)
             if parsed.1.at_punctuation(PunctuationKind::Comma)
@@ -753,12 +755,8 @@ fn try_parse_static_value_argument<'tokens, 'source>(
             for rest in boundaries.into_iter().rev() {
                 let mut prefix = input;
                 prefix.tokens = &input.tokens[..input.tokens.len() - rest.tokens.len()];
-                scratch = SyntaxTrees::new(input.source_id);
                 if let Ok((expression, end)) =
-                    super::parse_expression::parse_const_integer_expression_handle(
-                        &mut scratch,
-                        prefix,
-                    )
+                    super::parse_expression::parse_const_integer_expression_handle(scratch, prefix)
                     && end.tokens.is_empty()
                     && !end.at_punctuation(PunctuationKind::Greater)
                 {
@@ -783,15 +781,12 @@ fn try_parse_static_value_argument<'tokens, 'source>(
     }
     let (type_reference, const_literal) = match scratch.expressions.expression(expression) {
         ExpressionNode::Integer(literal) => (Default::default(), Some(literal.clone())),
-        _ => {
-            let expression = syntax_trees.copy_expression_from(&scratch, expression);
-            (
-                syntax_trees.type_references.insert(
-                    syntax_trees::types::TypeReferenceNode::ConstExpression(expression),
-                ),
-                None,
-            )
-        }
+        _ => (
+            scratch.type_references.insert(
+                syntax_trees::types::TypeReferenceNode::ConstExpression(expression),
+            ),
+            None,
+        ),
     };
     Ok(Some((
         StaticMachineArgument {
@@ -805,7 +800,7 @@ fn try_parse_static_value_argument<'tokens, 'source>(
     )))
 }
 
-pub(crate) fn try_parse_static_symbol_application<'tokens, 'source>(
+fn try_parse_static_symbol_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<
