@@ -366,6 +366,13 @@ fn close_predicate_memberships(
     contract: &mut PayloadMembershipContract,
 ) {
     super::payload_predicates::close(types, domains, contract);
+    // A refined primitive carrier owes its declared predicate at every
+    // completed store. Literal observations are not required: the carrier
+    // identity is that constrained type, and interval bounds stay on the
+    // scalar restriction instead of becoming another nominal row. Only the
+    // refinement's own theory is admitted, so a neighboring domain on the
+    // same carrier does not become an element membership.
+    admit_declared_scalar_refinement(types, domains, contract);
     contract
         .qualifications
         .extend(implied_predicate_memberships(
@@ -407,6 +414,229 @@ fn close_predicate_memberships(
     }
     contract.projected_qualifications.sort();
     contract.projected_qualifications.dedup();
+}
+
+/// The carrier's refined-scalar declaration, when one domain states that
+/// exact predicate and nothing else. Establishment routes and content
+/// projections stay occurrence-bound.
+fn admit_declared_scalar_refinement(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    contract: &mut PayloadMembershipContract,
+) {
+    let Some(refinement) = types
+        .iter()
+        .find(|row| row.id == contract.carrier)
+        .and_then(|row| match &row.scalar_restriction {
+            Some(terminal_psi::StructuralFieldType::RefinedScalar(refinement)) => Some(refinement),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    for domain in domains {
+        if domain.carrier != contract.carrier
+            || domain.content_projection.is_some()
+            || !domain.establishment_routes.is_empty()
+            || contract.qualifications.contains(&domain.id)
+        {
+            continue;
+        }
+        let Some(predicate) = &domain.predicate else {
+            continue;
+        };
+        if !crate::domain_predicate_is_closed(types.iter(), domain.carrier, predicate) {
+            continue;
+        }
+        let mut proposition = predicate.proposition.clone();
+        rewrite_subject_as_refinement_value(
+            &mut proposition,
+            predicate.subject,
+            refinement.carrier(),
+        );
+        // Domain rows lower a comparison as `true = (left ~ right)`. The
+        // carrier refinement states that comparison directly.
+        normalize_boolean_comparison(&mut proposition);
+        if same_declared_predicate(&proposition, refinement.predicate()) {
+            contract.qualifications.push(domain.id);
+        }
+    }
+}
+
+fn rewrite_subject_as_refinement_value(
+    proposition: &mut semantic_vocabulary::Proposition,
+    subject: semantic_vocabulary::PlaceId,
+    carrier: semantic_vocabulary::ScalarType,
+) {
+    fn rewrite_term(
+        term: &mut semantic_vocabulary::ScalarTerm,
+        subject: semantic_vocabulary::PlaceId,
+        carrier: semantic_vocabulary::ScalarType,
+    ) {
+        use semantic_vocabulary::ScalarTerm;
+        let replacement = match term {
+            ScalarTerm::IntegerField {
+                root,
+                path,
+                scalar_type,
+            } if *root == subject
+                && path.is_empty()
+                && semantic_vocabulary::ScalarType::Integer(*scalar_type) == carrier =>
+            {
+                Some(ScalarTerm::value(
+                    semantic_vocabulary::ScalarRefinement::SUBJECT,
+                    carrier,
+                ))
+            }
+            ScalarTerm::BooleanField { root, path }
+                if *root == subject
+                    && path.is_empty()
+                    && carrier == semantic_vocabulary::ScalarType::Boolean =>
+            {
+                Some(ScalarTerm::value(
+                    semantic_vocabulary::ScalarRefinement::SUBJECT,
+                    carrier,
+                ))
+            }
+            ScalarTerm::IeeeFloatField { root, path, format }
+                if *root == subject
+                    && path.is_empty()
+                    && carrier == semantic_vocabulary::ScalarType::IeeeFloat(*format) =>
+            {
+                Some(ScalarTerm::value(
+                    semantic_vocabulary::ScalarRefinement::SUBJECT,
+                    carrier,
+                ))
+            }
+            ScalarTerm::StructuralRead {
+                root,
+                path,
+                scalar_type,
+            } if *root == subject && path.is_empty() && *scalar_type == carrier => Some(
+                ScalarTerm::value(semantic_vocabulary::ScalarRefinement::SUBJECT, carrier),
+            ),
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            *term = replacement;
+            return;
+        }
+        for operand in term.operands_mut() {
+            rewrite_term(operand, subject, carrier);
+        }
+    }
+    fn rewrite_math(
+        term: &mut semantic_vocabulary::IntegerMathTerm,
+        subject: semantic_vocabulary::PlaceId,
+        carrier: semantic_vocabulary::ScalarType,
+    ) {
+        if let semantic_vocabulary::IntegerMathTerm::Embed(inner) = term {
+            rewrite_term(inner, subject, carrier);
+        }
+        for operand in term.operands_mut() {
+            rewrite_math(operand, subject, carrier);
+        }
+    }
+    fn rewrite_proposition(
+        proposition: &mut semantic_vocabulary::Proposition,
+        subject: semantic_vocabulary::PlaceId,
+        carrier: semantic_vocabulary::ScalarType,
+    ) {
+        use semantic_vocabulary::Proposition;
+        match proposition {
+            semantic_vocabulary::scalar_comparison_operands!(left, right) => {
+                rewrite_term(left, subject, carrier);
+                rewrite_term(right, subject, carrier);
+            }
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+                rewrite_math(left, subject, carrier);
+                rewrite_math(right, subject, carrier);
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                for child in children {
+                    rewrite_proposition(child, subject, carrier);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                rewrite_proposition(premise, subject, carrier);
+                rewrite_proposition(conclusion, subject, carrier);
+            }
+            _ => {}
+        }
+    }
+    rewrite_proposition(proposition, subject, carrier);
+}
+
+/// Turn `true = integer comparison` into the comparison proposition. Operand
+/// order inside the comparison stays as lowered.
+fn normalize_boolean_comparison(proposition: &mut semantic_vocabulary::Proposition) {
+    use semantic_vocabulary::{Proposition, ScalarTerm};
+    match proposition {
+        Proposition::Equal(left, right) => {
+            let comparison = match (&*left, &*right) {
+                (ScalarTerm::Boolean(true), comparison)
+                | (comparison, ScalarTerm::Boolean(true)) => comparison.clone(),
+                _ => return,
+            };
+            let Some(normalized) = (match &comparison {
+                ScalarTerm::IntegerEqual { left, right, .. } => Some(Proposition::Equal(
+                    left.as_ref().clone(),
+                    right.as_ref().clone(),
+                )),
+                ScalarTerm::IntegerLessThan { left, right, .. } => Some(Proposition::LessThan(
+                    left.as_ref().clone(),
+                    right.as_ref().clone(),
+                )),
+                ScalarTerm::IntegerLessOrEqual { left, right, .. } => Some(
+                    Proposition::LessOrEqual(left.as_ref().clone(), right.as_ref().clone()),
+                ),
+                _ => None,
+            }) else {
+                return;
+            };
+            *proposition = normalized;
+        }
+        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+            for child in children {
+                normalize_boolean_comparison(child);
+            }
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            normalize_boolean_comparison(premise);
+            normalize_boolean_comparison(conclusion);
+        }
+        _ => {}
+    }
+}
+
+/// Equality and Boolean connectives compare as sets. Operand order inside one
+/// equality is not part of the declared theory.
+fn same_declared_predicate(
+    left: &semantic_vocabulary::Proposition,
+    right: &semantic_vocabulary::Proposition,
+) -> bool {
+    use semantic_vocabulary::Proposition;
+    match (left, right) {
+        (Proposition::Equal(left_a, left_b), Proposition::Equal(right_a, right_b)) => {
+            (left_a == right_a && left_b == right_b) || (left_a == right_b && left_b == right_a)
+        }
+        (Proposition::Disjunction(left), Proposition::Disjunction(right))
+        | (Proposition::Conjunction(left), Proposition::Conjunction(right)) => {
+            left.len() == right.len()
+                && left.iter().all(|row| {
+                    right
+                        .iter()
+                        .any(|other| same_declared_predicate(row, other))
+                })
+        }
+        _ => left == right,
+    }
 }
 
 fn implied_predicate_memberships(

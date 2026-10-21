@@ -4632,20 +4632,21 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `unit/attached_unit/view_ranges.rs` and
   `emission/operation_emission/view_subslice.rs` (shared `CheckedSubsliceSite`).
   Remaining:
-  - Refined scalar parameter/state-arrival contracts
-    still decline non-interval memberships in
-    `checking/src/machine_calls/structural_call_custody.rs`; source checking of
-    narrowed record-element slice arguments still lacks their default-domain
-    window restoration. Preserve the complete predicate copy/replacement control
-    `slices/runtime_predicate_qualified_scalar_copy_exit` and the bounded
-    copy and replacement controls with
-    `omega run --both tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg`,
+  - Source checking of narrowed record-element slice arguments still lacks
+    their default-domain window restoration. The predicate copy control
+    `slices/runtime_predicate_qualified_scalar_copy_exit` exits 0 on both
+    engines: the element-view result carries the carrier's declared
+    non-interval refinement as an AllElements membership, and the formal keeps
+    that domain projection. Interval domains stay on the scalar restriction in
+    `checking/src/machine_calls/structural_call_custody.rs`. Keep the bounded
+    copy and replacement controls on `omega run --both` for
+    `tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg`,
     its local and fixed-array snapshot variants, and
-    `slices/runtime_range_qualified_scalar_dynamic_store_exit` (Linux x86-64,
-    authored exit 0). These constrain retained scalar declarations, exact
-    receiving assignment receipts, independent snapshots, and live per-element
-    domains. Missing range/bounds, invalidated or partially initialized domains,
-    and shared-view writes must continue to reject.
+    `slices/runtime_range_qualified_scalar_dynamic_store_exit` (authored exit
+    0). These constrain retained scalar declarations, exact receiving
+    assignment receipts, independent snapshots, and live per-element domains.
+    Missing range/bounds, invalidated or partially initialized domains, and
+    shared-view writes must continue to reject.
   - cyclic view forwarding compositions on the Unit-graph route remain
     unverified. Preserve call-result descriptor retirement and exclusive
     reborrowing when extending this route. Acyclic named-state subslice forwarding
