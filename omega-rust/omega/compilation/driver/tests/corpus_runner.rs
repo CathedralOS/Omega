@@ -1075,13 +1075,23 @@ fn build_native_fixture(
     }
     let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let accepted_reports = if prepared.package_inputs.is_some() {
+        let mut primary_prepared = false;
         let requests = targets
             .iter()
             .map(|profile| {
                 let name = profile.map(|profile| profile.target_name());
-                let mut prepared = reviewed_repository_fixture_package_inputs(root_path, name)?;
+                // The primary target was already reviewed above. Reuse that
+                // exact activation instead of repeating its discovery Build.
+                let mut sibling;
+                let preparation = if *profile == Some(target_profile) && !primary_prepared {
+                    primary_prepared = true;
+                    &mut prepared
+                } else {
+                    sibling = reviewed_repository_fixture_package_inputs(root_path, name)?;
+                    &mut sibling
+                };
                 fixture_package_inputs::accepted_fixture_product_request(
-                    &mut prepared,
+                    preparation,
                     name,
                     build_dir.to_path_buf(),
                     compiler::CompilationProduct::Native(
