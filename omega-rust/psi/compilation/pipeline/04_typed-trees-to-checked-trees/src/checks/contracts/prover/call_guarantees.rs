@@ -214,6 +214,20 @@ pub(crate) fn proves_captured_predicates(
     required: &BoundPredicate,
     mut ordinary: impl FnMut(&CanonicalPlace) -> Option<facts::ScalarValue>,
 ) -> bool {
+    fn retain_value(
+        values: &mut Vec<(CanonicalPlace, Option<facts::ScalarValue>)>,
+        place: &CanonicalPlace,
+        value: facts::ScalarValue,
+    ) {
+        if let Some((_, known)) = values.iter_mut().find(|(known, _)| known == place) {
+            if *known != Some(value) {
+                *known = None;
+            }
+        } else {
+            values.push((place.clone(), Some(value)));
+        }
+    }
+
     let mut values: Vec<(CanonicalPlace, Option<facts::ScalarValue>)> = Vec::new();
     let mut bind = |predicate: &BoundPredicate| {
         let mut predicate = predicate.clone();
@@ -227,27 +241,54 @@ pub(crate) fn proves_captured_predicates(
                 binding.place = place;
             }
             if let Some(value) = value {
-                if let Some((_, known)) =
-                    values.iter_mut().find(|(place, _)| *place == binding.place)
-                {
-                    if *known != Some(value) {
-                        *known = None;
-                    }
-                } else {
-                    values.push((binding.place.clone(), Some(value)));
-                }
+                retain_value(&mut values, &binding.place, value);
             }
         }
         predicate
     };
     let predicates = predicates.iter().map(&mut bind).collect::<Vec<_>>();
     let required = bind(required);
-    boolean_predicates::proves(&predicates, &required, |place| {
-        values
-            .iter()
-            .find(|(known, _)| known == place)
-            .and_then(|(_, value)| value.clone())
-    })
+    // Boolean closure keeps integer comparisons as whole propositions. Use the
+    // existing positive equation reader to compose authenticated conclusions
+    // such as supplied.code == 7 and result.code == supplied.code. Every round
+    // reads a frozen map; only previously unknown, already bound observations
+    // become known. The required goal supplies no equation, and an unseeded
+    // cycle establishes nothing. Any disagreement rejects the complete query
+    // so descendants of an inconsistent value cannot survive as evidence.
+    if values.iter().any(|(_, value)| value.is_none()) {
+        return false;
+    }
+    let binding_count = predicates
+        .iter()
+        .map(|predicate| predicate.bindings.len())
+        .sum::<usize>();
+    for _ in 0..=binding_count {
+        let prior = values.clone();
+        for predicate in &predicates {
+            for binding in &predicate.bindings {
+                if let Some(value) = predicate.constant_at_place(&binding.place, |place| {
+                    prior
+                        .iter()
+                        .find(|(known, _)| known == place)
+                        .and_then(|(_, value)| value.clone())
+                }) {
+                    retain_value(&mut values, &binding.place, value);
+                    if values.iter().any(|(_, value)| value.is_none()) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if values.len() == prior.len() {
+            return boolean_predicates::proves(&predicates, &required, |place| {
+                values
+                    .iter()
+                    .find(|(known, _)| known == place)
+                    .and_then(|(_, value)| value.clone())
+            });
+        }
+    }
+    false
 }
 
 /// Read an exact scalar conclusion after authenticating its declaration,

@@ -822,6 +822,15 @@ pass/facts/result_cleanup_guarantee_through_other_machine_exit built 3822ms exit
 pass/facts/result_cleanup_guarantee_through_other_state_exit built 3826ms exit:0 interpreter-exit:0 interpreter:agrees @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_parameter_exit built 3708ms exit:0 interpreter-exit:0 interpreter:agrees @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_target_body_exit built 3705ms exit:0 interpreter-exit:0 interpreter:agrees @76ea4b8c7c50
+pass/facts/returned_linear_residual_through_call_result_exit built 2184ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_const_name_exit built 2091ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_field_exit built 2735ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_local_exit built 2548ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_match_join_exit built 2276ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_other_machine_exit built 2374ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_other_state_exit built 2461ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_parameter_exit built 2829ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_target_body_exit built 2634ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
 pass/facts/scalar_boundary_parameter/call_result built 1948ms exit:0 interpreter-exit:0 interpreter:agrees @8fdb0071edab
 pass/facts/scalar_boundary_parameter/const_name built 2371ms exit:0 interpreter-exit:0 interpreter:agrees @8fdb0071edab
 pass/facts/scalar_boundary_parameter/field built 1680ms exit:0 interpreter-exit:0 interpreter:agrees @8fdb0071edab

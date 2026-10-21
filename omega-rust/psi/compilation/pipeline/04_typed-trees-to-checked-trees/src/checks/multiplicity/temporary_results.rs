@@ -1,8 +1,7 @@
 //! Ownership transfers from temporary call results.
 //!
-//! A partial move from a temporary has no remaining local owner in which to
-//! retain unselected linear claims. The selected path must carry every live
-//! obligation; ordinary affine siblings may be discarded.
+//! A partial move retains the original temporary's claim frontier until its
+//! completing consumer disposes the exact authorized residual complement.
 use crate::checks::multiplicity::claim_outcomes::claim_paths_are_case_alternatives;
 use crate::checks::multiplicity::linear_claim_frontier;
 use crate::checks::multiplicity::linear_validation::event_statement_index;
@@ -250,15 +249,35 @@ pub(super) fn append_constructed_argument_transfers(
     }
 }
 
-/// Refuse a partial anonymous move before selecting its residual death. A
-/// contained claim outside the moved subtree cannot become automatic disposal.
+/// A partial anonymous move needs its exact completing consumer before a
+/// remaining claim can be considered for owner-authorized disposal. Eligibility
+/// is checked only after the actual transfer, against the resulting custody.
 pub(super) fn unselected_claim_diagnostic(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
+    owners: &[TemporaryOwner],
 ) -> Option<Diagnostic> {
-    event.root.as_expression()?;
+    let expression = event.root.as_expression()?;
+    let consumer = permission_source(event.source);
+    let mut continuations = owners.iter().filter(|owner| {
+        owner.expression == expression
+            && owner.consumer == consumer
+            && owner.evaluation == event.evaluation
+    });
+    if matches!(
+        consumer,
+        language_semantics::PermissionEventSource::Call { .. }
+    ) && let Some(owner) = continuations.next()
+        && continuations.next().is_none()
+        && matches!(
+            &owner.consumption,
+            owners::TemporaryConsumption::OwnedProjection { path: selected } if selected == path
+        )
+    {
+        return None;
+    }
     let root = validation::CanonicalPlace {
         root: event.root,
         segments: Vec::new(),

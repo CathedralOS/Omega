@@ -216,6 +216,7 @@ pub(crate) fn apply_statement_permission_production(
                         state_symbol,
                         event,
                         path,
+                        temporary_owners,
                     )
                 {
                     return Err(diagnostic);

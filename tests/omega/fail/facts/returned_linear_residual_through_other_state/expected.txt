@@ -1,0 +1,2 @@
+cannot prove automatic cleanup requires
+Receipt::drop

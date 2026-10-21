@@ -499,9 +499,9 @@ fn owned_projection(
     Some((expression, reference, place.segments))
 }
 
-/// The type of an anonymous owner whose untouched complement may die with
-/// ordinary affine disposal once one subtree moves out. A linear claim in
-/// that complement must instead be transferred through a named local.
+/// The type of an anonymous affine owner whose untouched complement may die
+/// after one subtree moves out. Its completing consumer must separately prove
+/// authorized disposal of every claim left under the original owner.
 pub(in crate::checks::multiplicity) fn projectable_owner(
     program: &dyn validation::CheckingInput,
     state: symbols::SymbolHandle,
@@ -517,9 +517,9 @@ pub(in crate::checks::multiplicity) fn projectable_owner(
             segments: Vec::new(),
         },
     )?;
-    // The selected subtree may carry linear claims into its consumer. The
-    // partial-move check rejects unselected claims, and continuation checking
-    // selects only the untouched affine complement for disposal.
+    // An affine containing home supplies no authority to settle its contained
+    // linear claims. Continuation checking authenticates their exact remaining
+    // custody and owner-authorized dispositions after the selected transfer.
     (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine)
         .then_some(reference)
 }

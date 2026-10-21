@@ -4,9 +4,8 @@
 use super::owners::{TemporaryConsumption, TemporaryOwner};
 use super::{
     CheckFacts, FlowPermissionEventFact, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionProvenance, SymbolHandle, TypeReferenceNode,
+    PermissionEventKind, PermissionProvenance, SymbolHandle,
 };
-use crate::checks::type_multiplicity;
 use language_semantics::PermissionEventSource;
 
 #[allow(clippy::too_many_arguments)]
@@ -95,30 +94,35 @@ pub(in crate::checks::multiplicity) fn retire_owner(
             ));
         }
     };
-    let mut residuals = Vec::new();
-    if remaining.is_present(root, path)
-        || complement(
-            program,
-            state,
-            statement,
-            &validation::CanonicalPlace {
-                root,
-                segments: Vec::new(),
-            },
-            path,
-            &mut residuals,
-        )
-        .is_none()
+    let reference = super::owners::projectable_owner(program, state, statement, expression)
+        .ok_or_else(|| {
+            diagnostics::Diagnostic::error("projected temporary cleanup has no exact affine owner")
+        })?;
+    if path.is_empty()
+        || remaining.is_present(root, path)
+        || !remaining.is_present(root, &[])
+        || !places
+            .iter()
+            .any(|place| place.root == root && place.ever_established)
     {
         return Err(diagnostics::Diagnostic::error(
             "projected temporary cleanup lacks its exact completed transfer and residual partition",
         ));
     }
-    for path in residuals {
-        if !remaining.is_present(root, &path) {
-            continue;
-        }
-        permissions.push(FlowPermissionEventFact {
+    let start = permissions.len();
+    // This is the same exact owned-region judgment used by exits and
+    // replacements. The actual transfer already excluded its subtree from
+    // `remaining`; live siblings keep their original claim identities and
+    // provenance. The containing disposition publishes those exclusions before
+    // its child Consume receipts, so cleanup never disposes the moved subtree.
+    super::super::linear_validation::append_owned_region_cleanup_permission_events(
+        program,
+        reference,
+        root,
+        &[],
+        places,
+        remaining,
+        FlowPermissionEventFact {
             expression,
             evaluation: consumer.evaluation,
             machine_symbol: machine,
@@ -130,81 +134,22 @@ pub(in crate::checks::multiplicity) fn retire_owner(
             claim_identity: PermissionClaimIdentity::Unknown,
             provenance: consumer.producer,
             root,
-            segments: facts.flow.ownership.segments.insert_many(path),
+            segments: Default::default(),
             obligation_live: false,
-        });
+        },
+        &mut facts.flow.ownership.segments,
+        permissions,
+    );
+    if permissions.len() == start {
+        return Err(diagnostics::Diagnostic::error(
+            "cannot automatically dispose a projected temporary: its exact residual claims need owner-authorized terminal dispositions",
+        ));
     }
+    // Every live claim below this original owner now has its own authorized
+    // Consume receipt. Clearing custody is a consequence of that complete
+    // partition, never an affine containing home's permission to erase debt.
     for place in places.iter_mut().filter(|place| place.root == root) {
         place.live = false;
     }
     Ok(root)
-}
-
-// Only traverse the selected branch. Untouched siblings are maximal residuals,
-// not leaf expansion, and retain their exact authored field/index identities.
-fn complement(
-    program: &dyn ::validation::CheckingInput,
-    state: SymbolHandle,
-    statement: usize,
-    root: &validation::CanonicalPlace,
-    selected: &[facts::PlaceSegment],
-    output: &mut Vec<Vec<facts::PlaceSegment>>,
-) -> Option<()> {
-    let Some(next) = selected.first() else {
-        return Some(());
-    };
-    let reference = validation::canonical_place_type_reference(program, state, statement, root)?;
-    let children = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. }
-        | TypeReferenceNode::Generic {
-            base_symbol: symbol,
-            ..
-        } => {
-            let data = program.data_definition_by_symbol(*symbol)?;
-            program
-                .data_members(data)
-                .iter()
-                .filter(|member| {
-                    !matches!(member,
-                    typed_trees::data::DataMember::Field(field) if field.relevance.is_erased())
-                })
-                .map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) => {
-                        Some(facts::PlaceSegment::Field {
-                            symbol: field.symbol,
-                        })
-                    }
-                    _ => None,
-                })
-                .collect::<Option<Vec<_>>>()?
-        }
-        TypeReferenceNode::FixedArray {
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-            ..
-        } if *length > 0 => (0..*length)
-            .map(|index| facts::PlaceSegment::FixedIndex { index })
-            .collect(),
-        _ => return None,
-    };
-    if !children.contains(next) {
-        return None;
-    }
-    for child in children.into_iter().rev() {
-        let mut place = root.clone();
-        place.segments.push(child);
-        if child == *next {
-            complement(program, state, statement, &place, &selected[1..], output)?;
-        } else {
-            let reference =
-                validation::canonical_place_type_reference(program, state, statement, &place)?;
-            if type_multiplicity(program, reference) == Multiplicity::Unrestricted {
-                continue;
-            }
-            if type_multiplicity(program, reference) != Multiplicity::Affine {
-                return None;
-            }
-            output.push(place.segments);
-        }
-    }
-    Some(())
 }

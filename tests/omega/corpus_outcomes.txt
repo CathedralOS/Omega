@@ -5061,6 +5061,33 @@ fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 16125
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/returned_linear_residual_disjunctive_capture rejected 1741ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_distinct_captures rejected 1677ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: issue(eight.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_call_result rejected 1512ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_const_name rejected 1635ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_field rejected 1701ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: issue(envelope.seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_local rejected 1608ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_match_join rejected 1655ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_other_machine rejected 1600ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_other_state rejected 1492ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from main state next after statement 0: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_parameter rejected 1588ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_through_target_body rejected 1574ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/returned_linear_residual_unseeded_input rejected 853ms expected @77333889f7cd+wt
+	cannot prove automatic cleanup requires at selected edge from relay state entry after statement 1: issue(seed.code).second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
@@ -11729,6 +11756,15 @@ pass/facts/result_cleanup_guarantees_through_other_machine_exit checked 7320ms c
 pass/facts/result_cleanup_guarantees_through_other_state_exit checked 6480ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/result_cleanup_guarantees_through_parameter_exit checked 6479ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/result_cleanup_guarantees_through_target_body_exit checked 6711ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/returned_linear_residual_through_call_result_exit checked 1877ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_const_name_exit checked 1919ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_field_exit checked 1909ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_local_exit checked 1938ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_match_join_exit checked 1767ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_other_machine_exit checked 1913ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_other_state_exit checked 1928ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_parameter_exit checked 1843ms check-target:macos_arm64 @77333889f7cd+wt
+pass/facts/returned_linear_residual_through_target_body_exit checked 2031ms check-target:macos_arm64 @77333889f7cd+wt
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt
