@@ -10315,6 +10315,7 @@ pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 12207ms 
 pass/drops/runtime_borrowed_temporary_projection_cleanup_exit checked 3648ms check-target:macos_arm64 @0ec1d89748af
 pass/drops/runtime_case_selected_cleanup_continuations_exit checked 13091ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 11491ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_cleanup_case_evidence_exit checked 958ms check-target:macos_arm64 @7e8766123767
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 11650ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_composed_nominal_output_hook_exit checked 6036ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/drops/runtime_composed_nominal_return_hook_exit checked 11021ms check-target:macos_arm64 @a9ae30e1c334+wt

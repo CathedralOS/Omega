@@ -501,6 +501,7 @@ pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit built 1843ms exi
 pass/drops/runtime_borrowed_temporary_projection_cleanup_exit built 3903ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
 pass/drops/runtime_case_selected_cleanup_continuations_exit built 2253ms exit:0 interpreter-exit:0 interpreter:agrees @ec967ce62874
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit built 1715ms exit:0 interpreter-exit:0 interpreter:agrees @ac7aca8a5050+wt
+pass/drops/runtime_cleanup_case_evidence_exit built 1106ms exit:0 interpreter-exit:0 interpreter:agrees @7e8766123767
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit built 1599ms exit:0 interpreter-exit:0 interpreter:agrees @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit built 14800ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5833e7d00af3
 pass/drops/runtime_composed_nominal_return_hook_exit built 1579ms exit:0 interpreter-exit:0 interpreter:agrees @47ad8bb72cea
