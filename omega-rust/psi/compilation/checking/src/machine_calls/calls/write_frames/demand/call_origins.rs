@@ -26,7 +26,7 @@ impl<'program> CallFrameResolver<'program> {
             machine,
             &self.tables.symbols,
             site,
-            &self.caches.state_write_collections,
+            &self.caches.state_write_shared_collections,
             |inference, prefix| {
                 self.capture_operand_origins(
                     machine,
@@ -103,7 +103,7 @@ impl<'program> CallFrameResolver<'program> {
             machine,
             &self.tables.symbols,
             site,
-            &self.caches.state_write_collections,
+            &self.caches.state_write_shared_collections,
             |inference, prefix| {
                 Some(CallWriteOrigins {
                     receiver: Some(Vec::new()),
@@ -198,7 +198,7 @@ impl<'program> CallFrameResolver<'program> {
             machine,
             &self.tables.symbols,
             site,
-            &self.caches.state_write_collections,
+            &self.caches.state_write_shared_collections,
             |inference, prefix| {
                 // A missing result in one operand does not erase known siblings.
                 let mut result = CallWriteOrigins {

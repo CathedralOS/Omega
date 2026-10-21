@@ -1,0 +1,25 @@
+// Reject: qualification weakening does not establish the stronger callee bound.
+data Counter { value: u64; }
+domain Counter::One(counter) requires counter.value == 1;
+
+machine consume(counter: &Counter) -> u64
+requires counter.value >= 2 && addr::Bound == 18446744073709551616
+{ counter.value - 1 }
+
+machine visit(counter: Counter in One) -> u64 crashes Trap
+requires addr::Bound == 18446744073709551616
+{
+    let observed: u64 = consume(&counter as &Counter);
+    transition observed == 0 { true -> done(counter) _ -> wrong() }
+    state done(counter: Counter in One) -> u64 { counter.value }
+    state wrong() -> u64 { crash Trap; }
+}
+
+machine main() crashes Trap
+requires addr::Bound == 18446744073709551616
+{
+    let result: u64 = visit(Counter { value: 1 });
+    transition result == 1 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

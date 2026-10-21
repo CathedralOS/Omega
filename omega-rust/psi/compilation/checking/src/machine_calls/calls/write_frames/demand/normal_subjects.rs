@@ -99,8 +99,6 @@ impl<'program> CallFrameResolver<'program> {
                 let source = origins.first()?;
                 if !source.root.is_valid()
                     || source.collection_coarse
-                    || !source.recasts.is_empty()
-                    || source.representation.is_some()
                     || origins.iter().any(|candidate| candidate != source)
                 {
                     return None;
@@ -108,6 +106,7 @@ impl<'program> CallFrameResolver<'program> {
                 let root_type =
                     reference_subjects::source_root_type(program, state, index, source.root)?;
                 let root_type = reference_subjects::carrier_storage_type(program, root_type)?;
+                declaration_preserving_views(program, root_type, source)?;
                 reference_subjects::validate_owned_projection(
                     program,
                     root_type,
@@ -136,5 +135,52 @@ impl<'program> CallFrameResolver<'program> {
             })
             .collect();
         Some(subjects)
+    }
+}
+
+/// A qualification view observes the original declaration, not a new byte
+/// interpretation. Authenticate the complete retained chain before using its
+/// declaration selectors. Recast provenance remains on the source for other
+/// consumers; this grants neither formation validity nor additional access.
+fn declaration_preserving_views(
+    program: &dyn crate::CheckingInput,
+    root_type: TypeReferenceHandle,
+    source: &LocalWriteSource,
+) -> Option<()> {
+    let mut presentation = None;
+    let mut prefix: &[facts::PlaceSegment] = &[];
+    for recast in &source.recasts {
+        if recast.root != source.root {
+            return None;
+        }
+        match (presentation, &recast.representation) {
+            (None, None) => {}
+            (Some(previous), Some((reference, selectors)))
+                if previous == *reference && recast.segments.strip_prefix(prefix)? == selectors => {
+            }
+            _ => return None,
+        }
+        reference_subjects::validate_owned_projection(program, root_type, &recast.segments)?;
+        let backing = stored_origins::projected_type(program, root_type, &recast.segments)?;
+        let formation = crate::reference_formation_source(program, recast.formation_expression)?;
+        if formation.interpretation != crate::ReferenceFormationInterpretation::RepresentationView
+            || !formation.view_type.is_valid()
+            || formation.view_type != recast.target_type
+            || crate::reference_view_storage(program, backing, recast.target_type)?
+                != checked_trees::CheckedReferenceStorage::Declared
+        {
+            return None;
+        }
+        presentation = Some(recast.target_type);
+        prefix = &recast.segments;
+    }
+    match (presentation, &source.representation) {
+        (None, None) => Some(()),
+        (Some(previous), Some((reference, selectors)))
+            if previous == *reference && source.segments.strip_prefix(prefix)? == selectors =>
+        {
+            Some(())
+        }
+        _ => None,
     }
 }

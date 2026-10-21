@@ -653,27 +653,22 @@ pub(super) fn with_caller_origins(
     >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
-    with_caller_origin_context(
-        program,
-        machine,
-        symbols,
-        site,
-        collections,
-        |inference, prefix| {
-            let written = resolve(inference, prefix)?;
-            close_over_origins(
-                program,
-                written,
-                prefix.aliases,
-                prefix.divergent,
-                prefix.stored,
-            )
-        },
-    )
+    let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
+    with_retained_origin_context(program, machine, site, evidence, |inference, prefix| {
+        let written = resolve(inference, prefix)?;
+        close_over_origins(
+            program,
+            written,
+            prefix.aliases,
+            prefix.divergent,
+            prefix.stored,
+        )
+    })
 }
 
-/// Typed and footprint consumers share the same retained caller prefix. Only
-/// the footprint wrapper performs rendered-path closure afterward.
+/// Typed invocations observe shared references as well as writable origins.
+/// The footprint-only shortcut cannot supply this inventory: a shared local
+/// contributes no writes but still identifies storage in a call contract.
 pub(super) fn with_caller_origin_context<T>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -684,7 +679,19 @@ pub(super) fn with_caller_origin_context<T>(
     >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
 ) -> Option<T> {
-    let mut evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
+    let (state, statement, index) = caller_statement_owner(program, machine, site)?;
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    let evidence = captured_prefix_evidence(program, machine, state, statement, symbols, prefix)?;
+    with_retained_origin_context(program, machine, site, evidence, resolve)
+}
+
+fn with_retained_origin_context<T>(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    site: CallerWriteSite<'_>,
+    mut evidence: CallerPrefixEvidence<'_>,
+    resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
+) -> Option<T> {
     let owner = caller_statement_owner(program, machine, site);
     if evidence.state.is_none()
         && let Some((state, _, index)) = owner
@@ -980,6 +987,17 @@ fn tracked_prefix_evidence<'program>(
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, false)?;
+    captured_prefix_evidence(program, machine, state, statement, symbols, prefix)
+}
+
+fn captured_prefix_evidence<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &'program typed_trees::state::State,
+    statement: &StatementNode,
+    symbols: &TopLevelSymbols<'_>,
+    prefix: CollectedStatementPrefix,
+) -> Option<CallerPrefixEvidence<'program>> {
     if super::stored_origins::statement_exposes_frozen_binding(
         program,
         machine,
