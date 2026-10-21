@@ -3333,7 +3333,6 @@ pass/traits/operator_machine_add checked 17385ms @6c49683ce714
 pass/traits/prepared_callable_nested_borrow_paths_exit built 17890ms exit:0 @6c49683ce714
 pass/traits/public_nested_machine_contract_scopes built 17489ms exit:0 @6c49683ce714
 pass/traits/renamed_invocation_contract_binders checked 3391ms @6c49683ce714
-pass/traits/resultless_law_float_equality_exit built 34480ms exit:0 @6c49683ce714
 pass/traits/ring_requirement_satisfies_exit built 15738ms exit:70 @6c49683ce714
 pass/traits/runtime_dyn_array_result_exit built 9116ms exit:0 @6c49683ce714
 pass/traits/runtime_dyn_data_argument_counts_exit built 7888ms exit:70 @6c49683ce714
