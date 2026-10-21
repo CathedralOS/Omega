@@ -23,7 +23,6 @@ use crate::dynamic_executable::section_headers::section_header_bytes::ValidatedE
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
-const DYNAMIC_FIXUP_COUNT: usize = 9;
 /// Independently replayed numeric payload rows and indexed unresolved fixups.
 ///
 /// The exact section-header template remains owned by this non-clone carrier.
@@ -434,10 +433,12 @@ fn validate_dynamic_fixups(
     section_headers: &ValidatedElfSectionHeaderTableTemplate,
     contents: &ElfIndexedSectionPayloadContents,
 ) -> Result<(), Diagnostic> {
-    let upstream = &dynamic_payload(section_headers).contents().address_fixups;
+    let payload = dynamic_payload(section_headers);
+    let upstream = &payload.contents().address_fixups;
     require(
-        upstream.len() == DYNAMIC_FIXUP_COUNT && contents.dynamic_fixups.len() == upstream.len(),
-        "indexed dynamic fixups do not contain exactly nine rows",
+        upstream.len() == payload.plan().address_obligation_count()
+            && contents.dynamic_fixups.len() == upstream.len(),
+        "indexed dynamic fixups do not exactly cover the retained semantic address obligations",
     )?;
     let storage = contents
         .rows

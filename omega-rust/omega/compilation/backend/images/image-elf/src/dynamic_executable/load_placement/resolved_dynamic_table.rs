@@ -131,8 +131,8 @@ impl ElfAppliedDynamicAddress {
     }
 }
 
-/// Independently replayed `.dynamic` payload with all nine internal address
-/// fields resolved.
+/// Independently replayed `.dynamic` payload with every retained internal
+/// address field resolved.
 ///
 /// This non-clone carrier retains the complete placed-section-header and load-
 /// layout custody chain. Its bytes have no image-mutation, header-emission,
