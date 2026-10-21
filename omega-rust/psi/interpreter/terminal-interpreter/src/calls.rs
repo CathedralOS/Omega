@@ -9,6 +9,7 @@ pub(crate) mod arguments;
 pub(crate) mod frames;
 pub(crate) mod target_families;
 
+mod component_arguments;
 mod component_calls;
 
 use crate::custody::{

@@ -34,6 +34,10 @@ pub struct TerminalComponentBinding<'host, 'artifact> {
 struct PendingComponent<'host, 'artifact> {
     operation: OperationId,
     arguments: Vec<TerminalScalarValue>,
+    structural_operands: Vec<terminal_psi::StructuralArgument>,
+    // Keep the original transferred atom tuple beside the real child through
+    // suspension. Resumption never resolves the consumed receiver homes again.
+    structural_arguments: Vec<crate::TerminalStructuralValue>,
     instance: Option<Box<TerminalInstance<'host, 'artifact>>>,
     completed: Option<ComponentOwnedReturn<'host, 'artifact>>,
 }
@@ -184,40 +188,62 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             .is_some_and(|pending| pending.operation == operation)
     }
 
+    /// Prepare an actual child before the caller commits its staged owned
+    /// input frontier. This performs admission but executes no operation; import
+    /// custody moves only after instantiation succeeds.
+    pub(crate) fn prepare(
+        &mut self,
+        operation: OperationId,
+        arguments: &[TerminalScalarValue],
+        structural_operands: &[terminal_psi::StructuralArgument],
+        structural_arguments: &[crate::TerminalStructuralValue],
+    ) -> Result<(), String> {
+        self.require_ready()?;
+        let mut instance = self
+            .program
+            .instantiate_installed(
+                arguments,
+                TerminalStructuralInputs {
+                    arguments: structural_arguments,
+                    ..TerminalStructuralInputs::default()
+                },
+                &self.supplies,
+            )
+            .map_err(|error| format!("component instance admission: {error:?}"))?;
+        if instance.required_imports != self.required_imports {
+            return Err("component invocation changed its preflighted import closure".into());
+        }
+        instance.bindings = std::mem::take(&mut self.bindings);
+        instance.components = std::mem::take(&mut self.components);
+        self.pending = Some(PendingComponent {
+            operation,
+            arguments: arguments.to_vec(),
+            structural_operands: structural_operands.to_vec(),
+            structural_arguments: structural_arguments.to_vec(),
+            instance: Some(Box::new(instance)),
+            completed: None,
+        });
+        Ok(())
+    }
+
     /// `None` means normal completion is retained, not yet acknowledged. A
-    /// fuel pause retains the real child and all already-committed effects.
+    /// pause retains this child and its transferred input tuple/committed effects.
     pub(crate) fn invoke(
         &mut self,
         operation: OperationId,
         arguments: &[TerminalScalarValue],
+        structural_operands: &[terminal_psi::StructuralArgument],
         meter: &mut TerminalFuelMeter,
     ) -> Result<Option<TerminalExecutionStatus>, String> {
-        if self.pending.is_none() {
-            self.require_ready()?;
-            let mut instance = self
-                .program
-                .instantiate_installed(
-                    arguments,
-                    TerminalStructuralInputs::default(),
-                    &self.supplies,
-                )
-                .map_err(|error| format!("component instance admission: {error:?}"))?;
-            // The same immutable program/entry was preflighted at construction.
-            // Move its exact established roster, never duplicate affine adapters.
-            if instance.required_imports != self.required_imports {
-                return Err("component invocation changed its preflighted import closure".into());
-            }
-            instance.bindings = std::mem::take(&mut self.bindings);
-            instance.components = std::mem::take(&mut self.components);
-            self.pending = Some(PendingComponent {
-                operation,
-                arguments: arguments.to_vec(),
-                instance: Some(Box::new(instance)),
-                completed: None,
-            });
-        }
-        let pending = self.pending.as_mut().expect("prepared above");
-        if pending.operation != operation || pending.arguments != arguments {
+        let pending = self
+            .pending
+            .as_mut()
+            .ok_or("component invocation was not prepared")?;
+        if pending.operation != operation
+            || pending.arguments != arguments
+            || pending.structural_operands != structural_operands
+            || pending.structural_arguments.len() != structural_operands.len()
+        {
             return Err(
                 "pending component invocation has another operation or input snapshot".into(),
             );

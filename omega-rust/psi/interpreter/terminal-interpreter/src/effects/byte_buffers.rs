@@ -37,6 +37,30 @@ pub(crate) struct BoundaryArguments {
 }
 
 impl BoundaryArguments {
+    /// Consume a tuple only when no separate backing, loan, staged allocation
+    /// or writeback evidence would be lost. Atom-only transport cannot rebuild
+    /// those sidecars from a carrier identity in another execution.
+    pub(crate) fn into_opaque_values(
+        self,
+        original_identity_cursor: Option<u64>,
+    ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
+        if self.local_identity_cursor != original_identity_cursor
+            || self.aggregate_backings.iter().any(Option::is_some)
+            || self.bytes.iter().any(Option::is_some)
+            || !self.buffers.is_empty()
+            || !self.bindings.is_empty()
+            || !self.storage_loans.is_empty()
+            || self.byte_sequences.iter().any(Option::is_some)
+            || self.primitive_loans.iter().any(Option::is_some)
+            || self.element_views.iter().any(Option::is_some)
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "opaque argument transport cannot discard storage or loan companions",
+            ));
+        }
+        Ok(self.values)
+    }
+
     pub(crate) fn reserve_host_result(
         &self,
         identities: &mut LocalStructuralIdentities,

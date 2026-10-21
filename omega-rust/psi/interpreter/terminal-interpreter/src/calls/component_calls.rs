@@ -34,8 +34,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                 "component dispatch reached another operation".to_owned(),
             ));
         };
-        if !structural_arguments.is_empty() || !completion_receipts.is_empty() {
-            return Err(reject("component invocation needs an owned structural-argument or completion-receipt transfer carrier".to_owned()));
+        if !completion_receipts.is_empty() {
+            return Err(reject(
+                "component invocation needs an exact completion-receipt transfer carrier"
+                    .to_owned(),
+            ));
         }
         let binding = components
             .and_then(|bindings| bindings.get_mut(boundary))
@@ -58,8 +61,34 @@ impl<'artifact> TerminalExecution<'artifact> {
                 "component invocation differs from the exact receiving installation".to_owned(),
             ));
         }
+        if !binding.pending_at(operation.id) {
+            let receiver = self.program.verified_boundary_machine(boundary)?;
+            let prepared = self.prepare_component_arguments(
+                structural_arguments,
+                receiver,
+                binding.provider_program(),
+                selected.provider_boundary(),
+            )?;
+            binding
+                .prepare(
+                    operation.id,
+                    arguments,
+                    structural_arguments,
+                    &prepared.values,
+                )
+                .map_err(&reject)?;
+            // Admission above executed no child operation. All fallible source
+            // checks finished before preparing it; commit the ordinary transfer
+            // before allowing that child to consume the original atoms.
+            self.live_affine_frontier = prepared.remaining_affine;
+            for place in prepared.retired_sources {
+                self.structural_values
+                    .remove(&place)
+                    .expect("owned source was staged without parent mutation");
+            }
+        }
         match binding
-            .invoke(operation.id, arguments, meter)
+            .invoke(operation.id, arguments, structural_arguments, meter)
             .map_err(&reject)?
         {
             Some(TerminalExecutionStatus::SponsorExhausted(exhaustion)) => {

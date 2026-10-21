@@ -54,6 +54,10 @@ pub(crate) struct BoundaryStorageLoans {
 }
 
 impl BoundaryStorageLoans {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.buffers.is_empty() && self.scalars.is_empty() && self.structural.is_empty()
+    }
+
     pub(crate) fn capture_scalar(
         &mut self,
         execution: &TerminalExecution,

@@ -391,3 +391,62 @@ fn unversioned_component_remains_needed_without_inventing_a_gnu_version() {
         );
     }
 }
+
+#[test]
+fn component_only_imports_omit_absent_version_records_and_their_address_fixup() {
+    let profile = TargetProfile::LinuxX64;
+    let mut image = image::FinalImage::with_capacity(
+        profile.native_target(),
+        image::FinalImageMemory {
+            text: vec![0; 64],
+            ..image::FinalImageMemory::default()
+        },
+        arena::Handle::invalid(),
+        2,
+        2,
+        2,
+    );
+    for index in 0..2 {
+        let locator = target::NormalizedComponentLocator::for_image(
+            profile,
+            &[index as u8],
+            [index as u8 + 1; 32],
+        )
+        .unwrap();
+        let offset = index * 16;
+        image.memory.text[offset] = 0xe8;
+        crate::test_support::import_with_text_relocations(
+            &mut image,
+            &format!("__omega_component_{index}"),
+            image::FinalImageImportPlan::Normalized(locator.into()),
+            &[offset + 1],
+        );
+    }
+    let inputs =
+        crate::plan_elf_dynamic_link_inputs(image, crate::test_support::interpreter(profile))
+            .unwrap();
+    let descriptors = crate::test_support::linkage_descriptors(inputs);
+    let plan = plan_elf_dynamic_tags(descriptors).unwrap();
+    assert_eq!(plan.needed_row_count(), 2);
+    assert_eq!(plan.row_count(), 17);
+    assert_eq!(plan.address_obligation_count(), 8);
+    assert!(!plan.has_version_requirements());
+    assert!(!plan.contents.rows.iter().any(|row| matches!(
+        row.tag,
+        ElfDynamicTag::GnuVersionRequirement | ElfDynamicTag::GnuVersionRequirementCount
+    )));
+    let mut malformed = plan.contents.clone();
+    let terminal = malformed.rows.pop().unwrap();
+    malformed.rows.extend([
+        super::address_row(ElfDynamicTag::GnuVersionRequirement),
+        ElfDynamicSemanticRow {
+            tag: ElfDynamicTag::GnuVersionRequirementCount,
+            value: ElfDynamicValue::VersionRequirementRecordCount(0),
+        },
+        terminal,
+    ]);
+    assert!(
+        validate_contents(plan.descriptors(), &malformed).is_err(),
+        "a zero count cannot justify a present pointer to an absent Verneed record"
+    );
+}

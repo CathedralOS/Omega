@@ -1,7 +1,7 @@
 //! Applied internal address fixups for the ELF64-LSB `.dynamic` payload.
 //!
 //! This layer consumes the placed section-header owner, copies the exact
-//! indexed `.dynamic` bytes, and resolves only the eight retained address
+//! indexed `.dynamic` bytes, and resolves only the retained version-aware address
 //! obligations against their exact allocated section placements. It does not
 //! modify any upstream bytes or the retained `FinalImage`, resolve procedure
 //! or source relocations, serialize ELF/program headers, or
@@ -34,8 +34,7 @@ const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
 const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
 const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
 const DYNAMIC_SECTION_INDEX: u32 = 12;
-const DYNAMIC_FIXUP_COUNT: usize = 9;
-const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; DYNAMIC_FIXUP_COUNT] = [
+const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; 9] = [
     ElfDynamicAddressApplicationTarget::ProcedureGot,
     ElfDynamicAddressApplicationTarget::SystemVHash,
     ElfDynamicAddressApplicationTarget::GnuHash,
@@ -46,6 +45,16 @@ const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; DYNAMIC_FIXUP_COUNT
     ElfDynamicAddressApplicationTarget::GnuSymbolVersion,
     ElfDynamicAddressApplicationTarget::GnuVersionRequirement,
 ];
+
+fn expected_targets(
+    placed: &ValidatedElfPlacedSectionHeaderTable,
+) -> &'static [ElfDynamicAddressApplicationTarget] {
+    if semantic_plan(placed).has_version_requirements() {
+        &EXPECTED_TARGETS
+    } else {
+        &EXPECTED_TARGETS[..EXPECTED_TARGETS.len() - 1]
+    }
+}
 
 /// The only field encoding admitted by this `.dynamic` application rung.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,7 +212,7 @@ struct Candidate {
     non_authoritative_resolved_compatibility_fingerprint: u64,
 }
 
-/// Apply the exact eight indexed `.dynamic` address fixups from the retained
+/// Apply the exact retained indexed `.dynamic` address fixups from the retained
 /// absolute section layout.
 pub(crate) fn apply_elf_dynamic_address_fixups(
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
@@ -235,17 +244,18 @@ fn derive_contents(
 ) -> Result<ElfResolvedDynamicTableContents, Diagnostic> {
     let indexed = indexed_payloads(placed);
     let source = dynamic_row(indexed)?;
+    let expected_targets = expected_targets(placed);
     require(
-        indexed.contents().dynamic_fixups.len() == DYNAMIC_FIXUP_COUNT,
-        "internal ELF dynamic application requires exactly eight indexed fixups",
+        indexed.contents().dynamic_fixups.len() == expected_targets.len(),
+        "internal ELF dynamic application requires the exact version-aware indexed fixups",
     )?;
     let mut bytes = source.bytes.clone();
-    let mut applications = Vec::with_capacity(DYNAMIC_FIXUP_COUNT);
+    let mut applications = Vec::with_capacity(expected_targets.len());
     for (fixup, expected_target) in indexed
         .contents()
         .dynamic_fixups
         .iter()
-        .zip(EXPECTED_TARGETS)
+        .zip(expected_targets.iter().copied())
     {
         let application = application_for_fixup(placed.load_layout(), fixup)?;
         require(
@@ -342,15 +352,16 @@ fn validate_contents(
 ) -> Result<(), Diagnostic> {
     let indexed = indexed_payloads(placed);
     let source = dynamic_row(indexed)?;
+    let expected_targets = expected_targets(placed);
     let fixups = &indexed.contents().dynamic_fixups;
     let serialized_fixups = &dynamic_payload(placed).contents().address_fixups;
     let semantic = semantic_plan(placed).contents();
     require(
-        fixups.len() == DYNAMIC_FIXUP_COUNT
-            && serialized_fixups.len() == DYNAMIC_FIXUP_COUNT
-            && semantic.address_obligations.len() == DYNAMIC_FIXUP_COUNT
-            && contents.applications.len() == DYNAMIC_FIXUP_COUNT,
-        "resolved ELF dynamic table does not retain exactly eight applications",
+        fixups.len() == expected_targets.len()
+            && serialized_fixups.len() == expected_targets.len()
+            && semantic.address_obligations.len() == expected_targets.len()
+            && contents.applications.len() == expected_targets.len(),
+        "resolved ELF dynamic table does not retain the exact version-aware applications",
     )?;
     require(
         contents.bytes.len() == source.bytes.len(),
@@ -361,7 +372,7 @@ fn validate_contents(
     for ((((fixup, serialized), expected_target), application), obligation) in fixups
         .iter()
         .zip(serialized_fixups)
-        .zip(EXPECTED_TARGETS)
+        .zip(expected_targets.iter().copied())
         .zip(&contents.applications)
         .zip(&semantic.address_obligations)
     {

@@ -51,11 +51,11 @@ fn is_direct_borrowed_rebinding(
 /// siblings and the scheduled home retirement still name the root's storage.
 /// This is the same storage/custody distinction constructor operands retain.
 /// Resolve all transfers first so a whole source binding retires exactly once.
-fn retire_transferred_call_sources(
+pub(super) fn transferred_call_sources(
     arguments: &[StructuralArgument],
     parameters: &[StructuralParameterDeclaration],
-    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
-) -> Result<(), TerminalInterpretError> {
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+) -> Result<Vec<PlaceId>, TerminalInterpretError> {
     let sources = arguments
         .iter()
         .zip(parameters)
@@ -66,12 +66,23 @@ fn retire_transferred_call_sources(
         })
         .map(|(argument, _)| argument.place)
         .collect::<BTreeSet<_>>();
-    for place in sources {
-        if values.remove(&place).is_none() {
+    for place in &sources {
+        if !values.contains_key(place) {
             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                place,
+                *place,
             ));
         }
+    }
+    Ok(sources.into_iter().collect())
+}
+
+fn retire_transferred_call_sources(
+    arguments: &[StructuralArgument],
+    parameters: &[StructuralParameterDeclaration],
+    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+) -> Result<(), TerminalInterpretError> {
+    for place in transferred_call_sources(arguments, parameters, values)? {
+        values.remove(&place);
     }
     Ok(())
 }

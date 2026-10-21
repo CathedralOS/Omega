@@ -3,7 +3,7 @@
 //! The generic [System V ABI dynamic section] defines the required tag/value
 //! relationships and the significant relative order of `DT_NEEDED` rows. The
 //! [LSB symbol-version ABI] defines `DT_VERSYM`, `DT_VERNEED`, and
-//! `DT_VERNEEDNUM`. This module retains those meanings as typed rows and nine
+//! `DT_VERNEEDNUM`. This module retains those meanings as typed rows and exact
 //! semantic address obligations; it emits no `Elf64_Dyn` bytes or addresses.
 //! The [original GNU implementation] defines `DT_GNU_HASH` custody for the
 //! companion `.gnu.hash` payload.
@@ -29,8 +29,8 @@ use target::TargetProfile;
 
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
-const FIXED_NON_NEEDED_ROW_COUNT: usize = 17;
-const ADDRESS_OBLIGATION_COUNT: usize = 9;
+const UNVERSIONED_FIXED_ROW_COUNT: usize = 15;
+const UNVERSIONED_ADDRESS_COUNT: usize = 8;
 /// Independently validated semantic `.dynamic` rows and address obligations.
 ///
 /// The exact eleven-section descriptor carrier remains owned by this non-clone
@@ -47,6 +47,10 @@ pub struct ValidatedElfDynamicTagPlan {
 impl ValidatedElfDynamicTagPlan {
     pub const fn descriptors(&self) -> &ValidatedElfProcedureLinkageSectionDescriptorPlan {
         &self.descriptors
+    }
+
+    pub(crate) fn has_version_requirements(&self) -> bool {
+        !structural_contents(&self.descriptors).verneed.is_empty()
     }
 
     pub fn row_count(&self) -> usize {
@@ -68,7 +72,7 @@ impl ValidatedElfDynamicTagPlan {
     }
 
     /// Compatibility fingerprint of the owning eleven-section descriptor
-    /// identity, exact typed row sequence, and eight semantic address
+    /// identity, exact typed row sequence, and retained semantic address
     /// obligations. This is not final-byte or loader identity.
     pub const fn non_authoritative_tag_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_tag_compatibility_fingerprint
@@ -230,11 +234,12 @@ fn derive_contents(
     let structural = structural_contents(descriptors);
     let row_capacity = checked_sum(
         structural.needed.len(),
-        FIXED_NON_NEEDED_ROW_COUNT,
+        UNVERSIONED_FIXED_ROW_COUNT + 2 * usize::from(!structural.verneed.is_empty()),
         "ELF dynamic row count",
     )?;
     let mut rows = Vec::with_capacity(row_capacity);
-    let mut address_obligations = Vec::with_capacity(ADDRESS_OBLIGATION_COUNT);
+    let mut address_obligations =
+        Vec::with_capacity(UNVERSIONED_ADDRESS_COUNT + usize::from(!structural.verneed.is_empty()));
     for needed in &structural.needed {
         rows.push(ElfDynamicSemanticRow {
             tag: ElfDynamicTag::Needed,
@@ -325,19 +330,23 @@ fn derive_contents(
         ElfDynamicTag::GnuSymbolVersion,
         ElfDynamicAddressTarget::GnuSymbolVersion,
     )?;
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::GnuVersionRequirement,
-        ElfDynamicAddressTarget::GnuVersionRequirement,
-    )?;
-    rows.push(ElfDynamicSemanticRow {
-        tag: ElfDynamicTag::GnuVersionRequirementCount,
-        value: ElfDynamicValue::VersionRequirementRecordCount(super::super::checked_u64(
-            structural.verneed.len(),
-            "GNU version-requirement record count",
-        )?),
-    });
+    // A present DT_VERNEED points at an actual first record. A zero count
+    // does not make a padding address a record: loaders still inspect it.
+    if !structural.verneed.is_empty() {
+        push_address_row(
+            &mut rows,
+            &mut address_obligations,
+            ElfDynamicTag::GnuVersionRequirement,
+            ElfDynamicAddressTarget::GnuVersionRequirement,
+        )?;
+        rows.push(ElfDynamicSemanticRow {
+            tag: ElfDynamicTag::GnuVersionRequirementCount,
+            value: ElfDynamicValue::VersionRequirementRecordCount(super::super::checked_u64(
+                structural.verneed.len(),
+                "GNU version-requirement record count",
+            )?),
+        });
+    }
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::Null,
         value: ElfDynamicValue::Null,
@@ -432,7 +441,7 @@ fn validate_contents(
     )?;
     let expected_row_count = checked_sum(
         structural.needed.len(),
-        FIXED_NON_NEEDED_ROW_COUNT,
+        UNVERSIONED_FIXED_ROW_COUNT + 2 * usize::from(!structural.verneed.is_empty()),
         "validated ELF dynamic row count",
     )?;
     require(
@@ -442,7 +451,7 @@ fn validate_contents(
     validate_needed_rows(descriptors, contents, structural.needed.len())?;
     validate_fixed_rows(descriptors, contents, structural.needed.len())?;
     validate_descriptor_targets(descriptors)?;
-    validate_address_obligations(contents)?;
+    validate_address_obligations(contents, !structural.verneed.is_empty())?;
     validate_relocation_closure(descriptors)?;
     Ok(())
 }
@@ -511,7 +520,7 @@ fn validate_fixed_rows(
     base: usize,
 ) -> Result<(), Diagnostic> {
     let structural = structural_contents(descriptors);
-    let fixed = [
+    let mut fixed = vec![
         ElfDynamicSemanticRow {
             tag: ElfDynamicTag::ProcedureRelocationSize,
             value: ElfDynamicValue::ProcedureRelocationByteCount(super::super::checked_u64(
@@ -556,21 +565,25 @@ fn validate_fixed_rows(
             )?),
         },
         address_row(ElfDynamicTag::GnuSymbolVersion),
-        address_row(ElfDynamicTag::GnuVersionRequirement),
-        ElfDynamicSemanticRow {
-            tag: ElfDynamicTag::GnuVersionRequirementCount,
-            value: ElfDynamicValue::VersionRequirementRecordCount(super::super::checked_u64(
-                structural.verneed.len(),
-                "validated version-requirement count",
-            )?),
-        },
-        ElfDynamicSemanticRow {
-            tag: ElfDynamicTag::Null,
-            value: ElfDynamicValue::Null,
-        },
     ];
+    if !structural.verneed.is_empty() {
+        fixed.extend([
+            address_row(ElfDynamicTag::GnuVersionRequirement),
+            ElfDynamicSemanticRow {
+                tag: ElfDynamicTag::GnuVersionRequirementCount,
+                value: ElfDynamicValue::VersionRequirementRecordCount(super::super::checked_u64(
+                    structural.verneed.len(),
+                    "validated version-requirement count",
+                )?),
+            },
+        ]);
+    }
+    fixed.push(ElfDynamicSemanticRow {
+        tag: ElfDynamicTag::Null,
+        value: ElfDynamicValue::Null,
+    });
     require(
-        contents.rows.get(base..) == Some(&fixed),
+        contents.rows.get(base..) == Some(fixed.as_slice()),
         "fixed ELF dynamic tags are missing, duplicated, reordered, or malformed",
     )?;
     let relocation_bytes = descriptors.templates().procedure_relocation_byte_count();
@@ -605,7 +618,10 @@ const fn address_row(tag: ElfDynamicTag) -> ElfDynamicSemanticRow {
     }
 }
 
-fn validate_address_obligations(contents: &ElfDynamicTagContents) -> Result<(), Diagnostic> {
+fn validate_address_obligations(
+    contents: &ElfDynamicTagContents,
+    has_version_requirements: bool,
+) -> Result<(), Diagnostic> {
     let expected = [
         (
             ElfDynamicTag::ProcedureGot,
@@ -641,11 +657,17 @@ fn validate_address_obligations(contents: &ElfDynamicTagContents) -> Result<(), 
             ElfDynamicAddressTarget::GnuVersionRequirement,
         ),
     ];
+    let expected_count = UNVERSIONED_ADDRESS_COUNT + usize::from(has_version_requirements);
+    let expected = &expected[..expected_count];
     require(
-        contents.address_obligations.len() == ADDRESS_OBLIGATION_COUNT,
+        contents.address_obligations.len() == expected.len(),
         "ELF dynamic address-obligation count is not exact",
     )?;
-    for (obligation, (tag, target)) in contents.address_obligations.iter().zip(expected) {
+    for (obligation, (tag, target)) in contents
+        .address_obligations
+        .iter()
+        .zip(expected.iter().copied())
+    {
         let row_index = usize::try_from(obligation.row_ordinal)
             .map_err(|_| Diagnostic::error("ELF dynamic row ordinal exceeds usize"))?;
         require(

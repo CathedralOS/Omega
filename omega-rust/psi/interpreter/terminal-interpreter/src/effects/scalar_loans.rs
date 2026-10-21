@@ -128,6 +128,10 @@ pub(crate) struct BoundaryScalarLoans {
 }
 
 impl BoundaryScalarLoans {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.buffers.is_empty() && self.bindings.is_empty()
+    }
+
     pub(crate) fn capture(
         &mut self,
         execution: &TerminalExecution,
