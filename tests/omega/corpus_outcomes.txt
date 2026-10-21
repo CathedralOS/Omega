@@ -1085,6 +1085,12 @@ fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 
 fail/contracts/named_tail_return_contract rejected 1599ms expected @a9ae30e1c334+wt
 fail/contracts/negated_edge_guard_unproven_bound rejected 1542ms expected @a9ae30e1c334+wt
 fail/contracts/nested_array_boolean_requires rejected 1551ms expected @a9ae30e1c334+wt
+fail/contracts/nested_call_later_operand_clears_storage_fact rejected 609ms expected @664463cccb82
+	cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/nested_call_opaque_write_clears_storage_fact rejected 580ms expected @664463cccb82
+	cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/nested_call_outer_write_clears_storage_fact rejected 594ms expected @664463cccb82
+	cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/normal_return_contextual_call_argument_bound rejected 1656ms expected @c4fed470f35f+wt
 	cannot prove index `end` is within length 146 in Main::main::main
 	cannot prove index `end` is within length 146 in Main::main::main
@@ -2132,6 +2138,28 @@ fail/facts/atomic_compare_exchange_once_wide_rejected rejected 31ms expected @7d
 	tests/omega/fail/facts/atomic_compare_exchange_once_wide_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
 fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 10692ms expected @7df3e6a600f1+wt
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/borrowed_content_partition_through_call_result rejected 1083ms expected @664463cccb82
+	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_const_name rejected 1062ms expected @664463cccb82
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_field rejected 1076ms expected @664463cccb82
+	cannot prove requires contract for call carve from exercise: 32 == holder.strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && holder.strategy.tail.length == 24 && holder.strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_local rejected 1090ms expected @664463cccb82
+	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_other_machine rejected 1091ms expected @664463cccb82
+	cannot prove requires contract for call take from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_other_state rejected 1088ms expected @664463cccb82
+	cannot prove requires contract for call next from exercise: first.length == 16 && strategy.tail.length == 32 && strategy.remaining == 32 (needs fact `first.length == 16 && strategy.tail.length == 32 && strategy.remaining == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_parameter rejected 1065ms expected @664463cccb82
+	cannot prove requires contract for call carve from consume: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from consume: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_target_body rejected 1329ms expected @664463cccb82
+	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 31057ms expected @fa145e0af975
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 27079ms expected @fa145e0af975
@@ -9571,6 +9599,8 @@ pass/contracts/indexed_crash_dense_scalar_namespace checked 7774ms check-target:
 pass/contracts/indexed_crash_entry_subfield_arrival checked 7715ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/contracts/invariant_identifier checked 9662ms @5041ef1af684+wt
 pass/contracts/named_tail_return_contract checked 12896ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/nested_call_later_operand_preserves_storage_fact checked 953ms check-target:macos_arm64 @664463cccb82
+pass/contracts/nested_call_outer_preserves_storage_fact checked 952ms check-target:macos_arm64 @664463cccb82
 pass/contracts/normal_return_contextual_call_arguments_exit checked 8560ms check-target:macos_arm64 @c4fed470f35f+wt
 pass/contracts/opaque_call_preserves_model checked 7021ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/contracts/policy_field_ensures checked 9605ms @5041ef1af684+wt
@@ -9592,6 +9622,7 @@ pass/contracts/runtime_later_arm_call_requires_exit checked 11514ms check-target
 pass/contracts/runtime_literal_view_extent_calls_exit checked 7388ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/contracts/runtime_mutable_owned_call_poststate_exit checked 743ms check-target:macos_arm64 @6a99f62cecec
 pass/contracts/runtime_mutable_owned_collection_poststate_exit checked 743ms check-target:macos_arm64 @6a99f62cecec
+pass/contracts/runtime_nested_call_post_storage_exit checked 952ms check-target:macos_arm64 @664463cccb82
 pass/contracts/runtime_postcall_storage_identity_exit checked 2178ms check-target:macos_arm64 @359b1dba56f5
 pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/saved_call_case_guarantee_requires_exit checked 11049ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10346,6 +10377,14 @@ pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 39678ms
 pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 33567ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 35071ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_wide_exit checked 34802ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/borrowed_content_partition_through_call_result checked 1195ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_const_name checked 1206ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_field checked 1208ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_local checked 1201ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_other_machine checked 1218ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_other_state checked 1195ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_parameter checked 1190ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_target_body checked 1207ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 68778ms check-target:macos_arm64 @fa145e0af975
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 69562ms check-target:macos_arm64 @fa145e0af975
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 68926ms check-target:macos_arm64 @fa145e0af975
