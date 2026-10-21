@@ -1012,6 +1012,10 @@ fail/constraints/guarded_integer_return_range rejected 851ms expected @a9ae30e1c
 fail/constraints/multiple_policy_domain_chain rejected 887ms expected @a9ae30e1c334+wt
 fail/constraints/scalar_requires_unproven_literal rejected 1539ms expected @a9ae30e1c334+wt
 fail/contracts/address_field_false_result_guarantee rejected 1121ms expected @2a08673f9136
+fail/contracts/address_observation_operand_write rejected 650ms expected @9e04918b1d1c
+	cannot prove requires contract for call consume from main: counter.value == 7 (needs fact `counter.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/address_observation_shadow_write rejected 674ms expected @9e04918b1d1c
+	cannot prove requires contract for call consume from main: counter.value == 7 (needs fact `counter.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/aggregate_result_false_guarantee rejected 1584ms expected @a9ae30e1c334+wt
 fail/contracts/call_write_retires_overlapping_guard rejected 2326ms expected @4a9ab33501da+wt
 	cannot prove requires contract for call pop from Main::main: main.a.count >= 1 && main.a.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `twice`
@@ -1108,6 +1112,8 @@ fail/contracts/referent_replacement_false_guarantee rejected 1622ms expected @a9
 fail/contracts/replacement_call_child_false_snapshot rejected 1648ms expected @a9ae30e1c334+wt
 fail/contracts/returned_integer_operation_wrong_operand rejected 1617ms expected @a9ae30e1c334+wt
 fail/contracts/returned_length_cannot_use_later_operand_guarantee rejected 652ms expected @6756ba1b9853
+fail/contracts/returned_reference_field_stale_fact rejected 670ms expected @9e04918b1d1c
+	cannot prove requires contract for call consume from main: captured.counter.value == 7 (needs fact `counter.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/returned_windows_keep_distinct_measures rejected 657ms expected @6756ba1b9853
 fail/contracts/runtime_requirement_after_argument_write rejected 3268ms expected @c0ec033db8e0+wt
 	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `middle`
@@ -2147,6 +2153,9 @@ fail/facts/borrowed_content_partition_through_field rejected 1076ms expected @66
 	cannot prove requires contract for call carve from exercise: 32 == holder.strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && holder.strategy.tail.length == 24 && holder.strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/borrowed_content_partition_through_local rejected 1090ms expected @664463cccb82
+	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/borrowed_content_partition_through_match_join rejected 988ms expected @9e04918b1d1c
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/borrowed_content_partition_through_other_machine rejected 1091ms expected @664463cccb82
@@ -7391,6 +7400,8 @@ fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c3
 fail/ownership/selected_result_move_after_consumption rejected 469ms expected @51666ce89b10
 	cannot use `token` in machine `invalid` state `entry` (statement 0) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/selected_retired_sibling_reuse rejected 194ms expected @1a353f2e117b+wt
+fail/ownership/selected_storage_join_unrelated_root rejected 981ms expected @9e04918b1d1c
+	cannot prove ensures contract for exit from rejoin at statement 6: result in Region::Owned
 fail/ownership/selective_constructed_owner_reuse rejected 1174ms expected @a9ae30e1c334+wt
 fail/ownership/stored_view_element_missing_repair rejected 270ms expected @f329f97f57f7+wt
 fail/ownership/successor_argument_write_keeps_linear_debt rejected 725ms expected @e2a6d051c734
@@ -9633,6 +9644,7 @@ pass/constraints/guarded_parameter_result_contract checked 2133ms @a9ae30e1c334+
 pass/constraints/proof_machine_order_fact checked 2262ms @a9ae30e1c334+wt
 pass/constraints/scalar_requires_satisfied_by_literal checked 2414ms @a9ae30e1c334+wt
 pass/constraints/selected_arithmetic_return_ensures checked 2397ms @a9ae30e1c334+wt
+pass/contracts/address_observation_preserves_facts_exit checked 879ms check-target:macos_arm64 @9e04918b1d1c
 pass/contracts/arith_ensures_selection checked 9585ms @5041ef1af684+wt
 pass/contracts/borrowed_field_ensures checked 9549ms @5041ef1af684+wt
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2175ms check-target:macos_arm64 @4a9ab33501da+wt
@@ -9670,6 +9682,8 @@ pass/contracts/proof_fact_indexed_domain_application checked 1913ms @a9ae30e1c33
 pass/contracts/range_requires_discharge checked 14484ms @5041ef1af684+wt
 pass/contracts/requires_narrow_ceiling_unproven checked 12007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 11707ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/returned_owned_field_mutation_exit checked 879ms check-target:macos_arm64 @9e04918b1d1c
+pass/contracts/returned_reference_field_mutation_exit checked 879ms check-target:macos_arm64 @9e04918b1d1c
 pass/contracts/runtime_address_field_contract_exit checked 6942ms check-target:macos_arm64 @2a08673f9136
 pass/contracts/runtime_case_payload_write_preserves_tag_exit checked 3963ms check-target:macos_arm64 @6c0183cab07b
 pass/contracts/runtime_float_case_crash_guard_exit checked 6891ms check-target:macos_arm64 @c294657097ec+wt
@@ -9689,6 +9703,7 @@ pass/contracts/runtime_postcall_storage_identity_exit checked 2178ms check-targe
 pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/saved_call_case_guarantee_requires_exit checked 11049ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/saved_case_guarantee checked 9196ms @5041ef1af684+wt
+pass/contracts/selected_storage_contract_exit checked 885ms check-target:macos_arm64 @9e04918b1d1c
 pass/contracts/shared_field_current_arithmetic checked 1642ms @a9ae30e1c334+wt
 pass/contracts/terminal_contract checked 9431ms @5041ef1af684+wt
 pass/control_flow/affine_call_result_state_transfer_exit checked 11599ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10214,7 +10229,7 @@ pass/drops/runtime_projected_nominal_core_exit checked 11489ms check-target:maco
 pass/drops/runtime_projected_reference_siblings_exit checked 12483ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_projected_reference_transition_cleanup_exit checked 11394ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_projected_transition_cleanup_exit checked 13877ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_record_construction_cleanup_order_exit checked 6088ms check-target:macos_arm64 @7c1edd43e7e4+wt
+pass/drops/runtime_record_construction_cleanup_order_exit checked 860ms check-target:macos_arm64 @9e04918b1d1c
 pass/drops/runtime_replaced_record_custody_transfer_exit checked 11188ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 11900ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 12259ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10443,6 +10458,7 @@ pass/facts/borrowed_content_partition_through_call_result checked 1195ms check-t
 pass/facts/borrowed_content_partition_through_const_name checked 1206ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_content_partition_through_field checked 1208ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_content_partition_through_local checked 1201ms check-target:macos_arm64 @664463cccb82
+pass/facts/borrowed_content_partition_through_match_join checked 1189ms check-target:macos_arm64 @9e04918b1d1c
 pass/facts/borrowed_content_partition_through_other_machine checked 1218ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_content_partition_through_other_state checked 1195ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_content_partition_through_parameter checked 1190ms check-target:macos_arm64 @664463cccb82
@@ -13008,6 +13024,12 @@ pass/ownership/runtime_whole_borrowed_window_crash_exit checked 11009ms check-ta
 pass/ownership/runtime_whole_linear_parent_move_exit checked 1348ms check-target:macos_arm64 @e2a6d051c734
 pass/ownership/selected_constructor_fresh_field checked 11765ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/ownership/selected_constructor_swapped_fields checked 11720ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/ownership/selected_storage_join_backedge_exit checked 1198ms check-target:macos_arm64 @9e04918b1d1c
+pass/ownership/selected_storage_join_borrowed_ingress_exit checked 1164ms check-target:macos_arm64 @9e04918b1d1c
+pass/ownership/selected_storage_join_held_address_exit checked 1144ms check-target:macos_arm64 @9e04918b1d1c
+pass/ownership/selected_storage_join_nested_exit checked 1206ms check-target:macos_arm64 @9e04918b1d1c
+pass/ownership/selected_storage_join_returned_owner_exit checked 1178ms check-target:macos_arm64 @9e04918b1d1c
+pass/ownership/selected_storage_join_scalar_result_exit checked 1168ms check-target:macos_arm64 @9e04918b1d1c
 pass/ownership/shared_array_view_compile checked 1580ms @a9ae30e1c334+wt
 pass/ownership/shared_float_view_compile checked 1703ms @a9ae30e1c334+wt
 pass/ownership/shared_record_view_compile checked 1858ms @a9ae30e1c334+wt
