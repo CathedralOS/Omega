@@ -170,10 +170,17 @@ pub fn range_operator_establishes_endpoint_extent(
         &operands,
         program.expression_table.source_span(expression),
     );
-    if candidates.len() != 1 {
+    if candidates.len() != 1
+        || typed_trees::operator::selected_trait_operator_meaning_exists(
+            trees,
+            machine.symbol,
+            OperatorSpelling::Range,
+            &operands,
+        )
+    {
         return false;
     }
-    operator_ensures_result_length_is_endpoint_difference(trees, candidates[0].operator)
+    operator_ensures_result_length_is_endpoint_difference(program, candidates[0].operator)
 }
 
 /// Endpoints of a completed call whose range operator, or the machine that
@@ -200,7 +207,7 @@ fn call_target_ensures_endpoint_extent(
     if let Some(operator) = typed_trees::operator::declaration_by_symbol(trees, symbol)
         && operator.spelling == Some(OperatorSpelling::Range)
         && trees.operator_parameters(operator).len() == 3
-        && operator_ensures_result_length_is_endpoint_difference(trees, operator)
+        && operator_ensures_result_length_is_endpoint_difference(program, operator)
     {
         return true;
     }
@@ -212,7 +219,7 @@ fn call_target_ensures_endpoint_extent(
         return false;
     };
     let parameters = program.state_parameters(state);
-    let [_, start, end] = parameters else {
+    let [_, _, _] = parameters else {
         return false;
     };
     let mut established = program
@@ -225,18 +232,18 @@ fn call_target_ensures_endpoint_extent(
                 return false;
             };
             expression_equates_result_length_to_difference(
-                trees,
+                program,
                 *fact_expression,
-                start.name.as_str(),
-                end.name.as_str(),
+                state.symbol,
+                parameters,
             )
         });
     if !established && let Some(machine) = program.machine_holding_state(state.symbol) {
         established = contracts_equate_result_length(
-            trees,
+            program,
+            machine.symbol,
+            parameters,
             program.machine_contracts(machine),
-            start.name.as_str(),
-            end.name.as_str(),
         ) || program
             .machine_trait_conformances(machine)
             .iter()
@@ -245,17 +252,17 @@ fn call_target_ensures_endpoint_extent(
             })
             .any(|operator| {
                 operator.spelling == Some(OperatorSpelling::Range)
-                    && operator_ensures_result_length_is_endpoint_difference(trees, operator)
+                    && operator_ensures_result_length_is_endpoint_difference(program, operator)
             });
     }
     established
 }
 
 fn contracts_equate_result_length(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
     contracts: &[typed_trees::signature::SignatureContract],
-    start: &str,
-    end: &str,
 ) -> bool {
     contracts
         .iter()
@@ -265,7 +272,7 @@ fn contracts_equate_result_length(
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 return false;
             };
-            expression_equates_result_length_to_difference(program, *expression, start, end)
+            expression_equates_result_length_to_difference(program, *expression, owner, parameters)
         })
 }
 
@@ -291,88 +298,100 @@ fn reference_has_builtin_collection_geometry(
 }
 
 fn operator_ensures_result_length_is_endpoint_difference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
     let parameters = program.operator_parameters(operator);
+    let [_, _, _] = parameters else {
+        return false;
+    };
+    contracts_equate_result_length(
+        program,
+        operator.symbol,
+        parameters,
+        program.operator_contracts(operator),
+    )
+}
+
+/// Extract a numeric equation only in its declaration's selected meaning.
+/// A custom equality can relate unequal lengths, and a custom or wrapping
+/// subtraction need not denote the ordinary endpoint difference. Neither the
+/// token spelling nor same-spelled formals authorize builtin arithmetic.
+fn expression_equates_result_length_to_difference(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+) -> bool {
     let [_, start, end] = parameters else {
         return false;
     };
-    program
-        .operator_contracts(operator)
-        .iter()
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .any(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-                return false;
-            };
-            expression_equates_result_length_to_difference(
-                program,
-                *expression,
-                start.name.as_str(),
-                end.name.as_str(),
-            )
-        })
-}
-
-fn expression_equates_result_length_to_difference(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    start: &str,
-    end: &str,
-) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     match binary.operator {
         typed_trees::expression::BinaryOperator::And => {
-            expression_equates_result_length_to_difference(program, binary.left, start, end)
-                || expression_equates_result_length_to_difference(program, binary.right, start, end)
+            expression_equates_result_length_to_difference(program, binary.left, owner, parameters)
+                || expression_equates_result_length_to_difference(
+                    program,
+                    binary.right,
+                    owner,
+                    parameters,
+                )
         }
         typed_trees::expression::BinaryOperator::Equal => {
-            (expression_is_result_length(program, binary.left)
+            crate::has_builtin_parameter_bound_expression_meaning(
+                program, owner, parameters, expression,
+            ) && ((expression_is_result_length(program, binary.left, owner)
                 && expression_is_parameter_difference(program, binary.right, start, end))
-                || (expression_is_result_length(program, binary.right)
-                    && expression_is_parameter_difference(program, binary.left, start, end))
+                || (expression_is_result_length(program, binary.right, owner)
+                    && expression_is_parameter_difference(program, binary.left, start, end)))
         }
         _ => false,
     }
 }
 
 fn expression_is_result_length(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
+    owner: symbols::SymbolHandle,
 ) -> bool {
     let Some(member) = program.expression_table.member_node(expression) else {
         return false;
     };
     member.case_variant.is_none()
         && member.member.as_str() == "len"
-        && single_name(program, member.receiver) == Some("result")
+        && crate::reserved_result_owner(program, member.receiver).is_some_and(
+            |(callable, result)| {
+                callable == owner && reference_has_builtin_collection_geometry(program, result)
+            },
+        )
 }
 
 fn expression_is_parameter_difference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    start: &str,
-    end: &str,
+    start: &typed_trees::signature::StateParameter,
+    end: &typed_trees::signature::StateParameter,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     binary.operator == typed_trees::expression::BinaryOperator::Subtract
-        && single_name(program, binary.left) == Some(end)
-        && single_name(program, binary.right) == Some(start)
-}
-
-fn single_name(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<&str> {
-    let path = program.expression_table.name_path_node(expression)?;
-    let members = program.expression_table.name_path_members(path.members);
-    let [name] = members else {
-        return None;
-    };
-    Some(name.as_str())
+        && crate::expression_traversal::single_segment_name_symbol(program, binary.left)
+            == Some(end.symbol)
+        && crate::expression_traversal::single_segment_name_symbol(program, binary.right)
+            == Some(start.symbol)
+        && [start, end].into_iter().all(|parameter| {
+            parameter.symbol.is_valid()
+                && program.primitive_type_reference(parameter.type_reference)
+                    == Some(typed_trees::types::PrimitiveType::U64)
+                && matches!(
+                    program.arithmetic_domain_for_type_reference(parameter.type_reference),
+                    numerics::arithmetic::ArithmeticDomain::Exact
+                        | numerics::arithmetic::ArithmeticDomain::Trapping
+                )
+        })
 }
 
 /// Authenticate this indexed occurrence, independently of how its collection
