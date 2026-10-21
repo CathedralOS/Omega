@@ -96,7 +96,7 @@ only an extent beyond the end is refused.
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
 | nested call contexts | three-word rows, slot zero reserved | 256 contexts |
 | active function frames | six-word rows | 257 reachable frames |
-| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 3,422,453,760 pairs |
+| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 3,422,447,206 pairs |
 | buffered output | bytes published after result validation | 135,266,304 bytes |
 
 The request maximum includes its four-byte length. Consequently a source with

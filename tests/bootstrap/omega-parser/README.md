@@ -200,3 +200,119 @@ on top of the bound member closure to 574,503 bytes, SHA-256
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not
 independent identities.
+
+## Layer-0 source-cost diagnostic
+
+`measure.sh` freezes unchanged C files of increasing size: `parse/input.omg`,
+`resolve/resolver.omg`, then all `source/psi/parse/*.omg`, preserving unit
+boundaries. One whole-D customer reads sealed stdin into its actual array-backed
+source representation and calls `OmegaParser::parse_view`. A newline, the tiny
+`answer` machine, and a NUL reject control precede every dataset and reuse the
+same parser. The fixture's 131,072-byte input window covers the largest current
+C unit; D's parser tables and capacities are unchanged.
+
+The diagnostic uses the canonical reconstructed Epsilon evaluator receipt and
+ordinary EEREQ envelope. The host frames bytes, profiles and compares; it does
+not replace any interpreter. Every child stream uses a pipe. File-backed
+bytewise Alpha I/O on a Windows-mounted filesystem is unsuitable for this
+measurement. Large Epsilon string literals are also unsuitable: their decoder
+builds a left-deep byte rope, unlike D's array-backed source input.
+
+Ordinary Console writes of bytes 240 and 241 surround the parser call in the
+fixture only. The read-only Linux observer follows the pinned Gamma pair layout,
+sealed input cursor and output Bytes roots. Its tiny calibration ignores an
+unrelated `L0` literal, checks sequential reads, and compares the complete public
+output. Each real invocation must likewise match its independent Epsilon-model
+output exactly before its heap phase projection is accepted. Model execution
+time is never bootstrap timing. The observer does not stop the child during
+execution; ptrace stops occur only at exec and exit.
+
+Phase events record exact cumulative pair ordinals and sampling intervals for
+wall and child CPU time. Loading runs from a unit's final header-byte read to its
+parse-start marker, so it includes the final array write and the fixture's
+byte-reader/state-loop work. This is a diagnostic loader, not the final OCREQ
+decoder. Parsing runs between
+markers and includes their call-boundary overhead. The newline control exposes
+fixed reset/marker work. These intervals avoid subtracting checking times from
+separate, differently contended runs. They do not remove host contention.
+`stdin-tree-ready` to `checking-finished` covers Epsilon's checking of D and the
+entry setup before the initial Console cursor is constructed.
+
+Replay on Linux x86-64 (Windows: WSL; macOS: an x86-64 Linux guest):
+
+```sh
+sh tests/bootstrap/omega-parser/measure.sh "$PWD/build/layer0-replay"
+```
+
+```powershell
+wsl.exe -d Ubuntu -- sh /mnt/c/SoftwareDevelopmentKits/Omega/tests/bootstrap/omega-parser/measure.sh /mnt/c/SoftwareDevelopmentKits/Omega/build/layer0-replay
+```
+
+The script verifies source/seed identities through the existing materializers,
+reconstructs the receipt, checks scalar/pair counter controls and the phase
+calibration, then executes datasets sequentially. `OMEGA_LAYER0_SECONDS`
+(default 14400) is a per-case observation watchdog, never a language judgment.
+A failed case stops the sequence. `--prepare-only` after the result directory
+materializes and checks the frozen inputs without starting any VM. Existing
+observation JSON refuses overwrite; use a fresh result directory. Individual
+cases can be selected with
+`python3 tests/bootstrap/omega-parser/measure.py cases RESULT_DIRECTORY small`.
+
+Stdin is mode byte 2, then repeated little-endian u32 length plus exact source
+bytes, followed by zero length and EOF. Public output is canonical Exit(0),
+`L0`, then bytes 240/241 and ten little-endian i32 fields per unit: length,
+status, cursor, diagnostic start/end, incomplete start/end, resource
+limit/requested, and root count. The final byte is `E`. Statuses are 1 Complete,
+2 LexicalFailure, 3 SyntaxFailure, 4 Incomplete, 5 ResourceFailure and
+6 InternalFailure. Only Complete establishes a whole-view parse. An early
+Incomplete result cannot establish full-parser throughput or authorize reading
+partial syntax rows.
+
+Result directories retain exact requests and outputs, frozen unit identities,
+phase observations, and receipt-reconstruction cost separately. The inventory of
+three Build-declared package directories is a byte census, not an exact resolved
+C closure or source snapshot. Projections from it are conditional. Checking,
+proof, Terminal Psi production and Alpha emission of C remain unmeasured.
+This diagnostic can be removed when full D-to-C qualification supplies these
+source-cost and resource observations.
+
+### 2026-10-21 bounded observation
+
+The [observation ledger](layer0-2026-10-21.json) retains the producer identities,
+controls, raw phase trace and limitations. This is an **unfinished layer-0
+measurement**. On a Ryzen 7950X with 128 GB RAM, Windows 11 and Ubuntu WSL,
+the unchanged 20,511-byte `source/psi/parse/input.omg` invocation reached the
+four-hour watchdog without publishing any output. The child was killed by that
+watchdog, not by a language refusal. It consumed 71,821,414 cumulative Gamma
+pairs. The larger 122,812-byte unit and 443,377-byte subtree are prepared and
+independently modeled, but have no native observations.
+
+Receipt reconstruction completed separately in 220.089 seconds and 1,864,697
+pairs, reproducing the canonical 729,060-byte receipt exactly. An earlier
+unmarked startup-only entry completed in 1,472.130 seconds and 4,344,297 pairs;
+its public output was canonical `Exit(0)` plus `L0E`. That entry differs from
+the marked diagnostic and supplies no cross-run parser subtraction.
+
+The interrupted heap trace places 51,046,514 pairs after the real-C parse-start
+marker, with at least 9,755.998 sampled wall seconds in that unfinished call.
+These phase figures remain **provisional**: no completed public output exists
+to validate this invocation's heap projection. Assuming the same per-byte cost
+across the 161-file, 2,947,429-byte declared-package census gives a screening
+floor of 7.335 billion parser pairs and 16.23 days at 1x, or 14.671 billion pairs
+and 32.45 days at 2x. These are conditional extrapolations from a censored,
+contended run, not completed parsing rates or resource proofs. The selected
+arena holds 3,422,447,206 pairs. The 2x census plus D also exceeds the selected
+4,194,252-byte Epsilon source-plus-stdin provision before framing.
+
+The hosted-target Rust package audit completed fresh analysis of the three
+declared packages; the Alpha-target audit panicked. Neither observation provides
+an exact Alpha C source snapshot. Independent Epsilon-model results predict
+`Incomplete` for all 18 selected C unit occurrences (17 distinct files), but
+none is yet a native C verdict.
+
+A separate fixture-only comparison primes the scanner before parser counters
+are first stored. Epsilon record writes copy linked-list prefixes, so scanner
+insertion order is a plausible allocation driver. Its prepared C bytes and
+expected outputs match the baseline exactly; D and the lower-chain artifacts
+are unchanged. Native execution is pending. No smaller language profile is
+selected, and full `OMEGA-D` acceptance remains open.
