@@ -1,1 +1,1 @@
-error: mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
+mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access

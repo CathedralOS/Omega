@@ -7182,6 +7182,12 @@ fail/layouts/placed_reference_results/wrong_backing rejected 7676ms expected @ca
 	machine `borrow_view` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 fail/layouts/placed_shared_formal_cannot_write rejected 5899ms expected @287adceca130+wt
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
+fail/layouts/placed_stable_array_index_unbounded rejected 744ms expected @6242664f2106+wt
+	cannot prove index `selected` is within length 2 in replace::entry
+fail/layouts/placed_stable_array_readonly_write rejected 259ms expected @6242664f2106+wt
+	placed write application: the placement plan does not permit this operation
+fail/layouts/placed_stable_array_shared_write rejected 420ms expected @6242664f2106+wt
+	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placement_policy_unproved_callee_premise rejected 34ms expected @171dad7fbf01+wt
 fail/layouts/plan_laid_dynamic_plan rejected 1752ms expected @a9ae30e1c334+wt
 fail/layouts/plan_laid_policy_without_plan_machine rejected 69ms expected @a9ae30e1c334+wt
@@ -12784,6 +12790,7 @@ pass/layouts/portable_data_layout_queries checked 11681ms check-target:macos_arm
 pass/layouts/private_callback_slot_demand_compile checked 12688ms @a9ae30e1c334+wt
 pass/layouts/private_callback_slot_untaken_compile checked 2062ms @a9ae30e1c334+wt
 pass/layouts/resident_aggregate_extraction checked 1419ms @e2a6d051c734
+pass/layouts/resident_array_field_access checked 2340ms @6242664f2106
 pass/layouts/resident_field_access checked 3002ms @e2a6d051c734
 pass/layouts/resident_forwarding_needs_no_plan checked 1406ms @e2a6d051c734
 pass/layouts/resident_fragment_field_access checked 2902ms @e2a6d051c734
@@ -14392,6 +14399,9 @@ run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:mac
 run/generics/runtime_value_index_operands checked 7083ms check-target:macos_arm64 @16802f0d1e96
 run/layouts/placed_ram_capture_return checked 60512ms check-target:macos_arm64 @c48489ea6ad6
 run/layouts/placed_ram_stored_field_return checked 92970ms check-target:macos_arm64 @c48489ea6ad6
+run/layouts/placed_stable_array checked 1735ms check-target:macos_arm64 @6242664f2106
+run/layouts/placed_stable_distinct_fields checked 1623ms check-target:macos_arm64 @6242664f2106
+run/layouts/placed_stable_nested_array checked 1588ms check-target:macos_arm64 @6242664f2106
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/claim_correspondence_all_returns checked 10218ms check-target:macos_arm64 @42423ab60d61+wt
 run/ownership/content_transform_case_alias checked 9897ms check-target:macos_arm64 @42423ab60d61+wt

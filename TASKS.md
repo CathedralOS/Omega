@@ -4023,9 +4023,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
 ## P2 - Materialization and placed access
 
-- **PLAN-LAID-VIEWS.** Placed views cannot be established, accessed and
-  retired by an executing source program under
+- **PLAN-LAID-VIEWS.** Complete externally established placed-view entry
+  lending and retirement under
   [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
+  Ordinary initialized-RAM and retained-resident scalar access, including
+  bounded indexing through fixed scalar arrays, already execute; those paths
+  do not establish the external entry bridge or the full retirement contract.
   Start from `tests/omega/pass/layouts/placed_view_source_access_compile`
   (checks only): its `inspect` writes `transmit` and reads `status`, but
   `build.omg` declares only a package. `Main::main` lends its placed input to
