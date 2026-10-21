@@ -75,6 +75,8 @@ public macos_arm64 machine objc_send(recv: u64, sel: u64) -> u64
     satisfies ObjectiveC::send via objc_msg_send_binding();
 public macos_arm64 machine objc_send_scalar(recv: u64, sel: u64, arg: u64) -> u64
     satisfies ObjectiveC::send_scalar via objc_msg_send_binding();
+public macos_arm64 machine objc_send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64)
+    satisfies ObjectiveC::send_delayed via objc_msg_send_binding();
 public macos_arm64 machine objc_send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
     satisfies ObjectiveC::send_rect via objc_msg_send_binding();
 public macos_arm64 machine objc_send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64

@@ -28,6 +28,7 @@ public boundary trait ObjectiveC {
     machine register_selector(name: &u8) -> u64;
     machine send(recv: u64, sel: u64) -> u64;
     machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
+    machine send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64);
     machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
     machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
     machine send_string(recv: u64, sel: u64, text: &u8) -> u64;
@@ -151,6 +152,17 @@ reaches CoreGraphics + ObjectiveC + AppKit
     let cbuf19: [u8; 27] = "activateIgnoringOtherApps:\0";
     sel = objc_register_selector(&cbuf19[0]);
     rc = objc_send_scalar(app, sel, 1);
+    let finish_name: [u8; 16] = "finishLaunching\0";
+    let finish_selector: u64 = objc_register_selector(&finish_name[0]);
+    rc = objc_send(app, finish_selector);
+    let stop_name: [u8; 6] = "stop:\0";
+    let stop_selector: u64 = objc_register_selector(&stop_name[0]);
+    let schedule_name: [u8; 39] = "performSelector:withObject:afterDelay:\0";
+    let schedule_selector: u64 = objc_register_selector(&schedule_name[0]);
+    objc_send_delayed(app, schedule_selector, stop_selector, 0, 0.001);
+    let run_name: [u8; 4] = "run\0";
+    let run_selector: u64 = objc_register_selector(&run_name[0]);
+    rc = objc_send(app, run_selector);
     let space: u64 = cg_color_space_rgb();
     // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
     // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
@@ -250,6 +262,19 @@ reaches ObjectiveC
 public macos_arm64 machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches CoreGraphics + ObjectiveC
 {
+    macos_window_present(window_state, source_width, source_height, &pixels[0..4096])
+}
+
+public macos_arm64 machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &[i32]) -> u32
+reaches CoreGraphics + ObjectiveC
+{
+    let count: u64 = (source_width as u64) * (source_height as u64);
+    transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.len == count && pixels.len > 0 {
+        true -> present(window_state, source_width, source_height, pixels)
+        _ -> (0)
+    }
+    state present(window_state: &Window, source_width: u32, source_height: u32, pixels: &[i32]) -> u32
+    requires pixels.len > 0 {
     let source_width_wide: i64 = source_width as i64;
     let source_height_wide: i64 = source_height as i64;
     let fbw: i64 = source_width_wide;
@@ -279,6 +304,7 @@ reaches CoreGraphics + ObjectiveC
     // The samples assert `blit == source_height` (every source scanline copied).
     let r32: u32 = source_height;
     r32
+    }
 }
 
 // Global key polling is meaningful only while this application's window is key.
@@ -294,7 +320,8 @@ reaches ObjectiveC
 public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
     transition virtual_key == 8 { true -> k51() _ -> t13(virtual_key) }
     state t13(virtual_key: u32) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27(virtual_key) } }
-    state t27(virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t37(virtual_key) } }
+    state t27(virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t32(virtual_key) } }
+    state t32(virtual_key: u32) -> u64 { transition virtual_key == 32 { true -> k49() _ -> t37(virtual_key) } }
     state t37(virtual_key: u32) -> u64 { transition virtual_key == 37 { true -> k123() _ -> t38(virtual_key) } }
     state t38(virtual_key: u32) -> u64 { transition virtual_key == 38 { true -> k126() _ -> t39(virtual_key) } }
     state t39(virtual_key: u32) -> u64 { transition virtual_key == 39 { true -> k124() _ -> t40(virtual_key) } }
@@ -308,18 +335,24 @@ public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
     state t54(virtual_key: u32) -> u64 { transition virtual_key == 54 { true -> k22() _ -> t55(virtual_key) } }
     state t55(virtual_key: u32) -> u64 { transition virtual_key == 55 { true -> k26() _ -> t56(virtual_key) } }
     state t56(virtual_key: u32) -> u64 { transition virtual_key == 56 { true -> k28() _ -> t57(virtual_key) } }
-    state t57(virtual_key: u32) -> u64 { transition virtual_key == 57 { true -> k25() _ -> t67(virtual_key) } }
-    state t67(virtual_key: u32) -> u64 { transition virtual_key == 67 { true -> k8() _ -> t77(virtual_key) } }
+    state t57(virtual_key: u32) -> u64 { transition virtual_key == 57 { true -> k25() _ -> t65(virtual_key) } }
+    state t65(virtual_key: u32) -> u64 { transition virtual_key == 65 { true -> k0() _ -> t67(virtual_key) } }
+    state t67(virtual_key: u32) -> u64 { transition virtual_key == 67 { true -> k8() _ -> t68(virtual_key) } }
+    state t68(virtual_key: u32) -> u64 { transition virtual_key == 68 { true -> k2() _ -> t77(virtual_key) } }
     state t77(virtual_key: u32) -> u64 { transition virtual_key == 77 { true -> k46() _ -> t82(virtual_key) } }
     state t82(virtual_key: u32) -> u64 { transition virtual_key == 82 { true -> k15() _ -> t83(virtual_key) } }
-    state t83(virtual_key: u32) -> u64 { transition virtual_key == 83 { true -> k1() _ -> t106(virtual_key) } }
+    state t83(virtual_key: u32) -> u64 { transition virtual_key == 83 { true -> k1() _ -> t87(virtual_key) } }
+    state t87(virtual_key: u32) -> u64 { transition virtual_key == 87 { true -> k13() _ -> t106(virtual_key) } }
     state t106(virtual_key: u32) -> u64 { transition virtual_key == 106 { true -> k67() _ -> t107(virtual_key) } }
     state t107(virtual_key: u32) -> u64 { transition virtual_key == 107 { true -> k69() _ -> t109(virtual_key) } }
     state t109(virtual_key: u32) -> u64 { transition virtual_key == 109 { true -> k78() _ -> t111(virtual_key) } }
     state t111(virtual_key: u32) -> u64 { transition virtual_key == 111 { true -> k75() _ -> t187(virtual_key) } }
     state t187(virtual_key: u32) -> u64 { transition virtual_key == 187 { true -> k24() _ -> unmapped() } }
+    state k0() -> u64 { 0 }
     state k1() -> u64 { 1 }
+    state k2() -> u64 { 2 }
     state k8() -> u64 { 8 }
+    state k13() -> u64 { 13 }
     state k15() -> u64 { 15 }
     state k18() -> u64 { 18 }
     state k19() -> u64 { 19 }
@@ -334,6 +367,7 @@ public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
     state k29() -> u64 { 29 }
     state k36() -> u64 { 36 }
     state k46() -> u64 { 46 }
+    state k49() -> u64 { 49 }
     state k51() -> u64 { 51 }
     state k53() -> u64 { 53 }
     state k67() -> u64 { 67 }
