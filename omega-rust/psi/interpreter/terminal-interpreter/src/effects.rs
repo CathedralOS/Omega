@@ -4,7 +4,7 @@
 //! `results.rs` binds a host result to the verified boundary result it
 //! answers, and `byte_buffers.rs` stages the exact array and field loans a
 //! boundary call lends the host and their separately committed replacement.
-//! `storage_loans.rs` captures primitive or complete active aggregate contents,
+//! `storage_inputs.rs` captures primitive or complete active aggregate contents,
 //! validates all replacements, then commits through the original backing.
 //! Host buffers never name mutable interpreter storage; scalar restrictions
 //! and endpoint queries remain owned by `scalar_loans.rs`.
@@ -13,11 +13,11 @@ pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
 pub(crate) mod results;
 pub(crate) mod scalar_loans;
-pub(crate) mod storage_loans;
+pub(crate) mod storage_inputs;
 
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::storage_loans::TerminalBoundaryStorageBuffer;
+use crate::effects::storage_inputs::TerminalBoundaryStorageBuffer;
 use crate::errors::TerminalInterpretError;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
@@ -68,7 +68,9 @@ pub enum TerminalEffect {
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
     /// Request captured semantic storage of these structural arguments before
-    /// host dispatch. This selects observations, never access or authority.
+    /// host dispatch. Owned arguments supply immutable payload snapshots;
+    /// reading borrows retain their existing restoration protocol. This selects
+    /// observations, never access or authority.
     fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
         &[]
     }

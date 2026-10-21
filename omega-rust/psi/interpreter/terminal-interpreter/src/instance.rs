@@ -29,7 +29,7 @@ use terminal_fuel::TerminalFuelMeter;
 use crate::adapters::TerminalImportAdapter;
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::storage_loans::TerminalBoundaryStorageBuffer;
+use crate::effects::storage_inputs::TerminalBoundaryStorageBuffer;
 use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;

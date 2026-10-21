@@ -68,7 +68,7 @@ impl TerminalBoundaryStructuralBuffer {
     ) -> Result<(), TerminalEffectRejection> {
         if self.access != StructuralAccess::MutableBorrow {
             return Err(TerminalEffectRejection::new(
-                "shared boundary storage cannot be replaced",
+                "owned or shared boundary storage cannot be replaced",
             ));
         }
         self.values = values;
@@ -387,7 +387,12 @@ pub(super) fn capture(
                 if logical != *scalar {
                     return Err(malformed());
                 }
-                execution.validate_scalar_loan_qualifications(&storage)?;
+                // Owned payload snapshots publish no replacement or loan. Their
+                // qualifications remain on the consumed argument; a read cannot
+                // weaken that owner or manufacture another qualified value.
+                if access != StructuralAccess::Owned {
+                    execution.validate_scalar_loan_qualifications(&storage)?;
+                }
                 let value = execution.read_primitive_storage(
                     source,
                     storage.clone(),

@@ -5,7 +5,7 @@
 //! an opaque per-buffer token prevents moving a previous invocation's buffer
 //! into a new call from substituting its backing. Captured field declarations
 //! retain original restrictions even when a formal observes a plain carrier.
-//! `storage_loans` coordinates complete aggregates, including case replacement,
+//! `storage_inputs` coordinates complete aggregates, including case replacement,
 //! using the same original-endpoint and restriction queries below. It does not
 //! expose aggregate leaves as independent replaceable argument buffers.
 

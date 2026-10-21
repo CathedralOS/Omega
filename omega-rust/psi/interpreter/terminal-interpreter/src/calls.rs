@@ -637,7 +637,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             .handle_effect_with_buffers(
                 &effect,
                 &mut boundary_arguments.buffers,
-                &mut boundary_arguments.storage_loans.buffers,
+                &mut boundary_arguments.storage_inputs.buffers,
             )
             .map_err(|rejection| TerminalInterpretError::EffectRejected {
                 operation: operation.id,

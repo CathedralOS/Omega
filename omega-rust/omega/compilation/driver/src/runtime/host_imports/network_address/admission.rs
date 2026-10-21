@@ -162,7 +162,13 @@ pub(super) fn validate(
             (parameter.structural_type, *root)
         }
     };
-    validate_address_shape(&application.signature, root).map_err(invalid)?;
+    let envelope = super::super::native_word::native_word_envelope(&application.signature, root)
+        .map_err(invalid)?;
+    if envelope.byte_size != 4 || envelope.alignment != 4 || !envelope.contains_record {
+        return Err(invalid(
+            "inet carrier must be a four-byte aligned C record ending in u32",
+        ));
+    }
     if application.opaque_applications.len() != 1
         || application.opaque_applications[0].shape_root != root
         || application.opaque_applications[0].selected_application_commitment == [0; 32]
@@ -224,49 +230,4 @@ pub(super) fn validate(
         structural_type,
         application.opaque_applications[0].selected_application_commitment,
     ))
-}
-
-fn validate_address_shape(
-    signature: &calling_conventions::BoundarySignatureGeometry,
-    mut root: u16,
-) -> Result<(), &'static str> {
-    let mut record = false;
-    // Bound traversal by the immutable roster: cyclic or repeated malformed
-    // edges never turn host admission into a nonterminating graph walk.
-    for _ in 0..signature.shapes.len() {
-        let Some(shape) = signature.shapes.get(usize::from(root)) else {
-            return Err("inet carrier references an absent shape");
-        };
-        if shape.byte_size != 4 || shape.alignment != 4 {
-            return Err("inet carrier nodes must be four bytes with four-byte alignment");
-        }
-        match shape.class {
-            BoundaryValueClass::Integer => {
-                return if record {
-                    Ok(())
-                } else {
-                    Err("inet carrier must be a C record, not a bare integer")
-                };
-            }
-            BoundaryValueClass::Record {
-                first_field,
-                field_count: 1,
-            } => {
-                let Some(field) = signature.fields.get(usize::from(first_field)) else {
-                    return Err("inet carrier references an absent field");
-                };
-                if field.byte_offset != 0 {
-                    return Err("inet carrier field must start at byte zero");
-                }
-                root = field.shape;
-                record = true;
-            }
-            _ => {
-                return Err(
-                    "inet carrier must contain only nested single-field records ending in u32",
-                );
-            }
-        }
-    }
-    Err("inet carrier graph is cyclic")
 }

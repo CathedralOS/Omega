@@ -17,11 +17,13 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+mod allocation;
 mod borrowed_storage;
 mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod native_word;
 mod network_address;
 mod numeric;
 mod standard_input;
@@ -48,6 +50,7 @@ pub(super) struct HostContext<'host> {
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
     clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
     addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
+    allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
     pub(super) fn new(
@@ -60,6 +63,9 @@ impl<'host> HostContext<'host> {
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
             addresses: std::sync::Arc::new(std::sync::Mutex::new(
                 network_address::AddressValues::default(),
+            )),
+            allocations: std::sync::Arc::new(std::sync::Mutex::new(
+                allocation::AllocationValues::default(),
             )),
         }
     }
@@ -111,6 +117,7 @@ pub(super) fn bind<'host>(
     let input = &context.input;
     let clock = &context.clock;
     let addresses = &context.addresses;
+    let allocations = &context.allocations;
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
@@ -190,6 +197,16 @@ pub(super) fn bind<'host>(
                     return Err(TerminalRuntimeError::InvalidProvision(
                         "foreign host binding does not match its admitted requirement row",
                     ));
+                }
+                if let Some(adapter) = allocation::AllocationImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                    std::sync::Arc::clone(&allocations),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
                 }
                 if let Some(adapter) = clock::ClockImport::admit(
                     declaration,

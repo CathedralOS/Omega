@@ -61,10 +61,13 @@ pub(crate) fn scalar_field_projection(
 /// Reference formation and a host snapshot have different atomic permissions.
 /// A snapshot under an already-bound exclusive aggregate loan may inspect its
 /// atomic resident; no operation here can create a plain reference to that cell.
+/// Owned snapshots read ordinary initialized payload without creating a loan;
+/// they gain neither the exclusive snapshot's atomic access nor replacement.
 #[derive(Clone, Copy)]
 enum ScalarStorageObservation {
     OrdinaryReference { shared_view: bool },
     ExclusiveSnapshot,
+    OwnedSnapshot,
 }
 
 /// A loan pins its owner's exact activation until it returns. Stack depth is
@@ -1288,9 +1291,9 @@ impl TerminalExecution<'_> {
         )
     }
 
-    /// Called only after argument binding authenticates the aggregate loan.
-    /// Shared snapshots retain ordinary observation rules; exclusive snapshots
-    /// retain original atomic backing without forming a scalar reference.
+    /// Captures only an authenticated argument's existing payload. Owned and
+    /// shared snapshots retain ordinary observation rules; exclusive borrowed
+    /// snapshots retain original atomic backing without forming a reference.
     pub(crate) fn boundary_scalar_storage(
         &self,
         view: &TerminalStructuralValue,
@@ -1299,6 +1302,7 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         let observation = match access {
+            StructuralAccess::Owned => ScalarStorageObservation::OwnedSnapshot,
             StructuralAccess::MutableBorrow => ScalarStorageObservation::ExclusiveSnapshot,
             StructuralAccess::SharedBorrow => {
                 ScalarStorageObservation::OrdinaryReference { shared_view: true }

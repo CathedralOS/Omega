@@ -1,4 +1,6 @@
-//! Capture borrowed host storage once, then validate and stage its completion.
+//! Capture host storage inputs once, then validate their exact completion.
+//! Owned arguments lend immutable semantic snapshots and are consumed normally;
+//! borrowed arguments retain the separate staged restoration protocol.
 //! Primitive loans pin their original scalar endpoint; aggregates retain a
 //! semantic tree (including nominal cases) and the original whole referent.
 //! Native tags and offsets never enter this owner. Replacing a case is lawful
@@ -6,7 +8,7 @@
 //! not writes to the incoming case's stale leaf roster. Opaque children retain
 //! their original identity or reject; host bytes cannot manufacture permissions.
 
-mod completion;
+mod borrowed_completion;
 mod contents;
 
 use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
@@ -46,16 +48,29 @@ struct StructuralLoanBinding {
     )>,
 }
 
+/// An owned host argument lends only a read-only payload snapshot. It is not
+/// a restoration loan: completion consumes the original argument normally.
+struct OwnedPayloadSnapshot {
+    identity: Arc<()>,
+    argument_index: usize,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    values: Vec<TerminalBoundaryStorageValue>,
+}
+
 #[derive(Default)]
-pub(crate) struct BoundaryStorageLoans {
+pub(crate) struct BoundaryStorageInputs {
     pub(crate) buffers: Vec<TerminalBoundaryStorageBuffer>,
     scalars: BoundaryScalarLoans,
     structural: Vec<StructuralLoanBinding>,
+    owned: Vec<OwnedPayloadSnapshot>,
 }
 
-impl BoundaryStorageLoans {
+impl BoundaryStorageInputs {
     pub(crate) fn is_empty(&self) -> bool {
-        self.buffers.is_empty() && self.scalars.is_empty() && self.structural.is_empty()
+        self.buffers.is_empty()
+            && self.scalars.is_empty()
+            && self.structural.is_empty()
+            && self.owned.is_empty()
     }
 
     pub(crate) fn capture_scalar(
@@ -88,6 +103,39 @@ impl BoundaryStorageLoans {
         array_loan: Option<&crate::element_views::ElementView>,
         argument_index: usize,
     ) -> Result<(), TerminalInterpretError> {
+        if parameter.access == terminal_psi::StructuralAccess::Owned {
+            if argument.access != parameter.access
+                || parameter.structural_type != referent.structural_type
+            {
+                return Err(malformed());
+            }
+            let leaves = contents::describe(execution, referent, parameter.access, None)?;
+            let (values, _) = contents::capture(
+                execution,
+                argument.place,
+                referent,
+                array_loan,
+                parameter.access,
+                &leaves,
+            )?;
+            let identity = Arc::new(());
+            self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
+                TerminalBoundaryStructuralBuffer {
+                    identity: Arc::clone(&identity),
+                    argument_index,
+                    access: parameter.access,
+                    structural_type: referent.structural_type,
+                    values: values.clone(),
+                },
+            ));
+            self.owned.push(OwnedPayloadSnapshot {
+                identity,
+                argument_index,
+                structural_type: referent.structural_type,
+                values,
+            });
+            return Ok(());
+        }
         if parameter.access != argument.access
             || parameter.structural_type != referent.structural_type
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -153,15 +201,43 @@ impl BoundaryStorageLoans {
             .buffers
             .iter()
             .filter_map(|buffer| match buffer {
-                TerminalBoundaryStorageBuffer::Structural(buffer) => Some(buffer),
+                TerminalBoundaryStorageBuffer::Structural(buffer)
+                    if buffer.access != terminal_psi::StructuralAccess::Owned =>
+                {
+                    Some(buffer)
+                }
                 _ => None,
             })
             .collect();
+        let owned_buffers: Vec<_> = self
+            .buffers
+            .iter()
+            .filter_map(|buffer| match buffer {
+                TerminalBoundaryStorageBuffer::Structural(buffer)
+                    if buffer.access == terminal_psi::StructuralAccess::Owned =>
+                {
+                    Some(buffer)
+                }
+                _ => None,
+            })
+            .collect();
+        if owned_buffers.len() != self.owned.len() {
+            return Err(malformed());
+        }
+        for (buffer, original) in owned_buffers.into_iter().zip(&self.owned) {
+            if !Arc::ptr_eq(&buffer.identity, &original.identity)
+                || buffer.argument_index != original.argument_index
+                || buffer.structural_type != original.structural_type
+                || buffer.values != original.values
+            {
+                return Err(malformed());
+            }
+        }
         if structural_buffers.len() != self.structural.len() {
             return Err(malformed());
         }
         for (buffer, binding) in structural_buffers.into_iter().zip(&mut self.structural) {
-            completion::stage(execution, buffer, binding)?;
+            borrowed_completion::stage(execution, buffer, binding)?;
         }
         Ok(())
     }
@@ -179,7 +255,7 @@ impl BoundaryStorageLoans {
         }
         self.scalars.commit(execution, scalars)?;
         for binding in self.structural {
-            completion::commit(execution, binding)?;
+            borrowed_completion::commit(execution, binding)?;
         }
         Ok(())
     }

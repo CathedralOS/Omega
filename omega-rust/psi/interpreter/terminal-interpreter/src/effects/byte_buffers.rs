@@ -5,7 +5,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_active_structural_arguments;
-use crate::effects::storage_loans::BoundaryStorageLoans;
+use crate::effects::storage_inputs::BoundaryStorageInputs;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::structural_identities::LocalStructuralIdentities;
@@ -29,7 +29,7 @@ pub(crate) struct BoundaryArguments {
     aggregate_backings: Vec<Option<crate::reference::AggregateBacking>>,
     pub(crate) bytes: Vec<Option<Vec<u8>>>,
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
-    pub(crate) storage_loans: BoundaryStorageLoans,
+    pub(crate) storage_inputs: BoundaryStorageInputs,
     bindings: Vec<BoundaryByteBufferBinding>,
     byte_sequences: Vec<Option<ByteSequenceBinding>>,
     primitive_loans: Vec<Option<crate::primitive_storage::PrimitiveLoan>>,
@@ -49,7 +49,7 @@ impl BoundaryArguments {
             || self.bytes.iter().any(Option::is_some)
             || !self.buffers.is_empty()
             || !self.bindings.is_empty()
-            || !self.storage_loans.is_empty()
+            || !self.storage_inputs.is_empty()
             || self.byte_sequences.iter().any(Option::is_some)
             || self.primitive_loans.iter().any(Option::is_some)
             || self.element_views.iter().any(Option::is_some)
@@ -223,7 +223,7 @@ impl BoundaryArguments {
         for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
             binding.validate(execution, buffer)?;
         }
-        self.storage_loans.validate_writeback(execution)
+        self.storage_inputs.validate_writeback(execution)
     }
 
     pub(crate) fn commit(
@@ -233,7 +233,7 @@ impl BoundaryArguments {
         for (buffer, binding) in self.buffers.into_iter().zip(self.bindings) {
             binding.commit(execution, buffer)?;
         }
-        self.storage_loans.commit(execution)
+        self.storage_inputs.commit(execution)
     }
 
     /// After input validation, publish the staged allocation cursor before a
@@ -284,7 +284,7 @@ impl TerminalExecution<'_> {
         let mut resolved =
             self.prepare_boundary_arguments(&ordinary_parameters, &ordinary_arguments)?;
         for argument_index in scalar_indices {
-            let value = resolved.storage_loans.capture_scalar(
+            let value = resolved.storage_inputs.capture_scalar(
                 self,
                 &parameters[argument_index],
                 &arguments[argument_index],
@@ -306,18 +306,20 @@ impl TerminalExecution<'_> {
             let argument = arguments.get(argument_index).ok_or_else(malformed)?;
             if !matches!(
                 parameter.access,
-                terminal_psi::reading_borrow_pair_pattern!()
+                StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
             ) {
                 return Err(malformed());
             }
-            if !matches!(
-                self.program
-                    .structural_types()
-                    .get(&parameter.structural_type)
-                    .ok_or_else(malformed)?
-                    .shape,
-                StructuralTypeShape::PrimitiveScalar(_)
-            ) {
+            if parameter.access == StructuralAccess::Owned
+                || !matches!(
+                    self.program
+                        .structural_types()
+                        .get(&parameter.structural_type)
+                        .ok_or_else(malformed)?
+                        .shape,
+                    StructuralTypeShape::PrimitiveScalar(_)
+                )
+            {
                 if resolved
                     .aggregate_backings
                     .get(argument_index)
@@ -329,7 +331,7 @@ impl TerminalExecution<'_> {
                         "aggregate re-view host storage needs its backing field projection",
                     ));
                 }
-                resolved.storage_loans.capture_fields(
+                resolved.storage_inputs.capture_fields(
                     self,
                     parameter,
                     argument,
@@ -390,7 +392,7 @@ impl TerminalExecution<'_> {
             aggregate_backings: Vec::with_capacity(arguments.len()),
             bytes: Vec::with_capacity(arguments.len()),
             buffers: Vec::new(),
-            storage_loans: BoundaryStorageLoans::default(),
+            storage_inputs: BoundaryStorageInputs::default(),
             bindings: Vec::new(),
             byte_sequences: Vec::with_capacity(arguments.len()),
             primitive_loans: Vec::with_capacity(arguments.len()),
