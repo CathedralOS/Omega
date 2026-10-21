@@ -1307,8 +1307,10 @@ def main(arguments=None):
                         help="publish a candidate that touches only coordination files "
                              "(coordinator board sweeps)")
     parser.add_argument("--keep-worktree", action="store_true",
-                        help="keep the publishing worktree and its candidate branch after "
-                             "a successful publish (default: remove them, per AGENTS.md)")
+                        help="accepted and does nothing: a successful publish always "
+                             "retains the worktree and its candidate branch (retention "
+                             "is the default; retire a lane deliberately with prune, "
+                             "never automatically at publish)")
     parser.add_argument("--idle-hours", type=float, default=0.0,
                         help="prune: also retire a never-built lane idle at least this long")
     parser.add_argument("--dry-run", action="store_true",
