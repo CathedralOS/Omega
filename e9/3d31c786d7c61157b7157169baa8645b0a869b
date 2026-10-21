@@ -1,4 +1,4 @@
-owner: cursor / may-write
+owner: Cursor / g47 may-write
 provenance: agent=cursor model=grok-4.7-medium effort=medium
-ticket: 4e46a5cc28eb4847a214a66ed17e70c5
-published_utc: 2026-10-21T23:39:59.825265+00:00
+ticket: f9c2d572c5264d408b557d504a0403e3
+published_utc: already-on-main
