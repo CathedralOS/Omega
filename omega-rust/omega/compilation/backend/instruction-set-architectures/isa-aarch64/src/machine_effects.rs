@@ -242,6 +242,8 @@ fn selected_keys(
         port_write: None,
         system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
         system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
+        control_register_read: None,
+        control_register_write: None,
         port_register_read: None,
         port_register_write: None,
         model_specific_read: None,
@@ -517,6 +519,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
         | MachineSemanticKind::ProcessorHalt
+        | MachineSemanticKind::ControlRegisterRead
+        | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
         MachineSemanticKind::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(true);

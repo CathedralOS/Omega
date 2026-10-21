@@ -8,7 +8,7 @@
 mod codec_bytes;
 
 pub(crate) use optimization_core::digest_encoder;
-pub use terminal_psi::{RegisterOperation, SystemRegister};
+pub use terminal_psi::{ControlRegister, RegisterOperation, SystemRegister};
 pub mod selected_instructions;
 pub use selected_instructions::SelectedBlocks;
 pub use selected_instructions::{

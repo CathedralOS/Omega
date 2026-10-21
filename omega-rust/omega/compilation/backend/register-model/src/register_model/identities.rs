@@ -178,6 +178,8 @@ pub fn target_register_environment_identity(
         selected_keys.port_write,
         selected_keys.system_register_read,
         selected_keys.system_register_write,
+        selected_keys.control_register_read,
+        selected_keys.control_register_write,
         selected_keys.port_register_read,
         selected_keys.port_register_write,
         selected_keys.model_specific_read,

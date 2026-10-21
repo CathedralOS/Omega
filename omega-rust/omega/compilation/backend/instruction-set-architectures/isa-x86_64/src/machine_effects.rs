@@ -267,6 +267,8 @@ fn selected_keys(
         port_write: Some(crate::X86_64_PORT_WRITE),
         system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
         system_register_write: None,
+        control_register_read: Some(crate::X86_64_CONTROL_REGISTER_READ),
+        control_register_write: Some(crate::X86_64_CONTROL_REGISTER_WRITE),
         port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
         port_register_write: Some(crate::X86_64_PORT_REGISTER_WRITE),
         model_specific_read: Some(crate::X86_64_MODEL_SPECIFIC_READ),
@@ -642,6 +644,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
         | MachineSemanticKind::ProcessorHalt
+        | MachineSemanticKind::ControlRegisterRead
+        | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(
                 crate::selected_form_encoding::register_access::operation(semantic)
@@ -974,7 +978,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::PortRegisterWrite
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
-        | MachineSemanticKind::SystemRegisterRead => MachineSizeKnowledge::EncoderResolved {
+        | MachineSemanticKind::SystemRegisterRead
+        | MachineSemanticKind::ControlRegisterRead
+        | MachineSemanticKind::ControlRegisterWrite => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 1,
             maximum_bytes: Some(40),
         },

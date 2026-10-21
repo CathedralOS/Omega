@@ -101,7 +101,7 @@ pub(crate) fn encode(
         SystemRegister::TpidrEl1 => 0xc684,
         SystemRegister::EsrEl1 => 0xc290,
         SystemRegister::FarEl1 => 0xc300,
-        SystemRegister::Rflags => {
+        SystemRegister::Rflags | SystemRegister::Control(_) => {
             return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
         }
     };

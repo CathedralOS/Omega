@@ -501,19 +501,14 @@ fn machine_invocation_sites(
             if site.is_internal_state_transfer(program, state.machine_symbol) {
                 continue;
             }
-            // A checked register transfer is a compiler-owned instruction,
+            // A resolved assembly builtin is a compiler-owned instruction,
             // not an unresolved machine invocation. Its architectural fault
             // capability is distinct from an authored language crash route.
             // Operand calls retain separate flow rows and still join below.
             if program
                 .symbols
                 .builtin_function_for_symbol(call.target_symbol)
-                .and_then(|builtin| {
-                    language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
-                        builtin.name(),
-                    )
-                })
-                .is_some_and(|operation| operation.is_admitted())
+                .is_some_and(|builtin| builtin.is_asm_intrinsic())
             {
                 continue;
             }

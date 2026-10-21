@@ -114,6 +114,8 @@ fn terminal_selected_keys(
         port_write: keys.port_write,
         system_register_read: keys.system_register_read,
         system_register_write: keys.system_register_write,
+        control_register_read: keys.control_register_read,
+        control_register_write: keys.control_register_write,
         port_register_read: keys.port_register_read,
         port_register_write: keys.port_register_write,
         model_specific_read: keys.model_specific_read,
@@ -315,6 +317,12 @@ fn exact_declaration<'a>(
 pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
         SelectedInstructionKind::RegisterAccess { operation } => match operation {
+            selected_instructions::RegisterOperation::SystemRead(
+                selected_instructions::SystemRegister::Control(_),
+            ) => MachineSemanticKind::ControlRegisterRead,
+            selected_instructions::RegisterOperation::SystemWrite(
+                selected_instructions::SystemRegister::Control(_),
+            ) => MachineSemanticKind::ControlRegisterWrite,
             selected_instructions::RegisterOperation::SystemRead(_) => {
                 MachineSemanticKind::SystemRegisterRead
             }

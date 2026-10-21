@@ -158,6 +158,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn control_register_events_preserve_closed_catalog_identity_and_authority() {
+        use crate::inline_assembly::AsmControlRegister;
+        for control in [
+            AsmControlRegister::Cr0,
+            AsmControlRegister::Cr2,
+            AsmControlRegister::Cr3,
+            AsmControlRegister::Cr4,
+        ] {
+            let register = AsmSystemRegister::Control(control);
+            let read = AsmRegisterOperation::SystemRead(register);
+            assert_eq!(
+                AsmRegisterOperation::from_intrinsic_name(control.read_intrinsic_name()),
+                Some(read)
+            );
+            assert_eq!(
+                AsmRegisterOperation::from_catalog_tag(read.catalog_tag()),
+                Some(read)
+            );
+            assert!(read.requires_service_authority());
+            assert_eq!(read.result_carrier(), Some(AsmRegisterCarrier::U64));
+            assert!(read.input_carriers().is_empty());
+            let write = AsmRegisterOperation::SystemWrite(register);
+            assert_eq!(
+                write.is_admitted(),
+                control.write_intrinsic_name().is_some()
+            );
+            assert_eq!(
+                AsmRegisterOperation::from_catalog_tag(write.catalog_tag()),
+                write.is_admitted().then_some(write)
+            );
+            if let Some(name) = control.write_intrinsic_name() {
+                assert_eq!(AsmRegisterOperation::from_intrinsic_name(name), Some(write));
+                assert_eq!(write.input_carriers(), &[AsmRegisterCarrier::U64]);
+                assert_eq!(write.result_carrier(), None);
+                assert!(write.requires_service_authority());
+            }
+        }
+    }
+
+    #[test]
     fn x86_register_signatures_retain_exact_carriers_and_catalog_identity() {
         use AsmRegisterCarrier::*;
         for (name, operation, inputs, result) in [

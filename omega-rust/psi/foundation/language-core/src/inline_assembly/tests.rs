@@ -208,7 +208,10 @@ fn control_register_contracts_pin_exact_u64_flow_and_machine_authority() {
 
 #[test]
 fn system_register_contracts_pin_exact_u64_flow_and_machine_authority() {
-    for register in AsmSystemRegister::ALL {
+    for register in AsmSystemRegister::ALL
+        .into_iter()
+        .filter(|register| register.target_applicability() == AsmTargetApplicability::Aarch64)
+    {
         let AsmCatalogEntry::Contract(read) =
             asm_catalog_entry(register.read_mnemonic()).expect("system-register read contract")
         else {
@@ -229,7 +232,10 @@ fn system_register_contracts_pin_exact_u64_flow_and_machine_authority() {
         assert_eq!(read.clobbers, &["x9", "x15"]);
     }
 
-    for register in AsmSystemRegister::WRITABLE {
+    for register in AsmSystemRegister::WRITABLE
+        .into_iter()
+        .filter(|register| register.target_applicability() == AsmTargetApplicability::Aarch64)
+    {
         let mnemonic = register.write_mnemonic().expect("writable system register");
         let AsmCatalogEntry::Contract(write) =
             asm_catalog_entry(mnemonic).expect("system-register write contract")

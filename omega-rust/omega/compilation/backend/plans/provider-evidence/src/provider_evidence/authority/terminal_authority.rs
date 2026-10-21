@@ -78,6 +78,7 @@ impl CompilerIntrinsicExecutionIdentity {
     /// coordinates. Normalize to those closed identities, retaining both the
     /// register and direction rather than creating a foreign/physical alias.
     pub const fn checked_register(operation: terminal_psi::RegisterOperation) -> Option<Self> {
+        use language_core::inline_assembly::AsmControlRegister as C;
         use symbols::BuiltinFunction as B;
         use terminal_psi::{RegisterOperation as O, SystemRegister as R};
         let function = match operation {
@@ -87,6 +88,10 @@ impl CompilerIntrinsicExecutionIdentity {
             O::ModelSpecificRead => B::AsmReadMsr,
             O::ModelSpecificWrite => B::AsmWriteMsr,
             O::SystemRead(register) => match register {
+                R::Control(C::Cr0) => B::AsmReadCr0,
+                R::Control(C::Cr2) => B::AsmReadCr2,
+                R::Control(C::Cr3) => B::AsmReadCr3,
+                R::Control(C::Cr4) => B::AsmReadCr4,
                 R::SctlrEl1 => B::AsmReadSctlrEl1,
                 R::TcrEl1 => B::AsmReadTcrEl1,
                 R::Ttbr0El1 => B::AsmReadTtbr0El1,
@@ -99,6 +104,10 @@ impl CompilerIntrinsicExecutionIdentity {
                 R::Rflags => B::AsmSnapshotFlags,
             },
             O::SystemWrite(register) => match register {
+                R::Control(C::Cr0) => B::AsmWriteCr0,
+                R::Control(C::Cr3) => B::AsmWriteCr3,
+                R::Control(C::Cr4) => B::AsmWriteCr4,
+                R::Control(C::Cr2) => return None,
                 R::SctlrEl1 => B::AsmWriteSctlrEl1,
                 R::TcrEl1 => B::AsmWriteTcrEl1,
                 R::Ttbr0El1 => B::AsmWriteTtbr0El1,

@@ -241,6 +241,8 @@ machine_semantic_kinds! {
     { fixed ModelSpecificRead },
     { fixed ModelSpecificWrite },
     { fixed ProcessorHalt },
+    { fixed ControlRegisterRead },
+    { fixed ControlRegisterWrite },
 
     { fixed AtomicFence },
     {
@@ -318,6 +320,8 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    ControlRegisterRead,
+    ControlRegisterWrite,
     PortWrite,
     SystemRegisterRead,
     SystemRegisterWrite,
@@ -428,6 +432,8 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
         match value {
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
+            MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
+            MachineSemanticKind::ControlRegisterWrite => Self::ControlRegisterWrite,
             MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
             MachineSemanticKind::PortRegisterWrite => Self::PortRegisterWrite,
             MachineSemanticKind::ModelSpecificRead => Self::ModelSpecificRead,

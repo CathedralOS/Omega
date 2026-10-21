@@ -16,6 +16,12 @@ pub(super) fn emit(
     let operation = event.operation();
     let keys = &builder.constraints.keys;
     let key = match operation {
+        RegisterOperation::SystemRead(terminal_psi::SystemRegister::Control(_)) => {
+            keys.control_register_read
+        }
+        RegisterOperation::SystemWrite(terminal_psi::SystemRegister::Control(_)) => {
+            keys.control_register_write
+        }
         RegisterOperation::SystemRead(_) => keys.system_register_read,
         RegisterOperation::SystemWrite(_) => keys.system_register_write,
         RegisterOperation::PortRead => keys.port_register_read,

@@ -10,8 +10,9 @@ mod artifacts;
 pub(crate) use optimization::digest_encoder;
 pub mod terminal_module;
 pub use language_core::inline_assembly::{
-    AsmRegisterCarrier as RegisterCarrier, AsmRegisterOperation as RegisterOperation,
-    AsmSystemRegister as SystemRegister, AsmTargetApplicability as RegisterTargetApplicability,
+    AsmControlRegister as ControlRegister, AsmRegisterCarrier as RegisterCarrier,
+    AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
+    AsmTargetApplicability as RegisterTargetApplicability,
 };
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use terminal_module::RegisterAccessEvent;

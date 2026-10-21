@@ -77,6 +77,8 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::PortWrite
                 | MachineSemanticKind::SystemRegisterRead
                 | MachineSemanticKind::SystemRegisterWrite
+                | MachineSemanticKind::ControlRegisterRead
+                | MachineSemanticKind::ControlRegisterWrite
                 | MachineSemanticKind::PortRegisterRead
                 | MachineSemanticKind::PortRegisterWrite
                 | MachineSemanticKind::ModelSpecificRead
@@ -215,6 +217,8 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::PortWrite
         | MachineSemanticKind::SystemRegisterRead
         | MachineSemanticKind::SystemRegisterWrite
+        | MachineSemanticKind::ControlRegisterRead
+        | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortRegisterRead
         | MachineSemanticKind::PortRegisterWrite
         | MachineSemanticKind::ModelSpecificRead
@@ -797,6 +801,8 @@ fn validate_encoded_effects(
                     | MachineSemanticKind::PortWrite
                     | MachineSemanticKind::SystemRegisterRead
                     | MachineSemanticKind::SystemRegisterWrite
+                    | MachineSemanticKind::ControlRegisterRead
+                    | MachineSemanticKind::ControlRegisterWrite
                     | MachineSemanticKind::PortRegisterRead
                     | MachineSemanticKind::PortRegisterWrite
                     | MachineSemanticKind::ModelSpecificRead

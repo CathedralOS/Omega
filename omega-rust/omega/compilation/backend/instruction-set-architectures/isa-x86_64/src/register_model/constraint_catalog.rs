@@ -228,8 +228,40 @@ pub fn x86_64_register_constraint_catalog(
             .into_iter()
             .flat_map(|name| view(name).units.iter().copied()),
     );
+    let control_rows = [
+        (crate::X86_64_CONTROL_REGISTER_READ, true),
+        (crate::X86_64_CONTROL_REGISTER_WRITE, false),
+    ]
+    .map(|(key, read)| {
+        let mut row = instruction_row(
+            RegisterConstraintId(0),
+            key,
+            vec![allocatable(
+                0,
+                if read {
+                    RegisterOperandAccess::Def
+                } else {
+                    RegisterOperandAccess::Use
+                },
+                GPR64,
+            )],
+        );
+        let scratch = if read {
+            &["r10", "r15"][..]
+        } else {
+            &["rax", "r10", "r11", "r15"][..]
+        };
+        row.clobbers = sorted_units(
+            scratch
+                .iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        );
+        row
+    });
     let mut constraints = vec![
         flags_snapshot,
+        control_rows[0].clone(),
+        control_rows[1].clone(),
         port_write,
         instruction_row(
             RegisterConstraintId(0),

@@ -236,7 +236,7 @@ impl AsmSchedulingHintKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AsmControlRegister {
     Cr0,
     Cr2,
@@ -315,14 +315,16 @@ impl AsmControlRegister {
     }
 }
 
-/// AArch64 system registers accessible through the structured
-/// `read_<sysreg>`/`write_<sysreg>` spellings (architecturally `mrs`/`msr`).
+/// Processor registers retained by the shared scalar register-event route.
+/// AArch64 registers use structured `read_<sysreg>`/`write_<sysreg>` spellings.
 /// The set is the EL1 control, translation and thread set a kernel reaches
 /// for plus its read-only syndrome registers; ELR_EL1/SPSR_EL1 stay out —
 /// writing them participates in a mode transition (eret's regime contract),
 /// which AsmInstructionContract does not model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AsmSystemRegister {
+    /// x86 control registers share the retained scalar register-event route.
+    Control(AsmControlRegister),
     /// The catalog observation is the PUSHFQ image (RF and VM cleared).
     Rflags,
     SctlrEl1,
@@ -339,7 +341,7 @@ pub enum AsmSystemRegister {
 impl AsmSystemRegister {
     pub const fn target_applicability(self) -> AsmTargetApplicability {
         match self {
-            Self::Rflags => AsmTargetApplicability::X86_64,
+            Self::Rflags | Self::Control(_) => AsmTargetApplicability::X86_64,
             _ => AsmTargetApplicability::Aarch64,
         }
     }
@@ -347,6 +349,10 @@ impl AsmSystemRegister {
     /// Stable catalog identity, independent of architectural instruction bits.
     pub const fn catalog_id(self) -> u8 {
         match self {
+            Self::Control(AsmControlRegister::Cr0) => 10,
+            Self::Control(AsmControlRegister::Cr2) => 11,
+            Self::Control(AsmControlRegister::Cr3) => 12,
+            Self::Control(AsmControlRegister::Cr4) => 13,
             Self::SctlrEl1 => 0,
             Self::TcrEl1 => 1,
             Self::Ttbr0El1 => 2,
@@ -362,6 +368,10 @@ impl AsmSystemRegister {
 
     pub const fn from_catalog_id(identity: u8) -> Option<Self> {
         match identity {
+            10 => Some(Self::Control(AsmControlRegister::Cr0)),
+            11 => Some(Self::Control(AsmControlRegister::Cr2)),
+            12 => Some(Self::Control(AsmControlRegister::Cr3)),
+            13 => Some(Self::Control(AsmControlRegister::Cr4)),
             0 => Some(Self::SctlrEl1),
             1 => Some(Self::TcrEl1),
             2 => Some(Self::Ttbr0El1),
@@ -376,7 +386,11 @@ impl AsmSystemRegister {
         }
     }
 
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 14] = [
+        Self::Control(AsmControlRegister::Cr0),
+        Self::Control(AsmControlRegister::Cr2),
+        Self::Control(AsmControlRegister::Cr3),
+        Self::Control(AsmControlRegister::Cr4),
         Self::Rflags,
         Self::SctlrEl1,
         Self::TcrEl1,
@@ -391,7 +405,10 @@ impl AsmSystemRegister {
 
     /// Syndrome registers are read-only in the catalog: they describe the
     /// last exception rather than machine configuration.
-    const WRITABLE: [Self; 7] = [
+    const WRITABLE: [Self; 10] = [
+        Self::Control(AsmControlRegister::Cr0),
+        Self::Control(AsmControlRegister::Cr3),
+        Self::Control(AsmControlRegister::Cr4),
         Self::SctlrEl1,
         Self::TcrEl1,
         Self::Ttbr0El1,
@@ -403,6 +420,7 @@ impl AsmSystemRegister {
 
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Control(register) => register.name(),
             Self::SctlrEl1 => "sctlr_el1",
             Self::TcrEl1 => "tcr_el1",
             Self::Ttbr0El1 => "ttbr0_el1",
@@ -418,6 +436,7 @@ impl AsmSystemRegister {
 
     pub const fn read_mnemonic(self) -> &'static str {
         match self {
+            Self::Control(register) => register.read_mnemonic(),
             Self::SctlrEl1 => "read_sctlr_el1",
             Self::TcrEl1 => "read_tcr_el1",
             Self::Ttbr0El1 => "read_ttbr0_el1",
@@ -433,6 +452,7 @@ impl AsmSystemRegister {
 
     pub const fn write_mnemonic(self) -> Option<&'static str> {
         match self {
+            Self::Control(register) => register.write_mnemonic(),
             Self::SctlrEl1 => Some("write_sctlr_el1"),
             Self::TcrEl1 => Some("write_tcr_el1"),
             Self::Ttbr0El1 => Some("write_ttbr0_el1"),
@@ -446,6 +466,7 @@ impl AsmSystemRegister {
 
     pub const fn read_intrinsic_name(self) -> &'static str {
         match self {
+            Self::Control(register) => register.read_intrinsic_name(),
             Self::SctlrEl1 => "asm#read_sctlr_el1",
             Self::TcrEl1 => "asm#read_tcr_el1",
             Self::Ttbr0El1 => "asm#read_ttbr0_el1",
@@ -461,6 +482,7 @@ impl AsmSystemRegister {
 
     pub const fn write_intrinsic_name(self) -> Option<&'static str> {
         match self {
+            Self::Control(register) => register.write_intrinsic_name(),
             Self::SctlrEl1 => Some("asm#write_sctlr_el1"),
             Self::TcrEl1 => Some("asm#write_tcr_el1"),
             Self::Ttbr0El1 => Some("asm#write_ttbr0_el1"),
@@ -1074,7 +1096,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::TpidrEl1 => TPIDR_EL1_READ_OPERANDS,
             AsmSystemRegister::EsrEl1 => ESR_EL1_READ_OPERANDS,
             AsmSystemRegister::FarEl1 => FAR_EL1_READ_OPERANDS,
-            AsmSystemRegister::Rflags => unreachable!("snapshot contract returned above"),
+            AsmSystemRegister::Rflags | AsmSystemRegister::Control(_) => return None,
         };
         return Some(Contract(AsmInstructionContract::machine_authority(
             AsmInstructionShape::SystemRegisterRead(register),
@@ -1092,9 +1114,10 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::MairEl1 => MAIR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::VbarEl1 => VBAR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::TpidrEl1 => TPIDR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::EsrEl1 | AsmSystemRegister::FarEl1 | AsmSystemRegister::Rflags => {
-                unreachable!("syndrome registers have no source write form")
-            }
+            AsmSystemRegister::EsrEl1
+            | AsmSystemRegister::FarEl1
+            | AsmSystemRegister::Rflags
+            | AsmSystemRegister::Control(_) => return None,
         };
         // Register writes with architecturally deferred effect (translation
         // base, memory attributes, control state) synchronize context through

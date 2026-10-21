@@ -1,4 +1,4 @@
-//! HLT and scalar IN/OUT and RDMSR/WRMSR envelopes. Inputs are snapshotted before
+//! Processor-control and scalar IN/OUT and RDMSR/WRMSR envelopes. Inputs are snapshotted before
 //! architectural registers change; R10/R11 cycles use the already-clobbered
 //! RAX. BSWAP and LEA split/join EDX:EAX without changing flags or the stack.
 //! Intel SDM volume 2 specifies RDMSR's zero-extended EAX/EDX result halves:
@@ -6,12 +6,17 @@
 //! The validator decodes and symbolically follows bits independently of byte
 //! construction. It checks operand roles, observed results and untouched state;
 //! none of these privileged instructions is executed by hosted tests.
+//! Control-register moves retain their exact register selector and direction.
+//! They have no temporary stack footprint, unlike the flags snapshot, and
+//! MachineControl admission never grants custody of translated storage.
 
 use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
     X86_64SelectedFormFootprint,
 };
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::ControlRegister;
+use selected_instructions::SystemRegister;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily as Family,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -23,6 +28,8 @@ use selected_instructions::{
 
 pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
     Some(match operation {
+        Operation::SystemRead(SystemRegister::Control(_)) => Semantic::ControlRegisterRead,
+        Operation::SystemWrite(SystemRegister::Control(_)) => Semantic::ControlRegisterWrite,
         Operation::PortRead => Semantic::PortRegisterRead,
         Operation::PortWrite => Semantic::PortRegisterWrite,
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
@@ -35,8 +42,17 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
     })
 }
 
+// Representative registers choose only a direction's shared effect/constraint
+// declaration. The selected instruction and its encoding retain the actual
+// register; this representative must never be used as its hardware selector.
 pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
     Some(match semantic {
+        Semantic::ControlRegisterRead => {
+            Operation::SystemRead(SystemRegister::Control(ControlRegister::Cr0))
+        }
+        Semantic::ControlRegisterWrite => {
+            Operation::SystemWrite(SystemRegister::Control(ControlRegister::Cr0))
+        }
         Semantic::PortRegisterRead => Operation::PortRead,
         Semantic::PortRegisterWrite => Operation::PortWrite,
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
@@ -57,6 +73,8 @@ pub(crate) fn family(operation: Operation) -> Result<Family, Error> {
 
 fn scratch(operation: Operation) -> &'static [&'static str] {
     match operation {
+        Operation::SystemRead(SystemRegister::Control(_)) => &["r10", "r15"],
+        Operation::SystemWrite(SystemRegister::Control(_)) => &["rax", "r10", "r11", "r15"],
         Operation::PortRead => &["rax", "rdx", "r10"],
         Operation::SystemRead(selected_instructions::SystemRegister::Rflags) => &["r10", "r15"],
         Operation::PortWrite => &["rax", "rdx", "r10", "r11"],
@@ -128,7 +146,7 @@ pub(crate) fn declaration(
     MachineEffectDeclaration {
         semantic: semantic(operation).expect("x86 register operation"),
         constraint,
-        memory: if matches!(operation, Operation::SystemRead(_)) {
+        memory: if operation == Operation::SystemRead(SystemRegister::Rflags) {
             MachineMemoryEffect::TemporaryStackStorageV1
         } else {
             MachineMemoryEffect::NoneV1
@@ -174,6 +192,35 @@ fn swap_bytes(bytes: &mut Vec<u8>, register: u8, wide: bool) {
 
 pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, Error> {
     family(operation)?;
+    if let Operation::SystemRead(SystemRegister::Control(control))
+    | Operation::SystemWrite(SystemRegister::Control(control)) = operation
+    {
+        let [operand] = registers else {
+            return Err(Error::OperandCountMismatch);
+        };
+        if *operand > 15
+            || (operation.produces_value() && *operand == 4)
+            || !operation.is_admitted()
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let selector = match control {
+            ControlRegister::Cr0 => 0,
+            ControlRegister::Cr2 => 2,
+            ControlRegister::Cr3 => 3,
+            ControlRegister::Cr4 => 4,
+        };
+        let mut bytes = Vec::new();
+        if operation.produces_value() {
+            bytes.extend([0x41, 0x0f, 0x20, 0xc2 | (selector << 3)]); // MOV R10, CRn.
+            move_register(&mut bytes, 10, 15, true);
+            move_register(&mut bytes, 15, *operand, true);
+        } else {
+            move_register(&mut bytes, *operand, 10, true);
+            bytes.extend([0x41, 0x0f, 0x22, 0xc2 | (selector << 3)]); // MOV CRn, R10.
+        }
+        return Ok(bytes);
+    }
     if operation == Operation::ProcessorHalt {
         return if registers.is_empty() {
             Ok(vec![0xf4])
@@ -261,6 +308,11 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
 
 #[derive(Clone, Copy)]
 enum Decoded {
+    Control {
+        register: ControlRegister,
+        operand: u8,
+        read: bool,
+    },
     PushFlags,
     Pop {
         destination: u8,
@@ -338,6 +390,25 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
         let opcode = *bytes.get(cursor + 1)?;
         let operand = *bytes.get(cursor + 2)?;
         match opcode {
+            0x0f if matches!(operand, 0x20 | 0x22) && rex == 0x41 => {
+                let addressing = *bytes.get(cursor + 3)?;
+                if addressing >> 6 != 3 {
+                    return None;
+                }
+                let register = match (addressing >> 3) & 7 {
+                    0 => ControlRegister::Cr0,
+                    2 => ControlRegister::Cr2,
+                    3 => ControlRegister::Cr3,
+                    4 => ControlRegister::Cr4,
+                    _ => return None,
+                };
+                decoded.push(Decoded::Control {
+                    register,
+                    operand: 8 | (addressing & 7),
+                    read: operand == 0x20,
+                });
+                cursor += 4;
+            }
             0x89 if operand >> 6 == 3 && rex & 2 == 0 => {
                 decoded.push(Decoded::Move {
                     source: ((operand >> 3) & 7) | ((rex & 4) << 1),
@@ -381,6 +452,35 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
 // hardware result have separate identities. Aliased input operands therefore
 // retain the exact same value instead of inventing independent source words.
 fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option<()> {
+    if let Operation::SystemRead(SystemRegister::Control(control))
+    | Operation::SystemWrite(SystemRegister::Control(control)) = operation
+    {
+        let [operand] = registers else {
+            return None;
+        };
+        if *operand > 15
+            || (operation.produces_value() && *operand == 4)
+            || !operation.is_admitted()
+        {
+            return None;
+        }
+        // Decode the selector and direction independently. A different control
+        // register, operand, hidden write or extra instruction cannot substitute.
+        return if operation.produces_value() {
+            matches!(decode(bytes)?.as_slice(), [
+                Decoded::Control { register, operand: 10, read: true },
+                Decoded::Move { source: 10, destination: 15, bits: 64 },
+                Decoded::Move { source: 15, destination, bits: 64 },
+            ] if *register == control && destination == operand)
+            .then_some(())
+        } else {
+            matches!(decode(bytes)?.as_slice(), [
+                Decoded::Move { source, destination: 10, bits: 64 },
+                Decoded::Control { register, operand: 10, read: false },
+            ] if *register == control && source == operand)
+            .then_some(())
+        };
+    }
     if operation == Operation::ProcessorHalt {
         return (registers.is_empty()
             && matches!(
@@ -447,7 +547,7 @@ fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option
                 result[32..].copy_from_slice(&words[2][32..]);
                 words[destination as usize] = result;
             }
-            Decoded::PushFlags | Decoded::Pop { .. } => return None,
+            Decoded::PushFlags | Decoded::Pop { .. } | Decoded::Control { .. } => return None,
             Decoded::Physical(actual) => {
                 if actual != operation {
                     return None;
@@ -567,6 +667,78 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn control_register_transfers_preserve_selector_direction_and_scalar_operand() {
+        // Independently assembled with clang -cc1as -triple x86_64 -show-encoding.
+        let vectors = [
+            (ControlRegister::Cr0, 0xc2),
+            (ControlRegister::Cr2, 0xd2),
+            (ControlRegister::Cr3, 0xda),
+            (ControlRegister::Cr4, 0xe2),
+        ];
+        for (control, selector_byte) in vectors {
+            for read in [true, false] {
+                let register = SystemRegister::Control(control);
+                let operation = if read {
+                    Operation::SystemRead(register)
+                } else {
+                    Operation::SystemWrite(register)
+                };
+                if !operation.is_admitted() {
+                    assert!(encode(operation, &[3]).is_err());
+                    continue;
+                }
+                for operand in 0..16 {
+                    if read && operand == 4 {
+                        assert!(encode(operation, &[operand]).is_err());
+                        continue;
+                    }
+                    let bytes = encode(operation, &[operand]).unwrap();
+                    let physical = [0x41, 0x0f, if read { 0x20 } else { 0x22 }, selector_byte];
+                    assert_eq!(if read { &bytes[..4] } else { &bytes[3..] }, physical);
+                    assert!(validate_bits(operation, &[operand], &bytes).is_some());
+                    for byte_index in 0..bytes.len() {
+                        for bit in 0..8 {
+                            let mut changed = bytes.clone();
+                            changed[byte_index] ^= 1 << bit;
+                            assert!(
+                                validate_bits(operation, &[operand], &changed).is_none(),
+                                "{operation:?} operand {operand} byte {byte_index} bit {bit}"
+                            );
+                        }
+                        assert!(
+                            validate_bits(operation, &[operand], &bytes[..byte_index]).is_none()
+                        );
+                    }
+                    let mut extended = bytes.clone();
+                    extended.push(0x90);
+                    assert!(validate_bits(operation, &[operand], &extended).is_none());
+                    let encoded = effects(operation);
+                    assert_eq!(
+                        encoded.memory,
+                        MachineEncodedEffects::fallthrough_v1(vec![], vec![]).memory
+                    );
+                    assert_eq!(
+                        encoded.stack,
+                        MachineEncodedEffects::fallthrough_v1(vec![], vec![]).stack
+                    );
+                    assert_eq!(
+                        declaration(
+                            operation,
+                            if read {
+                                crate::X86_64_CONTROL_REGISTER_READ
+                            } else {
+                                crate::X86_64_CONTROL_REGISTER_WRITE
+                            }
+                        )
+                        .barrier,
+                        MachineBarrier::ExternalEffect
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn flags_snapshot_has_one_balanced_full_width_observation() {
