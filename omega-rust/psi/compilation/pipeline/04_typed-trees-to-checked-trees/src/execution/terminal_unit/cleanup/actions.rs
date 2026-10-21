@@ -163,69 +163,8 @@ pub(super) fn disposition_actions(
         _ => disposition.exit.statement_index,
     };
     let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)?;
-    let contexts = std::cell::OnceCell::new();
-    let get_contexts = || {
-        contexts.get_or_init(|| {
-            facts
-                .flow
-                .control
-                .state(disposition.machine, disposition.state)
-                .and_then(|state| {
-                    crate::facts::contextual_cleanup::occurrence_contexts(
-                        program,
-                        facts,
-                        state,
-                        disposition,
-                    )
-                })
-        })
-    };
-    let case_reachability = |segments: &[facts::PlaceSegment]| {
-        use validation::CleanupCaseReachability;
-        if !segments
-            .iter()
-            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-        {
-            return Some(CleanupCaseReachability::Selected);
-        }
-        let contexts = get_contexts().as_ref()?;
-        if contexts.is_empty() {
-            return None;
-        }
-        let subject = validation::CanonicalPlace {
-            root: disposition.root,
-            segments: segments.to_vec(),
-        };
-        if contexts.iter().all(|(statement, contexts)| {
-            crate::flow::place_case_path_is_inactive(
-                program,
-                &facts.semantic,
-                contexts,
-                disposition.machine,
-                disposition.state,
-                *statement,
-                &subject,
-            )
-        }) {
-            return Some(CleanupCaseReachability::Inactive);
-        }
-        let selected = contexts.iter().all(|(statement, contexts)| {
-            crate::flow::place_cases_are_selected(
-                program,
-                &facts.semantic,
-                contexts,
-                disposition.machine,
-                disposition.state,
-                *statement,
-                &subject,
-            )
-        });
-        Some(if selected {
-            CleanupCaseReachability::Selected
-        } else {
-            CleanupCaseReachability::Runtime
-        })
-    };
+    let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)?;
+    let case_reachability = |segments: &[facts::PlaceSegment]| case_evidence.reachability(segments);
     let place = validation::CanonicalPlace {
         root: disposition.root,
         segments: facts

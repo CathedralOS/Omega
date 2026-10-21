@@ -77,16 +77,7 @@ pub(crate) fn selected_cleanup_leaves(
         .iter()
         .map(|place| dispositions.segments.span(place.segments))
         .collect::<Option<Vec<_>>>()?;
-    let inactive_cases = dispositions
-        .exclusions
-        .span(disposition.inactive_cases)?
-        .iter()
-        .map(|place| {
-            (place.root == disposition.root)
-                .then(|| dispositions.segments.span(place.segments))
-                .flatten()
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let case_evidence = super::CleanupCaseEvidence::new(program, facts, disposition)?;
     if removed.iter().any(|removed| path.starts_with(removed)) {
         return Some(Vec::new());
     }
@@ -99,19 +90,6 @@ pub(crate) fn selected_cleanup_leaves(
         .flow
         .control
         .state(disposition.machine, disposition.state);
-    let contexts = std::cell::OnceCell::new();
-    let get_contexts = || {
-        contexts.get_or_init(|| {
-            state.and_then(|state| {
-                crate::facts::contextual_cleanup::occurrence_contexts(
-                    program,
-                    facts,
-                    state,
-                    disposition,
-                )
-            })
-        })
-    };
     // Distinct selector spellings are not proof that moved storage lies
     // outside this death. A runtime-selected region needs disjointness from
     // every exclusion not represented by its exact prefix; otherwise its
@@ -130,7 +108,7 @@ pub(crate) fn selected_cleanup_leaves(
             )
             .0
             && !state
-                .zip(get_contexts().as_ref())
+                .zip(case_evidence.contexts().as_ref())
                 .is_some_and(|(state, contexts)| {
                     crate::checks::captured_storage_paths_are_disjoint(
                         program, facts, state, contexts, path, excluded,
@@ -152,28 +130,11 @@ pub(crate) fn selected_cleanup_leaves(
             event_type_reference(program, disposition.state, statement, disposition.root, &[])?;
         select_type(program, reference, &[], path)?
     };
-    // The occurrence's source facts decide which alternatives can hold a
-    // payload here. Without contexts every alternative remains possible.
     let inactive_case = |segments: &[PlaceSegment]| {
-        inactive_cases
-            .iter()
-            .any(|inactive| segments.starts_with(inactive))
-            || get_contexts().as_ref().is_some_and(|contexts| {
-                contexts.iter().all(|(statement, contexts)| {
-                    crate::flow::place_case_path_is_inactive(
-                        program,
-                        &facts.semantic,
-                        contexts,
-                        disposition.machine,
-                        disposition.state,
-                        *statement,
-                        &validation::CanonicalPlace {
-                            root: disposition.root,
-                            segments: segments.to_vec(),
-                        },
-                    )
-                })
-            })
+        matches!(
+            case_evidence.reachability(segments),
+            Some(validation::CleanupCaseReachability::Inactive)
+        )
     };
     let mut leaves = Vec::new();
     visit(
