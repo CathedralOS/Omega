@@ -52,6 +52,15 @@ whether a fixture never built on this host or built and no longer does, which
 is how eight macOS rows went on claiming `exit:70` for programs whose check
 leg had started refusing.
 
+A row's `@<sha>` stamp is provenance: it claims the observation was made at
+that revision. `--record` therefore refuses to stamp a revision that is not an
+ancestor of the published main this checkout can see, because a stamp naming an
+unlanded candidate is destroyed by the next rebase and leaves a row no reader
+can check. Record with HEAD at the published base the candidate sits on and the
+fixture changes staged: the stamp then reads `@<base>+wt` and the base stays an
+ancestor after the candidate is rebased. The tool never substitutes a revision
+of its own; what a row stamps is the recorder's choice.
+
 `--native-target <target>` builds for another catalogued target and diffs
 against that target's golden. Products execute only where the host runs
 them: an Apple-silicon macOS host runs `macos_x86_64` under Rosetta
@@ -1138,6 +1147,70 @@ def measurement_stamp(golden) -> str | None:
     return revision[:12] + ("+wt" if dirty else "")
 
 
+def upstream_main() -> str | None:
+    """The published main ref this checkout can see; None when it can see none.
+
+    `origin/main` is this repository's convention and the branch's own
+    configured upstream is the more specific answer where one exists, so both
+    are tried before any other remote's `main`. A checkout that can show no
+    remote main cannot show that a revision stays inspectable.
+    """
+    candidates = []
+    configured = git_out("rev-parse", "--abbrev-ref", "--symbolic-full-name",
+                         "@{upstream}")
+    if configured:
+        candidates.append(configured)
+    for line in (git_out("for-each-ref", "--format=%(refname)",
+                         "refs/remotes/") or "").splitlines():
+        if line.endswith("/main"):
+            candidates.append(line)
+    for candidate in candidates:
+        if git_out("rev-parse", "--verify", "--quiet", candidate):
+            return candidate
+    return None
+
+
+def is_ancestor(revision: str, ref: str) -> bool:
+    """Whether `revision` is reachable from `ref`. A revision is its own
+    ancestor, so a stamp naming the published tip itself is inspectable."""
+    try:
+        return subprocess.run(["git", "merge-base", "--is-ancestor", revision, ref],
+                              cwd=ROOT, capture_output=True, text=True,
+                              timeout=60).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def stamp_provenance_problem(stamp: str | None) -> str | None:
+    """Why `--record` must not write rows stamped `stamp`, or None when it may.
+
+    A stamp claims the observation was made at a revision, and the claim is
+    only checkable while a reader can still inspect that revision. The
+    recording checkout's HEAD is not automatically one: a stamp naming the
+    candidate is destroyed by the next rebase, and one naming a commit that
+    only a local branch or a pruned remote branch reaches survives in the
+    recording clone alone. Both leave rows whose provenance nobody can check,
+    which is the weakness tools/testing.md measures. So a stamp is written only
+    for a revision that resolves here AND is an ancestor of the published main
+    this checkout can see; anything else is refused with the reason, and the
+    anchoring convention that satisfies the check is named in the refusal.
+    """
+    if not stamp:
+        return None
+    revision = stamp[: -len("+wt")] if stamp.endswith("+wt") else stamp
+    if not git_out("rev-parse", "--verify", "--quiet", f"{revision}^{{commit}}"):
+        return (f"the revision it names ({revision}) does not resolve to a commit "
+                f"in this checkout")
+    main = upstream_main()
+    if main is None:
+        return ("this checkout can see no published main ref (origin/main) to test "
+                "ancestry against")
+    if not is_ancestor(revision, main):
+        return (f"it is not an ancestor of {main}, the published main this checkout "
+                f"can see, so only the recording clone's own object store holds it")
+    return None
+
+
 def verdict_document(options, leg, target, verdict, exit_code, records,
                      classified, oracle_failures, infrastructure_error,
                      golden_provenance=None, perf_context=None):
@@ -1543,6 +1616,22 @@ def main() -> int:
     # merged forward in a subset record keep the stamp they were born with.
     stamp = measurement_stamp(options.golden) if options.record else None
     if stamp:
+        problem = stamp_provenance_problem(stamp)
+        if problem:
+            message = (
+                f"a row stamped @{stamp} would claim an observation at a revision "
+                f"nobody can inspect: {problem}. Anchor the record at a published "
+                f"base instead: leave the fixture and golden changes staged with "
+                f"HEAD at the base the candidate sits on, then re-run --record, and "
+                f"the stamp names that base with the +wt marker (@<base>+wt), which "
+                f"stays an ancestor after the candidate is rebased. The tool does "
+                f"not substitute a revision of its own — what a row stamps is the "
+                f"recorder's choice")
+            print(f"corpus_gate: --record refused: {message}", file=sys.stderr)
+            write_verdict(options, verdict_document(
+                options, leg, target, "infrastructure_failed", usage_error, records,
+                [], oracle_failures, message))
+            return usage_error
         for record in records:
             record["recorded_at"] = stamp
     rendered = corpus_records.render(records, context)

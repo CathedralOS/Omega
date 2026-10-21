@@ -416,6 +416,64 @@ the check leg to prefer the recording host the way the native leg does --
 host's own golden; `check_leg_realization_target` must not, and the two
 choosers stay separate for that reason.
 
+### Stamp provenance: a row's revision must stay inspectable
+
+A row's `@<sha>` stamp is a provenance claim: the observation was made at that
+revision. The claim is only checkable while the revision stays inspectable, and
+`measurement_stamp` in `tools/corpus_gate.py` wrote the **recording checkout's
+local `HEAD[:12]`** with no check that the revision was in published history. A
+record taken on an unlanded candidate, or on a branch later rebased or deleted,
+therefore left a row whose revision no reader can resolve.
+
+Measured at `9ed829f6e62` with `origin/main` at `747588dad54` (2026-10-20) on a
+full clone: `git rev-parse --is-shallow-repository` prints `false`, and there is
+no partial-clone filter, promisor or alternates, so an unreachable stamp is
+genuinely absent rather than unfetched by this checkout. **331 of 646 distinct
+stamps (51%) are not inspectable in published history**, covering **2533 of
+10468 rows (24%)**: 279 stamps (1996 rows) resolve nowhere at all, and 52 stamps
+(537 rows) resolve only in the recording clone's object store. An earlier
+disposition measured "272 of 642 (42%) over 1869 of 10227 rows" by asking only
+whether the object resolves locally, which cannot see the second class at all.
+Every number moves as the golden grows, so the command is the record and the
+digits are not:
+
+```bash
+python3 - <<'PY'
+import re, subprocess
+key = [l for l in open('tests/omega/corpus_outcomes.txt', encoding='utf-8').read().splitlines()
+       if l.strip() and not l[0].isspace() and not l.startswith('#')]
+rows = [(l, m) for l in key for m in [re.search(r'@([0-9a-f]{12})(\+wt)?', l)] if m]
+shas = sorted({m.group(1) for _, m in rows})
+status = {l.split()[0]: l.split()[1] for l in subprocess.run(
+    ['git', 'cat-file', '--batch-check'], input='\n'.join(shas), capture_output=True,
+    text=True, check=True).stdout.splitlines()}
+def reachable(sha):
+    return subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'origin/main'],
+                          capture_output=True).returncode == 0
+absent = {s for s in shas if status.get(s) == 'missing'}
+local = {s for s in shas if s not in absent and not reachable(s)}
+for label, group in (('unresolvable', absent), ('only in this clone', local)):
+    print(label, len(group), 'stamps,',
+          sum(1 for _, m in rows if m.group(1) in group), 'rows')
+print('not inspectable', len(absent | local), 'of', len(shas), 'stamps')
+PY
+```
+
+`--record` now refuses a stamp that is not an ancestor of the published main
+this checkout can see. The refusal names both honest remedies and never
+substitutes a revision of its own, because what a row stamps belongs to the
+person recording. A fixture-only record satisfies the check by **anchoring**:
+leave the fixture and golden changes staged with HEAD at the published base the
+candidate sits on, and the stamp reads `@<base>+wt` — the base stays an ancestor
+after the candidate is rebased, and it names the revision the observation was
+taken against. A record whose *compiler* changed cannot be anchored that way,
+because the base's compiler is not the one that produced the rows; it has to be
+taken after the compiler commit lands. The existing unresolvable stamps are
+history and are deliberately not mass re-recorded here: re-recording
+un-dispositioned rows converts a possible regression into a baseline. A later
+scoped re-record still needs the
+[two-part golden guard](#splicing-a-golden-the-content-guard).
+
 ### Attributing a move
 
 The printed summary cuts each field at 300 columns, which is usually exactly

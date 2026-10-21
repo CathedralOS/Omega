@@ -603,6 +603,11 @@ class MainVerdicts(unittest.TestCase):
                                 return_value=records),
                    patch.object(corpus_gate, "measurement_stamp",
                                 return_value="aaaaaaaaaaaa"),
+                   # These cases pin golden bookkeeping rather than provenance,
+                   # so the deliberately fake stamp above is written without the
+                   # ancestry check; StampProvenance measures that check for real.
+                   patch.object(corpus_gate, "stamp_provenance_problem",
+                                return_value=None),
                    patch.dict(corpus_gate.os.environ, environment or {}, clear=True),
                    patch.object(sys, "argv", argv)]
         with contextlib.ExitStack() as stack:
@@ -983,6 +988,8 @@ class MainVerdicts(unittest.TestCase):
                  patch.object(corpus_gate, "run_runner", return_value=rows), \
                  patch.object(corpus_gate, "measurement_stamp",
                               return_value="aaaaaaaaaaaa"), \
+                 patch.object(corpus_gate, "stamp_provenance_problem",
+                              return_value=None), \
                  patch.dict(corpus_gate.os.environ, {}, clear=True), \
                  patch.object(sys, "argv", argv_base + list(extra)), \
                  contextlib.redirect_stderr(io.StringIO()):
@@ -1172,6 +1179,105 @@ class MainVerdicts(unittest.TestCase):
             shortened = corpus_gate.windows_safe_target_dir(deep_path)
             self.assertLessEqual(len(str(shortened)), 80)
             self.assertEqual(shortened, corpus_gate.windows_safe_target_dir(deep_path))
+
+
+class StampProvenance(unittest.TestCase):
+    """`--record` stamps only a revision a reader of main can inspect.
+
+    Refusing everything is not a guard, so both outcomes are measured on ONE
+    repository: the same run is refused while its revision is an unpublished
+    candidate and accepted once that revision is an ancestor of the published
+    main. The `+wt` marker is exercised too, because the anchoring convention
+    (`@<published base>+wt`) depends on it being stripped before the ancestry
+    test rather than making the stamp unresolvable.
+    """
+
+    def setUp(self):
+        profile = patch.object(corpus_gate, "require_optimized",
+                               return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+        receipt = patch.object(corpus_gate, "record_cargo_build")
+        receipt.start()
+        self.addCleanup(receipt.stop)
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.git("init", "-q")
+        self.git("config", "user.email", "corpus-gate@example.invalid")
+        self.git("config", "user.name", "corpus gate test")
+        self.base = self.commit("published base")
+        self.git("update-ref", "refs/remotes/origin/main", self.base)
+        self.candidate = self.commit("unpublished candidate")
+        self.golden = self.root / "golden.txt"
+        self.json_path = self.root / "verdict.json"
+        self.errors = io.StringIO()
+
+    def git(self, *arguments):
+        return subprocess.run(["git", *arguments], cwd=self.root, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def commit(self, message):
+        self.git("commit", "-q", "--allow-empty", "-m", message)
+        return self.git("rev-parse", "HEAD")
+
+    def run_gate(self, *extra):
+        rows = [record("pass/a/x")]
+        self.write_golden(rows)
+        argv = ["corpus_gate", "--runner", "unused", "--golden", str(self.golden),
+                "--json", str(self.json_path), *extra]
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner", return_value=rows), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", argv), \
+             contextlib.redirect_stderr(self.errors):
+            return corpus_gate.main()
+
+    def write_golden(self, rows):
+        self.golden.write_text(corpus_records.render(rows, None), encoding="utf-8")
+
+    def test_record_refuses_a_stamp_no_reader_can_inspect(self):
+        self.git("checkout", "-q", "--detach", self.candidate)
+        self.write_golden([record("pass/a/x")])
+        original = self.golden.read_text(encoding="utf-8")
+        self.assertEqual(self.run_gate("--record"), 2)
+        self.assertEqual(self.golden.read_text(encoding="utf-8"), original)
+        message = self.errors.getvalue()
+        self.assertIn("--record refused", message)
+        self.assertIn(f"@{self.candidate[:12]}", message)
+        self.assertIn("not an ancestor of refs/remotes/origin/main", message)
+        # The refusal names the convention that satisfies the check, and says
+        # the tool will not pick a revision for the recorder.
+        self.assertIn("@<base>+wt", message)
+        self.assertIn("does not substitute", message)
+        document = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(document["verdict"], "infrastructure_failed")
+        self.assertIn("nobody can inspect", document["infrastructure_error"])
+
+    def test_the_same_record_is_accepted_once_its_revision_is_published(self):
+        self.git("checkout", "-q", "--detach", self.candidate)
+        self.assertEqual(self.run_gate("--record"), 2)
+        self.git("update-ref", "refs/remotes/origin/main", self.candidate)
+        self.assertEqual(self.run_gate("--record"), 0)
+        row = corpus_records.read(self.golden)[0]
+        self.assertTrue(row["recorded_at"].startswith(self.candidate[:12]))
+
+    def test_published_ancestry_decides_with_and_without_the_dirty_marker(self):
+        with patch.object(corpus_gate, "ROOT", self.root):
+            self.assertIsNone(corpus_gate.stamp_provenance_problem(self.base[:12]))
+            self.assertIsNone(
+                corpus_gate.stamp_provenance_problem(self.base[:12] + "+wt"))
+            self.assertIsNone(corpus_gate.stamp_provenance_problem(None))
+            absent = corpus_gate.stamp_provenance_problem("0123456789ab")
+            self.assertIn("does not resolve", absent)
+            candidate = corpus_gate.stamp_provenance_problem(self.candidate[:12])
+            self.assertIn("not an ancestor", candidate)
+
+    def test_a_checkout_that_sees_no_published_main_refuses(self):
+        self.git("update-ref", "-d", "refs/remotes/origin/main")
+        with patch.object(corpus_gate, "ROOT", self.root):
+            problem = corpus_gate.stamp_provenance_problem(self.base[:12])
+        self.assertIn("no published main ref", problem)
 
 
 if __name__ == "__main__":
