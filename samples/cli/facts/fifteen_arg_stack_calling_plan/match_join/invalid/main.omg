@@ -1,4 +1,4 @@
-// Fact: a 15-argument calling plan across register and stack slots preserves the 15th stack argument bound 40u64 <= a12 <= 80u64 to justify 80u64 - res and res - 40u64.
+// Fact: a 15-argument calling plan across register and stack slots preserves the 15th stack argument bound 40u64 <= a15 <= 80u64 to justify 80u64 - res and res - 40u64.
 // Place: match join (invalid twin).
 // Expected diagnostic: exact subtraction underflow
 

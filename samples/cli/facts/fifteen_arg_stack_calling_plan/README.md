@@ -44,9 +44,13 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 
 ### The Oracle Discriminates
 
-The authored exit code `0` is not an unconstrained default. If the expectation in the transition guard is modified to require a non-zero exit or if an unexpected computation result occurs (`diff != 0u64 || headroom != 20u64 || margin != 20u64`), execution transitions to `state bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
+The authored exit code `0` is not an unconstrained default. The obligation class is unsigned exact arithmetic underflow prevention on 64-bit integers (`ScalarType::U64` under decision 17: exact arithmetic is a proof obligation). If the expectation in the transition guard is modified via a 1-token perturbation (e.g. changing `headroom == 20u64` to `headroom == 21u64`), execution transitions to `state bad() { crash Trap; }`. Tested against the opt-level 1 compiler on `windows_x86_64`, this perturbation immediately produces:
+- Native execution: `native exit -1073741795` (fast-fail trap)
+- Terminal Psi interpreter: `interp crash: Trap (host presentation agrees)`
 
-### Reject Twins
+Both engines strictly agree and trap upon perturbation, demonstrating genuine oracle discrimination.
+
+### Reject Twins and Pinned Corpus Fixtures
 
 Each place has an `invalid/` twin whose 15th argument bound is widened to `81u64` (`a15 = 81u64`), allowing the return value `res` to reach `81u64 > 80u64`. When computing `headroom = 80u64 - res`, static checking fails closed with diagnostic `exact arithmetic in machine ... may overflow \`u64\`` (decision 17 -- exact arithmetic is a proof obligation). None reaches native execution.
 
@@ -55,17 +59,21 @@ Check each twin with:
 omega --check samples/cli/facts/fifteen_arg_stack_calling_plan/<place>/invalid/main.omg
 ```
 
-| Place | Reject Twin | Authored Diagnostic Fragment |
-| --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
+All 9 positive places and 9 invalid twins are pinned in the test corpus:
+- Pass fixtures: `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_<place>_exit/`
+- Fail fixtures: `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_<place>_rejected/`
+
+| Place | Positive Sample | Pinned Pass Fixture | Reject Twin | Pinned Fail Fixture | Authored Diagnostic Fragment |
+| --- | --- | --- | --- | --- | --- |
+| local | [`local/main.omg`](local/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_local_exit` | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_local_rejected` | `may overflow \`u64\`` |
+| field | [`field/main.omg`](field/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_field_exit` | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_field_rejected` | `may overflow \`u64\`` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_parameter_exit` | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_parameter_rejected` | `may overflow \`u64\`` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_call_result_exit` | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_call_result_rejected` | `may overflow \`u64\`` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_match_join_exit` | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_match_join_rejected` | `may overflow \`u64\`` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_const_name_exit` | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_const_name_rejected` | `may overflow \`u64\`` |
+| another state | [`other_state/main.omg`](other_state/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_other_state_exit` | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_other_state_rejected` | `may overflow \`u64\`` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_other_machine_exit` | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_other_machine_rejected` | `may overflow \`u64\`` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | `tests/omega/pass/facts/fifteen_arg_stack_calling_plan_through_target_body_exit` | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/fail/facts/fifteen_arg_stack_calling_plan_through_target_body_rejected` | `may overflow \`u64\`` |
 
 ## Requirements and Evidence
 
