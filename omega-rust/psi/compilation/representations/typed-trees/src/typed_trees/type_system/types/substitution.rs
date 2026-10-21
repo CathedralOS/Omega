@@ -41,6 +41,7 @@ impl TypeReferenceTable {
         handle: TypeReferenceHandle,
         replaced_named: Option<SymbolHandle>,
     ) {
+        self.arithmetic_rows.0.take();
         if let Some(symbol) = replaced_named
             && self
                 .named_rows

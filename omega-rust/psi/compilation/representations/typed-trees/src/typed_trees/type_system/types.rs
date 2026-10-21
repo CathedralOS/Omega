@@ -32,6 +32,7 @@ pub struct TypeReferenceTable {
     /// copying into a private declaration. Zero means ordinary lexical lookup.
     operand_lifetime_owners: Arena<SymbolHandle>,
     named_rows: NamedRowIndex,
+    arithmetic_rows: ArithmeticRowIndex,
 }
 
 // Written out so the derived row index stays out of the table's rendering.
@@ -65,6 +66,27 @@ impl PartialEq for NamedRowIndex {
 
 impl Eq for NamedRowIndex {}
 
+/// Checking repeatedly asks for the same carrier/policy pairs in a frozen
+/// table. Index those existing rows once, keeping the first row exactly as the
+/// scan did. Mutations invalidate this derived index; it is not type identity.
+#[derive(Clone, Default)]
+struct ArithmeticRowIndex(
+    std::sync::OnceLock<
+        symbols::SymbolKeyMap<
+            SymbolHandle,
+            Vec<(numerics::arithmetic::ArithmeticDomain, TypeReferenceHandle)>,
+        >,
+    >,
+);
+
+impl PartialEq for ArithmeticRowIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ArithmeticRowIndex {}
+
 impl TypeReferenceTable {
     pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
         let Self {
@@ -75,6 +97,7 @@ impl TypeReferenceTable {
             constant_origins,
             operand_lifetime_owners,
             named_rows: _,
+            arithmetic_rows: _,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             type_references,
@@ -106,6 +129,7 @@ impl TypeReferenceTable {
             constant_origins: Arena::new(),
             operand_lifetime_owners: Arena::new(),
             named_rows: NamedRowIndex::default(),
+            arithmetic_rows: ArithmeticRowIndex::default(),
         }
     }
 
@@ -122,6 +146,7 @@ impl TypeReferenceTable {
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
+        self.arithmetic_rows.0.take();
         let named = match &type_reference {
             TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
             _ => None,
@@ -288,10 +313,12 @@ impl TypeReferenceTable {
         &mut self,
         constraints: impl IntoIterator<Item = TypeConstraintNode>,
     ) -> HandleSpan<TypeConstraintNode> {
+        self.arithmetic_rows.0.take();
         self.constraints.insert_many(constraints)
     }
 
     pub fn reserve_constraints(&mut self, count: u32) -> HandleSpan<TypeConstraintNode> {
+        self.arithmetic_rows.0.take();
         self.constraints.insert_many(
             std::iter::repeat_with(TypeConstraintNode::default)
                 .take(usize::try_from(count).expect("type constraint span count overflow")),
@@ -304,6 +331,7 @@ impl TypeReferenceTable {
         offset: u32,
         constraint: TypeConstraintNode,
     ) {
+        self.arithmetic_rows.0.take();
         *self.constraints.get_mut(constraints.handle_at(offset)) = constraint;
     }
 
@@ -312,6 +340,7 @@ impl TypeReferenceTable {
         span: &mut HandleSpan<TypeConstraintNode>,
         constraint: TypeConstraintNode,
     ) {
+        self.arithmetic_rows.0.take();
         self.constraints.append_to_span(span, constraint);
     }
 
@@ -547,6 +576,7 @@ impl TypeReferenceTable {
         handle: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
     ) {
+        self.arithmetic_rows.0.take();
         let TypeReferenceNode::Constrained {
             constraints: current,
             ..
@@ -561,6 +591,7 @@ impl TypeReferenceTable {
         &mut self,
         span: HandleSpan<TypeConstraintNode>,
     ) -> &mut [TypeConstraintNode] {
+        self.arithmetic_rows.0.take();
         self.constraints.span_mut_or_empty(span)
     }
 
@@ -642,25 +673,42 @@ impl TypeReferenceTable {
         if domain == ArithmeticDomain::Exact {
             return self.find_named_type_reference(carrier);
         }
-        self.type_references.iter().find_map(|(handle, node)| {
-            let TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } = node
-            else {
-                return None;
-            };
-            if !self.contains_type_reference(*base_type) {
-                return None;
-            }
-            let Some(symbol) = self.type_reference(*base_type).as_named_symbol() else {
-                return None;
-            };
-            (symbol == carrier
-                && matches!(self.constraint_span(*constraints)?,
-                    [TypeConstraintNode::ArithmeticDomain(retained)] if *retained == domain))
-            .then_some(handle)
-        })
+        self.arithmetic_rows
+            .0
+            .get_or_init(|| {
+                let mut rows = symbols::SymbolKeyMap::<
+                    SymbolHandle,
+                    Vec<(ArithmeticDomain, TypeReferenceHandle)>,
+                >::default();
+                for (handle, node) in self.type_references.iter() {
+                    let TypeReferenceNode::Constrained {
+                        base_type,
+                        constraints,
+                    } = node
+                    else {
+                        continue;
+                    };
+                    if !self.contains_type_reference(*base_type) {
+                        continue;
+                    }
+                    let Some(symbol) = self.type_reference(*base_type).as_named_symbol() else {
+                        continue;
+                    };
+                    let Some([TypeConstraintNode::ArithmeticDomain(retained)]) =
+                        self.constraint_span(*constraints)
+                    else {
+                        continue;
+                    };
+                    let policies = rows.entry(symbol).or_default();
+                    if !policies.iter().any(|(policy, _)| policy == retained) {
+                        policies.push((*retained, handle));
+                    }
+                }
+                rows
+            })
+            .get(&carrier)?
+            .iter()
+            .find_map(|(policy, handle)| (*policy == domain).then_some(*handle))
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -1420,10 +1468,99 @@ pub fn builtin_type_atom(kind: numerics::literals::LandedIntegerType) -> symbols
 
 #[cfg(test)]
 mod tests {
-    use super::{FixedArrayLength, TypeReferenceNode, TypeReferenceTable};
+    use super::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
     use crate::name::Identifier;
     use language_core::ReferenceAccess;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn arithmetic_rows_preserve_first_match_and_follow_mutation() {
+        use numerics::arithmetic::ArithmeticDomain::{Saturating, Trapping, Wrapping};
+        let mut builder = SymbolTableBuilder::default();
+        let carrier = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("u64"));
+        let replacement = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("u32"));
+        let mut table = TypeReferenceTable::new();
+        let base_type = table.insert(TypeReferenceNode::Named {
+            symbol: carrier,
+            name: Identifier::from("u64"),
+        });
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Wrapping),
+            None
+        );
+        let constraints =
+            table.insert_constraints([TypeConstraintNode::ArithmeticDomain(Wrapping)]);
+        let first = table.insert(TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        });
+        let duplicate = table.insert(TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        });
+        let before_lookup = table.clone();
+        let before_rendering = format!("{table:?}");
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Wrapping),
+            Some(first)
+        );
+        assert_eq!(table, before_lookup);
+        assert_eq!(format!("{table:?}"), before_rendering);
+        assert!(table.retains_exact_prefix(&before_lookup));
+
+        table.substitute_node(first, TypeReferenceNode::Unit);
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Wrapping),
+            Some(duplicate)
+        );
+        table.set_constraint_at_offset(
+            constraints,
+            0,
+            TypeConstraintNode::ArithmeticDomain(Saturating),
+        );
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Wrapping),
+            None
+        );
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Saturating),
+            Some(duplicate)
+        );
+        table.constraints_mut(constraints)[0] = TypeConstraintNode::ArithmeticDomain(Trapping);
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Saturating),
+            None
+        );
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Trapping),
+            Some(duplicate)
+        );
+
+        table.substitute_node(
+            base_type,
+            TypeReferenceNode::Named {
+                symbol: replacement,
+                name: Identifier::from("u32"),
+            },
+        );
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(carrier, Trapping),
+            None
+        );
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(replacement, Trapping),
+            Some(duplicate)
+        );
+        let extra = table.insert_constraints([
+            TypeConstraintNode::ArithmeticDomain(Trapping),
+            TypeConstraintNode::Named(Identifier::from("Extra")),
+        ]);
+        table.set_constraint_span(duplicate, extra);
+        assert_eq!(
+            table.find_arithmetic_result_type_reference(replacement, Trapping),
+            None
+        );
+    }
 
     #[test]
     fn instantiation_rebuilds_only_rows_that_name_a_binder() {
