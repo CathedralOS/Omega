@@ -18,6 +18,9 @@ pub struct NativeComponentProduct {
     runtime: crate::TerminalCallableRuntimeProvisions,
     authority: AdmittedNativeCallableAuthority,
     locator: target::NormalizedComponentLocator,
+    provider_plan: effects::provider_plan::ProviderPlanDigest,
+    stack_bytes: u64,
+    stack_alignment: u32,
 }
 impl std::fmt::Debug for NativeComponentProduct {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -58,7 +61,8 @@ impl NativeComponentProduct {
                 "component publication product lost its admitted artifact, entry, target or complete ABI application",
             );
         }
-        let demand = image_emission::derive_stack_demand(image.body(), image.body().entry())
+        let demand = image
+            .stack_demand()
             .map_err(|_| "component publication lost its exact physical stack evidence")?;
         if demand.psi() != selection.provider() || demand.target() != application.target {
             return Err("component image body belongs to another artifact or native target");
@@ -76,6 +80,9 @@ impl NativeComponentProduct {
             runtime,
             authority,
             locator,
+            provider_plan: *call.plan_digest(),
+            stack_bytes: demand.ceiling_bytes(),
+            stack_alignment: demand.stack_alignment(),
         })
     }
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
@@ -99,6 +106,27 @@ impl NativeComponentProduct {
     pub const fn authority(&self) -> &AdmittedNativeCallableAuthority {
         &self.authority
     }
+    /// Join a symbolic settlement to this sealed emitted image, including its
+    /// body and entry-bridge resource demand. A genuinely admitted smaller
+    /// contribution or another plan cannot borrow this product's authority.
+    pub fn validate_same_stack(
+        &self,
+        contribution: &task_plans::AdmittedSameStackContribution,
+    ) -> Result<(), &'static str> {
+        if contribution.provider_plan_commitment()
+            != task_plans::SameStackProviderPlanCommitment::from_digest(
+                *self.provider_plan.as_bytes(),
+            )
+            || contribution.bytes() != self.stack_bytes
+            || contribution.alignment() != u64::from(self.stack_alignment)
+        {
+            return Err(
+                "component same-stack contribution differs from its actual image demand or exact provider plan",
+            );
+        }
+        Ok(())
+    }
+
     pub fn verify_contents(&self, contents: &[u8]) -> Result<(), &'static str> {
         if target::NormalizedComponentLocator::for_image(
             self.locator.target(),

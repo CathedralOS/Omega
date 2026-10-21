@@ -51,6 +51,26 @@ impl ComponentSharedImage {
     pub const fn slot_commitment(&self) -> &[u8; 32] {
         &self.slot_commitment
     }
+
+    /// Derive this retained body's demand with its actual entry transport.
+    /// Consumers compare this physical magnitude, not a provider-written row
+    /// or compact execution report, before admitting a component process graph.
+    pub fn stack_demand(&self) -> Result<crate::StackDemand, Diagnostic> {
+        let mut demand = crate::derive_stack_demand(&self.body, self.body.entry())
+            .map_err(|error| Diagnostic::error(format!("component stack demand: {error:?}")))?;
+        if let Some(bridge) = &self.entry_bridge {
+            demand.stack_alignment = demand
+                .stack_alignment
+                .max(u32::from(bridge.request().inbound.stack_alignment))
+                .max(u32::from(bridge.request().internal.stack_alignment));
+            demand.ceiling_bytes = demand
+                .ceiling_bytes
+                .checked_add(u64::from(bridge.frame_bytes()))
+                .and_then(|bytes| bytes.checked_add(u64::from(bridge.call_stack_bias())))
+                .ok_or_else(|| Diagnostic::error("component entry stack demand overflows"))?;
+        }
+        Ok(demand)
+    }
 }
 
 pub struct ComponentSharedImageEmissionError {

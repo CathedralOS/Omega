@@ -273,6 +273,8 @@ impl TerminalRuntimeProvisions {
     /// version-qualified exports for this immutable process lifetime (protected
     /// ELF symbols or exact two-level Mach-O dylib bindings).
     pub fn validate_component_process_inputs(&self, root: &std::path::Path) -> Result<(), String> {
+        self.validate_component_product_roster()
+            .map_err(str::to_owned)?;
         if self.components.is_empty() {
             return Ok(());
         }
@@ -299,6 +301,94 @@ impl TerminalRuntimeProvisions {
         mut self,
         components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
     ) -> Result<Self, &'static str> {
+        self.validate_component_products(&components)?;
+        self.components = components;
+        Ok(self)
+    }
+    /// Validate the optional runtime companion against a retained root. This
+    /// boundary also handles callers that never attached runtime provisions.
+    pub fn validate_root_object(
+        object: &image_emission::ObjectArtifact,
+        runtime: Option<&Self>,
+    ) -> Result<(), &'static str> {
+        match runtime {
+            Some(runtime) => runtime.validate_component_root_object(object),
+            None if object
+                .object()
+                .layout
+                .normalized_imports
+                .iter()
+                .any(|import| {
+                    matches!(
+                        import.locator,
+                        target::NormalizedImportLocator::Component(_)
+                    )
+                }) =>
+            {
+                Err(
+                    "component native product has no complete retained runtime image/resource roster",
+                )
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// Rejoin the actual byte-validated root's physical imports and complete
+    /// call bindings. Another runtime with an empty self-consistent roster
+    /// cannot answer this object's independent calls or change their WCSU.
+    pub fn validate_component_root_object(
+        &self,
+        object: &image_emission::ObjectArtifact,
+    ) -> Result<(), &'static str> {
+        if installation_evidence::ObjectEvidence::psi(object) != self.identity
+            || object.target() != self.target_slot.owner.native_target()
+        {
+            return Err("component runtime provisions name another actual root artifact or target");
+        }
+        self.validate_component_product_roster()?;
+        for import in &object.object().layout.normalized_imports {
+            let target::NormalizedImportLocator::Component(locator) = &import.locator else {
+                continue;
+            };
+            let mut products = self
+                .components
+                .iter()
+                .filter(|product| product.locator() == locator);
+            if products.next().is_none() || products.next().is_some() {
+                return Err(
+                    "actual component root import has no unique exact retained image/resource product",
+                );
+            }
+        }
+        for call in object.foreign_calls() {
+            if !matches!(
+                &call.binding.mechanism,
+                target_operations::NormalizedForeignCallMechanism::Component { .. }
+            ) {
+                continue;
+            }
+            if !self.host().iter().any(|provision| {
+                matches!(&provision.realization,
+                    target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                        if binding == &call.binding)
+            }) {
+                return Err(
+                    "actual component root call differs from its complete runtime ABI, provider or same-stack settlement",
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Every selected component needs its exact physical product, even when
+    /// an alternate caller omitted the product-attachment operation entirely.
+    pub fn validate_component_product_roster(&self) -> Result<(), &'static str> {
+        self.validate_component_products(&self.components)
+    }
+    fn validate_component_products(
+        &self,
+        components: &[std::sync::Arc<crate::NativeComponentProduct>],
+    ) -> Result<(), &'static str> {
         let mut expected = 0;
         for provision in self.host() {
             let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
@@ -311,7 +401,7 @@ impl TerminalRuntimeProvisions {
                 provider,
                 candidate,
                 application_commitment,
-                ..
+                same_stack_contribution,
             } = &binding.mechanism
             else {
                 continue;
@@ -326,17 +416,20 @@ impl TerminalRuntimeProvisions {
                     && component.application().commitment == *application_commitment
                     && component.application().plan.plan() == &binding.boundary_entry_plan
             });
-            if matches.next().is_none() || matches.next().is_some() {
+            let component = matches.next().ok_or(
+                "component runtime roster does not exactly cover an admitted independent native call",
+            )?;
+            if matches.next().is_some() {
                 return Err(
-                    "component runtime roster does not exactly cover an admitted independent native call",
+                    "component runtime roster ambiguously duplicates an admitted independent native call",
                 );
             }
+            component.validate_same_stack(same_stack_contribution)?;
         }
         if expected != components.len() {
             return Err("component runtime roster contains an unconsumed or duplicated image");
         }
-        self.components = components;
-        Ok(self)
+        Ok(())
     }
     pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
         &self.private_entry_ram

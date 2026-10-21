@@ -18,6 +18,7 @@ pub(super) fn publish(
     mut report: CompileReport,
     build_dir: &std::path::Path,
 ) -> Result<CompileReport, String> {
+    report.validate_component_product_inputs()?;
     if report.retained_dynamic_elf_artifact().is_some() {
         return publish_dynamic_elf(report, build_dir);
     }

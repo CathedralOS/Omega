@@ -527,10 +527,35 @@ impl CompileReport {
             .map_err(str::to_owned)
     }
 
+    /// Required typed component imports cannot publish or execute without
+    /// their complete image/resource roster, including alternate product paths.
+    pub fn validate_component_product_inputs(&self) -> Result<(), String> {
+        let object = self
+            .retained_native_artifact()
+            .map(|artifact| artifact.object())
+            .or_else(|| {
+                self.retained_dynamic_elf_artifact()
+                    .map(|artifact| artifact.object())
+            });
+        match object {
+            Some(object) => crate::TerminalRuntimeProvisions::validate_root_object(
+                object,
+                self.runtime_provisions(),
+            )
+            .map_err(str::to_owned),
+            None => self.runtime_provisions().map_or(Ok(()), |runtime| {
+                runtime
+                    .validate_component_product_roster()
+                    .map_err(str::to_owned)
+            }),
+        }
+    }
+
     pub fn validate_component_process_inputs(
         &self,
         executable: &std::path::Path,
     ) -> Result<(), String> {
+        self.validate_component_product_inputs()?;
         if self
             .runtime_provisions()
             .is_none_or(|runtime| runtime.component_products().is_empty())

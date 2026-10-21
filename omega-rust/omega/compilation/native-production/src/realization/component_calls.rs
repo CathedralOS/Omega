@@ -71,9 +71,7 @@ impl<'input> ComponentNativeCall<'input> {
                 "component native call does not retain its exact checked export and complete calling application",
             ));
         }
-        let body = image.image().body();
-        let demand = image_emission::derive_stack_demand(body, body.entry())
-            .map_err(|error| invalid(&format!("component stack demand: {error:?}")))?;
+        let demand = image.image().stack_demand().map_err(|error| vec![error])?;
         if demand.psi() != selection.provider()
             || demand.entry() != selection.candidate()
             || demand.target() != application.target
@@ -82,17 +80,7 @@ impl<'input> ComponentNativeCall<'input> {
                 "component native stack evidence belongs to another artifact, entry or target",
             ));
         }
-        // This is the same ordinary entry-transport composition used for
-        // private callable bridges, applied to a separately owned image.
-        let bytes = if let Some(bridge) = image.image().entry_bridge() {
-            demand
-                .ceiling_bytes()
-                .checked_add(u64::from(bridge.frame_bytes()))
-                .and_then(|bytes| bytes.checked_add(u64::from(bridge.call_stack_bias())))
-                .ok_or_else(|| invalid("component entry stack demand overflows"))?
-        } else {
-            demand.ceiling_bytes()
-        };
+        let bytes = demand.ceiling_bytes();
         let locator = target::NormalizedComponentLocator::for_image(
             profile,
             image.image().image().contents(),
