@@ -11,7 +11,8 @@ pub(super) fn retained(
     machine: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
     position: (semantic_vocabulary::BlockId, u32),
-    graph: &[descriptors::DescriptorMachine],
+    history: &mut descriptors::PayloadMembershipHistory<'_>,
+    memberships: &super::membership_reachability::MembershipReachability,
 ) -> Option<PayloadMembershipContract> {
     let result = operation.result.structural()?;
     let shape = &module.structural_type(result.structural_type)?.shape;
@@ -38,16 +39,9 @@ pub(super) fn retained(
             // an incidental current value must not invent a new invariant that
             // an otherwise legal later mutation would have to preserve.
             if source.access == terminal_psi::StructuralAccess::SharedBorrow
-                && let Ok(current) = descriptors::current_selected_payload_contract(
-                    &module.structural_types,
-                    &module.structural_domains,
-                    graph,
-                    machine.id,
-                    position,
-                    source.place,
-                    path,
-                    &|place| descriptors::terminal_payload_contract(machine, place),
-                )
+                && memberships.may_contain(root.carrier)
+                && let Ok(current) =
+                    history.current_selected_payload_contract(position, source.place, path)
             {
                 StructuralPathQualification::append_under(
                     &current.qualifications,

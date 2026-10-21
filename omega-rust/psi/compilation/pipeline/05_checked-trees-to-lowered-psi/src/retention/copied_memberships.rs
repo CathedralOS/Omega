@@ -8,17 +8,31 @@
 //! replays each copy and every edge/store after this producer elaboration.
 use crate::lowering_error::LoweringError;
 mod construction_memberships;
+mod membership_reachability;
 mod view_memberships;
 use terminal_psi::{OperationKind, OperationResult, TerminalModule};
 use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
 
 pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+    let memberships = membership_reachability::MembershipReachability::new(
+        &module.structural_types,
+        module
+            .structural_domains
+            .iter()
+            .map(|domain| domain.carrier),
+    );
     let types = module.structural_types.clone();
     let graph = descriptors::terminal_graph(module);
     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
     loop {
         let mut copies = Vec::new();
         for (machine_index, machine) in module.machines.iter().enumerate() {
+            let mut history = descriptors::PayloadMembershipHistory::new(
+                &types,
+                &module.structural_domains,
+                &graph,
+                machine,
+            );
             for (block_index, block) in machine.blocks.iter().enumerate() {
                 for (ordinal, operation) in block.operations.iter().enumerate() {
                     let position = (
@@ -37,7 +51,12 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
                     if let Some(contract) = construction_memberships::retained(
-                        module, machine, operation, position, &graph,
+                        module,
+                        machine,
+                        operation,
+                        position,
+                        &mut history,
+                        &memberships,
                     ) {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }

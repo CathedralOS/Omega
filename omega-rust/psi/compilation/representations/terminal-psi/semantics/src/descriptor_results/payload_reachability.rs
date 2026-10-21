@@ -19,6 +19,41 @@ pub(super) struct Reachability {
 }
 
 impl Reachability {
+    /// Reuse an earlier fixed point only when its entire incoming graph is
+    /// unchanged. Query-specific Boolean pruning may reopen an earlier edge;
+    /// that requires a fresh solve, even if the new query is later in the body.
+    pub(super) fn extension_frontier(
+        &self,
+        previous: &Self,
+        flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    ) -> Option<VecDeque<DescriptorPosition>> {
+        if !previous.positions.is_subset(&self.positions) || !previous.edges.is_subset(&self.edges)
+        {
+            return None;
+        }
+        for &(position, ordinal) in &self.edges {
+            let edge = flow.get(&position)?.successors.get(ordinal)?;
+            if previous.contains(edge.target) && !previous.includes_edge(position, ordinal) {
+                return None;
+            }
+        }
+        Some(
+            previous
+                .positions
+                .iter()
+                .copied()
+                .filter(|position| {
+                    flow.get(position).is_some_and(|step| {
+                        step.successors.iter().enumerate().any(|(ordinal, edge)| {
+                            self.includes_edge(*position, ordinal)
+                                && !previous.contains(edge.target)
+                        })
+                    })
+                })
+                .collect(),
+        )
+    }
+
     pub(super) fn contains(&self, position: DescriptorPosition) -> bool {
         self.positions.contains(&position)
     }

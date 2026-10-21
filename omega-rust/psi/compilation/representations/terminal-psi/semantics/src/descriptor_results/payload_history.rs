@@ -16,6 +16,72 @@ struct State {
     scalar_requirements: Vec<semantic_vocabulary::Proposition>,
 }
 
+struct CachedHistory {
+    relevant: super::payload_reachability::Reachability,
+    snapshots: BTreeMap<DescriptorPosition, State>,
+}
+
+/// Query-local reuse bound to one immutable Terminal machine and its exact
+/// catalog/descriptor graph. A producer creates this inside its read sweep and
+/// drops it before publishing changed rosters. Arbitrary source callbacks are
+/// deliberately excluded from this reusable interface.
+pub struct PayloadMembershipHistory<'input> {
+    types: &'input [StructuralTypeDeclaration],
+    domains: &'input [terminal_psi::StructuralDomainDeclaration],
+    graph: &'input [DescriptorMachine],
+    machine: &'input TerminalMachine,
+    cached: Option<CachedHistory>,
+}
+impl<'input> PayloadMembershipHistory<'input> {
+    pub fn new(
+        types: &'input [StructuralTypeDeclaration],
+        domains: &'input [terminal_psi::StructuralDomainDeclaration],
+        graph: &'input [DescriptorMachine],
+        machine: &'input TerminalMachine,
+    ) -> Self {
+        Self {
+            types,
+            domains,
+            graph,
+            machine,
+            cached: None,
+        }
+    }
+    pub fn current_selected_payload_contract(
+        &mut self,
+        position: DescriptorPosition,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Result<PayloadMembershipContract, &'static str> {
+        let machine = self.machine;
+        let source = |place| super::terminal_payload_contract(machine, place);
+        let root_contract = source(root).ok_or("selected payload root is absent")?;
+        let query = descriptor_contents_query(self.types, root, root_contract.carrier, path, None)
+            .ok_or("selected payload path has no typed coordinate")?;
+        let mut analysis = DescriptorAnalysis::new(self.types, self.graph);
+        let targets = analysis
+            .payload_targets(machine.id, position, &query)
+            .ok_or("selected payload backing is unresolved")?;
+        let mut failure = None;
+        let cached = &mut self.cached;
+        let contract = payload_memberships(self.types, self.domains, targets, |place| {
+            current_payload_contract_reusing(
+                self.types,
+                self.domains,
+                self.graph,
+                machine.id,
+                position,
+                place,
+                &source,
+                cached,
+            )
+            .map_err(|reason| failure = Some(reason))
+            .ok()
+        });
+        contract.ok_or(failure.unwrap_or("selected payload memberships are unresolved"))
+    }
+}
+
 /// Observe the current payload selected by an operand, following descriptors
 /// to every possible backing. This proves facts about the selected bytes; it
 /// grants neither a copy nor a loan and never reads the receiving contract.
@@ -58,29 +124,68 @@ pub fn current_payload_contract(
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
 ) -> Result<PayloadMembershipContract, &'static str> {
+    current_payload_contract_reusing(
+        types, domains, graph, identity, position, root, source, &mut None,
+    )
+}
+
+fn current_payload_contract_reusing(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    position: DescriptorPosition,
+    root: PlaceId,
+    source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
+    cached: &mut Option<CachedHistory>,
+) -> Result<PayloadMembershipContract, &'static str> {
     let mut failure = "descriptor machine is absent";
     let result = (|| {
         let machine = descriptor_machine(graph, identity)?;
         failure = "payload query reachability is invalid or exceeds its finite budget";
         let relevant = super::payload_reachability::predecessors(machine, position)?;
-        let mut initial = State::default();
-        if let Some((_, requirements)) = &machine.payload_entry_predicates {
-            initial.scalar_requirements = super::scalar_contracts::scalar_conjuncts(requirements);
-        }
-        initial.scalar_requirements.sort();
-        initial.scalar_requirements.dedup();
-        for place in &machine.places {
-            if matches!(place.definition, DescriptorDefinition::Parameter { .. }) {
-                failure = "entry payload contract is absent";
-                let mut contract = source(place.place)?;
-                super::payload_entry::close(types, domains, machine, place.place, &mut contract);
-                contract.scalar_requirements.sort();
-                contract.scalar_requirements.dedup();
-                initial.values.insert(place.place, contract);
+        let previous = cached.take();
+        let frontier = previous
+            .as_ref()
+            .and_then(|previous| relevant.extension_frontier(&previous.relevant, &machine.flow));
+        let (mut snapshots, mut pending) = if let Some(frontier) = frontier {
+            (
+                previous
+                    .expect("frontier owns the preceding immutable history")
+                    .snapshots,
+                frontier,
+            )
+        } else {
+            // Release an incompatible prefix before constructing its replacement.
+            drop(previous);
+            let mut initial = State::default();
+            if let Some((_, requirements)) = &machine.payload_entry_predicates {
+                initial.scalar_requirements =
+                    super::scalar_contracts::scalar_conjuncts(requirements);
             }
-        }
-        let mut snapshots = BTreeMap::from([(machine.entry, initial)]);
-        let mut pending = VecDeque::from([machine.entry]);
+            initial.scalar_requirements.sort();
+            initial.scalar_requirements.dedup();
+            for place in &machine.places {
+                if matches!(place.definition, DescriptorDefinition::Parameter { .. }) {
+                    failure = "entry payload contract is absent";
+                    let mut contract = source(place.place)?;
+                    super::payload_entry::close(
+                        types,
+                        domains,
+                        machine,
+                        place.place,
+                        &mut contract,
+                    );
+                    contract.scalar_requirements.sort();
+                    contract.scalar_requirements.dedup();
+                    initial.values.insert(place.place, contract);
+                }
+            }
+            (
+                BTreeMap::from([(machine.entry, initial)]),
+                VecDeque::from([machine.entry]),
+            )
+        };
         let mut analysis = DescriptorAnalysis::new(types, graph);
         let mut remaining = 65_536usize;
         while let Some(current) = pending.pop_front() {
@@ -479,8 +584,18 @@ pub fn current_payload_contract(
                 }
             }
         }
+        *cached = Some(CachedHistory {
+            relevant,
+            snapshots,
+        });
         failure = "requested payload root has no reached incoming membership history";
-        let mut current = snapshots.get(&position)?.values.get(&root)?.clone();
+        let mut current = cached
+            .as_ref()?
+            .snapshots
+            .get(&position)?
+            .values
+            .get(&root)?
+            .clone();
         failure = "requested source has no declared payload contract";
         let declared = source(root)?;
         failure = "current and declared source payload carriers differ";

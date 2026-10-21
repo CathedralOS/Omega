@@ -219,3 +219,37 @@ fn conflicting_unknown_successors_weaken_demands_and_reopen_predecessors() {
     assert!(reachable.includes_edge(position(2), 0));
     assert!(reachable.includes_edge(position(2), 1));
 }
+
+#[test]
+fn history_extension_requires_identical_incoming_edges_for_every_retained_position() {
+    let graph = Graph {
+        flow: BTreeMap::from([
+            (position(1), step(&[2, 3])),
+            (position(2), step(&[4])),
+            (position(3), step(&[4])),
+            (position(4), step(&[5])),
+            (position(5), step(&[])),
+        ]),
+        ..Default::default()
+    };
+    let before = graph.query().predecessors(position(4)).unwrap();
+    let after = graph.query().predecessors(position(5)).unwrap();
+    assert_eq!(
+        after.extension_frontier(&before, &graph.flow).unwrap(),
+        VecDeque::from([position(4)])
+    );
+    assert!(before.extension_frontier(&after, &graph.flow).is_none());
+    assert!(
+        before
+            .extension_frontier(&before, &graph.flow)
+            .unwrap()
+            .is_empty()
+    );
+    // A query-specific condition previously excluded an incoming branch.
+    // Reopening it must recompute the old join rather than carry its facts.
+    let filtered = Reachability {
+        positions: BTreeSet::from([position(1), position(2), position(4)]),
+        edges: BTreeSet::from([(position(1), 0), (position(2), 0)]),
+    };
+    assert!(after.extension_frontier(&filtered, &graph.flow).is_none());
+}
