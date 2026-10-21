@@ -93,7 +93,9 @@ fn declared_type<'program>(
         return None;
     }
     match expressions.expression(expression) {
-        ExpressionNode::Name(path) => declared_symbol_type(program, path.symbol),
+        ExpressionNode::Name(path) => {
+            inferred_capture_type(program, expressions, path.symbol, depth)
+        }
         ExpressionNode::Call(call) => {
             crate::expressions::call_results::declared_call_return(program, call.target_symbol)
         }
@@ -228,6 +230,48 @@ fn declared_data_field<'program>(
         return None;
     }
     Some(field)
+}
+
+/// A captured transition subject is stored as an inferred local. Its pattern
+/// fields belong to the initializer's declared result: `Type::Case { stamp }`
+/// binds the common field `stamp`, and that binding is only visible once the
+/// capture is read as the call result rather than the Unit inference sentinel.
+fn inferred_capture_type<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
+    expressions: &resolved::expression::ExpressionTable,
+    symbol: SymbolHandle,
+    depth: usize,
+) -> Option<&'program TypeReference> {
+    let declared = declared_symbol_type(program, symbol)?;
+    if !matches!(declared, TypeReference::Unit) {
+        return Some(declared);
+    }
+    if program.symbols.get(symbol).kind != SymbolKind::Local {
+        return Some(declared);
+    }
+    let parent = program.symbols.get(symbol).parent;
+    let state = program
+        .tables
+        .declarations
+        .machine_states
+        .iter()
+        .find_map(|(_, state)| (state.symbol == parent).then_some(state))?;
+    let local = program
+        .state_statements(state.statements)
+        .iter()
+        .find_map(|statement| {
+            let resolved::statement::Statement::LocalData(local) = statement else {
+                return None;
+            };
+            (local.symbol == symbol).then_some(local)
+        })?;
+    if !local.type_is_inferred
+        || local.role != language_core::LocalBindingRole::Value
+        || !local.initial_value.is_valid()
+    {
+        return Some(declared);
+    }
+    declared_type(program, expressions, local.initial_value, depth + 1).or(Some(declared))
 }
 
 pub(super) fn declared_symbol_type(

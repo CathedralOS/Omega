@@ -365,8 +365,9 @@ impl CallableApplication {
 
 impl TypedTrees {
     /// Instantiate an inferred result's reference regions in the caller.
-    /// Elision retains the call's separate loan-source contract; it never
-    /// rewrites the authored declaration or supplies an anonymous nominal tag.
+    /// Elision retains the call's separate loan-source contract. A nominal
+    /// result keeps the declaration's binder spelling so the application
+    /// remains that owner; the slot is not a captured caller region.
     pub fn apply_callable_result_type(
         &mut self,
         original: types::TypeReferenceHandle,

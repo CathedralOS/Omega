@@ -512,6 +512,52 @@ fn captured_subject_predicate<'program>(
     frame_is_empty.then_some(local.initial_value)
 }
 
+/// The authored predicate captured for this arm's truth test.
+///
+/// Sibling arms and generated pattern locals sit between the capture and a
+/// later arm. The search stops at any other statement, which could have
+/// replaced a subject the predicate read.
+fn authored_transition_predicate(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    guard: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let subject = subject_truth_test_symbol(program, guard)?;
+    let mut index = statement_index;
+    while let Some(previous) = index.checked_sub(1) {
+        index = previous;
+        let statement = program.statement_table.statement_at(state, index)?;
+        if let Some(local) = statement.as_local_data() {
+            if local.symbol == subject && local.initial_value.is_valid() {
+                return Some(local.initial_value);
+            }
+            if local.name.as_str().starts_with("__") {
+                continue;
+            }
+            return None;
+        }
+        if matches!(
+            statement,
+            typed_trees::statement::StatementNode::Transition(_)
+        ) {
+            continue;
+        }
+        return None;
+    }
+    None
+}
+
+fn path_names_place(path: &str, label: &str) -> bool {
+    path == label
+        || path
+            .strip_prefix(label)
+            .is_some_and(|rest| rest.starts_with('.'))
+        || label
+            .strip_prefix(path)
+            .is_some_and(|rest| rest.starts_with('.'))
+}
+
 /// The local a `<subject> == true` guard tests, or `None` for any other guard.
 fn subject_truth_test_symbol(
     program: &dyn ::validation::CheckingInput,
@@ -748,6 +794,86 @@ pub(in crate::flow) fn append_predicate_context(
             value,
             &mut observations,
         );
+        // A computed subject is one local read by every arm as `<local> == true`.
+        // The tag evidence is the authored predicate stored in that local, not
+        // the truth test. Later arms are sibling transitions, so the capture
+        // is not always the immediately previous statement. A call inside the
+        // predicate retires only the subjects it writes.
+        if let Some(captured) =
+            authored_transition_predicate(program, state, statement_index, expression)
+        {
+            let writes = build.call_frames.and_then(|frames| {
+                frames
+                    .expression_write_frame(machine, captured)
+                    .into_complete_paths()
+            });
+            if let Some(writes) = writes {
+                let mut captured_observations = Vec::new();
+                guard_observations(
+                    program,
+                    machine,
+                    state,
+                    captured,
+                    value,
+                    &mut captured_observations,
+                );
+                for (observation, selected) in captured_observations {
+                    let Some(binary) = program.expression_table.binary_node(observation) else {
+                        continue;
+                    };
+                    let Some(case) = validation::applied_case_membership_variant(
+                        program,
+                        machine,
+                        Some(state),
+                        observation,
+                        binary,
+                    ) else {
+                        continue;
+                    };
+                    let Some(subject) = validation::canonical_place_from_expression_in_state(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        binary.left,
+                    ) else {
+                        continue;
+                    };
+                    let label = subject.label(program);
+                    let written = writes.iter().any(|path| path_names_place(path, &label));
+                    if written
+                        || !crate::flow::entry_origin_is_stable(
+                            program,
+                            &build.control,
+                            entry_writes,
+                            entry_unknown_write,
+                            &subject,
+                        )
+                    {
+                        continue;
+                    }
+                    append_observation_context(
+                        program,
+                        semantic,
+                        build,
+                        state_symbol,
+                        statement_index,
+                        &[binary.left],
+                        if selected {
+                            FactPayload::AssignedCase { variant: case }
+                        } else {
+                            FactPayload::BooleanValue {
+                                expression: observation,
+                                value: false,
+                            }
+                        },
+                        point,
+                        FactOrigin::TransitionGuard,
+                        active_contexts,
+                        active_constraints,
+                    );
+                }
+            }
+        }
         let last = observations.len().saturating_sub(1);
         for (position, (observation, selected)) in observations.into_iter().enumerate() {
             let Some(binary) = program.expression_table.binary_node(observation) else {

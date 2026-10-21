@@ -679,17 +679,11 @@ defines the complete product bar.
     `pass/control_flow/{ordered_unconditional_arm_exit,record_pattern_arm_rename_guard_exit,arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit}`,
     `pass/borrow/runtime_exclusive_loan_local_write_exit` and
     `pass/calls/runtime_value_call_nested_entry_call_exit` (exit 70).
-    Unresolved host regression (recorded 2026-10-18, base 40e66af00afa):
-    `pass/control_flow/runtime_scalar_case_arm_evaluation_exit` aborts the
-    Windows x86_64 corpus runner with an allocation failure (observed 6.7–13
-    MB request at process exit, 0xC0000409) when compiled alone:
-    `python tools/corpus_gate.py --filter
-    pass/control_flow/runtime_scalar_case_arm_evaluation_exit`. The fixture
-    entered with the shared case-dispatch evaluation in `fd880cafc5a` and has
-    no earlier good state on this host; the golden row is a 39.5 s macOS
-    check. The runner dies mid-group, so the Windows facts/corpus record
-    cannot complete until the case-dispatch evaluation's memory growth on
-    this host is bounded.
+    `pass/control_flow/runtime_scalar_case_arm_evaluation_exit` evaluates one
+    scalar case subject once, including a computed subject's common fields
+    and a captured boolean subject's selected payload, and exits 0 in both
+    engines. The remaining composition obligations in this item are still
+    open.
 
   Acceptance: a composed caller tolerates renamed/reordered states and
   inserted computations; operands execute left-to-right once, skipped calls

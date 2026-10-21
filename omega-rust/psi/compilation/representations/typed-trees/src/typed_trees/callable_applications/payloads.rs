@@ -198,17 +198,35 @@ impl CallableApplication {
                 lifetime_arguments,
                 arguments,
             } => {
-                if lifetime_arguments
-                    .iter()
-                    .any(|lifetime| self.elided_lifetimes.contains(lifetime))
+                // An elided result region is not a captured caller lifetime.
+                // The nominal application still has to name the declaration's
+                // own binder: owner identity and common-field lookup compare
+                // that spelling, and loan sources stay on the call. Renaming
+                // the slot to an empty argument makes `Message` look fieldless.
+                let nominal_owner = self.symbol(base_symbol);
+                // The generated subject local lives in the caller, which did
+                // not declare this binder. The region still belongs to the
+                // nominal owner, so later well-formedness reads that
+                // declaration instead of rejecting the caller's telescope.
+                if !applied_owner.is_valid()
+                    && lifetime_arguments
+                        .iter()
+                        .any(|lifetime| self.elided_lifetimes.contains(lifetime))
                 {
-                    return Err(
-                        "elided result region requires an anonymous nominal lifetime representation",
-                    );
+                    applied_owner = nominal_owner;
                 }
                 let lifetimes = lifetime_arguments
                     .iter()
-                    .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
+                    .map(|lifetime| {
+                        if self.elided_lifetimes.contains(lifetime) {
+                            return Ok(super::ScopedCallableLifetime {
+                                name: lifetime.clone(),
+                                region: Default::default(),
+                                origin: super::CallableLifetimeOrigin::Lexical,
+                            });
+                        }
+                        self.scoped_lifetime(program, original, lifetime)
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 if let Some((environment, _)) = &self.trait_region_application {
                     let captured = lifetimes
@@ -261,7 +279,7 @@ impl CallableApplication {
                     }
                 }
                 types::TypeReferenceNode::Generic {
-                    base_symbol: self.symbol(base_symbol),
+                    base_symbol: nominal_owner,
                     base_name,
                     lifetime_arguments: lifetimes
                         .into_iter()
