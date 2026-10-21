@@ -901,7 +901,9 @@ impl StateGraphEmission<'_, '_> {
         // block: the arm's operands and call run once, so its source
         // coordinates stay unique. Each later case enters through its own
         // staged block that jumps there, as a successor edge does, so no
-        // block follows two dispatch decisions.
+        // block follows two dispatch decisions. The state-local authored
+        // statement is the arm identity, not equality of generated result
+        // bindings. Checking prepares that one arm before expanding coverage.
         let mut shared_return_blocks = Vec::new();
         let closed_return_edges = if let Some(prepared) = &prepared_cases {
             prepared
@@ -912,11 +914,11 @@ impl StateGraphEmission<'_, '_> {
                         if case.values.is_empty()
                             && shared_return_blocks
                                 .iter()
-                                .any(|(arm, _)| *arm == return_arm) =>
+                                .any(|(ordinal, _)| *ordinal == return_arm.statement_ordinal()) =>
                     {
                         let (_, target) = shared_return_blocks
                             .iter()
-                            .find(|(arm, _)| *arm == return_arm)
+                            .find(|(ordinal, _)| *ordinal == return_arm.statement_ordinal())
                             .ok_or(LoweringError::Unsupported(
                                 "Unit graph shared return arm lost its block",
                             ))?;
@@ -981,7 +983,8 @@ impl StateGraphEmission<'_, '_> {
                             &sequence,
                         )?;
                         if case.values.is_empty() {
-                            shared_return_blocks.push((return_arm, edge.target));
+                            shared_return_blocks
+                                .push((return_arm.statement_ordinal(), edge.target));
                         }
                         Ok(Some(edge))
                     }

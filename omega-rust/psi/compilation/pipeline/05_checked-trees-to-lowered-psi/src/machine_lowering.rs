@@ -104,7 +104,8 @@ pub fn lower_machine(
         selection,
         exact_toolchain_sources,
         program_roots,
-    )?;
+    )
+    .map_err(|error| error.with_source_names(checked))?;
     boundary_applications::retain(
         &mut identities,
         checked,

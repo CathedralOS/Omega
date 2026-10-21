@@ -330,9 +330,9 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
 /// return target: its structural root must already be retained by the value
 /// fact for this exact statement, carry this machine's result type, and lower
 /// through the same call decomposition the guarded-return roster uses. The
-/// second tuple member holds the call operands the arm's own calls consume —
-/// established as ordinary operations before the terminator since arms have
-/// no statement sequence of their own to pre-plan them.
+/// companion operation list is empty on this path: nested calls and their
+/// preparation stay in the returned structural value's operand schedule,
+/// executed inside the selected arm, never in the state's common preamble.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn return_value_operation(
     program: &dyn ::validation::CheckingInput,

@@ -116,15 +116,21 @@ pub(super) fn prepare<'a>(
             // a case-specific payload. Its common completion block therefore
             // receives no payload formals. All other arms use one snapshot
             // namespace, independent of pure expressions versus computations.
-            let shared_return = matches!(
-                case.outcome,
-                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_)
-            ) && fields.is_empty()
-                && cases
-                    .iter()
-                    .filter(|other| other.outcome == case.outcome)
-                    .count()
-                    > 1;
+            let shared_return = if let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) =
+                &case.outcome
+            {
+                fields.is_empty()
+                    && cases.iter().any(|other| {
+                        other.case_identity != case.case_identity
+                            && matches!(
+                                &other.outcome,
+                                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(other_arm)
+                                    if other_arm.statement_ordinal() == arm.statement_ordinal()
+                            )
+                    })
+            } else {
+                false
+            };
             for field in declared.fields.iter().filter(|_| !shared_return) {
                 if field.relevance.is_erased() || fields.contains(&field.id) {
                     continue;

@@ -595,12 +595,23 @@ impl OperationBuffer {
         target: symbols::SymbolHandle,
         frontier_before_call: &LoweredSourceFrontierBindings,
     ) -> Result<(), LoweringError> {
-        if self.source_calls.iter().any(|existing| {
+        if let Some(existing) = self.source_calls.iter().find(|existing| {
             existing.source_state == coordinate.state
                 && existing.statement_index == coordinate.statement_index
                 && existing.call_ordinal == coordinate.call_ordinal
         }) {
-            return Err(LoweringError::DuplicateContentPartitionProducerCoordinate);
+            return Err(LoweringError::DuplicateContentPartitionProducerCoordinate {
+                state: coordinate.state,
+                statement_index: coordinate.statement_index,
+                call_ordinal: coordinate.call_ordinal,
+                previous_target: existing.source_target,
+                requested_target: target,
+                previous_source_site: existing.source_site,
+                requested_source_site: source_site,
+                previous_terminal_site: existing.terminal_site,
+                requested_terminal_site: terminal_site,
+                source_names: None,
+            });
         }
         self.source_calls.push(LoweredSourceCallOccurrence {
             source_site,

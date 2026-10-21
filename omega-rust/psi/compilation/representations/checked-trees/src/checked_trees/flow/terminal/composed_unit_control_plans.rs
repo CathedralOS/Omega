@@ -782,7 +782,8 @@ pub struct CheckedClosedSumCasePlan {
     pub case_identity: CheckedMemberIdentity,
     /// One case edge's checked outcome: an ordinary transfer to the case's
     /// named successor state, or the authored `(expression)` arm's returned
-    /// value, produced on this case's edge block only.
+    /// value. Cases covered by one authored wildcard retain one return plan;
+    /// emission gives them distinct ingress edges and one common completion.
     pub outcome: CheckedClosedSumCaseOutcomePlan,
     pub payloads: Vec<CheckedClosedSumPayloadTransferPlan>,
 }
@@ -790,9 +791,9 @@ pub struct CheckedClosedSumCasePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedClosedSumCaseOutcomePlan {
     Successor(CheckedStructuralControlSuccessorPlan),
-    /// The arm's `(expression)` value — the same plan a `ConditionalReturn`
-    /// arm carries. Payload fields are never in scope for it: a return arm
-    /// has no argument list the checker could attribute the read through.
+    /// The arm's value or terminal call, completing the enclosing machine.
+    /// One authored arm has one plan even when it covers several cases.
+    /// Case-specific payload observations stay separate from that identity.
     Return(CheckedConditionalReturnArm),
 }
 

@@ -6573,6 +6573,24 @@ fail/facts/view_extent_after_write_through_target_body_unproved rejected 3437ms 
 	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_39` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_40` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_41` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_call_result rejected 631ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_const_name rejected 674ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_field rejected 640ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_local rejected 632ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_match_join rejected 628ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_other_machine rejected 626ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_other_state rejected 613ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_parameter rejected 586ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/wildcard_structural_return_through_target_body rejected 592ms expected @ba7501de3288+wt
+	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/write_only_borrow_initialization_unproved_call_result rejected 2372ms expected @81a34ecbe5d8+wt
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/write_only_borrow_initialization_unproved_const_name rejected 2332ms expected @81a34ecbe5d8+wt
@@ -9992,6 +10010,7 @@ pass/control_flow/three_param_state_forward_compile checked 1622ms @a9ae30e1c334
 pass/control_flow/transition_operand_schedule checked 1608ms @a9ae30e1c334+wt
 pass/control_flow/transition_tail_self_call checked 1738ms @a9ae30e1c334+wt
 pass/control_flow/unconditional_unit_completion_exit checked 8238ms check-target:linux_x86_64 @7875d3411f26+wt
+pass/control_flow/wildcard_structural_return_operand_schedule_exit checked 1792ms check-target:macos_arm64 @ba7501de3288+wt
 pass/core/address_interval_content_partition_exit checked 4031ms check-target:macos_arm64 @70da601bb299+wt
 pass/core/address_interval_partition_reverse_exit checked 4012ms check-target:macos_arm64 @70da601bb299+wt
 pass/core/address_interval_partition_unrelated_store_exit checked 3631ms check-target:macos_arm64 @8fb80f5fa230
@@ -10369,6 +10388,7 @@ pass/drops/structural_return_drop_local checked 9421ms @5041ef1af684+wt
 pass/drops/structural_return_drops_unreturned_local_exit checked 6406ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/drops/transfer_cleanup_into_state checked 1708ms @a9ae30e1c334+wt
 pass/drops/transfer_cleanup_state checked 9624ms @5041ef1af684+wt
+pass/drops/wildcard_owned_structural_return_cleanup_exit checked 1771ms check-target:macos_arm64 @ba7501de3288+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 11572ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 11392ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/effects/boundary_explicit_capability_rows checked 1231ms @7c1edd43e7e4+wt
@@ -12309,6 +12329,15 @@ pass/facts/view_extent_after_write_through_other_machine_exit checked 3519ms che
 pass/facts/view_extent_after_write_through_other_state_exit checked 3523ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_parameter_exit checked 3515ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_target_body_exit checked 3560ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/wildcard_structural_return_through_call_result_exit checked 1705ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_const_name_exit checked 1792ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_field_exit checked 1709ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_local_exit checked 1712ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_match_join_exit checked 1746ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_other_machine_exit checked 1757ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_other_state_exit checked 1752ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_parameter_exit checked 1758ms check-target:macos_arm64 @ba7501de3288+wt
+pass/facts/wildcard_structural_return_through_target_body_exit checked 1161ms check-target:macos_arm64 @ba7501de3288+wt
 pass/facts/write_only_borrow_initialization_through_call_result_exit checked 7863ms check-target:macos_arm64 @81a34ecbe5d8+wt
 pass/facts/write_only_borrow_initialization_through_const_name_exit checked 7915ms check-target:macos_arm64 @81a34ecbe5d8+wt
 pass/facts/write_only_borrow_initialization_through_field_exit checked 7941ms check-target:macos_arm64 @81a34ecbe5d8+wt

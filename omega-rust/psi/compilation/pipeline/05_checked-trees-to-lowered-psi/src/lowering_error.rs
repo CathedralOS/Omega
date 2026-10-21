@@ -133,7 +133,21 @@ pub enum LoweringError {
     OverlappingContentEntryClaimInput,
     DuplicateContentPartitionSubstitution,
     DuplicateContentPartitionComposition,
-    DuplicateContentPartitionProducerCoordinate,
+    /// The same checked occurrence was assigned two Terminal sites. Keep both
+    /// rows: silently deduplicating them could hide repeated operand effects.
+    DuplicateContentPartitionProducerCoordinate {
+        state: symbols::SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+        previous_target: symbols::SymbolHandle,
+        requested_target: symbols::SymbolHandle,
+        previous_source_site: Option<checked_trees::NominalMachineUseSite>,
+        requested_source_site: Option<checked_trees::NominalMachineUseSite>,
+        previous_terminal_site: lowered_psi::LoweredSourceCallSite,
+        requested_terminal_site: lowered_psi::LoweredSourceCallSite,
+        /// Diagnostic-only spellings, attached while checked symbols remain.
+        source_names: Option<(String, String, String)>,
+    },
     ContentPartitionProducerOperationMissing,
     ContentPartitionProducerTargetMismatch,
     ContentPartitionResultRewriteUnsupported,
@@ -167,6 +181,24 @@ pub enum LoweringError {
 }
 
 impl LoweringError {
+    pub(crate) fn with_source_names(mut self, checked: &CheckedTrees) -> Self {
+        if let Self::DuplicateContentPartitionProducerCoordinate {
+            state,
+            previous_target,
+            requested_target,
+            source_names,
+            ..
+        } = &mut self
+        {
+            *source_names = Some((
+                checked.symbols.display_path(*state, "::"),
+                checked.symbols.display_path(*previous_target, "::"),
+                checked.symbols.display_path(*requested_target, "::"),
+            ));
+        }
+        self
+    }
+
     pub(crate) fn at_statement(
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
