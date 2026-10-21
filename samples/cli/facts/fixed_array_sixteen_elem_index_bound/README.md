@@ -47,6 +47,7 @@ The recorded 0 exit is discriminating:
 - Static index bound `idx < 16u64` proves that index `idx` is in range `[0, 15]`.
 - Reading element `arr[11u64]` evaluates to `120u64`.
 - At runtime, `elem == 120u64` branches to `done()` (exit 0) or `bad()` (`crash Trap;`, exit 255) on discrepancy.
+- Measured discrimination: perturbing `elem == 120u64` to `elem == 121u64` causes native execution to crash with STATUS_ILLEGAL_INSTRUCTION (-1073741795) and the Terminal Psi interpreter to crash with `Trap (host presentation agrees)`. Both engines trap and reject the perturbation.
 - Each invalid twin weakens the index bound (e.g. `idx <= 16u64` or `LIMIT = 17u64`), allowing `idx = 16u64` which equals the array length and would exceed bounds `[0, 15]`. Every invalid twin fails closed during Psi proof checking with diagnostic `cannot prove index ... is within length 16`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -65,10 +66,19 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 9/9 intended-invalid controls match their authored rejection (`index`).
 
+## Pinned Fixtures
+
+The row is pinned under:
+- `tests/omega/pass/facts/fixed_array_sixteen_elem_index_bound_through_<place>_exit/`
+- `tests/omega/fail/facts/fixed_array_sixteen_elem_index_bound_through_<place>_rejected/`
+
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` / `TERMINAL-CONTENT-CLAIMS` / `TERMINAL-ARRAY-LAYOUTS` ([`TASKS.md`](../../../../TASKS.md)).
 - **Requirement established:** End-to-end nine-place 16-element fixed-size array (`[u64; 16]`) bounded indexing (`idx < 16u64`), in-bounds proof preservation across all 9 places, out-of-bounds rejection, and native realization agreement.
+- **Obligation class:** Fixed-size array layout geometry preservation and array index boundary verification across transport places.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Fixed-extent array construction `[10u64, ..., 160u64]` and entry precondition `requires idx < 16u64` (or record constraint `where index < 16u64` / named constant `LIMIT = 16u64`) establish proven in-bounds access before indexing without dynamic bounds checks or post-hoc equality guards.
