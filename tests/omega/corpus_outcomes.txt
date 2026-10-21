@@ -7024,6 +7024,8 @@ fail/machines/retired_self_expression rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_receiver rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_transition rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/static_namespace_has_no_fields rejected 802ms expected @a9ae30e1c334+wt
+fail/memory/bump_allocator_borrowed_oversized rejected 561ms expected @11842869af23+wt
+	machine `invalid` state `entry` value call to `allocate` violates required fact `length <= available`: the instantiated fact is structurally false (`32 <= 16`)
 fail/memory/bump_allocator_cast_minted_vacant rejected 2838ms expected @d012ed8f0bae+wt
 	`as ... in Extent::Vacant` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/memory/bump_allocator_inflated_capacity rejected 5185ms expected @ca117899bfe3+wt
@@ -7038,6 +7040,8 @@ fail/memory/bump_allocator_release_with_live_resident rejected 658ms expected @6
 	implicit domain weakening in argument `returned` for state `release::entry` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/memory/bump_allocator_restated_resident_index_mismatch rejected 827ms expected @61fab13095e7+wt
 	index compatibility condition `index-equality:Resident:exercise::entry:statement-4:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/memory/bump_allocator_stale_capacity rejected 1147ms expected @11842869af23+wt
+	cannot prove requires contract for call allocate from invalid: 48 == strategy.remaining (needs fact `available == strategy.remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/indexed_resident_bodyless_handback rejected 1707ms expected @226fbdd49549+wt
 	cannot prove requires contract for call read from exercise: storage.resident in Resident<type:named(name(First))> (invalidated by prior mutation of storage; storage.resident is part of Resident) in state `entry`
 	cannot prove default-domain field requirement for return from exercise at statement 2: storage.resident requires Resident
@@ -12601,7 +12605,7 @@ pass/machines/static_namespace_constant_exit checked 11111ms check-target:macos_
 pass/machines/write_state_forward checked 9672ms @5041ef1af684+wt
 pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
-pass/memory/bump_allocator_canary checked 13436ms check-target:linux_x86_64 @61fab13095e7+wt
+pass/memory/bump_allocator_canary checked 1702ms check-target:linux_x86_64 @11842869af23+wt
 pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
 pass/memory/resident_content_mutation_transport checked 2669ms @e2a6d051c734
 pass/memory/runtime_indexed_resident_exchange_exit checked 9214ms check-target:macos_arm64 @226fbdd49549+wt

@@ -4877,9 +4877,6 @@ wait for Cathedral's instruction coverage. The interpreter is
     `Vacant`/`Resident` transfer routes over actual backing; a route declaration
     alone supplies neither vacancy nor resident custody. Live residents cannot
     merge as vacant.
-  - Borrow the strategy exclusively through **BORROWED-STORAGE-RESTORATION**,
-    ending at allocation return so allocations coexist (today the strategy
-    moves through result records).
   - Monotonic release cleans values and retains returned extents until reset;
     current `release`/`shrink` restore the tail immediately.
 
