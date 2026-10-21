@@ -1,5 +1,8 @@
 //! Activation-wide order follows actual CFG alternatives. Block parameter
 //! bindings rename custody; they never reorder establishment or create grants.
+//! A normal call can publish a fresh claim id for a home that is already the
+//! newest live claim. That rename is the same grant. Release order is the
+//! stack position of the home, after its admission case is selected.
 
 use semantic_vocabulary::{
     ClaimId, MachineId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
@@ -575,7 +578,15 @@ pub fn validate_flow(
                     let Some(live) = state.live.last() else {
                         return Err("activation release has no claim owned by this activation");
                     };
-                    if live.place != place || live.claim != *claim || live.pending.is_some() {
+                    // The newest home is the sibling that must release next.
+                    // Its admission case must already have been selected.
+                    // Call completion and continuation specialization can
+                    // spell a new claim id for that same home. An id that
+                    // still names some other live claim is a different
+                    // sibling, so it is not that rename.
+                    let same_home = live.claim == *claim
+                        || !state.live.iter().any(|other| other.claim == *claim);
+                    if live.place != place || live.pending.is_some() || !same_home {
                         return Err(
                             "activation claims must release in reverse establishment order in their owning activation",
                         );

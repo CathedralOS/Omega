@@ -13,6 +13,25 @@ proposed core API rejected the authored program with seven bodyless `try_claim`
 and `bytes` diagnostics (exit 200, 6.9475 seconds). This is a missing feature,
 not an existing-program regression. No baseline engine executed.
 
+On base `c1e25ff99985dab2f06b6b858586cac478da0c2c`, with
+`C:\tmp\tgt-c1e2\debug\omega.exe` and stdin closed,
+`omega run --both samples/cli/facts/bounded_activation/local/main.omg` exited
+200 before either engine ran:
+
+```text
+terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claims must release in reverse establishment order in their owning activation")))
+```
+
+The authored places already release the single claim after its admission case,
+then reject a request for nine. The flow's stack had that same home as its
+newest live claim. A call that borrows the committed bytes publishes a fresh
+claim id for that home. The judgment treated the fresh id as a different
+sibling. It now requires the released place to be the newest live home, with
+the admission case already selected, and rejects a claim id that still names
+another live claim. `nested_lifo` was already exit 0 on that base.
+Non-LIFO `bounded_activation_release_order_rejected` still rejects with the
+same diagnostic.
+
 The exact sealed core declarations now establish caller-activation provenance.
 Checked calls retain a closed static bound and runtime committed operand;
 Terminal operations retain the bound, conditional claim and release identity.
