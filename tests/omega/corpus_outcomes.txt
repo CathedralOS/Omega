@@ -7180,8 +7180,10 @@ fail/providers/linear_provider_result_second_use rejected 365ms expected @833149
 fail/providers/linear_provider_stronger_nominal_result rejected 774ms expected @3e583b96cb82
 fail/providers/linear_structural_provider_duplicate rejected 517ms expected @3e583b96cb82
 fail/providers/linear_structural_provider_missing_disposition rejected 867ms expected @3e583b96cb82
-fail/providers/module_operator_hidden_signature_rejected rejected 1290ms expected @a9ae30e1c334+wt
-fail/providers/module_operator_satisfier_signature_mismatch rejected 1977ms expected @71e65af3059c+wt
+fail/providers/module_operator_hidden_signature_rejected rejected 918ms expected @28bc79e74d88+wt
+	machine `Provider::wrong` does not match one exact overload of operator requirement `Policy::convert`; its entry parameter and result types must equal one declared requirement signature
+fail/providers/module_operator_satisfier_signature_mismatch rejected 12598ms expected @28bc79e74d88+wt
+	machine `Supplier::wrong` does not match one exact overload of operator requirement `Conversion::read`; its entry parameter and result types must equal one declared requirement signature
 fail/providers/named_boundary_issuance_ordinary_guarantee rejected 312ms expected @d75fe4ba5012+wt
 fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9ae30e1c334+wt
 fail/providers/named_target_family_sibling_guarantee_rejected rejected 587ms expected @d7fd01f47497+wt
@@ -7191,6 +7193,9 @@ fail/providers/nested_binding_missing_establishment rejected 1147ms expected @ff
 	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `windows_x86_64`
 fail/providers/occurrence_region_binding_conflicting_inputs rejected 118ms expected @76d291e2651e+wt
 	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
+fail/providers/operator_specialized_realization_selection_not_retained rejected 1040ms expected @28bc79e74d88+wt
+	machine `Provider` does not match one exact overload of operator requirement `Policy::convert`; its entry parameter and result types must equal one declared requirement signature
+	machine `Provider$specialized$10334b0381d4aecf$0` operator realization `Policy::convert` does not retain the exact selected overload
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 fail/providers/portable_slot_cannot_lend_raw_binding rejected 1873ms expected @aebe0714a499+wt
 fail/providers/primitive_reference_contract_refinement rejected 997ms expected @f3014db3f225+wt
