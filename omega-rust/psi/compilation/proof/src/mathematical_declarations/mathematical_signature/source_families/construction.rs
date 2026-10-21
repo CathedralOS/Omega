@@ -645,29 +645,17 @@ impl Elaborator<'_> {
             function: family.description.children,
             argument: label,
         });
-        let child_body = match children.as_slice() {
-            [child] => *child,
-            [] => {
-                let p = self.arena.insert(Term::Variable(0));
-                let next = self.arena.insert(Term::Apply { function: family.description.next, argument: label });
-                let index = self.arena.insert(Term::Apply { function: next, argument: p });
-                let result = family.description.indexed_w(&mut self.arena, index);
-                let motive = self.arena.insert(Term::Lambda { domain: child_domain, body: result });
-                let empty = self.arena.insert(Term::Empty);
-                let e = self.arena.insert(Term::Variable(0));
-                let boxed = self.arena.insert(Term::BoxIntro { ty: empty, value: e });
-                let index = self.arena.insert(Term::Apply { function: next, argument: boxed });
-                let result = family.description.indexed_w(&mut self.arena, index);
-                let body = self.arena.insert(Term::EmptyElim { ty: result, scrutinee: e });
-                let body = self.arena.insert(Term::Lambda { domain: empty, body });
-                self.arena.insert(Term::BoxElim { motive, body, scrutinee: p })
-            }
-            _ => return Err(self.refuse("source constructor child-function production for multiple recursive fields is not implemented yet".into())),
-        };
-        let children_fn = self.arena.insert(Term::Lambda {
-            domain: child_domain,
-            body: child_body,
-        });
+        let children_fn = super::terms::constructor_children(
+            &mut self.arena,
+            &family.description,
+            label,
+            &children,
+        )
+        .map_err(|error| {
+            self.refuse(format!(
+                "source constructor child-function production failed: {error}"
+            ))
+        })?;
         let next = self.arena.insert(Term::Apply {
             function: family.description.next,
             argument: label,

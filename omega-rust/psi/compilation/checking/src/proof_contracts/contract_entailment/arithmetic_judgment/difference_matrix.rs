@@ -72,13 +72,14 @@ impl<'program> Engine<'program> {
                 return true;
             }
         }
-        // A stored hypothesis bound whose polynomial IS the goal polynomial
-        // subsumes it directly. This is the shape induction hypotheses
-        // arrive in: general polynomial equations (e.g. `2*result - P >= 0`)
-        // that fit neither the difference-bound matrix nor the interval
-        // evaluator, but whose canonical form matches the goal exactly.
+        // A premise can match the goal directly or after positive rational
+        // scaling and a constant offset. Preserve correlated sums rather than
+        // replacing them with independent intervals. This remains a single
+        // established premise, including when an outer query asks a residual.
         for (stored, stored_bound) in &self.bounds {
-            if stored == polynomial && stored_bound >= bound {
+            if (stored == polynomial && stored_bound >= bound)
+                || self.prove_proportional_lower_bound(polynomial, bound, stored, stored_bound)
+            {
                 return true;
             }
         }

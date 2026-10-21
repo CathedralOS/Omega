@@ -518,22 +518,32 @@ pub(crate) fn lower_proof_term(
                 );
             }
         }
-        if let Some(constructor) = view.source_constructor(expression)
-            && !constructor.parameters.is_empty()
-            && constructor.parameters.iter().all(|symbol| {
+        if let Some(constructor) = view.source_constructor(expression) {
+            // Abstraction can produce a closed value under an unrelated
+            // lexical scalar scope. Its empty dependency roster is already
+            // kernel checked; retain that exact value rather than rebuilding
+            // its source fields or treating it as an open function actual.
+            if constructor.parameters.is_empty() {
+                return Some(CheckedProofTerm::Mathematical {
+                    type_identity: constructor.type_identity,
+                    term: constructor.schema,
+                    ty: constructor.ty,
+                });
+            }
+            if constructor.parameters.iter().all(|symbol| {
                 authored_parameters.iter().any(|parameter| {
                     parameter.symbol == *symbol
                         && parameter.relevance == language_core::BindingRelevance::Erased
                         && !parameter.is_mutable
                 })
-            })
-        {
-            return Some(CheckedProofTerm::MathematicalApplication {
-                type_identity: constructor.type_identity,
-                term: constructor.schema,
-                ty: constructor.ty,
-                formal_parameters: constructor.parameters.clone(),
-            });
+            }) {
+                return Some(CheckedProofTerm::MathematicalApplication {
+                    type_identity: constructor.type_identity,
+                    term: constructor.schema,
+                    ty: constructor.ty,
+                    formal_parameters: constructor.parameters.clone(),
+                });
+            }
         }
         if let Some(evidence) = view.source_evidence(expression) {
             let expected_identity = program.normalized_type_identity(expected_type);

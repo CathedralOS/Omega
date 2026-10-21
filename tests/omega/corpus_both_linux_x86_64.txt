@@ -457,6 +457,18 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit built 9570ms e
 pass/facts/selected_scalar_initializer_through_other_state_exit built 9420ms exit:0 interpreter-exit:0 interpreter:agrees @a0ebcac9edda
 pass/facts/selected_scalar_initializer_through_parameter_exit built 9670ms exit:0 interpreter-exit:0 interpreter:agrees @a0ebcac9edda
 pass/facts/selected_scalar_initializer_through_target_body_exit built 11945ms exit:0 interpreter-exit:0 interpreter:agrees @a0ebcac9edda
+pass/facts/source_indexed_binary_tree_distinct_exit built 9076ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @92056ecd9701
+pass/facts/source_indexed_binary_tree_empty_children_exit built 3760ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit built 8416ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_call_result_exit built 4783ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_const_name_exit built 4718ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_field_exit built 4982ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_local_exit built 4514ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_match_join_exit built 4046ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_other_machine_exit built 4780ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_other_state_exit built 4964ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_parameter_exit built 9095ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_target_body_exit built 4225ms exit:0 interpreter-exit:0 interpreter:agrees @92056ecd9701
 pass/facts/source_indexed_family built 44423ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @2c386725b87c
 pass/facts/source_indexed_family_alpha_positive built 21697ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
 pass/facts/source_indexed_family_capture_roster_positive built 23230ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0

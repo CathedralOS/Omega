@@ -158,13 +158,14 @@ enum ResultKind {
     Next,
 }
 
-struct Builder<'a> {
+/// One binder supply and finite-position algebra for descriptions and supplied
+/// children. Selection reconstructs the exact tag/payload pair in its motive;
+/// the result may depend on that position, not merely share one carrier.
+#[derive(Default)]
+struct SourceTerms {
     next: usize,
-    common: &'a [(SymbolHandle, TermHandle)],
-    index_fields: &'a [SymbolHandle],
-    cases: &'a [Case],
 }
-impl Builder<'_> {
+impl SourceTerms {
     fn fresh(&mut self) -> Key {
         let k = Key::Internal(self.next);
         self.next += 1;
@@ -185,6 +186,73 @@ impl Builder<'_> {
         let k = self.fresh();
         lam(k, S::Two, S::Type)
     }
+    fn positions(&mut self, count: usize) -> S {
+        match count {
+            0 => self.empty(),
+            1 => self.unit(),
+            _ => {
+                let tag = self.fresh();
+                let motive = self.type_motive();
+                let first = self.unit();
+                let rest = self.positions(count - 1);
+                sigma(tag, S::Two, choose(motive, first, rest, S::Var(tag)))
+            }
+        }
+    }
+    fn select(&mut self, values: &[S], position: S, result_family: S) -> S {
+        let Some((first, rest_values)) = values.split_first() else {
+            let boxed = self.fresh();
+            let impossible = self.fresh();
+            let motive = lam(
+                boxed,
+                self.empty(),
+                app(result_family.clone(), S::Var(boxed)),
+            );
+            let unboxed_position = S::BoxIntro(Box::new(S::Empty), Box::new(S::Var(impossible)));
+            let result = app(result_family, unboxed_position);
+            let body = lam(
+                impossible,
+                S::Empty,
+                S::EmptyElim(Box::new(result), Box::new(S::Var(impossible))),
+            );
+            return S::BoxElim(Box::new(motive), Box::new(body), Box::new(position));
+        };
+        if rest_values.is_empty() {
+            return first.clone();
+        }
+        let tag = self.fresh();
+        let payload = self.fresh();
+        let type_motive = self.type_motive();
+        let unit = self.unit();
+        let rest = self.positions(rest_values.len());
+        let at = choose(type_motive, unit.clone(), rest.clone(), S::Var(tag));
+        let selected_type = app(result_family.clone(), pair(S::Var(tag), S::Var(payload)));
+        let motive = lam(tag, S::Two, pi(payload, at, selected_type));
+        let singleton = self.fresh();
+        let zero = lam(singleton, unit, first.clone());
+        let tail = self.fresh();
+        let nested_position = self.fresh();
+        let nested_family = lam(
+            nested_position,
+            rest.clone(),
+            app(result_family, pair(S::One, S::Var(nested_position))),
+        );
+        let nested = self.select(rest_values, S::Var(tail), nested_family);
+        let one = lam(tail, rest, nested);
+        app(
+            choose(motive, zero, one, fst(position.clone())),
+            snd(position),
+        )
+    }
+}
+
+struct Builder<'a> {
+    terms: SourceTerms,
+    common: &'a [(SymbolHandle, TermHandle)],
+    index_fields: &'a [SymbolHandle],
+    cases: &'a [Case],
+}
+impl Builder<'_> {
     fn index_type(&mut self) -> Result<S, &'static str> {
         let mut fields = Vec::new();
         for symbol in self.index_fields {
@@ -196,7 +264,7 @@ impl Builder<'_> {
             fields.push((*symbol, *ty));
         }
         let Some((_, last)) = fields.pop() else {
-            return Ok(self.unit());
+            return Ok(self.terms.unit());
         };
         let mut body = S::Closed(last);
         for (symbol, ty) in fields.into_iter().rev() {
@@ -220,13 +288,13 @@ impl Builder<'_> {
     }
     fn sum_type(&mut self, start: usize) -> S {
         if start == self.cases.len() {
-            return self.empty();
+            return self.terms.empty();
         }
         if start + 1 == self.cases.len() {
             return self.payload_type(start);
         }
-        let tag = self.fresh();
-        let motive = self.type_motive();
+        let tag = self.terms.fresh();
+        let motive = self.terms.type_motive();
         let zero = self.payload_type(start);
         let one = self.sum_type(start + 1);
         sigma(tag, S::Two, choose(motive, zero, one, S::Var(tag)))
@@ -237,19 +305,6 @@ impl Builder<'_> {
             body = sigma(Key::Source(*symbol), S::Closed(*ty), body);
         }
         body
-    }
-    fn positions(&mut self, count: usize) -> S {
-        if count == 0 {
-            return self.empty();
-        }
-        if count == 1 {
-            return self.unit();
-        }
-        let tag = self.fresh();
-        let motive = self.type_motive();
-        let zero = self.unit();
-        let one = self.positions(count - 1);
-        sigma(tag, S::Two, choose(motive, zero, one, S::Var(tag)))
     }
     fn projected(mut value: S, ordinal: usize) -> S {
         for _ in 0..ordinal {
@@ -267,54 +322,20 @@ impl Builder<'_> {
         }
         term
     }
-    fn select_child(&mut self, case: usize, child: usize, payload: S, position: S, index: &S) -> S {
-        let count = self.cases[case].child_indices.len() - child;
-        if count == 1 {
-            return self.child_index(case, child, payload);
-        }
-        let tag = self.fresh();
-        let branch_payload = self.fresh();
-        let type_motive = self.type_motive();
-        let unit = self.unit();
-        let rest = self.positions(count - 1);
-        let at = choose(type_motive, unit.clone(), rest.clone(), S::Var(tag));
-        let motive = lam(tag, S::Two, pi(branch_payload, at, index.clone()));
-        let singleton = self.fresh();
-        let zero = lam(
-            singleton,
-            unit,
-            self.child_index(case, child, payload.clone()),
-        );
-        let tail = self.fresh();
-        let nested = self.select_child(case, child + 1, payload, S::Var(tail), index);
-        let one = lam(tail, rest, nested);
-        app(
-            choose(motive, zero, one, fst(position.clone())),
-            snd(position),
-        )
-    }
     fn case_body(&mut self, case: usize, payload: S, kind: ResultKind) -> Result<S, &'static str> {
         let count = self.cases[case].child_indices.len();
-        let positions = self.positions(count);
+        let positions = self.terms.positions(count);
         if matches!(kind, ResultKind::Positions) {
             return Ok(positions);
         }
         let index = self.index_type()?;
-        let p = self.fresh();
-        let body = if count == 0 {
-            let e = self.fresh();
-            let b = self.fresh();
-            let empty = self.empty();
-            let motive = lam(b, empty, index.clone());
-            let impossible = lam(
-                e,
-                S::Empty,
-                S::EmptyElim(Box::new(index), Box::new(S::Var(e))),
-            );
-            S::BoxElim(Box::new(motive), Box::new(impossible), Box::new(S::Var(p)))
-        } else {
-            self.select_child(case, 0, payload, S::Var(p), &index)
-        };
+        let p = self.terms.fresh();
+        let values = (0..count)
+            .map(|child| self.child_index(case, child, payload.clone()))
+            .collect::<Vec<_>>();
+        let at = self.terms.fresh();
+        let result_family = lam(at, positions.clone(), index);
+        let body = self.terms.select(&values, S::Var(p), result_family);
         Ok(lam(p, positions, body))
     }
     fn result_type(&mut self, start: usize, value: S, kind: ResultKind) -> Result<S, &'static str> {
@@ -322,7 +343,7 @@ impl Builder<'_> {
             return Ok(S::Type);
         }
         let positions = self.eliminate(start, value, ResultKind::Positions)?;
-        let p = self.fresh();
+        let p = self.terms.fresh();
         Ok(pi(p, positions, self.index_type()?))
     }
     fn eliminate(&mut self, start: usize, value: S, kind: ResultKind) -> Result<S, &'static str> {
@@ -332,18 +353,18 @@ impl Builder<'_> {
         if start + 1 == self.cases.len() {
             return self.case_body(start, value, kind);
         }
-        let tag = self.fresh();
-        let payload = self.fresh();
-        let tm = self.type_motive();
+        let tag = self.terms.fresh();
+        let payload = self.terms.fresh();
+        let tm = self.terms.type_motive();
         let zero_type = self.payload_type(start);
         let one_type = self.sum_type(start + 1);
         let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
         let result = self.result_type(start, pair(S::Var(tag), S::Var(payload)), kind)?;
         let motive = lam(tag, S::Two, pi(payload, payload_type, result));
-        let z = self.fresh();
+        let z = self.terms.fresh();
         let zero_body = self.case_body(start, S::Var(z), kind)?;
         let zero = lam(z, zero_type, zero_body);
-        let o = self.fresh();
+        let o = self.terms.fresh();
         let one_body = self.eliminate(start + 1, S::Var(o), kind)?;
         let one = lam(o, one_type, one_body);
         Ok(app(
@@ -352,7 +373,7 @@ impl Builder<'_> {
         ))
     }
     fn unpack(&mut self, label: S, kind: ResultKind) -> Result<S, &'static str> {
-        let tail = self.fresh();
+        let tail = self.terms.fresh();
         let sum_type = self.sum_type(0);
         let body = self.eliminate(0, S::Var(tail), kind)?;
         let mut function = lam(tail, sum_type, body);
@@ -386,6 +407,42 @@ impl Builder<'_> {
     }
 }
 
+/// Supply the declaration-ordered children at their exact finite positions.
+/// Inputs are closed under term variables in the current signature; temporary
+/// source constants remain the constructor schema owner's abstraction duty.
+/// This only produces an ordinary term. Its caller checks the full dependent
+/// function against the description's B/next telescope before constructing sup.
+pub(super) fn constructor_children(
+    arena: &mut TermArena,
+    description: &IndexedFamily,
+    label: TermHandle,
+    children: &[TermHandle],
+) -> Result<TermHandle, &'static str> {
+    let child_domain = arena.insert(Term::Apply {
+        function: description.children,
+        argument: label,
+    });
+    let position = arena.insert(Term::Variable(0));
+    let next = arena.insert(Term::Apply {
+        function: description.next,
+        argument: label,
+    });
+    let child_index = arena.insert(Term::Apply {
+        function: next,
+        argument: position,
+    });
+    let child_type = description.indexed_w(arena, child_index);
+    let result_family = arena.insert(Term::Lambda {
+        domain: child_domain,
+        body: child_type,
+    });
+    let mut terms = SourceTerms::default();
+    let position = terms.fresh();
+    let values = children.iter().copied().map(S::Closed).collect::<Vec<_>>();
+    let body = terms.select(&values, S::Var(position), S::Closed(result_family));
+    lam(position, S::Closed(child_domain), body).term(arena, &mut Vec::new())
+}
+
 /// Closed producer terms. The caller must check the resulting ordinary scheme
 /// application and retain source correspondence before admitting any use.
 pub(super) fn description(
@@ -395,20 +452,20 @@ pub(super) fn description(
     cases: &[Case],
 ) -> Result<IndexedFamily, &'static str> {
     let mut b = Builder {
-        next: 0,
+        terms: SourceTerms::default(),
         common,
         index_fields,
         cases,
     };
     let carrier = b.carrier();
     let index = b.index_type()?;
-    let a = b.fresh();
+    let a = b.terms.fresh();
     let children_body = b.unpack(S::Var(a), ResultKind::Positions)?;
     let children = lam(a, carrier.clone(), children_body);
-    let a = b.fresh();
+    let a = b.terms.fresh();
     let out_body = b.out(S::Var(a))?;
     let out = lam(a, carrier.clone(), out_body);
-    let a = b.fresh();
+    let a = b.terms.fresh();
     let next_body = b.unpack(S::Var(a), ResultKind::Next)?;
     let next = lam(a, carrier.clone(), next_body);
     Ok(IndexedFamily {
@@ -676,10 +733,10 @@ impl InductionBuilder<'_, '_> {
     fn result_type(&mut self, start: usize, value: S) -> S {
         let label = self.label(start, value);
         let positions = app(S::Closed(self.family.children), label.clone());
-        let p = self.b.fresh();
+        let p = self.b.terms.fresh();
         let next = app(app(S::Closed(self.family.next), label.clone()), S::Var(p));
         let hypotheses = pi(p, positions, app(S::Closed(self.invariant), next));
-        let ih = self.b.fresh();
+        let ih = self.b.terms.fresh();
         pi(
             ih,
             hypotheses,
@@ -691,12 +748,12 @@ impl InductionBuilder<'_, '_> {
     }
     fn type_at_label(&mut self, label: S) -> S {
         let positions = app(S::Closed(self.family.children), label.clone());
-        let p = self.b.fresh();
+        let p = self.b.terms.fresh();
         let next = app(app(S::Closed(self.family.next), label.clone()), S::Var(p));
         let children = pi(p, positions.clone(), app(S::Closed(self.iw), next.clone()));
         let hypotheses = pi(p, positions, app(S::Closed(self.invariant), next));
-        let g = self.b.fresh();
-        let ih = self.b.fresh();
+        let g = self.b.terms.fresh();
+        let ih = self.b.terms.fresh();
         pi(
             g,
             children,
@@ -711,8 +768,8 @@ impl InductionBuilder<'_, '_> {
         )
     }
     fn unit_value(&mut self) -> S {
-        let x = self.b.fresh();
-        let ty = self.b.unit_strict();
+        let x = self.b.terms.fresh();
+        let ty = self.b.terms.unit_strict();
         S::BoxIntro(Box::new(ty), Box::new(lam(x, S::Empty, S::Var(x))))
     }
     fn position(&mut self, count: usize, ordinal: usize) -> S {
@@ -734,10 +791,10 @@ impl InductionBuilder<'_, '_> {
         };
         let label = self.label(case, sum_value);
         let positions = app(S::Closed(self.family.children), label.clone());
-        let p = self.b.fresh();
+        let p = self.b.terms.fresh();
         let next = app(app(S::Closed(self.family.next), label), S::Var(p));
         let hypotheses = pi(p, positions, app(S::Closed(self.invariant), next));
-        let ih = self.b.fresh();
+        let ih = self.b.terms.fresh();
         let mut body = S::Closed(self.lemmas[case]);
         for (symbol, _) in self.b.common {
             body = app(body, S::Var(Key::Source(*symbol)));
@@ -762,18 +819,18 @@ impl InductionBuilder<'_, '_> {
         if start + 1 == self.b.cases.len() {
             return Ok(self.case_body(start, value));
         }
-        let tag = self.b.fresh();
-        let payload = self.b.fresh();
-        let tm = self.b.type_motive();
+        let tag = self.b.terms.fresh();
+        let payload = self.b.terms.fresh();
+        let tm = self.b.terms.type_motive();
         let zero_type = self.b.payload_type(start);
         let one_type = self.b.sum_type(start + 1);
         let payload_type = choose(tm, zero_type.clone(), one_type.clone(), S::Var(tag));
         let result = self.result_type(start, pair(S::Var(tag), S::Var(payload)));
         let motive = lam(tag, S::Two, pi(payload, payload_type, result));
-        let z = self.b.fresh();
+        let z = self.b.terms.fresh();
         let zero_body = self.case_body(start, S::Var(z));
         let zero = lam(z, zero_type, zero_body);
-        let o = self.b.fresh();
+        let o = self.b.terms.fresh();
         let one_body = self.eliminate(start + 1, S::Var(o))?;
         let one = lam(o, one_type, one_body);
         Ok(app(
@@ -782,8 +839,8 @@ impl InductionBuilder<'_, '_> {
         ))
     }
     fn step(&mut self) -> Result<S, &'static str> {
-        let a = self.b.fresh();
-        let tail = self.b.fresh();
+        let a = self.b.terms.fresh();
+        let tail = self.b.terms.fresh();
         let sum_type = self.b.sum_type(0);
         let body = self.eliminate(0, S::Var(tail))?;
         let mut function = lam(tail, sum_type, body);
@@ -798,11 +855,11 @@ impl InductionBuilder<'_, '_> {
         // The motive is index-only, so g does not occur in the hypothesis
         // or conclusion. Keep its exact iindW domain once outside the case
         // eliminator instead of duplicating an IW formation in every motive.
-        let p = self.b.fresh();
+        let p = self.b.terms.fresh();
         let positions = app(S::Closed(self.family.children), S::Var(a));
         let next = app(app(S::Closed(self.family.next), S::Var(a)), S::Var(p));
         let children = pi(p, positions, app(S::Closed(self.iw), next));
-        let g = self.b.fresh();
+        let g = self.b.terms.fresh();
         Ok(lam(
             a,
             S::Closed(self.family.carrier),
@@ -915,12 +972,12 @@ pub(super) fn induction(
         argument: i,
     });
     let mut builder = Builder {
-        next: 0,
+        terms: SourceTerms::default(),
         common,
         index_fields,
         cases,
     };
-    let tail = builder.fresh();
+    let tail = builder.terms.fresh();
     let sum_type = builder.sum_type(0);
     let mut raw_label = S::Var(tail);
     for (symbol, _) in common.iter().rev() {
@@ -937,7 +994,7 @@ pub(super) fn induction(
     let label_pack = retain(arena, declarations, pack_type, pack);
     let mut producer = InductionBuilder {
         b: Builder {
-            next: 0,
+            terms: SourceTerms::default(),
             common,
             index_fields,
             cases,
@@ -949,7 +1006,7 @@ pub(super) fn induction(
         lemmas,
     };
     let step_body = producer.step()?.term(arena, &mut Vec::new())?;
-    let a = producer.b.fresh();
+    let a = producer.b.terms.fresh();
     let result_type = producer.type_at_label(S::Var(a));
     let step_type = pi(a, S::Closed(family.carrier), result_type).term(arena, &mut Vec::new())?;
     let declaration = declarations.len() as u32;

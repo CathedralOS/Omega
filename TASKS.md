@@ -4432,10 +4432,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     executing consumer across all nine transport places and reject twins. Open
     constructor schemas now abstract exact value/child/premise telescopes; closed
     instantiated fibers retain independently checked function applications over
-    exact invocation proof inputs. Construction supports zero or one direct
-    erased recursive child. General runtime-dependent carrier/telescope transport,
-    derivation, mutual/nested and multiple-child families and type/level indices
-    remain. Preserve exact parameters,
+    exact invocation proof inputs. The distinct two-child dependent position
+    selector in `samples/cli/facts/source_indexed_binary_tree` preserves different
+    child fibers across all nine places and fact-sensitive twins, with source-bound
+    independent receiving. Construction retains complete closed schemas even under
+    irrelevant lexical parameters; scalar consumers retain exact positive rational
+    multiples of established correlated bounds. General runtime-dependent
+    carrier/telescope transport, derivation, mutual/nested families and type/level
+    indices remain. Preserve exact parameters,
     indices, payloads, case constraints and recursive uses; distinguish negative
     recursion, unsupported valid encoding and malformed source. Existing
     Rust-built coverage of the stronger schemes is separate evidence. Add only

@@ -9,7 +9,11 @@
 use super::{BTreeMap, BigInt, Engine, Interval, Polynomial};
 
 impl Engine<'_> {
-    pub(super) fn prove_scaled_lower_bound(
+    /// From S >= s and A*G - B*S = C, with A and B positive, infer
+    /// G >= g only when B*s + C >= A*g. Cross-products check every
+    /// nonconstant coefficient, and C retains both constant offsets. This
+    /// consumes one existing premise; it does not recursively search bounds.
+    pub(super) fn prove_proportional_lower_bound(
         &self,
         goal: &Polynomial,
         bound: &BigInt,
@@ -17,17 +21,48 @@ impl Engine<'_> {
         stored_bound: &BigInt,
     ) -> bool {
         let Some((goal_coefficient, stored_coefficient)) =
-            goal.terms.iter().find_map(|(monomial, coefficient)| {
-                if monomial.is_empty() {
-                    return None;
-                }
-                let other = stored.terms.get(monomial)?;
-                (!coefficient.is_zero()
-                    && !other.is_zero()
-                    && coefficient.abs() != other.abs()
-                    && coefficient.is_negative() == other.is_negative())
-                .then_some((coefficient, other))
-            })
+            positive_coefficient_pairs(goal, stored).next()
+        else {
+            return false;
+        };
+        let goal_scale = stored_coefficient.abs();
+        let stored_scale = goal_coefficient.abs();
+        for (monomial, coefficient) in &goal.terms {
+            if monomial.is_empty() {
+                continue;
+            }
+            let Some(other) = stored.terms.get(monomial) else {
+                return false;
+            };
+            if coefficient.mul(&goal_scale) != other.mul(&stored_scale) {
+                return false;
+            }
+        }
+        if stored
+            .terms
+            .keys()
+            .any(|monomial| !monomial.is_empty() && !goal.terms.contains_key(monomial))
+        {
+            return false;
+        }
+        let constant = BTreeMap::new();
+        let goal_constant = goal.terms.get(&constant).cloned().unwrap_or_default();
+        let stored_constant = stored.terms.get(&constant).cloned().unwrap_or_default();
+        let offset = goal_constant
+            .mul(&goal_scale)
+            .sub(&stored_constant.mul(&stored_scale));
+        stored_bound.mul(&stored_scale).add(&offset) >= bound.mul(&goal_scale)
+    }
+
+    pub(super) fn prove_scaled_lower_bound(
+        &self,
+        goal: &Polynomial,
+        bound: &BigInt,
+        stored: &Polynomial,
+        stored_bound: &BigInt,
+    ) -> bool {
+        let Some((goal_coefficient, stored_coefficient)) = positive_coefficient_pairs(goal, stored)
+            .find(|(goal, stored)| goal.abs() != stored.abs())
         else {
             return false;
         };
@@ -106,4 +141,25 @@ impl Engine<'_> {
         }
         interval.multiply(&atom_interval.correlated_power(previous_power))
     }
+}
+
+/// Positive rational alignment is shared by the exact proportional-premise
+/// query and the existing scaled residual query. Zero/opposite-sign pairs
+/// cannot justify multiplying an inequality in its original direction.
+fn positive_coefficient_pairs<'a>(
+    goal: &'a Polynomial,
+    stored: &'a Polynomial,
+) -> impl Iterator<Item = (&'a BigInt, &'a BigInt)> {
+    goal.terms
+        .iter()
+        .filter_map(move |(monomial, coefficient)| {
+            if monomial.is_empty() {
+                return None;
+            }
+            let other = stored.terms.get(monomial)?;
+            (!coefficient.is_zero()
+                && !other.is_zero()
+                && coefficient.is_negative() == other.is_negative())
+            .then_some((coefficient, other))
+        })
 }

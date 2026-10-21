@@ -1480,6 +1480,16 @@ fail/domains/completed_membership_before_later_guarantee rejected 679ms expected
 fail/domains/computed_qualification_requires_operand_facts rejected 5363ms expected @a9ae30e1c334+wt
 fail/domains/computed_scalar_alias_requires_all_predicates rejected 827ms expected @a9ae30e1c334+wt
 fail/domains/constructor_invalidated_byte_membership rejected 772ms expected @2ef2ab353498+wt
+fail/domains/dependent_coordinate_sum_extra_monomial rejected 1518ms expected @92056ecd9701
+	cannot prove ensures contract for exit from open_total at statement 0: result <= 80
+fail/domains/dependent_coordinate_sum_insufficient_ceiling rejected 1541ms expected @92056ecd9701
+	cannot prove ensures contract for exit from open_total at statement 0: result <= 80
+fail/domains/dependent_coordinate_sum_missing_premise rejected 1738ms expected @92056ecd9701
+	cannot prove ensures contract for exit from open_total at statement 0: result <= 80
+fail/domains/dependent_coordinate_sum_wrong_constant rejected 1771ms expected @92056ecd9701
+	cannot prove ensures contract for exit from open_total at statement 0: result <= 79
+fail/domains/dependent_coordinate_sum_wrong_sign rejected 1768ms expected @92056ecd9701
+	cannot prove ensures contract for exit from open_total at statement 0: result <= 80
 fail/domains/domain_alias_cycle rejected 822ms expected @a9ae30e1c334+wt
 fail/domains/domain_alias_reports_atomic_requirement rejected 1641ms expected @a9ae30e1c334+wt
 fail/domains/domain_carrier_mismatch rejected 802ms expected @a9ae30e1c334+wt
@@ -5162,6 +5172,32 @@ fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 14241m
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 14529ms expected @e44ed43aefa9
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/source_indexed_binary_tree_child_swap_rejected rejected 797ms expected @92056ecd9701
+	source recursive child `left` does not inhabit its declared indexed application `Tree<left_nodes, left_total>`; actual application is `Tree<1, 4>`
+fail/facts/source_indexed_binary_tree_distinct_rejected rejected 856ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_empty_children_rejected rejected 1089ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_irrelevant_scalar_scope_rejected rejected 698ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_call_result_rejected rejected 973ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_const_name_rejected rejected 795ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_field_rejected rejected 997ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_local_rejected rejected 1235ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_match_join_rejected rejected 1128ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_other_machine_rejected rejected 1107ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_other_state_rejected rejected 1078ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_parameter_rejected rejected 1052ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_binary_tree_through_target_body_rejected rejected 940ms expected @92056ecd9701
+	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 8328ms expected @2c386725b87c+wt
 	cannot prove the `terminates by` ranking for machine vector_bound
 	terminating machine vector_bound$specialized$28f2ad5c8a0d7f24$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `spinning` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -9432,6 +9468,8 @@ pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 168
 pass/domains/captured_predicate_readonly_call_exit checked 647ms @cc9e4517d62d+wt
 pass/domains/case_payload_call_restore_exit checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/case_payload_predicate_domain_member_exit checked 11675ms check-target:macos_arm64 @7c847bad15b6+wt
+pass/domains/dependent_coordinate_sum_rational_bound checked 1903ms @92056ecd9701
+pass/domains/dependent_coordinate_sum_upper_bound checked 1826ms @92056ecd9701
 pass/domains/domain_axis_cast checked 9738ms @5041ef1af684+wt
 pass/domains/domain_established_by checked 9509ms @5041ef1af684+wt
 pass/domains/domain_family_result checked 9697ms @5041ef1af684+wt
@@ -11033,6 +11071,18 @@ pass/facts/slice_view_layout_geometry_through_other_machine_exit checked 40363ms
 pass/facts/slice_view_layout_geometry_through_other_state_exit checked 41360ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_parameter_exit checked 40383ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_target_body_exit checked 42711ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/source_indexed_binary_tree_distinct_exit checked 10486ms check-target:macos_arm64 terminal-inspections:match @92056ecd9701
+pass/facts/source_indexed_binary_tree_empty_children_exit checked 4762ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit checked 10575ms check-target:macos_arm64 terminal-inspections:match @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_call_result_exit checked 4783ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_const_name_exit checked 4462ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_field_exit checked 4698ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_local_exit checked 4063ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_match_join_exit checked 4689ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_other_machine_exit checked 4318ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_other_state_exit checked 4717ms check-target:macos_arm64 @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_parameter_exit checked 9719ms check-target:macos_arm64 terminal-inspections:match @92056ecd9701
+pass/facts/source_indexed_binary_tree_through_target_body_exit checked 3988ms check-target:macos_arm64 @92056ecd9701
 pass/facts/source_indexed_family checked 41407ms check-target:macos_arm64 terminal-inspections:match @2c386725b87c+wt
 pass/facts/source_indexed_family_alpha_positive checked 22770ms check-target:macos_arm64 @2c386725b87c+wt
 pass/facts/source_indexed_family_capture_roster_positive checked 19695ms check-target:macos_arm64 @2c386725b87c+wt
