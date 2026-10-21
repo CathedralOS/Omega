@@ -9,7 +9,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{OperationId, PlaceId, ValueId};
 use target_operations::{TargetFunction, TargetUnitOperation};
-use terminal_psi::{PlacedRamCorrespondence, StructuralArgument, StructuralOperationResult};
+use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
 pub(super) mod backing_geometry;
 
@@ -352,7 +352,7 @@ pub(super) fn retained(
     operation: OperationId,
     result: &StructuralOperationResult,
     source: &StructuralArgument,
-    correspondence: &PlacedRamCorrespondence,
+    correspondence: &abstract_operations::PlacedReferenceBacking,
     target: &TargetFunction,
     selected: &SelectedFunction,
     geometry: &mut backing_geometry::BackingGeometry<'_>,
@@ -452,12 +452,19 @@ pub(super) fn retained(
     {
         return None;
     }
+    let owner = terminal_semantics::runtime_structural_path_tip(types.iter(), root, &source.path)?;
+    if owner.id != correspondence.source_type() {
+        return None;
+    }
+    let address_source = correspondence.address_source(source, types.as_slice())?;
     let native = target_operations_to_selected_instructions::reference_formation_geometry(
         root,
-        &source.path,
+        &address_source.path,
         types.as_slice(),
     )?;
-    if native.selected.as_structural() != Some(correspondence.schema) {
+    if correspondence.resident_source().is_none()
+        && native.selected.as_structural() != Some(correspondence.schema())
+    {
         return None;
     }
     let selectors = |range: std::ops::Range<usize>| -> Option<Vec<(ValueId, u64)>> {
@@ -479,11 +486,23 @@ pub(super) fn retained(
         ));
         first_leaf = slot.indices.end;
     }
+    let (offset, indices) = if correspondence.resident_source().is_some() {
+        loads.push((
+            u64::from(native.byte_offset),
+            selectors(first_leaf..native.elements.len())?,
+        ));
+        (0, Vec::new())
+    } else {
+        (
+            u64::from(native.byte_offset),
+            selectors(first_leaf..native.elements.len())?,
+        )
+    };
     let expected = Address {
         base,
         loads,
-        offset: u64::from(native.byte_offset),
-        indices: selectors(first_leaf..native.elements.len())?,
+        offset,
+        indices,
     };
     let mut stores = selected.memory_accesses.iter().filter(|row| {
         row.origin == SelectedMemoryAccessOrigin::Operation(operation)

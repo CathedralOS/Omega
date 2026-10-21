@@ -95,6 +95,17 @@ fn report_bodyless_boundary_symbol_call(
     let compiler_placed_factory = program
         .placed_borrow_factory(callee_machine.symbol)
         .is_some();
+    let compiler_placement_execution =
+        match typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+            program,
+            callee_machine.symbol,
+        ) {
+            Ok(contract) => contract.is_some(),
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                return;
+            }
+        };
     let activation_realization =
         crate::exact_toolchain_activation_storage_contract(program, callee_machine).is_some_and(
             |contract| {
@@ -112,6 +123,7 @@ fn report_bodyless_boundary_symbol_call(
             | language_semantics::MachineSupplyMode::TopLevelRequirement
     ) && !compiler_placed_accessor
         && !compiler_placed_factory
+        && !compiler_placement_execution
         && !activation_realization
         && !callee_machine.body_is_present
         && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)

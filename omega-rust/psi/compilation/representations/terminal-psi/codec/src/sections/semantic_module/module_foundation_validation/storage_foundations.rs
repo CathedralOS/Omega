@@ -181,7 +181,7 @@ pub(super) fn validate_establish_placed_reference(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::EstablishPlacedReference { source } = &operation.kind else {
+    let OperationKind::EstablishPlacedReference { source, resident } = &operation.kind else {
         unreachable!("dispatched validate_establish_placed_reference")
     };
     let Some(result) = operation.result.structural() else {
@@ -197,6 +197,17 @@ pub(super) fn validate_establish_placed_reference(
         || !result.claims.is_empty()
     {
         return malformed("placed establishment cannot introduce owned content or qualifications");
+    }
+    if let Some(resident) = resident {
+        return terminal_semantics::resident_reference_plan(
+            module,
+            source_type,
+            result.structural_type,
+            source.access,
+            *resident,
+        )
+        .map(|_| ())
+        .map_err(CodecError::MalformedStructuralFoundation);
     }
     if let Err(reason) = terminal_semantics::placed_reference_correspondence(
         module,

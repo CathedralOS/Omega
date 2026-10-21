@@ -12,6 +12,7 @@
 use omega::language::core::content;
 use omega::language::core::device;
 use omega::language::core::nat;
+use omega::language::core::layout;
 
 public data Extent [linear] {
     base: addr;
@@ -23,9 +24,11 @@ public data Extent [linear] {
 // must establish the declared content state for this exact existing range;
 // the routes alone supply neither actual backing nor a Stable access profile.
 public domain Extent::Vacant
-established by VacantContentTransfer::transfer;
+established by VacantContentTransfer::transfer, PlacementLifecycle::move_out,
+    Placed::extract_resident;
 public domain<P, T> Extent::Resident<P, T>
-established by ResidentContentTransfer::transfer;
+established by ResidentContentTransfer::transfer, PlacementLifecycle::initialize,
+    Placed::initialize_from_profile;
 
 // Transfer an existing grant after an admitted provider establishes that its
 // exact range contains no live resident. This does not zero bytes, release the

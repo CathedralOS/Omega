@@ -877,7 +877,7 @@ impl TerminalExecution<'_> {
                 if !self.structural_byte_storage.contains_key(home) {
                     return Err(malformed());
                 }
-                self.invalidate_host_atoms(home);
+                self.invalidate_stored_provenance(home);
                 return self
                     .structural_byte_storage
                     .get_mut(home)
@@ -907,7 +907,7 @@ impl TerminalExecution<'_> {
             .get(place)
             .map(crate::values::StructuralRuntimePlace::from);
         if let Some(changed) = changed {
-            self.invalidate_host_atoms(&changed);
+            self.invalidate_stored_provenance(&changed);
         }
         let values = if *depth == self.call_stack.len() {
             &mut self.byte_sequence_values

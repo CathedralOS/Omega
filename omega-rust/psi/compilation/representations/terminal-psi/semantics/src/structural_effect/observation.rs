@@ -253,7 +253,7 @@ pub fn structural_effect_leaf_observation_in(
         )
         | (
             StructuralEffectAction::EstablishPlacedReference,
-            OperationKind::EstablishPlacedReference { source },
+            OperationKind::EstablishPlacedReference { source, .. },
         ) => {
             let result = operation.result.structural().ok_or(
                 OperationSemanticError::StructuralEffectResultShapeMismatch(tag),

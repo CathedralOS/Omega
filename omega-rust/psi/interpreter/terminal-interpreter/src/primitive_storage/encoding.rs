@@ -517,7 +517,7 @@ pub(super) fn convert_scalar(
     })
 }
 
-pub(super) fn encode(
+pub(crate) fn encode(
     stored: ScalarType,
     scalar: TerminalScalarValue,
 ) -> Result<u128, TerminalInterpretError> {
@@ -544,7 +544,7 @@ pub(super) fn encode(
     Ok(bits & mask)
 }
 
-pub(super) fn decode(
+pub(crate) fn decode(
     stored: ScalarType,
     bits: u128,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {

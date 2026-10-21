@@ -13,6 +13,29 @@ use terminal_psi::{
     TerminalPlacedFieldPlan, TerminalPlacedViewPlan,
 };
 
+/// Standalone transport of the same plans carried by the Terminal module.
+/// Native recovery retains these demands; it does not recreate their authority.
+pub fn encode_placed_view_catalog(plans: &[TerminalPlacedViewPlan]) -> Result<Vec<u8>, CodecError> {
+    let mut writer = Writer::default();
+    writer.len("placed view plans", plans.len())?;
+    for plan in plans {
+        encode(&mut writer, plan)?;
+    }
+    Ok(writer.finish())
+}
+
+pub fn decode_placed_view_catalog(bytes: &[u8]) -> Result<Vec<TerminalPlacedViewPlan>, CodecError> {
+    let mut reader = Reader::new(bytes);
+    let plans = decode_counted(&mut reader, decode)?;
+    if reader.remaining() != 0 {
+        return Err(CodecError::TrailingBytes(reader.remaining()));
+    }
+    if encode_placed_view_catalog(&plans)? != bytes {
+        return Err(CodecError::NonCanonicalEncoding);
+    }
+    Ok(plans)
+}
+
 pub(super) fn encode(writer: &mut Writer, plan: &TerminalPlacedViewPlan) -> Result<(), CodecError> {
     writer.id(plan.carrier);
     writer.id(plan.schema);
@@ -24,7 +47,15 @@ pub(super) fn encode(writer: &mut Writer, plan: &TerminalPlacedViewPlan) -> Resu
     ] {
         writer.u32(identity.0);
     }
-    let snapshot = plan.placement.snapshot();
+    encode_placement(writer, &plan.placement)?;
+    encode_fields(writer, &plan.fields)
+}
+
+pub(super) fn encode_placement(
+    writer: &mut Writer,
+    placement: &access_plans::ValidatedPlacementPlan,
+) -> Result<(), CodecError> {
+    let snapshot = placement.snapshot();
     writer.u64(snapshot.layout.schema_report_fingerprint);
     optional_u64(writer, snapshot.layout.size);
     writer.u64(snapshot.layout.align);
@@ -85,8 +116,15 @@ pub(super) fn encode(writer: &mut Writer, plan: &TerminalPlacedViewPlan) -> Resu
     for service in snapshot.reach.services() {
         writer.u64(service.normalized_identity());
     }
-    writer.len("placed field contracts", plan.fields.len())?;
-    for field in &plan.fields {
+    Ok(())
+}
+
+fn encode_fields(
+    writer: &mut Writer,
+    fields: &[TerminalPlacedFieldPlan],
+) -> Result<(), CodecError> {
+    writer.len("placed field contracts", fields.len())?;
+    for field in fields {
         writer.u32(field.access_slot);
         writer.u32(field.view_field.0);
         writer.u32(field.schema_field.0);
@@ -111,6 +149,23 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalPlacedViewPlan, 
     let policy_identity = TerminalIdentityIndex(reader.u32()?);
     let policy_plan_machine_identity = TerminalIdentityIndex(reader.u32()?);
     let schema_identity = TerminalIdentityIndex(reader.u32()?);
+    let placement = decode_placement(reader)?;
+    let fields = decode_fields(reader)?;
+    Ok(TerminalPlacedViewPlan {
+        carrier,
+        schema,
+        view_identity,
+        policy_identity,
+        policy_plan_machine_identity,
+        schema_identity,
+        placement,
+        fields,
+    })
+}
+
+pub(super) fn decode_placement(
+    reader: &mut Reader<'_>,
+) -> Result<access_plans::ValidatedPlacementPlan, CodecError> {
     let schema_report_fingerprint = reader.u64()?;
     let size = decode_optional_u64(reader)?;
     let align = reader.u64()?;
@@ -162,7 +217,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalPlacedViewPlan, 
     })?;
     // Foreign ingress rejoins canonical normalized keys/geometry. This does
     // not validate or acquire actual backing, provider custody or rights.
-    let placement = PlacementPlanSnapshot {
+    PlacementPlanSnapshot {
         layout: LayoutPlanReport {
             schema_report_fingerprint,
             entries,
@@ -174,8 +229,11 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalPlacedViewPlan, 
         reach: BoundaryReach::from_services(services),
     }
     .validate()
-    .map_err(|error| CodecError::PlacementPlan(error.to_string()))?;
-    let fields = decode_counted(reader, |reader| {
+    .map_err(|error| CodecError::PlacementPlan(error.to_string()))
+}
+
+fn decode_fields(reader: &mut Reader<'_>) -> Result<Vec<TerminalPlacedFieldPlan>, CodecError> {
+    decode_counted(reader, |reader| {
         let access_slot = reader.u32()?;
         let view_field = TerminalIdentityIndex(reader.u32()?);
         let schema_field = TerminalIdentityIndex(reader.u32()?);
@@ -197,16 +255,6 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalPlacedViewPlan, 
             accessor,
             operations,
         })
-    })?;
-    Ok(TerminalPlacedViewPlan {
-        carrier,
-        schema,
-        view_identity,
-        policy_identity,
-        policy_plan_machine_identity,
-        schema_identity,
-        placement,
-        fields,
     })
 }
 

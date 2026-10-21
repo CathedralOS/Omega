@@ -2117,14 +2117,15 @@ pub(in crate::legalization) fn apply(
             };
             let actual =
                 reference_source_type(function, custody, types, source).ok_or_else(invalid)?;
-            let expected = terminal_semantics::placed_ram_plan_correspondence(
+            let matches_backing = optimization_unit_semantics::placed_references::validate_backing(
                 types,
                 plan.structural_types.placed_views(),
                 selected,
                 actual,
+                correspondence,
             )
-            .map_err(|_| invalid())?;
-            if &expected != correspondence
+            .is_ok();
+            if !matches_backing
                 || !result.is_affine_plain()
                 || !matches!(
                     source.access,
@@ -2689,7 +2690,7 @@ fn transfer_return_custody(
                         path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
                     } else if matches!(&leaf.placed,
                         Some(target_operations::TargetPlacedInterpretation::Captured(correspondence))
-                            if correspondence.carrier == leaf.referent)
+                            if correspondence.carrier() == leaf.referent)
                     {
                         // Formation authenticated an interpretation of this
                         // backing, not a typed Placed object stored there. Its
@@ -3413,19 +3414,17 @@ pub(in crate::legalization) fn placed_call_custody(
                 if observed.referent != plan.carrier {
                     return Err(invalid());
                 }
-                let expected = terminal_semantics::placed_ram_plan_correspondence(
+                optimization_unit_semantics::placed_references::validate_backing(
                     types,
                     catalog.placed_views(),
                     plan,
-                    captured.schema,
+                    captured.source_type(),
+                    &captured,
                 )
                 .map_err(|_| invalid())?;
-                if captured != expected {
-                    return Err(invalid());
-                }
                 target_operations::TargetPlacedCallAssociation::Captured {
-                    schema: captured.schema,
-                    carrier: captured.carrier,
+                    schema: captured.schema(),
+                    carrier: captured.carrier(),
                 }
             }
             Some(target_operations::TargetPlacedInterpretation::Formal(formal)) => {

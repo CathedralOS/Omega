@@ -487,9 +487,10 @@ pub(in crate::lowering) fn lower_boundary_call(
                 }
                 BoundaryRealization::ProgramImageRetainedSuffixStart
                 | BoundaryRealization::NearestIeeeFloatArithmetic(_)
-                | BoundaryRealization::PlacedScalarAccess(_) => {
-                    // Float arithmetic realizes inline on the control-flow
-                    // route; it never forms a call-shaped settlement row.
+                | BoundaryRealization::PlacedScalarAccess(_)
+                | BoundaryRealization::PlacementLifecycle { .. } => {
+                    // These operations realize inline on the control-flow
+                    // route; they never form a call-shaped settlement row.
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }
                 BoundaryRealization::DirectPortReadU8(_) => {

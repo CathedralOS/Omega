@@ -10,7 +10,10 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
-    InvalidActivationStorage { machine: MachineId, reason: &'static str },
+    InvalidActivationStorage {
+        machine: MachineId,
+        reason: &'static str,
+    },
     InvalidOwnedValueTransfer {
         machine: MachineId,
         operation: OperationId,

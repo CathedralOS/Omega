@@ -222,6 +222,10 @@ fn encode_control(
     control: &FunctionFragmentControlProvenance,
 ) {
     match control {
+        FunctionFragmentControlProvenance::OperationTrap { operation } => {
+            hasher.byte(8);
+            hasher.raw(&operation.get().to_le_bytes());
+        }
         FunctionFragmentControlProvenance::Crash { psi_edge, cause } => {
             hasher.byte(7);
             hasher.raw(&psi_edge.get().to_le_bytes());
@@ -288,8 +292,19 @@ fn encode_successor(
         selected_instructions::SelectedSuccessorRole::Semantic => 0,
         selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
         selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation => 2,
+        selected_instructions::SelectedSuccessorRole::OperationContinuation { .. } => 3,
     });
-    hasher.raw(&successor.psi_edge.get().to_le_bytes());
+    if let selected_instructions::SelectedSuccessorRole::OperationContinuation { operation } =
+        successor.role
+    {
+        hasher.raw(&operation.get().to_le_bytes());
+    }
+    hasher.raw(
+        &successor
+            .psi_edge
+            .map_or(0, |edge| edge.get())
+            .to_le_bytes(),
+    );
     hasher.raw(&successor.block.0.to_le_bytes());
     hasher.raw(&successor.source_target.get().to_le_bytes());
     hasher.u64(successor.bindings.len() as u64);
@@ -335,7 +350,7 @@ fn encode_branch(
         super::FunctionFragmentBranchEvidence::Jump(jump) => {
             hasher.byte(2);
             hasher.raw(&jump.source_block.0.to_le_bytes());
-            hasher.raw(&jump.target_edge.get().to_le_bytes());
+            hasher.raw(&jump.target_edge.map_or(0, |edge| edge.get()).to_le_bytes());
             hasher.raw(&jump.target_block.0.to_le_bytes());
             hasher.raw(&jump.target_offset.to_le_bytes());
             hasher.raw(&jump.byte_displacement.to_le_bytes());
@@ -349,10 +364,20 @@ fn encode_branch(
     hasher.byte(1);
     encode_branch_predicate(hasher, branch.predicate);
     hasher.raw(&branch.source_block.0.to_le_bytes());
-    hasher.raw(&branch.when_taken_edge.get().to_le_bytes());
+    hasher.raw(
+        &branch
+            .when_taken_edge
+            .map_or(0, |edge| edge.get())
+            .to_le_bytes(),
+    );
     hasher.raw(&branch.when_taken_block.0.to_le_bytes());
     hasher.raw(&branch.when_taken_offset.to_le_bytes());
-    hasher.raw(&branch.when_fallthrough_edge.get().to_le_bytes());
+    hasher.raw(
+        &branch
+            .when_fallthrough_edge
+            .map_or(0, |edge| edge.get())
+            .to_le_bytes(),
+    );
     hasher.raw(&branch.when_fallthrough_block.0.to_le_bytes());
     hasher.raw(&branch.when_fallthrough_offset.to_le_bytes());
     hasher.raw(&branch.byte_displacement.to_le_bytes());

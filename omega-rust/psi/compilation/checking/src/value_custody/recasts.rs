@@ -104,6 +104,88 @@ pub enum ReferenceFormationInterpretation {
     Declared,
     RepresentationView,
     Placed,
+    ResidentPlaced {
+        extent: symbols::SymbolHandle,
+        granted: symbols::SymbolHandle,
+        resident: symbols::SymbolHandle,
+    },
+}
+
+/// A sealed view formation captures a loan without changing the lender's
+/// bytes. Mutable access governs subsequent uses of the view, not an implicit
+/// write during formation. Argument evaluation keeps its own effects.
+pub fn placed_borrow_has_empty_write_frame(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> bool {
+    let machine = program.machine_by_symbol(target).or_else(|| {
+        crate::machine_calls::calls::machine_state_by_symbol(program, target)
+            .map(|(machine, _)| machine)
+    });
+    machine.is_some_and(|machine| program.placed_borrow_factory(machine.symbol).is_some())
+}
+
+impl ReferenceFormationInterpretation {
+    /// Both families lend a source owner, but only ordinary Placed borrows
+    /// interpret that owner's own bytes. Consumers must preserve this distinction.
+    pub fn is_placed(self) -> bool {
+        matches!(self, Self::Placed | Self::ResidentPlaced { .. })
+    }
+
+    /// Join the source-selected endpoint to the already evaluated placement.
+    /// This validates type correspondence only. A qualified descriptor cannot
+    /// supply an executable backing or provider receipt by its type alone.
+    pub fn placed_storage(
+        self,
+        program: &dyn crate::CheckingInput,
+        endpoint: TypeReferenceHandle,
+        plan: &typed_trees::typed_trees::PlacedViewPlan,
+    ) -> Option<checked_trees::CheckedReferenceStorage> {
+        use checked_trees::CheckedReferenceStorage;
+        let endpoint_carrier = program.type_reference_table.peeled_type_reference(endpoint);
+        let TypeReferenceNode::Named { symbol, .. } = program
+            .type_reference_table
+            .type_reference(endpoint_carrier)
+        else {
+            return None;
+        };
+        match self {
+            Self::Placed => {
+                (*symbol == plan.schema_symbol).then_some(CheckedReferenceStorage::Placed)
+            }
+            Self::ResidentPlaced {
+                extent,
+                granted,
+                resident,
+            } if *symbol == extent => {
+                let owner =
+                    super::resident_content::resident_owner_qualifications(program, endpoint)?;
+                if owner.extent != extent
+                    || owner.granted_symbol != granted
+                    || owner.resident_symbol != resident
+                {
+                    return None;
+                }
+                let exact_argument = |argument, expected| {
+                    matches!(
+                        program.type_reference_table.type_reference(argument),
+                        TypeReferenceNode::Named { symbol, .. } if *symbol == expected
+                    )
+                };
+                if !exact_argument(owner.policy, plan.policy_symbol)
+                    || !exact_argument(owner.schema, plan.schema_symbol)
+                {
+                    return None;
+                }
+                Some(CheckedReferenceStorage::ResidentPlaced {
+                    extent: owner.extent,
+                    granted: owner.granted,
+                    resident: owner.resident,
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 pub fn reference_formation_source(
@@ -161,7 +243,20 @@ pub fn reference_formation_source(
             source,
             access: request.access,
             view_type: shell.referee,
-            interpretation: ReferenceFormationInterpretation::Placed,
+            interpretation: match request.backing {
+                typed_trees::expression::PlacedBorrowBacking::Ordinary => {
+                    ReferenceFormationInterpretation::Placed
+                }
+                typed_trees::expression::PlacedBorrowBacking::Resident {
+                    extent,
+                    granted,
+                    resident,
+                } => ReferenceFormationInterpretation::ResidentPlaced {
+                    extent,
+                    granted,
+                    resident,
+                },
+            },
         });
     }
     let (operand, borrowed_access) = match program.expression_table.expression(expression) {

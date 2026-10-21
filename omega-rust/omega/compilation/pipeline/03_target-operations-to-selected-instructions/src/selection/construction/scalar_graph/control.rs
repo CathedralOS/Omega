@@ -365,7 +365,7 @@ fn successor(
     let successor = SelectedSuccessor {
         structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
-        psi_edge: next.edge,
+        psi_edge: Some(next.edge),
         block: SelectedBlockId(
             u32::try_from(position).map_err(|_| SelectedInstructionError::custody())?,
         ),

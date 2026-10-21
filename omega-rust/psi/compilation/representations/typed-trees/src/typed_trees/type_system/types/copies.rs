@@ -123,6 +123,7 @@ impl TypeReferenceTable {
             copied.arena_index(),
             copied.generation(),
         )) = source.operand_lifetime_owner(type_reference);
+        self.set_operand_origin(copied, source.operand_origin(type_reference));
         copied
     }
 

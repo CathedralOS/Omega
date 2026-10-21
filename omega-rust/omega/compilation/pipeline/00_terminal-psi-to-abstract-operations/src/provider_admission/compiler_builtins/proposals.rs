@@ -227,6 +227,10 @@ fn compiler_builtin_execution(
         numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
     };
     let (operation, format) = match identity {
+        // A private compiler operation is not a selectable implementation of
+        // an authored provider requirement. It is bound from its own retained
+        // declaration and lifecycle contract, never from a Build intrinsic row.
+        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(_) => return None,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             return Some(CompilerBuiltinExecution::ProgramImageRetainedSuffixStart);
         }

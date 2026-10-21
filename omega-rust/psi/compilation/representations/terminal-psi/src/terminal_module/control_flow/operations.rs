@@ -276,13 +276,17 @@ pub enum OperationKind {
     StorageAddress {
         source: StructuralArgument,
     },
-    /// Interpret initialized ordinary RAM through one exact retained placement.
+    /// Interpret initialized storage through one exact retained placement.
     /// The result's reference referee selects the catalog; neither an offset
     /// nor a caller-supplied profile can establish this interpretation.
     /// Actual backing range, base congruence and the captured loan remain
     /// execution obligations, independently of catalog correspondence.
     EstablishPlacedReference {
         source: StructuralArgument,
+        /// Absence interprets the source's own declared RAM. A resident source
+        /// instead lends its separately retained content; descriptor bytes are
+        /// never the content's backing.
+        resident: Option<crate::ResidentReferenceSource>,
     },
     /// Establish a reference permission carrier for the exact captured source.
     /// The result owns the loan, not the referent; establishment suspends the

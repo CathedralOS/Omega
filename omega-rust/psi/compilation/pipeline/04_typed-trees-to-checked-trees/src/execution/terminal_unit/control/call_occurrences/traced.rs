@@ -150,15 +150,14 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                 if matches!(
                     node.kind,
                     checked_trees::CheckedStructuralValueKind::Reference {
-                        storage: checked_trees::CheckedReferenceStorage::Placed,
+                        storage: checked_trees::CheckedReferenceStorage::Placed
+                            | checked_trees::CheckedReferenceStorage::ResidentPlaced { .. },
                         ..
                     }
                 ) {
                     let formation =
                         validation::reference_formation_source(program, node.expression)?;
-                    if formation.interpretation
-                        != validation::ReferenceFormationInterpretation::Placed
-                    {
+                    if !formation.interpretation.is_placed() {
                         return None;
                     }
                     let authored = program.expression_table.call_node(node.expression)?;

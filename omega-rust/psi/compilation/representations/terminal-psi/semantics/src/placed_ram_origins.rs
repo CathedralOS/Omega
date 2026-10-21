@@ -24,6 +24,9 @@ pub struct PlacedRamFormation {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PlacedRamOrigin {
     Formation(PlacedRamFormation),
+    /// This formation borrows retained provider content, not descriptor RAM.
+    /// Consumers must support resident events or retain an unsatisfied demand.
+    ResidentFormation(PlacedRamFormation),
     /// Conditional entry root; consumers must retain checked typed construction
     /// and actual physical/invocation lending custody for this exact row.
     PrivateEntry {
@@ -34,7 +37,7 @@ pub enum PlacedRamOrigin {
 impl PlacedRamOrigin {
     fn carrier(&self) -> StructuralTypeId {
         match self {
-            Self::Formation(formation) => formation.carrier,
+            Self::Formation(formation) | Self::ResidentFormation(formation) => formation.carrier,
             Self::PrivateEntry { carrier, .. } => *carrier,
         }
     }
@@ -108,13 +111,6 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
         ) {
             return None;
         }
-        crate::placed_ram_plan_correspondence(
-            &self.module.structural_types,
-            &self.module.placed_view_plans,
-            plan,
-            plan.schema,
-        )
-        .ok()?;
         let current = self.module.machine(machine)?;
         let root = current
             .structural_places
@@ -146,6 +142,18 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
             None,
         )?;
         let formations = self.resolve(machine, position, location, &mut Vec::new())?;
+        if formations
+            .iter()
+            .any(|origin| !matches!(origin, PlacedRamOrigin::ResidentFormation(_)))
+        {
+            crate::placed_ram_plan_correspondence(
+                &self.module.structural_types,
+                &self.module.placed_view_plans,
+                plan,
+                plan.schema,
+            )
+            .ok()?;
+        }
         (!formations.is_empty()
             && formations
                 .iter()
@@ -198,9 +206,10 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                         .iter()
                         .flat_map(|block| block.operations.iter())
                         .find(|row| row.id == operation)?;
-                    if !matches!(source.kind, OperationKind::EstablishPlacedReference { .. }) {
+                    let OperationKind::EstablishPlacedReference { resident, .. } = source.kind
+                    else {
                         return None;
-                    }
+                    };
                     let result = source.result.structural()?;
                     if result.place != place
                         || !self.module.structural_types.iter().any(|ty| {
@@ -211,12 +220,17 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                     {
                         return None;
                     }
-                    complete.insert(PlacedRamOrigin::Formation(PlacedRamFormation {
+                    let formation = PlacedRamFormation {
                         machine,
                         operation,
                         place,
                         carrier,
-                    }));
+                    };
+                    complete.insert(if resident.is_some() {
+                        PlacedRamOrigin::ResidentFormation(formation)
+                    } else {
+                        PlacedRamOrigin::Formation(formation)
+                    });
                 }
                 DescriptorSourceOrigin::IncomingSlot(incoming) => {
                     // The executable entry's incoming occurrence belongs to

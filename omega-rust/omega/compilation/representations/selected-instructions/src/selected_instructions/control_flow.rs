@@ -2,7 +2,7 @@
 use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
 use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
 use target_operations::TerminalPsiProvenance;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,6 +106,12 @@ pub struct SelectedBlock {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedBlockOrigin {
     Source(BlockId),
+    /// Physical control inside one source operation, including its continuation.
+    /// These blocks are not new Terminal Psi states or custody transitions.
+    Operation {
+        source: BlockId,
+        operation: OperationId,
+    },
     /// Continues selection of a declared sum case; no semantic edge is taken yet.
     CaseDispatch {
         source: BlockId,
@@ -139,6 +145,7 @@ impl SelectedBlock {
     pub const fn source_block(&self) -> BlockId {
         match self.origin {
             SelectedBlockOrigin::Source(block) => block,
+            SelectedBlockOrigin::Operation { source, .. } => source,
             SelectedBlockOrigin::CaseDispatch { source, .. } => source,
             SelectedBlockOrigin::EdgeTransfer { target, .. } => target,
         }
@@ -148,6 +155,11 @@ impl SelectedBlock {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedSuccessorRole {
     Semantic,
+    /// A physical step within an operation. It carries no semantic edge,
+    /// argument binding, cleanup, or fuel settlement.
+    OperationContinuation {
+        operation: OperationId,
+    },
     /// Completes the physical transfer after its semantic edge was selected.
     /// It retains the edge's identity but carries no second fuel charge.
     EdgeTransferContinuation,
@@ -158,6 +170,13 @@ pub enum SelectedSuccessorRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedTerminator {
+    /// Failed runtime assertion inside a native operation's implementation.
+    /// This has no normal continuation, authored Crash edge, or custody exit.
+    /// The containing operation owns the failure and its abandoned state.
+    OperationTrap {
+        instruction: SelectedInstruction,
+        operation: OperationId,
+    },
     /// Explicit semantic abandonment, with no normal successor or cleanup.
     Crash {
         instruction: SelectedInstruction,
@@ -205,7 +224,9 @@ pub enum SelectedTerminator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedSuccessor {
     pub role: SelectedSuccessorRole,
-    pub psi_edge: EdgeId,
+    /// Absent only for operation-internal control. Inventing an authored edge
+    /// for a native loop would charge fuel and transfer custody incorrectly.
+    pub psi_edge: Option<EdgeId>,
     pub block: SelectedBlockId,
     pub source_target: BlockId,
     pub bindings: Vec<SelectedValueBinding>,
@@ -325,6 +346,7 @@ macro_rules! terminator_instruction_match {
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
             | SelectedTerminator::Crash { instruction, .. }
+            | SelectedTerminator::OperationTrap { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         }
     };
@@ -371,6 +393,7 @@ macro_rules! terminator_successors_match {
             } => vec![when_less, when_not_less],
             SelectedTerminator::Return { .. }
             | SelectedTerminator::Crash { .. }
+            | SelectedTerminator::OperationTrap { .. }
             | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
         }
     };
@@ -390,9 +413,10 @@ pub fn terminator_successors_mut(
 }
 
 #[macro_export]
-macro_rules! terminator_exit_triple_pattern {
+macro_rules! terminator_no_successor_pattern {
     ($($fields:tt)*) => {
         $crate::SelectedTerminator::Crash { $($fields)* }
+            | $crate::SelectedTerminator::OperationTrap { $($fields)* }
             | $crate::SelectedTerminator::HostedExitProcess { $($fields)* }
             | $crate::SelectedTerminator::Return { $($fields)* }
     };

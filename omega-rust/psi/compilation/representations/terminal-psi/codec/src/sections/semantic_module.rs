@@ -106,7 +106,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Boundary scalar parameters and stored fields retain independent membership rows.
 // Boundary and dynamic scalar results retain their complete qualification set.
 // Closed proof-function applications retain exact invocation/block formal scopes.
-pub(crate) const FORMAT_MARKER: u16 = 177;
+// Whole-value placement demands retain normalized geometry without requiring a view.
+pub(crate) const FORMAT_MARKER: u16 = 182;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

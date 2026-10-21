@@ -720,10 +720,7 @@ fn aggregate_fragment_overlap_uses_physical_bytes_in_both_byte_orders() {
         for whole_byte in [fragment_byte, 1 - fragment_byte] {
             let layout = layout_report(
                 vec![
-                    layout_field_entry(
-                        "whole",
-                        LayoutPlacementReport::At { offset: whole_byte },
-                    ),
+                    layout_field_entry("whole", LayoutPlacementReport::At { offset: whole_byte }),
                     layout_field_entry(
                         "fragment",
                         LayoutPlacementReport::Bits {

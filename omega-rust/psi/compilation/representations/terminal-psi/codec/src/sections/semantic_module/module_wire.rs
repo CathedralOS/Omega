@@ -26,8 +26,9 @@ mod evidence_wire;
 mod float_meaning_wire;
 mod folded_constant_wire;
 mod operation_crash_contract_wire;
-mod placed_plan_wire;
-mod placed_view_wire;
+pub(crate) mod placed_plan_wire;
+pub(crate) mod placed_view_wire;
+pub(crate) mod placement_lifecycle_wire;
 mod proof_output_wire;
 mod scalar_block_invariant_wire;
 mod target_family_wire;
@@ -132,6 +133,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.len("placed-view plans", module.placed_view_plans.len())?;
     for plan in &module.placed_view_plans {
         placed_plan_wire::encode(&mut writer, plan)?;
+    }
+    writer.len(
+        "placement lifecycle plans",
+        module.placement_lifecycle_plans.len(),
+    )?;
+    for plan in &module.placement_lifecycle_plans {
+        placement_lifecycle_wire::encode(&mut writer, plan)?;
     }
     writer.len("placed-view inputs", module.placed_view_inputs.len())?;
     for input in &module.placed_view_inputs {
@@ -361,6 +369,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         declaration_wire::decode_installation_reach_dependency,
     )?;
     let placed_view_plans = decode_counted(reader, placed_plan_wire::decode)?;
+    let placement_lifecycle_plans = decode_counted(reader, placement_lifecycle_wire::decode)?;
     let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
@@ -436,6 +445,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         },
         placed_view_inputs,
         placed_view_plans,
+        placement_lifecycle_plans,
         reborrow_restored_call_uses,
         boundary_machines,
         provider_candidates,

@@ -27,7 +27,7 @@ pub use terminal_installation::TerminalPlacedViewEstablishment;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlacedViewOccurrence {
     /// A checked local RAM borrow stays distinct from a host establishment.
-    pub(crate) ram: Option<crate::reference::PlacedRamReference>,
+    pub(crate) ram: Option<crate::reference::PlacedReference>,
     /// Original view carrier presented by the current frame.
     pub(crate) view: StructuralRuntimePlace,
     /// Runtime place of the lent referent backing.
@@ -226,15 +226,15 @@ impl crate::execution::TerminalExecution<'_> {
                 return Err(malformed());
             }
             let occurrence = if let Some(mut ram) = ram {
-                self.validate_placed_ram_home(&ram)?;
+                self.validate_placed_backing(&ram)?;
                 let plan = module
                     .placed_view_plans
                     .iter()
-                    .find(|plan| plan.carrier == ram.correspondence.carrier)
+                    .find(|plan| plan.carrier == ram.carrier())
                     .ok_or_else(malformed)?;
                 if ram.selected_field.is_some()
                     || ram.presentation != resolved
-                    || ram.correspondence.carrier != parameter.structural_type
+                    || ram.carrier() != parameter.structural_type
                     || !crate::reference::access_covers(ram.access, row.access)
                     || (
                         row.view_identity,
@@ -291,7 +291,7 @@ impl crate::execution::TerminalExecution<'_> {
                 let mut occurrence = source.1.clone();
                 occurrence.view = StructuralRuntimePlace::from(presented);
                 if let Some(ram) = &mut occurrence.ram {
-                    self.validate_placed_ram_home(ram)?;
+                    self.validate_placed_backing(ram)?;
                     if !crate::reference::access_covers(ram.access, row.access) {
                         return Err(malformed());
                     }

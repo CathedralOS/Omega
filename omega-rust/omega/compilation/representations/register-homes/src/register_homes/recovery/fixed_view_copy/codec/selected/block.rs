@@ -3,7 +3,7 @@ use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedSuccessor, SelectedSuccessorRole,
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
-use semantic_vocabulary::{BlockId, EdgeId, ValueId};
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
 
 #[cfg(test)]
 mod tests;
@@ -26,6 +26,11 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
             bytes.push(0);
             crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
         }
+        SelectedBlockOrigin::Operation { source, operation } => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+        }
         SelectedBlockOrigin::CaseDispatch {
             source,
             case_ordinal,
@@ -45,6 +50,14 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         encode_instruction(bytes, instruction);
     }
     match &block.terminator {
+        SelectedTerminator::OperationTrap {
+            instruction,
+            operation,
+        } => {
+            bytes.push(7);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+        }
         SelectedTerminator::Crash {
             instruction,
             psi_edge,
@@ -144,6 +157,10 @@ pub(super) fn decode_block(
             source: decode_id(cursor, BlockId::new)?,
             case_ordinal: cursor.u32()?,
         },
+        3 => SelectedBlockOrigin::Operation {
+            source: decode_id(cursor, BlockId::new)?,
+            operation: decode_id(cursor, OperationId::new)?,
+        },
         tag => return Err(FixedViewCopyDecodeError::UnknownBlockOrigin(tag)),
     };
     let instruction_count = cursor.length()?;
@@ -152,6 +169,10 @@ pub(super) fn decode_block(
         instructions.push(decode_instruction(cursor)?);
     }
     let terminator = match cursor.byte()? {
+        7 => SelectedTerminator::OperationTrap {
+            instruction: decode_instruction(cursor)?,
+            operation: decode_id(cursor, OperationId::new)?,
+        },
         6 => {
             let instruction = decode_instruction(cursor)?;
             let psi_edge = decode_id(cursor, EdgeId::new)?;
@@ -224,8 +245,18 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         SelectedSuccessorRole::Semantic => 0,
         SelectedSuccessorRole::EdgeTransferContinuation => 1,
         SelectedSuccessorRole::CaseDispatchContinuation => 2,
+        SelectedSuccessorRole::OperationContinuation { .. } => 3,
     });
-    crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
+    if let SelectedSuccessorRole::OperationContinuation { operation } = successor.role {
+        crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+    }
+    crate::codec_bytes::push_encoded(
+        bytes,
+        successor
+            .psi_edge
+            .map_or(0, |edge| edge.get())
+            .to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(bytes, successor.block.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, successor.source_target.get().to_le_bytes());
     length(bytes, successor.bindings.len());
@@ -335,9 +366,15 @@ fn decode_successor(
         0 => SelectedSuccessorRole::Semantic,
         1 => SelectedSuccessorRole::EdgeTransferContinuation,
         2 => SelectedSuccessorRole::CaseDispatchContinuation,
+        3 => SelectedSuccessorRole::OperationContinuation {
+            operation: decode_id(cursor, OperationId::new)?,
+        },
         tag => return Err(FixedViewCopyDecodeError::UnknownSuccessorRole(tag)),
     };
-    let psi_edge = decode_id(cursor, EdgeId::new)?;
+    let psi_edge = EdgeId::new(cursor.u64()?);
+    if psi_edge.is_none() != matches!(role, SelectedSuccessorRole::OperationContinuation { .. }) {
+        return Err(FixedViewCopyDecodeError::InvalidSuccessorLineage);
+    }
     let block = SelectedBlockId(cursor.u32()?);
     let source_target = decode_id(cursor, BlockId::new)?;
     let count = cursor.length()?;

@@ -132,7 +132,9 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
                     retained_row.member_identity,
                 )
             {
-                return Err(super::super::retained_custody_drift("recursive child custody"));
+                return Err(super::super::retained_custody_drift(
+                    "recursive child custody",
+                ));
             }
             // A record child's inner custody replays the deeper level
             // pairwise before its fingerprint compares.

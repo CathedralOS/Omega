@@ -12,6 +12,7 @@ pub(super) fn observed_source<'a>(
     successor: &SelectedSuccessor,
     value: &'a VirtualRegister,
 ) -> Option<&'a VirtualRegister> {
+    let psi_edge = successor.psi_edge?;
     if matches!(
         value.origin,
         VirtualRegisterOrigin::StructuralObservation { .. }
@@ -41,8 +42,8 @@ pub(super) fn observed_source<'a>(
     let (owner, normalization, position) = index.unique_instruction(instruction)?;
     if normalization.kind != kind
         || !matches!(owner.origin, SelectedBlockOrigin::EdgeTransfer { edge, target }
-            if edge == successor.psi_edge && target == successor.source_target)
-        || normalization.provenance.edges != [successor.psi_edge]
+            if edge == psi_edge && target == successor.source_target)
+        || normalization.provenance.edges != [psi_edge]
         || !normalization.provenance.operations.is_empty()
         || !normalization.provenance.fuel.is_empty()
     {
@@ -84,7 +85,7 @@ pub(super) fn observed_source<'a>(
     };
     if !std::ptr::eq(load_owner, owner)
         || load_position >= position
-        || load.provenance.edges != [successor.psi_edge]
+        || load.provenance.edges != [psi_edge]
         || !matches!(
             (integer.bits(), load.kind),
             (8, SelectedInstructionKind::Load8 { .. })

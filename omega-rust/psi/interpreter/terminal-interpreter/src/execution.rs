@@ -67,6 +67,10 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
+    pub(crate) provider_storage: crate::provider_storage::RuntimeProviderStorage,
+    /// Entry storage may be supplied only before the first resume, including
+    /// a resume which exhausts its fuel without executing an operation.
+    pub(crate) entry_storage_open: bool,
     pub(crate) activation_storage: crate::activation_storage::RuntimeActivationStorage,
     // One immutable program owner survives suspension and is shared verbatim
     // across every independent instance admitted from the same module. A
@@ -89,7 +93,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
-    pub(crate) private_entry_ram: Vec<crate::reference::placed_ram::PrivateEntryRamAllocation>,
+    pub(crate) private_entry_ram: Vec<crate::reference::placed::PrivateEntryRamAllocation>,
     pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
@@ -153,6 +157,9 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) next_operation: usize,
     pub(crate) call_stack: Vec<SuspendedCall>,
     pub(crate) result: Option<TerminalExecutionResult>,
+    /// The paid outer return's exact claim paths. The returning frame retires
+    /// before host handback, so its live roster cannot authorize that handback.
+    pub(crate) returned_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
     pub(crate) crash: Option<TerminalCrash>,
     pub(crate) external_completion: Option<crate::results::TerminalExternalCompletion>,
     pub(crate) external_demands: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
@@ -265,6 +272,7 @@ pub(crate) enum SuspendedCallResult {
         result: StructuralOperationResult,
         claim_origin: ResultClaimOrigin,
         expected_reference_backings: Vec<Vec<crate::reference::ReferenceBacking>>,
+        profile_completion: Option<crate::provider_storage::profiles::PendingResourceProfile>,
     },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),
@@ -286,6 +294,7 @@ pub(crate) enum CleanupContinuation {
 /// from hook frames until the original caller can receive it.
 pub(crate) struct CompletedReturn {
     pub(crate) value: TerminalExecutionResult,
+    pub(crate) returned_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
     pub(crate) destination: Option<StructuralOperationResult>,
     pub(crate) rebound_claims: Option<BTreeMap<ClaimId, LiveClaim>>,
     pub(crate) byte_sequence: Option<ByteSequenceBinding>,
@@ -296,6 +305,7 @@ impl CompletedReturn {
     pub(crate) fn plain(value: TerminalExecutionResult) -> Self {
         Self {
             value,
+            returned_claims: Vec::new(),
             destination: None,
             rebound_claims: None,
             byte_sequence: None,
@@ -433,6 +443,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_scalar_collection_identity: 1024,
             structural_scalar_fields: BTreeMap::new(),
             private_entry_ram: Vec::new(),
+            provider_storage: Default::default(),
+            entry_storage_open: true,
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_storage: BTreeMap::new(),
             structural_cases: BTreeMap::new(),
@@ -450,6 +462,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_operation: 0,
             call_stack: Vec::new(),
             result: None,
+            returned_claims: Vec::new(),
             crash: None,
             external_completion: None,
             external_demands: Vec::new(),
@@ -697,6 +710,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        self.entry_storage_open = false;
         self.resume_operations(meter, handler).map_err(|error| {
             // Report the execution cursor that declined the operation, including
             // failures reached in a callee. A missing operation means the block
@@ -791,7 +805,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         self.execute_storage_address(operation, source)?;
                                         OperationFlow::Advance
                                     }
-                                    OperationKind::EstablishPlacedReference { ref source } => {
+                                    OperationKind::EstablishPlacedReference { ref source, .. } => {
                                         self.establish_placed_reference(operation, source)?;
                                         OperationFlow::Advance
                                     }

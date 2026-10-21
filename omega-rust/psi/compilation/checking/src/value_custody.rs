@@ -38,6 +38,7 @@ pub(crate) mod record_local_disposition;
 pub(crate) mod reference_access;
 pub(crate) mod reference_local_establishment;
 pub(crate) mod reference_shells;
+pub(crate) mod resident_content;
 pub(crate) mod scalar_case_constructor;
 pub(crate) mod scalar_representation_range;
 pub(crate) mod source_liveness;

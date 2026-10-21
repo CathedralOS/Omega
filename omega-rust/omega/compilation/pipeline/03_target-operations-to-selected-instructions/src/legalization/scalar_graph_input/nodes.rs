@@ -765,7 +765,9 @@ pub(super) fn validate(
         }
         if matches!(
             node.operation,
-            AbstractOperation::EstablishActivationClaim { .. } | AbstractOperation::ReleaseActivationClaim { .. } | AbstractOperation::EstablishNativeCodeLayout { .. }
+            AbstractOperation::EstablishActivationClaim { .. }
+                | AbstractOperation::ReleaseActivationClaim { .. }
+                | AbstractOperation::EstablishNativeCodeLayout { .. }
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishReference { .. }
                 | AbstractOperation::EstablishPlacedReference { .. }

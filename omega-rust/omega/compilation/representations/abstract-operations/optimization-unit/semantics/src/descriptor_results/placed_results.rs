@@ -11,8 +11,8 @@
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use terminal_psi::{
-    PlacedRamCorrespondence, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::descriptor_path;
@@ -20,7 +20,7 @@ use terminal_semantics::descriptor_results::{DescriptorResultSlot, DescriptorSto
 
 #[derive(Debug)]
 pub enum Source {
-    Captured(PlacedRamCorrespondence),
+    Captured(abstract_operations::PlacedReferenceBacking),
     Incoming(StructuralArgument),
 }
 
@@ -76,7 +76,7 @@ pub fn summarize<'operation>(
                         };
                         if psi_operation != operation
                             || result.place != *place
-                            || correspondence.carrier != *carrier
+                            || correspondence.carrier() != *carrier
                             || !terminal_psi::find_structural_type(types, result.structural_type)
                                 .is_some_and(|declaration| {
                                     matches!(declaration.shape,
@@ -151,7 +151,7 @@ pub fn resolve<Interpretation: PartialEq>(
     slots: &[ResultSlot],
     path: &[StructuralPathSegment],
     incoming: impl Fn(&StructuralArgument) -> Option<Interpretation>,
-    captured: impl Fn(&PlacedRamCorrespondence) -> Interpretation,
+    captured: impl Fn(&abstract_operations::PlacedReferenceBacking) -> Interpretation,
 ) -> Option<Result<Interpretation, ConflictingInterpretations>> {
     let mut matching = slots.iter().filter(|slot| slot.path == path);
     let slot = matching.next()?;

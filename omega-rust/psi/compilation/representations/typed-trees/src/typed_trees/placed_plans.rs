@@ -1,11 +1,41 @@
 //! Placed view, field and accessor plans and the plan-laid layouts.
 
+mod lifecycle_execution;
 mod primitive_selection;
 mod sealed_accessors;
+pub use lifecycle_execution::PlacementExecutionDeclaration;
 pub use primitive_selection::PlacedAccessPrimitive;
 pub use sealed_accessors::{PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation};
 
 use crate::typed_trees::ClosedConformanceApplication;
+
+/// Evaluated geometry for an exact closed lifecycle callable. This is not
+/// a view, a provider receipt or evidence that initialization has executed.
+/// The zero arena slot is absent; populated rows retain the complete plan,
+/// including fields inaccessible through a placed accessor.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum PlacementLifecyclePlan {
+    #[default]
+    Absent,
+    Evaluated {
+        /// A public requirement or the private operation that executes it.
+        /// Both retain their own callable identity; a selected adapter does
+        /// not turn its private leaf into the public admitted crossing.
+        callable: symbols::SymbolHandle,
+        operation: PlacementLifecycleOperation,
+        policy: symbols::SymbolHandle,
+        schema: symbols::SymbolHandle,
+        policy_machine: symbols::SymbolHandle,
+        invocations: arena::HandleSpan<source::SourceSpan>,
+        placement: access_plans::ValidatedPlacementPlan,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacementLifecycleOperation {
+    Initialize,
+    MoveOut,
+}
 
 impl crate::TypedTrees {
     /// Operation classification follows exact declaration/specialization

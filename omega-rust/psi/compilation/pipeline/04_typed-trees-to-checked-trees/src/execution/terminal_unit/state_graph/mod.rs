@@ -768,7 +768,9 @@ pub(super) fn build_traced(
         attachment,
         provider_attachment_requirements,
         planned,
-    )?;
+    )
+    .map_err(|reason| trace.phase(reason))
+    .ok()?;
     plan.natural_ranks = natural_ranks;
     plan.preserving_rank_edges = preserving_rank_edges;
     // The machine result contract is relative to invocation parameters.

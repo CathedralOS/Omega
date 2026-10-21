@@ -103,6 +103,11 @@ pub(super) fn settle_boundary<'request>(
         }
         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
             let completion = match builtin {
+                target_operations::BoundaryRealization::PlacementLifecycle { .. } => {
+                    return Err(vec![Diagnostic::error(
+                        "provider execution cannot replace a private placement lifecycle",
+                    )]);
+                }
                 target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
                     semantic_vocabulary::BoundaryCompletion::External(
                         semantic_vocabulary::ExternalCompletionKind::ProcessExit,

@@ -291,14 +291,150 @@ pub(super) fn reseat(
 /// One end of a chunked byte copy: the place whose storage is addressed, the
 /// register holding a pointer to it, and the extent's offset from that
 /// pointer.
-struct CopyEnd<'a> {
-    place: PlaceId,
-    pointer: VirtualRegisterId,
-    byte_offset: u32,
+pub(super) struct CopyEnd<'a> {
+    pub(super) place: PlaceId,
+    pub(super) pointer: VirtualRegisterId,
+    pub(super) byte_offset: u32,
     /// The runtime elements the pointer already scaled in; a read through
     /// them publishes one element row per chunk rather than a place extent
     /// at the static offset, which the load does not address.
-    elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
+    pub(super) elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
+}
+
+/// Move an ordinary structural operand into unpublished aggregate storage.
+/// Constructors and lifecycle results use the same current-pointer/ABI-fragment
+/// transport. Runtime selectors and reference crossings belong to the operand,
+/// not to the operation that happens to consume it.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn copy_operand(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    builder: &mut Builder<'_>,
+    argument: &terminal_psi::StructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    destination: CopyEnd<'_>,
+    shape: calling_conventions::ValueShape,
+) -> Result<(), SelectedInstructionError> {
+    if argument.access != terminal_psi::StructuralAccess::Owned {
+        return Err(SelectedInstructionError::custody_because(
+            "aggregate operand copy requires owned input",
+        ));
+    }
+    if shape.byte_size == 0 {
+        return Ok(());
+    }
+    let projected = project_operand(source, row, builder, argument, indices)?;
+    let Some(input) = projected.pointer else {
+        return copy_from_fragments(
+            source,
+            row,
+            &argument.place,
+            destination,
+            projected.byte_offset,
+            shape,
+            projected.indices,
+            builder,
+        );
+    };
+    copy_bytes(
+        builder,
+        row,
+        CopyEnd {
+            place: argument.place,
+            pointer: input,
+            byte_offset: projected.byte_offset,
+            elements: projected.indices,
+        },
+        destination,
+        shape.byte_size,
+    )
+}
+
+/// One operand's physical projection. Absence of a pointer means ABI value
+/// fragments, not missing or empty storage. A borrowed consumer requires the
+/// addressable case; copying an owned operand also supports the fragment case.
+pub(super) struct ProjectedOperand<'indices> {
+    pub pointer: Option<VirtualRegisterId>,
+    pub byte_offset: u32,
+    pub indices: &'indices [legalized_operations::LegalizedRuntimeIndexOperand],
+}
+
+pub(super) fn project_operand<'indices>(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    builder: &mut Builder<'_>,
+    argument: &terminal_psi::StructuralArgument,
+    indices: &'indices [legalized_operations::LegalizedRuntimeIndexOperand],
+) -> Result<ProjectedOperand<'indices>, SelectedInstructionError> {
+    let signature = source.structural.as_ref().ok_or_else(invalid)?;
+    let root =
+        crate::selection::reference_input::root_type(source, argument.place).ok_or_else(invalid)?;
+    let geometry =
+        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+            root,
+            &argument.path,
+            &signature.structural_types,
+        )
+        .ok_or_else(invalid)?;
+    if !geometry.readable
+        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices,
+            &geometry.elements,
+        )
+    {
+        return Err(SelectedInstructionError::custody_because(
+            "aggregate operand lost its readable projection or selectors",
+        ));
+    }
+    let (input, pointer_slots) = if argument.path.is_empty() {
+        (
+            builder
+                .transport
+                .pointers
+                .iter()
+                .find(|(place, _)| *place == argument.place)
+                .map(|(_, pointer)| *pointer),
+            &[][..],
+        )
+    } else {
+        super::runtime_address::projection_origin(
+            source,
+            builder,
+            row,
+            argument.place,
+            geometry.byte_offset,
+            &geometry.pointer_slots,
+        )?
+    };
+    let Some(input) = input else {
+        return Ok(ProjectedOperand {
+            pointer: None,
+            byte_offset: geometry.byte_offset,
+            indices,
+        });
+    };
+    let (input, consumed) = super::runtime_address::cross_references(
+        builder,
+        row,
+        argument.place,
+        input,
+        indices,
+        pointer_slots,
+    )?;
+    let indices = indices.get(consumed..).ok_or_else(invalid)?;
+    let input = super::runtime_address::scale(
+        builder,
+        row,
+        argument.place,
+        geometry.byte_offset,
+        input,
+        indices,
+    )?;
+    Ok(ProjectedOperand {
+        pointer: Some(input),
+        byte_offset: geometry.byte_offset,
+        indices,
+    })
 }
 
 /// Copy `byte_size` bytes from `from` to `to` in the widest aligned-size
@@ -488,13 +624,10 @@ fn copy_from_fragments(
             destination.elements,
             super::runtime_address::Written::Structural,
         )?;
-        builder.emit_store(
-            displacement,
-            u8::try_from(width).map_err(|_| invalid())?,
-            pointer,
-            value,
-            provenance(row),
-        )?;
+        // ABI fragments may have an odd byte width. The shared fragment
+        // store retains exactly those bytes rather than widening the access.
+        builder.pending_provenance.operations.push(row.operation);
+        super::super::aggregate_memory::store(builder, pointer, value, displacement, width)?;
     }
     Ok(())
 }

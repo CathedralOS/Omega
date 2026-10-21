@@ -5,7 +5,12 @@
 //! end of each origin supplies size and alignment. Internal-call argument/ABI
 //! custody is independently required by object publication, so this obligation
 //! cannot bless a logical caller relation whose pointer was not transported.
-//! Entry parameters and public dynamic arrivals have no closed backing supply.
+//! Ordinary entry parameters and public dynamic arrivals have no closed RAM
+//! supply. Resident backing instead comes from the checked live-content
+//! contract: successful initialization or an explicitly admitted transfer owns
+//! a complete image over this exact extent. It is not an allocation of the
+//! descriptor's type. The physical formation check still proves that the pointer
+//! loads the original owner's base field through its retained source loan.
 
 use abstract_operations::AbstractOperationPlan;
 use selected_instructions::SelectedInstructionPlan;
@@ -62,8 +67,35 @@ impl<'a> BackingGeometry<'a> {
         machine: MachineId,
         result: PlaceId,
         source: &StructuralArgument,
-        required: &PlacedRamCorrespondence,
+        required: &abstract_operations::PlacedReferenceBacking,
     ) -> Result<(), &'static str> {
+        let required = match required {
+            abstract_operations::PlacedReferenceBacking::OrdinaryRam(required) => required,
+            abstract_operations::PlacedReferenceBacking::Resident(resident) => {
+                // Size/alignment were established when live content was
+                // introduced, not when this loan was formed. Requiring a local
+                // initializer here would reject ordinary parameters and checked
+                // transfers. Joining the retained interpretation prevents the
+                // physical consumer from substituting another P/T; source
+                // custody and admission, not this metadata, supply authority.
+                let mut plans = self
+                    .abstracted
+                    .structural_types
+                    .placed_views()
+                    .iter()
+                    .filter(|plan| plan.carrier == resident.carrier);
+                let (Some(plan), None) = (plans.next(), plans.next()) else {
+                    return Err("resident backing has no unique retained placement");
+                };
+                if plan.schema != resident.schema
+                    || plan.placement.content_interpretation().commitment()
+                        != resident.placement_commitment
+                {
+                    return Err("resident backing differs from its checked content interpretation");
+                }
+                return Ok(());
+            }
+        };
         let current = descriptor_machine(self.graph, machine)
             .ok_or("formation machine has no reference-origin graph")?;
         let mut positions = current

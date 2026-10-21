@@ -230,7 +230,11 @@ pub(super) fn refresh_generic_call_results(
         super::const_values::substitute(program, &candidate, Some(expression_start), &[])
             .map_err(|error| vec![error])?;
         crate::monomorphization::body_rewriting::substitute_cloned_type_parameters(
-            None, program, &candidate, type_start,
+            None,
+            program,
+            &candidate,
+            type_start,
+            SymbolHandle::invalid(),
         )
         .map_err(|error| vec![error])?;
         inferred_updates.push(InferredUpdate {

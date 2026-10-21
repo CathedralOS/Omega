@@ -552,7 +552,7 @@ fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
     });
     let successor = machine_code::FunctionFragmentSuccessorProvenance {
         role: SelectedSuccessorRole::Semantic,
-        psi_edge: edge,
+        psi_edge: Some(edge),
         block: SelectedBlockId(1),
         source_target: BlockId::new(2).unwrap(),
         bindings: Vec::new(),
@@ -633,6 +633,66 @@ fn disjoint_same_site_spans_are_not_widened_over_another_operation() {
         },
     ];
     assert!(validate(&fragment, &source, &forged).is_err());
+}
+
+#[test]
+fn operation_trap_attributes_only_its_owning_occurrence() {
+    let (mut fragment, source) = fixture();
+    let expected = produce(&fragment, &source).unwrap();
+    let operation = fragment.blocks[0].instructions[0].provenance.operations[0];
+    fragment.blocks[0].instructions[0].control = Control::OperationTrap { operation };
+    let actual = produce(&fragment, &source).unwrap();
+    assert_eq!(actual, expected);
+    validate(&fragment, &source, &actual).unwrap();
+    fragment.blocks[0].instructions[0].control = Control::OperationTrap {
+        operation: OperationId::new(99).unwrap(),
+    };
+    assert!(produce(&fragment, &source).is_err());
+    assert!(validate(&fragment, &source, &actual).is_err());
+    fragment.blocks[0].instructions[0].control = Control::OperationTrap { operation };
+    fragment.blocks[0].instructions[0]
+        .provenance
+        .edges
+        .push(EdgeId::new(1).unwrap());
+    assert!(produce(&fragment, &source).is_err());
+    assert!(validate(&fragment, &source, &actual).is_err());
+}
+
+#[test]
+fn internal_jump_attributes_its_operation_not_a_fabricated_edge() {
+    let (mut fragment, source) = fixture();
+    let expected = produce(&fragment, &source).unwrap();
+    let operation = fragment.blocks[0].instructions[0].provenance.operations[0];
+    let successor = machine_code::FunctionFragmentSuccessorProvenance {
+        role: SelectedSuccessorRole::OperationContinuation { operation },
+        psi_edge: None,
+        block: SelectedBlockId(1),
+        source_target: BlockId::new(1).unwrap(),
+        bindings: Vec::new(),
+        fuel: Vec::new(),
+    };
+    fragment.blocks[0].instructions[0].control = Control::Jump {
+        successor: successor.clone(),
+    };
+    let actual = produce(&fragment, &source).unwrap();
+    assert_eq!(actual, expected);
+    validate(&fragment, &source, &actual).unwrap();
+    for forged in [
+        machine_code::FunctionFragmentSuccessorProvenance {
+            psi_edge: EdgeId::new(1),
+            ..successor.clone()
+        },
+        machine_code::FunctionFragmentSuccessorProvenance {
+            role: SelectedSuccessorRole::OperationContinuation {
+                operation: OperationId::new(99).unwrap(),
+            },
+            ..successor
+        },
+    ] {
+        fragment.blocks[0].instructions[0].control = Control::Jump { successor: forged };
+        assert!(produce(&fragment, &source).is_err());
+        assert!(validate(&fragment, &source, &actual).is_err());
+    }
 }
 
 #[test]

@@ -7,6 +7,56 @@ use terminal_psi::{
 };
 
 #[test]
+fn placed_reference_wire_preserves_owner_roles_and_backing_kind() {
+    let source = StructuralArgument {
+        place: PlaceId::new(2).unwrap(),
+        access: StructuralAccess::MutableBorrow,
+        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(4))],
+    };
+    let resident = terminal_psi::ResidentReferenceSource {
+        base: semantic_vocabulary::StructuralFieldId::new(7).unwrap(),
+        length: semantic_vocabulary::StructuralFieldId::new(8).unwrap(),
+        granted: StructuralDomainId::new(9).unwrap(),
+        resident: StructuralDomainId::new(10).unwrap(),
+    };
+    let mut encodings = Vec::new();
+    for roles in [
+        None,
+        Some(resident),
+        Some(terminal_psi::ResidentReferenceSource {
+            base: resident.length,
+            length: resident.base,
+            ..resident
+        }),
+    ] {
+        let mut writer = Writer::default();
+        super::storage_operations::encode_establish_placed_reference(
+            &mut writer,
+            source.clone(),
+            roles,
+        )
+        .unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            reader.u8().unwrap(),
+            super::operation_tags::ESTABLISH_PLACED_REFERENCE
+        );
+        assert_eq!(
+            super::storage_operations::decode_establish_placed_reference(&mut reader).unwrap(),
+            OperationKind::EstablishPlacedReference {
+                source: source.clone(),
+                resident: roles
+            }
+        );
+        assert_eq!(reader.remaining(), 0);
+        encodings.push(bytes);
+    }
+    assert_ne!(encodings[0], encodings[1]);
+    assert_ne!(encodings[1], encodings[2]);
+}
+
+#[test]
 fn owned_value_wire_preserves_projected_source_and_claim_identity() {
     let path = vec![StructuralPathSegment::Field(TerminalIdentityIndex(4))];
     let operation = Operation {

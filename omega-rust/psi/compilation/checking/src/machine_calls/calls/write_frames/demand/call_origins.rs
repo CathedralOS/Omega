@@ -8,6 +8,39 @@ use crate::machine_calls::calls::write_frames as frames;
 use symbols::JoinedPath;
 
 impl<'program> CallFrameResolver<'program> {
+    /// Capture one reference-valued operand with its full storage
+    /// interpretation. Constructor projection selects the operand; this
+    /// shared prefix/effect law still decides whether its source survived.
+    pub fn reference_operand_write_sources(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<Vec<LocalWriteSource>> {
+        crate::reference_shell(self.program, reference)?;
+        let site = CallerWriteSite::Expression(expression);
+        let (_, statement, _) = caller_statement_owner(self.program, machine, site)?;
+        let preceding_effect = self.prefix_may_change_origins(machine, statement, site);
+        with_caller_origin_context(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            site,
+            &self.caches.state_write_collections,
+            |inference, prefix| {
+                self.capture_operand_origins(
+                    machine,
+                    inference,
+                    prefix,
+                    &[expression],
+                    &[reference],
+                    preceding_effect,
+                )?
+                .pop()?
+            },
+        )
+    }
+
     pub fn call_write_origins(
         &self,
         machine: &'program Machine,

@@ -213,7 +213,8 @@ pub(super) fn admit<'source>(
             .memory_accesses
             .iter()
             .any(|access| match access.role {
-                SelectedMemoryAccessRole::WriteLocal { slot }
+                SelectedMemoryAccessRole::ReadLocal { slot }
+                | SelectedMemoryAccessRole::WriteLocal { slot }
                 | SelectedMemoryAccessRole::AddressLocal { slot } => {
                     local_slot_mentions(slot, output)
                 }
@@ -352,7 +353,8 @@ fn redensify(
 ) -> Result<(), CopyRemovalError> {
     for access in &mut function.memory_accesses {
         match &mut access.role {
-            SelectedMemoryAccessRole::WriteLocal { slot }
+            SelectedMemoryAccessRole::ReadLocal { slot }
+            | SelectedMemoryAccessRole::WriteLocal { slot }
             | SelectedMemoryAccessRole::AddressLocal { slot } => {
                 lower_local_slot(slot, removed_register)?;
             }
@@ -406,7 +408,7 @@ fn terminator_successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut Se
             when_not_less,
             ..
         ) => vec![when_less, when_not_less],
-        selected_instructions::terminator_exit_triple_pattern!(..) => Vec::new(),
+        selected_instructions::terminator_no_successor_pattern!(..) => Vec::new(),
     }
 }
 

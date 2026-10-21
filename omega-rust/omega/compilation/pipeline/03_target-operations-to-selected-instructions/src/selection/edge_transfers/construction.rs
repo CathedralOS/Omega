@@ -51,7 +51,7 @@ pub(in crate::selection) fn prepare(
                 .iter()
                 .position(|work| {
                     successor.role == SelectedSuccessorRole::Semantic
-                        && work.edge == successor.psi_edge
+                        && Some(work.edge) == successor.psi_edge
                 })
                 .map(|position| edge_work.remove(position));
             let (preparation, mut cleanup) = work.map_or_else(
@@ -129,6 +129,50 @@ pub(in crate::selection) fn prepare(
             let bridge_id = SelectedBlockId(
                 u32::try_from(source_count + bridges.len()).map_err(|_| invalid(function_index))?,
             );
+            if let SelectedSuccessorRole::OperationContinuation { operation } = successor.role {
+                if successor.psi_edge.is_some()
+                    || !successor.fuel.is_empty()
+                    || !successor.bindings.is_empty()
+                    || !successor.structural_bindings.is_empty()
+                    || successor.structural_case.is_some()
+                    || !preparation.is_empty()
+                    || !cleanup.is_empty()
+                {
+                    return Err(invalid(function_index));
+                }
+                // Physical fallthrough conflicts need a jump, not an invented
+                // semantic edge or a second custody/fuel settlement.
+                let jump_id = SelectedInstructionId(
+                    u32::try_from(next_instruction).map_err(|_| invalid(function_index))?,
+                );
+                next_instruction += 1;
+                let jump = super::super::constraints::instruction(
+                    jump_id,
+                    SelectedInstructionKind::Jump,
+                    constraints.keys.jump,
+                    &[],
+                    SelectedInstructionProvenance {
+                        operations: vec![operation],
+                        ..Default::default()
+                    },
+                    catalog,
+                )?;
+                bridges.push(SelectedBlock {
+                    id: bridge_id,
+                    origin: SelectedBlockOrigin::Operation {
+                        source: successor.source_target,
+                        operation,
+                    },
+                    instructions: Vec::new(),
+                    terminator: SelectedTerminator::Jump {
+                        instruction: jump,
+                        successor: successor.clone(),
+                    },
+                });
+                successor.block = bridge_id;
+                continue;
+            }
+            let psi_edge = successor.psi_edge.ok_or_else(|| invalid(function_index))?;
             let mut continuation = successor.clone();
             continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
             continuation.fuel.clear();
@@ -146,7 +190,7 @@ pub(in crate::selection) fn prepare(
                         &mut function.local_storage_slots,
                         &mut instructions,
                         &mut next_instruction,
-                        successor.psi_edge,
+                        psi_edge,
                         &successor.structural_bindings,
                         constraints,
                         catalog,
@@ -158,7 +202,7 @@ pub(in crate::selection) fn prepare(
                         &mut function.memory_accesses,
                         &mut instructions,
                         &mut next_instruction,
-                        successor.psi_edge,
+                        psi_edge,
                         &successor.structural_bindings,
                         constraints,
                         catalog,
@@ -221,7 +265,7 @@ pub(in crate::selection) fn prepare(
                 &mut function.memory_accesses,
                 &mut instructions,
                 &mut next_instruction,
-                successor.psi_edge,
+                psi_edge,
                 &successor.structural_bindings,
                 &descriptors,
                 constraints,
@@ -234,7 +278,7 @@ pub(in crate::selection) fn prepare(
                 &mut function.memory_accesses,
                 &mut instructions,
                 &mut next_instruction,
-                successor.psi_edge,
+                psi_edge,
                 &scalar_references,
                 constraints,
                 catalog,
@@ -245,7 +289,7 @@ pub(in crate::selection) fn prepare(
                 &mut function.memory_accesses,
                 &mut instructions,
                 &mut next_instruction,
-                successor.psi_edge,
+                psi_edge,
                 &successor.structural_bindings,
                 constraints,
                 catalog,
@@ -272,7 +316,7 @@ pub(in crate::selection) fn prepare(
             bridges.push(SelectedBlock {
                 id: bridge_id,
                 origin: SelectedBlockOrigin::EdgeTransfer {
-                    edge: successor.psi_edge,
+                    edge: psi_edge,
                     target: successor.source_target,
                 },
                 instructions,

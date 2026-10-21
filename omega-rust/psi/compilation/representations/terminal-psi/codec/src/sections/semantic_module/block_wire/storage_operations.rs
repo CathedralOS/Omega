@@ -19,11 +19,20 @@ use terminal_psi::{StructuralArgument, StructuralPathSegment};
 pub(super) fn encode_establish_placed_reference(
     writer: &mut Writer,
     source: StructuralArgument,
+    resident: Option<terminal_psi::ResidentReferenceSource>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_PLACED_REFERENCE);
     writer.id(source.place);
     super::super::structural_signature_wire::encode_structural_access(writer, source.access);
-    encode_structural_path(writer, "placed reference source path", &source.path)
+    encode_structural_path(writer, "placed reference source path", &source.path)?;
+    writer.boolean(resident.is_some());
+    if let Some(resident) = resident {
+        writer.id(resident.base);
+        writer.id(resident.length);
+        writer.id(resident.granted);
+        writer.id(resident.resident);
+    }
+    Ok(())
 }
 
 pub(super) fn decode_establish_placed_reference(
@@ -34,6 +43,16 @@ pub(super) fn decode_establish_placed_reference(
             place: reader.id("PlaceId")?,
             access: super::super::structural_signature_wire::decode_structural_access(reader)?,
             path: decode_structural_path(reader)?,
+        },
+        resident: if reader.boolean()? {
+            Some(terminal_psi::ResidentReferenceSource {
+                base: reader.id("StructuralFieldId")?,
+                length: reader.id("StructuralFieldId")?,
+                granted: reader.id("StructuralDomainId")?,
+                resident: reader.id("StructuralDomainId")?,
+            })
+        } else {
+            None
         },
     })
 }

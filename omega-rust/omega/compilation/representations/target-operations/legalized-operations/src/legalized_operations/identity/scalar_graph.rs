@@ -71,7 +71,33 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
-                LegalizedScalarInstructionKind::EstablishActivationClaim { result, bound, committed, backing_type, established_case, rejected_case, layout } => {
+                LegalizedScalarInstructionKind::PlacementLifecycle {
+                    boundary,
+                    operands,
+                    indices,
+                    result,
+                } => {
+                    bytes.push(249);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    bytes.push(match operands.operation() {
+                        terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
+                        terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
+                    });
+                    for argument in operands.arguments() {
+                        super::structural_types::encode_structural_argument(bytes, argument);
+                    }
+                    encode_runtime_indices(bytes, indices);
+                    super::structural_result::encode_operation_result(bytes, result);
+                }
+                LegalizedScalarInstructionKind::EstablishActivationClaim {
+                    result,
+                    bound,
+                    committed,
+                    backing_type,
+                    established_case,
+                    rejected_case,
+                    layout,
+                } => {
                     bytes.push(253);
                     super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&bound.to_le_bytes());
@@ -319,40 +345,68 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(94);
                     super::structural_result::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        correspondence.schema.get().to_le_bytes(),
-                    );
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        correspondence.carrier.get().to_le_bytes(),
-                    );
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        correspondence.source_byte_length.to_le_bytes(),
-                    );
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        correspondence.required_base.modulus().to_le_bytes(),
-                    );
-                    crate::codec_bytes::push_encoded(
-                        bytes,
-                        correspondence.required_base.residue().to_le_bytes(),
-                    );
-                    encode_len(bytes, correspondence.fields.len());
-                    for field in &correspondence.fields {
-                        crate::codec_bytes::push_encoded(bytes, field.access_slot.to_le_bytes());
-                        crate::codec_bytes::push_encoded(
-                            bytes,
-                            field.source_field.get().to_le_bytes(),
-                        );
-                        crate::codec_bytes::push_encoded(bytes, field.byte_offset.to_le_bytes());
-                        crate::codec_bytes::push_encoded(
-                            bytes,
-                            field.transfer_width_bits.to_le_bytes(),
-                        );
-                        encode_scalar_type(bytes, field.logical_scalar);
-                        encode_scalar_type(bytes, field.stored_scalar);
+                    match correspondence {
+                        abstract_operations::PlacedReferenceBacking::OrdinaryRam(
+                            correspondence,
+                        ) => {
+                            bytes.push(0);
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                correspondence.schema.get().to_le_bytes(),
+                            );
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                correspondence.carrier.get().to_le_bytes(),
+                            );
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                correspondence.source_byte_length.to_le_bytes(),
+                            );
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                correspondence.required_base.modulus().to_le_bytes(),
+                            );
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                correspondence.required_base.residue().to_le_bytes(),
+                            );
+                            encode_len(bytes, correspondence.fields.len());
+                            for field in &correspondence.fields {
+                                crate::codec_bytes::push_encoded(
+                                    bytes,
+                                    field.access_slot.to_le_bytes(),
+                                );
+                                crate::codec_bytes::push_encoded(
+                                    bytes,
+                                    field.source_field.get().to_le_bytes(),
+                                );
+                                crate::codec_bytes::push_encoded(
+                                    bytes,
+                                    field.byte_offset.to_le_bytes(),
+                                );
+                                crate::codec_bytes::push_encoded(
+                                    bytes,
+                                    field.transfer_width_bits.to_le_bytes(),
+                                );
+                                encode_scalar_type(bytes, field.logical_scalar);
+                                encode_scalar_type(bytes, field.stored_scalar);
+                            }
+                        }
+                        abstract_operations::PlacedReferenceBacking::Resident(resident) => {
+                            bytes.push(1);
+                            for identity in [
+                                resident.owner.get(),
+                                resident.schema.get(),
+                                resident.carrier.get(),
+                                resident.roles.base.get(),
+                                resident.roles.length.get(),
+                                resident.roles.granted.get(),
+                                resident.roles.resident.get(),
+                            ] {
+                                bytes.extend_from_slice(&identity.to_le_bytes());
+                            }
+                            bytes.extend_from_slice(&resident.placement_commitment);
+                        }
                     }
                     super::calling::encode_shape(bytes, *shape);
                     encode_runtime_indices(bytes, indices);

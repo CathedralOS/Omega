@@ -131,6 +131,38 @@ fn validate_expression(
     if !expression.is_valid() {
         return;
     }
+    if let Some(formation) = super::recasts::reference_formation_source(program, expression)
+        && matches!(
+            formation.interpretation,
+            super::recasts::ReferenceFormationInterpretation::ResidentPlaced { .. }
+        )
+        && let Some(plan) = program.placed_view_plans.iter().find(|plan| {
+            plan.data_symbol
+                == program.type_reference_table.type_symbol(
+                    program
+                        .type_reference_table
+                        .peeled_type_reference(formation.view_type),
+                )
+        })
+        && plan.fields.iter().any(|field| {
+            matches!(
+                field.access,
+                FieldAccess::External {
+                    read: access_plans::ExternalRead::Take,
+                    ..
+                }
+            )
+        })
+    {
+        // A content write can return the same Resident only while no operation
+        // creates an untracked hole. Ordinary borrowed-storage windows do not
+        // yet describe a destructive accessor on separate resident backing.
+        // Refuse that capability at formation, not after preserving the owner.
+        diagnostics.push(Diagnostic::error(
+            "resident placed view with destructive read requires tracked content restoration before loan return",
+        ));
+        return;
+    }
     if let Some((view, field)) = placed_view_field_for_place(program, machine, state, expression) {
         validate_binding_private_use(program, machine, view, field, diagnostics);
     }

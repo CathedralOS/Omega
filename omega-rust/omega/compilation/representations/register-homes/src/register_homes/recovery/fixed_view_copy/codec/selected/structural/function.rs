@@ -263,6 +263,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
+            SelectedMemoryAccessRole::ReadBacking => bytes.push(18),
+            SelectedMemoryAccessRole::WriteBacking => bytes.push(19),
+            SelectedMemoryAccessRole::ReadLocal { slot } => {
+                bytes.push(17);
+                slot.encode_identity(bytes);
+            }
             SelectedMemoryAccessRole::WritePlace => bytes.push(6),
             SelectedMemoryAccessRole::WriteOutgoing { slot } => {
                 bytes.push(1);
@@ -425,6 +431,11 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                 length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             },
             0 => SelectedMemoryAccessRole::ReadPlace,
+            18 => SelectedMemoryAccessRole::ReadBacking,
+            19 => SelectedMemoryAccessRole::WriteBacking,
+            17 => SelectedMemoryAccessRole::ReadLocal {
+                slot: decode_local_slot(cursor)?,
+            },
             6 => SelectedMemoryAccessRole::WritePlace,
             1 => SelectedMemoryAccessRole::WriteOutgoing {
                 slot: decode_slot(cursor)?,
@@ -596,10 +607,10 @@ mod local_slot_tests {
         zero_place[1] = 0;
         assert!(decode_local_slot(&mut Cursor::new(&zero_place)).is_err());
         let mut unknown_tag = encoded;
-        unknown_tag[0] = 6;
+        unknown_tag[0] = 255;
         assert_eq!(
             decode_local_slot(&mut Cursor::new(&unknown_tag)),
-            Err(FixedViewCopyDecodeError::UnknownOption(6))
+            Err(FixedViewCopyDecodeError::UnknownOption(255))
         );
     }
 }

@@ -37,6 +37,14 @@ pub(super) fn require_reached_providers(
                 .boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == *boundary)?;
+            // Private memory operations are not supplied by provider selection.
+            // Their operation owner joins the installed profile call and keeps
+            // the native-execution fence until backing realization exists.
+            if declaration.declaration.as_ref()
+                .and_then(|declaration| declaration.execution.placement_operation())
+                .is_some() {
+                return None;
+            }
             let requirement = plan.identities.text(declaration.identity)?;
             (selected
                 .selected_requirement_row(requirement)

@@ -742,14 +742,14 @@ pub enum AbstractOperation {
         )>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
-    /// Establish one verified reference carrier. The structural result owns the
-    /// loan; its referent remains the `source` argument's projected home and is
-    /// located by compile-time custody, never by reading a stored pointer.
+    /// Establish one placed reference carrier. The source operand retains the
+    /// loan's owner independently of address derivation: ordinary RAM lends its
+    /// storage home, whereas a resident lends the backing named by its owner.
     EstablishPlacedReference {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         source: StructuralArgument,
-        correspondence: terminal_psi::PlacedRamCorrespondence,
+        correspondence: super::PlacedReferenceBacking,
     },
     EstablishReference {
         psi_operation: OperationId,
@@ -1016,7 +1016,8 @@ impl AbstractOperation {
             } => {
                 vec![destination.path.as_slice(), path.as_slice()]
             }
-            Self::MoveStructuralValue { source, .. } | Self::ReleaseActivationClaim { source, .. } => vec![source.path.as_slice()],
+            Self::MoveStructuralValue { source, .. }
+            | Self::ReleaseActivationClaim { source, .. } => vec![source.path.as_slice()],
             Self::TransformContent {
                 source, parents, ..
             } => std::iter::once(source.path.as_slice())

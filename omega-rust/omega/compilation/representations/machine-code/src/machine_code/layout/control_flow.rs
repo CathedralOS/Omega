@@ -21,7 +21,7 @@ impl ResolvedBranchEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedJumpEvidence {
     pub source_block: SelectedBlockId,
-    pub target_edge: EdgeId,
+    pub target_edge: Option<EdgeId>,
     pub target_block: SelectedBlockId,
     pub target_offset: u64,
     pub byte_displacement: i64,
@@ -49,10 +49,10 @@ impl ResolvedConditionalBranchPredicate {
 pub struct ResolvedConditionalBranchEvidence {
     pub predicate: ResolvedConditionalBranchPredicate,
     pub source_block: SelectedBlockId,
-    pub when_taken_edge: EdgeId,
+    pub when_taken_edge: Option<EdgeId>,
     pub when_taken_block: SelectedBlockId,
     pub when_taken_offset: u64,
-    pub when_fallthrough_edge: EdgeId,
+    pub when_fallthrough_edge: Option<EdgeId>,
     pub when_fallthrough_block: SelectedBlockId,
     pub when_fallthrough_offset: u64,
     /// x86-64 measures from instruction end; AArch64 measures from the branch

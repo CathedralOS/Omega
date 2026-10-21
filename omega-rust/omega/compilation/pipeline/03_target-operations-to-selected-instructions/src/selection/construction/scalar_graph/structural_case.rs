@@ -111,7 +111,9 @@ pub(super) fn build(
     };
     match dispatch_source {
         selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
-            let storage_shape = crate::selection::activation_storage_input::local_shape(source, slot, *root_shape).ok_or_else(invalid)?;
+            let storage_shape =
+                crate::selection::activation_storage_input::local_shape(source, slot, *root_shape)
+                    .ok_or_else(invalid)?;
             if builder
                 .transport
                 .local_slots
@@ -259,7 +261,17 @@ pub(super) fn build(
         &[pointer, tag],
         Default::default(),
     )?;
-    let extra_base = source.blocks.len() + builder.case_blocks.len();
+    let extra_base = builder.next_block as usize;
+    builder.next_block = builder
+        .next_block
+        .checked_add(
+            tested
+                .len()
+                .saturating_sub(1)
+                .try_into()
+                .map_err(|_| invalid())?,
+        )
+        .ok_or_else(invalid)?;
     let mut first = None;
     for ordinal in 0..tested.len() {
         let start = builder.instructions.len();
@@ -290,7 +302,7 @@ pub(super) fn build(
         } else {
             SelectedSuccessor {
                 role: selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation,
-                psi_edge: cases[ordinal + 1].edge,
+                psi_edge: Some(cases[ordinal + 1].edge),
                 source_target: block.id,
                 block: SelectedBlockId((extra_base + ordinal).try_into().map_err(|_| invalid())?),
                 bindings: Vec::new(),
@@ -318,7 +330,7 @@ pub(super) fn build(
             builder.block_body_end = Some(builder.instructions.len() - 1);
             first = Some(terminator);
         } else {
-            builder.case_blocks.push(SelectedBlock {
+            builder.implementation_blocks.push(SelectedBlock {
                 id: SelectedBlockId(
                     (extra_base + ordinal - 1)
                         .try_into()
@@ -458,7 +470,7 @@ fn successor(
     }
     Ok(SelectedSuccessor {
         role: selected_instructions::SelectedSuccessorRole::Semantic,
-        psi_edge: case.edge,
+        psi_edge: Some(case.edge),
         block: SelectedBlockId(block.try_into().map_err(|_| invalid())?),
         source_target: case.target,
         bindings: Vec::new(),

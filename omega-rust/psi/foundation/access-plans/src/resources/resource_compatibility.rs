@@ -38,6 +38,74 @@ pub struct PlacementResourceCompatibility {
     pub(crate) fields: Vec<EffectiveFieldSupply>,
 }
 
+/// Supply compatibility for writing a complete initial image and then using
+/// its declared placement. This describes demand, not vacancy, a live loan,
+/// owned input custody, or a completed write. Those belong to establishment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InitializationResourceCompatibility {
+    placement: PlacementResourceCompatibility,
+    byte_length: u64,
+}
+
+impl InitializationResourceCompatibility {
+    pub const fn placement(&self) -> &PlacementResourceCompatibility {
+        &self.placement
+    }
+
+    /// Complete encoded image, including padding initialized by the writer.
+    pub const fn byte_length(&self) -> u64 {
+        self.byte_length
+    }
+}
+
+/// Join initialization's complete-image write with the subsequent view demand.
+///
+/// Accessor permissions alone cannot answer this question: an inaccessible or
+/// read-only field still has to be initialized. The complete-image writer also
+/// touches padding. Require uninterrupted Stable write supply over that image,
+/// independently of the operations the resulting view exposes. Adjacent rows
+/// may supply different additional capabilities; no single-region assumption
+/// is justified for a sequence of ordinary Stable writes.
+pub fn validate_initialization_resources(
+    plan: &ValidatedPlacementPlan,
+    profile: &ValidatedResourceProfile,
+) -> Result<InitializationResourceCompatibility, AccessPlanDiagnostic> {
+    let placement = validate_placement_resources(plan, profile)?;
+    let byte_length = plan.access.layout_size_bytes;
+    let mut covered = 0;
+    for region in &profile.regions {
+        if covered == byte_length {
+            break;
+        }
+        if region.offset != covered {
+            return Err(AccessPlanDiagnostic(format!(
+                "initialization image has no resource supply at byte {covered}"
+            )));
+        }
+        if !region.stable.permits(false, true) {
+            return Err(AccessPlanDiagnostic(format!(
+                "initialization image requires Stable write supply at byte {covered}"
+            )));
+        }
+        if !region.reach.contains_all(&plan.reach) {
+            return Err(AccessPlanDiagnostic(format!(
+                "initialization image lacks the placement's complete boundary reach at byte {covered}"
+            )));
+        }
+        // Normalized regions have non-overflowing ends bounded by the profile.
+        covered = (region.offset + region.length).min(byte_length);
+    }
+    if covered != byte_length {
+        return Err(AccessPlanDiagnostic(format!(
+            "initialization image has no resource supply at byte {covered}"
+        )));
+    }
+    Ok(InitializationResourceCompatibility {
+        placement,
+        byte_length,
+    })
+}
+
 impl BaseCongruence {
     pub const fn modulus(self) -> u64 {
         self.modulus

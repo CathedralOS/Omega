@@ -287,13 +287,10 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     &mut modified_callee_saved,
                     encoded,
                 )?;
-                if let SelectedTerminator::Crash {
-                    psi_edge,
-                    cause,
-                    instruction: terminal,
-                    ..
-                } = &block.terminator
-                    && terminal.id == instruction.id
+                if matches!(&block.terminator,
+                    SelectedTerminator::Crash { instruction: terminal, .. }
+                    | SelectedTerminator::OperationTrap { instruction: terminal, .. }
+                    if terminal.id == instruction.id)
                 {
                     let end = resolved_block
                         .offset
@@ -308,14 +305,23 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         end,
                         encoded,
                     )?;
-                    crashes.push(machine_code::WholeFunctionCrashEvidence {
-                        block: block.id,
-                        psi_edge: *psi_edge,
-                        cause: *cause,
-                        instruction: instruction.id,
-                        offset: resolved_row.offset,
-                        bytes: resolved_row.bytes.clone(),
-                    });
+                    // Both terminators must encode a final physical trap. Only
+                    // an authored crash has a source edge/cause to publish;
+                    // operation containment retains its operation provenance
+                    // in the selected CFG and fragment control instead.
+                    if let SelectedTerminator::Crash {
+                        psi_edge, cause, ..
+                    } = &block.terminator
+                    {
+                        crashes.push(machine_code::WholeFunctionCrashEvidence {
+                            block: block.id,
+                            psi_edge: *psi_edge,
+                            cause: *cause,
+                            instruction: instruction.id,
+                            offset: resolved_row.offset,
+                            bytes: resolved_row.bytes.clone(),
+                        });
+                    }
                 } else if let SelectedTerminator::HostedExitProcess {
                     completion_edge,
                     instruction: terminal,

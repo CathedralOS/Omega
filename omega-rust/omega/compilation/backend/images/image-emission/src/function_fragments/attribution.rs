@@ -11,6 +11,33 @@ use machine_code::{
 };
 use selected_instructions::SelectedSuccessorRole;
 
+fn semantic_edge(
+    successor: &machine_code::FunctionFragmentSuccessorProvenance,
+) -> Result<semantic_vocabulary::EdgeId, Error> {
+    successor
+        .psi_edge
+        .ok_or(Error::Mismatch("semantic successor lost its authored edge"))
+}
+
+fn implementation_successor(
+    successor: &machine_code::FunctionFragmentSuccessorProvenance,
+    provenance: &selected_instructions::SelectedInstructionProvenance,
+) -> bool {
+    if !successor.fuel.is_empty() || !successor.bindings.is_empty() {
+        return false;
+    }
+    match successor.role {
+        SelectedSuccessorRole::CaseDispatchContinuation => successor.psi_edge.is_some(),
+        SelectedSuccessorRole::OperationContinuation { operation } => {
+            successor.psi_edge.is_none()
+                && provenance.operations.contains(&operation)
+                && provenance.edges.is_empty()
+                && provenance.fuel.is_empty()
+        }
+        _ => false,
+    }
+}
+
 pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Result<usize, Error> {
     let mut matches = source
         .operations
@@ -74,6 +101,16 @@ pub(super) fn produce(
             push(SemanticCodeSite::Operation(*operation), offset, length)?;
         }
         match &instruction.control {
+            Control::OperationTrap { operation } => {
+                if instruction.provenance.operations.as_slice() != [*operation]
+                    || !instruction.provenance.edges.is_empty()
+                    || !instruction.provenance.fuel.is_empty()
+                {
+                    return Err(Error::Mismatch(
+                        "operation trap changed its owning occurrence",
+                    ));
+                }
+            }
             Control::Crash { psi_edge, .. } => {
                 push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
             }
@@ -84,9 +121,23 @@ pub(super) fn produce(
                 push(SemanticCodeSite::Edge(*psi_return_edge), offset, length)?
             }
             Control::Jump { successor } if successor.role == SelectedSuccessorRole::Semantic => {
-                push(SemanticCodeSite::Edge(successor.psi_edge), offset, length)?
+                push(
+                    SemanticCodeSite::Edge(semantic_edge(successor)?),
+                    offset,
+                    length,
+                )?
             }
-            Control::Jump { .. } => {}
+            Control::Jump { successor } => {
+                if matches!(
+                    successor.role,
+                    SelectedSuccessorRole::OperationContinuation { .. }
+                ) && !implementation_successor(successor, &instruction.provenance)
+                {
+                    return Err(Error::Mismatch(
+                        "operation jump changed its owning occurrence",
+                    ));
+                }
+            }
             Control::ConditionalBranch {
                 when_taken,
                 when_fallthrough,
@@ -94,16 +145,18 @@ pub(super) fn produce(
             } => {
                 if [when_taken, when_fallthrough].iter().any(|successor| {
                     successor.role != SelectedSuccessorRole::Semantic
-                        && !(successor.role == SelectedSuccessorRole::CaseDispatchContinuation
-                            && successor.fuel.is_empty()
-                            && successor.bindings.is_empty())
+                        && !implementation_successor(successor, &instruction.provenance)
                 }) {
                     return Err(Error::Mismatch(
                         "conditional successor has nonsemantic attribution role",
                     ));
                 }
                 if when_taken.role == SelectedSuccessorRole::Semantic {
-                    push(SemanticCodeSite::Edge(when_taken.psi_edge), offset, length)?;
+                    push(
+                        SemanticCodeSite::Edge(semantic_edge(when_taken)?),
+                        offset,
+                        length,
+                    )?;
                 }
                 let Some(branch) = instruction.branch.as_deref() else {
                     return Err(Error::Mismatch("conditional has no decoded branch"));
@@ -113,7 +166,7 @@ pub(super) fn produce(
                 };
                 if when_fallthrough.role == SelectedSuccessorRole::Semantic {
                     push(
-                        SemanticCodeSite::Edge(when_fallthrough.psi_edge),
+                        SemanticCodeSite::Edge(semantic_edge(when_fallthrough)?),
                         host(branch.when_fallthrough_offset)?,
                         0,
                     )?;
@@ -226,13 +279,33 @@ pub(super) fn validate(
             }
         }
         let edges: Vec<_> = match &instruction.control {
+            Control::OperationTrap { operation } => {
+                if instruction.provenance.operations.as_slice() != [*operation]
+                    || !instruction.provenance.edges.is_empty()
+                    || !instruction.provenance.fuel.is_empty()
+                {
+                    return Err(Error::Mismatch(
+                        "operation trap changed its owning occurrence",
+                    ));
+                }
+                Vec::new()
+            }
             Control::Crash { psi_edge, .. } => vec![*psi_edge],
             Control::HostedExitProcess { completion_edge } => vec![*completion_edge],
             Control::Return { psi_return_edge } => vec![*psi_return_edge],
             Control::Jump { successor } => {
                 if successor.role == SelectedSuccessorRole::Semantic {
-                    vec![successor.psi_edge]
+                    vec![semantic_edge(successor)?]
                 } else {
+                    if matches!(
+                        successor.role,
+                        SelectedSuccessorRole::OperationContinuation { .. }
+                    ) && !implementation_successor(successor, &instruction.provenance)
+                    {
+                        return Err(Error::Mismatch(
+                            "operation jump changed its owning occurrence",
+                        ));
+                    }
                     Vec::new()
                 }
             }
@@ -243,9 +316,7 @@ pub(super) fn validate(
             } => {
                 if [when_taken, when_fallthrough].iter().any(|successor| {
                     successor.role != SelectedSuccessorRole::Semantic
-                        && !(successor.role == SelectedSuccessorRole::CaseDispatchContinuation
-                            && successor.fuel.is_empty()
-                            && successor.bindings.is_empty())
+                        && !implementation_successor(successor, &instruction.provenance)
                 }) {
                     return Err(Error::Mismatch(
                         "conditional successor has nonsemantic attribution role",
@@ -254,8 +325,8 @@ pub(super) fn validate(
                 [when_taken, when_fallthrough]
                     .into_iter()
                     .filter(|successor| successor.role == SelectedSuccessorRole::Semantic)
-                    .map(|successor| successor.psi_edge)
-                    .collect()
+                    .map(semantic_edge)
+                    .collect::<Result<Vec<_>, _>>()?
             }
             Control::InternalCall { owner, .. } => owner.edge().into_iter().collect(),
             Control::NormalizedForeignCall {
@@ -280,7 +351,7 @@ pub(super) fn validate(
                 when_fallthrough, ..
             } = &instruction.control
                 && when_fallthrough.role == SelectedSuccessorRole::Semantic
-                && when_fallthrough.psi_edge == edge
+                && when_fallthrough.psi_edge == Some(edge)
                 && let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
                     instruction.branch.as_deref()
                 && present(
@@ -325,13 +396,14 @@ fn supports(
             ordinary && instruction.provenance.operations.contains(&operation)
         }
         SemanticCodeSite::Edge(edge) => match &instruction.control {
+            Control::OperationTrap { .. } => false,
             Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
             Control::HostedExitProcess { completion_edge } => edge == *completion_edge && ordinary,
             Control::Return { psi_return_edge } => ordinary && edge == *psi_return_edge,
             Control::Jump { successor } => {
                 successor.role == SelectedSuccessorRole::Semantic
                     && ordinary
-                    && edge == successor.psi_edge
+                    && Some(edge) == successor.psi_edge
             }
             Control::ConditionalBranch {
                 when_taken,
@@ -340,9 +412,9 @@ fn supports(
             } => {
                 (when_taken.role == SelectedSuccessorRole::Semantic
                     && ordinary
-                    && edge == when_taken.psi_edge)
+                    && Some(edge) == when_taken.psi_edge)
                     || (when_fallthrough.role == SelectedSuccessorRole::Semantic
-                        && edge == when_fallthrough.psi_edge
+                        && Some(edge) == when_fallthrough.psi_edge
                         && length == 0
                         && matches!(
                             instruction.branch.as_deref(),

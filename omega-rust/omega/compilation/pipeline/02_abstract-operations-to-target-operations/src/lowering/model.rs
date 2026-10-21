@@ -10,6 +10,12 @@ pub use terminal_psi_to_abstract_operations::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    InvalidPlacementLifecycle {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        reason: &'static str,
+    },
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),

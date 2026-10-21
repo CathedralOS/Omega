@@ -631,7 +631,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 174 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 182 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -657,9 +657,30 @@ then its structural-input relations and result relation. Scalar actuals use the
 ordinary scalar call lane. Correspondence checking judgments, selected theorem
 schemas and automatic/selected implication evidence remain source-side and are
 not serialized here. Marker 171 replaced the earlier proof-row catalog layout.
-Marker 174 retains that quotient layout, the folded constant closure, and
+Marker 182 retains that quotient layout, the folded constant closure, and
 caller-activation claim establishment and release operations under vocabulary
 130, together with the indexed theorem and mathematical-carrier tables above.
+It adds whole-value placement lifecycle plans independently of field-view plans,
+including their selected-provider or compiler-primitive execution obligation.
+Each compiler lifecycle retains the exact profile-supply requirement coordinate as well
+as its result type, independently projected exact nominal owner and callable
+identity. Receiving joins that coordinate to both identities; matching a
+profile's shape does not identify its issuer. Source proof/admission authenticates
+the projection itself; these consistency joins do not replace it.
+Lifecycle plans retain every represented schema field in normalized access-slot
+order, including inaccessible fields. Erased and zero-byte children stay in
+semantic custody but have no image entry; field-view accessors are not the
+whole-value image roster.
+Boundary and dynamic scalar results retain their complete qualification sets.
+Placed-reference formation retains a Boolean resident-source discriminator after
+its source path. When true, two structural-field IDs identify the source owner's
+base and length fields, followed by two structural-domain IDs for its Granted
+and Resident roles. The field roles come from the authenticated core declaration,
+not field positions or an initialization call elsewhere in the module.
+False retains the ordinary declared-RAM meaning.
+These are source contract coordinates, not authority: execution must join the
+original resident claim, exact P/T plan, backing and admitted supply. Reference
+formation and loan retirement neither initialize content nor create vacancy.
 Older markers are rejected before their payload is read.
 
 <!-- module-table-order -->
@@ -678,30 +699,52 @@ Older markers are rejected before their payload is read.
 | 11 | concrete root service reach | counted service ids |
 | 12 | installation reach dependencies | counted installation reach rows |
 | 13 | placed-view plans | counted placement policy plans |
-| 14 | placed-view inputs | counted placed-view input rows |
-| 15 | reborrow restored call uses | counted restored-use rows |
-| 16 | boundary machines | counted boundary machine declarations |
-| 17 | provider candidates | counted provider candidate rows |
-| 18 | dynamic dispatch | counted interfaces and implementation tables |
-| 19 | float-meaning projections | counted projection rows |
-| 20 | float-meaning equalities | counted equality rows |
-| 21 | proposition declarations | counted proposition declaration rows |
-| 22 | proposition applications | counted proposition application rows |
-| 23 | evidence terms | counted evidence term rows |
-| 24 | evidence contract lanes | counted evidence lane rows |
-| 25 | proof-output invocations | counted proof-output call rows |
-| 26 | proof recursive components | counted recursive component rows |
-| 27 | closed conformance applications | counted conformance application rows |
-| 28 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 29 | scalar block invariants | the counted invariant rows above |
-| 30 | operation crash contracts | counted operation crash contract rows |
-| 31 | machines | counted machine rows |
-| 32 | target-machine families | counted family rows |
-| 33 | target layout applications | counted complete checked policy alternatives |
-| 34 | boundary application demands | counted exact requirement/application rows |
-| 35 | callback applications | counted checked registrar occurrences |
-| 36 | boundary application candidates | counted checked bodies for closed applications |
-| 37 | task activation demands | counted task activation demand rows |
+| 14 | placement lifecycle plans | counted whole-value placement demand rows, below |
+| 15 | placed-view inputs | counted placed-view input rows |
+| 16 | reborrow restored call uses | counted restored-use rows |
+| 17 | boundary machines | counted boundary machine declarations |
+| 18 | provider candidates | counted provider candidate rows |
+| 19 | dynamic dispatch | counted interfaces and implementation tables |
+| 20 | float-meaning projections | counted projection rows |
+| 21 | float-meaning equalities | counted equality rows |
+| 22 | proposition declarations | counted proposition declaration rows |
+| 23 | proposition applications | counted proposition application rows |
+| 24 | evidence terms | counted evidence term rows |
+| 25 | evidence contract lanes | counted evidence lane rows |
+| 26 | proof-output invocations | counted proof-output call rows |
+| 27 | proof recursive components | counted recursive component rows |
+| 28 | closed conformance applications | counted conformance application rows |
+| 29 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 30 | scalar block invariants | the counted invariant rows above |
+| 31 | operation crash contracts | counted operation crash contract rows |
+| 32 | machines | counted machine rows |
+| 33 | target-machine families | counted family rows |
+| 34 | target layout applications | counted complete checked policy alternatives |
+| 35 | boundary application demands | counted exact requirement/application rows |
+| 36 | callback applications | counted checked registrar occurrences |
+| 37 | boundary application candidates | counted checked bodies for closed applications |
+| 38 | task activation demands | counted task activation demand rows |
+
+A placement lifecycle row encodes its boundary machine id, `u8` operation
+(`0` initialize, `1` move-out), then `u8` execution kind (`0` selected provider,
+`1` compiler primitive; other tags reject). A compiler primitive adds a Boolean
+profile-type presence and, when present, its structural type id. Compiler primitives
+require that exact borrowed type at initialization's third input or extraction's
+second input. Extraction re-observes read supply on the same original resident;
+the profile does not recreate backing or content custody.
+This is signature metadata, not a completed profile-call receipt. Compiler
+primitives cannot fall back to an ordinary provider or host handler.
+The schema structural type id follows, then the storage-role
+coordinates: extent structural type id, base and length field ids, and Granted,
+Vacant and Resident domain ids. These roles come from the source-authenticated
+core declaration, not a consumer's recognition of names or record shape. Three
+`u32` identity-table indices follow: policy, policy-plan machine, and schema. The complete
+normalized placement payload follows, using the same layout/access/reach wire
+as a placed-view plan, without the view carrier or accessor table. Rows are
+strictly ordered by boundary id. These rows describe demanded operations;
+they establish neither provider selection, backing, profile authority, nor
+successful initialization. A checked adapter selected statically does not
+create an external lifecycle demand.
 
 The folded constant closure encodes a presence Boolean and optional counted
 UTF-8 primary target, then a counted dependency list. Each dependency encodes,
@@ -751,6 +794,12 @@ identity strings, a 32-byte contract commitment, then an optional specialization
 commitments are nonempty. Each machine envelope encodes an optional declaration
 immediately after its machine id; synthetic bodies may omit it. A callback body
 must retain it, and native admission compares it to the caller's selected body.
+
+A boundary's optional checked callable adds its counted closed method arguments
+and a `u8` execution owner: `0` provider, `1` compiler placement initialization,
+`2` compiler placement extraction. Other tags reject. Each compiler placement
+declaration requires exactly one matching lifecycle obligation row; deleting
+that row cannot change the declaration into a provider-supplied boundary.
 
 A candidate carries the same requirement and application encoding without an
 operation id, followed by its selecting callable identity, optional selecting

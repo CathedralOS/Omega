@@ -26,6 +26,6 @@ pub enum TargetPlacedCallAssociation {
 /// a symbolic activation obligation. Neither branch chooses runtime pointers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetPlacedInterpretation {
-    Captured(terminal_psi::PlacedRamCorrespondence),
+    Captured(abstract_operations::PlacedReferenceBacking),
     Formal(terminal_psi::TerminalPlacedViewInput),
 }

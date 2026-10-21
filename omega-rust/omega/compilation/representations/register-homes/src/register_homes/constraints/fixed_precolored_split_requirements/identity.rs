@@ -101,7 +101,13 @@ fn encode_connector(bytes: &mut Vec<u8>, connector: selected_instructions::LiveR
     crate::codec_bytes::push_encoded(bytes, connector.source.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, connector.terminator.0.to_le_bytes());
     bytes.push(connector.polarity_ordinal);
-    crate::codec_bytes::push_encoded(bytes, connector.psi_edge.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        bytes,
+        connector
+            .psi_edge
+            .map_or(0, |edge| edge.get())
+            .to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(bytes, connector.target.0.to_le_bytes());
 }
 

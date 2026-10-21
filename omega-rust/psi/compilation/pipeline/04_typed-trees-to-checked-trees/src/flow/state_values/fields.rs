@@ -832,16 +832,13 @@ pub(super) fn capture(
         // storage and a named `&mut T` parameter's field reach the same store
         // law one root spelling apart, and a same-segments row under a
         // different root is different storage.
-        if let Some((_, _, _, byteok)) =
-            build
-                .element_store_potentials
-                .iter()
-                .find(|(stored_state, stored_root, segments, _)| {
-                    *stored_state == state.symbol
-                        && *stored_root == field.root
-                        && *segments == field.segments
-                })
-        {
+        if let Some((_, _, _, byteok)) = build.element_store_potentials.iter().find(
+            |(stored_state, stored_root, segments, _)| {
+                *stored_state == state.symbol
+                    && *stored_root == field.root
+                    && *segments == field.segments
+            },
+        ) {
             for predicate in byteok {
                 if !field.edge_potential.contains(predicate) {
                     field.edge_potential.push(*predicate);

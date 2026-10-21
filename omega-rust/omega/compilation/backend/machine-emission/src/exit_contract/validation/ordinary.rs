@@ -167,14 +167,12 @@ pub(super) fn check(
                     encoded,
                 )?;
                 let terminal = index == block.instructions.len();
-                if let SelectedTerminator::Crash {
-                    psi_edge, cause, ..
-                } = &block.terminator
-                    && terminal
+                if terminal
+                    && matches!(
+                        &block.terminator,
+                        SelectedTerminator::Crash { .. } | SelectedTerminator::OperationTrap { .. }
+                    )
                 {
-                    let crash = crashes
-                        .next()
-                        .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
                     let end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
@@ -188,14 +186,22 @@ pub(super) fn check(
                         end,
                         encoded,
                     )?;
-                    require(
-                        crash.block == block.id
-                            && crash.psi_edge == *psi_edge
-                            && crash.cause == *cause
-                            && crash.instruction == instruction.id
-                            && crash.offset == resolved.offset
-                            && crash.bytes == resolved.bytes,
-                    )?;
+                    if let SelectedTerminator::Crash {
+                        psi_edge, cause, ..
+                    } = &block.terminator
+                    {
+                        let crash = crashes
+                            .next()
+                            .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
+                        require(
+                            crash.block == block.id
+                                && crash.psi_edge == *psi_edge
+                                && crash.cause == *cause
+                                && crash.instruction == instruction.id
+                                && crash.offset == resolved.offset
+                                && crash.bytes == resolved.bytes,
+                        )?;
+                    }
                 } else if let SelectedTerminator::HostedExitProcess {
                     completion_edge, ..
                 } = &block.terminator

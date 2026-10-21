@@ -15,11 +15,11 @@ impl TerminalExecution<'_> {
         let types = self.program.structural_types();
         let mut selected = ResolvedStructuralProjection {
             array_loan: backing.array_loan.clone(),
-            placed_ram: backing.placed_ram.clone(),
+            placed: backing.placed.clone(),
             // Traverse suffixes in the captured logical interpretation.
             // Original supplying storage remains private in the association.
             value: backing
-                .placed_ram
+                .placed
                 .as_ref()
                 .map_or_else(|| backing.value.clone(), |ram| ram.presentation.clone()),
             view_tip: backing
@@ -64,8 +64,8 @@ impl TerminalExecution<'_> {
                         backing.access,
                     );
                 }
-                if let Some(ram) = &selected.placed_ram {
-                    self.validate_placed_ram_home(ram)?;
+                if let Some(ram) = &selected.placed {
+                    self.validate_placed_backing(ram)?;
                     selected.value = ram.source.clone();
                 }
                 return Ok(Some(selected));
@@ -99,7 +99,7 @@ impl TerminalExecution<'_> {
                     index,
                     backing.access,
                     interpretation,
-                    selected.placed_ram.clone(),
+                    selected.placed.clone(),
                 )?
                 else {
                     return Ok(None);
@@ -156,7 +156,7 @@ impl TerminalExecution<'_> {
             Some(access),
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             interpretation,
-            source.placed_ram.clone(),
+            source.placed.clone(),
             source.array_loan.clone(),
         )?
         else {
@@ -221,7 +221,7 @@ impl TerminalExecution<'_> {
         index: u64,
         access: StructuralAccess,
         interpretation: Option<AggregateViewRegion>,
-        placed: Option<PlacedRamReference>,
+        placed: Option<PlacedReference>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let logical_path = [StructuralPathSegment::FixedIndex(index)];
@@ -291,7 +291,7 @@ impl TerminalExecution<'_> {
                 index,
                 access,
                 None,
-                region.placed_ram.clone(),
+                region.placed.clone(),
             )?
             else {
                 return Ok(None);

@@ -165,7 +165,9 @@ fn known_call_written_paths_for_parts(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
-    if crate::activation_accessor_has_empty_write_frame(program, target_symbol) {
+    if crate::activation_accessor_has_empty_write_frame(program, target_symbol)
+        || crate::placed_borrow_has_empty_write_frame(program, target_symbol)
+    {
         return Some(Vec::new());
     }
 

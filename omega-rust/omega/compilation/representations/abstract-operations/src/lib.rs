@@ -25,4 +25,6 @@ pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
 };
 
+pub use abstract_operations::PlacementLifecycleOperands;
 pub use abstract_operations::quotients;
+pub use abstract_operations::{PlacedReferenceBacking, ResidentReferenceBacking};

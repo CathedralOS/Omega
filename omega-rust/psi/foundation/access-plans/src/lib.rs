@@ -125,9 +125,12 @@ pub use resources::device_operation_requirements::{
     StructurallyClosedDeviceOperationRequirement, StructurallyClosedDeviceOperationRequirements,
     structurally_close_device_operation_requirements,
 };
-pub use resources::resource_compatibility::validate_placement_resources;
 pub use resources::resource_compatibility::{
     BaseCongruence, EffectiveFieldSupply, EffectiveSupplyKind, PlacementResourceCompatibility,
+};
+pub use resources::resource_compatibility::{
+    InitializationResourceCompatibility, validate_initialization_resources,
+    validate_placement_resources,
 };
 pub use resources::resource_profile::{
     AtomicCapability, AtomicTransferRule, ExternalCapability, ExternalReadBehavior,

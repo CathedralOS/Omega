@@ -128,6 +128,7 @@ pub fn validate_placed_view_catalog(
                 .entries()
                 .get(field.access_slot as usize)
                 .filter(|entry| entry.key().slot() == field.access_slot)
+                .filter(|entry| !matches!(entry.access(), access_plans::FieldAccess::Inaccessible))
                 .ok_or(PlacedPlanError::FieldSlotMismatch)?;
             let view_field = view_fields
                 .iter()
@@ -251,7 +252,12 @@ pub fn validate_placed_view_catalog(
                 }
             }
         }
-        if slots.len() != plan.placement.access().plan().entries().len()
+        // Inaccessible fields remain in the complete layout/image roster, but
+        // the view producer never gives them an accessor. Require exactly the
+        // exposed descriptor slots, not all represented schema fields. Each
+        // retained slot above must itself be accessible, so equal cardinality
+        // cannot replace a missing exposed field with an inaccessible one.
+        if slots.len() != plan.placement.access().field_descriptors().len()
             || view_fields.len() != plan.fields.len()
         {
             return Err(PlacedPlanError::FieldSlotMismatch);

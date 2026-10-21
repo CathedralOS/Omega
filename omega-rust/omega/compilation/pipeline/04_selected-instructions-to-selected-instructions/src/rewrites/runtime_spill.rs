@@ -413,7 +413,7 @@ pub(crate) fn control(
 ) {
     use selected_instructions::SelectedTerminator;
     match terminator {
-        selected_instructions::terminator_exit_triple_pattern!(instruction, ..) => {
+        selected_instructions::terminator_no_successor_pattern!(instruction, ..) => {
             (instruction, [None, None])
         }
         SelectedTerminator::Jump {
@@ -483,7 +483,7 @@ pub(crate) fn control_successors_mut(
 ) -> [Option<&mut selected_instructions::SelectedSuccessor>; 2] {
     use selected_instructions::SelectedTerminator;
     match terminator {
-        selected_instructions::terminator_exit_triple_pattern!(..) => [None, None],
+        selected_instructions::terminator_no_successor_pattern!(..) => [None, None],
         SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
         SelectedTerminator::ConditionalBranch {
             when_nonzero,
@@ -1059,7 +1059,7 @@ pub(super) fn derive_runtime_spill<'source>(
                 // bindings on a block parameter's incoming edges.
                 if successor.role != SelectedSuccessorRole::EdgeTransferContinuation
                     || !matches!(block.origin, SelectedBlockOrigin::EdgeTransfer { edge, target }
-                        if edge == successor.psi_edge && target == successor.source_target)
+                        if Some(edge) == successor.psi_edge && target == successor.source_target)
                 {
                     return Err(RuntimeSpillError::UnsupportedControlFlow);
                 }
@@ -1078,7 +1078,9 @@ pub(super) fn derive_runtime_spill<'source>(
                 }
                 structural_uses.push(StructuralArgumentUse {
                     block: current_block_index,
-                    edge: successor.psi_edge,
+                    edge: successor
+                        .psi_edge
+                        .ok_or(RuntimeSpillError::UnsupportedControlFlow)?,
                     place: binding.semantic.argument.place,
                     source_byte_offset,
                     byte_size,
@@ -1914,7 +1916,7 @@ pub(super) fn parameter_definitions(
             if successor.role != SelectedSuccessorRole::EdgeTransferContinuation
                 || !matches!(block.terminator, SelectedTerminator::Jump { .. })
                 || !matches!(block.origin, SelectedBlockOrigin::EdgeTransfer { edge, target }
-                    if edge == successor.psi_edge && target == successor.source_target)
+                    if Some(edge) == successor.psi_edge && target == successor.source_target)
             {
                 return Err(RuntimeSpillError::UnsupportedControlFlow);
             }
@@ -1993,7 +1995,9 @@ pub(super) fn parameter_definitions(
                             block_index,
                             load,
                             case.source,
-                            successor.psi_edge,
+                            successor
+                                .psi_edge
+                                .ok_or(RuntimeSpillError::UnsupportedControlFlow)?,
                             byte_offset,
                             byte_count,
                             displacement,

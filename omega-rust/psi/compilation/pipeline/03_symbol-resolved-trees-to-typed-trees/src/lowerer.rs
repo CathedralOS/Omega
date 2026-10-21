@@ -410,6 +410,8 @@ impl Lowerer<'_> {
             plan_laid_target_layouts: _,
             plan_laid_schema_fields: _,
             placed_view_plans: _,
+            placement_lifecycle_plans: _,
+            placement_policy_invocations: _,
             placed_borrow_factories,
             wire_placements: _,
             wire_encode_obligations: _,

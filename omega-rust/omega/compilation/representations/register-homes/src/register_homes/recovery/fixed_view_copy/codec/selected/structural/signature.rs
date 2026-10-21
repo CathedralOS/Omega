@@ -29,6 +29,20 @@ pub(super) fn encode_signature(
     let quotients = terminal_codec::encode_quotient_catalog(value.structural_types.quotients())?;
     length(bytes, quotients.len());
     bytes.extend_from_slice(&quotients);
+    // Recovery must preserve the same complete catalog as normal selection.
+    // Storage declarations alone cannot reconstruct demands or lifecycle plans.
+    for catalog in [
+        terminal_codec::encode_placed_view_catalog(value.structural_types.placed_views())?,
+        terminal_codec::encode_placed_view_input_catalog(
+            value.structural_types.placed_view_inputs(),
+        )?,
+        terminal_codec::encode_placement_lifecycle_catalog(
+            value.structural_types.placement_lifecycles(),
+        )?,
+    ] {
+        length(bytes, catalog.len());
+        bytes.extend_from_slice(&catalog);
+    }
     length(bytes, value.parameters.len());
     for row in &value.parameters {
         encode_parameter(bytes, row, true);
@@ -118,6 +132,26 @@ pub(super) fn decode_signature(
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
     terminal_semantics::quotients::validate_quotient_representations(&structural_types, &quotients)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
+    let count = cursor.length()?;
+    let placed_views =
+        terminal_codec::decode_placed_view_catalog(cursor.take(count)?).map_err(|cause| {
+            FixedViewCopyDecodeError::InvalidPlacementCatalog {
+                catalog: "placed views",
+                cause,
+            }
+        })?;
+    let count = cursor.length()?;
+    let placed_inputs = terminal_codec::decode_placed_view_input_catalog(cursor.take(count)?)
+        .map_err(|cause| FixedViewCopyDecodeError::InvalidPlacementCatalog {
+            catalog: "placed inputs",
+            cause,
+        })?;
+    let count = cursor.length()?;
+    let lifecycles = terminal_codec::decode_placement_lifecycle_catalog(cursor.take(count)?)
+        .map_err(|cause| FixedViewCopyDecodeError::InvalidPlacementCatalog {
+            catalog: "placement lifecycles",
+            cause,
+        })?;
     let count = cursor.length()?;
     let mut parameters = Vec::new();
     for _ in 0..count {
@@ -215,6 +249,13 @@ pub(super) fn decode_signature(
             structural_types,
             referents,
         )
+        .with_placed_views(placed_views)
+        .with_placed_view_inputs(placed_inputs)
+        .with_placement_lifecycles(lifecycles)
+        .map_err(|cause| FixedViewCopyDecodeError::InvalidPlacementCatalog {
+            catalog: "placement lifecycles",
+            cause,
+        })?
         .with_quotients(quotients)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?,
         parameters,
@@ -228,6 +269,42 @@ pub(super) fn decode_signature(
 #[cfg(test)]
 mod tests {
     use super::{Cursor, LegalizedStructuralContract, decode_signature, encode_signature};
+
+    #[test]
+    fn recovery_signature_retains_placed_input_demand() {
+        use terminal_psi::{StructuralAccess, TerminalIdentityIndex, TerminalPlacedViewInput};
+        let signature = LegalizedStructuralContract {
+            structural_types: abstract_operations::StructuralTypeCatalog::default()
+                .with_placed_view_inputs(vec![TerminalPlacedViewInput {
+                    machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    position: 2,
+                    runtime_position: 1,
+                    carrier_identity: TerminalIdentityIndex(3),
+                    source_machine_identity: TerminalIdentityIndex(4),
+                    source_state_identity: TerminalIdentityIndex(5),
+                    source_parameter_identity: TerminalIdentityIndex(6),
+                    access: StructuralAccess::MutableBorrow,
+                    binding_is_const: false,
+                    binding_is_mutable: true,
+                    view_identity: TerminalIdentityIndex(7),
+                    policy_identity: TerminalIdentityIndex(8),
+                    policy_plan_machine_identity: TerminalIdentityIndex(9),
+                    schema_identity: TerminalIdentityIndex(10),
+                    placement_report_fingerprint: 11,
+                    placement_commitment: [12; 32],
+                }]),
+            parameters: vec![],
+            result: None,
+            structural_places: vec![],
+            entry_claims: vec![],
+            published_service_ceiling: vec![],
+        };
+        let mut bytes = Vec::new();
+        encode_signature(&mut bytes, &signature).unwrap();
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_signature(&mut cursor).unwrap(), signature);
+        assert_eq!(cursor.remaining(), 0);
+    }
 
     fn parameter(
         source: &mut terminal_psi::StructuralReferenceOrigin,

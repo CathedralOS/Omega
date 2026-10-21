@@ -6,6 +6,20 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
+        PackageReviewCompilerIntrinsicExecution::PlacementLifecycle(operation) => {
+            encoder.tag("placement_lifecycle", 11);
+            encoder.field("operation", |encoder| {
+                match operation {
+                    terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
+                        encoder.tag("initialize", 0)
+                    }
+                    terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
+                        encoder.tag("move_out", 1)
+                    }
+                }
+                Ok(())
+            })?;
+        }
         PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry => {
             encoder.tag("program_storage_entry", 10);
         }

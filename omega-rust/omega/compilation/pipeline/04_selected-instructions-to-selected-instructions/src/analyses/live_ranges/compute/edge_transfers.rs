@@ -36,7 +36,9 @@ pub(super) fn derive(
                 rows.push(EdgeRegisterTransfer {
                     source: block.id,
                     target: edge.block,
-                    psi_edge: edge.psi_edge,
+                    psi_edge: edge.psi_edge.ok_or(LiveRangeError::FunctionMismatch {
+                        function: function_index,
+                    })?,
                     argument,
                     parameter: parameter.id,
                     class: parameter.class,

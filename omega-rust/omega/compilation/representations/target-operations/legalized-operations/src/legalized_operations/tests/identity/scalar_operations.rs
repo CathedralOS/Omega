@@ -12,6 +12,93 @@ use super::{
 use optimization_core::AcceptedObligationFactIdentity;
 use optimization_unit::ValueDefinitionSite;
 
+#[test]
+fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence() {
+    let mut plan = scalar_call_unit_plan();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let instruction = LegalizedScalarInstruction {
+        operation: id(400),
+        result: None,
+        kind: LegalizedScalarInstructionKind::PlacementLifecycle {
+            boundary: id(401),
+            operands: abstract_operations::PlacementLifecycleOperands::MoveOut {
+                storage: terminal_psi::StructuralArgument {
+                    place: id(402),
+                    path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: id(403),
+                        obligation: id(404),
+                    }],
+                    access: terminal_psi::StructuralAccess::Owned,
+                },
+                profile: terminal_psi::StructuralArgument {
+                    place: id(412),
+                    path: vec![],
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+            },
+            indices: vec![crate::LegalizedRuntimeIndexOperand {
+                operand: abstract_operations::AbstractResult {
+                    value: id(403),
+                    scalar_type,
+                },
+                stride: 16,
+                extent: Some(4),
+                obligation: id(404),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+            }],
+            result: terminal_psi::StructuralOperationResult {
+                place: id(405),
+                structural_type: id(406),
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                qualification_establishments: vec![],
+                claims: vec![],
+            },
+        },
+        fuel: vec![],
+        effect: EffectLink {
+            input: 0,
+            output: 1,
+        },
+        ownership: vec![],
+    };
+    assert!(instruction.references_value(id(403)));
+    assert!(!instruction.references_value(id(402)));
+    assert!(instruction.result.is_none());
+    plan.scalar_functions[0].blocks[0].instructions = vec![instruction];
+    let original = legalized_operation_plan_identity(&plan);
+    for mutation in 0..7 {
+        let mut changed = plan.clone();
+        let LegalizedScalarInstructionKind::PlacementLifecycle {
+            boundary,
+            operands,
+            indices,
+            result,
+        } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
+        else {
+            panic!("lifecycle fixture");
+        };
+        match mutation {
+            0 => *boundary = id(407),
+            1 => {
+                let abstract_operations::PlacementLifecycleOperands::MoveOut { storage, .. } =
+                    operands
+                else {
+                    panic!("extraction fixture");
+                };
+                storage.place = id(408);
+            }
+            2 => indices[0].operand.value = id(409),
+            3 => indices[0].stride = 8,
+            4 => indices[0].accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
+            5 => result.qualifications.push(id(410)),
+            _ => result.place = id(411),
+        }
+        assert_identity_drift(original, &changed);
+    }
+}
+
 fn operation_plan() -> LegalizedOperationPlan {
     let mut plan = scalar_call_unit_plan();
     let function = &mut plan.scalar_functions[0];

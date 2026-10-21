@@ -457,6 +457,41 @@ impl BuildTimeAdmissionPlan {
         custody: Option<BuildTimeInvocationCustody>,
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
+        self.require_floor_with_authority(
+            input,
+            machine,
+            custody,
+            discharge_authored_requires,
+            self.selection_authority.as_deref(),
+        )
+    }
+
+    /// Invocation-owned authority is deliberately not retained with reusable
+    /// program geometry. Borrow it while admitting the same complete closure.
+    pub(crate) fn require_invocation_with_authority(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: BuildTimeInvocationCustody,
+        authority: Option<&dyn BuildTimeSelectionAuthority>,
+    ) -> Result<(), BuildTimeAdmissionRejection> {
+        self.require_floor_with_authority(
+            BuildTimeProgram::Typed(program),
+            machine,
+            Some(custody),
+            false,
+            authority,
+        )
+    }
+
+    fn require_floor_with_authority(
+        &self,
+        input: BuildTimeProgram<'_>,
+        machine: &Machine,
+        custody: Option<BuildTimeInvocationCustody>,
+        discharge_authored_requires: bool,
+        authority: Option<&dyn BuildTimeSelectionAuthority>,
+    ) -> Result<(), BuildTimeAdmissionRejection> {
         let program = input.typed();
         crate::validate_selected_operators(program, &self.selected_operators)?;
         crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
@@ -504,7 +539,7 @@ impl BuildTimeAdmissionPlan {
             input.checking_input(),
             machine,
             custody,
-            self.selection_authority.as_deref(),
+            authority,
             &self.selected_operators,
         );
         if services.is_empty()

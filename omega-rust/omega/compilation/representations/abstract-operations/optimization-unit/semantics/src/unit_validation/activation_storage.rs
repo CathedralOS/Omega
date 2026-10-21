@@ -196,8 +196,13 @@ fn operation(source: &A, active: bool) -> Result<Option<Operation>, &'static str
             source: source.clone(),
             storage: storage.clone(),
         },
-        A::EstablishPlacedReference { source, .. } => T::EstablishPlacedReference {
+        A::EstablishPlacedReference {
+            source,
+            correspondence,
+            ..
+        } => T::EstablishPlacedReference {
             source: source.clone(),
+            resident: correspondence.resident_source(),
         },
         A::EstablishElementView {
             destination,

@@ -460,7 +460,7 @@ pub(super) fn adapt(
                     ));
                 }
                 terminal_psi::element_view_establish_pair_pattern!(source, ..)
-                | OperationKind::EstablishPlacedReference { source }
+                | OperationKind::EstablishPlacedReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let (source_location, mut backing_projection, capture) =

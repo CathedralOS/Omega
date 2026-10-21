@@ -785,13 +785,14 @@ pub(super) fn validate_source_projection(
             formation.interpretation,
             crate::ReferenceFormationInterpretation::RepresentationView
                 | crate::ReferenceFormationInterpretation::Placed
+                | crate::ReferenceFormationInterpretation::ResidentPlaced { .. }
         ) || !formation.view_type.is_valid()
             || program.normalized_type_identity(formation.view_type)
                 != program.normalized_type_identity(recast.target_type)
         {
             return None;
         }
-        if formation.interpretation == crate::ReferenceFormationInterpretation::Placed {
+        if formation.interpretation.is_placed() {
             // Placement keeps a logical accessor namespace beside the exact
             // original schema. It does not obtain ordinary recast permission.
             let view = crate::value_custody::places::data_definition_for_type(
@@ -811,13 +812,16 @@ pub(super) fn validate_source_projection(
                 carrier_storage_type(program, root)?,
                 &recast.segments,
             )?;
-            let schema = crate::value_custody::places::data_definition_for_type(
-                program,
-                carrier_storage_type(program, source_type)?,
-            )?;
-            if schema.symbol != plan.schema_symbol {
-                return None;
+            // The endpoint's qualifications name resident custody. Geometry
+            // projection may peel those for field lookup, but the formation
+            // join must receive the complete qualified referent.
+            let mut endpoint = source_type;
+            while let Some(shell) = crate::reference_shell(program, endpoint) {
+                endpoint = shell.referee;
             }
+            formation
+                .interpretation
+                .placed_storage(program, endpoint, plan)?;
         }
         presentation = Some(recast.target_type);
     }

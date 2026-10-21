@@ -32,13 +32,19 @@ pub(crate) use optimization::digest_encoder;
 pub mod owned_structure;
 mod partial_affine;
 mod placed_ram_correspondence;
+mod resident_references;
+pub use resident_references::{resident_reference_plan, validate_resident_owner_fields};
 mod placed_scalar_boundaries;
 mod placed_view_plans;
+mod placement_lifecycles;
 pub use placed_ram_correspondence::{
     PlacedRamCorrespondence, PlacedRamFieldCorrespondence, placed_ram_correspondence,
     placed_ram_plan_correspondence, placed_reference_correspondence,
 };
 pub use placed_scalar_boundaries::{PlacedScalarBoundaryDemand, placed_scalar_boundary_demand};
+pub use placement_lifecycles::{
+    PlacementResultContract, placement_result_contract, validate_placement_lifecycle_plans,
+};
 mod placed_view_referent;
 pub use placed_view_plans::{
     PlacedPlanError, contains_placed_carrier, contains_placed_carrier_in_catalog,

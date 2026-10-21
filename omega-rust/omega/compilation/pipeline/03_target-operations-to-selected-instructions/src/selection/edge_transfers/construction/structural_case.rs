@@ -28,6 +28,7 @@ pub(super) fn prepare(
     mut cleanup: Vec<selected_instructions::SelectedInstruction>,
 ) -> Result<Option<SelectedBlock>, SelectedInstructionError> {
     let invalid = || super::super::invalid(function);
+    let psi_edge = successor.psi_edge.ok_or_else(invalid)?;
     let case = successor.structural_case.as_ref().ok_or_else(invalid)?;
     if !successor.bindings.is_empty() || !successor.structural_bindings.is_empty() {
         return Err(invalid());
@@ -94,7 +95,7 @@ pub(super) fn prepare(
             return Err(invalid());
         }
         let provenance = || SelectedInstructionProvenance {
-            edges: vec![successor.psi_edge],
+            edges: vec![psi_edge],
             ..Default::default()
         };
         let pointer = match case.source {
@@ -134,7 +135,7 @@ pub(super) fn prepare(
                 )?);
                 memory.push(SelectedMemoryAccess {
                     instruction: address_instruction,
-                    origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
+                    origin: SelectedMemoryAccessOrigin::Edge(psi_edge),
                     place,
                     byte_offset: 0,
                     byte_count: slot.byte_size,
@@ -236,7 +237,7 @@ pub(super) fn prepare(
         )?);
         memory.push(SelectedMemoryAccess {
             instruction: load_instruction,
-            origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
+            origin: SelectedMemoryAccessOrigin::Edge(psi_edge),
             place,
             byte_offset: payload.semantic.field_byte_offset,
             byte_count,
@@ -298,7 +299,7 @@ pub(super) fn prepare(
     let bridge = SelectedBlock {
         id: bridge_id,
         origin: SelectedBlockOrigin::EdgeTransfer {
-            edge: successor.psi_edge,
+            edge: psi_edge,
             target: successor.source_target,
         },
         instructions,

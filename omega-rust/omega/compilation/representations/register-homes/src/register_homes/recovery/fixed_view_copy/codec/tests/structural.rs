@@ -1,4 +1,5 @@
 //! Ordinary structural metadata and envelope custody.
+mod placement;
 use super::plan;
 use super::selected_payload_offset;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
@@ -161,6 +162,9 @@ fn activation_local_roster_and_memory_roles_round_trip() {
             alignment: 8,
         });
     for (role, byte_count) in [
+        (SelectedMemoryAccessRole::ReadLocal { slot }, 8),
+        (SelectedMemoryAccessRole::ReadBacking, 8),
+        (SelectedMemoryAccessRole::WriteBacking, 8),
         (SelectedMemoryAccessRole::WriteLocal { slot }, 8),
         (SelectedMemoryAccessRole::AddressLocal { slot }, 8),
         (
@@ -194,6 +198,62 @@ fn activation_local_roster_and_memory_roles_round_trip() {
         FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
         plan
     );
+}
+
+#[test]
+fn operation_scratch_read_identity_is_not_its_anchor_place() {
+    use selected_instructions::{LocalStorageSlotId, selected_instruction_plan_identity};
+    let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    let operation = OperationId::new(53).unwrap();
+    function.memory_accesses.clear();
+    function.memory_accesses.push(SelectedMemoryAccess {
+        instruction: SelectedInstructionId(1),
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
+        place: PlaceId::new(59).unwrap(),
+        byte_offset: 8,
+        byte_count: 8,
+        role: SelectedMemoryAccessRole::ReadLocal {
+            slot: LocalStorageSlotId::Boundary { operation },
+        },
+    });
+    std::sync::Arc::make_mut(&mut source.transformed)
+        .functions
+        .push(function);
+    let identity = selected_instruction_plan_identity(&source.transformed);
+    let encoded = source.encode().unwrap();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
+    for role in [
+        SelectedMemoryAccessRole::ReadPlace,
+        SelectedMemoryAccessRole::ReadBacking,
+        SelectedMemoryAccessRole::WriteBacking,
+        SelectedMemoryAccessRole::WriteLocal {
+            slot: LocalStorageSlotId::Boundary { operation },
+        },
+        SelectedMemoryAccessRole::ReadLocal {
+            slot: LocalStorageSlotId::Boundary {
+                operation: OperationId::new(54).unwrap(),
+            },
+        },
+    ] {
+        let mut changed = source.clone();
+        std::sync::Arc::make_mut(&mut changed.transformed)
+            .functions
+            .iter_mut()
+            .next_back()
+            .unwrap()
+            .memory_accesses[0]
+            .role = role;
+        assert_ne!(
+            selected_instruction_plan_identity(&changed.transformed),
+            identity
+        );
+        assert_ne!(changed.encode().unwrap(), encoded);
+        assert_eq!(
+            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
+            changed
+        );
+    }
 }
 
 #[test]

@@ -49,6 +49,12 @@ pub(super) fn provenance(
         });
     }
     Ok(match &block.terminator {
+        SelectedTerminator::OperationTrap {
+            instruction: terminal,
+            operation,
+        } if terminal.id == instruction.id => FunctionFragmentControlProvenance::OperationTrap {
+            operation: *operation,
+        },
         SelectedTerminator::Crash {
             instruction: terminal,
             psi_edge,

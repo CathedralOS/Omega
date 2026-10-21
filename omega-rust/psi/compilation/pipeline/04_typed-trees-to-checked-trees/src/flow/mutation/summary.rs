@@ -20,9 +20,9 @@ use validation::canonical_place_from_expression_in_state;
 use validation::find_call_site;
 
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
-use crate::flow::mutation::{CallMutationWrite, WritePlaceNamespace};
+use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
 
-use super::local_origins::rebase_local_write_places;
+use super::local_origins::rebase_storage_region;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
 use symbols::SymbolHandle;
@@ -44,12 +44,11 @@ pub(crate) fn state_storage_writes(
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    Some(
+    StorageRegion::declared_places(
         state_mutation_summary(program, borrow, cache, state, call_frames)?
             .writes
             .iter()
-            .map(|write| write.place.clone())
-            .collect(),
+            .map(|write| write.region.clone()),
     )
 }
 
@@ -65,7 +64,7 @@ struct StateMutationSummary {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MutationWrite {
-    place: CanonicalPlace,
+    region: StorageRegion,
     requires_exclusive_access: bool,
 }
 
@@ -101,7 +100,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             caller_machine_symbol,
             caller_state_symbol,
             borrow_call,
-            &write.place,
+            &write.region,
             namespace,
             call_frames,
         )?;
@@ -148,7 +147,7 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
         if !write.requires_exclusive_access {
             continue;
         }
-        let summary_place = &write.place;
+        let summary_place = write.region.anchor();
         let root = summary_place.root.as_symbol()?;
         let reached_through_receiver = root == target_machine_symbol
             || data_binding.is_some_and(|parameter| parameter.symbol == root);
@@ -308,24 +307,26 @@ fn propagate_state_mutation_summaries(
                         if state_summary_exposes_place(
                             program,
                             caller_state,
-                            &write.place,
+                            &write.region,
                             call_frames,
-                        ) && !existing.contains(&write)
+                        )? && !existing.contains(&write)
                             && !pending.contains(&write)
                         {
                             pending.push(write);
                         }
                     }
+                    Some(())
                 };
-                retain(&caller.writes, &mut additions, writes);
+                retain(&caller.writes, &mut additions, writes)?;
                 for ((held, pending), writes) in caller
                     .held_writes
                     .iter()
                     .zip(&mut held_additions)
                     .zip(held_writes)
                 {
-                    retain(&held.accesses, pending, writes);
+                    retain(&held.accesses, pending, writes)?;
                 }
+                Some(())
             };
             let mut complete = true;
             for (call, target_index, run) in &calls[caller_index] {
@@ -334,7 +335,7 @@ fn propagate_state_mutation_summaries(
                     // frame law. Import that frame in caller coordinates; an
                     // unresolved frame/origin must not become an empty summary.
                     // The held run includes all of it, like any call's.
-                    let Some(writes) = super::shared_call_storage_places(
+                    let Some(writes) = super::shared_call_storage_regions(
                         program,
                         caller_machine,
                         caller_symbol,
@@ -347,13 +348,16 @@ fn propagate_state_mutation_summaries(
                     };
                     let writes: Vec<_> = writes
                         .into_iter()
-                        .map(|place| MutationWrite {
-                            place,
+                        .map(|region| MutationWrite {
+                            region,
                             requires_exclusive_access: true,
                         })
                         .collect();
                     let held = vec![writes.clone(); caller.held_writes.len()];
-                    expose(writes, held);
+                    if expose(writes, held).is_none() {
+                        complete = false;
+                        break;
+                    }
                     continue;
                 };
                 let target = &states[*target_index];
@@ -394,7 +398,10 @@ fn propagate_state_mutation_summaries(
                     complete = false;
                     break;
                 };
-                expose(whole, held);
+                if expose(whole, held).is_none() {
+                    complete = false;
+                    break;
+                }
             }
             if !complete
                 || !additions.is_empty()
@@ -442,17 +449,17 @@ fn instantiate_target_writes(
 ) -> Option<Vec<MutationWrite>> {
     let mut instantiated = Vec::new();
     for write in writes {
-        for place in instantiate_call_relative_places(
+        for contribution in instantiate_call_relative_writes(
             program,
             caller_machine_symbol,
             caller_state_symbol,
             call,
-            &write.place,
+            &write.region,
             WritePlaceNamespace::Storage,
             call_frames,
         )? {
             instantiated.push(MutationWrite {
-                place,
+                region: contribution.region,
                 requires_exclusive_access: write.requires_exclusive_access,
             });
         }
@@ -502,32 +509,41 @@ fn state_has_concrete_body_signature(
     })
 }
 
-// Owned primitive formals contain no references: writes change callee storage,
-// not the caller's delivered argument. Keep reference-bearing roots visible.
+// Declared local storage can be private; content reached through a local owner
+// cannot. Without an exact exportable owner coordinate the summary is unknown,
+// so callers retain the signature ceiling rather than an empty effect.
 fn state_summary_exposes_place(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
-    place: &CanonicalPlace,
+    region: &StorageRegion,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    let Some(root) = place.root.as_symbol() else {
-        return false;
+) -> Option<bool> {
+    let declared = matches!(region, StorageRegion::Declared(_));
+    let Some(root) = region.anchor().root.as_symbol() else {
+        return declared.then_some(false);
     };
-    root == machine_symbol_for_state(program, state)
-        || program.state_parameters(state).iter().any(|parameter| {
-            parameter.symbol == root
-                && (program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none())
-                // Incoming owned storage is a private value, even when a
-                // local loan lets a nested call mutate it. Only references
-                // carried by the formal can expose those writes to a caller.
-                // Reuse the resolver's closed-shape law; opaque or recursive
-                // storage stays conservative rather than guessing isolation.
-                && call_frames.is_none_or(|frames| {
-                    !frames.value_is_reference_free(parameter.type_reference)
-                })
-        })
+    if root == machine_symbol_for_state(program, state) {
+        return Some(true);
+    }
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root)
+    else {
+        return declared.then_some(false);
+    };
+    if !declared {
+        return Some(true);
+    }
+    // A write to a reference-free formal changes only its incoming value.
+    // This isolation rule does not apply to separately owned content.
+    Some(
+        program
+            .primitive_type_reference(parameter.type_reference)
+            .is_none()
+            && call_frames
+                .is_none_or(|frames| !frames.value_is_reference_free(parameter.type_reference)),
+    )
 }
 
 fn collect_state_mutation_summary_places(
@@ -553,10 +569,10 @@ fn collect_state_mutation_summary_places(
             )?;
             for place in places {
                 let write = MutationWrite {
-                    place,
+                    region: StorageRegion::Declared(place),
                     requires_exclusive_access: true,
                 };
-                if state_summary_exposes_place(program, state, &write.place, call_frames)
+                if state_summary_exposes_place(program, state, &write.region, call_frames)?
                     && !writes.contains(&write)
                 {
                     writes.push(write);
@@ -576,10 +592,10 @@ fn collect_state_mutation_summary_places(
                 call_frames,
             )? {
                 let write = MutationWrite {
-                    place,
+                    region: StorageRegion::Declared(place),
                     requires_exclusive_access: false,
                 };
-                if state_summary_exposes_place(program, state, &write.place, call_frames)
+                if state_summary_exposes_place(program, state, &write.region, call_frames)?
                     && !writes.contains(&write)
                 {
                     writes.push(write);
@@ -598,7 +614,7 @@ fn collect_state_mutation_summary_places(
                     Some(state),
                     assignment.target,
                 ));
-        let places = super::local_origins::assignment_storage_places(
+        let regions = super::local_origins::assignment_storage_regions(
             program,
             machine_symbol,
             state.symbol,
@@ -606,12 +622,12 @@ fn collect_state_mutation_summary_places(
             statement,
             call_frames,
         )?;
-        for place in places {
+        for region in regions {
             let write = MutationWrite {
-                place,
+                region,
                 requires_exclusive_access,
             };
-            if state_summary_exposes_place(program, state, &write.place, call_frames)
+            if state_summary_exposes_place(program, state, &write.region, call_frames)?
                 && !writes.contains(&write)
             {
                 writes.push(write);
@@ -636,11 +652,11 @@ pub(in crate::flow) fn instantiate_call_relative_places(
         caller_machine_symbol,
         caller_state_symbol,
         borrow_call,
-        relative_place,
+        &StorageRegion::Declared(relative_place.clone()),
         namespace,
         call_frames,
     )
-    .map(|writes| writes.into_iter().map(|write| write.place).collect())
+    .and_then(|writes| StorageRegion::declared_places(writes.into_iter().map(|write| write.region)))
 }
 
 fn instantiate_call_relative_writes(
@@ -648,16 +664,17 @@ fn instantiate_call_relative_writes(
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
-    relative_place: &CanonicalPlace,
+    relative_region: &StorageRegion,
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
-    let attributed = |places: Vec<CanonicalPlace>| {
-        places
+    let relative_place = relative_region.anchor();
+    let attributed = |regions: Vec<StorageRegion>| {
+        regions
             .into_iter()
-            .map(|place| CallMutationWrite {
-                place,
-                source: Some(relative_place.clone()),
+            .map(|region| CallMutationWrite {
+                region,
+                source: Some(relative_region.clone()),
             })
             .collect()
     };
@@ -695,8 +712,11 @@ fn instantiate_call_relative_writes(
             // Only reference-bearing actuals can project those writes into
             // caller storage; keep their existing precise path/origin join.
             let mut owned_frames = None;
-            if crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-                .is_some_and(|resolver| resolver.value_is_reference_free(parameter.type_reference))
+            if matches!(relative_region, StorageRegion::Declared(_))
+                && crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+                    .is_some_and(|resolver| {
+                        resolver.value_is_reference_free(parameter.type_reference)
+                    })
             {
                 return Some(Vec::new());
             }
@@ -706,7 +726,7 @@ fn instantiate_call_relative_writes(
                 // appending the callee's field symbols to that declaration
                 // would confuse logical selectors with physical storage.
                 // Unknown origins keep the conservative signature ceiling.
-                return captured_argument_write_places(
+                let regions = captured_argument_write_regions(
                     program,
                     caller_machine_symbol,
                     caller_state_symbol,
@@ -714,10 +734,36 @@ fn instantiate_call_relative_writes(
                     borrow_call.call_ordinal,
                     &call_site,
                     argument_index.checked_sub(1)?,
+                    parameter.type_reference,
                     &relative_place.segments,
                     call_frames,
-                )
-                .map(attributed);
+                )?;
+                let regions = match relative_region {
+                    StorageRegion::Declared(_) => regions,
+                    StorageRegion::ResidentContent {
+                        formation,
+                        granted,
+                        resident,
+                        ..
+                    } => regions
+                        .into_iter()
+                        .map(|region| {
+                            Some(StorageRegion::ResidentContent {
+                                owner: region.into_declared()?,
+                                formation: *formation,
+                                granted: *granted,
+                                resident: *resident,
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>()?,
+                    StorageRegion::UnresolvedContent { .. } => regions
+                        .into_iter()
+                        .map(|region| StorageRegion::UnresolvedContent {
+                            carrier: region.anchor().clone(),
+                        })
+                        .collect(),
+                };
+                return Some(attributed(regions));
             }
             if let Some(expression) = argument
                 && matches!(namespace, WritePlaceNamespace::AccessRoute)
@@ -734,7 +780,9 @@ fn instantiate_call_relative_writes(
                     &relative_place.segments,
                 )
             {
-                return Some(attributed(places));
+                return Some(attributed(
+                    places.into_iter().map(StorageRegion::Declared).collect(),
+                ));
             }
             argument.and_then(|expression| {
                 canonical_place_from_expression_in_state(
@@ -751,13 +799,13 @@ fn instantiate_call_relative_writes(
         instantiated
             .segments
             .extend(relative_place.segments.iter().copied());
-        return Some(attributed(vec![instantiated]));
+        return Some(attributed(vec![StorageRegion::Declared(instantiated)]));
     }
 
     None
 }
 
-fn captured_argument_write_places(
+pub(super) fn captured_argument_write_regions(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -765,12 +813,73 @@ fn captured_argument_write_places(
     call_ordinal: usize,
     site: &validation::CallSite<'_>,
     position: usize,
+    parameter_type: typed_trees::types::TypeReferenceHandle,
     relative: &[facts::PlaceSegment],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CanonicalPlace>> {
+) -> Option<Vec<StorageRegion>> {
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let resolver = call_frames?;
+    if validation::reference_shell(program, parameter_type).is_none() {
+        let actual = *call_site_argument_expressions(program, site).get(position)?;
+        let mut regions = Vec::new();
+        for projection in crate::flow::literal_expression_projections(
+            program,
+            actual,
+            parameter_type,
+            relative,
+            false,
+        )? {
+            let projected_type = validation::project_type_reference_from_segments(
+                program,
+                parameter_type,
+                &projection.destination,
+            )?;
+            let projected_regions =
+                if validation::reference_shell(program, projected_type).is_some() {
+                    resolver
+                        .reference_operand_write_sources(
+                            machine,
+                            projection.expression,
+                            projected_type,
+                        )?
+                        .iter()
+                        .map(|source| {
+                            super::local_origins::write_source_region(
+                                program,
+                                state,
+                                statement_index,
+                                source,
+                                &projection.remaining,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?
+                } else {
+                    let mut place = canonical_place_from_expression_in_state(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        projection.expression,
+                    )?;
+                    place.segments.extend(projection.remaining);
+                    vec![StorageRegion::Declared(place)]
+                };
+            for region in projected_regions {
+                for region in rebase_storage_region(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    region,
+                    call_frames,
+                )? {
+                    if !regions.contains(&region) {
+                        regions.push(region);
+                    }
+                }
+            }
+        }
+        return Some(regions);
+    }
     let origins = match site {
         validation::CallSite::Statement(call) => resolver.call_write_origins(machine, call),
         validation::CallSite::Expression { expression, .. } => {
@@ -789,17 +898,17 @@ fn captured_argument_write_places(
     }?;
     let mut places = Vec::new();
     for source in origins.arguments.get(position)?.as_ref()? {
-        let projected = super::local_origins::write_source_place(
+        let projected = super::local_origins::write_source_region(
             program,
             state,
             statement_index,
             source,
             relative,
         )?;
-        if !storage_place_has_declared_identity(&projected) {
+        if !storage_place_has_declared_identity(projected.anchor()) {
             return None;
         }
-        for place in rebase_local_write_places(
+        for place in rebase_storage_region(
             program,
             state_symbol,
             statement_index,

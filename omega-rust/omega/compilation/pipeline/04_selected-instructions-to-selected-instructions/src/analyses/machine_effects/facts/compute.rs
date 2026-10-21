@@ -266,7 +266,7 @@ fn compute_instruction(
         instruction,
         physical,
         &constraint,
-        exact_declaration(instruction, catalog)?,
+        exact_declaration(function.machine, instruction, catalog)?,
     )?;
     Ok(InstructionMachineEffects {
         instruction: instruction.id,
@@ -286,6 +286,7 @@ fn compute_instruction(
 }
 
 fn exact_declaration<'a>(
+    machine: semantic_vocabulary::MachineId,
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
@@ -297,7 +298,10 @@ fn exact_declaration<'a>(
         .filter(|row| row.semantic == semantic && row.constraint == instruction.constraint);
     let Some(declaration) = matches.next() else {
         return Err(MachineEffectError::MissingDeclaration {
+            machine,
             instruction: instruction.id,
+            semantic,
+            constraint: instruction.constraint,
         });
     };
     if matches.next().is_some() {

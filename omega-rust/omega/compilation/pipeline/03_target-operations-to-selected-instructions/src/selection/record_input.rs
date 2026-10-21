@@ -416,14 +416,3 @@ pub(super) fn projected_operand(
     )?;
     (physical_type == selected.id).then_some((physical_type, offset))
 }
-
-pub(super) fn operand_offset(
-    source: &LegalizedScalarFunction,
-    argument: &terminal_psi::StructuralArgument,
-) -> Option<u32> {
-    if argument.path.is_empty() {
-        Some(0)
-    } else {
-        projected_operand(source, argument).map(|(_, offset)| offset)
-    }
-}

@@ -4,6 +4,7 @@
 mod atomic_specialization;
 mod device_operations;
 mod external_specialization;
+mod initialization_resources;
 mod owned_external_correspondence;
 mod placed_views;
 mod placement_admission;

@@ -92,7 +92,13 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
         for successor in &block.successors {
             crate::codec_bytes::push_encoded(bytes, successor.terminator.0.to_le_bytes());
             bytes.push(successor.polarity_ordinal);
-            crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                bytes,
+                successor
+                    .psi_edge
+                    .map_or(0, |edge| edge.get())
+                    .to_le_bytes(),
+            );
             crate::codec_bytes::push_encoded(bytes, successor.target.0.to_le_bytes());
             encode_vregs(bytes, &successor.virtual_live);
             encode_units(bytes, &successor.unit_live);

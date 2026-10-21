@@ -36,6 +36,7 @@ mod observations;
 mod operations;
 mod owned_arguments;
 mod placed_scalar_access;
+mod placement_lifecycles;
 mod primitive_storage;
 mod program_image;
 mod records;

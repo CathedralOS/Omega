@@ -80,7 +80,7 @@ fn return_successor(edge: u64, block: u32, source: u64) -> SelectedSuccessor {
         role: selected_instructions::SelectedSuccessorRole::Semantic,
         structural_case: None,
         structural_bindings: Vec::new(),
-        psi_edge: EdgeId::new(edge).unwrap(),
+        psi_edge: EdgeId::new(edge),
         block: SelectedBlockId(block),
         source_target: BlockId::new(source).unwrap(),
         bindings: Vec::new(),
@@ -213,7 +213,7 @@ pub(super) fn successor_parameter_function() -> SelectedFunction {
             role: selected_instructions::SelectedSuccessorRole::Semantic,
             structural_case: None,
             structural_bindings: Vec::new(),
-            psi_edge: EdgeId::new(1).unwrap(),
+            psi_edge: EdgeId::new(1),
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
             bindings: vec![selected_instructions::SelectedValueBinding {

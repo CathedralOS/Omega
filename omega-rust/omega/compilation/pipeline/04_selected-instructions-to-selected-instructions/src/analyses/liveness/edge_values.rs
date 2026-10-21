@@ -1,5 +1,8 @@
 //! Explicit register transport across authored successor bindings.
 use super::LivenessError;
+
+#[cfg(test)]
+mod tests;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedSuccessor,
     SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, VirtualRegister,
@@ -144,7 +147,7 @@ pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegiste
                 ..
             } => vec![when_nonzero, when_zero],
             selected_instructions::conditional_branch_less_pair_pattern!(when_less,when_not_less, ..) => vec![when_less, when_not_less],
-            selected_instructions::terminator_exit_triple_pattern!(..) => {
+            selected_instructions::terminator_no_successor_pattern!(..) => {
                 Vec::new()
             }
         };
@@ -168,15 +171,47 @@ pub(crate) fn validate_transports(
     };
     let index = FunctionIndex::new(function);
     for block in &function.blocks {
+        if let SelectedBlockOrigin::Operation { operation, .. } = block.origin
+            && (!function.provenance.operations.contains(&operation)
+                || block.id == function.entry_block)
+        {
+            return Err(mismatch());
+        }
+        if let SelectedTerminator::OperationTrap {
+            instruction,
+            operation,
+        } = &block.terminator
+        {
+            if !matches!(block.origin, SelectedBlockOrigin::Operation { operation: owner, .. } if owner == *operation)
+                || instruction.kind != selected_instructions::SelectedInstructionKind::Crash
+                || instruction.provenance.operations.as_slice() != [*operation]
+                || !instruction.provenance.edges.is_empty()
+                || !instruction.provenance.fuel.is_empty()
+            {
+                return Err(mismatch());
+            }
+        }
         let edges = terminator_successors(&block.terminator);
         for edge in edges {
+            if edge.psi_edge.is_none()
+                != matches!(
+                    edge.role,
+                    SelectedSuccessorRole::OperationContinuation { .. }
+                )
+            {
+                return Err(mismatch());
+            }
             match (block.origin, edge.role) {
                 (
-                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::CaseDispatch { .. },
+                    SelectedBlockOrigin::Source(_)
+                    | SelectedBlockOrigin::CaseDispatch { .. }
+                    | SelectedBlockOrigin::Operation { .. },
                     SelectedSuccessorRole::Semantic,
                 ) => {}
                 (
-                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::CaseDispatch { .. },
+                    SelectedBlockOrigin::Source(_)
+                    | SelectedBlockOrigin::CaseDispatch { .. }
+                    | SelectedBlockOrigin::Operation { .. },
                     SelectedSuccessorRole::CaseDispatchContinuation,
                 ) if edge.fuel.is_empty()
                     && edge.bindings.is_empty()
@@ -187,12 +222,32 @@ pub(crate) fn validate_transports(
                         SelectedTerminator::ConditionalBranch { .. }
                     ) => {}
                 (
+                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::Operation { .. },
+                    SelectedSuccessorRole::OperationContinuation { operation },
+                ) if edge.source_target == block.source_block()
+                    && edge.fuel.is_empty()
+                    && edge.bindings.is_empty()
+                    && edge.structural_bindings.is_empty()
+                    && edge.structural_case.is_none()
+                    && selected_instructions::terminator_instruction(&block.terminator)
+                        .provenance
+                        .operations
+                        .contains(&operation)
+                    && selected_instructions::terminator_instruction(&block.terminator)
+                        .provenance
+                        .edges
+                        .is_empty()
+                    && selected_instructions::terminator_instruction(&block.terminator)
+                        .provenance
+                        .fuel
+                        .is_empty() => {}
+                (
                     SelectedBlockOrigin::EdgeTransfer {
                         edge: owner,
                         target,
                     },
                     SelectedSuccessorRole::EdgeTransferContinuation,
-                ) if owner == edge.psi_edge
+                ) if Some(owner) == edge.psi_edge
                     && target == edge.source_target
                     && edge.fuel.is_empty()
                     && matches!(block.terminator, SelectedTerminator::Jump { .. }) => {}
@@ -211,7 +266,15 @@ pub(crate) fn validate_transports(
                 .next()
                 .ok_or_else(mismatch)?;
             match destination.origin {
-                SelectedBlockOrigin::Source(_) => {}
+                SelectedBlockOrigin::Source(_)
+                    if !matches!(
+                        edge.role,
+                        SelectedSuccessorRole::OperationContinuation { .. }
+                    ) => {}
+                SelectedBlockOrigin::Operation { source, operation }
+                    if edge.role
+                        == (SelectedSuccessorRole::OperationContinuation { operation })
+                        && source == edge.source_target => {}
                 SelectedBlockOrigin::CaseDispatch { source, .. }
                     if edge.role == SelectedSuccessorRole::CaseDispatchContinuation
                         && source == edge.source_target => {}
@@ -219,7 +282,7 @@ pub(crate) fn validate_transports(
                     edge: owner,
                     target,
                 } if edge.role == SelectedSuccessorRole::Semantic
-                    && owner == edge.psi_edge
+                    && Some(owner) == edge.psi_edge
                     && target == edge.source_target
                     && edge
                         .bindings

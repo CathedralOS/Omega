@@ -245,6 +245,12 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
+            SelectedMemoryAccessRole::ReadBacking => bytes.push(18),
+            SelectedMemoryAccessRole::WriteBacking => bytes.push(19),
+            SelectedMemoryAccessRole::ReadLocal { slot: value } => {
+                bytes.push(17);
+                local_slot(bytes, value);
+            }
             SelectedMemoryAccessRole::WritePlace => bytes.push(6),
             SelectedMemoryAccessRole::WriteOutgoing { slot: value } => {
                 bytes.push(1);

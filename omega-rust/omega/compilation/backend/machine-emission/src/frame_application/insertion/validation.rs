@@ -156,6 +156,7 @@ fn validate_function(
             if matches!(
                 source_row.control,
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
+                    | FunctionFragmentControlProvenance::OperationTrap { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
             ) && (index + 1 != source_block.instructions.len() || source_row.bytes.is_empty())
             {

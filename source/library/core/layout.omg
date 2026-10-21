@@ -18,6 +18,7 @@
 // retained sentinel requires one.
 
 use omega::language::core::option;
+use omega::language::core::extent;
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, shape, and declared identity (-1 in the numeric mirror when
@@ -471,8 +472,18 @@ public data AtomicCapability {
     case Access(transfers: AtomicTransferRules);
 }
 
+// This is an admitted backing property, not a claim that borrowing a value
+// excludes a device or another process. A hostile writable peer forbids Stable
+// supply even when the caller holds an exclusive Omega borrow. Revocation and
+// cross-core invalidation belong to the provider before it offers Exclusive.
+public data PeerWritability {
+    case Exclusive;
+    case HostileShared;
+}
+
 public data ResourceRegion {
     range: RelativeRange;
+    peer: PeerWritability;
     stable: StableCapability;
     external: ExternalCapability;
     atomic: AtomicCapability;
@@ -484,11 +495,21 @@ public data ResourceProfile where region_count <= 32 {
     region_count: u64;
 }
 
+// A selected provider describes supply for this existing grant through an
+// ordinary boundary call. The returned data alone is not placement authority:
+// an establishing consumer must bind the successful invocation and its complete
+// normalized result to the original qualified range. Copying or changing a
+// profile, or calling an implementation directly, establishes nothing. This
+// requirement supplies neither vacancy nor already initialized content.
+public boundary trait ResourceProfileSupply {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile;
+}
+
 // Settled placement identity and recovery vocabulary. `Placed<P, T>` is an
 // opaque compiler-derived view; these ordinary result carriers add no access,
 // storage, provider, or domain authority. Declaration order is the canonical
-// runtime tag and payload order. Establishment/retirement operations and
-// custody-conformance checking remain intentionally absent.
+// runtime tag and payload order. Resident content remains owned by its exact
+// qualified Extent; a borrowed placed view retains only a loan of that owner.
 public boundary data Placed<P, T>;
 
 // Borrowed View over already initialized ordinary RAM. The compiler checks the
@@ -498,6 +519,12 @@ public boundary data Placed<P, T>;
 public boundary machine Placed::view<P, T>(source: &T) -> &Placed<P, T>;
 public boundary machine Placed::view_mut<P, T>(source: &mut T) -> &mut Placed<P, T>;
 
+// This view interprets existing resident content rather than the Extent's two
+// geometry fields. It retains the exact P/T claim, backing and profile receipt;
+// ending the view releases its loan, not the resident or its storage grant.
+public boundary machine Placed::view_resident_mut<P, T>(
+    storage: &mut Extent in Granted & Resident<P, T>
+) -> &mut Placed<P, T>;
 
 public data PlacementOutcome<View, Returned, Reason> {
     case Ready(view: View);
@@ -507,6 +534,134 @@ public data PlacementOutcome<View, Returned, Reason> {
 public data PlacementReturn<Source, Custody> {
     source: Source;
     custody: Custody;
+}
+
+// Dynamic incompatibility is ordinary data. Malformed admitted assertions,
+// physical faults and missing static custody are not recoverable cases here.
+public data PlacementInitializationFailure {
+    case RangeTooSmall(required: u64, available: u64);
+    case Misaligned(modulus: u64, residue: u64);
+    case IncompatibleSupply;
+}
+
+// A successful extraction has a selected owned case, so the boundary's exact
+// storage payload is the vacancy issuance subject. The public wrapper below
+// forwards that evidence into PlacementReturn; it is not another issuer.
+public data PlacementExtraction<Storage, Value> {
+    case Moved(storage: Storage, value: Value);
+}
+
+// These requirements describe actual execution, not a source-level cast or
+// permission granted by a result annotation. The selected implementation must
+// retain the original backing/profile occurrence and complete every write or
+// move before publishing the corresponding case. An ordinary call to a provider
+// implementation is not the admitted requirement occurrence named by Extent's
+// protected establishment routes.
+public boundary trait PlacementLifecycle<P, T> {
+    machine initialize(
+        storage: Extent in Granted & Vacant,
+        value: T
+    ) -> PlacementOutcome<
+        Extent in Granted & Resident<P, T>,
+        PlacementReturn<Extent in Granted & Vacant, T>,
+        PlacementInitializationFailure
+    >
+    reaches ResourceProfileSupply;
+
+    machine move_out(storage: Extent in Granted & Resident<P, T>)
+        -> PlacementExtraction<Extent in Granted & Vacant, T>
+    reaches ResourceProfileSupply;
+}
+
+// Ordinary provider orchestration keeps profile selection, call ordering and
+// ownership transport in the language. The private primitives are the memory
+// operations, not substitutes for the selected profile invocation. Their
+// realization must join the completed call to this exact storage and complete
+// result before treating the profile as admitted supply. The private operation
+// borrows that result: passing plain profile data by value would make an
+// independent copy, which carries no selected-call origin.
+public NativePlacement<P, T> satisfies PlacementLifecycle<P, T> {
+    machine initialize(
+        storage: Extent in Granted & Vacant,
+        value: T
+    ) -> PlacementOutcome<
+        Extent in Granted & Resident<P, T>,
+        PlacementReturn<Extent in Granted & Vacant, T>,
+        PlacementInitializationFailure
+    >
+    reaches ResourceProfileSupply
+    {
+        let profile: ResourceProfile = ResourceProfileSupply::profile(
+            &storage as &Extent in Granted
+        );
+        Placed::initialize_from_profile<P, T>(storage, value, &profile)
+    }
+
+    machine move_out(storage: Extent in Granted & Resident<P, T>)
+        -> PlacementExtraction<Extent in Granted & Vacant, T>
+    reaches ResourceProfileSupply
+    {
+        // Resident preserves the value and backing, not permission to read
+        // every byte. Reobserve the same grant's admitted supply before decode.
+        let profile: ResourceProfile = ResourceProfileSupply::profile(
+            &storage as &Extent in Granted
+        );
+        Placed::extract_resident<P, T>(storage, &profile)
+    }
+}
+
+// These exact private machines are explicit content-establishment routes.
+// Privacy supplies no profile or backing authority: compiler realization still
+// requires the exact admitted call, live claim and actual allocation. They
+// cannot interpret a constructed profile or an Extent's descriptor as bytes.
+boundary machine Placed::initialize_from_profile<P, T>(
+    storage: Extent in Granted & Vacant,
+    value: T,
+    profile: &ResourceProfile
+) -> PlacementOutcome<
+    Extent in Granted & Resident<P, T>,
+    PlacementReturn<Extent in Granted & Vacant, T>,
+    PlacementInitializationFailure
+>;
+
+boundary machine Placed::extract_resident<P, T>(
+    storage: Extent in Granted & Resident<P, T>,
+    profile: &ResourceProfile
+) -> PlacementExtraction<Extent in Granted & Vacant, T>;
+
+// The owned operation captures both inputs before its ordinary selected supply
+// call. Ready retains the original range and the complete value's custody;
+// rejection returns both unchanged. Only an executed complete encoding write
+// can establish resident content. The compiler's lifecycle operation, not a
+// caller-provided profile or the return annotation, discharges that obligation.
+public machine Placed::initialize_owned<P, T>(
+    storage: Extent in Granted & Vacant,
+    value: T
+) -> PlacementOutcome<
+    Extent in Granted & Resident<P, T>,
+    PlacementReturn<Extent in Granted & Vacant, T>,
+    PlacementInitializationFailure
+>
+reaches PlacementLifecycle + ResourceProfileSupply
+invokes PlacementLifecycle;
+{
+    PlacementLifecycle<P, T>::initialize(storage, value)
+}
+
+// Whole-value extraction ends this exact resident occurrence. Active loans or
+// unresolved partial moves forbid it; success returns the owned value and the
+// original storage with vacancy restored, rather than a new numeric root.
+public machine Placed::move_out_owned<P, T>(
+    storage: Extent in Granted & Resident<P, T>
+)
+    -> PlacementReturn<Extent in Granted & Vacant, T>
+reaches PlacementLifecycle + ResourceProfileSupply
+invokes PlacementLifecycle;
+{
+    transition PlacementLifecycle<P, T>::move_out(storage) {
+        PlacementExtraction::Moved { storage, value } ->
+            PlacementReturn { source: storage, custody: value }
+    }
 }
 
 // `C` is the authored custody record for the non-runtime fields of `T` under

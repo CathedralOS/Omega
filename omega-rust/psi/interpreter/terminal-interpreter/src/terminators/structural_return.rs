@@ -347,6 +347,7 @@ impl TerminalExecution<'_> {
                 None
             };
             CompletedReturn {
+                returned_claims: active_returned_claims.clone(),
                 value: if let Some(value) = scalar_case {
                     TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult { value })
                 } else {

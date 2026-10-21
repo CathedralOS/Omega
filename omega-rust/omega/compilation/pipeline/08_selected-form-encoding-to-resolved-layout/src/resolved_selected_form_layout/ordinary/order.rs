@@ -49,7 +49,7 @@ pub(super) fn derive(
                 Some(when_not_less)
             }
             SelectedTerminator::Jump { .. }
-            | selected_instructions::terminator_exit_triple_pattern!(..) => None,
+            | selected_instructions::terminator_no_successor_pattern!(..) => None,
         };
         if let Some(successor) = successor {
             let destination = position_of(successor.block).ok_or_else(invalid)?;

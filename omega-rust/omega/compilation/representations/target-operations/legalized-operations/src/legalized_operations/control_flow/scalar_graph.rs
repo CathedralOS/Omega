@@ -134,8 +134,14 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
-            LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. } => visit(*committed),
-            LegalizedScalarInstructionKind::ReleaseActivationClaim { .. } | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. } => {}
+            LegalizedScalarInstructionKind::PlacementLifecycle { indices, .. } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
+            }
+            LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. } => {
+                visit(*committed)
+            }
+            LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
+            | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. } => {}
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                 left,
                 right,
@@ -388,6 +394,15 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Whole-value placement retains the same original operands and result as
+    /// the checked boundary. Selectors are concatenated in operand/path order;
+    /// the shared structural catalog owns the complete normalized image plan.
+    PlacementLifecycle {
+        boundary: BoundaryMachineId,
+        operands: abstract_operations::PlacementLifecycleOperands,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        result: terminal_psi::StructuralOperationResult,
+    },
     EstablishActivationClaim {
         result: terminal_psi::StructuralOperationResult,
         bound: u64,
@@ -525,7 +540,7 @@ pub enum LegalizedScalarInstructionKind {
     EstablishPlacedReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
-        correspondence: terminal_psi::PlacedRamCorrespondence,
+        correspondence: abstract_operations::PlacedReferenceBacking,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         shape: calling_conventions::ValueShape,
     },
@@ -1019,6 +1034,7 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishActivationClaim { result, .. }
+            | Self::PlacementLifecycle { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
@@ -1198,6 +1214,32 @@ mod structural_result_tests {
             LegalizedScalarInstructionKind::Call(call).get_structural_result(),
             Some(&expected)
         );
+    }
+
+    #[test]
+    fn lifecycle_result_lookup_retains_custody_and_does_not_become_a_scalar() {
+        let mut expected = result();
+        expected
+            .qualifications
+            .push(semantic_vocabulary::StructuralDomainId::new(9).expect("domain"));
+        let instruction = LegalizedScalarInstructionKind::PlacementLifecycle {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(1).expect("boundary"),
+            operands: abstract_operations::PlacementLifecycleOperands::MoveOut {
+                storage: StructuralArgument {
+                    place: PlaceId::new(8).expect("original owner"),
+                    path: vec![],
+                    access: StructuralAccess::Owned,
+                },
+                profile: StructuralArgument {
+                    place: PlaceId::new(9).expect("original profile"),
+                    path: vec![],
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+            indices: vec![],
+            result: expected.clone(),
+        };
+        assert_eq!(instruction.get_structural_result(), Some(&expected));
     }
 }
 

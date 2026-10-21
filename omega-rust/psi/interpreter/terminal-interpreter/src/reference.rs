@@ -34,7 +34,7 @@ use terminal_psi::{Operation, StructuralResultDeclaration};
 #[derive(Clone)]
 pub(crate) struct ReferenceReferent {
     /// Explicit placed interpretation retains its initialized original RAM.
-    pub(crate) placed_ram: Option<PlacedRamReference>,
+    pub(crate) placed: Option<PlacedReference>,
     pub(crate) view: TerminalStructuralValue,
     pub(crate) primitive_loan: Option<crate::primitive_storage::PrimitiveLoan>,
     /// Fixed-array references retain the ordinary collection loan's activation
@@ -69,7 +69,7 @@ pub(crate) enum AggregateViewTip {
 #[derive(Clone)]
 pub(crate) struct ResolvedStructuralProjection {
     pub(crate) array_loan: Option<crate::element_views::ElementView>,
-    placed_ram: Option<PlacedRamReference>,
+    placed: Option<PlacedReference>,
     pub(crate) value: TerminalStructuralValue,
     view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
@@ -83,7 +83,7 @@ pub(crate) struct ResolvedStructuralProjection {
 #[derive(Clone)]
 pub(crate) struct ReferenceBacking {
     array_loan: Option<crate::element_views::ElementView>,
-    placed_ram: Option<PlacedRamReference>,
+    placed: Option<PlacedReference>,
     pub(crate) value: TerminalStructuralValue,
     aggregate_view: Option<AggregateViewRegion>,
     primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
@@ -95,12 +95,12 @@ pub(crate) struct ReferenceBacking {
 
 mod aggregate_views;
 mod origin_backings;
-pub(crate) mod placed_ram;
+pub(crate) mod placed;
 pub(crate) use aggregate_views::{
     AggregateBacking, AggregateViewRegion, backing_scalar_path, translate_aggregate_view_field,
     translate_aggregate_view_path,
 };
-pub(crate) use placed_ram::PlacedRamReference;
+pub(crate) use placed::PlacedReference;
 
 /// An aggregate view retains its captured byte endpoint and complete extent.
 /// Projecting a child applies catalog geometry, never the formation expression.
@@ -652,7 +652,7 @@ impl TerminalExecution<'_> {
             }
             None
         };
-        let mut placed_ram = None;
+        let mut placed = None;
         let mut referent = match &primitive_loan {
             Some(loan) => loan.referent.clone(),
             None if collection_loan.is_some() => {
@@ -664,12 +664,12 @@ impl TerminalExecution<'_> {
             None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
             None => {
                 let (view, captured) = self.resolve_live_placed_projection(source)?;
-                placed_ram = captured;
+                placed = captured;
                 view
             }
         };
-        if let Some(ram) = &mut placed_ram {
-            self.validate_placed_ram_home(ram)?;
+        if let Some(ram) = &mut placed {
+            self.validate_placed_backing(ram)?;
             if !access_covers(ram.access, access) {
                 return Err(malformed());
             }
@@ -727,7 +727,7 @@ impl TerminalExecution<'_> {
             }
             referent.qualifications.sort();
             referent.projected_qualifications.sort();
-            if let Some(ram) = &mut placed_ram {
+            if let Some(ram) = &mut placed {
                 // Dereferencing placed storage selects its presentation, not
                 // its original RAM declaration. Preserve the observations on
                 // that view without relabeling the backing or its live home.
@@ -776,10 +776,8 @@ impl TerminalExecution<'_> {
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&carrier),
             ReferenceReferent {
-                view: placed_ram
-                    .as_ref()
-                    .map_or(referent, |ram| ram.source.clone()),
-                placed_ram,
+                view: placed.as_ref().map_or(referent, |ram| ram.source.clone()),
+                placed,
                 primitive_loan,
                 collection_loan: collection_loan.map(|(_, loan)| loan),
                 byte_owner: byte_owner_loan.map(|(_, binding)| binding),
@@ -813,9 +811,9 @@ impl TerminalExecution<'_> {
         if let Some(ram) = self
             .reference_referents
             .get(&key)
-            .and_then(|reference| reference.placed_ram.as_ref())
+            .and_then(|reference| reference.placed.as_ref())
         {
-            self.validate_placed_ram_home(ram)?;
+            self.validate_placed_backing(ram)?;
         }
         // Release consumes the descriptor's ordinary owned projection, leaving
         // exactly the same affine complement as transfer. It never removes the
@@ -878,14 +876,14 @@ impl TerminalExecution<'_> {
     pub(crate) fn resolve_live_placed_projection(
         &self,
         argument: &StructuralArgument,
-    ) -> Result<(TerminalStructuralValue, Option<PlacedRamReference>), TerminalInterpretError> {
+    ) -> Result<(TerminalStructuralValue, Option<PlacedReference>), TerminalInterpretError> {
         let projected = self.resolve_live_projection_with_leaf_type(
             argument.place,
             &argument.path,
             argument.access,
             terminal_psi::StructuralFieldType::canonical_leaf_type,
         )?;
-        Ok((projected.value, projected.placed_ram))
+        Ok((projected.value, projected.placed))
     }
 
     pub(crate) fn resolve_live_projection(
@@ -969,9 +967,9 @@ impl TerminalExecution<'_> {
         if byte_region.is_some() && argument.access == StructuralAccess::Owned {
             return Err(malformed());
         }
-        let mut placed_ram = projected.placed_ram;
-        if let Some(ram) = &mut placed_ram {
-            self.validate_placed_ram_home(ram)?;
+        let mut placed = projected.placed;
+        if let Some(ram) = &mut placed {
+            self.validate_placed_backing(ram)?;
             if argument.access == StructuralAccess::Owned
                 || !access_covers(ram.access, argument.access)
                 || ram.presentation != value
@@ -980,15 +978,14 @@ impl TerminalExecution<'_> {
             }
             ram.access = argument.access;
         }
-        let backing =
-            (region.is_some() || byte_region.is_some() || placed_ram.is_some()).then(|| {
-                AggregateBacking {
-                    value: value.clone(),
-                    placed_ram,
-                    region,
-                    byte_region,
-                }
-            });
+        let backing = (region.is_some() || byte_region.is_some() || placed.is_some()).then(|| {
+            AggregateBacking {
+                value: value.clone(),
+                placed,
+                region,
+                byte_region,
+            }
+        });
         if let Some(region) = region {
             value.structural_type = region.structural_type;
         }
@@ -1159,8 +1156,8 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        let (backing, view, placed_ram) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (&backing.value, backing.region, backing.placed_ram.clone()),
+        let (backing, view, placed) = match self.aggregate_argument_backings.get(&place) {
+            Some(backing) => (&backing.value, backing.region, backing.placed.clone()),
             None => (owner, None, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
@@ -1169,7 +1166,7 @@ impl TerminalExecution<'_> {
             Some(access),
             leaf_type,
             view,
-            placed_ram,
+            placed,
             self.element_view_values.get(&place).cloned(),
         )?
         .ok_or_else(malformed)
@@ -1224,8 +1221,8 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
-        let (backing, view, placed_ram) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (&backing.value, backing.region, backing.placed_ram.clone()),
+        let (backing, view, placed) = match self.aggregate_argument_backings.get(&place) {
+            Some(backing) => (&backing.value, backing.region, backing.placed.clone()),
             None => (owner, None, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
@@ -1234,7 +1231,7 @@ impl TerminalExecution<'_> {
             None,
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             view,
-            placed_ram,
+            placed,
             self.element_view_values.get(&place).cloned(),
         )?
         .map(|projection| projection.value)
@@ -1251,7 +1248,7 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>
         + Copy,
         initial_view: Option<AggregateViewRegion>,
-        initial_placed: Option<PlacedRamReference>,
+        initial_placed: Option<PlacedReference>,
         initial_array: Option<crate::element_views::ElementView>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
@@ -1261,7 +1258,7 @@ impl TerminalExecution<'_> {
         let mut primitive_storage = None;
         let mut collection_home = None;
         let mut array_loan = initial_array;
-        let mut placed_ram = initial_placed.or_else(|| {
+        let mut placed = initial_placed.or_else(|| {
             self.placed_view_occurrences
                 .values()
                 .find(|occurrence| occurrence.view == StructuralRuntimePlace::from(owner))
@@ -1418,8 +1415,8 @@ impl TerminalExecution<'_> {
                     );
                 }
             }
-            if let Some(captured) = &mut placed_ram {
-                self.project_placed_ram_presentation(captured, prefix, &value)?;
+            if let Some(captured) = &mut placed {
+                self.project_placed_presentation(captured, prefix, &value)?;
             }
             if let Some(boundary) = boundary {
                 if matches!(remaining[boundary], StructuralPathSegment::FixedIndex(_)) {
@@ -1519,9 +1516,9 @@ impl TerminalExecution<'_> {
                         .0,
                     );
                 }
-                placed_ram = captured.placed_ram.clone();
-                if let Some(ram) = &placed_ram {
-                    self.validate_placed_ram_home(ram)?;
+                placed = captured.placed.clone();
+                if let Some(ram) = &placed {
+                    self.validate_placed_backing(ram)?;
                     if ram.presentation.structural_type != referent_type
                         || !access_covers(ram.access, authority)
                     {
@@ -1593,7 +1590,7 @@ impl TerminalExecution<'_> {
                 });
                 return Ok(Some(ResolvedStructuralProjection {
                     array_loan,
-                    placed_ram,
+                    placed,
                     view_tip: tip,
                     endpoint_field,
                     primitive_storage,
@@ -1705,11 +1702,8 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     let path = binding.source.path.as_slice();
-                    let (backing, view, placed_ram) = match aggregate_backings.get(&parameter.place)
-                    {
-                        Some(backing) => {
-                            (&backing.value, backing.region, backing.placed_ram.clone())
-                        }
+                    let (backing, view, placed) = match aggregate_backings.get(&parameter.place) {
+                        Some(backing) => (&backing.value, backing.region, backing.placed.clone()),
                         None => (owner, None, None),
                     };
                     let Some(projected) = self.resolve_reference_view_path_with_leaf_type(
@@ -1718,7 +1712,7 @@ impl TerminalExecution<'_> {
                         Some(source.access),
                         terminal_psi::StructuralFieldType::canonical_leaf_type,
                         view,
-                        placed_ram.or_else(|| {
+                        placed.or_else(|| {
                             placed_occurrences
                                 .values()
                                 .find(|occurrence| {
@@ -1735,9 +1729,9 @@ impl TerminalExecution<'_> {
                         Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
                         _ => None,
                     };
-                    let mut placed_ram = projected.placed_ram;
-                    if let Some(ram) = &mut placed_ram {
-                        self.validate_placed_ram_home(ram)?;
+                    let mut placed = projected.placed;
+                    if let Some(ram) = &mut placed {
+                        self.validate_placed_backing(ram)?;
                         if !access_covers(ram.access, access) {
                             return Err(malformed());
                         }
@@ -1760,7 +1754,7 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    if placed_ram.is_some()
+                    if placed.is_some()
                         && (!binding.suffix.is_empty()
                             || binding.extent
                                 != semantic_vocabulary::ReferenceOriginExtent::Projected
@@ -1782,9 +1776,7 @@ impl TerminalExecution<'_> {
                             })
                             .flatten()
                     });
-                    let expected = placed_ram
-                        .as_ref()
-                        .map_or(logical, |ram| ram.source.clone());
+                    let expected = placed.as_ref().map_or(logical, |ram| ram.source.clone());
                     let array_loan = projected.array_loan.or_else(|| {
                         path.is_empty()
                             .then(|| array_loans.get(&parameter.place).cloned())
@@ -1823,7 +1815,7 @@ impl TerminalExecution<'_> {
                             None
                         },
                         array_loan,
-                        placed_ram,
+                        placed,
                         value: expected,
                         aggregate_view: view,
                         primitive_storage,
@@ -1918,8 +1910,8 @@ impl TerminalExecution<'_> {
                 project_structural_value(&self.program.structural_types(), carrier, &origin.path)?;
             let key = StructuralRuntimePlace::from(&descriptor);
             let actual = self.reference_referents.get(&key).ok_or_else(malformed)?;
-            if let Some(ram) = &actual.placed_ram {
-                self.validate_placed_ram_home(ram)?;
+            if let Some(ram) = &actual.placed {
+                self.validate_placed_backing(ram)?;
             }
             if origin.sources.is_empty()
                 || origin
@@ -1945,7 +1937,7 @@ impl TerminalExecution<'_> {
                     matched |= view.map_or_else(
                         || {
                             projected
-                                .placed_ram
+                                .placed
                                 .as_ref()
                                 .map_or(projected.value.structural_type, |ram| {
                                     ram.presentation.structural_type
@@ -1954,7 +1946,7 @@ impl TerminalExecution<'_> {
                         |view| view.structural_type,
                     ) == referent_type
                         && projected.value == actual.view
-                        && projected.placed_ram == actual.placed_ram
+                        && projected.placed == actual.placed
                         && view == actual.aggregate_view
                         && projected.array_loan.as_ref().is_none_or(|expected| {
                             actual

@@ -27,7 +27,7 @@ pub use boundary::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryOperatorRequirement,
     BoundaryParameterKind, BoundaryReferenceDestination, BoundaryReferenceOutput,
     BoundaryStructuralResultDeclaration, BoundaryTypeIdentity, CheckedBoundaryCallable,
-    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    CheckedBoundaryExecution, ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
     ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
@@ -73,12 +73,15 @@ pub use observation::{
 pub use ownership::{
     ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion, NominalAffineCleanup,
     PlacedRamCorrespondence, PlacedRamFieldCorrespondence, PlacedScalarBoundaryDemand,
-    RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
-    RetainedBorrowPlaceRoot, StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity,
-    TerminalAffineCleanupAction, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
-    TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalPlacedAccessor,
-    TerminalPlacedAccessorKind, TerminalPlacedFieldPlan, TerminalPlacedViewInput,
-    TerminalPlacedViewPlan, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    ResidentReferenceSource, RetainedBorrowContentProjection, RetainedBorrowCustody,
+    RetainedBorrowPlace, RetainedBorrowPlaceRoot, StructuralAccess, StructuralAffineDiscard,
+    StructuralMultiplicity, TerminalAffineCleanupAction, TerminalBorrowBoundarySource,
+    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment,
+    TerminalPlacedAccessor, TerminalPlacedAccessorKind, TerminalPlacedFieldPlan,
+    TerminalPlacedViewInput, TerminalPlacedViewPlan, TerminalPlacementLifecycleExecution,
+    TerminalPlacementLifecycleOperation, TerminalPlacementLifecyclePlan,
+    TerminalPlacementProfileRequirement, TerminalPlacementStorage,
+    TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
     TerminalReborrowSharedCohortMember, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
     TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionLoan,
     TerminalSuspensionLoanBacking, TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource,
@@ -205,6 +208,9 @@ pub struct TerminalModule {
     /// Complete normalized placement and generated-operation relationships.
     /// Description only; establishments separately bind actual backing custody.
     pub placed_view_plans: Vec<TerminalPlacedViewPlan>,
+    /// Whole-value lifecycle demand independent of any later field view.
+    /// Like placed-view plans, these rows grant no backing or execution rights.
+    pub placement_lifecycle_plans: Vec<TerminalPlacementLifecyclePlan>,
     /// One exact whole-parent mutating call after a one-hop exclusive child
     /// reactivates its direct mutable root. These rows grant use only at the
     /// named call and cannot express cleanup, transfer, or discharge.
@@ -353,6 +359,7 @@ impl TerminalModule {
             root_service_reach: Default::default(),
             placed_view_inputs: Vec::new(),
             placed_view_plans: Vec::new(),
+            placement_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),

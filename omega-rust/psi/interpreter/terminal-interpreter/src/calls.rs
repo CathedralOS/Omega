@@ -331,6 +331,81 @@ impl TerminalExecution<'_> {
         // storage; no declaration or program contents are copied for a call.
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
+        // A compiler primitive's completion is not a selectable assertion.
+        // Until its execution binds the live extent, completed profile call
+        // and actual backing, neither a checked adapter nor a host handler may
+        // fulfill it. Keep this before both dispatch routes.
+        if let Some(placement_operation) = boundary_declaration
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.execution.placement_operation())
+        {
+            let plan = program
+                .catalogs
+                .placement_lifecycle_plans
+                .iter()
+                .find(|plan| plan.boundary == boundary)
+                .ok_or_else(malformed)?;
+            match placement_operation {
+                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
+                    let [storage_argument, value, profile_argument] =
+                        structural_arguments.as_slice()
+                    else {
+                        return Err(malformed());
+                    };
+                    let storage = self.resolve_live_projection(
+                        storage_argument.place,
+                        &storage_argument.path,
+                        storage_argument.access,
+                    )?;
+                    let profile = self.resolve_live_projection(
+                        profile_argument.place,
+                        &profile_argument.path,
+                        profile_argument.access,
+                    )?;
+                    // Resolve and normalize the exact completed supply before any
+                    // write. The result alone does not establish resident contents.
+                    let (binding, supplied) = self.lifecycle_profile(plan, &storage, &profile)?;
+                    // Terminal byte regions use the same little-endian scalar
+                    // codec as ordinary captured byte storage. Native realization
+                    // supplies its target byte order independently.
+                    let image = crate::provider_storage::value_image::prepare(
+                        self,
+                        plan,
+                        value,
+                        layout_plans::ByteOrder::LittleEndian,
+                    )?;
+                    // Dynamic rejection still owes the ordinary result carrying
+                    // both original inputs. Neither outcome may publish ahead of
+                    // the complete value/extent custody transaction.
+                    let prepared = self.provider_storage.prepare_initial_image(
+                        binding,
+                        supplied,
+                        &plan.placement,
+                        image,
+                    )?;
+                    match prepared {
+                        Err(rejection) => self.reject_placement_initialization(
+                            operation,
+                            boundary_declaration,
+                            plan,
+                            rejection,
+                        )?,
+                        Ok(prepared) => self.complete_placement_initialization(
+                            operation,
+                            boundary_declaration,
+                            plan,
+                            prepared,
+                        )?,
+                    }
+                    return Ok(OperationFlow::Advance);
+                }
+                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
+                    self.extract_placement_resident(operation, boundary_declaration, plan)?;
+                    return Ok(OperationFlow::Advance);
+                }
+            }
+        }
         let scalar_arguments = scalar_argument_ids
             .iter()
             .map(|argument| self.scalar_value(*argument))
@@ -459,6 +534,11 @@ impl TerminalExecution<'_> {
                     &claim_transfers,
                 )?,
                 terminal_psi::OperationResult::Structural(result) => {
+                    let profile_completion = self.capture_resource_profile_call(
+                        boundary,
+                        callee_id,
+                        structural_arguments,
+                    )?;
                     self.begin_structural_result_call(
                         callee_id,
                         result.clone(),
@@ -468,6 +548,18 @@ impl TerminalExecution<'_> {
                         &claim_transfers,
                         crate::execution::ResultClaimOrigin::CheckedProvider,
                     )?;
+                    let Some(SuspendedCall {
+                        result:
+                            SuspendedCallResult::Structural {
+                                profile_completion: pending,
+                                ..
+                            },
+                        ..
+                    }) = self.call_stack.last_mut()
+                    else {
+                        return Err(malformed());
+                    };
+                    *pending = profile_completion;
                 }
                 terminal_psi::OperationResult::Scalar(result) => {
                     self.begin_structural_scalar_call(
@@ -482,7 +574,7 @@ impl TerminalExecution<'_> {
             }
             return Ok(OperationFlow::Redispatch);
         }
-        if self.execute_placed_ram_boundary(
+        if self.execute_placed_boundary(
             operation,
             boundary_declaration,
             &scalar_arguments,

@@ -357,11 +357,14 @@ pub use value_custody::recasts::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, ReferenceFormationInterpretation,
     ReferenceFormationSource, SliceRecastByteRegion, SliceRecastSource,
-    ValidatedLiteralIndexedRecastFootprint, recast_record_source_leaf, recast_scalar_layout,
-    recast_scalar_path_geometry, recast_scalar_path_projection, recast_scalar_projection,
-    reference_formation_source, reference_view_storage, slice_recast_byte_region,
-    slice_recast_source, validate_literal_indexed_recast_footprint,
-    validate_runtime_indexed_recast_source,
+    ValidatedLiteralIndexedRecastFootprint, placed_borrow_has_empty_write_frame,
+    recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_geometry,
+    recast_scalar_path_projection, recast_scalar_projection, reference_formation_source,
+    reference_view_storage, slice_recast_byte_region, slice_recast_source,
+    validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
+};
+pub use value_custody::resident_content::{
+    ResidentOwnerQualifications, is_extent_declaration, resident_owner_qualifications,
 };
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{

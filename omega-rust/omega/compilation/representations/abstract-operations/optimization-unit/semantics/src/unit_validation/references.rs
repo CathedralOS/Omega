@@ -991,11 +991,11 @@ pub(crate) fn placed_reference_source_compatible(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     source: StructuralTypeId,
     result: StructuralTypeId,
-    correspondence: &terminal_psi::PlacedRamCorrespondence,
+    correspondence: &abstract_operations::PlacedReferenceBacking,
 ) -> bool {
-    source == correspondence.schema
+    source == correspondence.source_type()
         && matches!(types.get(&result).map(|row| &row.shape),
             Some(terminal_psi::StructuralTypeShape::Reference { referent, access })
-                if *referent == correspondence.carrier
+                if *referent == correspondence.carrier()
                     && matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow))
 }

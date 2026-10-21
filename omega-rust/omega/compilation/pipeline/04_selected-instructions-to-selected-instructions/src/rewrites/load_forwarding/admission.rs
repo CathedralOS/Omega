@@ -731,6 +731,9 @@ fn interferes(
     function: &SelectedFunction,
 ) -> bool {
     match access.role {
+        // Owner handles name descriptors, not backing allocations. Without a
+        // disjointness proof any backing write can invalidate a forwarded load.
+        SelectedMemoryAccessRole::WriteBacking => true,
         SelectedMemoryAccessRole::WritePlace => {
             access.place != forwarded.place || forwarded.intersects(access)
         }
@@ -751,6 +754,8 @@ fn interferes(
             local_slot_is_place_storage(slot, access.place, structural_places)
         }
         SelectedMemoryAccessRole::ReadReturnedView { .. }
+        | SelectedMemoryAccessRole::ReadBacking
+        | SelectedMemoryAccessRole::ReadLocal { .. }
         | SelectedMemoryAccessRole::ReadPlace
         | SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
@@ -1198,4 +1203,53 @@ pub(super) fn forwarded(admitted: &Admission<'_>) -> SelectedInstruction {
         admitted.output,
         admitted.provenance.clone(),
     )
+}
+
+#[cfg(test)]
+mod backing_tests {
+    use super::*;
+
+    #[test]
+    fn backing_write_cannot_be_disjoint_by_descriptor_identity_or_offset() {
+        let function = SelectedFunction {
+            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+            attachment: None,
+            nominal_cleanup_subject: None,
+            provenance: target_operations::TerminalPsiProvenance {
+                operations: vec![],
+                edges: vec![],
+            },
+            structural: None,
+            local_storage_slots: vec![],
+            outgoing_arguments: vec![],
+            calls: vec![],
+            normalized_foreign_calls: vec![],
+            memory_accesses: vec![],
+            boundary_settlements: vec![],
+            entry_block: selected_instructions::SelectedBlockId(0),
+            virtual_registers: vec![],
+            blocks: vec![],
+        };
+        let forwarded = Forwarded {
+            place: PlaceId::new(2).unwrap(),
+            byte_offset: 0,
+            byte_count: 8,
+            sequence_index: None,
+        };
+        for place in [forwarded.place, PlaceId::new(3).unwrap()] {
+            let mut access = SelectedMemoryAccess {
+                instruction: SelectedInstructionId(0),
+                origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                    semantic_vocabulary::OperationId::new(1).unwrap(),
+                ),
+                place,
+                byte_offset: 4096,
+                byte_count: 8,
+                role: SelectedMemoryAccessRole::WriteBacking,
+            };
+            assert!(interferes(&forwarded, &access, &[], &function));
+            access.role = SelectedMemoryAccessRole::ReadBacking;
+            assert!(!interferes(&forwarded, &access, &[], &function));
+        }
+    }
 }

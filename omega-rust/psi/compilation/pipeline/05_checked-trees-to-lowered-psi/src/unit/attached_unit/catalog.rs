@@ -1493,8 +1493,25 @@ pub(super) fn lower_establishment_routes(
                 boundary_trait,
                 requirement,
             } => (*boundary_trait, *requirement),
-            language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
+            language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
                 lowered.push(lower_establishment_route(identities, checked, *route)?);
+                for candidate in checked.machines() {
+                    if candidate.symbol == *machine
+                        || !checked
+                            .typed
+                            .machine_invokes_declaration(candidate.symbol, *machine)
+                            .map_err(LoweringError::Unsupported)?
+                    {
+                        continue;
+                    }
+                    lowered.push(lower_establishment_route(
+                        identities,
+                        checked,
+                        language_semantics::DomainEstablishmentRoute::ExactMachine {
+                            machine: candidate.symbol,
+                        },
+                    )?);
+                }
                 continue;
             }
         };

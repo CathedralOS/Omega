@@ -47,7 +47,12 @@ impl ValidatedRuntimeSplit {
             .blocks
             .iter()
             .enumerate()
-            .filter(|(_, block)| matches!(block.origin, SelectedBlockOrigin::Source(_)))
+            .filter(|(_, block)| {
+                matches!(
+                    block.origin,
+                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::Operation { .. }
+                )
+            })
             .find_map(|(block_index, block)| {
                 block.instructions.iter().enumerate().find_map(
                     |(instruction_index, instruction)| {

@@ -45,6 +45,11 @@ pub(crate) fn encode_boundary_machine(
         for argument in &checked.method_arguments {
             super::reach_application_wire::encode_argument(writer, argument);
         }
+        writer.u8(match checked.execution {
+            terminal_psi::CheckedBoundaryExecution::Provider => 0,
+            terminal_psi::CheckedBoundaryExecution::PlacementInitialize => 1,
+            terminal_psi::CheckedBoundaryExecution::PlacementMoveOut => 2,
+        });
     }
     writer.u32(declaration.identity.0);
     writer.u32(declaration.owner.identity().0);
@@ -267,6 +272,12 @@ pub(crate) fn decode_boundary_machine(
                     reader,
                     super::reach_application_wire::decode_argument,
                 )?,
+                execution: match reader.u8()? {
+                    0 => terminal_psi::CheckedBoundaryExecution::Provider,
+                    1 => terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
+                    2 => terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
+                    tag => return Err(CodecError::InvalidTag("checked boundary execution", tag)),
+                },
             })
         } else {
             None

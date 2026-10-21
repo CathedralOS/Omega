@@ -80,13 +80,28 @@ impl CheckRequest<'_> {
         });
         let outcome = if let Some(prior) = matching {
             phase_profile::count("05.b.retained_match.hit", 1);
-            typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?
+            let outcome =
+                typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?;
+            build_time_evaluation::admit_placement_lifecycle_plans(
+                &outcome.checked.typed,
+                self.admission.declarations,
+            )?;
+            outcome
         } else {
             let retained_input = phase_profile::scope("05.b.retained_input_clone", || {
                 self.retain.then(|| (Arc::new(program.clone()), admission))
             });
             let (program, preparation) = phase_profile::scope("05.c.prepare_typed_trees", || {
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)
+            })?;
+            // Whole-value lifecycle demands become concrete through the same
+            // specialization as ordinary calls. Add geometry only: preparation's
+            // executable bodies and mathematical judgments remain unchanged.
+            let program = phase_profile::scope("05.c.placement_lifecycle_plans", || {
+                build_time_evaluation::retain_placement_lifecycle_plans(
+                    program,
+                    self.admission.declarations,
+                )
             })?;
             phase_profile::scope("05.d.lower_typed_trees", || {
                 typed_trees_to_checked_trees::lower_typed_trees_reusing(

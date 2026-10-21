@@ -23,7 +23,12 @@ use target::NativeTarget;
 
 #[test]
 fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() {
-    for (padding, expected_width) in [(126, 6), (125, 2)] {
+    for (padding, expected_width, semantic) in [
+        (126, 6, true),
+        (125, 2, true),
+        (126, 6, false),
+        (125, 2, false),
+    ] {
         let mut source = source_plan();
         let physical = physical();
         let alternative = MachineAlternativeKey {
@@ -53,10 +58,10 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
             FunctionFragmentConditionalBranchEvidence {
                 predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
                 source_block: SelectedBlockId(1),
-                when_taken_edge: EdgeId::new(2).unwrap(),
+                when_taken_edge: semantic.then(|| EdgeId::new(2).unwrap()),
                 when_taken_block: SelectedBlockId(3),
                 when_taken_offset: (padding + 3) as u64,
-                when_fallthrough_edge: EdgeId::new(3).unwrap(),
+                when_fallthrough_edge: semantic.then(|| EdgeId::new(3).unwrap()),
                 when_fallthrough_block: SelectedBlockId(2),
                 when_fallthrough_offset: 2,
                 byte_displacement: padding + 1,
@@ -108,6 +113,13 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
         .unwrap();
         let branch = &application.fragments.functions[0].blocks[0].instructions[0];
         assert_eq!(branch.bytes.len(), expected_width);
+        let FunctionFragmentBranchEvidence::Conditional(evidence) =
+            branch.branch.as_deref().unwrap()
+        else {
+            panic!("conditional branch evidence");
+        };
+        assert_eq!(evidence.when_taken_edge.is_some(), semantic);
+        assert_eq!(evidence.when_fallthrough_edge.is_some(), semantic);
         let growth = expected_width as u64 - 2;
         let function = &application.fragments.functions[0];
         let call = &function.blocks[1].instructions[0];
@@ -366,10 +378,10 @@ fn aarch64_source(
         FunctionFragmentConditionalBranchEvidence {
             predicate: conditional.predicate,
             source_block: SelectedBlockId(branch_block),
-            when_taken_edge: EdgeId::new(2).unwrap(),
+            when_taken_edge: EdgeId::new(2),
             when_taken_block: SelectedBlockId(taken),
             when_taken_offset: taken_offset,
-            when_fallthrough_edge: EdgeId::new(3).unwrap(),
+            when_fallthrough_edge: EdgeId::new(3),
             when_fallthrough_block: SelectedBlockId(fallthrough),
             when_fallthrough_offset: fallthrough_offset,
             byte_displacement: displacement,

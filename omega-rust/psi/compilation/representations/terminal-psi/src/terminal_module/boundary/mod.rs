@@ -23,9 +23,9 @@ pub use declarations::{
     BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryLifetimeDependency,
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
     BoundaryReferenceDestination, BoundaryReferenceOutput, BoundaryStructuralResultDeclaration,
-    CheckedBoundaryCallable, ContentConservationGuarantee, ProgramLocalRootIntroductionSchema,
-    ScalarDomainRequirement, StructuralDomainRequirement, find_boundary_machine,
-    program_local_root_introduction_compatibility_report_identity,
+    CheckedBoundaryCallable, CheckedBoundaryExecution, ContentConservationGuarantee,
+    ProgramLocalRootIntroductionSchema, ScalarDomainRequirement, StructuralDomainRequirement,
+    find_boundary_machine, program_local_root_introduction_compatibility_report_identity,
 };
 pub use dynamic_dispatch::{
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,

@@ -10,11 +10,65 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use legalized_operations::LegalizedRuntimeIndexOperand;
+use selected_instructions::{LocalStorageSlotId, SelectedMemoryAccessRole};
 use semantic_vocabulary::{
     AuthoredBitFragment, AuthoredBitFragments, IntegerValue, ScalarType, ValueId,
 };
 
-fn constant(
+/// The same byte codec serves semantic storage and compiler-owned scratch.
+/// A place anchors register provenance in both cases, but only Place accesses
+/// describe that place's bytes. Scratch must retain its separate frame identity
+/// so alias analysis cannot forward a program value into an internal counter.
+#[derive(Clone, Copy)]
+pub(super) enum StorageAccess<'indices> {
+    Place(&'indices [LegalizedRuntimeIndexOperand]),
+    Local(LocalStorageSlotId),
+    Backing,
+}
+
+impl StorageAccess<'_> {
+    pub(super) fn footprint(
+        self,
+        builder: &mut Builder<'_>,
+        row: &LegalizedScalarInstruction,
+        place: PlaceId,
+        offset: u32,
+        width: u32,
+        written: super::runtime_address::Written,
+    ) -> Result<(), SelectedInstructionError> {
+        match self {
+            Self::Place(indices) => super::runtime_address::footprint(
+                builder, row, place, offset, width, indices, written,
+            ),
+            Self::Local(slot) => super::memory(
+                builder,
+                row,
+                place,
+                offset,
+                width,
+                match written {
+                    super::runtime_address::Written::None => {
+                        SelectedMemoryAccessRole::ReadLocal { slot }
+                    }
+                    _ => SelectedMemoryAccessRole::WriteLocal { slot },
+                },
+            ),
+            Self::Backing => super::memory(
+                builder,
+                row,
+                place,
+                offset,
+                width,
+                match written {
+                    super::runtime_address::Written::None => SelectedMemoryAccessRole::ReadBacking,
+                    _ => SelectedMemoryAccessRole::WriteBacking,
+                },
+            ),
+        }
+    }
+}
+
+pub(super) fn constant(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
@@ -29,7 +83,7 @@ fn constant(
     Ok(output)
 }
 
-fn bitwise(
+pub(super) fn binary(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
@@ -37,17 +91,25 @@ fn bitwise(
     left: VirtualRegisterId,
     right: VirtualRegisterId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let constraint = match kind {
+        SelectedInstructionKind::WrappingAddI64 => builder.constraints.keys.add_i64,
+        SelectedInstructionKind::WrappingMultiplyI64 => builder.constraints.keys.multiply_i64,
+        SelectedInstructionKind::WrappingSubtractI64
+        | SelectedInstructionKind::BitwiseAndI64
+        | SelectedInstructionKind::BitwiseOrI64
+        | SelectedInstructionKind::BitwiseXorI64 => builder.constraints.keys.subtract_i64,
+        _ => {
+            return Err(SelectedInstructionError::custody_because(
+                "binary register helper requires a supported arithmetic or bitwise operation",
+            ));
+        }
+    };
     let output = transport_register(builder, place, 0)?;
-    builder.emit(
-        kind,
-        builder.constraints.keys.subtract_i64,
-        &[left, right, output],
-        provenance(row),
-    )?;
+    builder.emit(kind, constraint, &[left, right, output], provenance(row))?;
     Ok(output)
 }
 
-fn shift(
+pub(super) fn shift(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
@@ -76,7 +138,7 @@ fn shift(
     Ok(output)
 }
 
-fn mask(width: u64) -> Result<u64, SelectedInstructionError> {
+pub(super) fn mask(width: u64) -> Result<u64, SelectedInstructionError> {
     match width {
         1..=63 => Ok((1_u64 << width) - 1),
         64 => Ok(u64::MAX),
@@ -121,28 +183,32 @@ fn container_offset(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn load_container(
+pub(super) fn load_container(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
     pointer: VirtualRegisterId,
     offset: u32,
     width: u32,
-    indices: &[LegalizedRuntimeIndexOperand],
+    storage: StorageAccess<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if width > 8 {
+        return Err(SelectedInstructionError::custody_because(
+            "scalar container exceeds its register carrier",
+        ));
+    }
     let mut container = constant(builder, row, place, 0)?;
     for position in 0..width {
         let byte_offset = offset.checked_add(position).ok_or_else(invalid)?;
         let (address, displacement) =
             super::memory_pointer(builder, row, place, pointer, byte_offset, 1)?;
         let byte = transport_register(builder, place, byte_offset)?;
-        super::runtime_address::footprint(
+        storage.footprint(
             builder,
             row,
             place,
             byte_offset,
             1,
-            indices,
             super::runtime_address::Written::None,
         )?;
         builder.emit(
@@ -154,7 +220,7 @@ fn load_container(
             provenance(row),
         )?;
         let byte = shift(builder, row, place, byte, u64::from(position) * 8, true)?;
-        container = bitwise(
+        container = binary(
             builder,
             row,
             place,
@@ -183,39 +249,15 @@ pub(super) fn read(
     ) {
         return Err(invalid());
     }
-    let prefix = prefix_offset(envelope_offset, fragments)?;
-    let mut value = constant(builder, row, place, 0)?;
-    for fragment in fragments.fragments() {
-        let width = container_width(fragment)?;
-        let offset = container_offset(prefix, fragment)?;
-        let container = load_container(builder, row, place, pointer, offset, width, indices)?;
-        let payload = shift(
-            builder,
-            row,
-            place,
-            container,
-            fragment.destination_lsb,
-            false,
-        )?;
-        let source_mask = constant(builder, row, place, mask(fragment.width)?)?;
-        let payload = bitwise(
-            builder,
-            row,
-            place,
-            SelectedInstructionKind::BitwiseAndI64,
-            payload,
-            source_mask,
-        )?;
-        let payload = shift(builder, row, place, payload, fragment.source_lsb, true)?;
-        value = bitwise(
-            builder,
-            row,
-            place,
-            SelectedInstructionKind::BitwiseOrI64,
-            value,
-            payload,
-        )?;
-    }
+    let value = read_register(
+        builder,
+        row,
+        place,
+        pointer,
+        envelope_offset,
+        fragments,
+        StorageAccess::Place(indices),
+    )?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
@@ -228,6 +270,55 @@ pub(super) fn read(
         provenance(row),
     )?;
     Ok(output)
+}
+
+/// Gather the same admitted fragments for a scalar result or an owned image.
+/// The latter transfers bits directly into aggregate storage, without an SSA
+/// scalar definition or a fabricated logical source value.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn read_register(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    envelope_offset: u32,
+    fragments: &AuthoredBitFragments,
+    storage: StorageAccess<'_>,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let prefix = prefix_offset(envelope_offset, fragments)?;
+    let mut value = constant(builder, row, place, 0)?;
+    for fragment in fragments.fragments() {
+        let width = container_width(fragment)?;
+        let offset = container_offset(prefix, fragment)?;
+        let container = load_container(builder, row, place, pointer, offset, width, storage)?;
+        let payload = shift(
+            builder,
+            row,
+            place,
+            container,
+            fragment.destination_lsb,
+            false,
+        )?;
+        let source_mask = constant(builder, row, place, mask(fragment.width)?)?;
+        let payload = binary(
+            builder,
+            row,
+            place,
+            SelectedInstructionKind::BitwiseAndI64,
+            payload,
+            source_mask,
+        )?;
+        let payload = shift(builder, row, place, payload, fragment.source_lsb, true)?;
+        value = binary(
+            builder,
+            row,
+            place,
+            SelectedInstructionKind::BitwiseOrI64,
+            value,
+            payload,
+        )?;
+    }
+    Ok(value)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -245,17 +336,45 @@ pub(super) fn write(
     if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_)) {
         return Err(invalid());
     }
+    write_register(
+        builder,
+        row,
+        place,
+        pointer,
+        envelope_offset,
+        fragments,
+        StorageAccess::Place(indices),
+        value_register,
+        Some(value),
+    )
+}
+
+/// Store transported scalar bits without inventing an SSA value. Constructors
+/// and whole-value decoders own structural writes; ordinary scalar stores keep
+/// the source value and runtime-index proof in their footprint.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn write_register(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    envelope_offset: u32,
+    fragments: &AuthoredBitFragments,
+    storage: StorageAccess<'_>,
+    value_register: VirtualRegisterId,
+    value: Option<ValueId>,
+) -> Result<(), SelectedInstructionError> {
     let prefix = prefix_offset(envelope_offset, fragments)?;
     for fragment in fragments.fragments() {
         let width = container_width(fragment)?;
         let offset = container_offset(prefix, fragment)?;
-        let container = load_container(builder, row, place, pointer, offset, width, indices)?;
+        let container = load_container(builder, row, place, pointer, offset, width, storage)?;
         let source_mask_bits = mask(fragment.width)?;
         let destination_mask = source_mask_bits
             .checked_shl(u32::try_from(fragment.destination_lsb).map_err(|_| invalid())?)
             .ok_or_else(invalid)?;
         let keep = constant(builder, row, place, !destination_mask)?;
-        let preserved = bitwise(
+        let preserved = binary(
             builder,
             row,
             place,
@@ -272,7 +391,7 @@ pub(super) fn write(
             false,
         )?;
         let source_mask = constant(builder, row, place, source_mask_bits)?;
-        let payload = bitwise(
+        let payload = binary(
             builder,
             row,
             place,
@@ -281,7 +400,7 @@ pub(super) fn write(
             source_mask,
         )?;
         let payload = shift(builder, row, place, payload, fragment.destination_lsb, true)?;
-        let merged = bitwise(
+        let merged = binary(
             builder,
             row,
             place,
@@ -289,26 +408,54 @@ pub(super) fn write(
             preserved,
             payload,
         )?;
-        for position in 0..width {
-            let byte_offset = offset.checked_add(position).ok_or_else(invalid)?;
-            let payload = shift(builder, row, place, merged, u64::from(position) * 8, false)?;
-            let (address, displacement) =
-                super::memory_pointer(builder, row, place, pointer, byte_offset, 1)?;
-            super::runtime_address::footprint(
-                builder,
-                row,
-                place,
-                byte_offset,
-                1,
-                indices,
-                super::runtime_address::Written::Scalar(value),
-            )?;
-            let mut operation_provenance = provenance(row);
-            if !operation_provenance.values.contains(&value) {
-                operation_provenance.values.push(value);
-            }
-            builder.emit_store(displacement, 1, address, payload, operation_provenance)?;
+        store_container(
+            builder, row, place, pointer, offset, width, storage, merged, value,
+        )?;
+    }
+    Ok(())
+}
+
+/// Write exact bytes using the same owner and indexing as container loads.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn store_container(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    offset: u32,
+    width: u32,
+    storage: StorageAccess<'_>,
+    bits: VirtualRegisterId,
+    value: Option<ValueId>,
+) -> Result<(), SelectedInstructionError> {
+    if width > 8 {
+        return Err(SelectedInstructionError::custody_because(
+            "scalar container exceeds its register carrier",
+        ));
+    }
+    for position in 0..width {
+        let byte_offset = offset.checked_add(position).ok_or_else(invalid)?;
+        let payload = shift(builder, row, place, bits, u64::from(position) * 8, false)?;
+        let (address, displacement) =
+            super::memory_pointer(builder, row, place, pointer, byte_offset, 1)?;
+        storage.footprint(
+            builder,
+            row,
+            place,
+            byte_offset,
+            1,
+            value.map_or(
+                super::runtime_address::Written::Structural,
+                super::runtime_address::Written::Scalar,
+            ),
+        )?;
+        let mut operation_provenance = provenance(row);
+        if let Some(value) = value
+            && !operation_provenance.values.contains(&value)
+        {
+            operation_provenance.values.push(value);
         }
+        builder.emit_store(displacement, 1, address, payload, operation_provenance)?;
     }
     Ok(())
 }

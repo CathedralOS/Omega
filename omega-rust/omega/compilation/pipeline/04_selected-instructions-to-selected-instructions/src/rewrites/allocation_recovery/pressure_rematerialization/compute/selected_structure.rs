@@ -14,7 +14,7 @@ pub(super) fn find_instruction(
     block.instruction(id).or_else(|| match &block.terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
-        | selected_instructions::terminator_exit_triple_pattern!(instruction, ..)
+        | selected_instructions::terminator_no_successor_pattern!(instruction, ..)
             if instruction.id == id =>
         {
             Some(instruction)

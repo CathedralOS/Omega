@@ -37,6 +37,7 @@ mod ieee_float_arithmetic;
 mod integer_arithmetic;
 pub(in crate::selection) mod integer_conversion;
 mod normalized_foreign;
+mod operation_control;
 mod placed_scalar_access;
 mod process_exit;
 mod register_access;
@@ -111,7 +112,9 @@ fn select_function(
         registers: Vec::new(),
         pending_result_origins: Vec::new(),
         instructions: Vec::new(),
-        case_blocks: Vec::new(),
+        implementation_blocks: Vec::new(),
+        open_block: None,
+        next_block: source.blocks.len().try_into().map_err(|_| invalid())?,
         block_body_end: None,
         edge_work: Vec::new(),
         definitions: Vec::new(),
@@ -269,11 +272,17 @@ fn select_function(
         } else {
             builder.instructions.len()
         };
+        builder.open_block = Some(operation_control::OpenBlock {
+            id: block_id,
+            origin: selected_instructions::SelectedBlockOrigin::Source(block.id),
+            start,
+        });
         structural::block_entry(source, block, &mut builder)?;
         for (operation_index, operation) in block.instructions.iter().enumerate() {
+            let open = builder.open_block.ok_or_else(invalid)?;
             *current_operation = Some(operation.operation);
-            if byte_input::emit(operation, block_id, start, &mut builder)?
-                || byte_output::emit(operation, block_id, start, &mut builder)?
+            if byte_input::emit(operation, open.id, open.start, &mut builder)?
+                || byte_output::emit(operation, open.id, open.start, &mut builder)?
             {
                 continue;
             }
@@ -339,8 +348,8 @@ fn select_function(
             if structural::operation(
                 function,
                 source,
-                block_id,
-                start,
+                open.id,
+                open.start,
                 operation,
                 environment,
                 &mut builder,
@@ -487,6 +496,7 @@ fn select_function(
                         integer_arithmetic::emit(function, environment, operation, &mut builder)?
                     }
                     LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
+                    | LegalizedScalarInstructionKind::PlacementLifecycle { .. }
                     | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
                     | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { .. }
@@ -537,12 +547,13 @@ fn select_function(
                 .push((result.value, output, result.definition_site, scalar_type));
         }
         *current_operation = None;
+        let open = builder.open_block.ok_or_else(invalid)?;
         let terminator = if let Some(exited) = process_exit::build(
             function,
             source,
             block,
-            block_id,
-            start,
+            open.id,
+            open.start,
             &mut builder,
             environment,
         )? {
@@ -562,12 +573,11 @@ fn select_function(
                 .checked_sub(1)
                 .ok_or_else(invalid)?,
         );
-        blocks.push(SelectedBlock {
-            id: block_id,
-            origin: selected_instructions::SelectedBlockOrigin::Source(block.id),
-            instructions: builder.instructions[start..body_end].to_vec(),
+        blocks.push(operation_control::close(
+            &mut builder,
             terminator,
-        });
+            body_end,
+        )?);
         // Calls retain the ordinary receiver-home and ABI contracts, but are
         // not predecessor instructions: only the selected successor runs them.
         let effect = match &block.terminator {
@@ -588,7 +598,11 @@ fn select_function(
             }
         }
     }
-    blocks.append(&mut builder.case_blocks);
+    blocks.append(&mut builder.implementation_blocks);
+    // Splitting an operation can close its Source block before its ordinary
+    // terminator. Keep the canonical roster (and entry) keyed by selected ID,
+    // independently of the order in which those physical blocks were closed.
+    blocks.sort_by_key(|block| block.id);
     crate::selection::storage_origin_input::replay_memory_origins(
         source,
         &mut builder.transport.memory,
@@ -635,7 +649,9 @@ struct Builder<'a> {
     // copies and scratch materialization can precede that definition.
     pending_result_origins: Vec<VirtualRegisterId>,
     instructions: Vec<SelectedInstruction>,
-    case_blocks: Vec<SelectedBlock>,
+    implementation_blocks: Vec<SelectedBlock>,
+    open_block: Option<operation_control::OpenBlock>,
+    next_block: u32,
     block_body_end: Option<usize>,
     edge_work: Vec<crate::selection::edge_transfers::EdgeWork>,
     definitions: Vec<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)>,

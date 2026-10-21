@@ -27,6 +27,7 @@ mod payload_entry;
 mod payload_history;
 mod payload_predicates;
 mod payload_reachability;
+mod payload_versions;
 mod scalar_contracts;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
@@ -37,6 +38,10 @@ pub use contents::{
 };
 pub use payload_history::{current_payload_contract, current_selected_payload_contract};
 pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
+pub use payload_versions::{
+    ProducedPayloadVersion, require_unchanged_observed_storage, require_unchanged_produced_payload,
+    unchanged_payload_producer,
+};
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
 mod replay;

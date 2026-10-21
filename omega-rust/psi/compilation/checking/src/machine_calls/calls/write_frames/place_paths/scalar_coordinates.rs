@@ -71,7 +71,7 @@ impl LocalWriteSource {
             // scalar coordinate. Failed precision retains the backing footprint.
             if crate::reference_formation_source(program, recast.formation_expression)?
                 .interpretation
-                == crate::ReferenceFormationInterpretation::Placed
+                .is_placed()
             {
                 return None;
             }

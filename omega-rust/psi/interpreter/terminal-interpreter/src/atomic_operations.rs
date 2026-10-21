@@ -178,7 +178,7 @@ impl TerminalExecution<'_> {
             if !terminal_scalar_belongs_to_type(replacement) {
                 return Err(malformed());
             }
-            self.invalidate_host_atoms(&cell.parent);
+            self.invalidate_stored_provenance(&cell.parent);
             self.structural_scalar_fields.insert(cell, replacement);
         }
         Ok(())

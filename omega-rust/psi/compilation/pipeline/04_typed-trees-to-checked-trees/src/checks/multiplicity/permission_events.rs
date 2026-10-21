@@ -202,17 +202,34 @@ pub(crate) fn prepare_permission_events(
                     call_ordinal: call.call_ordinal,
                     target_symbol: call.target_symbol,
                 };
+                // An internal arrival captures arguments and retires this
+                // state's residual storage before the destination executes.
+                // Its future writes cannot invalidate case observations used
+                // by that cleanup. Argument calls remain distinct ordinary
+                // invocations in this roster, as do terminal machine calls.
+                let internal_transfer = validation::find_call_site_in_state(
+                    program,
+                    machine,
+                    state,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .is_some_and(|site| site.is_internal_state_transfer(program, machine.symbol));
                 (
                     source,
-                    crate::flow::call_mutated_places(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        &facts.borrow,
-                        &borrowed,
-                        &mutation_summaries,
-                        call_frames,
-                    ),
+                    if internal_transfer {
+                        Some(Vec::new())
+                    } else {
+                        crate::flow::call_mutated_places(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            &facts.borrow,
+                            &borrowed,
+                            &mutation_summaries,
+                            call_frames,
+                        )
+                    },
                 )
             })
             .collect::<Vec<_>>();

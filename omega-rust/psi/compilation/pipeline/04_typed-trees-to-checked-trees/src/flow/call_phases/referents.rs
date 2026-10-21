@@ -35,7 +35,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     exit: &mut CallFlowContexts,
     argument_sources: Option<&super::ArgumentSources<'_, '_>>,
     domains: &DomainFacts,
-    writes: Option<&[crate::flow::mutation::CallMutationWrite]>,
+    writes: Option<&[super::invalidation::ObservedCallMutation]>,
 ) {
     let key = (
         machine.symbol,
@@ -215,23 +215,42 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     continue;
                 }
                 let mut affected = false;
-                let restored = writes.iter().all(|write| {
+                let restored = writes.iter().all(|contribution| {
+                    if contribution
+                        .write
+                        .region
+                        .preserves_owner_qualification(program, semantic, fact, handle)
+                    {
+                        return true;
+                    }
                     if crate::flow::domain::matching_mutation_for_fact_place(
                         program,
                         semantic,
                         domains,
                         fact,
                         handle,
-                        std::slice::from_ref(&write.place),
+                        &contribution.observations,
                     )
                     .is_none()
                     {
                         return true;
                     }
                     affected = true;
-                    let Some(source) = &write.source else {
+                    let write = &contribution.write;
+                    let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
+                        &write.source
+                    else {
                         return false;
                     };
+                    if !matches!(
+                        write.region,
+                        crate::flow::mutation::StorageRegion::Declared(_)
+                    ) {
+                        // A content guarantee does not restore an owner's
+                        // descriptor fact merely because the loan is anchored
+                        // there. Its own observation frontier must be proved.
+                        return false;
+                    }
                     guarantees
                         .iter()
                         .any(|(parameter, guarantee, domain, identity)| {

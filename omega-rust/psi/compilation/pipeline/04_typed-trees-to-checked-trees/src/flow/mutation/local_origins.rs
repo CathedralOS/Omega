@@ -18,13 +18,14 @@ use validation::symbol_type_symbol;
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_equal;
 use crate::flow::canonical_place_segments_may_overlap;
+use crate::flow::mutation::StorageRegion;
 use crate::flow::mutation::normalize_write_only_range_place;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
-pub(super) use coordinates::write_source_place;
+pub(super) use coordinates::write_source_region;
 pub(crate) use coordinates::{OriginPrecision, origin_place, sole_local_referent_origin};
 
 pub(crate) fn close_storage_places_over_aliases(
@@ -83,7 +84,20 @@ pub(crate) fn close_storage_places_over_origins(
             }
             continue;
         }
-        let (source, precision) = origin_place(program, state, statement_index, origin)?;
+        let (source, precision) =
+            origin_place(program, state, statement_index, origin).or_else(|| {
+                let region = write_source_region(
+                    program,
+                    state,
+                    statement_index,
+                    origin.source.as_ref()?,
+                    &[],
+                )?;
+                // This closure selects observations, not storage replacement.
+                // A fact about the owner may observe its separately owned content.
+                // Until its read footprint proves otherwise, retire it too.
+                Some((region.anchor().clone(), OriginPrecision::Enclosing))
+            })?;
         for place in &storage {
             if source.root != place.root {
                 continue;
@@ -116,6 +130,24 @@ pub(super) fn assignment_storage_places(
     statement: &StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    StorageRegion::declared_places(assignment_storage_regions(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        statement,
+        call_frames,
+    )?)
+}
+
+pub(super) fn assignment_storage_regions(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
     let assignment = statement.as_assignment()?;
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
@@ -160,7 +192,7 @@ pub(super) fn assignment_storage_places(
             place,
             call_frames,
         ) {
-            return direct.map(|place| vec![place]);
+            return direct.map(|place| vec![StorageRegion::Declared(place)]);
         }
     }
     let mut owned_frames = None;
@@ -171,7 +203,7 @@ pub(super) fn assignment_storage_places(
         // has no origin for; a local of finite candidate origins still names
         // exactly those places (`rebase_local_write_places`), anything else
         // stays unknown.
-        return rebase_local_write_places(
+        return rebase_local_write_regions(
             program,
             state_symbol,
             statement_index,
@@ -181,11 +213,11 @@ pub(super) fn assignment_storage_places(
     };
     match target {
         validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
-            direct.map(|place| vec![place])
+            direct.map(|place| vec![StorageRegion::Declared(place)])
         }
         validation::AssignmentWriteTarget::Storage { paths } => {
             if let Some(place) = direct {
-                rebase_local_write_places(
+                rebase_local_write_regions(
                     program,
                     state_symbol,
                     statement_index,
@@ -195,7 +227,10 @@ pub(super) fn assignment_storage_places(
             } else {
                 paths
                     .iter()
-                    .map(|path| place_from_origin_path(program, state, statement_index, path))
+                    .map(|path| {
+                        place_from_origin_path(program, state, statement_index, path)
+                            .map(StorageRegion::Declared)
+                    })
                     .collect()
             }
         }
@@ -289,6 +324,55 @@ pub(super) fn rebase_local_write_places(
     place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    StorageRegion::declared_places(rebase_local_write_regions(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        call_frames,
+    )?)
+}
+
+pub(super) fn rebase_storage_region(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    region: StorageRegion,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    match region {
+        StorageRegion::Declared(place) => {
+            rebase_local_write_regions(program, state_symbol, statement_index, place, call_frames)
+        }
+        StorageRegion::ResidentContent {
+            owner,
+            formation,
+            granted,
+            resident,
+        } => {
+            rebase_local_write_regions(program, state_symbol, statement_index, owner, call_frames)?
+                .into_iter()
+                .map(|region| {
+                    Some(StorageRegion::ResidentContent {
+                        owner: region.into_declared()?,
+                        formation,
+                        granted,
+                        resident,
+                    })
+                })
+                .collect()
+        }
+        region @ StorageRegion::UnresolvedContent { .. } => Some(vec![region]),
+    }
+}
+
+pub(super) fn rebase_local_write_regions(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
     // Evaluation identity is not backing identity. In particular, an inline
     // reference-producing call may return a descriptor for caller storage.
     // If its captured referent could not be projected, keeping the expression
@@ -304,7 +388,7 @@ pub(super) fn rebase_local_write_places(
         &place,
         call_frames,
     ) {
-        return Some(vec![place]);
+        return Some(vec![StorageRegion::Declared(place)]);
     }
     let root = place.root.as_symbol()?;
     let (machine, state) = validation::find_state(program, state_symbol)?;
@@ -321,7 +405,8 @@ pub(super) fn rebase_local_write_places(
             root,
             &place,
             call_frames,
-        );
+        )
+        .map(|places| places.into_iter().map(StorageRegion::Declared).collect());
     };
     // An origin identifies the captured referent of one descriptor, not the
     // transitive storage footprint of that referent. Walk the same immutable
@@ -368,13 +453,31 @@ pub(super) fn rebase_local_write_places(
             } else {
                 &[]
             };
-            let canonical = write_source_place(
+            let region = write_source_region(
                 program,
                 state,
                 statement_index,
                 origin.source.as_ref()?,
                 relative,
             )?;
+            let canonical = match region {
+                StorageRegion::Declared(place) => place,
+                region @ (StorageRegion::ResidentContent { .. }
+                | StorageRegion::UnresolvedContent { .. }) => {
+                    for rebased in rebase_storage_region(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        region,
+                        call_frames,
+                    )? {
+                        if !projected.contains(&rebased) {
+                            projected.push(rebased);
+                        }
+                    }
+                    continue;
+                }
+            };
             // A captured self-origin already names its storage. Other cycles
             // cannot establish a finite footprint, including cycles which
             // grow a selector suffix on each crossing. Refuse rather than
@@ -382,8 +485,9 @@ pub(super) fn rebase_local_write_places(
             if canonical == place {
                 // Another possible origin may fully cover this descriptor.
                 // Its replacement cannot erase the retained incoming target.
-                if !projected.contains(&place) {
-                    projected.push(place.clone());
+                let region = StorageRegion::Declared(place.clone());
+                if !projected.contains(&region) {
+                    projected.push(region);
                 }
                 continue;
             }
@@ -397,8 +501,9 @@ pub(super) fn rebase_local_write_places(
         // A disjoint owned field, or an ancestor also containing owned bytes,
         // still has local facts to invalidate. Caller summaries filter it only
         // after the reachable external storage has been collected.
-        if retains_private_storage && !projected.contains(&place) {
-            projected.push(place);
+        let region = StorageRegion::Declared(place);
+        if retains_private_storage && !projected.contains(&region) {
+            projected.push(region);
         }
     }
     Some(projected)

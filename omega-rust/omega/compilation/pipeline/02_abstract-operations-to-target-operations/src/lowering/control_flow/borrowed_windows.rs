@@ -388,14 +388,16 @@ fn root_window_loan(
                         } => true,
                     }
             }) || (live.owned_arrivals.contains(&place)
-                && function.structural_parameter(place).is_some_and(|parameter| {
-                    parameter.access == StructuralAccess::Owned
-                        && parameter.multiplicity != StructuralMultiplicity::Linear
-                        && !function
-                            .entry_claims
-                            .iter()
-                            .any(|claim| claim.input == place)
-                }))
+                && function
+                    .structural_parameter(place)
+                    .is_some_and(|parameter| {
+                        parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity != StructuralMultiplicity::Linear
+                            && !function
+                                .entry_claims
+                                .iter()
+                                .any(|claim| claim.input == place)
+                    }))
         },
     )
 }

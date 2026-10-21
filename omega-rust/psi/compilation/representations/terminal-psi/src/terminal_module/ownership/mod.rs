@@ -18,8 +18,11 @@ pub use claims::{ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion};
 pub use cleanup::{NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineCleanupAction};
 pub use placement::{
     PlacedRamCorrespondence, PlacedRamFieldCorrespondence, PlacedScalarBoundaryDemand,
-    TerminalPlacedAccessor, TerminalPlacedAccessorKind, TerminalPlacedFieldPlan,
-    TerminalPlacedViewInput, TerminalPlacedViewPlan, canonical_placed_view_identity,
+    ResidentReferenceSource, TerminalPlacedAccessor, TerminalPlacedAccessorKind,
+    TerminalPlacedFieldPlan, TerminalPlacedViewInput, TerminalPlacedViewPlan,
+    TerminalPlacementLifecycleExecution, TerminalPlacementLifecycleOperation,
+    TerminalPlacementLifecyclePlan, TerminalPlacementProfileRequirement, TerminalPlacementStorage,
+    canonical_placed_view_identity,
 };
 pub use suspension::{
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,

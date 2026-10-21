@@ -65,26 +65,58 @@ pub(super) fn lower_operation(
     }
     let first_output = operations.len();
     match operation {
-        AbstractOperation::EstablishActivationClaim { psi_operation, result, bound, committed,
-            backing_type, established_case, rejected_case } => {
+        AbstractOperation::EstablishActivationClaim {
+            psi_operation,
+            result,
+            bound,
+            committed,
+            backing_type,
+            established_case,
+            rejected_case,
+        } => {
             let committed = super::scalar_sources::source(*committed, function, live)?;
-            if committed.scalar_type() != ScalarType::Integer(semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned, 64).map_err(|_| LoweringError::unsupported_control_flow(function.machine))?) {
+            if committed.scalar_type()
+                != ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
+                )
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let result_home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if live.structural_homes.insert(result.place, result_home.clone()).is_some() {
+            let result_home =
+                super::aggregate_results::home(*psi_operation, result, structural_types)?;
+            if live
+                .structural_homes
+                .insert(result.place, result_home.clone())
+                .is_some()
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            operations.push(TargetUnitOperation::EstablishActivationClaim { psi_operation: *psi_operation,
-                result_home, bound: *bound, committed, backing_type: *backing_type,
-                established_case: *established_case, rejected_case: *rejected_case });
+            operations.push(TargetUnitOperation::EstablishActivationClaim {
+                psi_operation: *psi_operation,
+                result_home,
+                bound: *bound,
+                committed,
+                backing_type: *backing_type,
+                established_case: *established_case,
+                rejected_case: *rejected_case,
+            });
             provenance.operations.push(*psi_operation);
             Ok(())
         }
-        AbstractOperation::ReleaseActivationClaim { psi_operation, source, claim } => {
-            operations.push(TargetUnitOperation::ReleaseActivationClaim { psi_operation: *psi_operation,
-                source: source.clone(), claim: *claim });
+        AbstractOperation::ReleaseActivationClaim {
+            psi_operation,
+            source,
+            claim,
+        } => {
+            operations.push(TargetUnitOperation::ReleaseActivationClaim {
+                psi_operation: *psi_operation,
+                source: source.clone(),
+                claim: *claim,
+            });
             provenance.operations.push(*psi_operation);
             Ok(())
         }
@@ -611,6 +643,26 @@ pub(super) fn lower_operation(
                 &live.scalar_homes,
                 live.scalar_block_parameters.get(&value.value).copied(),
                 &super::scalar_sources::ScalarSources::from(&*live),
+                operations,
+                provenance,
+            )
+        }
+        AbstractOperation::BoundaryCall { boundary, .. }
+            if settlements.get(boundary).is_some_and(|binding| {
+                matches!(
+                    binding.realization,
+                    target_operations::BoundarySettlementRealization::Builtin(
+                        BoundaryRealization::PlacementLifecycle { .. }
+                    )
+                )
+            }) =>
+        {
+            super::placement_lifecycles::lower(
+                operation,
+                function,
+                structural_types,
+                settlements,
+                live,
                 operations,
                 provenance,
             )

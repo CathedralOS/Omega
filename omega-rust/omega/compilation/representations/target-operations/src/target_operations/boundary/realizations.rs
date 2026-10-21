@@ -426,6 +426,11 @@ builtin_settlement_conversion!(NearestIeeeFloatArithmeticRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
+    /// Whole-value operation using the immutable lifecycle catalog retained
+    /// with this native program's structural declarations.
+    PlacementLifecycle {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    },
     /// Numeric-only observation of the selected image's retained entry suffix.
     ProgramImageRetainedSuffixStart,
     PlacedScalarAccess(PlacedScalarAccessRealization),

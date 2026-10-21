@@ -19,6 +19,30 @@ pub(crate) enum ResultClaimOrigin {
     Transfer,
 }
 
+/// Resolved retirement homes and the complete receiving custody partition.
+/// Preparation is fallible; committing this transaction performs no lookup
+/// that can refuse after another part of a compound operation has committed.
+pub(crate) struct PreparedConstructorOperands {
+    homes: Vec<(StructuralArgument, StructuralRuntimePlace)>,
+    frontier: BTreeSet<StructuralAffineDiscard>,
+    claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
+}
+
+impl PreparedConstructorOperands {
+    pub(crate) fn commit(self, execution: &mut TerminalExecution<'_>) {
+        for (argument, home) in self.homes {
+            execution.prune_subtree(&home);
+            // Partial transfers retain the initialized storage of disjoint
+            // siblings, even when the parent's resource custody becomes empty.
+            if argument.path.is_empty() {
+                execution.structural_values.remove(&argument.place);
+            }
+        }
+        execution.live_affine_frontier = self.frontier;
+        execution.live_claims = self.claims;
+    }
+}
+
 impl TerminalExecution<'_> {
     /// Compare an owned transfer's actual affine complement with its declared
     /// result, without reconstructing missing source children. The source
@@ -237,7 +261,7 @@ impl TerminalExecution<'_> {
         Ok(remaining)
     }
 
-    fn constructor_claim_is_active(
+    pub(crate) fn constructor_claim_is_active(
         &self,
         result: &StructuralOperationResult,
         path: &[StructuralPathSegment],
@@ -306,6 +330,17 @@ impl TerminalExecution<'_> {
         consumed: &[StructuralArgument],
         claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
     ) -> Result<(), TerminalInterpretError> {
+        self.prepare_constructor_operands(frontier, consumed, claims)?
+            .commit(self);
+        Ok(())
+    }
+
+    pub(crate) fn prepare_constructor_operands(
+        &self,
+        frontier: BTreeSet<StructuralAffineDiscard>,
+        consumed: &[StructuralArgument],
+        claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
+    ) -> Result<PreparedConstructorOperands, TerminalInterpretError> {
         // Resolve all selected homes before removing roots, including multiple
         // disjoint operands that consume the last siblings of one root.
         let homes = consumed
@@ -314,23 +349,15 @@ impl TerminalExecution<'_> {
                 let child = resolve_single_structural_argument(
                     &self.program.structural_types(),
                     &self.structural_values,
-                    &argument,
+                    argument,
                 )?;
-                Ok(StructuralRuntimePlace::from(&child))
+                Ok((argument.clone(), StructuralRuntimePlace::from(&child)))
             })
             .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
-        for (argument, home) in consumed.iter().zip(homes) {
-            self.prune_subtree(&home);
-            // Only a whole transfer consumes the source binding. Empty
-            // resource custody after a partial transfer does not erase the
-            // initialized storage of disjoint scalar siblings. Frame completion
-            // retires that binding after its checked cleanup schedule finishes.
-            if argument.path.is_empty() {
-                self.structural_values.remove(&argument.place);
-            }
-        }
-        self.live_affine_frontier = frontier;
-        self.live_claims = claims;
-        Ok(())
+        Ok(PreparedConstructorOperands {
+            homes,
+            frontier,
+            claims,
+        })
     }
 }

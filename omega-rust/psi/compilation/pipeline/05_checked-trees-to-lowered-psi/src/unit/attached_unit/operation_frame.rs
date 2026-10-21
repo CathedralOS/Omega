@@ -636,6 +636,7 @@ impl OperationFrame<'_, '_> {
             self.values.push(value);
         }
         let declaration = reference_results::emit(
+            identities,
             reference_results::Formation {
                 checked: self.checked,
                 state: self.state,

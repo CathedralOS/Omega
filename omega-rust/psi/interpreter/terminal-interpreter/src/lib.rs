@@ -49,6 +49,7 @@ mod execution;
 mod instance;
 mod primitive_storage;
 mod program;
+mod provider_storage;
 mod record;
 mod reference;
 mod results;
@@ -96,6 +97,9 @@ pub use instance::{
     TerminalProcessExitAdmission,
 };
 pub use program::{TerminalProgram, TerminalProgramEntry};
+pub use provider_storage::{
+    TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
+};
 pub use results::{
     MeasuredTerminalExecution, TerminalCrash, TerminalCrashSite, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,

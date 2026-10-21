@@ -4,6 +4,7 @@ use super::super::signatures::PackageReviewTypeIdentity;
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
+    PlacementLifecycle(terminal_psi::TerminalPlacementLifecycleOperation),
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,

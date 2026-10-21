@@ -743,7 +743,7 @@ fn adapt(
                             machine: function.machine,
                             operation: *psi_operation,
                             place: result.place,
-                            carrier: correspondence.carrier,
+                            carrier: correspondence.carrier(),
                             projection: Projection::new(&[]),
                         },
                     ));

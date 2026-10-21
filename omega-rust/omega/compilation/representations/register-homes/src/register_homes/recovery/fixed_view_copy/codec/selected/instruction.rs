@@ -737,16 +737,16 @@ mod tests {
         use crate::FixedViewCopyDecodeError;
         use selected_instructions::FloatResultPolicyForm;
 
-        for (payload, form) in FloatResultPolicyForm::ALL.into_iter().enumerate() {
+        for (payload, form) in [0, 1, 6, 7].into_iter().zip(FloatResultPolicyForm::ALL) {
             let kind = SelectedInstructionKind::FloatResultPolicy { form };
             let mut bytes = Vec::new();
             encode_kind(&mut bytes, kind);
-            assert_eq!(bytes, [231, payload as u8]);
+            assert_eq!(bytes, [231, payload]);
             let mut cursor = Cursor::new(&bytes);
             assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
             assert_eq!(cursor.remaining(), 0);
         }
-        for payload in 6..=u8::MAX {
+        for payload in (0..=u8::MAX).filter(|payload| ![0, 1, 6, 7].contains(payload)) {
             assert_eq!(
                 decode_kind(&mut Cursor::new(&[231, payload])),
                 Err(FixedViewCopyDecodeError::UnknownInstructionKind(231))
@@ -968,7 +968,7 @@ fn outgoing_slot_roles_round_trip_with_legacy_argument_frame_bytes() {
                 18,
             ),
         ] {
-            let mut expected = vec![tag, frame_tag];
+            let mut expected = vec![tag, frame_tag, 0];
             crate::codec_bytes::push_encoded(&mut expected, 43_u64.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut expected, 7_u32.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut expected, 8_u32.to_le_bytes());

@@ -27,19 +27,38 @@ pub(super) fn lower(
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
-        OperationKind::EstablishActivationClaim { bound, committed, backing_type, established_case, rejected_case } => {
+        OperationKind::EstablishActivationClaim {
+            bound,
+            committed,
+            backing_type,
+            established_case,
+            rejected_case,
+        } => {
             terminal_semantics::activation_storage::activation_claim_shape(module, operation)
                 .map_err(|_| LoweringError::InvalidActivationStorage(operation.id))?;
-            let result = operation.result.structural().cloned()
+            let result = operation
+                .result
+                .structural()
+                .cloned()
                 .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
-            Ok(AbstractOperation::EstablishActivationClaim { psi_operation: operation.id, result,
-                bound: *bound, committed: *committed, backing_type: *backing_type,
-                established_case: *established_case, rejected_case: *rejected_case })
+            Ok(AbstractOperation::EstablishActivationClaim {
+                psi_operation: operation.id,
+                result,
+                bound: *bound,
+                committed: *committed,
+                backing_type: *backing_type,
+                established_case: *established_case,
+                rejected_case: *rejected_case,
+            })
         }
         OperationKind::ReleaseActivationClaim { source, claim } => {
-            Ok(AbstractOperation::ReleaseActivationClaim { psi_operation: operation.id, source: source.clone(), claim: *claim })
+            Ok(AbstractOperation::ReleaseActivationClaim {
+                psi_operation: operation.id,
+                source: source.clone(),
+                claim: *claim,
+            })
         }
-        OperationKind::EstablishPlacedReference { source } => {
+        OperationKind::EstablishPlacedReference { source, resident } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
             };
@@ -57,13 +76,42 @@ pub(super) fn lower(
             let (Some(plan), None) = (selected.next(), selected.next()) else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
             };
-            let correspondence = terminal_semantics::placed_ram_plan_correspondence(
-                structural_types,
-                placed_view_plans,
-                plan,
-                plan.schema,
-            )
-            .map_err(|_| LoweringError::UnsupportedReferenceCustody(operation.id))?;
+            let correspondence = if let Some(roles) = resident {
+                let root = super::primitive_storage::parameter(machine, source.place)
+                    .map(|parameter| parameter.structural_type)
+                    .or_else(|| {
+                        machine
+                            .structural_place(source.place)?
+                            .kind
+                            .produced_structural_type()
+                    })
+                    .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                let owner = terminal_semantics::runtime_structural_path_tip(
+                    structural_types.iter(),
+                    root,
+                    &source.path,
+                )
+                .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                abstract_operations::PlacedReferenceBacking::Resident(
+                    abstract_operations::ResidentReferenceBacking {
+                        owner: owner.id,
+                        schema: plan.schema,
+                        carrier: plan.carrier,
+                        roles: *roles,
+                        placement_commitment: plan.placement.content_interpretation().commitment(),
+                    },
+                )
+            } else {
+                abstract_operations::PlacedReferenceBacking::OrdinaryRam(
+                    terminal_semantics::placed_ram_plan_correspondence(
+                        structural_types,
+                        placed_view_plans,
+                        plan,
+                        plan.schema,
+                    )
+                    .map_err(|_| LoweringError::UnsupportedReferenceCustody(operation.id))?,
+                )
+            };
             Ok(AbstractOperation::EstablishPlacedReference {
                 psi_operation: operation.id,
                 result,

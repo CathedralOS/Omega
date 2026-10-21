@@ -14,7 +14,7 @@ fn successor() -> SelectedSuccessor {
         role: SelectedSuccessorRole::Semantic,
         structural_case: None,
         structural_bindings: Vec::new(),
-        psi_edge: EdgeId::new(1).unwrap(),
+        psi_edge: EdgeId::new(1),
         block: SelectedBlockId(2),
         source_target: BlockId::new(3).unwrap(),
         bindings: vec![SelectedValueBinding {
@@ -137,6 +137,55 @@ fn successor_register_transport_has_exact_canonical_bytes() {
         decode_successor(&mut Cursor::new(&unused_encoded)).unwrap(),
         unused
     );
+}
+
+#[test]
+fn operation_trap_codec_retains_its_owner_without_an_authored_crash_edge() {
+    use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
+    use selected_instructions::{
+        SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedInstructionProvenance, SelectedTerminator,
+    };
+    let operation = semantic_vocabulary::OperationId::new(9).unwrap();
+    let mut block = SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: SelectedBlockOrigin::Operation {
+            source: BlockId::new(1).unwrap(),
+            operation,
+        },
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::OperationTrap {
+            operation,
+            instruction: SelectedInstruction {
+                id: SelectedInstructionId(3),
+                kind: SelectedInstructionKind::Crash,
+                constraint: RegisterConstraintKey {
+                    family: RegisterConstraintFamily::Instruction,
+                    variant: 780,
+                },
+                operands: Vec::new(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance {
+                    operations: vec![operation],
+                    ..Default::default()
+                },
+            },
+        },
+    };
+    let mut encoded = Vec::new();
+    encode_block(&mut encoded, &block);
+    let mut cursor = Cursor::new(&encoded);
+    assert_eq!(decode_block(&mut cursor).unwrap(), block);
+    assert_eq!(cursor.remaining(), 0);
+    let SelectedTerminator::OperationTrap { operation, .. } = &mut block.terminator else {
+        panic!("trap");
+    };
+    *operation = semantic_vocabulary::OperationId::new(10).unwrap();
+    let mut changed = Vec::new();
+    encode_block(&mut changed, &block);
+    assert_ne!(encoded, changed);
 }
 
 #[test]
@@ -335,10 +384,39 @@ fn successor_role_round_trips_and_unknown_roles_reject() {
         decode_successor(&mut Cursor::new(&encoded)).unwrap(),
         original
     );
-    encoded[0] = 3;
+    encoded[0] = 4;
     assert_eq!(
         decode_successor(&mut Cursor::new(&encoded)),
-        Err(FixedViewCopyDecodeError::UnknownSuccessorRole(3))
+        Err(FixedViewCopyDecodeError::UnknownSuccessorRole(4))
+    );
+}
+
+#[test]
+fn operation_successor_codec_keeps_absent_edges_and_rejects_forged_lineage() {
+    let operation = semantic_vocabulary::OperationId::new(71).unwrap();
+    let mut original = successor();
+    original.role = SelectedSuccessorRole::OperationContinuation { operation };
+    original.psi_edge = None;
+    original.bindings.clear();
+    let mut encoded = Vec::new();
+    encode_successor(&mut encoded, &original);
+    assert_eq!(
+        decode_successor(&mut Cursor::new(&encoded)).unwrap(),
+        original
+    );
+    // Tag and operation precede the optional edge coordinate. An operation
+    // cannot borrow a real source edge even if that coordinate exists.
+    encoded[9..17].copy_from_slice(&1_u64.to_le_bytes());
+    assert_eq!(
+        decode_successor(&mut Cursor::new(&encoded)),
+        Err(FixedViewCopyDecodeError::InvalidSuccessorLineage)
+    );
+    original.role = SelectedSuccessorRole::Semantic;
+    encoded.clear();
+    encode_successor(&mut encoded, &original);
+    assert_eq!(
+        decode_successor(&mut Cursor::new(&encoded)),
+        Err(FixedViewCopyDecodeError::InvalidSuccessorLineage)
     );
 }
 
@@ -366,10 +444,17 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
     encoded.clear();
     encode_block(&mut encoded, &block);
     assert_eq!(decode_block(&mut Cursor::new(&encoded)).unwrap(), block);
-    encoded[4] = 3;
+    block.origin = SelectedBlockOrigin::Operation {
+        source: BlockId::new(91).unwrap(),
+        operation: semantic_vocabulary::OperationId::new(71).unwrap(),
+    };
+    encoded.clear();
+    encode_block(&mut encoded, &block);
+    assert_eq!(decode_block(&mut Cursor::new(&encoded)).unwrap(), block);
+    encoded[4] = 4;
     assert_eq!(
         decode_block(&mut Cursor::new(&encoded)),
-        Err(FixedViewCopyDecodeError::UnknownBlockOrigin(3))
+        Err(FixedViewCopyDecodeError::UnknownBlockOrigin(4))
     );
 }
 

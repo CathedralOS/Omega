@@ -251,6 +251,12 @@ impl<'execution> ConstructorValue<'execution> {
 
 #[derive(Default)]
 pub(crate) struct ConstructorStorage {
+    completed_profiles: BTreeMap<
+        StructuralRuntimePlace,
+        crate::provider_storage::profiles::CompletedResourceProfile,
+    >,
+    provider_descriptors:
+        BTreeMap<StructuralRuntimePlace, crate::provider_storage::ProviderStorageBinding>,
     activation_descriptors:
         BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms: BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
@@ -273,7 +279,143 @@ pub(crate) struct ConstructorStorage {
     >,
 }
 
+/// Fresh-identity storage has no writes through pinned pre-existing owners.
+/// Its publication cannot refuse partway through a compound custody commit.
+pub(crate) struct DetachedConstructorStorage(ConstructorStorage);
+
+impl DetachedConstructorStorage {
+    pub(crate) fn publish(self, execution: &mut TerminalExecution<'_>) {
+        self.0.publish_cells(execution);
+    }
+}
+
 impl ConstructorStorage {
+    /// Stage the resident's actual retained provenance beside newly decoded
+    /// physical cells. Bytes do not supply these bindings. The lifecycle must
+    /// transfer every original claim/affine region and retire the resident in
+    /// the same commit; this staging operation alone establishes no custody.
+    pub(crate) fn stage_resident_image(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        retained: &super::owned_value::StagedOwnedValue,
+        destination: &StructuralRuntimePlace,
+        decoded: ConstructorStorage,
+    ) -> Result<(), TerminalInterpretError> {
+        let original = &retained.storage;
+        if !original.references.is_empty() || !original.owner_writes.is_empty() {
+            return Err(
+                crate::errors::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "resident extraction requires live forwarding of carried loans",
+                ),
+            );
+        }
+        let source = StructuralRuntimePlace::from(&retained.value);
+        let relocate = |home: &StructuralRuntimePlace| {
+            if home.opaque_identity != source.opaque_identity
+                || !home.path.starts_with(&source.path)
+            {
+                return Err(malformed());
+            }
+            let mut path = destination.path.clone();
+            path.extend_from_slice(&home.path[source.path.len()..]);
+            Ok(StructuralRuntimePlace {
+                opaque_identity: destination.opaque_identity,
+                path,
+            })
+        };
+        for (home, binding) in &original.provider_descriptors {
+            if !execution.provider_storage.binding_is_live(*binding) {
+                return Err(
+                    crate::errors::TerminalInterpretError::ContentTransformationMismatch(
+                        "retained value lost its provider allocation",
+                    ),
+                );
+            }
+            self.provider_descriptors.insert(relocate(home)?, *binding);
+        }
+        for (home, binding) in &original.activation_descriptors {
+            let target = relocate(home)?;
+            let mut descriptor = binding.descriptor_home().ok_or_else(malformed)?.clone();
+            descriptor.opaque_identity = target.opaque_identity;
+            descriptor.path = target.path.clone();
+            self.activation_descriptors
+                .insert(target, binding.clone().with_descriptor_home(descriptor));
+        }
+        for (home, profile) in &original.completed_profiles {
+            self.completed_profiles
+                .insert(relocate(home)?, profile.clone());
+        }
+        for (home, payload) in &original.host_atoms {
+            self.host_atoms.insert(relocate(home)?, *payload);
+        }
+        for (home, view) in &original.views {
+            self.views.insert(relocate(home)?, view.clone());
+        }
+        for (home, case) in &original.cases {
+            self.cases.insert(relocate(home)?, *case);
+        }
+        // Physical data is reconstructed in the ordinary constructor format,
+        // not overlaid on stale byte-array or scalar aliases in the snapshot.
+        // All non-byte associations above continue from the original value.
+        self.scalars.extend(decoded.scalars);
+        self.primitives.extend(decoded.primitives);
+        self.bytes.extend(decoded.bytes);
+        self.byte_arrays.extend(decoded.byte_arrays);
+        self.cases.extend(decoded.cases);
+        Ok(())
+    }
+
+    pub(crate) fn retains_references(&self) -> bool {
+        !self.references.is_empty()
+    }
+
+    /// Byte replacement may not silently alter a retained capability's
+    /// descriptor. Its binding must be updated by that capability's operation,
+    /// not inferred again from equal-looking bytes during extraction.
+    pub(crate) fn resident_field_has_bindings(
+        &self,
+        root: &StructuralRuntimePlace,
+        field: terminal_psi::TerminalIdentityIndex,
+    ) -> bool {
+        let mut path = root.path.clone();
+        path.push(terminal_psi::StructuralPathSegment::Field(field));
+        let overlaps = |home: &StructuralRuntimePlace| {
+            home.opaque_identity == root.opaque_identity
+                && terminal_semantics::structural_paths_may_overlap(&home.path, &path)
+        };
+        self.provider_descriptors.keys().any(overlaps)
+            || self.activation_descriptors.keys().any(overlaps)
+            || self.completed_profiles.keys().any(overlaps)
+            || self.host_atoms.keys().any(overlaps)
+            || self.views.keys().any(overlaps)
+            || self.references.keys().any(overlaps)
+            || !self.owner_writes.is_empty()
+    }
+
+    pub(crate) fn into_detached(
+        self,
+    ) -> Result<DetachedConstructorStorage, TerminalInterpretError> {
+        if !self.owner_writes.is_empty() {
+            return Err(
+                crate::errors::TerminalInterpretError::ContentTransformationMismatch(
+                    "detached value unexpectedly writes through an existing owner",
+                ),
+            );
+        }
+        Ok(DetachedConstructorStorage(self))
+    }
+
+    pub(crate) fn take_provider_descriptor(
+        &mut self,
+        home: &StructuralRuntimePlace,
+        expected: crate::provider_storage::ProviderStorageBinding,
+    ) -> Result<(), TerminalInterpretError> {
+        if self.provider_descriptors.get(home).copied() != Some(expected) {
+            return Err(malformed());
+        }
+        self.provider_descriptors.remove(home);
+        Ok(())
+    }
     /// A result catalogue names possible case payloads. Only authenticated
     /// staged tags select its active obligations; missing tags still reject.
     /// Each active row must come from a completed child, never the catalogue.
@@ -417,7 +559,7 @@ impl ConstructorStorage {
     /// Row-major array payloads become the ordinary typed leaf storage used
     /// by reads, writes and borrowed descriptors. Byte arrays keep one byte
     /// backing, not both byte and primitive cells for the same leaves.
-    fn stage_array(
+    pub(crate) fn stage_array(
         &mut self,
         execution: &TerminalExecution,
         structural_type: StructuralTypeId,
@@ -643,6 +785,30 @@ impl ConstructorStorage {
                 path,
             })
         };
+        if transfers_custody {
+            for (home, profile) in crate::structural_storage::cells(
+                &execution.provider_storage.completed_profiles,
+                source,
+            ) {
+                if let Some(target) = relocate(home) {
+                    self.completed_profiles.insert(target, profile.clone());
+                }
+            }
+        }
+        for (home, binding) in
+            crate::structural_storage::cells(&execution.provider_storage.descriptors, source)
+        {
+            if let Some(target) = relocate(home) {
+                if !transfers_custody || !execution.is_live_provider_descriptor(home, binding) {
+                    return Err(
+                        crate::errors::TerminalInterpretError::ContentTransformationMismatch(
+                            "provider storage transport requires owned custody and live backing",
+                        ),
+                    );
+                }
+                self.provider_descriptors.insert(target, *binding);
+            }
+        }
         for (home, binding) in crate::structural_storage::cells(
             &execution.activation_storage.claim_descriptors,
             source,
@@ -744,7 +910,7 @@ impl ConstructorStorage {
     }
 
     pub(crate) fn publish(
-        self,
+        mut self,
         execution: &mut TerminalExecution,
     ) -> Result<(), TerminalInterpretError> {
         // Validate every pinned home before publishing any part of the
@@ -752,13 +918,26 @@ impl ConstructorStorage {
         for (home, _) in &self.owner_writes {
             execution.byte_owner_bytes(home)?;
         }
-        for (home, bytes) in self.owner_writes {
+        for (home, bytes) in std::mem::take(&mut self.owner_writes) {
             *execution.byte_owner_bytes_mut(&home)? = bytes;
         }
+        self.publish_cells(execution);
+        Ok(())
+    }
+
+    fn publish_cells(self, execution: &mut TerminalExecution<'_>) {
         execution
             .activation_storage
             .claim_descriptors
             .extend(self.activation_descriptors);
+        execution
+            .provider_storage
+            .descriptors
+            .extend(self.provider_descriptors);
+        execution
+            .provider_storage
+            .completed_profiles
+            .extend(self.completed_profiles);
         execution.structural_scalar_fields.extend(self.scalars);
         execution.structural_byte_sequence_fields.extend(self.bytes);
         execution.structural_element_view_fields.extend(self.views);
@@ -769,6 +948,5 @@ impl ConstructorStorage {
         execution.structural_byte_storage.extend(self.byte_arrays);
         execution.structural_cases.extend(self.cases);
         execution.structural_host_atoms.extend(self.host_atoms);
-        Ok(())
     }
 }

@@ -68,7 +68,8 @@ pub use commitments::{
 pub use placed_plans::{
     PlacedAccessPrimitive, PlacedAccessorTarget, PlacedAtomicObservingResultContract,
     PlacedAtomicResidentContract, PlacedFieldPlan, PlacedScalarAccessorDeclaration,
-    PlacedScalarAccessorOperation, PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment,
+    PlacedScalarAccessorOperation, PlacedViewPlan, PlacementExecutionDeclaration,
+    PlacementLifecycleOperation, PlacementLifecyclePlan, PlanLaidBitField, PlanLaidBitFragment,
     PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
     PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
     PlanLaidTargetLayout,
@@ -166,6 +167,9 @@ pub struct TypedTrees {
     /// selected them, so checking and lowering never reconstruct permissions
     /// from generated names.
     pub placed_view_plans: Vec<PlacedViewPlan>,
+    /// Whole-value lifecycle geometry, independently of temporary view types.
+    pub placement_lifecycle_plans: Arena<PlacementLifecyclePlan>,
+    pub placement_policy_invocations: Arena<source::SourceSpan>,
     /// Exact sealed borrowed-view prototypes selected during typing. These
     /// declaration rows supply no memory, resource profile or loan authority.
     pub placed_borrow_factories: Vec<expression::PlacedBorrowOperationRequest>,
@@ -498,6 +502,8 @@ impl TypedTrees {
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
             placed_view_plans: Vec::new(),
+            placement_lifecycle_plans: Arena::new(),
+            placement_policy_invocations: Arena::new(),
             placed_borrow_factories: Vec::new(),
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),

@@ -20,6 +20,7 @@ mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;
 mod installation;
+mod placement_lifecycles;
 mod provider_supply;
 mod request;
 mod settlements;
@@ -99,6 +100,13 @@ pub(crate) fn admit_native_providers<'request>(
         request.profile,
         request.selected_provider_plans,
     )?;
+    let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
+    let (lifecycle_settlements, lifecycle_mechanisms) =
+        placement_lifecycles::settle_native_lifecycles(
+            input,
+            installation.as_ref(),
+            request.terminal_authority_policy,
+        )?;
     let (settlements, executions, mut mechanisms, cohort_rows) =
         settlements::settle_provider_executions(input, request)?;
     let mut settlements = settlements;
@@ -120,7 +128,14 @@ pub(crate) fn admit_native_providers<'request>(
             ))]);
         }
     }
-    let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
+    // Opaque provider supply above cannot manufacture another issuer's
+    // qualified result. Private lifecycle operations instead implement the
+    // authenticated core result contract: rejection returns the actual inputs,
+    // initialization establishes content only after writing it, and extraction
+    // transfers the original resident and grant. Their operation-owned
+    // settlement is not a host-supplied claim about equal-shaped result bytes.
+    settlements.extend(lifecycle_settlements);
+    mechanisms.extend(lifecycle_mechanisms);
     // The toolchain-settled `FilesystemHost` cohort rows emitted for demanded
     // leaves join the supplied receiving rows into the effective policy the
     // closure review and the artifact identity bind. The supplied policy is

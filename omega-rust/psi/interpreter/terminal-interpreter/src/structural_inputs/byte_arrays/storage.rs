@@ -161,7 +161,7 @@ impl TerminalExecution<'_> {
             }
         };
         if result.is_ok() {
-            self.invalidate_host_atoms(&storage.referent);
+            self.invalidate_stored_provenance(&storage.referent);
         }
         result
     }

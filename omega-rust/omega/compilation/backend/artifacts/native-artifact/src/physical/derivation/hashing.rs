@@ -141,6 +141,7 @@ pub(crate) fn hash_boundary_settlement_record(
             if matches!(
                 execution,
                 CompilerBuiltinExecution::PlacedScalarAccess { .. }
+                    | CompilerBuiltinExecution::PlacementLifecycle { .. }
             ) {
                 let mut bytes = Vec::new();
                 legalized_operations::legalized_operations::identity::encode_boundary_execution_identity(&mut bytes, target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution));
@@ -220,6 +221,7 @@ pub(crate) fn hash_boundary_settlement_record(
 
 const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> u8 {
     match execution {
+        CompilerBuiltinExecution::PlacementLifecycle { .. } => 253,
         CompilerBuiltinExecution::PlacedScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
         CompilerBuiltinExecution::ProgramStorageEntry => 252,
@@ -249,6 +251,10 @@ fn hash_boundary_realization(
     realization: &BoundaryRealization,
 ) {
     match realization {
+        BoundaryRealization::PlacementLifecycle { boundary } => {
+            digest.byte(11);
+            digest.raw(&boundary.get().to_le_bytes());
+        }
         BoundaryRealization::ProgramImageRetainedSuffixStart => digest.byte(10),
         BoundaryRealization::PlacedScalarAccess(access) => {
             digest.byte(9);

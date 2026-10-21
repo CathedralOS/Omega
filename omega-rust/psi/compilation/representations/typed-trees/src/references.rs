@@ -695,6 +695,21 @@ fn visit_callable_symbol(
     symbol: SymbolHandle,
 ) {
     visit_symbol(retained, symbol);
+    for (_, plan) in program.placement_lifecycle_plans.iter() {
+        if let crate::typed_trees::PlacementLifecyclePlan::Evaluated {
+            callable,
+            policy,
+            schema,
+            policy_machine,
+            ..
+        } = plan
+            && *callable == symbol
+        {
+            visit_symbol(retained, *policy);
+            visit_symbol(retained, *schema);
+            visit_symbol(retained, *policy_machine);
+        }
+    }
     let Some(application) = program.closed_requirement_application(symbol) else {
         return;
     };

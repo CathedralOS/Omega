@@ -92,6 +92,43 @@ pub(super) fn validate(
     {
         return Err(invalid());
     }
+    // This selected mechanism is one whole-container scalar load/store, not a
+    // fragmented codec or read-modify-write. Backing authority cannot license
+    // interpreting only some container bits or overwriting a neighboring field.
+    // Apply this physical applicability check to every origin, including RAM
+    // and Resident; it is independent of how the source loan was transported.
+    let placement = module
+        .placed_view_plans
+        .iter()
+        .find(|placement| placement.carrier == demand.carrier)
+        .ok_or_else(invalid)?;
+    let entry = placement
+        .placement
+        .access()
+        .plan()
+        .entries()
+        .get(demand.access_slot as usize)
+        .ok_or_else(invalid)?;
+    let descriptor = placement
+        .placement
+        .access()
+        .field_descriptor(entry.key())
+        .ok_or_else(invalid)?;
+    let fragments = descriptor.logical_extent().fragments();
+    let logical_bits = match demand.scalar {
+        ScalarType::Boolean => 8,
+        ScalarType::Integer(integer) => u64::from(integer.bits()),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => 32,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => 64,
+    };
+    if !matches!(fragments, [fragment]
+        if fragment.source_bit_offset() == 0
+            && fragment.layout_bit_offset() == descriptor.container_byte_offset() * 8
+            && fragment.width_bits() == u64::from(descriptor.transfer_width_bits())
+            && fragment.width_bits() == logical_bits)
+    {
+        return Err("native placed scalar access requires a complete scalar container; fragmented or narrowed codecs require an explicit native realization".to_owned());
+    }
     Ok(())
 }
 

@@ -153,6 +153,17 @@ pub(crate) fn lower_declarations(
                 .machine(plan.machine)
                 .map(|_| {
                     Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
+                        execution: match typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+                            &checked.typed, plan.machine,
+                        ).map_err(|_| LoweringError::Unsupported("placement primitive declaration is malformed"))? {
+                            None => terminal_psi::CheckedBoundaryExecution::Provider,
+                            Some(declaration) => match declaration.operation() {
+                                typed_trees::typed_trees::PlacementLifecycleOperation::Initialize =>
+                                    terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
+                                typed_trees::typed_trees::PlacementLifecycleOperation::MoveOut =>
+                                    terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
+                            },
+                        },
                         source: crate::machine_lowering::declarations::identity(
                             identities,
                             checked,

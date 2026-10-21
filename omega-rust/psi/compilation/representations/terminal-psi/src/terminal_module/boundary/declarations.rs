@@ -264,9 +264,31 @@ pub struct BoundaryMachineDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedBoundaryCallable {
     pub source: crate::CheckedMachineDeclaration,
+    /// Source-authenticated execution ownership, independent of optional plan
+    /// tables. Removing a lifecycle row cannot turn a primitive into host supply.
+    pub execution: CheckedBoundaryExecution,
     /// Independent invocation tuple for a specialized opaque callable. Its
     /// published reach remains on the boundary; no body graph is invented.
     pub method_arguments: Vec<crate::ClosedReachArgument>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedBoundaryExecution {
+    Provider,
+    PlacementInitialize,
+    PlacementMoveOut,
+}
+
+impl CheckedBoundaryExecution {
+    pub const fn placement_operation(self) -> Option<crate::TerminalPlacementLifecycleOperation> {
+        match self {
+            Self::Provider => None,
+            Self::PlacementInitialize => {
+                Some(crate::TerminalPlacementLifecycleOperation::Initialize)
+            }
+            Self::PlacementMoveOut => Some(crate::TerminalPlacementLifecycleOperation::MoveOut),
+        }
+    }
 }
 
 impl BoundaryMachineDeclaration {

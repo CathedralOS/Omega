@@ -32,6 +32,34 @@ pub(super) fn project(
         target_operations::TargetUnitOperation::Call { .. }
     ) {
         call_instructions::project_call(optimized, unit, targeted, native, plan)?
+    } else if let target_operations::TargetUnitOperation::PlacementLifecycle {
+        boundary,
+        operands,
+        result_home,
+        ..
+    } = targeted
+    {
+        let (_, result) = result_home.operation_result().ok_or(Error::custody())?;
+        let mut indices = Vec::new();
+        for argument in operands.arguments() {
+            let root =
+                scalar_graph_input::primitive_locals::read_root_type(optimized, argument.place)
+                    .ok_or(Error::custody())?;
+            indices.extend(crate::legalization::runtime_indices::projection(
+                optimized,
+                unit,
+                operation,
+                root,
+                &argument.path,
+                &unit.structural_types,
+            )?);
+        }
+        LegalizedScalarInstructionKind::PlacementLifecycle {
+            boundary: *boundary,
+            operands: operands.clone(),
+            indices,
+            result: result.clone(),
+        }
     } else if let target_operations::TargetUnitOperation::ProgramImageAddress { boundary, .. } =
         targeted
     {
@@ -269,12 +297,29 @@ pub(super) fn project(
                 elements: elements.clone(),
                 shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             },
-            AbstractOperation::EstablishActivationClaim { result, bound, committed, backing_type, established_case, rejected_case, .. } => LegalizedScalarInstructionKind::EstablishActivationClaim {
-                result: result.clone(), bound: *bound, committed: *committed, backing_type: *backing_type,
-                established_case: *established_case, rejected_case: *rejected_case,
+            AbstractOperation::EstablishActivationClaim {
+                result,
+                bound,
+                committed,
+                backing_type,
+                established_case,
+                rejected_case,
+                ..
+            } => LegalizedScalarInstructionKind::EstablishActivationClaim {
+                result: result.clone(),
+                bound: *bound,
+                committed: *committed,
+                backing_type: *backing_type,
+                established_case: *established_case,
+                rejected_case: *rejected_case,
                 layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
             },
-            AbstractOperation::ReleaseActivationClaim { source, claim, .. } => LegalizedScalarInstructionKind::ReleaseActivationClaim { source: source.clone(), claim: *claim },
+            AbstractOperation::ReleaseActivationClaim { source, claim, .. } => {
+                LegalizedScalarInstructionKind::ReleaseActivationClaim {
+                    source: source.clone(),
+                    claim: *claim,
+                }
+            }
             AbstractOperation::EstablishNativeCodeLayout {
                 result, machine, ..
             } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {

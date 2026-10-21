@@ -509,7 +509,7 @@ fn retains_values_across_unit_call<Value>(
         state,
         borrowed_call,
     )?
-    .places
+    .observation_places
     .is_empty()
     .then_some(())
 }

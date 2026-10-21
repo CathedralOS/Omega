@@ -49,6 +49,9 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation) => {
+            PackageReviewCompilerIntrinsicExecution::PlacementLifecycle(operation)
+        }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
             PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry
         }
@@ -105,6 +108,11 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation) => {
+            format!(
+                "Compiler-owned whole-value placement lifecycle {operation:?} within an existing admitted extent"
+            )
+        }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
             "Forward existing image and storage roots to the exact Build-selected entry".to_owned()
         }

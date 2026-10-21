@@ -93,7 +93,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         bytes.replace_byte(byte_index, byte).ok_or_else(malformed)?;
-        self.invalidate_host_atoms(&destination_field.parent);
+        self.invalidate_stored_provenance(&destination_field.parent);
         Ok(())
     }
 

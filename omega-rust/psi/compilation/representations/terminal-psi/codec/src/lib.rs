@@ -60,6 +60,15 @@ pub use sections::semantic_module::{
     module_decode_count, semantic_fingerprint, terminal_psi_identity,
 };
 
+pub use sections::semantic_module::module_wire::placed_plan_wire::{
+    decode_placed_view_catalog, encode_placed_view_catalog,
+};
+pub use sections::semantic_module::module_wire::placed_view_wire::{
+    decode_placed_view_input_catalog, encode_placed_view_input_catalog,
+};
+pub use sections::semantic_module::module_wire::placement_lifecycle_wire::{
+    decode_placement_lifecycle_catalog, encode_placement_lifecycle_catalog,
+};
 pub use sections::semantic_module::module_wire::quotient_wire::{
     decode_quotient_catalog, encode_quotient_catalog,
 };

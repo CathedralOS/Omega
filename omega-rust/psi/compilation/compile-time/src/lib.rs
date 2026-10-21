@@ -64,6 +64,9 @@ pub use layouts::materialization::{
     validate_const_materializable_record_with_conventional_sums,
 };
 pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
+pub use layouts::placement_lifecycles::{
+    admit_placement_lifecycle_plans, retain_placement_lifecycle_plans,
+};
 pub use layouts::plan_laid::{
     PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types,
 };

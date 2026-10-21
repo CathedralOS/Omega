@@ -276,7 +276,6 @@ pub(super) fn is_placed_formation(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    validation::reference_formation_source(program, expression).is_some_and(|formation| {
-        formation.interpretation == validation::ReferenceFormationInterpretation::Placed
-    })
+    validation::reference_formation_source(program, expression)
+        .is_some_and(|formation| formation.interpretation.is_placed())
 }

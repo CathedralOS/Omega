@@ -106,7 +106,9 @@ impl ValidatedConstMaterialization {
 
         let replayed = derive_bytes(typed, schema_name, layout, value, byte_order)?;
         if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint {
-            return Err(super::retained_custody_drift("typed schema report fingerprint"));
+            return Err(super::retained_custody_drift(
+                "typed schema report fingerprint",
+            ));
         }
         if replayed.bytes != self.bytes {
             return Err(MaterializationDiagnostic(

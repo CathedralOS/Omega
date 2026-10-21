@@ -5,6 +5,14 @@ use crate::SelectedTerminator;
 
 pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTerminator) {
     match terminator {
+        SelectedTerminator::OperationTrap {
+            instruction,
+            operation,
+        } => {
+            bytes.push(7);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+        }
         SelectedTerminator::Crash {
             instruction,
             psi_edge,
@@ -122,7 +130,7 @@ mod tests {
             structural_case: None,
             role: crate::SelectedSuccessorRole::Semantic,
             structural_bindings: Vec::new(),
-            psi_edge: EdgeId::new(edge).expect("edge"),
+            psi_edge: EdgeId::new(edge),
             block: SelectedBlockId(block),
             source_target: BlockId::new(source_target).expect("block"),
             bindings: Vec::new(),

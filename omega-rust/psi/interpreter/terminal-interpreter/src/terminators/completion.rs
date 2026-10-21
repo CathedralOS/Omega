@@ -108,6 +108,7 @@ impl TerminalExecution<'_> {
             if let TerminalExecutionResult::Structural(returned) = &mut completed.value {
                 self.forward_host_atom(&mut returned.value);
             }
+            self.returned_claims = completed.returned_claims;
             self.result = Some(completed.value.clone());
             return Ok(TerminatorFlow::Yield(TerminalExecutionStatus::Complete(
                 completed.value,
@@ -161,12 +162,19 @@ impl TerminalExecution<'_> {
                 self.values.insert(destination, value);
                 Ok(TerminatorFlow::Continue)
             }
-            SuspendedCallResult::Structural { result, .. } => {
+            SuspendedCallResult::Structural {
+                result,
+                profile_completion,
+                ..
+            } => {
                 if completed.destination.as_ref() != Some(&result) {
                     return Err(malformed());
                 }
                 match completed.value {
                     TerminalExecutionResult::Structural(returned) => {
+                        if let Some(pending) = profile_completion {
+                            self.complete_resource_profile_call(pending, &returned.value)?;
+                        }
                         if self
                             .structural_values
                             .insert(result.place, returned.value)

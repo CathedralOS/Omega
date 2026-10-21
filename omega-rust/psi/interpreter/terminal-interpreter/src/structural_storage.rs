@@ -148,9 +148,14 @@ pub(crate) enum HostStructuralPayload {
 }
 
 impl crate::execution::TerminalExecution<'_> {
-    /// Any write invalidates an enclosing abstract host payload. Disjoint
-    /// children retain their own cells; a token cannot describe modified bits.
-    pub(crate) fn invalidate_host_atoms(&mut self, changed: &StructuralRuntimePlace) {
+    /// A write invalidates assertions about the complete original value.
+    /// Disjoint children retain their own provenance. Replacement of an
+    /// ancestor invalidates descendant profile occurrences as well.
+    pub(crate) fn invalidate_stored_provenance(&mut self, changed: &StructuralRuntimePlace) {
+        self.provider_storage.completed_profiles.retain(|home, _| {
+            home.opaque_identity != changed.opaque_identity
+                || (!changed.path.starts_with(&home.path) && !home.path.starts_with(&changed.path))
+        });
         for (home, payload) in &mut self.structural_host_atoms {
             if home.opaque_identity == changed.opaque_identity
                 && changed.path.starts_with(&home.path)
@@ -220,7 +225,11 @@ impl crate::execution::TerminalExecution<'_> {
             return;
         };
         let collect_scalars = cursor >= self.next_scalar_collection_identity;
-        let collect_atoms = self.structural_host_atoms.len() >= self.next_host_atom_collection_size;
+        let collect_atoms = self
+            .structural_host_atoms
+            .len()
+            .saturating_add(self.provider_storage.completed_profiles.len())
+            >= self.next_host_atom_collection_size;
         if !collect_scalars && !collect_atoms {
             return;
         }
@@ -301,7 +310,14 @@ impl crate::execution::TerminalExecution<'_> {
         // cells neither discharges custody nor changes the typed frontier.
         self.structural_host_atoms
             .retain(|home, _| roots.contains(&home.opaque_identity));
-        self.next_host_atom_collection_size = self.structural_host_atoms.len().saturating_add(1024);
+        self.provider_storage
+            .completed_profiles
+            .retain(|home, _| roots.contains(&home.opaque_identity));
+        self.next_host_atom_collection_size = self
+            .structural_host_atoms
+            .len()
+            .saturating_add(self.provider_storage.completed_profiles.len())
+            .saturating_add(1024);
         if defer_scalars {
             return;
         }

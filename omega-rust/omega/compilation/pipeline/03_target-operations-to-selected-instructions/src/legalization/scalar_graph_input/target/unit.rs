@@ -125,6 +125,52 @@ pub(super) fn validate_operation(
     }
     match (target, abstracted) {
         (
+            TargetUnitOperation::PlacementLifecycle {
+                psi_operation,
+                boundary,
+                operands,
+                result_home,
+            },
+            AbstractOperation::BoundaryCall {
+                psi_operation: expected_operation,
+                boundary: expected_boundary,
+                arguments,
+                structural_arguments,
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            },
+        ) => {
+            let lifecycle = unit
+                .structural_types
+                .placement_lifecycles()
+                .iter()
+                .find(|lifecycle| lifecycle.boundary == *boundary)
+                .ok_or(LegalizationError::custody())?;
+            let expected_operands =
+                abstract_operations::PlacementLifecycleOperands::from_arguments(
+                    lifecycle.operation,
+                    structural_arguments,
+                )
+                .map_err(|_| LegalizationError::custody())?;
+            let (_, retained_result) = result_home
+                .operation_result()
+                .ok_or(LegalizationError::custody())?;
+            if psi_operation != expected_operation
+                || boundary != expected_boundary
+                || !arguments.is_empty()
+                || operands != &expected_operands
+                || retained_result != result
+                || !matches!(
+                    lifecycle.execution,
+                    terminal_psi::TerminalPlacementLifecycleExecution::CompilerPrimitive { .. }
+                )
+                || *result_home
+                    != super::super::aggregate_results::result_home(optimized, result.place, plan)?
+            {
+                return Err(LegalizationError::custody());
+            }
+        }
+        (
             TargetUnitOperation::ProgramImageAddress {
                 psi_operation,
                 boundary,

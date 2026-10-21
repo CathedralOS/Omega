@@ -44,7 +44,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     captured_operands: &[checked_trees::FlowOperandFact],
     writes: Option<&super::call_phases::CallStorageWrites>,
 ) -> FlowCallFact {
-    let storage_writes = writes.map(|writes| writes.places.as_slice());
+    let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
     let contract_call = proof_contract_call(
         proof,
@@ -71,7 +71,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         *active_contexts,
         *active_constraints,
         borrow_call,
-        storage_writes,
+        writes,
     );
     let argument_sources = super::call_phases::ArgumentSources::new(
         program,

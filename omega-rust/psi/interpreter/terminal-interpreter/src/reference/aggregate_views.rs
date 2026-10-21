@@ -27,7 +27,7 @@ pub(crate) struct AggregateBacking {
     /// call and state ingress, including an already selected field accessor.
     /// The pinned home and attenuated access travel together; its type alone
     /// cannot reconstruct either association.
-    pub(crate) placed_ram: Option<super::PlacedRamReference>,
+    pub(crate) placed: Option<super::PlacedReference>,
     /// Logical re-view geometry and physical byte storage are independent:
     /// a typed re-view may itself borrow an already captured byte region.
     pub(crate) region: Option<AggregateViewRegion>,

@@ -100,9 +100,13 @@ pub struct FixedViewCopyDestination {
 
 /// Artifact framing errors. Successful decoding returns an unchecked plain
 /// plan and does not replace independent fixed-view-copy validation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
     InvalidQuotientCatalog,
+    InvalidPlacementCatalog {
+        catalog: &'static str,
+        cause: terminal_codec::CodecError,
+    },
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
@@ -118,6 +122,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownValueTransport(u8),
     UnknownBlockOrigin(u8),
     UnknownSuccessorRole(u8),
+    InvalidSuccessorLineage,
     UnknownInstructionKind(u8),
     InvalidPackedByteWidth(u8),
     UnknownFuelSite(u8),

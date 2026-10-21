@@ -821,7 +821,7 @@ pub(super) fn clone_single_specialized_machine(
         &cloned_expression_roots,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    substitute_cloned_type_parameters(source, program, candidate, type_start)
+    substitute_cloned_type_parameters(source, program, candidate, type_start, cloned.symbol)
         .map_err(|diagnostic| vec![diagnostic])?;
     // Range endpoints are value positions, not static positions: a binder
     // surviving in one names the realized trailing parameter so the clone's

@@ -55,8 +55,9 @@ pub(super) fn argument(
             target.root_structural_type,
         )
         .ok_or_else(|| SelectedInstructionError::custody())?;
-        let storage_shape = crate::selection::activation_storage_input::local_shape(source, slot, root_shape)
-            .ok_or_else(SelectedInstructionError::custody)?;
+        let storage_shape =
+            crate::selection::activation_storage_input::local_shape(source, slot, root_shape)
+                .ok_or_else(SelectedInstructionError::custody)?;
         if builder
             .transport
             .local_slots

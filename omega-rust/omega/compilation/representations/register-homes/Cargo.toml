@@ -23,3 +23,7 @@ terminal-semantics = { path = "../../../../psi/compilation/representations/termi
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+access-plans = { path = "../../../../psi/foundation/access-plans" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }

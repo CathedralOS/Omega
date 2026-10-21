@@ -181,7 +181,7 @@ pub struct LiveRangeEdgeConnector {
     pub source: SelectedBlockId,
     pub terminator: SelectedInstructionId,
     pub polarity_ordinal: u8,
-    pub psi_edge: EdgeId,
+    pub psi_edge: Option<EdgeId>,
     pub target: SelectedBlockId,
 }
 

@@ -25,6 +25,8 @@ legalized-operations = { path = "../../representations/target-operations/legaliz
 selected-instructions = { path = "../../representations/selected-instructions" }
 target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+access-plans = { path = "../../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 

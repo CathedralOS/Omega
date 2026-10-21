@@ -34,7 +34,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 71 retains element-view access ceilings in structural declarations.
 // Version 72 retains indexed source evidence on structural edge snapshots.
 // Version 75 retains declaration-owned linear obligations beneath whole claims.
-const VERSION: u32 = 75;
+// Version 78 distinguishes reads of operation-local storage from source places.
+const VERSION: u32 = 80;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

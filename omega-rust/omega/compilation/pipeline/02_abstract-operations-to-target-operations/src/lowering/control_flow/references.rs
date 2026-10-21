@@ -757,21 +757,17 @@ pub(super) fn placed_call_custody(
             .ok_or_else(|| invalid(PlacedCallCustodyError::FormalDemandMismatch))?;
         let association = match placed_source(live, argument) {
             Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
-                let expected = terminal_semantics::placed_ram_plan_correspondence(
+                optimization_unit_semantics::placed_references::validate_backing(
                     catalog.as_slice(),
                     catalog.placed_views(),
                     plan,
-                    captured.schema,
+                    captured.source_type(),
+                    &captured,
                 )
                 .map_err(|_| invalid(PlacedCallCustodyError::CapturedInterpretationMismatch))?;
-                if captured != expected {
-                    return Err(invalid(
-                        PlacedCallCustodyError::CapturedInterpretationMismatch,
-                    ));
-                }
                 target_operations::TargetPlacedCallAssociation::Captured {
-                    schema: captured.schema,
-                    carrier: captured.carrier,
+                    schema: captured.schema(),
+                    carrier: captured.carrier(),
                 }
             }
             Some(target_operations::TargetPlacedInterpretation::Formal(formal)) => {
@@ -1121,16 +1117,15 @@ pub(super) fn establish_placed(
     let (Some(plan), None) = (selected.next(), selected.next()) else {
         return Err(invalid());
     };
-    let correspondence = terminal_semantics::placed_ram_plan_correspondence(
+    optimization_unit_semantics::placed_references::validate_backing(
         catalog.as_slice(),
         catalog.placed_views(),
         plan,
         schema,
+        expected,
     )
     .map_err(|_| invalid())?;
-    if &correspondence != expected {
-        return Err(invalid());
-    }
+    let correspondence = expected.clone();
     let root = normalized_source(function, live, types, source)?;
     // A re-viewed origin needs its actual offset/base proof; its logical
     // source declaration alone cannot supply this native address condition.

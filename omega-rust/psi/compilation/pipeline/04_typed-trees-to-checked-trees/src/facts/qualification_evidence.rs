@@ -152,54 +152,12 @@ pub(crate) fn machine_domain_establishment_route(
             }
             DomainEstablishmentRoute::ExactMachine {
                 machine: authorized,
-            } => {
-                machine_invokes_declaration(program, machine, *authorized).then_some(route.clone())
-            }
+            } => program
+                .machine_invokes_declaration(machine.symbol, *authorized)
+                .unwrap_or(false)
+                .then_some(route.clone()),
             DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
         })
-}
-
-fn machine_invokes_declaration(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    authorized: SymbolHandle,
-) -> bool {
-    let mut current = machine.symbol;
-    // Invocation and captured-data applications can compose. A bounded walk
-    // rejects cyclic or ambiguous origins rather than granting authority from
-    // diagnostic names, source spans, or a wrapper's calls to an issuer.
-    for _ in 0..=program.machines().len() {
-        if current == authorized {
-            return true;
-        }
-        // A target body implements its independently resolved family head.
-        // Join only that retained association: equal names, another machine
-        // calling the issuer, and the selected realization grant nothing.
-        if program.target_machine_families.iter().any(|family| {
-            family.canonical == authorized
-                && family
-                    .members
-                    .iter()
-                    .any(|member| member.machine == current)
-        }) {
-            return true;
-        }
-        let template = match program.executable_application_template(current) {
-            Ok(Some(template)) => template,
-            Ok(None) => {
-                let Some(declaration) = program.machine_by_symbol(current) else {
-                    return false;
-                };
-                declaration.generic_data_template
-            }
-            Err(_) => return false,
-        };
-        if !template.is_valid() || template == current {
-            return false;
-        }
-        current = template;
-    }
-    false
 }
 
 fn call_carry_permission_evidence(

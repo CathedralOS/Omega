@@ -1,7 +1,7 @@
 //! Source-free declaration joins for a scalar placed boundary.
 //! A demand describes an operation; it supplies no storage or loan authority.
 
-use semantic_vocabulary::{BoundaryMachineId, ScalarType};
+use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityTable,

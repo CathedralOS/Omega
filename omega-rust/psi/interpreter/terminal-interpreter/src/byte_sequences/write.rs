@@ -385,7 +385,7 @@ impl TerminalExecution<'_> {
             )
             .ok_or_else(malformed)?;
         if let Some(parent) = changed_parent {
-            self.invalidate_host_atoms(&parent);
+            self.invalidate_stored_provenance(&parent);
         }
         Ok(())
     }

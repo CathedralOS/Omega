@@ -20,6 +20,7 @@ pub(crate) fn substitute_cloned_type_parameters(
     program: &mut TypedTrees,
     candidate: &Candidate,
     type_start: usize,
+    instance: SymbolHandle,
 ) -> Result<(), Diagnostic> {
     for ((parameter_symbol, _), binding) in candidate
         .template
@@ -50,6 +51,19 @@ pub(crate) fn substitute_cloned_type_parameters(
             .type_reference_table
             .retain_operand_lifetime_owner(replacement_handle, owner)
             .map_err(Diagnostic::error)?;
+        // A shared body's binder must rejoin every supplying call. An
+        // occurrence-local inferred result already belongs to its caller:
+        // preserve the actual operand's origin, rather than retaining a call
+        // handle that would need a second copy/substitution correspondence.
+        if instance.is_valid() {
+            let origin = typed_trees::types::TypeOperandOrigin::MachineParameter {
+                instance,
+                parameter: *parameter_symbol,
+            };
+            program
+                .type_reference_table
+                .set_operand_origin(replacement_handle, origin);
+        }
         for occurrence in occurrences {
             program
                 .type_reference_table

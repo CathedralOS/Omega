@@ -4,11 +4,69 @@ use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution,
 };
 
+#[cfg(test)]
+mod tests {
+    use super::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, encode_boundary_execution_identity,
+    };
+    use semantic_vocabulary::BoundaryMachineId;
+    use terminal_psi::TerminalPlacementLifecycleOperation;
+
+    #[test]
+    fn lifecycle_execution_identity_binds_boundary_and_operation() {
+        let encode = |boundary, operation| {
+            let mut bytes = Vec::new();
+            encode_boundary_execution_identity(
+                &mut bytes,
+                BoundaryExecutionBinding::CompilerBuiltin(
+                    CompilerBuiltinExecution::PlacementLifecycle {
+                        boundary: BoundaryMachineId::new(boundary).expect("boundary"),
+                        operation,
+                    },
+                ),
+            );
+            bytes
+        };
+        let initialize = encode(1, TerminalPlacementLifecycleOperation::Initialize);
+        assert_eq!(
+            initialize,
+            encode(1, TerminalPlacementLifecycleOperation::Initialize)
+        );
+        assert_ne!(
+            initialize,
+            encode(2, TerminalPlacementLifecycleOperation::Initialize)
+        );
+        assert_ne!(
+            initialize,
+            encode(1, TerminalPlacementLifecycleOperation::MoveOut)
+        );
+        let mut hosted = Vec::new();
+        encode_boundary_execution_identity(
+            &mut hosted,
+            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+        );
+        assert_ne!(initialize, hosted);
+    }
+}
+
 pub fn encode_boundary_execution_identity(
     bytes: &mut Vec<u8>,
     execution: BoundaryExecutionBinding,
 ) {
     match execution {
+        BoundaryExecutionBinding::CompilerBuiltin(
+            CompilerBuiltinExecution::PlacementLifecycle {
+                boundary,
+                operation,
+            },
+        ) => {
+            bytes.push(8);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.push(match operation {
+                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
+                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
+            });
+        }
         BoundaryExecutionBinding::CompilerBuiltin(
             CompilerBuiltinExecution::ProgramStorageEntry,
         ) => bytes.push(7),
@@ -65,6 +123,10 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
             super::normalized_foreign::encode_call_binding(bytes, call);
         }
         BoundarySettlementRealization::Builtin(realization) => match realization {
+            BoundaryRealization::PlacementLifecycle { boundary } => {
+                bytes.push(11);
+                bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            }
             BoundaryRealization::ProgramImageRetainedSuffixStart => bytes.push(10),
             BoundaryRealization::PlacedScalarAccess(access) => {
                 bytes.push(9);

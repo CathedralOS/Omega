@@ -12,13 +12,33 @@ use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
-        O::EstablishActivationClaim { psi_operation, result, bound, committed, backing_type, established_case, rejected_case } => {
-            bytes.u8(253); bytes.id(*psi_operation); encode_structural_operation_result(bytes, result);
-            bytes.u64(*bound); bytes.id(*committed); bytes.id(*backing_type);
-            bytes.id(*established_case); bytes.id(*rejected_case);
+        O::EstablishActivationClaim {
+            psi_operation,
+            result,
+            bound,
+            committed,
+            backing_type,
+            established_case,
+            rejected_case,
+        } => {
+            bytes.u8(253);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.u64(*bound);
+            bytes.id(*committed);
+            bytes.id(*backing_type);
+            bytes.id(*established_case);
+            bytes.id(*rejected_case);
         }
-        O::ReleaseActivationClaim { psi_operation, source, claim } => {
-            bytes.u8(254); bytes.id(*psi_operation); encode_structural_argument(bytes, source); bytes.id(*claim);
+        O::ReleaseActivationClaim {
+            psi_operation,
+            source,
+            claim,
+        } => {
+            bytes.u8(254);
+            bytes.id(*psi_operation);
+            encode_structural_argument(bytes, source);
+            bytes.id(*claim);
         }
 
         O::EstablishNativeCodeLayout {
@@ -332,19 +352,41 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
-            bytes.id(correspondence.schema);
-            bytes.id(correspondence.carrier);
-            bytes.u64(correspondence.source_byte_length);
-            bytes.u64(correspondence.required_base.modulus());
-            bytes.u64(correspondence.required_base.residue());
-            bytes.slice(&correspondence.fields, |bytes, field| {
-                bytes.u32(field.access_slot);
-                bytes.id(field.source_field);
-                bytes.u64(field.byte_offset);
-                bytes.u16(field.transfer_width_bits);
-                super::super::carrier_encoding::encode_scalar_type(bytes, field.logical_scalar);
-                super::super::carrier_encoding::encode_scalar_type(bytes, field.stored_scalar);
-            });
+            match correspondence {
+                abstract_operations::PlacedReferenceBacking::OrdinaryRam(correspondence) => {
+                    bytes.u8(0);
+                    bytes.id(correspondence.schema);
+                    bytes.id(correspondence.carrier);
+                    bytes.u64(correspondence.source_byte_length);
+                    bytes.u64(correspondence.required_base.modulus());
+                    bytes.u64(correspondence.required_base.residue());
+                    bytes.slice(&correspondence.fields, |bytes, field| {
+                        bytes.u32(field.access_slot);
+                        bytes.id(field.source_field);
+                        bytes.u64(field.byte_offset);
+                        bytes.u16(field.transfer_width_bits);
+                        super::super::carrier_encoding::encode_scalar_type(
+                            bytes,
+                            field.logical_scalar,
+                        );
+                        super::super::carrier_encoding::encode_scalar_type(
+                            bytes,
+                            field.stored_scalar,
+                        );
+                    });
+                }
+                abstract_operations::PlacedReferenceBacking::Resident(resident) => {
+                    bytes.u8(1);
+                    bytes.id(resident.owner);
+                    bytes.id(resident.schema);
+                    bytes.id(resident.carrier);
+                    bytes.id(resident.roles.base);
+                    bytes.id(resident.roles.length);
+                    bytes.id(resident.roles.granted);
+                    bytes.id(resident.roles.resident);
+                    bytes.bytes(&resident.placement_commitment);
+                }
+            }
         }
         O::EstablishReference {
             psi_operation,

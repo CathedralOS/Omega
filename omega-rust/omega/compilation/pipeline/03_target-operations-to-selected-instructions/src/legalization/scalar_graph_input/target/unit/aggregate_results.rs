@@ -15,16 +15,59 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     match (target, abstracted) {
-        (TargetUnitOperation::EstablishActivationClaim { psi_operation, result_home, bound, committed, backing_type, established_case, rejected_case },
-         AbstractOperation::EstablishActivationClaim { psi_operation: expected, result, bound: eb, committed: ec, backing_type: et, established_case: ee, rejected_case: er }) => {
-            if psi_operation != expected || bound != eb || backing_type != et || established_case != ee || rejected_case != er
-                || *result_home != scalar_graph_input::aggregate_results::result_home(optimized, result.place, plan)?
-                || !sources.iter().any(|(value, source)| value == ec && source == committed) {
+        (
+            TargetUnitOperation::EstablishActivationClaim {
+                psi_operation,
+                result_home,
+                bound,
+                committed,
+                backing_type,
+                established_case,
+                rejected_case,
+            },
+            AbstractOperation::EstablishActivationClaim {
+                psi_operation: expected,
+                result,
+                bound: eb,
+                committed: ec,
+                backing_type: et,
+                established_case: ee,
+                rejected_case: er,
+            },
+        ) => {
+            if psi_operation != expected
+                || bound != eb
+                || backing_type != et
+                || established_case != ee
+                || rejected_case != er
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+                || !sources
+                    .iter()
+                    .any(|(value, source)| value == ec && source == committed)
+            {
                 return Err(LegalizationError::custody());
             }
         }
-        (TargetUnitOperation::ReleaseActivationClaim { psi_operation, source, claim }, AbstractOperation::ReleaseActivationClaim { psi_operation: expected, source: es, claim: ec }) => {
-            if psi_operation != expected || source != es || claim != ec { return Err(LegalizationError::custody()); }
+        (
+            TargetUnitOperation::ReleaseActivationClaim {
+                psi_operation,
+                source,
+                claim,
+            },
+            AbstractOperation::ReleaseActivationClaim {
+                psi_operation: expected,
+                source: es,
+                claim: ec,
+            },
+        ) => {
+            if psi_operation != expected || source != es || claim != ec {
+                return Err(LegalizationError::custody());
+            }
         }
 
         (

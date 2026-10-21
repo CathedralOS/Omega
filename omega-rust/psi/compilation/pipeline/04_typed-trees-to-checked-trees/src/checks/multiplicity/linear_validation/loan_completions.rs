@@ -48,7 +48,7 @@ pub(crate) fn regions_for_calls(
                 has_receiver: call.has_receiver,
                 accesses: call.accesses,
             };
-            let ceiling = crate::flow::signature_ceiling_places(
+            let ceiling = crate::flow::signature_ceiling_regions(
                 program,
                 machine,
                 state,
@@ -66,7 +66,7 @@ pub(crate) fn regions_for_calls(
             if ceiling.is_empty() {
                 return Ok((source, Vec::new()));
             }
-            let writes = crate::flow::call_mutated_places(
+            let writes = crate::flow::call_mutated_regions(
                 program,
                 machine,
                 state,
@@ -79,17 +79,14 @@ pub(crate) fn regions_for_calls(
             let mut regions = Vec::new();
             for write in writes {
                 for authority in &ceiling {
-                    if write.root != authority.root {
-                        continue;
-                    }
-                    let region = if write.segments.starts_with(&authority.segments) {
+                    let region = if authority.contains(&write) {
                         &write
-                    } else if authority.segments.starts_with(&write.segments) {
+                    } else if write.contains(authority) {
                         authority
                     } else {
                         continue;
                     };
-                    if !regions.contains(region) {
+                    if !regions.iter().any(|existing| existing == region) {
                         regions.push(region.clone());
                     }
                 }
@@ -99,12 +96,14 @@ pub(crate) fn regions_for_calls(
             let candidates = regions.clone();
             regions.retain(|region| {
                 !candidates.iter().any(|other| {
-                    other != region
-                        && other.root == region.root
-                        && region.segments.starts_with(&other.segments)
+                    other != region && other.contains(region) && !region.contains(other)
                 })
             });
-            Ok((source, regions))
+            // A content write returns the existing owner's loan, not a
+            // replacement Extent value. Callee borrowed-content restoration
+            // remains obligatory; it cannot mint the caller's owner claim.
+            // Only declared storage replacement has a new payload roster.
+            Ok((source, regions.into_iter().filter_map(|region| region.into_declared()).collect()))
         })
         .collect()
 }

@@ -14,9 +14,8 @@ use super::const_materializable::{
     hash_byte, hash_bytes, hash_text, hash_u64, unique_data_by_name, validate_value, value_kind,
 };
 use super::{
-    BuildTimeValue, checked_align_up, copy_const_materializable_bytes,
-    encode_typed_owned_value, normalized_schema_report_fingerprint,
-    reflected_nested_member_layout,
+    BuildTimeValue, checked_align_up, copy_const_materializable_bytes, encode_typed_owned_value,
+    normalized_schema_report_fingerprint, reflected_nested_member_layout,
 };
 
 const CONVENTIONAL_TAG_SIZE: u64 = 4;

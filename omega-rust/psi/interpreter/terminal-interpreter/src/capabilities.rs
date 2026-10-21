@@ -201,6 +201,12 @@ pub(crate) fn check_with_private_entry_ram(
                             // or an adapter supplied by catalog membership.
                         }
                         let declaration = program.verified_boundary_machine(boundary)?;
+                        // Compiler primitives execute in the interpreter and
+                        // retain their own unsupported-operation fences. They
+                        // are never host import slots, even without a plan.
+                        if crate::program::compiler_owns_boundary_execution(declaration) {
+                            continue;
+                        }
                         if let terminal_psi::BoundaryCompletion::External(kind) =
                             declaration.completion
                         {

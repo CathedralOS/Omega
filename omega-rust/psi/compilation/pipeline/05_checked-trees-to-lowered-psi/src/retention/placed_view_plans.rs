@@ -14,28 +14,7 @@ pub(crate) fn retain(
     sources: &[(source::SourceId, [u8; 32])],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
-    let declared_type = |data: &typed_trees::data::DataDefinition| {
-        let identity =
-            if let Some(application) = data.generic_instance {
-                checked.typed.type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(application),
-                )
-            } else {
-                checked
-                    .typed
-                    .normalized_nominal_type_identity(data.symbol)
-                    .unwrap_or_default()
-            };
-        checked.typed.type_identity_text(identity).and_then(|text| {
-            module
-                .structural_types
-                .iter()
-                .find(|declaration| {
-                    module.identities.text(declaration.identity) == Some(text.as_str())
-                })
-                .map(|declaration| declaration.id)
-        })
-    };
+    let declared_type = |data| schema_type(checked, module, data);
     let mut plans = Vec::new();
     for view in &checked.typed.placed_view_plans {
         let data = checked
@@ -174,4 +153,28 @@ pub(crate) fn retain(
     plans.sort_by_key(|plan| plan.carrier);
     module.placed_view_plans = plans;
     Ok(())
+}
+
+pub(super) fn schema_type(
+    checked: &CheckedTrees,
+    module: &TerminalModule,
+    data: &typed_trees::data::DataDefinition,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    let identity = if let Some(application) = data.generic_instance {
+        checked
+            .typed
+            .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                application,
+            ))
+    } else {
+        checked
+            .typed
+            .normalized_nominal_type_identity(data.symbol)?
+    };
+    let text = checked.typed.type_identity_text(identity)?;
+    module
+        .structural_types
+        .iter()
+        .find(|declaration| module.identities.text(declaration.identity) == Some(text.as_str()))
+        .map(|declaration| declaration.id)
 }

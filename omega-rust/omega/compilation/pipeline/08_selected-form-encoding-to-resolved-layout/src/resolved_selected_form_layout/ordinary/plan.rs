@@ -119,7 +119,7 @@ pub(crate) fn conditional_branch(
             ..
         ) => Some((instruction, when_less)),
         SelectedTerminator::Jump { .. }
-        | selected_instructions::terminator_exit_triple_pattern!(..) => None,
+        | selected_instructions::terminator_no_successor_pattern!(..) => None,
     }
 }
 

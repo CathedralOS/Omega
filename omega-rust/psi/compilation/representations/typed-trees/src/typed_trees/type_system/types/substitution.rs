@@ -30,6 +30,7 @@ impl TypeReferenceTable {
             occurrence.arena_index(),
             occurrence.generation(),
         )) = owner;
+        self.set_operand_origin(occurrence, self.operand_origin(replacement));
         self.substitute_node(occurrence, node);
         Ok(())
     }

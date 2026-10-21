@@ -2,7 +2,6 @@ use validation::CanonicalPlace;
 
 use crate::flow::FlowBuildContext;
 use crate::flow::appended_span_since;
-use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::mutation::close_storage_places_over_aliases;
 use crate::flow::mutation::{CallMutationWrite, call_mutation_writes};
 use crate::flow::project_constraint_refs_to_active_contexts;
@@ -23,8 +22,16 @@ pub(in crate::flow) struct CallInvalidationResult {
 /// attributed handback. Retaining them together avoids recomputing the same
 /// alias closure while preserving which parameter contributed each write.
 pub(in crate::flow) struct CallStorageWrites {
-    pub(in crate::flow) places: Vec<CanonicalPlace>,
-    pub(in crate::flow) contributions: Vec<CallMutationWrite>,
+    /// Conservative dependencies of observations, not writable descriptor
+    /// storage. A resident content write includes its owner here because an
+    /// observer of that owner can read the content.
+    pub(in crate::flow) observation_places: Vec<CanonicalPlace>,
+    pub(in crate::flow) contributions: Vec<ObservedCallMutation>,
+}
+
+pub(in crate::flow) struct ObservedCallMutation {
+    pub(in crate::flow) write: CallMutationWrite,
+    pub(in crate::flow) observations: Vec<CanonicalPlace>,
 }
 
 pub(in crate::flow) fn call_storage_writes(
@@ -54,9 +61,9 @@ pub(in crate::flow) fn call_storage_writes(
     let writes = call_storage_mutations(program, borrow, build, machine, state, borrow_call).map(
         |contributions| {
             std::rc::Rc::new(CallStorageWrites {
-                places: contributions
+                observation_places: contributions
                     .iter()
-                    .map(|write| write.place.clone())
+                    .flat_map(|contribution| contribution.observations.iter().cloned())
                     .collect(),
                 contributions,
             })
@@ -77,7 +84,7 @@ fn call_storage_mutations(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
-) -> Option<Vec<CallMutationWrite>> {
+) -> Option<Vec<ObservedCallMutation>> {
     let writes = call_mutation_writes(
         program,
         machine.symbol,
@@ -89,28 +96,35 @@ fn call_storage_mutations(
     )?;
     let mut result = Vec::new();
     for write in writes {
+        if matches!(
+            write.region,
+            crate::flow::mutation::StorageRegion::UnresolvedContent { .. }
+        ) {
+            return None;
+        }
         // When the resolver cannot enumerate this state's local origins (a
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        let places = close_storage_places_over_aliases(
+        let observations = close_storage_places_over_aliases(
             program,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
-            vec![write.place.clone()],
+            vec![write.region.anchor().clone()],
             build.call_frames,
         )
-        .unwrap_or_else(|| vec![write.place]);
-        for place in places {
-            let contribution = CallMutationWrite {
-                place,
-                source: write.source.clone(),
-            };
-            if !result.contains(&contribution) {
-                result.push(contribution);
-            }
-        }
+        .or_else(|| match &write.region {
+            crate::flow::mutation::StorageRegion::Declared(place) => Some(vec![place.clone()]),
+            // Do not lose content aliases when the inventory cannot be
+            // reconstructed. Unknown remains full invalidation.
+            crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
+            crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
+        })?;
+        result.push(ObservedCallMutation {
+            write,
+            observations,
+        });
     }
     Some(result)
 }
@@ -123,13 +137,13 @@ pub(in crate::flow) fn apply_call_invalidations(
     active_contexts: HandleSpan<FlowSemanticContextRef>,
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
-    mutated_places: Option<&[CanonicalPlace]>,
+    writes: Option<&CallStorageWrites>,
 ) -> CallInvalidationResult {
     // Flow construction keeps every semantic constraint in the active context
     // selection. With a known empty footprint neither selection nor its facts
     // changes, so there is nothing to project or invalidate. Unknown writes
     // remain distinct: they still withdraw all semantic constraints below.
-    if mutated_places.is_some_and(<[CanonicalPlace]>::is_empty) {
+    if writes.is_some_and(|writes| writes.contributions.is_empty()) {
         return CallInvalidationResult {
             post_contexts: active_contexts,
             post_constraints: active_constraints,
@@ -137,21 +151,37 @@ pub(in crate::flow) fn apply_call_invalidations(
         };
     }
     let invalidations_start = build.invalidations.events.frontier();
-    let post_contexts = match mutated_places {
+    let post_contexts = match writes {
         None => HandleSpan::empty(),
-        Some(mutated_places) => filter_contexts_after_place_mutations(
-            program,
+        Some(writes) => crate::flow::domain::filter_contexts_after_mutations(
             semantic,
-            domains,
             &mut build.contexts.semantic_context_refs,
             &mut build.invalidations.segments,
             &mut build.invalidations.events,
             active_contexts,
-            mutated_places,
             FlowInvalidationSource::Call {
                 statement_index: borrow_call.statement_index,
                 call_ordinal: borrow_call.call_ordinal,
                 target_symbol: borrow_call.target_symbol,
+            },
+            |fact, place| {
+                writes.contributions.iter().find_map(|contribution| {
+                    if contribution
+                        .write
+                        .region
+                        .preserves_owner_qualification(program, semantic, fact, place)
+                    {
+                        return None;
+                    }
+                    crate::flow::domain::matching_mutation_for_fact_place(
+                        program,
+                        semantic,
+                        domains,
+                        fact,
+                        place,
+                        &contribution.observations,
+                    )
+                })
             },
         ),
     };

@@ -55,6 +55,90 @@ pub struct TerminalPlacedViewPlan {
     pub fields: Vec<TerminalPlacedFieldPlan>,
 }
 
+/// Whole-value placement demand at an exact boundary declaration.
+///
+/// Initialization and extraction need the normalized plan even when no field
+/// view is formed. This is an operation contract, not an allocation, profile
+/// receipt, or claim that the operation has executed. Installation must bind
+/// its selected provider and execution must retain the original extent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalPlacementLifecyclePlan {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub operation: TerminalPlacementLifecycleOperation,
+    pub execution: TerminalPlacementLifecycleExecution,
+    pub storage: TerminalPlacementStorage,
+    pub schema: semantic_vocabulary::StructuralTypeId,
+    /// Complete represented schema fields in normalized access-slot order,
+    /// including inaccessible fields. Whole-value encoding must initialize
+    /// them too; an accessor roster is neither complete nor in declaration
+    /// order. Erased and zero-byte children remain in owned semantic custody.
+    pub image_fields: Vec<semantic_vocabulary::StructuralFieldId>,
+    pub policy_identity: TerminalIdentityIndex,
+    pub policy_plan_machine_identity: TerminalIdentityIndex,
+    pub schema_identity: TerminalIdentityIndex,
+    pub placement: access_plans::ValidatedPlacementPlan,
+}
+
+/// Who must fulfill this operation's normal-completion contract. A private
+/// compiler primitive cannot be replaced by an ordinary selected provider or
+/// host effect handler. Neither variant records successful execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalPlacementLifecycleExecution {
+    SelectedProvider,
+    CompilerPrimitive {
+        /// Exact third input of initialization; absent for extraction. This
+        /// describes the signature, not an admitted profile-call receipt.
+        profile_type: Option<semantic_vocabulary::StructuralTypeId>,
+        /// Exact core ResourceProfileSupply requirement whose completed call
+        /// may supply initialization. A matching result type is not this role.
+        profile_requirement: Option<TerminalPlacementProfileRequirement>,
+    },
+}
+
+/// Source-authenticated core profile role and its emitted coordinate. The
+/// expected owner and overload come from the core declaration, independently
+/// of the coordinate selected by call emission. Receiving joins both; shape
+/// alone cannot substitute another admitted trait. Source proof/admission,
+/// not this consistency record, authenticates the projection itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalPlacementProfileRequirement {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub owner: crate::NominalDeclarationIdentity,
+    pub callable: TerminalIdentityIndex,
+}
+
+/// Source-authenticated roles of the core extent carrier. Field positions,
+/// spelling, and an arbitrary pair of integer fields are not this contract.
+/// Runtime binding still needs the actual admitted owner and its live claim.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalPlacementStorage {
+    pub carrier: semantic_vocabulary::StructuralTypeId,
+    pub base: semantic_vocabulary::StructuralFieldId,
+    pub length: semantic_vocabulary::StructuralFieldId,
+    pub granted: semantic_vocabulary::StructuralDomainId,
+    pub vacant: semantic_vocabulary::StructuralDomainId,
+    pub resident: semantic_vocabulary::StructuralDomainId,
+}
+
+/// Checked roles on the owner lent to a resident interpretation. This describes
+/// the source contract, not storage or authority. Execution must capture the
+/// live owner, its original resident custody, exact placement and admitted supply.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResidentReferenceSource {
+    /// Exact fields of the source owner, not ordinal conventions. Their values
+    /// describe geometry; only the retained owner and admitted claim authorize it.
+    pub base: semantic_vocabulary::StructuralFieldId,
+    pub length: semantic_vocabulary::StructuralFieldId,
+    pub granted: semantic_vocabulary::StructuralDomainId,
+    pub resident: semantic_vocabulary::StructuralDomainId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalPlacementLifecycleOperation {
+    Initialize,
+    MoveOut,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalPlacedFieldPlan {
     /// Exact normalizer-issued slot under the enclosing complete plan.

@@ -40,7 +40,7 @@ pub(crate) fn successor(target: u32) -> SelectedSuccessor {
         structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
         structural_bindings: Vec::new(),
-        psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),
+        psi_edge: EdgeId::new(u64::from(target) + 1),
         block: SelectedBlockId(target),
         source_target: BlockId::new(u64::from(target) + 1).unwrap(),
         bindings: Vec::new(),

@@ -14,6 +14,10 @@ pub type FunctionFragmentBranchEvidence = ResolvedBranchEvidence;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentControlProvenance {
+    /// Operation-owned invalid-assertion termination, never an authored edge.
+    OperationTrap {
+        operation: semantic_vocabulary::OperationId,
+    },
     /// The selected source identity retains the checked guard and frontier;
     /// this row joins their exact crash site to its terminating bytes.
     Crash {
@@ -55,7 +59,7 @@ pub type FunctionFragmentConditionalBranchPredicate = ResolvedConditionalBranchP
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentSuccessorProvenance {
     pub role: selected_instructions::SelectedSuccessorRole,
-    pub psi_edge: EdgeId,
+    pub psi_edge: Option<EdgeId>,
     pub block: SelectedBlockId,
     pub source_target: BlockId,
     pub bindings: Vec<ValueBinding>,

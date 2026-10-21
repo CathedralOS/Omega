@@ -71,6 +71,7 @@ pub(super) fn check_call_result_qualifications(
         };
         let place = facts.semantic.places.get(place);
         let path = facts.semantic.place_segments.span_or_empty(place.segments);
+        let mut primitive_error = None;
         let valid = (|| {
             let ProgramPoint::CallEnsures {
                 machine_symbol,
@@ -150,6 +151,29 @@ pub(super) fn check_call_result_qualifications(
             // maps, including identity-forwarding wrappers without a theorem.
             if validation::call_target_has_checked_body_contract(program, call.target_symbol) {
                 return Some(());
+            }
+
+            // This is a conditional normal-return contract, not an admitted
+            // provider receipt. The exact sealed operation remains an
+            // unresolved compiler execution obligation in Terminal. Both
+            // execution engines refuse generic provider/handler fallback.
+            // In particular Granted still follows conservation below: these
+            // private routes authorize content transition, not fresh storage.
+            match private_placement_result_contract(program, &invocation, domain, path) {
+                Ok(true) => {
+                    if result_claim(program, facts, &invocation, path).is_none() {
+                        primitive_error = Some(Diagnostic::error(
+                            "placement primitive result has no exact owned result claim",
+                        ));
+                        return None;
+                    }
+                    return Some(());
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    primitive_error = Some(error);
+                    return None;
+                }
             }
 
             // A requirement publishes an obligation, not an issuer grant.
@@ -346,6 +370,10 @@ pub(super) fn check_call_result_qualifications(
         })()
         .is_some();
         if !valid {
+            if let Some(error) = primitive_error {
+                diagnostics.push(error);
+                continue;
+            }
             let location = match fact.point {
                 ProgramPoint::CallEnsures {
                     machine_symbol,
@@ -365,6 +393,80 @@ pub(super) fn check_call_result_qualifications(
             )));
         }
     }
+}
+
+/// Recognize only an authenticated closed lifecycle operation whose exact
+/// result subject and evaluated P/T plan survive preparation. An arbitrary
+/// bodyless exact-machine route is not a compiler implementation.
+fn private_placement_result_contract(
+    program: &dyn ::validation::CheckingInput,
+    invocation: &Invocation<'_>,
+    domain: &typed_trees::domain::DomainDefinition,
+    path: &[PlaceSegment],
+) -> Result<bool, Diagnostic> {
+    let callable = invocation.call.target_symbol;
+    let Some(declaration) =
+        typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, callable)?
+    else {
+        return Ok(false);
+    };
+    if !domain.establishment_routes.iter().any(|route| {
+        matches!(route, DomainEstablishmentRoute::ExactMachine { machine }
+            if *machine == declaration.template())
+    }) {
+        return Ok(false);
+    }
+    let (policy, schema) = declaration.invocation_operands(
+        program,
+        invocation.machine,
+        invocation.call.authored_machine_application,
+    )?;
+    let nominal = |reference| match program.type_reference_table.type_reference(reference) {
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        _ => None,
+    };
+    let mut plans = program
+        .placement_lifecycle_plans
+        .iter()
+        .filter_map(|(_, plan)| match plan {
+            typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated {
+                callable: candidate,
+                operation,
+                policy,
+                schema,
+                ..
+            } if *candidate == declaration.machine() => Some((*operation, *policy, *schema)),
+            _ => None,
+        });
+    let expected = nominal(policy)
+        .zip(nominal(schema))
+        .map(|(policy, schema)| (declaration.operation(), policy, schema));
+    if expected.is_none() || plans.next() != expected || plans.next().is_some() {
+        return Err(Diagnostic::error(
+            "placement primitive result lost its unique evaluated operation contract",
+        ));
+    }
+    let state = program
+        .state_by_symbol(declaration.state())
+        .ok_or_else(|| {
+            Diagnostic::error("placement primitive result lost its authenticated entry")
+        })?;
+    let matches = path
+        .iter()
+        .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+        && qualified_leaf_carrier(program, state.return_type, path).is_some_and(|carrier| {
+            crate::facts::qualification_evidence::unwrapped_type_references_match(
+                program,
+                carrier,
+                domain.target_type,
+            )
+        });
+    if !matches {
+        return Err(Diagnostic::error(
+            "placement primitive result does not name the exact declared case payload",
+        ));
+    }
+    Ok(true)
 }
 
 /// The out-parameter direction of the call-ensures join: a routed

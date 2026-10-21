@@ -66,6 +66,50 @@ impl<'a> Reviewer<'a> {
             .boundaries
             .get(&boundary)
             .ok_or_else(|| format!("reachable boundary {boundary:?} has no declaration"))?;
+        if let Some(plan) = self
+            .context
+            .input
+            .context()
+            .module()
+            .placement_lifecycle_plans
+            .iter()
+            .find(|plan| {
+                plan.boundary == boundary
+                    && matches!(
+                        plan.execution,
+                        terminal_psi::TerminalPlacementLifecycleExecution::CompilerPrimitive { .. }
+                    )
+            })
+        {
+            // These private, source-authenticated operations consume existing
+            // extent custody. Their profile supplier is an ordinary selected
+            // call and is reviewed separately. Do not invent a provider/service
+            // identity for the primitive, or silently skip a missing settlement.
+            let expected = TerminalMechanismIdentity::CompilerIntrinsic(
+                effects::CompilerIntrinsicExecutionIdentity::PlacementLifecycle(plan.operation),
+            );
+            if self.context.mechanisms.get(&boundary) != Some(&expected) {
+                return Err(format!(
+                    "private lifecycle {boundary:?} has no exact admitted execution"
+                ));
+            }
+            let exercised = self
+                .context
+                .physical_policy
+                .classify(expected)
+                .map_err(|error| {
+                    format!(
+                        "private lifecycle {boundary:?} has no physical classification: {:?}",
+                        error.mechanism()
+                    )
+                })?;
+            if !exercised.classes().is_empty() {
+                return Err(format!(
+                    "private lifecycle {boundary:?} unexpectedly exercises host authority"
+                ));
+            }
+            return Ok(());
+        }
         let requirement = self
             .context
             .input

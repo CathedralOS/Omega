@@ -69,7 +69,7 @@ fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
             Some(when_not_less.block)
         }
         SelectedTerminator::Jump { .. }
-        | selected_instructions::terminator_exit_triple_pattern!(..) => None,
+        | selected_instructions::terminator_no_successor_pattern!(..) => None,
     }
 }
 

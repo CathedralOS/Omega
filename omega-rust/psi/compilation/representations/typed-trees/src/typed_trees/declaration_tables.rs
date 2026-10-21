@@ -314,6 +314,49 @@ impl TypedTrees {
         Ok(template)
     }
 
+    /// Follow retained invocation/capture ownership to an authored declaration.
+    /// This is declaration correspondence only, not result provenance or supply
+    /// admission. Consumers still check the exact applied contract and subject.
+    pub fn machine_invokes_declaration(
+        &self,
+        mut callable: symbols::SymbolHandle,
+        declaration: symbols::SymbolHandle,
+    ) -> Result<bool, &'static str> {
+        for _ in 0..=self.machines().len() {
+            if callable == declaration {
+                return Ok(true);
+            }
+            // A target body invokes its resolved family head's declaration.
+            // Names and selected realization alone do not establish this join.
+            if self.target_machine_families.iter().any(|family| {
+                family.canonical == declaration
+                    && family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == callable)
+            }) {
+                return Ok(true);
+            }
+            let template = match self.executable_application_template(callable)? {
+                Some(template) => template,
+                None => {
+                    let Some(machine) = self.machine(callable) else {
+                        return Ok(false);
+                    };
+                    machine.generic_data_template
+                }
+            };
+            if !template.is_valid() {
+                return Ok(false);
+            }
+            if template == callable {
+                return Err("executable application has cyclic template ownership");
+            }
+            callable = template;
+        }
+        Err("executable application template chain exceeds retained declarations")
+    }
+
     /// Rejoin an executable entry through its invocation and capture applications.
     /// A selected map can supply captures only to its own exact authored row.
     pub fn realization_entry_template(

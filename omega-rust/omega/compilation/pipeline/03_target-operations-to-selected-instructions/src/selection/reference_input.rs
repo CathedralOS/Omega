@@ -13,6 +13,9 @@ use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(super) struct ReferenceAddress {
     pub(super) place: PlaceId,
     pub(super) byte_offset: u32,
@@ -191,6 +194,14 @@ pub(super) fn establishment(
         return None;
     }
     let root = root_type(function, source.place)?;
+    let owner =
+        terminal_semantics::runtime_structural_path_tip(declarations.iter(), root, &source.path)
+            .map(|declaration| declaration.id);
+    let address_source = match placed {
+        Some(backing) => backing.address_source(source, declarations.as_slice())?,
+        None => source.clone(),
+    };
+    let source = &address_source;
     let semantic_scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
         referent,
         declarations,
@@ -271,6 +282,7 @@ pub(super) fn establishment(
     // Borrowed scalar ingress carries an address-and-codec descriptor. A new
     // interpretation replaces the codec, not the descriptor's pointer crossing.
     load_pointer |= borrowed_scalar_source(function, source.place).is_some();
+    load_pointer |= placed.is_some_and(|backing| backing.resident_source().is_some());
     let load_codec = storage.is_none() && semantic_scalar.is_some() && load_pointer;
     let codec = match storage {
         Some(storage) => storage
@@ -292,14 +304,17 @@ pub(super) fn establishment(
             .filter(|plan| plan.carrier == referent);
         match (plans.next(), plans.next()) {
             (Some(plan), None) => {
-                actual == Some(correspondence.schema)
-                    && terminal_semantics::placed_ram_plan_correspondence(
+                owner == Some(correspondence.source_type())
+                    && (correspondence.resident_source().is_some()
+                        || actual == Some(correspondence.schema()))
+                    && optimization_unit_semantics::placed_references::validate_backing(
                         declarations.as_slice(),
                         declarations.placed_views(),
                         plan,
-                        correspondence.schema,
+                        correspondence.source_type(),
+                        correspondence,
                     )
-                    .is_ok_and(|expected| &expected == correspondence)
+                    .is_ok()
             }
             _ => false,
         }

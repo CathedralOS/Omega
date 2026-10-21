@@ -13,6 +13,7 @@ path = "src/lib.rs"
 optimization-core = { path = "../../../foundation/optimization-core" }
 function-identity = { path = "../../../foundation/function-identity" }
 numerics = { path = "../../../../psi/foundation/numerics" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 source = { path = "../../../../psi/foundation/source" }

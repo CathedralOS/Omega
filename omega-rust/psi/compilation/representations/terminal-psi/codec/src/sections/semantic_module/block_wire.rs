@@ -112,8 +112,8 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
                 &source.path,
             )?;
         }
-        OperationKind::EstablishPlacedReference { source } => {
-            storage_operations::encode_establish_placed_reference(writer, source)?
+        OperationKind::EstablishPlacedReference { source, resident } => {
+            storage_operations::encode_establish_placed_reference(writer, source, resident)?
         }
         OperationKind::EstablishReference { source, storage } => {
             storage_operations::encode_establish_reference(writer, source, storage)?

@@ -1,0 +1,346 @@
+//! Resident field events join retained custody to an admitted byte footprint.
+//!
+//! Reference formation already captured the original owner and allocation;
+//! each event checks that binding is still live and uses the initialization's
+//! immutable resource compatibility. Canonical access slots select geometry,
+//! never a source name or an address lookup. The codec operates on one staged
+//! transfer window, so unrelated fields, padding and the allocation tail stay
+//! untouched. Snapshot qualifications and capability bindings cannot survive
+//! an arbitrary write: unsupported preservation refuses before changing bytes.
+
+use super::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
+use crate::effects::results::TerminalEffectResult;
+use crate::errors::{TerminalInterpretError, malformed};
+use crate::execution::TerminalExecution;
+use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
+use access_plans::{
+    AccessOperation, BorrowPolarity, EffectiveSupplyKind, ObservationModel, StableCapability,
+};
+use layout_plans::{
+    AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalPlacedAccessorKind,
+    TerminalPlacedFieldPlan, TerminalPlacedViewPlan,
+};
+
+impl TerminalExecution<'_> {
+    pub(crate) fn execute_resident_field(
+        &mut self,
+        binding: ProviderStorageBinding,
+        plan: &TerminalPlacedViewPlan,
+        field: &TerminalPlacedFieldPlan,
+        kind: TerminalPlacedAccessorKind,
+        source_access: StructuralAccess,
+        arguments: &[TerminalScalarValue],
+    ) -> Result<TerminalEffectResult, TerminalInterpretError> {
+        if !self.provider_storage.binding_is_live(binding) {
+            return Err(TerminalInterpretError::ContentTransformationMismatch(
+                "resident field lost its original allocation",
+            ));
+        }
+        let access = plan.placement.access();
+        let entry = access
+            .plan()
+            .entries()
+            .get(field.access_slot as usize)
+            .ok_or_else(malformed)?;
+        let operation = match kind {
+            TerminalPlacedAccessorKind::Read => AccessOperation::Read,
+            TerminalPlacedAccessorKind::Write => AccessOperation::Write,
+            TerminalPlacedAccessorKind::Take => {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "resident take requires partial custody transfer",
+                ));
+            }
+        };
+        let source_borrow = match source_access {
+            StructuralAccess::SharedBorrow => BorrowPolarity::Shared,
+            StructuralAccess::MutableBorrow => BorrowPolarity::Exclusive,
+            _ => return Err(malformed()),
+        };
+        let authorized = access
+            .authorize(
+                entry.key(),
+                operation.receiver_polarity(),
+                source_borrow,
+                operation,
+            )
+            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        let descriptor = authorized.descriptor();
+        if descriptor.observation() != ObservationModel::Stable {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "resident scalar events require Stable observation",
+            ));
+        }
+        let ResidentStorageSlot::Live {
+            initialized_by,
+            custody,
+            compatibility,
+            ..
+        } = self.provider_storage.residents.get(binding.resident)
+        else {
+            return Err(malformed());
+        };
+        let initialized = self
+            .program
+            .catalogs
+            .placement_lifecycle_plans
+            .iter()
+            .find(|row| row.boundary == *initialized_by)
+            .ok_or_else(malformed)?;
+        if initialized.placement != plan.placement
+            || initialized.schema != plan.schema
+            || initialized.policy_identity != plan.policy_identity
+            || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
+            || initialized.schema_identity != plan.schema_identity
+            || custody.value.structural_type != plan.schema
+        {
+            return Err(TerminalInterpretError::ContentTransformationMismatch(
+                "resident event changed its initialization contract",
+            ));
+        }
+        let supply = compatibility
+            .placement()
+            .fields()
+            .iter()
+            .find(|row| row.key() == entry.key())
+            .ok_or_else(malformed)?;
+        let footprint = descriptor.effect_footprint();
+        if supply.kind() != EffectiveSupplyKind::Stable
+            || supply.offset() != footprint.byte_offset()
+            || u64::from(supply.width_bits())
+                != footprint
+                    .length_bytes()
+                    .checked_mul(8)
+                    .ok_or_else(malformed)?
+            || footprint.end() > compatibility.byte_length()
+            || footprint.end() > binding.length
+        {
+            return Err(malformed());
+        }
+        let StructuralTypeShape::Record { fields, .. } = &self
+            .program
+            .structural_types()
+            .get(&plan.schema)
+            .ok_or_else(malformed)?
+            .shape
+        else {
+            return Err(malformed());
+        };
+        let source_field = fields
+            .iter()
+            .find(|row| row.identity == field.schema_field)
+            .ok_or_else(malformed)?;
+        if initialized.image_fields.get(field.access_slot as usize) != Some(&source_field.id) {
+            return Err(malformed());
+        }
+        let scalar = source_field.field_type.scalar_type().ok_or(
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "resident accessor requires a scalar value contract",
+            ),
+        )?;
+        let width =
+            terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?;
+        let write = match (kind, arguments) {
+            (TerminalPlacedAccessorKind::Read, []) => None,
+            (TerminalPlacedAccessorKind::Write, [value])
+                if value.scalar_type() == scalar
+                    && value.satisfies_field(&source_field.field_type) =>
+            {
+                Some(*value)
+            }
+            _ => return Err(malformed()),
+        };
+        if write.is_some() {
+            let path = [StructuralPathSegment::Field(source_field.identity)];
+            if !custody.value.qualifications.is_empty()
+                || custody
+                    .value
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| terminal_semantics::structural_paths_may_overlap(&row.path, &path))
+                || custody.storage.resident_field_has_bindings(
+                    &StructuralRuntimePlace::from(&custody.value),
+                    source_field.identity,
+                )
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "resident field write requires preservation of retained qualifications and bindings",
+                ));
+            }
+        }
+        // Partial writes preserve other fields' bits in the physical container.
+        // That physical read needs actual read supply even if the logical field
+        // exposes only a write operation. Full replacement never reads bytes.
+        let represented_bits = descriptor
+            .logical_extent()
+            .fragments()
+            .iter()
+            .try_fold(0_u64, |sum, fragment| {
+                sum.checked_add(fragment.width_bits())
+            })
+            .ok_or_else(malformed)?;
+        let needs_read = write.is_none() || represented_bits != footprint.length_bytes() * 8;
+        let ProviderStorageSlot::Live {
+            allocation,
+            profile,
+            ..
+        } = self.provider_storage.allocations.get(binding.allocation)
+        else {
+            return Err(malformed());
+        };
+        let loan = allocation
+            .extent
+            .loan(binding.offset, binding.length)
+            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        let actual = profile
+            .restrict_to_loan(&loan)
+            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        let region = actual
+            .regions()
+            .iter()
+            .find(|region| {
+                footprint.byte_offset() >= region.offset
+                    && footprint.end() <= region.offset + region.length
+            })
+            .ok_or_else(malformed)?;
+        let reads = matches!(
+            region.stable,
+            StableCapability::Read | StableCapability::ReadWrite
+        );
+        let writes = matches!(
+            region.stable,
+            StableCapability::Write | StableCapability::ReadWrite
+        );
+        if (needs_read && !reads) || (write.is_some() && !writes) {
+            return Err(TerminalInterpretError::ContentTransformationMismatch(
+                "resident field event lacks actual Stable transfer supply",
+            ));
+        }
+        let start = binding
+            .offset
+            .checked_add(footprint.byte_offset())
+            .and_then(|offset| usize::try_from(offset).ok())
+            .ok_or_else(malformed)?;
+        let length = usize::try_from(footprint.length_bytes()).map_err(|_| malformed())?;
+        let end = start.checked_add(length).ok_or_else(malformed)?;
+        let bytes = allocation.bytes.get(start..end).ok_or_else(malformed)?;
+        let mut transfer = if needs_read {
+            bytes.to_vec()
+        } else {
+            vec![0; length]
+        };
+        let layout = field_window(
+            plan.placement.layout(),
+            entry.field(),
+            footprint.byte_offset(),
+            footprint.length_bytes(),
+        )?;
+        let member = layout
+            .entries
+            .first()
+            .ok_or_else(malformed)?
+            .member_identity;
+        let result = if let Some(value) = write {
+            let bits = crate::primitive_storage::encoding::encode(scalar, value)?;
+            let bits = u64::try_from(bits).map_err(|_| {
+                TerminalInterpretError::UnsupportedSemanticVariant(
+                    "resident scalar codec exceeds its 64-bit materialization carrier",
+                )
+            })?;
+            let value = match member {
+                Some(member) => ScalarFieldValue::new_numbered(
+                    entry.field(),
+                    member,
+                    u16::from(width) * 8,
+                    bits,
+                ),
+                None => ScalarFieldValue::new(entry.field(), u16::from(width) * 8, bits),
+            }
+            .map_err(TerminalInterpretError::ValueImage)?;
+            layout_plans::update_scalar_field(
+                &layout,
+                &value,
+                ByteOrder::LittleEndian,
+                &mut transfer,
+            )
+            .map_err(TerminalInterpretError::ValueImage)?;
+            TerminalEffectResult::Unit
+        } else {
+            let schema = match member {
+                Some(member) => {
+                    AggregateFieldSchema::new_numbered(entry.field(), member, u64::from(width))
+                }
+                None => AggregateFieldSchema::new(entry.field(), u64::from(width)),
+            }
+            .map_err(TerminalInterpretError::ValueImage)?;
+            let decoded = layout_plans::decode_aggregate_field(
+                &layout,
+                &schema,
+                ByteOrder::LittleEndian,
+                &transfer,
+            )
+            .map_err(TerminalInterpretError::ValueImage)?;
+            let mut encoded = [0_u8; 16];
+            encoded
+                .get_mut(..decoded.len())
+                .ok_or_else(malformed)?
+                .copy_from_slice(&decoded);
+            let value =
+                crate::primitive_storage::encoding::decode(scalar, u128::from_le_bytes(encoded))?;
+            if !value.satisfies_field(&source_field.field_type) {
+                return Err(malformed());
+            }
+            TerminalEffectResult::Scalar(value)
+        };
+        if write.is_some() {
+            // All semantic and codec refusals precede the single exact-footprint
+            // commit. The original resident and its allocation remain in place.
+            let ProviderStorageSlot::Live { allocation, .. } = self
+                .provider_storage
+                .allocations
+                .get_mut(binding.allocation)
+            else {
+                return Err(malformed());
+            };
+            allocation
+                .bytes
+                .get_mut(start..end)
+                .ok_or_else(malformed)?
+                .copy_from_slice(&transfer);
+        }
+        Ok(result)
+    }
+}
+
+/// Rebase the already-normalized field geometry into its transfer window.
+/// The key comes from the retained access-slot roster, not source lookup.
+fn field_window(
+    layout: &LayoutPlanReport,
+    field: &str,
+    base: u64,
+    length: u64,
+) -> Result<LayoutPlanReport, TerminalInterpretError> {
+    let mut entries = Vec::new();
+    for entry in layout.entries.iter().filter(|entry| entry.field == field) {
+        let mut entry = entry.clone();
+        let offset = match &mut entry.placement {
+            LayoutPlacementReport::At { offset }
+            | LayoutPlacementReport::IntegerAt { offset, .. } => offset,
+            LayoutPlacementReport::Bits { container, .. } => container,
+        };
+        *offset = offset.checked_sub(base).ok_or_else(malformed)?;
+        entries.push(entry);
+    }
+    if entries.is_empty() {
+        return Err(malformed());
+    }
+    Ok(LayoutPlanReport {
+        entries,
+        offsets: None,
+        size: Some(length),
+        align: 1,
+        ..layout.clone()
+    })
+}

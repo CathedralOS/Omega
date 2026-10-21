@@ -34,6 +34,7 @@ pub use layout_reports::{
     layout_plan_reports_match_for_replay, normalized_conventional_sum_layout_report_fingerprint,
     normalized_layout_plan_report_fingerprint, normalized_native_layout_plan_report_fingerprint,
 };
+pub use materialization::field_codec::{decode_aggregate_field, update_scalar_field};
 pub use materialization::field_values::{
     AggregateFieldSchema, AggregateFieldValue, ScalarFieldSchema, ScalarFieldValue,
 };

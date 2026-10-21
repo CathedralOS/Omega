@@ -14,16 +14,55 @@ use typed_trees::types::PrimitiveType;
 /// A view begins at the source's actual projected address. Aggregate views
 /// obtain field encodings from their authored structural catalog; scalar views
 /// carry their codec independently of the callee's logical parameter type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum CheckedReferenceStorage {
     #[default]
     Declared,
     /// Exact factory formation over its captured initialized ordinary schema.
     /// The result carrier selects the retained placement at publication.
     Placed,
+    /// Borrow the exact resident owner, not its descriptor bytes. These are
+    /// the owner's closed qualifications, never memberships of the Placed
+    /// schema. Publication must also retain its actual backing/profile receipt.
+    ResidentPlaced {
+        extent: SymbolHandle,
+        granted: language_semantics::SemanticDomainId,
+        resident: language_semantics::SemanticDomainId,
+    },
     View {
         stored_scalar: Option<semantic_vocabulary::ScalarType>,
     },
+}
+
+impl Ord for CheckedReferenceStorage {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Ordering is for deterministic path tables within one checked unit,
+        // not a relation between the theories named by these interned IDs.
+        let key = |storage: &Self| match storage {
+            Self::Declared => (0, 0, 0, 0, 0, None),
+            Self::Placed => (1, 0, 0, 0, 0, None),
+            Self::ResidentPlaced {
+                extent,
+                granted,
+                resident,
+            } => (
+                2,
+                extent.arena_index(),
+                extent.generation(),
+                granted.0,
+                resident.0,
+                None,
+            ),
+            Self::View { stored_scalar } => (3, 0, 0, 0, 0, *stored_scalar),
+        };
+        key(self).cmp(&key(other))
+    }
+}
+
+impl PartialOrd for CheckedReferenceStorage {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

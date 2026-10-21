@@ -289,6 +289,10 @@ impl CallableApplication {
             .constant_origins(original)?
             .to_vec();
         let applied = program.type_reference_table.insert(node);
+        let origin = program.type_reference_table.operand_origin(original);
+        program
+            .type_reference_table
+            .set_operand_origin(applied, origin);
         program
             .type_reference_table
             .attach_constant_origins(applied, origins)?;

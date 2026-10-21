@@ -20,6 +20,11 @@ pub(super) fn classify_compiler_intrinsic(
             // own transitive demands remain in the executable closure.
             empty_disposition()
         }
+        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(_) => {
+            // Read/write authority comes only from the existing live extent
+            // and admitted profile. Executing its lifecycle adds no host class.
+            empty_disposition()
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             disposition([TerminalAuthorityClass::ProcessTermination])
         }

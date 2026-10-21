@@ -1,0 +1,2 @@
+storage requires Extent::Granted
+storage requires Resident

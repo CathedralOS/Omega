@@ -46,6 +46,11 @@ fn has_checked_write_only_implementation(
     machine: &Machine,
 ) -> bool {
     machine.supplies_checked_body()
+        // Whole-value placement moves descriptors as values; it never reads
+        // through a stored reference. Unsupported represented/non-runtime
+        // custody still rejects at placement planning and realization.
+        || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(program, machine.symbol)
+            .is_ok_and(|contract| contract.is_some())
         || crate::machine_calls::calls::target_family_members(program, machine).is_some_and(
             |members| {
                 members.iter().all(|member| {

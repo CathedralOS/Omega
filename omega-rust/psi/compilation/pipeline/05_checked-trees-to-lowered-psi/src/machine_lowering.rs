@@ -315,6 +315,12 @@ fn lower_terminal_selection(
         exact_toolchain_sources,
         &mut lowered.semantic_module,
     )?;
+    crate::retention::placement_lifecycles::retain(
+        identities,
+        checked,
+        exact_toolchain_sources,
+        &mut lowered,
+    )?;
     suspension_call_plan::retain_suspension_call_plans(
         identities,
         checked,

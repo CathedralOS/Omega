@@ -124,7 +124,7 @@ pub struct SuccessorLiveness {
     pub terminator: SelectedInstructionId,
     /// Canonical branch polarity: zero is nonzero/true, one is zero/false.
     pub polarity_ordinal: u8,
-    pub psi_edge: EdgeId,
+    pub psi_edge: Option<EdgeId>,
     pub target: SelectedBlockId,
     pub virtual_live: Vec<VirtualRegisterId>,
     pub unit_live: Vec<RegisterUnitId>,

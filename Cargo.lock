@@ -1690,8 +1690,10 @@ name = "register-homes"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "access-plans",
  "calling-conventions",
  "function-identity",
+ "layout-plans",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -2175,7 +2177,9 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "access-plans",
  "calling-conventions",
+ "layout-plans",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -2242,7 +2246,10 @@ dependencies = [
 name = "terminal-interpreter"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
+ "arena",
  "extents",
+ "layout-plans",
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
@@ -2297,6 +2304,7 @@ dependencies = [
  "effects",
  "function-identity",
  "installation-evidence",
+ "layout-plans",
  "numerics",
  "optimization-core",
  "optimization-unit",

@@ -29,6 +29,11 @@ pub(crate) enum PublishedReferenceStorage {
     Declared,
     RepresentationView(terminal_psi::ReferenceStorageView),
     Placed,
+    ResidentPlaced {
+        extent: symbols::SymbolHandle,
+        granted: language_semantics::SemanticDomainId,
+        resident: language_semantics::SemanticDomainId,
+    },
 }
 
 /// Publish the source-selected storage interpretation once at formation.
@@ -50,6 +55,15 @@ pub(crate) fn publish_storage(
         return Ok((
             match storage {
                 checked_trees::CheckedReferenceStorage::Placed => PublishedReferenceStorage::Placed,
+                checked_trees::CheckedReferenceStorage::ResidentPlaced {
+                    extent,
+                    granted,
+                    resident,
+                } => PublishedReferenceStorage::ResidentPlaced {
+                    extent,
+                    granted,
+                    resident,
+                },
                 _ => PublishedReferenceStorage::Declared,
             },
             None,
@@ -81,6 +95,7 @@ pub(crate) fn publish_storage(
 }
 
 pub(super) fn emit<'parameter>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     formation: Formation<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
     source: StructuralArgument,
@@ -93,6 +108,7 @@ pub(super) fn emit<'parameter>(
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let structural_type = lookup_type_id(types, &result.type_identity)?;
     emit_carrier(
+        identities,
         formation,
         structural_type,
         source,
@@ -105,6 +121,7 @@ pub(super) fn emit<'parameter>(
 }
 
 pub(crate) fn emit_carrier<'parameter>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     formation: Formation<'_>,
     structural_type: StructuralTypeId,
     source: StructuralArgument,
@@ -115,6 +132,53 @@ pub(crate) fn emit_carrier<'parameter>(
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
+    let parameters = parameters.collect::<Vec<_>>();
+    let resident_source = if let PublishedReferenceStorage::ResidentPlaced {
+        extent,
+        granted,
+        resident,
+    } = storage
+    {
+        let (root, _, _) = super::structural_values::member_memberships::source_memberships(
+            source.place,
+            parameters.iter().copied(),
+            operations,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "resident reference lost its supplying declaration",
+        ))?;
+        let carrier = terminal_semantics::runtime_structural_path_tip(
+            declarations.iter(),
+            root,
+            &source.path,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "resident reference lost its supplying owner",
+        ))?;
+        let (base, length) = crate::retention::placement_lifecycles::storage_fields(
+            identities,
+            formation.checked,
+            extent,
+            carrier,
+        )?;
+        let carrier = carrier.id;
+        Some(terminal_psi::ResidentReferenceSource {
+            base,
+            length,
+            granted: crate::terminal_identities::lookup_domain_id_for_carrier(
+                formation.domain_ids,
+                granted,
+                carrier,
+            )?,
+            resident: crate::terminal_identities::lookup_domain_id_for_carrier(
+                formation.domain_ids,
+                resident,
+                carrier,
+            )?,
+        })
+    } else {
+        None
+    };
     // A captured loan keeps the carrier its type declares. Ordinary
     // references own affine lifetime resources; collection views use their
     // descriptor operation and its shared/exclusive multiplicity.
@@ -124,9 +188,13 @@ pub(crate) fn emit_carrier<'parameter>(
     let (kind, multiplicity) = match declaration.shape {
         terminal_psi::StructuralTypeShape::Reference { .. } => (
             match storage {
-                PublishedReferenceStorage::Placed => OperationKind::EstablishPlacedReference {
-                    source: source.clone(),
-                },
+                PublishedReferenceStorage::Placed
+                | PublishedReferenceStorage::ResidentPlaced { .. } => {
+                    OperationKind::EstablishPlacedReference {
+                        source: source.clone(),
+                        resident: resident_source,
+                    }
+                }
                 PublishedReferenceStorage::Declared => OperationKind::EstablishReference {
                     source: source.clone(),
                     storage: None,
@@ -224,10 +292,12 @@ pub(crate) fn emit_carrier<'parameter>(
         }
     }
     let mut result = structural_result_declaration(place, structural_type, multiplicity);
-    if matches!(
-        declaration.shape,
-        terminal_psi::StructuralTypeShape::Reference { .. }
-    ) {
+    if resident_source.is_none()
+        && matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::Reference { .. }
+        )
+    {
         // A descriptor carries the actual source's memberships below its
         // borrowed boundary, never qualifications on the descriptor itself.
         // Constructor transport then prefixes these same rows with its field
@@ -240,7 +310,7 @@ pub(crate) fn emit_carrier<'parameter>(
         if let Some((root, whole, projected)) =
             super::structural_values::member_memberships::source_memberships(
                 source.place,
-                parameters,
+                parameters.iter().copied(),
                 operations,
             )
         {

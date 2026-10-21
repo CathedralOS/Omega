@@ -1561,6 +1561,21 @@ pub struct NativeCodeLayoutRequest {
 pub struct PlacedBorrowOperationRequest {
     pub factory: SymbolHandle,
     pub access: language_core::ReferenceAccess,
+    pub backing: PlacedBorrowBacking,
+}
+
+/// The source loan always belongs to the captured argument. Its storage
+/// interpretation does not: a resident owner is an Extent descriptor, not the
+/// encoded value's allocation. Exact declaration identities survive factory
+/// specialization so checking never guesses this distinction from a type name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedBorrowBacking {
+    Ordinary,
+    Resident {
+        extent: SymbolHandle,
+        granted: SymbolHandle,
+        resident: SymbolHandle,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

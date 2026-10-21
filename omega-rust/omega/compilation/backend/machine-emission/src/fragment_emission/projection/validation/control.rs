@@ -50,6 +50,18 @@ pub(super) fn check(
         ));
     }
     let (terminal, predicate, successors) = match &block.terminator {
+        SelectedTerminator::OperationTrap {
+            instruction: terminal,
+            operation,
+        } => {
+            return if terminal.id == instruction.id {
+                require(
+                    matches!(actual, Control::OperationTrap { operation: actual } if actual == operation),
+                )
+            } else {
+                require(matches!(actual, Control::None))
+            };
+        }
         SelectedTerminator::Crash {
             instruction: terminal,
             psi_edge,
@@ -175,7 +187,7 @@ mod tests {
             structural_case: None,
             role: SelectedSuccessorRole::EdgeTransferContinuation,
             structural_bindings: Vec::new(),
-            psi_edge: EdgeId::new(1).unwrap(),
+            psi_edge: EdgeId::new(1),
             block: SelectedBlockId(2),
             source_target: BlockId::new(3).unwrap(),
             bindings: Vec::new(),

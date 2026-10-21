@@ -132,7 +132,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     };
     let mut encoded = Vec::new();
     encode_type(&mut encoded, &declaration).unwrap();
-    assert_eq!(encoded.last(), Some(&9));
+    assert_eq!(encoded.last(), Some(&11));
     let mut cursor = Cursor::new(&encoded);
     assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
     assert_eq!(cursor.remaining(), 0);

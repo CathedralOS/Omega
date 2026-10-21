@@ -87,6 +87,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .map_err(CodecError::PlacedViewInput)?;
     }
     terminal_semantics::validate_placed_view_plans(module).map_err(CodecError::PlacedPlan)?;
+    terminal_semantics::validate_placement_lifecycle_plans(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;

@@ -438,6 +438,29 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .map_err(TerminalInstanceError::Execution)
     }
 
+    pub fn bind_vacant_provider_storage(
+        &mut self,
+        input: crate::TerminalProviderStorageInput,
+    ) -> Result<(), crate::TerminalProviderStorageRejection> {
+        match self.execution.as_mut() {
+            Some(execution) => execution.bind_vacant_provider_storage(input),
+            None => Err(crate::TerminalProviderStorageRejection {
+                input,
+                reason: "provider storage cannot bind a closed instance".into(),
+            }),
+        }
+    }
+
+    pub fn take_returned_provider_storage(
+        &mut self,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<crate::TerminalReturnedProviderStorage, String> {
+        self.execution
+            .as_mut()
+            .ok_or("provider storage cannot return from a closed instance")?
+            .take_returned_provider_storage(path)
+    }
+
     /// The recorded effect receipt stream of this instance: empty before the
     /// first committed effect and after `close` releases execution state.
     pub fn effects(&self) -> &[TerminalEffect] {

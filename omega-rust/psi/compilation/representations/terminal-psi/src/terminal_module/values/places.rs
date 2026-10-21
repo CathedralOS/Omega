@@ -271,7 +271,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
-            | Self::EstablishPlacedReference { source }
+            | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
@@ -410,7 +410,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
-            | Self::EstablishPlacedReference { source }
+            | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }
@@ -532,7 +532,7 @@ impl OperationKind {
             Self::ReleaseActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
-            | Self::EstablishPlacedReference { source }
+            | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }

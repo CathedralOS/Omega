@@ -39,6 +39,8 @@ pub(crate) fn lower_decoded_module(
         )
         .with_placed_views(module.placed_view_plans.clone())
         .with_placed_view_inputs(module.placed_view_inputs.clone())
+        .with_placement_lifecycles(module.placement_lifecycle_plans.clone())
+        .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?,
         boundary_machines: module.boundary_machines.clone(),

@@ -31,6 +31,7 @@ mod descriptor_operands;
 mod leaf_copy;
 mod literals;
 mod local_storage;
+mod placement_lifecycles;
 
 pub(super) fn establish_atomic_outcome(
     source: &LegalizedScalarFunction,
@@ -42,8 +43,8 @@ pub(super) fn establish_atomic_outcome(
 ) -> Result<(), SelectedInstructionError> {
     atomic_outcome::establish(source, row, builder, observed, expected, scalar)
 }
-mod native_code_layout;
 mod activation_storage;
+mod native_code_layout;
 pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;
 mod element_establishment;
@@ -406,6 +407,13 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
+        LegalizedScalarInstructionKind::PlacementLifecycle { .. }
+    ) {
+        placement_lifecycles::emit(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
         LegalizedScalarInstructionKind::EstablishCase { .. }
     ) {
         scalar_case::establish(source, row, builder)?;
@@ -461,7 +469,11 @@ pub(super) fn operation(
         scalar_store::emit(source, row, builder)?;
         return Ok(true);
     }
-    if matches!(row.kind, LegalizedScalarInstructionKind::EstablishActivationClaim { .. } | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }) {
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
+            | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
+    ) {
         activation_storage::emit(source, builder, row)?;
         return Ok(true);
     }

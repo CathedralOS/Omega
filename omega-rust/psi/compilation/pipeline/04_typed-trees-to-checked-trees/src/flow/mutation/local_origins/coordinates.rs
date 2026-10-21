@@ -5,6 +5,7 @@ use validation::canonical_place_type_reference;
 
 use crate::flow::canonical_place_from_symbol;
 
+use crate::flow::mutation::StorageRegion;
 use crate::flow::mutation::local_origins::place_from_origin_path;
 use crate::flow::place_segment_has_unresolved_identity;
 
@@ -38,6 +39,18 @@ fn source_place(
     source: &validation::LocalWriteSource,
 ) -> Option<(CanonicalPlace, OriginPrecision)> {
     if let Some(first) = source.recasts.first() {
+        for recast in &source.recasts {
+            if matches!(
+                validation::reference_formation_source(program, recast.formation_expression)?
+                    .interpretation,
+                validation::ReferenceFormationInterpretation::ResidentPlaced { .. }
+            ) {
+                // A resident's Extent descriptor is its loan anchor, not the
+                // bytes being written. Until backing identity is available,
+                // its write footprint must remain unknown.
+                return None;
+            }
+        }
         // A view's field symbols describe its interpretation, not the
         // declaration backing it. Without a translated leaf footprint, keep
         // the complete pre-view storage and prohibit descendant projection.
@@ -74,15 +87,71 @@ fn source_place(
 /// Exact scalar geometry preserves disjoint backing fields. When a view has
 /// no exact leaf translation, its enclosing footprint is still a write;
 /// that conservative answer never becomes value-preservation evidence.
-pub(in crate::flow::mutation) fn write_source_place(
+pub(in crate::flow::mutation) fn write_source_region(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     source: &validation::LocalWriteSource,
     relative: &[facts::PlaceSegment],
-) -> Option<CanonicalPlace> {
+) -> Option<StorageRegion> {
     if !source.root.is_valid() {
         return None;
+    }
+    for recast in &source.recasts {
+        let formation =
+            validation::reference_formation_source(program, recast.formation_expression)?;
+        if !matches!(
+            formation.interpretation,
+            validation::ReferenceFormationInterpretation::ResidentPlaced { .. }
+        ) {
+            continue;
+        }
+        // Recast selectors belong to the content interpretation. The retained
+        // pre-formation projection identifies the owner independently of them.
+        // Until a content leaf has translated geometry, its whole content is
+        // the conservative footprint, not a field of the Extent descriptor.
+        let backing = validation::LocalWriteSource {
+            root: recast.root,
+            segments: recast.segments.clone(),
+            recasts: Vec::new(),
+            representation: None,
+            ..source.clone()
+        };
+        let (owner, precision) = structural_origin(program, state, statement_index, &backing)?;
+        if precision != OriginPrecision::Exact {
+            return None;
+        }
+        let endpoint =
+            canonical_place_type_reference(program, state.symbol, statement_index, &owner)?;
+        let view = program
+            .type_reference_table
+            .peeled_type_reference(formation.view_type);
+        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(view)
+        else {
+            return None;
+        };
+        let mut plans = program
+            .placed_view_plans
+            .iter()
+            .filter(|plan| plan.data_symbol == *symbol);
+        let (Some(plan), None) = (plans.next(), plans.next()) else {
+            return None;
+        };
+        let checked_trees::CheckedReferenceStorage::ResidentPlaced {
+            granted, resident, ..
+        } = formation
+            .interpretation
+            .placed_storage(program, endpoint, plan)?
+        else {
+            return None;
+        };
+        return Some(StorageRegion::ResidentContent {
+            owner,
+            formation: recast.formation_expression,
+            granted,
+            resident,
+        });
     }
     if !source.recasts.is_empty() {
         let mut projected = source.clone();
@@ -91,14 +160,14 @@ pub(in crate::flow::mutation) fn write_source_place(
             selectors.extend_from_slice(relative);
         }
         if let Some(coordinate) = projected.scalar_storage_coordinate(program, state) {
-            return Some(coordinate.place);
+            return Some(StorageRegion::Declared(coordinate.place));
         }
     }
     let (place, precision) = source_place(program, state, statement_index, source)?;
     if precision == OriginPrecision::Enclosing {
-        return Some(place);
+        return Some(StorageRegion::Declared(place));
     }
-    crate::flow::project_captured_view_place(place, relative)
+    crate::flow::project_captured_view_place(place, relative).map(StorageRegion::Declared)
 }
 
 fn structural_origin(

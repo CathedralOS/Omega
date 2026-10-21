@@ -25,7 +25,14 @@ pub struct StructuralTypeCatalog(
     Arc<Vec<TerminalPlacedViewPlan>>,
     Arc<Vec<TerminalPlacedViewInput>>,
     Option<Arc<RetainedQuotients>>,
+    Option<Arc<RetainedPlacementLifecycles>>,
 );
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RetainedPlacementLifecycles {
+    plans: Vec<terminal_psi::TerminalPlacementLifecyclePlan>,
+    canonical: Vec<u8>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RetainedQuotients {
@@ -39,6 +46,35 @@ static EMPTY_QUOTIENTS: terminal_psi::TerminalQuotientCatalog =
         adaptations: Vec::new(),
     };
 impl StructuralTypeCatalog {
+    /// Whole-value encoding and extraction retain the same normalized geometry
+    /// as field views, including fields with no exposed accessor. Share this
+    /// immutable catalog across native functions instead of rediscovering a
+    /// lifecycle from an accessor roster or copying plans into instructions.
+    pub fn with_placement_lifecycles(
+        mut self,
+        plans: Vec<terminal_psi::TerminalPlacementLifecyclePlan>,
+    ) -> Result<Self, terminal_codec::CodecError> {
+        self.5 = if plans.is_empty() {
+            None
+        } else {
+            let canonical = terminal_codec::encode_placement_lifecycle_catalog(&plans)?;
+            Some(Arc::new(RetainedPlacementLifecycles { plans, canonical }))
+        };
+        Ok(self)
+    }
+
+    pub fn placement_lifecycles(&self) -> &[terminal_psi::TerminalPlacementLifecyclePlan] {
+        self.5
+            .as_ref()
+            .map_or(&[], |catalog| catalog.plans.as_slice())
+    }
+
+    pub fn placement_lifecycle_identity_bytes(&self) -> &[u8] {
+        self.5
+            .as_ref()
+            .map_or(&[], |catalog| catalog.canonical.as_slice())
+    }
+
     /// Retain exact immutable metadata and its canonical encoding together.
     /// This checks serialization, not theorem admission.
     pub fn with_quotients(
@@ -72,6 +108,7 @@ impl StructuralTypeCatalog {
             Arc::new(referents),
             Arc::default(),
             Arc::default(),
+            None,
             None,
         )
     }
@@ -190,6 +227,7 @@ impl<'a> IntoIterator for &'a StructuralTypeCatalog {
 impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
     fn eq(&self, other: &Vec<StructuralTypeDeclaration>) -> bool {
         self.4.is_none()
+            && self.5.is_none()
             && self.referents().is_empty()
             && self.placed_views().is_empty()
             && self.placed_view_inputs().is_empty()
@@ -200,6 +238,7 @@ impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
 impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     fn eq(&self, other: &StructuralTypeCatalog) -> bool {
         other.4.is_none()
+            && other.5.is_none()
             && other.referents().is_empty()
             && other.placed_views().is_empty()
             && other.placed_view_inputs().is_empty()

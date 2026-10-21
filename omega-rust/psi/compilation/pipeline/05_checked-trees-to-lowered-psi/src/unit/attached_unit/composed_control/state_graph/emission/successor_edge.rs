@@ -442,6 +442,7 @@ impl StateGraphEmission<'_, '_> {
                                     access: crate::expression_preparation::bindings::structural_paths::terminal_access(subject.access),
                                 };
                                 let carrier = crate::unit::attached_unit::reference_results::emit_carrier(
+                                    identities,
                                     crate::unit::attached_unit::reference_results::Formation {
                                         checked, state: state.state,
                                         statement_index: edge.statement_ordinal as usize,

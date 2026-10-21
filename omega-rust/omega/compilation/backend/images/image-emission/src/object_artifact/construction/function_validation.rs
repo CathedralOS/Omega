@@ -62,7 +62,9 @@ pub(super) struct FunctionValidation {
 /// Replay every function's retained records against its bytes, in canonical
 /// order: shape and ordering, foreign calls, stack and call custody, semantic
 /// attribution, port effects, then boundary settlements.
-pub(super) fn validate_functions(plan: &MachineCodePlan) -> Result<FunctionValidation, ObjectError> {
+pub(super) fn validate_functions(
+    plan: &MachineCodePlan,
+) -> Result<FunctionValidation, ObjectError> {
     let mut previous = None;
     let mut saw_entry = false;
     let mut text_size = 0usize;
@@ -1525,7 +1527,9 @@ fn validate_boundary_settlements(
             }
             // Inline float arithmetic never forms a settlement row.
             BoundaryRealization::ProgramImageRetainedSuffixStart
-                | BoundaryRealization::NearestIeeeFloatArithmetic(_) | BoundaryRealization::PlacedScalarAccess(_) => false,
+                | BoundaryRealization::NearestIeeeFloatArithmetic(_)
+                | BoundaryRealization::PlacedScalarAccess(_)
+                | BoundaryRealization::PlacementLifecycle { .. } => false,
         };
         if !valid_realization
             || !boundary_result_is_exact(

@@ -411,8 +411,6 @@ pub fn retain_machine_roster(
 /// Unknown/orphan owners are deliberately retained for ordinary validation:
 /// absence is not authorization to discard malformed evidence.
 fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet<SymbolHandle>) {
-    program.remove_trait_declaration_applications(|declaration| removed.contains(&declaration));
-    program.retain_live_trait_implementation_applications(removed);
     let symbols = &program.symbols;
     let owner_removed = |mut symbol: SymbolHandle| {
         while symbol.is_valid() {
@@ -429,6 +427,34 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
     program
         .placed_view_plans
         .retain(|row| !owner_removed(row.data_symbol));
+    // Closed requirement identities may be generated roots. Rejoin their
+    // declaration owner before removing that application table. An unknown
+    // row remains an obligation; missing metadata cannot erase evidence.
+    let lifecycle_plans = program
+        .placement_lifecycle_plans
+        .iter()
+        .filter(|(_, row)| match row {
+            typed_trees::typed_trees::PlacementLifecyclePlan::Absent => false,
+            typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated { callable, .. } => {
+                !owner_removed(*callable)
+                    && !program
+                        .closed_requirement_application(*callable)
+                        .is_some_and(|application| {
+                            owner_removed(application.declaring_trait)
+                                || owner_removed(application.template)
+                        })
+                    && !program
+                        .machine_specialization(*callable)
+                        .is_some_and(|application| owner_removed(application.template))
+            }
+        })
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    // The lifecycle catalog is symbol-joined and has no inbound handles.
+    // Its invocation spans still refer to the preserved backing arena.
+    let mut lifecycle_catalog = arena::Arena::default();
+    lifecycle_catalog.insert_many(lifecycle_plans);
+    program.placement_lifecycle_plans = lifecycle_catalog;
     program
         .wire_schema_plans
         .retain(|row| !owner_removed(row.schema));
@@ -446,4 +472,85 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
     let mut declarations = arena::Arena::default();
     declarations.insert_many(completions);
     program.boundary_completion_declarations = declarations;
+    program.remove_trait_declaration_applications(|declaration| removed.contains(&declaration));
+    program.retain_live_trait_implementation_applications(removed);
+}
+
+#[cfg(test)]
+mod lifecycle_projection_tests {
+    use super::*;
+    use typed_trees::typed_trees::{PlacementLifecycleOperation, PlacementLifecyclePlan};
+
+    #[test]
+    fn lifecycle_projection_removes_known_owners_but_preserves_orphan_obligations() {
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let owner = symbols.insert_root(
+            symbols::SymbolKind::Trait,
+            symbols::SymbolNameRef::Static("Owner"),
+        );
+        let requirement = symbols
+            .insert_children(
+                owner,
+                [(
+                    symbols::SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("initialize"),
+                )],
+            )
+            .handle_at(0);
+        let orphan = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("Orphan"),
+        );
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let layout = layout_plans::LayoutPlanReport {
+            schema_report_fingerprint: 1,
+            entries: Vec::new(),
+            offsets: Some(Vec::new()),
+            size: Some(0),
+            align: 1,
+        };
+        let access = access_plans::AccessPlan::inaccessible(&layout).unwrap();
+        let placement = access_plans::validate_placement_plan(access_plans::PlacementPlan {
+            layout,
+            access,
+            reach: Default::default(),
+        })
+        .unwrap();
+        let invocations = program
+            .placement_policy_invocations
+            .insert_many([source::SourceSpan::default()]);
+        for requirement in [requirement, orphan] {
+            program
+                .placement_lifecycle_plans
+                .append(PlacementLifecyclePlan::Evaluated {
+                    callable: requirement,
+                    operation: PlacementLifecycleOperation::Initialize,
+                    policy: Default::default(),
+                    schema: Default::default(),
+                    policy_machine: Default::default(),
+                    invocations,
+                    placement: placement.clone(),
+                });
+        }
+        apply_declaration_sidecar_pruning(&mut program, &HashSet::from([owner]));
+        let retained = program
+            .placement_lifecycle_plans
+            .iter()
+            .filter_map(|(_, row)| match row {
+                PlacementLifecyclePlan::Evaluated { callable, .. } => Some(*callable),
+                PlacementLifecyclePlan::Absent => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(retained, vec![orphan]);
+        assert_eq!(
+            program
+                .placement_policy_invocations
+                .span_or_empty(invocations)
+                .len(),
+            1
+        );
+    }
 }

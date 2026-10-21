@@ -313,6 +313,18 @@ pub enum SelectedMemoryAccessRole {
     },
     ReadPlace,
     WritePlace,
+    /// Accesses the storage lent by an extent, not that extent's descriptor
+    /// bytes. The operation retains the exact owner projection and placement;
+    /// this footprint grants no authority. Distinct descriptor places do not
+    /// establish disjoint backing. A conditional transfer records its maximum
+    /// touched range, not a claim that every byte was written on every path.
+    ReadBacking,
+    WriteBacking,
+    /// Reads compiler-owned activation storage, not the semantic place used
+    /// as its provenance anchor. The slot and byte range identify the storage.
+    ReadLocal {
+        slot: LocalStorageSlotId,
+    },
     WriteLocal {
         slot: LocalStorageSlotId,
     },

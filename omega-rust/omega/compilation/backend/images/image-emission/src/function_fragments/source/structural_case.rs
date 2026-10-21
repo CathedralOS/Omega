@@ -73,7 +73,7 @@ pub(super) fn retained(
                 .flatten()
                 .filter(|successor| {
                     successor.role == SelectedSuccessorRole::Semantic
-                        && successor.psi_edge == case.psi_edge
+                        && successor.psi_edge == Some(case.psi_edge)
                 })
             });
             let Some(successor) = matching.next() else {

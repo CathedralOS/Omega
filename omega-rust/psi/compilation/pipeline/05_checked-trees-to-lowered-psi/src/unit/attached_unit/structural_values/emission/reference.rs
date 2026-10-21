@@ -269,6 +269,7 @@ impl Emission<'_, '_, '_> {
             self.values.push(value);
         }
         let carrier = super::super::super::reference_results::emit_carrier(
+            identities,
             formation,
             self.structural_type,
             argument,

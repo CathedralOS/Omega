@@ -314,12 +314,7 @@ fn decode_call_binding(
     let provider_plan_report_identity = cursor.u64()?;
     let provider_plan_commitment =
         SameStackProviderPlanCommitment::from_digest(cursor.array::<32>()?);
-    let requirement_identity = terminal_psi::TerminalIdentityIndex(
-        cursor
-            .u64()?
-            .try_into()
-            .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?,
-    );
+    let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let receipt = SameStackContributionAdmissionReceiptId::from_normalized_identity(cursor.u64()?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?;
     let candidate = SameStackContributionAdmissionCandidate {

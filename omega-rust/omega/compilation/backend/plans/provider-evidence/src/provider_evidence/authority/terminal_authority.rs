@@ -27,6 +27,10 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Transfer existing semantic roots to the exact Build-selected entry.
     /// This mechanism selects no backing and introduces no new root claim.
     ProgramStorageEntry,
+    /// Whole-value transfer within existing qualified storage. The exact plan,
+    /// selected profile completion and original allocation are separately
+    /// required; this intrinsic creates no external allocation or host power.
+    PlacementLifecycle(terminal_psi::TerminalPlacementLifecycleOperation),
     /// Parameter-rooted scalar access to an exact sealed placed declaration.
     /// This describes the execution child; actual RAM custody is separately
     /// required at each occurrence and every activation boundary.
@@ -145,6 +149,13 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => bytes[0] = 10,
+        CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation) => {
+            bytes[0] = 11;
+            bytes[1] = match operation {
+                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
+                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
+            };
+        }
         CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
             contract,
             placement_commitment,

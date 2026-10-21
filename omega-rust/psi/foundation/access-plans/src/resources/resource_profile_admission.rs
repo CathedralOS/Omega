@@ -196,7 +196,40 @@ impl AdmittedResourceProfile {
         &self.profile
     }
 
-    pub(crate) fn restrict_to_loan(
+    /// Check complete-image initialization against this receipt's exact loan.
+    /// A normalized profile supplied as ordinary data cannot enter this route.
+    ///
+    /// This establishes only supply, range, rights, reach, polarity and base
+    /// compatibility. The caller still owes existing vacancy, the complete
+    /// owned value and its encoding, and an executed write before it may claim
+    /// resident content. Failure changes neither the loan nor its lender.
+    pub fn initialization_compatibility(
+        &self,
+        loan: &ExtentLoan<'_>,
+        plan: &crate::ValidatedPlacementPlan,
+    ) -> Result<crate::InitializationResourceCompatibility, AccessPlanDiagnostic> {
+        if loan.polarity() != extents::LoanPolarity::Exclusive {
+            return Err(AccessPlanDiagnostic(
+                "initialization requires an exclusive extent loan".into(),
+            ));
+        }
+        let restricted = self.restrict_to_loan(loan)?;
+        let compatibility = crate::validate_initialization_resources(plan, &restricted)?;
+        let base = compatibility.placement().base_congruence();
+        if !base.admits(loan.base()) {
+            return Err(AccessPlanDiagnostic(format!(
+                "initialization base {} must satisfy base mod {} = {}",
+                loan.base(),
+                base.modulus(),
+                base.residue()
+            )));
+        }
+        Ok(compatibility)
+    }
+
+    /// Rejoin an admitted profile to an actual loan before exposing its
+    /// normalized supply. The returned description issues no content claim.
+    pub fn restrict_to_loan(
         &self,
         loan: &ExtentLoan<'_>,
     ) -> Result<ValidatedResourceProfile, AccessPlanDiagnostic> {

@@ -539,6 +539,7 @@ impl TerminalExecution<'_> {
                 result,
                 claim_origin,
                 expected_reference_backings: Vec::new(),
+                profile_completion: None,
             },
         )
     }

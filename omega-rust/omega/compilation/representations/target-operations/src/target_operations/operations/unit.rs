@@ -4,8 +4,8 @@ use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
-    TargetStructuralArgument, TargetStructuralHomeRequirement,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    TargetStructuralArgument, TargetStructuralHomeRequirement, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource,
 };
 use abstract_operations::{AbstractResult, CompletionClaimSource};
@@ -93,6 +93,12 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    PlacementLifecycle {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        operands: abstract_operations::PlacementLifecycleOperands,
+        result_home: TargetStructuralHomeRequirement,
+    },
     EstablishActivationClaim {
         psi_operation: OperationId,
         result_home: TargetStructuralHomeRequirement,
@@ -505,7 +511,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
-        correspondence: terminal_psi::PlacedRamCorrespondence,
+        correspondence: abstract_operations::PlacedReferenceBacking,
     },
     EstablishReference {
         psi_operation: OperationId,
@@ -769,7 +775,14 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishActivationClaim {
-                psi_operation, result_home, ..
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::PlacementLifecycle {
+                psi_operation,
+                result_home,
+                ..
             }
             | Self::EstablishScalarArray {
                 psi_operation,

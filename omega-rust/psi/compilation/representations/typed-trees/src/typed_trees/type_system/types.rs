@@ -21,6 +21,20 @@ pub struct TypeConstantOrigin {
     pub reference: source::SourceSpan,
 }
 
+/// The exact substitution that supplied a type operand. A shared body names
+/// its instance and original binder, not whichever caller created it first.
+/// Per-call result elaboration preserves the supplied operand's origin.
+/// This is derivation data; it grants no declaration-selection authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TypeOperandOrigin {
+    #[default]
+    Lexical,
+    MachineParameter {
+        instance: SymbolHandle,
+        parameter: SymbolHandle,
+    },
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
@@ -31,6 +45,7 @@ pub struct TypeReferenceTable {
     /// A substituted operand retains its original lifetime environment after
     /// copying into a private declaration. Zero means ordinary lexical lookup.
     operand_lifetime_owners: Arena<SymbolHandle>,
+    operand_origins: Arena<TypeOperandOrigin>,
     named_rows: NamedRowIndex,
     arithmetic_rows: ArithmeticRowIndex,
 }
@@ -46,6 +61,7 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("constant_origin_spans", &self.constant_origin_spans)
             .field("constant_origins", &self.constant_origins)
             .field("operand_lifetime_owners", &self.operand_lifetime_owners)
+            .field("operand_origins", &self.operand_origins)
             .finish()
     }
 }
@@ -96,6 +112,7 @@ impl TypeReferenceTable {
             constant_origin_spans,
             constant_origins,
             operand_lifetime_owners,
+            operand_origins,
             named_rows: _,
             arithmetic_rows: _,
         } = base;
@@ -117,6 +134,9 @@ impl TypeReferenceTable {
         ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             operand_lifetime_owners,
             &self.operand_lifetime_owners,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            operand_origins,
+            &self.operand_origins,
         )
     }
 
@@ -128,6 +148,7 @@ impl TypeReferenceTable {
             constant_origin_spans: Arena::new(),
             constant_origins: Arena::new(),
             operand_lifetime_owners: Arena::new(),
+            operand_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
             arithmetic_rows: ArithmeticRowIndex::default(),
         }
@@ -143,6 +164,7 @@ impl TypeReferenceTable {
             .wrapping_add(self.constant_origins.revision())
             .wrapping_add(self.constant_origin_spans.revision())
             .wrapping_add(self.operand_lifetime_owners.revision())
+            .wrapping_add(self.operand_origins.revision())
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -154,6 +176,8 @@ impl TypeReferenceTable {
         let handle = self.type_references.insert(type_reference);
         let origins = self.constant_origin_spans.insert(HandleSpan::empty());
         let lifetime_owner = self.operand_lifetime_owners.insert(SymbolHandle::invalid());
+        let operand_origin = self.operand_origins.insert(TypeOperandOrigin::Lexical);
+        debug_assert_eq!(handle.arena_index(), operand_origin.arena_index());
         debug_assert_eq!(handle.arena_index(), lifetime_owner.arena_index());
         debug_assert_eq!(handle.arena_index(), origins.arena_index());
         debug_assert_eq!(handle.generation(), origins.generation());
@@ -161,6 +185,27 @@ impl TypeReferenceTable {
             self.note_named_row(symbol, handle);
         }
         handle
+    }
+
+    pub fn operand_origin(&self, reference: TypeReferenceHandle) -> TypeOperandOrigin {
+        *self.operand_origins.get(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        ))
+    }
+
+    /// Replace the root's derivation when a new substitution supplies it.
+    /// Children keep their own origins, but the supplying binder owns the
+    /// complete substituted operand, including those children.
+    pub fn set_operand_origin(
+        &mut self,
+        reference: TypeReferenceHandle,
+        origin: TypeOperandOrigin,
+    ) {
+        *self.operand_origins.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = origin;
     }
 
     /// Record the supplying declaration before a simultaneous operand is
@@ -1468,10 +1513,62 @@ pub fn builtin_type_atom(kind: numerics::literals::LandedIntegerType) -> symbols
 
 #[cfg(test)]
 mod tests {
-    use super::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
+    use super::{
+        FixedArrayLength, TypeConstraintNode, TypeOperandOrigin, TypeReferenceNode,
+        TypeReferenceTable,
+    };
     use crate::name::Identifier;
     use language_core::ReferenceAccess;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn type_operand_origin_survives_copy_and_whole_substitution() {
+        let mut source = TypeReferenceTable::new();
+        let reference = source.insert(TypeReferenceNode::Unit);
+        let origin = TypeOperandOrigin::MachineParameter {
+            instance: symbols::SymbolHandle::from_parts(1, 1),
+            parameter: symbols::SymbolHandle::from_parts(2, 1),
+        };
+        source.set_operand_origin(reference, origin);
+        let source_expressions = crate::expression::ExpressionTable::default();
+        let mut target_expressions = crate::expression::ExpressionTable::default();
+        let mut target = TypeReferenceTable::new();
+        let copied = target.copy_from(
+            &source,
+            &source_expressions,
+            &mut target_expressions,
+            reference,
+        );
+        assert_eq!(target.operand_origin(copied), origin);
+        let receiving = target.insert(TypeReferenceNode::Unit);
+        target.substitute_from(receiving, copied).unwrap();
+        assert_eq!(target.operand_origin(receiving), origin);
+        let lexical = target.insert(TypeReferenceNode::Unit);
+        target.substitute_from(receiving, lexical).unwrap();
+        assert_eq!(target.operand_origin(receiving), TypeOperandOrigin::Lexical);
+    }
+
+    #[test]
+    fn type_operand_origin_changes_retained_input_and_revision() {
+        let mut table = TypeReferenceTable::new();
+        let reference = table.insert(TypeReferenceNode::Unit);
+        let before = table.clone();
+        let revision = table.revision();
+        table.set_operand_origin(
+            reference,
+            TypeOperandOrigin::MachineParameter {
+                instance: symbols::SymbolHandle::from_parts(1, 1),
+                parameter: symbols::SymbolHandle::from_parts(2, 1),
+            },
+        );
+        assert_ne!(table, before);
+        assert_ne!(table.revision(), revision);
+        assert!(!table.retains_exact_prefix(&before));
+        assert_eq!(
+            table.type_reference(reference),
+            before.type_reference(reference)
+        );
+    }
 
     #[test]
     fn arithmetic_rows_preserve_first_match_and_follow_mutation() {

@@ -130,14 +130,29 @@ pub enum MachineEffectError {
     CatalogConstraintMismatch,
     CatalogSelectedKeysMismatch,
     SelectedRootMismatch,
-    MissingDeclaration { instruction: SelectedInstructionId },
-    AmbiguousDeclaration { instruction: SelectedInstructionId },
-    ConstraintEffectMismatch { instruction: SelectedInstructionId },
-    ConstraintOperandMismatch { instruction: SelectedInstructionId },
-    FuelProvenanceMismatch { instruction: SelectedInstructionId },
+    MissingDeclaration {
+        machine: semantic_vocabulary::MachineId,
+        instruction: SelectedInstructionId,
+        semantic: selected_instructions::MachineSemanticKind,
+        constraint: register_model::RegisterConstraintKey,
+    },
+    AmbiguousDeclaration {
+        instruction: SelectedInstructionId,
+    },
+    ConstraintEffectMismatch {
+        instruction: SelectedInstructionId,
+    },
+    ConstraintOperandMismatch {
+        instruction: SelectedInstructionId,
+    },
+    FuelProvenanceMismatch {
+        instruction: SelectedInstructionId,
+    },
     NonCanonicalFunction,
     NonCanonicalBlock,
-    InstructionMismatch { instruction: SelectedInstructionId },
+    InstructionMismatch {
+        instruction: SelectedInstructionId,
+    },
     IdentityMismatch,
     CountOverflow,
 }

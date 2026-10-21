@@ -301,8 +301,9 @@ impl TerminalExecution<'_> {
 
     /// Retire precisely the consumed subtree after its cells have been staged.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+        crate::structural_storage::prune(&mut self.provider_storage.descriptors, from);
         crate::structural_storage::prune(&mut self.activation_storage.claim_descriptors, from);
-        self.invalidate_host_atoms(from);
+        self.invalidate_stored_provenance(from);
         crate::structural_storage::prune(&mut self.structural_host_atoms, from);
         crate::structural_storage::prune(&mut self.structural_scalar_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
@@ -382,7 +383,7 @@ impl TerminalExecution<'_> {
     /// bounded byte fields receive empty live backing under the fresh identity.
     /// Whether the result `place` already carries a materialized value or a
     /// live claim (the shared tail of every fresh-place admissibility guard).
-    fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
+    pub(crate) fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
         self.structural_values.contains_key(&place)
             || self.scalar_array_values.contains_key(&place)
             || self
@@ -819,7 +820,7 @@ impl TerminalExecution<'_> {
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
             return Ok(OperationFlow::Advance);
         }
-        self.invalidate_host_atoms(&cell.parent);
+        self.invalidate_stored_provenance(&cell.parent);
         self.structural_scalar_fields.insert(cell, source);
         Ok(OperationFlow::Advance)
     }
@@ -867,12 +868,17 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let opaque_identity = self.local_structural_identities.allocate()?;
-        let child = ConstructorValue::resolve(self, source)?;
-        if child.structural_type() != result.structural_type {
-            return Err(malformed());
-        }
-        let (whole, projected) = child.memberships();
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let crate::record::owned_value::StagedOwnedValue {
+            mut value, storage, ..
+        } = self.stage_owned_value(
+            source,
+            result.structural_type,
+            result.multiplicity,
+            &mut identity_cursor,
+        )?;
+        let whole = &value.qualifications;
+        let projected = &value.projected_qualifications;
         if matches!(operation.kind, OperationKind::TransformContent { .. }) {
             terminal_semantics::content_transformations::validate_memberships(
                 &self.program.catalogs.structural_types,
@@ -894,14 +900,8 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let value = TerminalStructuralValue {
-            opaque_identity,
-            structural_type: result.structural_type,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: result.projected_qualifications.clone(),
-            path: Vec::new(),
-        };
-        let mut storage = ConstructorStorage::default();
+        value.qualifications = result.qualifications.clone();
+        value.projected_qualifications = result.projected_qualifications.clone();
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
         let transfers_custody =
@@ -909,13 +909,6 @@ impl TerminalExecution<'_> {
         if !transfers_custody {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
         }
-        storage.stage(
-            self,
-            source,
-            &child,
-            &StructuralRuntimePlace::from(&value),
-            transfers_custody,
-        )?;
         let mut claims = self.stage_constructor_claims(
             crate::record::ResultClaimOrigin::Transfer,
             result,
@@ -923,9 +916,6 @@ impl TerminalExecution<'_> {
             &mut frontier,
             &|current| storage.case_at_projection(self, &value, &current.path),
         )?;
-        self.validate_transferred_affine_complement(source, result, &frontier, &|current| {
-            storage.case_at_projection(self, &value, &current.path)
-        })?;
         for parent in parents {
             if !self.stage_constructor_operand(parent, &mut frontier, &mut consumed)? {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -938,6 +928,8 @@ impl TerminalExecution<'_> {
         }
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
         self.structural_values.insert(result.place, value);
         Ok(OperationFlow::Advance)
     }

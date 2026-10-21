@@ -78,9 +78,7 @@ pub use image_addresses::{
     ByteLiteralReference, FunctionFragmentImageAddressFixup, ImageAddressFields,
     PlacedImageAddress, SelectedFormImageAddressFixup,
 };
-pub use instructions::{
-    X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, x86_fma,
-};
+pub use instructions::{X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, x86_fma};
 pub use layout::text_section::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,

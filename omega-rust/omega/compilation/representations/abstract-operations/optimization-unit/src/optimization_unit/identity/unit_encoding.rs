@@ -693,6 +693,10 @@ fn encode_placed_view_catalog(
     catalog: &abstract_operations::StructuralTypeCatalog,
 ) {
     encode_placed_view_plans(bytes, catalog.placed_views());
+    if !catalog.placement_lifecycles().is_empty() {
+        bytes.bytes(b"placement-lifecycle-demands-v1");
+        bytes.bytes(catalog.placement_lifecycle_identity_bytes());
+    }
     if !catalog.placed_view_inputs().is_empty() {
         bytes.bytes(b"placed-formal-demands-v1");
         bytes.slice(catalog.placed_view_inputs(), |bytes, input| {

@@ -97,6 +97,11 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
             }
+            crate::SelectedBlockOrigin::Operation { source, operation } => {
+                bytes.push(3);
+                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+            }
             crate::SelectedBlockOrigin::CaseDispatch {
                 source,
                 case_ordinal,
@@ -477,8 +482,18 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         crate::SelectedSuccessorRole::Semantic => 0,
         crate::SelectedSuccessorRole::EdgeTransferContinuation => 1,
         crate::SelectedSuccessorRole::CaseDispatchContinuation => 2,
+        crate::SelectedSuccessorRole::OperationContinuation { .. } => 3,
     });
-    crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
+    if let crate::SelectedSuccessorRole::OperationContinuation { operation } = successor.role {
+        crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+    }
+    crate::codec_bytes::push_encoded(
+        bytes,
+        successor
+            .psi_edge
+            .map_or(0, |edge| edge.get())
+            .to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(bytes, successor.block.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, successor.source_target.get().to_le_bytes());
     crate::codec_bytes::encode_len(bytes, successor.bindings.len());

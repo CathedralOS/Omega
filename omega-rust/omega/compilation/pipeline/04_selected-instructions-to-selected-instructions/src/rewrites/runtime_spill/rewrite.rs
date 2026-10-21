@@ -341,7 +341,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 }
                 let Some(pending) = admitted.structural_uses.iter().find(|pending| {
                     pending.block == block_index
-                        && pending.edge == successor.psi_edge
+                        && Some(pending.edge) == successor.psi_edge
                         && pending.place == binding.semantic.argument.place
                         && pending.source_byte_offset == *source_byte_offset
                         && pending.byte_size == byte_size

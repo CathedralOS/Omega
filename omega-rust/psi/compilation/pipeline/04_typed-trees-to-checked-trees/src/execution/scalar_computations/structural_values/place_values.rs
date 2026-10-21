@@ -41,18 +41,14 @@ impl Builder<'_, '_> {
             return None;
         }
         let target = borrow.target;
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            target,
-        )?;
-        let actual = validation::canonical_place_type_reference(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-        )?;
+        // The target is a reference value, not the storage that its loan
+        // eventually names. Canonicalizing its backing first loses a
+        // computed descriptor (and the qualifications of a recast producing
+        // it), even though reborrowing a stored descriptor already works.
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        let actual =
+            validation::expression_result_type_reference(self.program, machine, state, target)?;
         if self.program.normalized_type_identity(actual)
             != self.program.normalized_type_identity(expected)
         {

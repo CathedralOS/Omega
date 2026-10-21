@@ -462,7 +462,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
-        self.record_operand_writes(writes.as_deref().map(|writes| writes.places.clone()));
+        self.record_operand_writes(
+            writes
+                .as_deref()
+                .map(|writes| writes.observation_places.clone()),
+        );
         call.operands = self
             .context
             .control

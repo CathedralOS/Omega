@@ -49,6 +49,8 @@ pub enum TerminalInterpretError {
     /// compatible placed occurrence. Neither type nor pointer identity alone
     /// grants custody for a declared input.
     PlacedViewInputsRequireCustody,
+    /// Static correspondence or live backing for a local placed interpretation.
+    PlacedReference(String),
     /// Two supplied establishments name the same roster row.
     PlacedViewInputEstablishmentDuplicate {
         machine: MachineId,
@@ -135,6 +137,11 @@ pub enum TerminalInterpretError {
     },
     ClaimTransferMismatch,
     ContentTransformationMismatch(&'static str),
+    ResourceProfile {
+        boundary: BoundaryMachineId,
+        diagnostic: access_plans::AccessPlanDiagnostic,
+    },
+    ValueImage(layout_plans::MaterializationDiagnostic),
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     FoldedConstantClosure(&'static str),

@@ -122,6 +122,11 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
+            CompilerBuiltinExecution::PlacementLifecycle { .. } => {
+                return Err(vec![Diagnostic::error(
+                    "private placement lifecycle cannot be selected through a provider proposal",
+                )]);
+            }
             CompilerBuiltinExecution::ProgramStorageEntry => {
                 let binding = input.optimization_input().selected_program_entry_call()
                     .filter(|binding| binding.boundary() == boundary.id
@@ -175,7 +180,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 placed_schema::validate(module, boundary, proposal.provider_plan, &demand)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                require_captured_ram_origins(input, boundary.id)
+                require_placed_backing_origins(input, boundary.id)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let compiler_operation = placed_operation(operation);
                 if demand.placement_commitment != placement_commitment
@@ -299,6 +304,7 @@ fn compiler_builtin_completion(
         | CompilerBuiltinExecution::HostedReadByte
         | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
         | CompilerBuiltinExecution::ProgramStorageEntry
+        | CompilerBuiltinExecution::PlacementLifecycle { .. }
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
         | CompilerBuiltinExecution::PlacedScalarAccess { .. } => {
             semantic_vocabulary::BoundaryCompletion::NormalReturn
@@ -364,6 +370,9 @@ fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {
+        CompilerBuiltinExecution::PlacementLifecycle { operation, .. } => {
+            CompilerIntrinsicExecutionIdentity::PlacementLifecycle(operation)
+        }
         CompilerBuiltinExecution::ProgramStorageEntry => {
             CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
         }
@@ -670,7 +679,7 @@ fn placed_operation(
     }
 }
 
-fn require_captured_ram_origins(
+fn require_placed_backing_origins(
     input: &NativeRealizationInput,
     boundary: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<(), String> {
@@ -752,7 +761,7 @@ fn require_captured_ram_origins(
                     .is_none()
                 {
                     return Err(format!(
-                        "placed scalar native access requires initialized captured RAM on every entry-relative origin; a formal or host pointer is not backing authority (machine {:?}, operation {:?}, boundary {:?}, arguments {:?})",
+                        "placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine {:?}, operation {:?}, boundary {:?}, arguments {:?})",
                         machine.id, operation.id, boundary, structural_arguments
                     ));
                 }
@@ -762,5 +771,12 @@ fn require_captured_ram_origins(
     if occurrences == 0 {
         return Err("placed scalar native admission has no actual boundary occurrence".to_owned());
     }
+    // Resident formations borrow the original checked Granted & Resident<P,T>
+    // occurrence, not its descriptor storage. Native lifecycle settlement owns
+    // establishment; selected provider transfer remains an explicit admitted
+    // premise. Both use the same field access emitter once the exact formation
+    // and loan have been transported. Image publication separately checks the
+    // base-field load, so accepting this origin cannot turn descriptor RAM into
+    // resident backing or grant authority to an arbitrary pointer.
     Ok(())
 }

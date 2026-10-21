@@ -927,12 +927,21 @@ pub(super) fn validate_current_ownership_cfg(
                 Vec::new()
             };
             if let O::ReleaseActivationClaim { source, claim, .. } = &node.operation {
-                let exact = frontier.claims.get(claim).is_some_and(|live| live.input == Some(source.place)
-                    && live.path == source.path)
-                    && frontier.claims.iter().filter(|(_, live)| live.input == Some(source.place)
-                        && live.path.starts_with(&source.path)).count() == 1;
+                let exact = frontier.claims.get(claim).is_some_and(|live| {
+                    live.input == Some(source.place) && live.path == source.path
+                }) && frontier
+                    .claims
+                    .iter()
+                    .filter(|(_, live)| {
+                        live.input == Some(source.place) && live.path.starts_with(&source.path)
+                    })
+                    .count()
+                    == 1;
                 if !exact || source.access != StructuralAccess::Owned {
-                    return Err(OptimizationUnitValidationError::CurrentCleanupMismatch { machine: function.machine, block: block_id });
+                    return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                        machine: function.machine,
+                        block: block_id,
+                    });
                 }
             }
             let transferred = match &node.operation {

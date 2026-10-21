@@ -187,7 +187,9 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(super::retained_custody_drift("nested-record path invocation"));
+            return Err(super::retained_custody_drift(
+                "nested-record path invocation",
+            ));
         }
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
@@ -321,7 +323,9 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(super::retained_custody_drift("nested-record paths invocation"));
+            return Err(super::retained_custody_drift(
+                "nested-record paths invocation",
+            ));
         }
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
@@ -361,7 +365,9 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
                 &retained_path.outer_field,
                 retained_path.outer_member_identity,
             ) {
-                return Err(super::retained_custody_drift("nested-record occurrence identity"));
+                return Err(super::retained_custody_drift(
+                    "nested-record occurrence identity",
+                ));
             }
             retained.inner.replay_against_sum_fields(
                 typed,

@@ -797,7 +797,7 @@ pub fn validate_flow(
                 O::ByteSequenceSubslice { source, .. }
                 | O::ElementViewSubslice { source, .. }
                 | O::EstablishReference { source, .. }
-                | O::EstablishPlacedReference { source }
+                | O::EstablishPlacedReference { source, .. }
                 | O::EstablishElementView { source, .. }
                 | O::EstablishMutableElementView { source, .. } => {
                     if state.formation_is_live(operation.id) {

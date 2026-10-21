@@ -120,6 +120,14 @@ pub(super) fn interface_retention_set(
     for plan in &program.placed_view_plans {
         retain_symbol(&mut retained, index, plan.policy_plan_machine_symbol);
     }
+    for (_, plan) in program.placement_lifecycle_plans.iter() {
+        if let typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated {
+            policy_machine, ..
+        } = plan
+        {
+            retain_symbol(&mut retained, index, *policy_machine);
+        }
+    }
     for input in &facts.placed_view_inputs {
         retain_symbol(&mut retained, index, input.policy_plan_machine);
     }

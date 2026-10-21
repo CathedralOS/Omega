@@ -235,6 +235,7 @@ fn validate_and_collect_returns(
             if matches!(
                 row.control,
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
+                    | FunctionFragmentControlProvenance::OperationTrap { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
             ) && (index + 1 != block.instructions.len() || row.bytes.is_empty())
             {

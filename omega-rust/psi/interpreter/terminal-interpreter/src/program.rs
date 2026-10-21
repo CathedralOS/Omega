@@ -201,6 +201,7 @@ impl AdmittedTerminalProgram<'_> {
         }
         self.boundary_machines().get(&slot).filter(|declaration| {
             declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+                && !compiler_owns_boundary_execution(declaration)
         })
     }
 }
@@ -440,6 +441,11 @@ impl<'artifact> TerminalProgram<'artifact> {
                     "host import names contract evidence rather than a callable",
                 ));
             }
+            if compiler_owns_boundary_execution(declaration) {
+                return Err(rejected(
+                    "compiler primitive cannot be replaced by a host import",
+                ));
+            }
             if self.program.is_target_family_head(boundary) {
                 let member = crate::calls::target_families::selected_member(
                     &self.program,
@@ -486,6 +492,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .values()
             .filter(move |declaration| {
                 declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+                    && !compiler_owns_boundary_execution(declaration)
                     && !self.program.has_provider(&declaration.id)
                     && !self.program.is_target_family_head(declaration.id)
             })
@@ -678,6 +685,15 @@ impl<'artifact> TerminalProgram<'artifact> {
             requirements.imports,
         ))
     }
+}
+
+/// Execution ownership comes from the authenticated callable, not from an
+/// optional plan or a host's willingness to return the expected result shape.
+pub(crate) fn compiler_owns_boundary_execution(declaration: &BoundaryMachineDeclaration) -> bool {
+    declaration
+        .declaration
+        .as_ref()
+        .is_some_and(|callable| callable.execution.placement_operation().is_some())
 }
 
 #[cfg(test)]

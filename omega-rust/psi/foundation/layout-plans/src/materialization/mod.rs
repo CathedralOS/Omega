@@ -2,6 +2,7 @@
 //! layout materialization into bytes, scalar layout decoding, and the
 //! crate's diagnostic type.
 
+pub(crate) mod field_codec;
 pub(crate) mod field_identities;
 pub(crate) mod field_values;
 pub(crate) mod stored_integer_writes;

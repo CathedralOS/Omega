@@ -286,7 +286,10 @@ fn local_location(
                 // lifetime out of earlier calls rather than hoisting it to entry.
                 instruction.provenance != Default::default()
                     || !selected.blocks.iter().any(|block| {
-                        block.origin == selected_instructions::SelectedBlockOrigin::Source(owner)
+                        matches!(block.origin,
+                            selected_instructions::SelectedBlockOrigin::Source(source)
+                            | selected_instructions::SelectedBlockOrigin::Operation { source, .. }
+                            if source == owner)
                             && block.instruction(instruction.id).is_some()
                     })
             }

@@ -515,6 +515,13 @@ mod tests {
 /// provider execution or a compact authority coordinate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
+    /// Compiler-private whole-value initialization or extraction. The exact
+    /// boundary joins its retained lifecycle plan; an ordinary provider row
+    /// cannot stand in for this executable operation.
+    PlacementLifecycle {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        operation: terminal_psi::TerminalPlacementLifecycleOperation,
+    },
     /// Closed sealed operation identity; every occurrence separately owes RAM custody.
     PlacedScalarAccess {
         contract: [u8; 32],

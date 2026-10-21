@@ -100,8 +100,7 @@ pub(crate) fn capture(
         return None;
     }
     let is_view = formation.view_type.is_valid();
-    let is_placed =
-        formation.interpretation == validation::ReferenceFormationInterpretation::Placed;
+    let is_placed = formation.interpretation.is_placed();
     if is_view
         && program.normalized_type_identity(formation.view_type)
             != program.normalized_type_identity(referent)
@@ -181,7 +180,7 @@ pub(crate) fn capture(
             return None;
         }
     }
-    if is_placed {
+    let placed_storage = if is_placed {
         let named_symbol = |reference| {
             let reference = program
                 .type_reference_table
@@ -199,10 +198,14 @@ pub(crate) fn capture(
         let (Some(plan), None) = (plans.next(), plans.next()) else {
             return None;
         };
-        if named_symbol(endpoint)? != plan.schema_symbol {
-            return None;
-        }
-    }
+        Some(
+            formation
+                .interpretation
+                .placed_storage(program, endpoint, plan)?,
+        )
+    } else {
+        None
+    };
 
     let source = match place.root {
         // The value owner must establish this producer before lending it.
@@ -303,8 +306,8 @@ pub(crate) fn capture(
         }
         _ => return None,
     };
-    let storage = if is_placed {
-        CheckedReferenceStorage::Placed
+    let storage = if let Some(storage) = placed_storage {
+        storage
     } else if is_view {
         validation::reference_view_storage(program, endpoint, referent)?
     } else {

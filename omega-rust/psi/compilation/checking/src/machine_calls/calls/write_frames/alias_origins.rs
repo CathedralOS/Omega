@@ -237,7 +237,7 @@ pub(crate) fn stable_alias_initializer_origins(
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
     if let Some(formation) = crate::reference_formation_source(program, expression)
-        && formation.interpretation == crate::ReferenceFormationInterpretation::Placed
+        && formation.interpretation.is_placed()
     {
         let mut origins = stable_alias_initializer_origins(
             program,

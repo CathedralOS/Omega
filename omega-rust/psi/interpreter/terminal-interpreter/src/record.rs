@@ -30,6 +30,7 @@ use terminal_psi::StructuralTypeShape;
 
 mod byte_fields;
 mod operands;
+pub(crate) mod owned_value;
 pub(crate) use operands::ResultClaimOrigin;
 pub(crate) mod storage;
 mod structural_array;

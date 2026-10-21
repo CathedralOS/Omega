@@ -21,9 +21,11 @@ mod ceiling;
 mod local_origins;
 mod operand_coordinates;
 mod receiver;
+mod regions;
 mod summary;
 
 pub(crate) use ceiling::signature_ceiling_places;
+pub(crate) use ceiling::signature_ceiling_regions;
 pub(crate) use local_origins::close_storage_places_over_aliases;
 pub(crate) use local_origins::close_storage_places_over_origins;
 pub(crate) use local_origins::place_from_origin_path;
@@ -33,6 +35,7 @@ pub(in crate::flow) use receiver::local_jump_data_argument;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
+pub(crate) use regions::StorageRegion;
 pub(in crate::flow) use summary::instantiate_call_relative_places;
 use summary::instantiate_known_call_mutation_summary_places;
 pub(crate) use summary::{StateMutationSummaryCache, state_storage_writes};
@@ -50,8 +53,8 @@ pub(super) enum WritePlaceNamespace {
 /// one writer's restored contract cannot excuse another writer's corruption.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::flow) struct CallMutationWrite {
-    pub place: CanonicalPlace,
-    pub source: Option<CanonicalPlace>,
+    pub region: StorageRegion,
+    pub source: Option<StorageRegion>,
 }
 
 /// Caller storage footprint. `None` requires full invalidation; an empty
@@ -77,7 +80,28 @@ pub(crate) fn call_mutated_places(
         state_mutation_summaries,
         call_frames,
     )
-    .map(|writes| writes.into_iter().map(|write| write.place).collect())
+    .and_then(|writes| StorageRegion::declared_places(writes.into_iter().map(|write| write.region)))
+}
+
+pub(crate) fn call_mutated_regions(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    state_mutation_summaries: &StateMutationSummaryCache,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    call_mutation_writes(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        state_mutation_summaries,
+        call_frames,
+    )
+    .map(|writes| writes.into_iter().map(|write| write.region).collect())
 }
 
 pub(in crate::flow) fn call_mutation_writes(
@@ -128,7 +152,7 @@ pub(in crate::flow) fn call_mutation_writes(
         None,
     )
     .or_else(|| {
-        ceiling::signature_ceiling_places(
+        ceiling::signature_ceiling_regions(
             program,
             caller_machine_symbol,
             caller_state_symbol,
@@ -172,7 +196,7 @@ pub(crate) fn call_write_accesses(
     )
     .expect("access-route projection always retains the ownership fallback")
     .into_iter()
-    .map(|write| write.place)
+    .map(|write| write.region.anchor().clone())
     .collect()
 }
 
@@ -224,7 +248,9 @@ fn call_write_places(
     // Reuse the sealed operation's effect judgment. Borrowing its backing does
     // not overwrite the linear claim descriptor or establish a replacement
     // ownership identity when this call completes.
-    if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol) {
+    if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol)
+        || validation::placed_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
+    {
         return Some(Vec::new());
     }
 
@@ -250,7 +276,7 @@ fn call_write_places(
             // Boundary effects retain their exact receiver and argument footprint,
             // including shared interior authority; a signature ceiling is not a
             // replacement for that separately owned contract.
-            return shared_call_storage_places(
+            return shared_call_storage_regions(
                 program,
                 caller_machine_symbol,
                 caller_state_symbol,
@@ -265,7 +291,7 @@ fn call_write_places(
         // those here would retire facts those completed calls just restored.
         // The callee's declared authority bounds an unknown invocation. An
         // unrepresentable ceiling stays unknown and invalidates all contexts.
-        return ceiling::signature_ceiling_places(
+        return ceiling::signature_ceiling_regions(
             program,
             caller_machine_symbol,
             caller_state_symbol,
@@ -351,7 +377,7 @@ fn call_write_places(
             // The shared boundary frame owns implicit receiver and argument
             // reach. Reconstruct its storage paths instead of using access
             // roots, which can name a field without its caller receiver.
-            return shared_call_storage_places(
+            return shared_call_storage_regions(
                 program,
                 caller_machine_symbol,
                 caller_state_symbol,
@@ -366,7 +392,7 @@ fn call_write_places(
         }
         let mut storage = Vec::new();
         for place in places {
-            let canonical_places = local_origins::rebase_local_write_places(
+            let canonical_places = local_origins::rebase_local_write_regions(
                 program,
                 caller_state_symbol,
                 borrow_call.statement_index,
@@ -381,28 +407,35 @@ fn call_write_places(
         }
         Some(unattributed_writes(storage))
     } else {
-        Some(unattributed_writes(places))
+        Some(unattributed_writes(
+            places.into_iter().map(StorageRegion::Declared).collect(),
+        ))
     }
 }
 
-fn unattributed_writes(places: Vec<CanonicalPlace>) -> Vec<CallMutationWrite> {
-    places
+fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
+    regions
         .into_iter()
-        .map(|place| CallMutationWrite {
-            place,
+        .map(|region| CallMutationWrite {
+            region,
             source: None,
         })
         .collect()
 }
 
-fn shared_call_storage_places(
+fn shared_call_storage_regions(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CanonicalPlace>> {
+) -> Option<Vec<StorageRegion>> {
+    if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol)
+        || validation::placed_borrow_has_empty_write_frame(program, borrow_call.target_symbol)
+    {
+        return Some(Vec::new());
+    }
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let state = program.state_by_symbol(caller_state_symbol)?;
     let site = find_call_site(
@@ -437,13 +470,19 @@ fn shared_call_storage_places(
             borrow_call.statement_index,
             path,
         )?;
-        for coarse in local_origins::rebase_local_write_places(
+        for region in local_origins::rebase_local_write_regions(
             program,
             caller_state_symbol,
             borrow_call.statement_index,
             source,
             call_frames,
         )? {
+            let StorageRegion::Declared(coarse) = region else {
+                if !places.contains(&region) {
+                    places.push(region);
+                }
+                continue;
+            };
             // The durable frame path deliberately drops index selectors to the
             // collection (`self.cells[1].out` renders as `self.cells`), while
             // the recorded `&mut`/`&write` argument accesses retain the exact
@@ -469,16 +508,33 @@ fn shared_call_storage_places(
                     .collect()
             };
             if refinements.is_empty() {
-                if !places.contains(&coarse) {
-                    places.push(coarse);
+                let region = StorageRegion::Declared(coarse);
+                if !places.contains(&region) {
+                    places.push(region);
                 }
                 continue;
             }
             for refined in refinements {
-                if !places.contains(&refined) {
-                    places.push(refined);
+                let region = StorageRegion::Declared(refined);
+                if !places.contains(&region) {
+                    places.push(region);
                 }
             }
+        }
+    }
+    // Opaque boundary bodies may exercise carried capability authority even
+    // when their ordinary descriptor frame is empty. A by-value resident
+    // lends no descriptor bytes but still carries its external content.
+    for region in ceiling::signature_ceiling_regions(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        Some(borrow),
+        borrow_call,
+        call_frames,
+    )? {
+        if !matches!(region, StorageRegion::Declared(_)) && !places.contains(&region) {
+            places.push(region);
         }
     }
     Some(places)
