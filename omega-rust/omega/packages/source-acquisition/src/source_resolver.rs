@@ -131,15 +131,17 @@ impl SourceResolver {
             root.create_lane(WORKSPACE_MEMBERS, CacheCustodyKind::LocalSnapshot)?;
         let external_local_sources =
             root.create_lane(EXTERNAL_LOCAL_SOURCES, CacheCustodyKind::LocalSnapshot)?;
-        let resolver = Self {
+        // Each lane reconciled its pathname with its retained directory as the
+        // last step of `create_lane`, and nothing has used a lane since. Only
+        // the root still needs its first full custody check here.
+        root.verify_path_identity()?;
+        Ok(Self {
             root,
             git_sources,
             workspace_members,
             external_local_sources,
             primary_git,
-        };
-        resolver.verify_path_identity()?;
-        Ok(resolver)
+        })
     }
 }
 
@@ -189,20 +191,31 @@ mod tests {
         ignore = "Windows prevents replacement while the retained storage-lane handle is open"
     )]
     fn retained_private_lane_rejects_path_replacement() {
-        let base = isolated_base("lane-replacement");
-        std::fs::create_dir_all(&base).expect("create isolated cache base");
-        let storage = SourceResolver::create_beneath(&base, PrimaryGitChoices::default())
-            .expect("production private-root constructor");
-        let lane = storage.git_sources().path().to_path_buf();
-        let retained = lane.with_extension("retained");
-        std::fs::rename(&lane, &retained).expect("move retained lane");
-        std::fs::create_dir(&lane).expect("replace lane pathname");
-        let error = storage
-            .verify_path_identity()
-            .expect_err("replacement must not satisfy retained lane custody");
-        assert!(error.to_string().contains("no longer identifies"));
+        for lane_name in ["git-sources", "workspace-members", "external-local-sources"] {
+            let base = isolated_base(&format!("lane-replacement-{lane_name}"));
+            std::fs::create_dir_all(&base).expect("create isolated cache base");
+            let storage = SourceResolver::create_beneath(&base, PrimaryGitChoices::default())
+                .expect("production private-root constructor");
+            let lane = match lane_name {
+                "git-sources" => storage.git_sources(),
+                "workspace-members" => storage.workspace_members(),
+                _ => storage.external_local_sources(),
+            }
+            .path()
+            .to_path_buf();
+            let retained = lane.with_extension("retained");
+            std::fs::rename(&lane, &retained).expect("move retained lane");
+            std::fs::create_dir(&lane).expect("replace lane pathname");
+            let error = storage
+                .verify_path_identity()
+                .expect_err("replacement must not satisfy retained lane custody");
+            assert!(
+                error.to_string().contains("no longer identifies"),
+                "{lane_name}: {error}"
+            );
 
-        drop(storage);
-        let _ = std::fs::remove_dir_all(base);
+            drop(storage);
+            let _ = std::fs::remove_dir_all(base);
+        }
     }
 }
