@@ -13,6 +13,9 @@ use terminal_psi::{
 /// A reference operand's physical descriptor is not its observed backing.
 /// The checked call resource selects the loan at operand completion; the
 /// emitter's exact formation row supplies its already-evaluated address.
+/// An actual formed at the argument has no loan row to select: checked facts
+/// record loans for reference storage, and a temporary reference is not
+/// storage. The formation published for that very place carries its source.
 /// Content writes do not retarget that address, and a later descriptor write
 /// cannot replace the selected occurrence with a newer loan.
 pub(crate) fn captured_crash_argument(
@@ -21,6 +24,7 @@ pub(crate) fn captured_crash_argument(
     formal_position: u32,
     argument: &StructuralArgument,
     captures: &[lowered_psi::LoweredSourceLoanCapture],
+    operations: &[terminal_psi::Operation],
     structural_types: &[StructuralTypeDeclaration],
     root_type: &mut impl FnMut(
         &StructuralArgument,
@@ -76,13 +80,22 @@ pub(crate) fn captured_crash_argument(
     }
     let loan = match resource.source {
         checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => loan,
-        checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => *borrow
-            .call_loan_parents
-            .span(parents)
-            .and_then(|parents| parents.first())
-            .ok_or(LoweringError::Unsupported(
-                "reference crash observation has no retained formation lineage",
-            ))?,
+        checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
+            let Some(loan) = borrow
+                .call_loan_parents
+                .span(parents)
+                .and_then(|parents| parents.first())
+            else {
+                return observed_referent(
+                    carried_formation_source(argument, operations)?,
+                    suffix,
+                    argument.access,
+                    structural_types,
+                    root_type,
+                );
+            };
+            *loan
+        }
     };
     // Descriptor copies preserve a formation without emitting another one.
     // Follow their checked supplier DAG, not a convenient ancestor in the
@@ -126,12 +139,67 @@ pub(crate) fn captured_crash_argument(
             pending.push(*supplier);
         }
     }
-    let mut observed = captured
-        .ok_or(LoweringError::Unsupported(
-            "reference crash observation has no resolved formation capture",
-        ))?
-        .source
-        .clone();
+    let observed = observed_referent(
+        &captured
+            .ok_or(LoweringError::Unsupported(
+                "reference crash observation has no resolved formation capture",
+            ))?
+            .source,
+        suffix,
+        argument.access,
+        structural_types,
+        root_type,
+    )?;
+    Ok(observed)
+}
+
+/// The exact source a reference or element-view carrier was established from.
+/// These operations' semantic custody is the source projection itself
+/// (`ExactReferenceSource` / `ExactElementViewSource`), so their operand names
+/// the carried referent rather than a derived window. A subslice establishes a
+/// bounded window over a descriptor and deliberately has no entry here.
+fn carried_formation_source<'operations>(
+    argument: &StructuralArgument,
+    operations: &'operations [terminal_psi::Operation],
+) -> Result<&'operations StructuralArgument, LoweringError> {
+    let mut formations = operations.iter().filter_map(|operation| {
+        operation
+            .result
+            .structural()
+            .filter(|result| result.place == argument.place)
+            .and_then(|_| match &operation.kind {
+                terminal_psi::OperationKind::EstablishPlacedReference { source, .. }
+                | terminal_psi::OperationKind::EstablishReference { source, .. }
+                | terminal_psi::OperationKind::EstablishElementView { source, .. }
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } => {
+                    Some(source)
+                }
+                _ => None,
+            })
+    });
+    let source = formations.next().ok_or(LoweringError::Unsupported(
+        "reference crash observation has no carried formation source",
+    ))?;
+    if formations.next().is_some() {
+        return unsupported("reference crash observation has ambiguous formation sources");
+    }
+    Ok(source)
+}
+
+/// Join an emitted formation source to the operand's own projection. The
+/// source path is normalized exactly as the capture route normalizes it, so a
+/// formation reached through the loan walk and one read from its own operation
+/// name the same storage.
+fn observed_referent(
+    source: &StructuralArgument,
+    suffix: &[StructuralPathSegment],
+    access: StructuralAccess,
+    structural_types: &[StructuralTypeDeclaration],
+    root_type: &mut impl FnMut(
+        &StructuralArgument,
+    ) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>,
+) -> Result<StructuralArgument, LoweringError> {
+    let mut observed = source.clone();
     observed.path = terminal_semantics::reference_source_storage_path(
         structural_types.iter(),
         root_type(&observed)?,
@@ -139,7 +207,7 @@ pub(crate) fn captured_crash_argument(
     )
     .to_vec();
     observed.path.extend_from_slice(suffix);
-    observed.access = argument.access;
+    observed.access = access;
     Ok(observed)
 }
 
