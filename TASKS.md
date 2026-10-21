@@ -5095,10 +5095,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected`)
     report only their primary diagnostic. Semantic/provenance atoms, reference
     qualifications and float policy still retain their own obligations.
-    Remaining: `fail/arithmetic/implicit_store_call_result_conversion_rejected`
-    still carries a retired value-qualified call diagnostic alongside the
-    conversion. Keep real primary subjects and independent errors; do not
-    blanket-suppress domain obligations.
+    `fail/arithmetic/implicit_store_call_result_conversion_rejected` reports
+    the store conversion alone; a value used only as a qualifier still reports
+    the retired call.
   - Float-policy customers: revalidate the reported Windows named-operator
     admission failure; the saturation, overflow-trap, propagated-NaN-trap and
     two-rounding multiply-then-add oracles now execute correctly on macOS ARM64.
