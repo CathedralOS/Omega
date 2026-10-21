@@ -346,6 +346,7 @@ pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
 pass/borrows/write_projection_loan checked 9143ms @5041ef1af684+wt
 pass/borrows/writeonly_record_field_store built 5331ms exit:181 @af6b0f221559+wt
 pass/borrows/writeonly_record_field_store_variants built 5276ms exit:181 @af6b0f221559+wt
+pass/boundary/interleaved_structural_crash_formal_exit built 1153ms exit:0 @863cf92cb2f3
 pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d31b02f28e+wt
 pass/build/artifact_only_output checked 9654ms @5041ef1af684+wt
@@ -2700,6 +2701,7 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit built 4951ms exit:
 pass/providers/runtime_boundary_linear_result_exit built 4902ms exit:70 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit built 1029ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
+pass/providers/runtime_boundary_qualified_state_exit built 1159ms exit:0 @863cf92cb2f3
 pass/providers/runtime_checked_completion_forwarding_exit built 4632ms exit:70 @ad4def8456dc+wt
 pass/providers/runtime_closed_provider_and_assumed_chain_exit built 6823ms exit:0 @8bcf9d86d52e
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 15681ms exit:70 @7e6c0ae564d2+wt
@@ -3212,6 +3214,7 @@ pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd5
 pass/traits/runtime_qualified_owned_requirement_calls_exit built 4416ms exit:0 interpreter-exit:0 interpreter:agrees @3b92de23fee5+wt
 pass/traits/runtime_trait_default_requirement_scope_exit built 3688ms exit:70 @7e0a5e1d48d2+wt
 pass/traits/satisfies_bound_trait_parameter_exit built 7255ms exit:0 @7795541dfbb7+wt
+pass/traits/structural_array_crash_identity_exit built 5285ms exit:70 @863cf92cb2f3
 pass/traits/trait_generic_bound_static_dispatch built 1207ms exit:1 @bed5f45e9185+wt
 pass/traits/trait_member_effects checked 8912ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8730ms @5041ef1af684+wt
