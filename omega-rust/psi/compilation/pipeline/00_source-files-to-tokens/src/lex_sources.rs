@@ -1,52 +1,15 @@
-//! Load a source frontier, then tokenize its files in their supplied order.
+//! Tokenize every loaded source text, in parallel, keeping their order.
 //!
-//! Loading and lexing remain separate operations: all file reads finish before
-//! the first lexical error can be reported. In-memory inputs use the same
-//! lexing operation without acquiring filesystem or package authority.
+//! The texts arrive already in memory, read from files by `load_sources` or
+//! supplied directly, so lexing never touches the filesystem or acquires
+//! package authority.
 
 use arena::Arena;
 use diagnostics::Diagnostic;
 use rayon::prelude::*;
-use source::{
-    DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId, SourcePosition,
-};
-use std::path::PathBuf;
+use source::{LoadedSource, LoadedSources, SourcePosition};
 use std::sync::Arc;
 use tokens::{LexedSource, LexedSources, Token, TokenStream, TokenText};
-
-/// Read one ordered frontier, assigning consecutive source coordinates.
-/// Equal paths in different dependency scopes remain separate source instances.
-/// The supplied view owns backing selection; captured reads never reopen files.
-pub fn load_sources(
-    frontier: Vec<(PathBuf, DependencyScope)>,
-    first_source_id: usize,
-    view: &SourceFileSystem,
-) -> Result<LoadedSources, Vec<Diagnostic>> {
-    let source_count = frontier.len();
-    let mut sources = Arena::with_capacity(source_count);
-    let mut loaded = Vec::with_capacity(source_count);
-
-    for (source_index, (path, scope)) in frontier.into_iter().enumerate() {
-        let source = view.read_to_string(&path).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "failed to read {}: {error}",
-                path.display()
-            ))]
-        })?;
-
-        loaded.push(LoadedSource {
-            source_id: SourceId(first_source_id + source_index),
-            path,
-            source,
-            origin: None,
-            scope,
-        });
-    }
-
-    let batch = sources.insert_many(loaded);
-
-    Ok(LoadedSources { sources, batch })
-}
 
 /// Tokenize every loaded source, retaining its backing text and exact metadata.
 /// Report the first lexical failure with its source path, line and column.
