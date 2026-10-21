@@ -184,10 +184,7 @@ pub(super) fn admitted_build_declaration_call(
 /// represented by the type table's Unit sentinel; it is not a missing scalar
 /// carrier. Explicit non-Unit state results and inferred value-return edges
 /// still prevent treating the machine as a resultless citation.
-pub(crate) fn machine_has_unit_result(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-) -> bool {
+pub fn machine_has_unit_result(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     let states = program.machine_states(machine);
     !states.is_empty()
         && states

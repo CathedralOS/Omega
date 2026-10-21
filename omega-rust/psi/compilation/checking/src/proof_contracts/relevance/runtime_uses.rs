@@ -190,11 +190,7 @@ fn validate_struct_literal(
     context: Context,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name == literal.type_name)
-    else {
+    let Some(definition) = program.data_definition_by_symbol(literal.type_symbol) else {
         for field in program.expression_table.struct_fields(literal.fields) {
             validate_expression(
                 program,
@@ -214,7 +210,15 @@ fn validate_struct_literal(
                 evidence.type_identity.is_valid()
                     && evidence.type_identity
                         == program.normalized_type_identity(evidence.source_type)
-            })
+            }) || view
+                .source_constructor(expression)
+                .is_some_and(|constructor| {
+                    constructor.type_identity.is_valid()
+                        && constructor.type_identity
+                            == program.normalized_type_identity(constructor.source_type)
+                        && constructor.machine == machine.symbol
+                        && constructor.state == state.symbol
+                })
         });
     let unsupported_bare_generic = !definition.type_parameters.is_empty()
         && !erased_fields(program, definition).is_empty()

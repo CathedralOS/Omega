@@ -351,10 +351,12 @@ record/enum carrier construction and never stands in for a runtime operand.
 | Tag | Proof term | Fields after the tag |
 | --- | --- | --- |
 | 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted fields (field identity string + proof term) |
-| 2 | Formal | `u32` position |
+| 2 | Formal (block scope) | `u32` position |
 | 3 | Scalar | scalar term |
 | 4 | Array | type identity string + counted proof terms |
 | 5 | Mathematical | type identity string + counted canonical mathematical-certificate bytes |
+| 6 | MathematicalApplication | result type identity string + counted canonical mathematical-function certificate bytes + `u8` formal namespace (0 block, 1 invocation) + counted `u32` caller proof-formal positions |
+| 7 | InvocationFormal | `u32` position in the machine contract proof roster |
 
 ## Content terms and places
 

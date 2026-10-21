@@ -480,6 +480,8 @@ kernel's guarantee ends at the checked declaration graph.
 | Indexed + quotient schemes checked as signatures, applications, boundaries | `schemes_and_quotients/` |
 | Acceptance families: vector length, mutual, nested, derivation context/conclusion, level polymorphism | `tests/indexed_{vector,mutual,nested,derivation,levels}.rs` — each pins constructor computation on neutral children, rejection controls, exact closures and measured receipts |
 | Source-produced scalar-indexed vector fragment | `samples/cli/facts/source_indexed_family` and `tests/omega/{pass,fail}/facts/source_indexed_family*`: exact closed constructor fibers and payloads, generic erased call/result transport, source W induction and a bounded executing consumer. With integrated producer 11 and receiver runner 14 (format 174, vocabulary 130) on Linux x86_64, the focused production/receiver-control run completed in 47.237s with native/Terminal exit 0; exact source-signature matching, all eight actual-argument/root/missing-law controls passed their assertions. Four Vector positives ran native/interpreter exit 0, and the affected runtime Value fixture agreed at exit 17. |
+| Source open-constructor transport | `samples/cli/facts/source_indexed_family/{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}` plus original/open roots and ordinary erased forwarding composition: all twelve positives ran native/Terminal exit 0 and all twelve constructor-input twins rejected with optimized producer `6df2edcab75dab12d2d5963fbc553f81a115dbf6` on main `b558cbfd1583c32450a8a65aa7546f3bb8aa7946` (Linux x86_64, format 176). The complete public capture took 49.853s. Constructor functions remain closed; independent receiving binds exact checked-source invocation rosters, carrier keys and existing assumption grants. |
+| Open-constructor source storage and receiving cost | Parameter artifact: 100,550 bytes (100,421 semantic), two carriers/two roots; source arena 6,789,463 slots including scratch, 82 declarations. Actual receiving: two source-bound invocation formals, 45,752 steps, 162.440ms. Forwarding artifact: 102,866 bytes (102,737 semantic), source arena 6,789,505 slots/82 declarations; three source-bound formals, 45,752 steps, 163.837ms. Default budget remains 65,536; these focused costs are not a general performance result or compact term/storage count. |
 | Bounded rule families | `tests/{equality_symmetry,predicate_conversion,predicate_denotation,value_equality_transport,integer_order_weakening}.rs` |
 | Canonical wire: byte-identical re-encode, independent re-verification, closure through the wire | `terminal-codec` tests `mathematical_certificate`, `theorem_certificate`, `bounded_certificate` |
 | Source vector storage and receiving cost | Producer arena: 6,839,578 slots including scratch, not a compact term count. Canonical artifact: 740,824 bytes (740,695 semantic); 81 declarations, two roots, two carriers and one actual argument. Root certificates: 12,522/12,575 bytes; decoded arenas: 1,206/1,211 slots; closures: 17/14. Root verification: 45,042 steps, 321.987ms; actual-argument verification: 45,109 steps, 231.921ms; decode: 5.495ms. The default 65,536-step budget is unchanged. |
@@ -493,12 +495,14 @@ observation, separate from semantic acceptance. The six-program capture took 162
 totaling 4,519,223 bytes.
 
 The source vector evidence above covers all-Value scalar indices, closed
-construction and zero or one direct erased recursive child. Exact source
+construction and exact open-constructor schemas with zero or one direct erased
+recursive child. Portable function applications presently require independently
+closed instantiated input/result carrier keys. Exact source
 carrier, binder and capture identities remain elaboration obligations, and
 source-only recursive citations require independently checked positive
 termination before erasure. This does not establish source derivation,
-mutual/nested or multiple-child families, type/level indices, open constructor
-production, or physical recursive-frame evidence. The stronger Rust-built
+mutual/nested or multiple-child families, type/level indices, general runtime-
+dependent carrier/telescope transport, or physical recursive-frame evidence. The stronger Rust-built
 scheme tests remain separate from source delivery.
 
 ## Trust boundary and explicit non-claims

@@ -638,7 +638,10 @@ pub(super) fn abstract_parameters(
     }
     let mut body = go(arena, proof, parameters, 0)?;
     let mut statement = go(arena, ty, parameters, 0)?;
-    for &(_, _, domain) in parameters.iter().rev() {
+    for (ordinal, &(_, _, domain)) in parameters.iter().enumerate().rev() {
+        // A child/premise domain may depend on earlier value parameters. Its
+        // binder is formed under that prefix, not under the full body scope.
+        let domain = go(arena, domain, &parameters[..ordinal], 0)?;
         body = arena.insert(Term::Lambda { domain, body });
         statement = arena.insert(Term::Pi {
             domain,
@@ -995,6 +998,82 @@ pub(super) fn induction(
 mod induction_tests {
     use super::*;
     use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature};
+
+    #[test]
+    fn constructor_abstraction_binds_dependent_child_and_premise_domains() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let value = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![],
+        });
+        let predicate = arena.insert(Term::Id {
+            ty: two,
+            left: value,
+            right: value,
+        });
+        let evidence = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: vec![],
+        });
+        let declarations = vec![
+            proof_admission::Declaration::assumption(0, two),
+            proof_admission::Declaration::assumption(0, predicate),
+        ];
+        let parameters = [
+            (0, SymbolHandle::from_arena_index(31), two),
+            (1, SymbolHandle::from_arena_index(32), predicate),
+        ];
+        let (proof, statement) =
+            abstract_parameters(&mut arena, evidence, predicate, &parameters).unwrap();
+        assert!(excludes_parameters(
+            &arena,
+            &declarations,
+            &[proof, statement],
+            &parameters
+        ));
+        let context = Context::empty().with_signature(Signature::from_declarations(declarations));
+        proof_admission::check_type(
+            &mut arena,
+            &context,
+            proof,
+            statement,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .unwrap();
+
+        // The returned proof is parametric: changing the supplied child's
+        // endpoint cannot establish a different receiving equality.
+        let zero = arena.insert(Term::TwoZero);
+        let one = arena.insert(Term::TwoOne);
+        let supplied = arena.insert(Term::Apply {
+            function: proof,
+            argument: zero,
+        });
+        let reflexivity = arena.insert(Term::Refl {
+            ty: two,
+            value: zero,
+        });
+        let supplied = arena.insert(Term::Apply {
+            function: supplied,
+            argument: reflexivity,
+        });
+        let false_result = arena.insert(Term::Id {
+            ty: two,
+            left: zero,
+            right: one,
+        });
+        assert!(
+            proof_admission::check_type(
+                &mut arena,
+                &context,
+                supplied,
+                false_result,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS)
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn source_case_abstraction_preserves_bound_proof_variables_and_dependency_closure() {

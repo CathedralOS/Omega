@@ -5,7 +5,7 @@
 //! recursive field order, and decode-time structural validation for them, plus
 //! the `ErasedProofFormal` roster encoding.
 
-use semantic_vocabulary::{ProofTerm, ProofTermField};
+use semantic_vocabulary::{ProofFormalScope, ProofTerm, ProofTermField};
 use terminal_psi::ErasedProofFormal;
 use terminal_psi::TerminalIdentityIndex;
 
@@ -18,6 +18,8 @@ const PROOF_TERM_FORMAL: u8 = 2;
 const PROOF_TERM_SCALAR: u8 = 3;
 const PROOF_TERM_ARRAY: u8 = 4;
 const PROOF_TERM_MATHEMATICAL: u8 = 5;
+const PROOF_TERM_MATHEMATICAL_APPLICATION: u8 = 6;
+const PROOF_TERM_INVOCATION_FORMAL: u8 = 7;
 
 pub(crate) fn encode_proof_terms(
     writer: &mut Writer,
@@ -48,6 +50,25 @@ fn encode_proof_term(
             writer.len("mathematical proof certificate", certificate.len())?;
             writer.bytes(certificate);
         }
+        ProofTerm::MathematicalApplication {
+            type_identity,
+            certificate,
+            formal_arguments,
+            formal_scope,
+        } => {
+            writer.u8(PROOF_TERM_MATHEMATICAL_APPLICATION);
+            writer.string("proof term type identity", type_identity)?;
+            writer.len("mathematical function certificate", certificate.len())?;
+            writer.bytes(certificate);
+            writer.u8(match formal_scope {
+                ProofFormalScope::Block => 0,
+                ProofFormalScope::Invocation => 1,
+            });
+            writer.len("mathematical function arguments", formal_arguments.len())?;
+            for position in formal_arguments {
+                writer.u32(*position);
+            }
+        }
         ProofTerm::Construction {
             type_identity,
             case_identity,
@@ -77,6 +98,10 @@ fn encode_proof_term(
         }
         ProofTerm::Formal { position } => {
             writer.u8(PROOF_TERM_FORMAL);
+            writer.u32(*position);
+        }
+        ProofTerm::InvocationFormal { position } => {
+            writer.u8(PROOF_TERM_INVOCATION_FORMAL);
             writer.u32(*position);
         }
         ProofTerm::Scalar(scalar) => {
@@ -122,6 +147,34 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
             term.validate().map_err(CodecError::MalformedProposition)?;
             Ok(term)
         }
+        PROOF_TERM_MATHEMATICAL_APPLICATION => {
+            let type_identity = reader.string("proof term type identity")?;
+            let length = usize::try_from(reader.count()?).expect("u32 fits usize");
+            let certificate = reader.take(length)?.to_vec();
+            super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
+            let formal_scope = match reader.u8()? {
+                0 => ProofFormalScope::Block,
+                1 => ProofFormalScope::Invocation,
+                tag => return Err(CodecError::InvalidTag("proof formal scope", tag)),
+            };
+            let count = usize::try_from(reader.count()?).expect("u32 fits usize");
+            let length = count.checked_mul(4).ok_or(CodecError::CollectionTooLong(
+                "mathematical function arguments",
+            ))?;
+            let formal_arguments = reader
+                .take(length)?
+                .chunks_exact(4)
+                .map(|bytes| u32::from_le_bytes(bytes.try_into().expect("u32 chunk")))
+                .collect();
+            let term = ProofTerm::MathematicalApplication {
+                type_identity,
+                certificate,
+                formal_arguments,
+                formal_scope,
+            };
+            term.validate().map_err(CodecError::MalformedProposition)?;
+            Ok(term)
+        }
         PROOF_TERM_CONSTRUCTION => {
             let type_identity = reader.string("proof term type identity")?;
             let case_identity = if reader.boolean()? {
@@ -163,6 +216,9 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
             Ok(term)
         }
         PROOF_TERM_FORMAL => Ok(ProofTerm::Formal {
+            position: reader.u32()?,
+        }),
+        PROOF_TERM_INVOCATION_FORMAL => Ok(ProofTerm::InvocationFormal {
             position: reader.u32()?,
         }),
         PROOF_TERM_SCALAR => {

@@ -125,6 +125,10 @@ fn proof_term_type_matches(
             type_identity: actual,
             ..
         }
+        | checked_trees::CheckedProofTerm::MathematicalApplication {
+            type_identity: actual,
+            ..
+        }
         | checked_trees::CheckedProofTerm::Construction {
             type_identity: actual,
             ..

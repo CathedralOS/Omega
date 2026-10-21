@@ -22,13 +22,23 @@ pub(super) fn contains_mathematical(
     module: &TerminalModule,
     term: &ProofTerm,
     caller: &[ErasedProofFormal],
+    invocation: &[ErasedProofFormal],
 ) -> bool {
     let mut pending = vec![term];
     while let Some(term) = pending.pop() {
         match term {
-            ProofTerm::Mathematical { .. } => return true,
+            ProofTerm::Mathematical { .. } | ProofTerm::MathematicalApplication { .. } => {
+                return true;
+            }
             ProofTerm::Formal { position }
                 if caller.get(*position as usize).is_some_and(|formal| {
+                    has_mathematical(module, std::slice::from_ref(formal))
+                }) =>
+            {
+                return true;
+            }
+            ProofTerm::InvocationFormal { position }
+                if invocation.get(*position as usize).is_some_and(|formal| {
                     has_mathematical(module, std::slice::from_ref(formal))
                 }) =>
             {
@@ -106,6 +116,12 @@ pub(super) fn bind_slot(
     if a.callee.is_some() || b.callee.is_some() {
         same_declaration(actual, a.callee, expected, b.callee)?;
     }
+    same_formals(
+        actual,
+        &a.owner.contract.erased_proof_formals,
+        expected,
+        &b.owner.contract.erased_proof_formals,
+    )?;
     same_formals(actual, a.formals, expected, b.formals)?;
     same_formals(
         actual,
@@ -168,7 +184,12 @@ pub(super) fn collect(module: &TerminalModule) -> Result<Vec<Slot<'_>>, Error> {
                         erased_proof_arguments,
                         ..
                     } if erased_proof_arguments.iter().any(|term| {
-                        contains_mathematical(module, term, &block.erased_proof_formals)
+                        contains_mathematical(
+                            module,
+                            term,
+                            &block.erased_proof_formals,
+                            &owner.contract.erased_proof_formals,
+                        )
                     }) =>
                     {
                         return Err(Error::KernelCarrierMismatch);
@@ -187,7 +208,12 @@ pub(super) fn collect(module: &TerminalModule) -> Result<Vec<Slot<'_>>, Error> {
                     let formals = &target.contract.erased_proof_formals;
                     if has_mathematical(module, formals)
                         || actuals.iter().any(|term| {
-                            contains_mathematical(module, term, &block.erased_proof_formals)
+                            contains_mathematical(
+                                module,
+                                term,
+                                &block.erased_proof_formals,
+                                &owner.contract.erased_proof_formals,
+                            )
                         })
                     {
                         slots.push(Slot {
@@ -244,7 +270,12 @@ pub(super) fn collect(module: &TerminalModule) -> Result<Vec<Slot<'_>>, Error> {
                 let formals = &destination.erased_proof_formals;
                 if has_mathematical(module, formals)
                     || actuals.iter().any(|term| {
-                        contains_mathematical(module, term, &block.erased_proof_formals)
+                        contains_mathematical(
+                            module,
+                            term,
+                            &block.erased_proof_formals,
+                            &owner.contract.erased_proof_formals,
+                        )
                     })
                 {
                     slots.push(Slot {

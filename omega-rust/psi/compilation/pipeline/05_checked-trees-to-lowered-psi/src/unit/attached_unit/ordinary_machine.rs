@@ -23,6 +23,9 @@
 //! A selected operand may transfer a parameter on only one branch, so a static
 //! final-return discard cannot also own that parameter's cleanup.
 
+#[path = "ordinary_machine/proof_scope.rs"]
+mod proof_scope;
+
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
@@ -1224,6 +1227,7 @@ pub(super) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
+    proof_scope::bind(&mut machine)?;
     crate::emission::continuation_specialization::complete(
         &mut machine,
         &selected_cleanup_groups,

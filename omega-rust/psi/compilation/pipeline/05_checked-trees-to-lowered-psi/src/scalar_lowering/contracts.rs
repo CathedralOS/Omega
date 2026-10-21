@@ -208,6 +208,11 @@ pub(crate) fn erased_proof_formal_declarations(
 /// roster; only `Scalar` leaves still need `values`/`erased`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredProofTerm {
+    MathematicalApplication {
+        type_identity: typed_trees::type_identity::TypeIdentityId,
+        certificate: Vec<u8>,
+        formal_arguments: Vec<u32>,
+    },
     Mathematical {
         type_identity: typed_trees::type_identity::TypeIdentityId,
         certificate: Vec<u8>,
@@ -287,6 +292,55 @@ pub(crate) fn checked_proof_term(
             Ok(LoweredProofTerm::Mathematical {
                 type_identity: *type_identity,
                 certificate,
+            })
+        }
+        CheckedProofTerm::MathematicalApplication {
+            type_identity,
+            term,
+            ty,
+            formal_parameters,
+        } => {
+            let signature = checked.facts.proof.mathematical_signature.as_ref().ok_or(
+                LoweringError::Unsupported("mathematical function actual has no checked signature"),
+            )?;
+            if !checked
+                .facts
+                .proof
+                .source_evidence_carriers
+                .iter()
+                .any(|carrier| {
+                    carrier.type_identity == *type_identity && carrier.domains.is_empty()
+                })
+            {
+                return unsupported(
+                    "mathematical function actual has no independent closed result carrier",
+                );
+            }
+            let formal_arguments = formal_parameters.iter().map(|symbol| {
+                let position = caller_erased_proof_parameters.iter().position(|parameter|
+                    parameter.parameter_symbol == *symbol).ok_or(LoweringError::Unsupported(
+                        "mathematical application references a formal outside the caller proof roster"))?;
+                u32::try_from(position).map_err(|_| LoweringError::Unsupported(
+                    "mathematical application proof position exceeds u32"))
+            }).collect::<Result<Vec<_>, _>>()?;
+            let certificate = proof_admission::MathematicalCertificate {
+                signature: signature.declarations.clone(),
+                level_arity: 0,
+                context: Vec::new(),
+                term: *term,
+                expected: *ty,
+            };
+            let certificate =
+                terminal_codec::encode_mathematical_certificate(&signature.arena, &certificate)
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "mathematical function actual is not canonically encodable",
+                        )
+                    })?;
+            Ok(LoweredProofTerm::MathematicalApplication {
+                type_identity: *type_identity,
+                certificate,
+                formal_arguments,
             })
         }
         CheckedProofTerm::Construction {
@@ -371,6 +425,20 @@ pub(crate) fn lowered_proof_term(
                 ),
             )?,
             certificate: certificate.clone(),
+        }),
+        LoweredProofTerm::MathematicalApplication {
+            type_identity,
+            certificate,
+            formal_arguments,
+        } => Ok(ProofTerm::MathematicalApplication {
+            type_identity: checked.type_identity_text(*type_identity).ok_or(
+                LoweringError::Unsupported(
+                    "mathematical function actual has no retained source identity",
+                ),
+            )?,
+            certificate: certificate.clone(),
+            formal_arguments: formal_arguments.clone(),
+            formal_scope: semantic_vocabulary::ProofFormalScope::Block,
         }),
         LoweredProofTerm::Construction {
             type_identity,

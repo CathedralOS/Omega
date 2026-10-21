@@ -460,7 +460,18 @@ pass/facts/selected_scalar_initializer_through_target_body_exit built 11945ms ex
 pass/facts/source_indexed_family built 44423ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @2c386725b87c
 pass/facts/source_indexed_family_alpha_positive built 21697ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
 pass/facts/source_indexed_family_capture_roster_positive built 23230ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
+pass/facts/source_indexed_family_forwarded_parameter_exit built 18524ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @e0550ac3bf28
+pass/facts/source_indexed_family_open_constructor_exit built 6158ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
 pass/facts/source_indexed_family_recursive_index_positive built 24782ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
+pass/facts/source_indexed_family_through_call_result_exit built 5337ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_const_name_exit built 6385ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_field_exit built 5818ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_local_exit built 6178ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_match_join_exit built 5444ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_other_machine_exit built 5978ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_other_state_exit built 6397ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/facts/source_indexed_family_through_parameter_exit built 17313ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @e0550ac3bf28
+pass/facts/source_indexed_family_through_target_body_exit built 5770ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
 pass/facts/target_scoped_constant_multi_method_exit built 57001ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
 pass/facts/target_scoped_constant_realization_exit built 50490ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
 pass/facts/target_scoped_constant_zero_extent_exit built 55113ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
@@ -607,6 +618,8 @@ pass/ownership/runtime_repeated_linear_result_forwarding_exit built 8667ms exit:
 pass/ownership/runtime_selected_constructed_argument_exit built 21163ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/ownership/runtime_stored_byte_view_return_exit built 22662ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/proofs/borrowed_descriptor_bound_local_result_exit built 33389ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
+pass/proofs/embedded_successor_call_requirement_exit built 3822ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
+pass/proofs/embedded_successor_transports_upper_bound_exit built 2358ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
 pass/proofs/fact_only_proof_value_citation_exit built 23589ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/proofs/field_view_index_contract checked 6542ms @d3431e5a76cb+wt
 pass/proofs/numeric_state_contract_exit built 25643ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
@@ -688,6 +701,7 @@ pass/structural/indexed_scalar_call_result_store built 92856ms exit:70 interpret
 pass/structural/runtime_affine_local_successor_loans_exit built 6473ms exit:0 interpreter-exit:0 interpreter:agrees @0755e2c06ec1
 pass/structural/runtime_scalar_record_reclamation_exit built 22259ms exit:0 interpreter-exit:0 interpreter:agrees @d3f34d02fc55
 pass/targets/runtime_target_named_provider_defaults_exit built 15379ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @c48489ea6ad6
+pass/termination/runtime_same_pair_call_occurrence built 1140ms exit:0 interpreter-exit:0 interpreter:agrees @acda888786a6
 pass/termination/runtime_zero_local_rank_prefix_exit built 14740ms exit:0 interpreter-exit:0 interpreter:agrees @741f1a015ab2
 pass/text/byte_view_element_read_without_byte_declaration_exit built 42549ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/text/incoming_bounded_byte_dynamic_call_exit built 6907ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10

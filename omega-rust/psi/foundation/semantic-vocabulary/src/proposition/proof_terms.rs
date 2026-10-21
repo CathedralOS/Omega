@@ -3,6 +3,14 @@
 
 use crate::proposition::{PropositionError, ScalarTerm};
 
+/// Exact namespace of a proof formal. Invocation inputs remain immutable for
+/// the activation; block inputs are rebound by explicit control-flow edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProofFormalScope {
+    Invocation,
+    Block,
+}
+
 /// One erased term in a call's or edge's erased lane. Proof terms carry
 /// semantic identity only — they own no runtime value, storage, or
 /// evaluation. A `Construction` is a closed data value such as `Nat::Zero`
@@ -20,6 +28,15 @@ pub enum ProofTerm {
     Mathematical {
         type_identity: String,
         certificate: Vec<u8>,
+    },
+    /// Ordinary application of a closed mathematical function to this scope's
+    /// exact erased formals. Receiving checks every domain and the result
+    /// against independent source carriers; this is never an open certificate.
+    MathematicalApplication {
+        type_identity: String,
+        certificate: Vec<u8>,
+        formal_arguments: Vec<u32>,
+        formal_scope: ProofFormalScope,
     },
     /// A fixed array in the erased lane. Its normalized type retains element
     /// and extent identity; elements remain ordered semantic evidence.
@@ -41,6 +58,8 @@ pub enum ProofTerm {
     /// One erased proof formal of the enclosing scope. `position` is the
     /// dense index into the enclosing block's `erased_proof_formals` roster.
     Formal { position: u32 },
+    /// An immutable proof input of the enclosing machine invocation.
+    InvocationFormal { position: u32 },
     /// A primitive payload leaf of an erased record/enum construction. The
     /// scalar term's `ValueId`s refer to the caller's own admitted scalar
     /// scope — the same namespace erased scalar actuals name.
@@ -93,7 +112,20 @@ impl ProofTerm {
                         return Err(PropositionError::EmptyProofTermTypeIdentity);
                     }
                 }
-                Step::Term(ProofTerm::Formal { .. }) => {}
+                Step::Term(ProofTerm::MathematicalApplication {
+                    type_identity,
+                    certificate,
+                    formal_arguments,
+                    ..
+                }) => {
+                    if type_identity.is_empty()
+                        || certificate.is_empty()
+                        || formal_arguments.is_empty()
+                    {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                }
+                Step::Term(ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. }) => {}
                 Step::Term(ProofTerm::Scalar(term)) => term.validate()?,
                 Step::Field(field) => {
                     if field.field_identity.is_empty() {

@@ -1695,6 +1695,17 @@ pass/facts/selected_native_code_layout_through_other_machine_exit built 9451ms e
 pass/facts/selected_native_code_layout_through_other_state_exit built 8830ms exit:0 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_parameter_exit built 8229ms exit:0 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_target_body_exit built 8096ms exit:0 @b2bd1ba421fd+wt
+pass/facts/source_indexed_family_forwarded_parameter_exit built 6627ms exit:0 terminal-inspections:match @e0550ac3bf28
+pass/facts/source_indexed_family_open_constructor_exit built 2076ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_call_result_exit built 2194ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_const_name_exit built 2147ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_field_exit built 2191ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_local_exit built 2161ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_match_join_exit built 2310ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_other_machine_exit built 2460ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_other_state_exit built 2164ms exit:0 @e0550ac3bf28
+pass/facts/source_indexed_family_through_parameter_exit built 6893ms exit:0 terminal-inspections:match @e0550ac3bf28
+pass/facts/source_indexed_family_through_target_body_exit built 2281ms exit:0 @e0550ac3bf28
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit built 20631ms exit:70 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize built 25277ms exit:0 stdout:match @c9eefa9130a0+wt
@@ -2445,6 +2456,8 @@ pass/proofs/copied_descriptor_keeps_capture_extent checked 1308ms @308fbdc54ba0
 pass/proofs/defined_proposition_premises checked 3476ms @6c49683ce714
 pass/proofs/descriptor_bound_after_element_call checked 1265ms @308fbdc54ba0
 pass/proofs/descriptor_bound_call_after_element_call checked 1285ms @308fbdc54ba0
+pass/proofs/embedded_successor_call_requirement_exit built 1700ms exit:0 @e0550ac3bf28
+pass/proofs/embedded_successor_transports_upper_bound_exit built 1587ms exit:0 @e0550ac3bf28
 pass/proofs/fact_only_proof_value_citation_exit built 17813ms exit:0 @6c49683ce714
 pass/proofs/family_carrier_relation_laws checked 3510ms @6c49683ce714
 pass/proofs/field_view_index_contract checked 8372ms @6c49683ce714
@@ -3170,6 +3183,7 @@ pass/termination/runtime_ranked_sequence_arrival_coordinates_exit built 17832ms 
 pass/termination/runtime_rankless_boundary_suffix_exit built 8201ms exit:0 @03d6ab4d9d4c
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 7735ms exit:70 @6c49683ce714
 pass/termination/runtime_record_measure_constructed_arrivals_exit built 18026ms exit:0 @6c49683ce714
+pass/termination/runtime_same_pair_call_occurrence built 1141ms exit:0 @acda888786a6
 pass/termination/runtime_saved_rank_cycle_exit built 18015ms exit:0 @6c49683ce714
 pass/termination/runtime_selected_boundary_requirement_identity_exit built 18590ms exit:0 @6c49683ce714
 pass/termination/runtime_selected_requirement_rank_composed_prefix_exit built 9126ms exit:0 @6c49683ce714

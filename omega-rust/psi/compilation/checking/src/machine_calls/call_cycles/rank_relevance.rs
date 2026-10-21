@@ -15,9 +15,7 @@
 //! Relevance neither proves descent nor admits an operation; source and
 //! executable rank consumers retain their existing formation and edge proofs.
 
-use crate::machine_calls::calls::{
-    CallSite, call_target_state, collect_call_sites_in_statement, find_state,
-};
+use crate::machine_calls::calls::{call_target_state, collect_call_sites_in_statement, find_state};
 use symbols::SymbolHandle;
 
 /// Transient source topology shared by range arrivals and runtime projection.
@@ -76,20 +74,7 @@ pub fn rank_relevance(
                 .flat_map(|(statement_index, _)| {
                     collect_call_sites_in_statement(program, machine, state, statement_index)
                 })
-                .map(|call| match call {
-                    CallSite::Statement(call) => {
-                        let candidates =
-                            typed_trees::operator::named_statement_call_candidates(program, call);
-                        match candidates.as_slice() {
-                            [operator] if operator.is_boundary => operator.symbol,
-                            _ => call.target_symbol,
-                        }
-                    }
-                    CallSite::Expression { call, .. } => {
-                        super::super::calls::call_target_symbol(program, call)
-                    }
-                    CallSite::TransitionNamed { path, .. } => path.symbol,
-                })
+                .map(|call| call.target_symbol(program))
                 .collect::<Vec<_>>()
         };
         for symbol in callees {

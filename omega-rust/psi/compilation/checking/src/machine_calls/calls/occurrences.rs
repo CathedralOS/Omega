@@ -29,6 +29,23 @@ pub enum CallSite<'program> {
 }
 
 impl<'program> CallSite<'program> {
+    /// Resolved executable destination shared by topology and exact-occurrence
+    /// admission. Boundary operator calls retain their operator identity.
+    pub fn target_symbol(&self, program: &dyn crate::CheckingInput) -> SymbolHandle {
+        match self {
+            Self::Statement(call) => {
+                let candidates =
+                    typed_trees::operator::named_statement_call_candidates(program, call);
+                match candidates.as_slice() {
+                    [operator] if operator.is_boundary => operator.symbol,
+                    _ => call.target_symbol,
+                }
+            }
+            Self::Expression { call, .. } => super::topology::call_target_symbol(program, call),
+            Self::TransitionNamed { path, .. } => path.symbol,
+        }
+    }
+
     /// A named edge is an internal arrival only when its exact target is a
     /// state owned by this invocation. A machine target remains an invocation,
     /// including a normalized recursive tail call; syntax and marker bits do

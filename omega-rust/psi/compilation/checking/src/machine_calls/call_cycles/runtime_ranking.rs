@@ -6,6 +6,7 @@
 
 mod comparison;
 mod meaning;
+mod occurrences;
 mod prefix;
 mod projection;
 
@@ -150,6 +151,7 @@ pub(super) fn project_component(
     witnesses: &[RuntimeRankBodyWitness<'_>],
     frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Result<Option<ValidatedRuntimeNaturalComponent>, &'static str> {
+    let dispatched = dispatched_implementations(program);
     let Some(ranks) = component
         .iter()
         .map(|index| RankProjection::resolve(program, &program.machines()[*index]))
@@ -322,6 +324,14 @@ pub(super) fn project_component(
                 if !relevance.requires_rank(state.symbol) {
                     continue;
                 }
+                occurrences::require_classified_tail_occurrences(
+                    program,
+                    machine,
+                    state,
+                    statement_ordinal,
+                    component,
+                    &dispatched,
+                )?;
                 let Some(transition) = statement.as_transition() else {
                     if prefix::preserves_rank(
                         program,
@@ -647,8 +657,10 @@ pub(super) fn project_component(
                 }
             }
         }
-        // A pair-level strict occurrence cannot hide an unclassified call,
-        // and a legacy spelling edge cannot supply missing exact custody.
+        // The occurrence check above establishes tail custody before any
+        // prefix-preservation shortcut. This graph-level check additionally
+        // refuses dependency edges that have no executable tail observation;
+        // a target pair alone never licenses a separate source occurrence.
         if adjacency[index]
             .iter()
             .filter(|target| component.contains(target))

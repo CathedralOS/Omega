@@ -637,6 +637,33 @@ impl Scope<'_> {
         if formal_evidence {
             return;
         }
+        let constructor_evidence = erased
+            && self.program.prepared_mathematics().is_some_and(|view| {
+                view.source_constructor(expression)
+                    .is_some_and(|constructor| {
+                        constructor.machine == self.machine.symbol
+                            && constructor.state == self.state.symbol
+                            && constructor.type_identity.is_valid()
+                            && constructor.type_identity
+                                == self
+                                    .program
+                                    .normalized_type_identity(constructor.source_type)
+                            && expected_proof_identity.is_some_and(|expected| {
+                                // Both sides name the caller's value telescope.
+                                // The retained ordinary identity above binds the
+                                // source row; it has no lexical application scope.
+                                typed_trees::type_identity::applied_type_identity(
+                                    self.program,
+                                    constructor.source_type,
+                                    self.machine.symbol,
+                                    &[],
+                                ) == Some(expected)
+                            })
+                    })
+            });
+        if constructor_evidence {
+            return;
+        }
         let checked_evidence = erased
             && self.independent_of_substitutions(required.reference, &required.substitutions, 0)
             && self.program.prepared_mathematics().is_some_and(|view| {
@@ -823,6 +850,22 @@ impl Scope<'_> {
     fn stable_proof_argument(&self, expression: ExpressionHandle, depth: usize) -> bool {
         if depth > 128 || !expression.is_valid() {
             return false;
+        }
+        if self.program.prepared_mathematics().is_some_and(|view| {
+            view.source_constructor(expression)
+                .is_some_and(|constructor| {
+                    constructor.machine == self.machine.symbol
+                        && constructor.state == self.state.symbol
+                        && constructor.schema.is_valid()
+                        && constructor.ty.is_valid()
+                        && constructor.type_identity.is_valid()
+                        && constructor.type_identity
+                            == self
+                                .program
+                                .normalized_type_identity(constructor.source_type)
+                })
+        }) {
+            return true;
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path)
@@ -1380,7 +1423,12 @@ pub(super) fn check(
                         substitutions: Vec::new(),
                     },
                     local.relevance.is_erased(),
-                    None,
+                    typed_trees::type_identity::applied_type_identity(
+                        program,
+                        local.type_reference,
+                        machine.symbol,
+                        &[],
+                    ),
                     diagnostics,
                 ),
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope

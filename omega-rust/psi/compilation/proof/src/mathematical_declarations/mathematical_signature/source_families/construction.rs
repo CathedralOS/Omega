@@ -4,11 +4,241 @@
 use super::super::Elaborator;
 use diagnostics::Diagnostic;
 use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature, Term, TermHandle};
+use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Temporary named values are placeholders only while constructing a lambda.
+/// Each retained schema abstracts every placeholder, including dependent child
+/// domains and contract premises; no source value becomes a signature axiom.
+#[derive(Default)]
+pub(in super::super) struct SourceConstructorContext {
+    pub owner: SymbolHandle,
+    pub values: Vec<(SymbolHandle, TermHandle)>,
+    pub parameters: Vec<(u32, SymbolHandle, TermHandle)>,
+    pub premises: Vec<(TermHandle, TermHandle)>,
+}
+
 impl Elaborator<'_> {
+    pub(in super::super) fn retain_source_constructor_schema(
+        &mut self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+    ) -> Result<(), Vec<Diagnostic>> {
+        use typed_trees::signature::SignatureContractKind;
+        self.source_constructor_context = SourceConstructorContext {
+            owner: machine.symbol,
+            ..SourceConstructorContext::default()
+        };
+        let entries = self
+            .scope
+            .iter()
+            .filter_map(|entry| entry.symbol.map(|symbol| (symbol, entry.domain)))
+            .collect::<Vec<_>>();
+        for (symbol, domain) in entries {
+            if self
+                .program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.symbol == symbol && parameter.is_mutable)
+            {
+                continue;
+            }
+            self.source_constructor_parameter(symbol, domain);
+        }
+        let evidence = self
+            .program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                parameter.relevance == language_core::BindingRelevance::Erased
+                    && self.known_source_constructor_family(parameter.type_reference)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for parameter in evidence {
+            if parameter.is_mutable {
+                continue;
+            }
+            let domain = self.elaborate_type_reference(parameter.type_reference)?;
+            self.source_constructor_parameter(parameter.symbol, domain);
+        }
+        let is_entry = self
+            .program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == state.symbol);
+        let predicates = self
+            .program
+            .machine_contracts(machine)
+            .iter()
+            .filter(|_| is_entry)
+            .chain(self.program.state_contracts(state))
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+            .filter_map(|fact| fact.as_expression().copied())
+            .collect::<Vec<_>>();
+        for predicate in predicates {
+            let Some(domain) = self.elaborate_proposition(predicate)? else {
+                return Err(self.refuse(
+                    "open source constructor premise has no mathematical proposition".into(),
+                ));
+            };
+            let closed = self
+                .integer_theory
+                .as_mut()
+                .map(|theory| {
+                    theory.closed_predicate(&mut self.arena, &mut self.declarations, domain)
+                })
+                .transpose()
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "source constructor premise derivation failed: {error}"
+                    ))
+                })?
+                .flatten();
+            let proof = closed.unwrap_or_else(|| {
+                self.source_constructor_parameter(SymbolHandle::invalid(), domain)
+            });
+            self.source_constructor_context
+                .premises
+                .push((domain, proof));
+        }
+        let term = self.source_family_constructor_term(expression, reference, 0)?;
+        let ty = self.elaborate_type_reference(reference)?;
+        let temporary_parameters = self.source_constructor_context.parameters.clone();
+        let parameters = self.source_constructor_dependencies(&[term, ty]);
+        let (schema, schema_type) =
+            super::terms::abstract_parameters(&mut self.arena, term, ty, &parameters).map_err(
+                |error| self.refuse(format!("source constructor abstraction failed: {error}")),
+            )?;
+        if !super::terms::excludes_parameters(
+            &self.arena,
+            &self.declarations,
+            &[schema, schema_type],
+            &temporary_parameters,
+        ) {
+            return Err(self.refuse(
+                "source constructor schema retains a temporary value or premise assumption".into(),
+            ));
+        }
+        proof_admission::check_type(
+            &mut self.arena,
+            &Context::empty()
+                .with_signature(Signature::from_declarations(self.declarations.clone())),
+            schema,
+            schema_type,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| {
+            self.refuse(format!(
+                "source constructor schema fails kernel checking: {error:?}"
+            ))
+        })?;
+        self.declarations
+            .push(proof_admission::Declaration::definition(
+                0,
+                schema_type,
+                schema,
+            ));
+        let ExpressionNode::StructLiteral(literal) =
+            self.program.expression_table.expression(expression)
+        else {
+            return Err(
+                self.refuse("source constructor schema lost its construction occurrence".into())
+            );
+        };
+        let TypeReferenceNode::Generic { base_symbol, .. } =
+            self.program.type_reference_table.type_reference(reference)
+        else {
+            return Err(self.refuse("source constructor schema lost its family application".into()));
+        };
+        let family = self.indexed_families.get(base_symbol).ok_or_else(|| {
+            self.refuse("source constructor schema lost its checked family".into())
+        })?;
+        let selected = family
+            .cases
+            .iter()
+            .find(|case| match literal.case_symbol {
+                Some(actual) => self
+                    .program
+                    .data_constructor_case(reference, literal.type_symbol, actual)
+                    .zip(self.program.data_constructor_case(
+                        reference,
+                        literal.type_symbol,
+                        case.symbol,
+                    ))
+                    .is_some_and(|(actual, candidate)| actual.symbol == candidate.symbol),
+                None => !case.symbol.is_valid(),
+            })
+            .ok_or_else(|| {
+                self.refuse("source constructor schema lost its selected case".into())
+            })?;
+        let predicate_expressions = selected.predicate_expressions.clone();
+        self.prepared.source_constructors.append(
+            validation::mathematical_applications::PreparedSourceConstructor {
+                expression,
+                constructor: expression,
+                source_type: reference,
+                type_identity: self.program.normalized_type_identity(reference),
+                machine: machine.symbol,
+                state: state.symbol,
+                schema,
+                ty: schema_type,
+                parameters: parameters.iter().map(|(_, symbol, _)| *symbol).collect(),
+                predicate_expressions,
+            },
+        );
+        self.source_constructor_context = SourceConstructorContext::default();
+        Ok(())
+    }
+
+    /// Select the ordered source telescope actually used by these roots. The
+    /// kernel's transitive closure includes declaration bodies and dependent
+    /// parameter domains; unused lexical carriers introduce no assumptions.
+    fn source_constructor_dependencies(
+        &self,
+        roots: &[TermHandle],
+    ) -> Vec<(u32, SymbolHandle, TermHandle)> {
+        let dependencies = proof_admission::judgment_assumption_closure(
+            &self.arena,
+            &Signature::from_declarations(self.declarations.clone()),
+            roots,
+        );
+        self.source_constructor_context
+            .parameters
+            .iter()
+            .copied()
+            .filter(|(position, _, _)| dependencies.contains(position))
+            .collect()
+    }
+
+    fn known_source_constructor_family(&self, reference: TypeReferenceHandle) -> bool {
+        matches!(self.program.type_reference_table.type_reference(reference), TypeReferenceNode::Generic { base_symbol, .. }
+            if self.indexed_families.contains_key(base_symbol))
+    }
+
+    fn source_constructor_parameter(
+        &mut self,
+        symbol: SymbolHandle,
+        domain: TermHandle,
+    ) -> TermHandle {
+        let position = self.declarations.len() as u32;
+        self.declarations
+            .push(proof_admission::Declaration::assumption(0, domain));
+        let term = self.constant(position);
+        self.source_constructor_context
+            .parameters
+            .push((position, symbol, domain));
+        if symbol.is_valid() {
+            self.source_constructor_context.values.push((symbol, term));
+        }
+        term
+    }
+
     pub(in super::super) fn source_family_constructor(
         &mut self,
         expression: ExpressionHandle,
@@ -17,11 +247,12 @@ impl Elaborator<'_> {
     ) -> Result<TermHandle, Vec<Diagnostic>> {
         let term = self.source_family_constructor_term(expression, reference, depth)?;
         let ty = self.elaborate_type_reference(reference)?;
-        if !self
-            .prepared
-            .source_evidence
-            .iter()
-            .any(|(_, row)| row.expression == expression)
+        if !self.source_constructor_context.owner.is_valid()
+            && !self
+                .prepared
+                .source_evidence
+                .iter()
+                .any(|(_, row)| row.expression == expression)
         {
             self.prepared.source_evidence.append(
                 validation::mathematical_applications::PreparedSourceEvidence {
@@ -51,6 +282,14 @@ impl Elaborator<'_> {
             let symbol = path
                 .resolved_symbol()
                 .ok_or_else(|| self.refuse("source constructor use has no exact binding".into()))?;
+            if let Some((_, term)) = self
+                .source_constructor_context
+                .values
+                .iter()
+                .find(|(bound, _)| *bound == symbol)
+            {
+                return Ok(*term);
+            }
             let mut initializer = None;
             for machine in self
                 .program
@@ -291,16 +530,34 @@ impl Elaborator<'_> {
                 self.refuse("source constructor predicate has no shared integer vocabulary".into())
             );
         };
-        let proof = theory
-            .closed_predicate(&mut self.arena, &mut self.declarations, predicate)
-            .map_err(|error| {
-                self.refuse(format!(
-                    "source constructor predicate derivation failed: {error}"
-                ))
-            })?
-            .ok_or_else(|| {
-                self.refuse("source constructor predicate has no checked derivation yet".into())
-            })?;
+        let premises = self.source_constructor_context.premises.clone();
+        let mut proof = if premises.is_empty() {
+            theory.closed_predicate(&mut self.arena, &mut self.declarations, predicate)
+        } else {
+            theory.predicate_from_assumptions(
+                &mut self.arena,
+                &mut self.declarations,
+                predicate,
+                &premises
+                    .iter()
+                    .map(|(domain, _)| *domain)
+                    .collect::<Vec<_>>(),
+            )
+        }
+        .map_err(|error| {
+            self.refuse(format!(
+                "source constructor predicate derivation failed: {error}"
+            ))
+        })?
+        .ok_or_else(|| {
+            self.refuse("source constructor predicate has no checked derivation yet".into())
+        })?;
+        for (_, argument) in premises {
+            proof = self.arena.insert(Term::Apply {
+                function: proof,
+                argument,
+            });
+        }
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
         proof_admission::check_type(
@@ -357,14 +614,31 @@ impl Elaborator<'_> {
         // Projections must infer the declaration's dependent label telescope,
         // not the nondependent tuple type inferred for a raw pair literal.
         // Package the checked label as an ordinary transparent definition.
+        let parameters = self.source_constructor_dependencies(&[label, family.description.carrier]);
+        let (label_body, label_type) = super::terms::abstract_parameters(
+            &mut self.arena,
+            label,
+            family.description.carrier,
+            &parameters,
+        )
+        .map_err(|error| {
+            self.refuse(format!(
+                "source constructor label abstraction failed: {error}"
+            ))
+        })?;
         let label_position = self.declarations.len() as u32;
         self.declarations
             .push(proof_admission::Declaration::definition(
-                0,
-                family.description.carrier,
-                label,
+                0, label_type, label_body,
             ));
-        let label = self.constant(label_position);
+        let mut label = self.constant(label_position);
+        for (position, _, _) in parameters {
+            let argument = self.constant(position);
+            label = self.arena.insert(Term::Apply {
+                function: label,
+                argument,
+            });
+        }
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
         let child_domain = self.arena.insert(Term::Apply {

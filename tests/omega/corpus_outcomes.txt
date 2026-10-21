@@ -5090,6 +5090,8 @@ fail/facts/source_indexed_family_constructor_index_false rejected 5255ms expecte
 	source recursive child `tail` does not inhabit its declared indexed application `Vector<previous, previous_total>`; actual application is `Vector<0, 0>`
 fail/facts/source_indexed_family_constructor_parent_index_false rejected 5467ms expected @2c386725b87c+wt
 	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 1265ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_illegal_runtime_elimination rejected 6357ms expected @2c386725b87c+wt
 	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
@@ -5103,6 +5105,17 @@ fail/facts/source_indexed_family_insufficient_consumer_bound rejected 6462ms exp
 	exact arithmetic in machine `bounded` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/source_indexed_family_missing_head_bound rejected 5116ms expected @2c386725b87c+wt
 	source induction case has no checked derivation from its exact constraints and child hypotheses
+fail/facts/source_indexed_family_open_constructor_missing_sum_premise rejected 1246ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_open_constructor_rejected rejected 1179ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_open_constructor_wrong_child rejected 1136ms expected @e0550ac3bf28
+	source recursive child `tail` does not inhabit its declared indexed application `Vector<previous, previous_total>`; actual application is `Vector<Length, Total>`
+fail/facts/source_indexed_family_root_constructor_rejected rejected 1202ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_runtime_result_contract rejected 3100ms expected @e0550ac3bf28
+	cannot prove ensures contract for exit from open_total at statement 2: result <= 6
+	cannot prove ensures contract for exit from open_total$specialized$126450add920ba7b$0 at statement 2: result <= 6
 fail/facts/source_indexed_family_same_rank_recursion rejected 8474ms expected @2c386725b87c+wt
 	terminating machine vector_bound: cannot prove independent strict source-rank descent for `vector_bound` at state `entry` statement 0 call 0
 	terminating machine vector_bound$specialized$28f2ad5c8a0d7f24$0: cannot prove independent strict source-rank descent for `vector_bound$specialized$28f2ad5c8a0d7f24$0` at state `entry` statement 0 call 0
@@ -5110,6 +5123,24 @@ fail/facts/source_indexed_family_same_rank_recursion rejected 8474ms expected @2
 	machine call cycle: `vector_bound` -- a source natural call edge lacks independent strict descent; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 	indexed logical machine `vector_bound` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
 	indexed logical machine `vector_bound$specialized$28f2ad5c8a0d7f24$0` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+fail/facts/source_indexed_family_through_call_result_rejected rejected 471ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_const_name_rejected rejected 474ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_field_rejected rejected 470ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_local_rejected rejected 505ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_match_join_rejected rejected 477ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_other_machine_rejected rejected 547ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_other_state_rejected rejected 713ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_parameter_rejected rejected 1183ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_through_target_body_rejected rejected 606ms expected @e0550ac3bf28
+	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_ungranted_family_assumption rejected 5733ms expected @2c386725b87c+wt
 	source indexed initializer depends on an assumption outside the audited integer safety roster
 fail/facts/source_indexed_family_wrong_invariant rejected 5158ms expected @2c386725b87c+wt
@@ -6765,6 +6796,10 @@ fail/proofs/disjunctive_domain_wrong_subject rejected 677ms expected @93160ec7e2
 fail/proofs/domain_mathematical_narrow_import rejected 242ms expected @8a884ecc43d5+wt
 fail/proofs/embedded_address_bound_not_strict rejected 958ms expected @232ee85de964+wt
 	exact arithmetic in machine `offset` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/embedded_successor_call_requirement_weakened_bound rejected 2726ms expected @e0550ac3bf28
+	cannot prove requires contract for call require_length from transfer: NextLength <= 8 (needs fact `Length <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/embedded_successor_weakened_upper_bound rejected 1907ms expected @e0550ac3bf28
+	exact arithmetic in machine `remain` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1840ms expected @4ce1ff349782+wt
 fail/proofs/fact_only_proof_value_citation_mutable rejected 2555ms expected @4ce1ff349782+wt
@@ -7545,6 +7580,12 @@ fail/termination/requirement_witness_rejected rejected 9ms expected @a9ae30e1c33
 fail/termination/retired_block_form rejected 0ms expected @a9ae30e1c334+wt
 fail/termination/retired_standalone_decreases rejected 3ms expected @a9ae30e1c334+wt
 fail/termination/runtime_non_tail_joint_machine_cycle rejected 306ms expected @1a353f2e117b+wt
+fail/termination/runtime_recursive_argument_occurrence rejected 711ms expected @acda888786a6
+	machine call cycle: `first`, `second` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/runtime_recursive_guard_occurrence rejected 693ms expected @acda888786a6
+	machine call cycle: `first`, `second` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/runtime_same_pair_call_occurrence rejected 719ms expected @acda888786a6
+	machine call cycle: `first`, `second` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/saved_boolean_after_write rejected 1800ms expected @ef97e2a38c91+wt
 	cannot prove the `terminates by` ranking for machine repeat
 	machine call cycle: `repeat` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -10851,7 +10892,18 @@ pass/facts/slice_view_layout_geometry_through_target_body_exit checked 42711ms c
 pass/facts/source_indexed_family checked 41407ms check-target:macos_arm64 terminal-inspections:match @2c386725b87c+wt
 pass/facts/source_indexed_family_alpha_positive checked 22770ms check-target:macos_arm64 @2c386725b87c+wt
 pass/facts/source_indexed_family_capture_roster_positive checked 19695ms check-target:macos_arm64 @2c386725b87c+wt
+pass/facts/source_indexed_family_forwarded_parameter_exit checked 15931ms check-target:macos_arm64 terminal-inspections:match @e0550ac3bf28
+pass/facts/source_indexed_family_open_constructor_exit checked 4862ms check-target:macos_arm64 @e0550ac3bf28
 pass/facts/source_indexed_family_recursive_index_positive checked 20120ms check-target:macos_arm64 @2c386725b87c+wt
+pass/facts/source_indexed_family_through_call_result_exit checked 5237ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_const_name_exit checked 5356ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_field_exit checked 5390ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_local_exit checked 4875ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_match_join_exit checked 5150ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_other_machine_exit checked 5252ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_other_state_exit checked 4896ms check-target:macos_arm64 @e0550ac3bf28
+pass/facts/source_indexed_family_through_parameter_exit checked 14663ms check-target:macos_arm64 terminal-inspections:match @e0550ac3bf28
+pass/facts/source_indexed_family_through_target_body_exit checked 5341ms check-target:macos_arm64 @e0550ac3bf28
 pass/facts/stack_frame_slot_isolation_through_call_result_exit checked 7758ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_const_name_exit checked 7782ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_field_exit checked 7886ms check-target:macos_arm64 @45cbafd80d9c
@@ -12018,6 +12070,8 @@ pass/proofs/domain_mathematical_selection_exit checked 3978ms check-target:macos
 pass/proofs/embed_collection_length checked 1042ms @73e11f08dcbb+wt
 pass/proofs/embed_returned_length checked 1047ms @b276a0918018+wt
 pass/proofs/embedded_address_bounds_exit checked 11453ms check-target:macos_arm64 @232ee85de964+wt
+pass/proofs/embedded_successor_call_requirement_exit checked 3909ms check-target:macos_arm64 @e0550ac3bf28
+pass/proofs/embedded_successor_transports_upper_bound_exit checked 3870ms check-target:macos_arm64 @e0550ac3bf28
 pass/proofs/erased_mathematical_initializers checked 4624ms @c0ec033db8e0+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
 pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
@@ -12823,6 +12877,7 @@ pass/termination/runtime_ranked_sequence_arrival_coordinates_exit checked 12264m
 pass/termination/runtime_rankless_boundary_suffix_exit checked 10325ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 12492ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_record_measure_constructed_arrivals_exit checked 13486ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_same_pair_call_occurrence checked 1099ms check-target:macos_arm64 @acda888786a6
 pass/termination/runtime_saved_boolean_descent_exit checked 12797ms check-target:macos_arm64 @ef97e2a38c91+wt
 pass/termination/runtime_saved_rank_cycle_exit checked 12832ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_selected_boundary_requirement_identity_exit checked 12695ms check-target:macos_arm64 @a9ae30e1c334+wt

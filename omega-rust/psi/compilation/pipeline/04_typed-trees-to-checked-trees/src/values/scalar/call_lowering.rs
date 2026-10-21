@@ -391,34 +391,6 @@ fn family_argument_expression(
     None
 }
 
-/// The declared type of one struct-literal field: the data member carrying
-/// `field_symbol`, or the selected case's payload field when the literal
-/// constructs a case.
-fn proof_field_type(
-    program: &dyn ::validation::CheckingInput,
-    data_symbol: symbols::SymbolHandle,
-    case_symbol: Option<symbols::SymbolHandle>,
-    field_symbol: symbols::SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let definition = program.data_definition_by_symbol(data_symbol)?;
-    program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if case_symbol.is_none() => {
-                (field.symbol == field_symbol).then_some(field.type_reference)
-            }
-            typed_trees::data::DataMember::Variant(variant)
-                if Some(variant.symbol) == case_symbol =>
-            {
-                program
-                    .data_payload_field_by_symbol(variant, field_symbol)
-                    .map(|field| field.type_reference)
-            }
-            _ => None,
-        })
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_call_scalar_argument(
     erased: bool,
@@ -527,6 +499,42 @@ pub(crate) fn lower_proof_term(
     // Mathematical source evidence is retained at its exact expression and
     // independently checked carrier, never reconstructed from a destination.
     if let Some(view) = program.prepared_mathematics() {
+        if let Some(constructor) = view.source_constructor(expression) {
+            if constructor.type_identity != program.normalized_type_identity(expected_type) {
+                return None;
+            }
+            if constructor.constructor != expression {
+                return lower_proof_term(
+                    program,
+                    operators,
+                    constructor.constructor,
+                    expected_type,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                    proof_only,
+                );
+            }
+        }
+        if let Some(constructor) = view.source_constructor(expression)
+            && !constructor.parameters.is_empty()
+            && constructor.parameters.iter().all(|symbol| {
+                authored_parameters.iter().any(|parameter| {
+                    parameter.symbol == *symbol
+                        && parameter.relevance == language_core::BindingRelevance::Erased
+                        && !parameter.is_mutable
+                })
+            })
+        {
+            return Some(CheckedProofTerm::MathematicalApplication {
+                type_identity: constructor.type_identity,
+                term: constructor.schema,
+                ty: constructor.ty,
+                formal_parameters: constructor.parameters.clone(),
+            });
+        }
         if let Some(evidence) = view.source_evidence(expression) {
             let expected_identity = program.normalized_type_identity(expected_type);
             if evidence.type_identity != expected_identity {
@@ -601,12 +609,9 @@ pub(crate) fn lower_proof_term(
                 .struct_fields(literal.fields)
                 .iter()
             {
-                let declared = proof_field_type(
-                    program,
-                    literal.type_symbol,
-                    literal.case_symbol,
-                    field.field_symbol,
-                )?;
+                let declared = program
+                    .data_constructor_field(expected_type, literal.type_symbol, field.field_symbol)?
+                    .type_reference;
                 let term = lower_proof_term(
                     program,
                     operators,
@@ -624,14 +629,7 @@ pub(crate) fn lower_proof_term(
                     term,
                 });
             }
-            let type_identity = program
-                .type_reference_table
-                .find_named_type_reference(literal.type_symbol)
-                .map(|reference| {
-                    program.type_identity(
-                        typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
-                    )
-                })?;
+            let type_identity = program.normalized_type_identity(expected_type);
             Some(CheckedProofTerm::Construction {
                 data_symbol: literal.type_symbol,
                 type_identity,

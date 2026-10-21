@@ -35,6 +35,30 @@ impl<'a> AdmittedBody<'a> {
     }
 }
 
+/// Qualification preparation reads every emitted state's declaration owner,
+/// including members fused beneath a different call-catalog dispatch head.
+/// This retains authored qualification sets; it grants no new memberships.
+pub(super) fn source_machines(bodies: &[AdmittedBody<'_>]) -> Vec<SymbolHandle> {
+    let mut machines = Vec::new();
+    for body in bodies {
+        match body {
+            AdmittedBody::Ordinary(plan) => {
+                if !machines.contains(&plan.machine) {
+                    machines.push(plan.machine);
+                }
+            }
+            AdmittedBody::Composed { body, .. } => {
+                for machine in body.source_machines() {
+                    if !machines.contains(&machine) {
+                        machines.push(machine);
+                    }
+                }
+            }
+        }
+    }
+    machines
+}
+
 pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,

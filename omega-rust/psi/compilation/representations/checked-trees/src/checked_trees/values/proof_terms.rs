@@ -63,6 +63,14 @@ pub enum CheckedProofTerm {
         term: proof_admission::TermHandle,
         ty: proof_admission::TermHandle,
     },
+    /// A closed checked function instantiated at exact caller proof formals.
+    /// Its certificate stays closed; the receiving scope supplies the arguments.
+    MathematicalApplication {
+        type_identity: TypeIdentityId,
+        term: proof_admission::TermHandle,
+        ty: proof_admission::TermHandle,
+        formal_parameters: Vec<SymbolHandle>,
+    },
     /// A checked fixed array, retaining its exact element/extent identity and
     /// authored element order without an executable storage place.
     Array {

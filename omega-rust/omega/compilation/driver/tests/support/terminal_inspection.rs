@@ -17,6 +17,8 @@ use crate::fixture_package_inputs::{
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
 mod indexed_family_controls;
+#[path = "mathematical_actuals.rs"]
+mod mathematical_actuals;
 
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
@@ -25,6 +27,7 @@ enum InspectionControls {
     MethodApplications,
     BoundaryCallables,
     IndexedFamily,
+    MathematicalActuals,
 }
 
 pub(super) fn inspect(root: &Path, fixture: &Path) -> Result<Vec<String>, Vec<Diagnostic>> {
@@ -71,12 +74,17 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "boundary-conformance-controls"] => {
                 (*machine, false, Some(InspectionControls::BoundaryCallables))
             }
+            [machine, "mathematical-actuals"] => (
+                *machine,
+                false,
+                Some(InspectionControls::MathematicalActuals),
+            ),
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls` or `indexed-family-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
                 ));
             }
         };
@@ -88,6 +96,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
         request.build_snapshot = snapshot;
+        if matches!(
+            conformance_controls,
+            Some(InspectionControls::MathematicalActuals)
+        ) {
+            let _artifact = mathematical_actuals::produce(request, machine)?;
+            continue;
+        }
         if matches!(
             conformance_controls,
             Some(InspectionControls::IndexedFamily)
@@ -146,7 +161,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
-                InspectionControls::IndexedFamily => {
+                InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }
             }

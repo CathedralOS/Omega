@@ -38,6 +38,28 @@ pub(crate) fn construction_predicate_judgments(
     if predicates.is_empty() {
         return Vec::new();
     }
+    // The mathematical constructor owner proves the same declared predicates
+    // under the exact immutable source telescope. Consume that checked lambda
+    // at its own construction occurrence, not an invariant borrowed from the
+    // destination or an unrelated constructor with the same representation.
+    if program.prepared_mathematics().is_some_and(|view| {
+        view.source_constructor(expression)
+            .is_some_and(|constructor| {
+                constructor.constructor == expression
+                    && constructor.machine == machine.symbol
+                    && constructor.state == state.symbol
+                    && constructor.schema.is_valid()
+                    && constructor.ty.is_valid()
+                    && constructor.type_identity.is_valid()
+                    && constructor.type_identity
+                        == program.normalized_type_identity(constructor.source_type)
+                    && predicates
+                        .iter()
+                        .all(|predicate| constructor.predicate_expressions.contains(predicate))
+            })
+    }) {
+        return vec![StructuralJudgment::Proven; predicates.len()];
+    }
     let mut visitor = ConstructionPredicates {
         site: StructuralPrefixSite {
             state: state.symbol,

@@ -55,6 +55,14 @@ impl<'a> Elaborator<'a> {
     /// A `Variable` for the scope entry carrying `symbol`, if any —
     /// innermost wins under shadowing.
     pub(super) fn scope_term_for_symbol(&mut self, symbol: SymbolHandle) -> Option<TermHandle> {
+        if let Some((_, term)) = self
+            .source_constructor_context
+            .values
+            .iter()
+            .find(|(bound, _)| *bound == symbol)
+        {
+            return Some(*term);
+        }
         let position = self
             .scope
             .iter()

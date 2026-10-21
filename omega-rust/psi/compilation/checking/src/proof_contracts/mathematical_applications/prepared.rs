@@ -17,6 +17,7 @@ pub struct PreparedMathematicalApplications {
     pub captures: Arena<PreparedCapture>,
     pub constants: Arena<PreparedConstant>,
     pub source_evidence: Arena<PreparedSourceEvidence>,
+    pub source_constructors: Arena<PreparedSourceConstructor>,
     pub source_carriers: Arena<PreparedSourceCarrier>,
     pub indexed_theorems: Arena<PreparedIndexedTheorem>,
     pub safety_assumptions: Vec<u32>,
@@ -44,6 +45,23 @@ pub struct PreparedSourceEvidence {
     pub type_identity: typed_trees::type_identity::TypeIdentityId,
     pub term: TermHandle,
     pub ty: TermHandle,
+}
+
+/// A constructor derivation abstracted over its exact source values, erased
+/// children and entry premises. These are checked function terms, not new
+/// assumptions and not closed evidence actuals for an arbitrary destination.
+#[derive(Debug, Default, Clone)]
+pub struct PreparedSourceConstructor {
+    pub expression: ExpressionHandle,
+    pub constructor: ExpressionHandle,
+    pub source_type: TypeReferenceHandle,
+    pub type_identity: typed_trees::type_identity::TypeIdentityId,
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub schema: TermHandle,
+    pub ty: TermHandle,
+    pub parameters: Vec<SymbolHandle>,
+    pub predicate_expressions: Vec<ExpressionHandle>,
 }
 
 /// Source carrier formation retained under its exact value telescope.
@@ -110,6 +128,16 @@ pub struct PreparedMathematicalView<'program> {
 }
 
 impl<'program> PreparedMathematicalView<'program> {
+    pub fn source_constructor(
+        self,
+        expression: ExpressionHandle,
+    ) -> Option<&'program PreparedSourceConstructor> {
+        self.applications
+            .source_constructors
+            .iter()
+            .find_map(|(_, row)| (row.expression == expression).then_some(row))
+    }
+
     pub fn source_evidence(
         self,
         expression: ExpressionHandle,

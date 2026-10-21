@@ -45,6 +45,7 @@ use validation::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
 };
 
+mod call_contracts;
 mod collections;
 mod conditions;
 mod scalar_fields;
@@ -57,6 +58,7 @@ struct Binding {
     name: String,
     value: Option<ScopedArithmeticValue>,
     alternatives: Vec<ScopedArithmeticValue>,
+    immutable_coordinate: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -126,6 +128,7 @@ impl<'program> CurrentScalarValues<'program> {
                         unsigned: unsigned(primitive),
                     }),
                     alternatives: Vec::new(),
+                    immutable_coordinate: false,
                 })
             })
             .collect::<Vec<_>>();
@@ -156,6 +159,7 @@ impl<'program> CurrentScalarValues<'program> {
                             unsigned: unsigned(primitive),
                         }),
                         alternatives: Vec::new(),
+                        immutable_coordinate: true,
                     })
                 }),
         );
@@ -303,6 +307,7 @@ impl<'program> CurrentScalarValues<'program> {
                             name: local.name.to_string(),
                             value,
                             alternatives,
+                            immutable_coordinate: false,
                         });
                     }
                 }
@@ -402,6 +407,7 @@ impl<'program> CurrentScalarValues<'program> {
                     values.invalidate_operand_writes(
                         frames.map(|frames| frames.may_write_frame(machine, call)),
                     );
+                    values.assume_statement_ensures(call);
                 }
                 StatementNode::Expression(_) => {
                     values.invalidate_operand_effects(program, machine, statement, frames)
@@ -458,10 +464,17 @@ impl<'program> CurrentScalarValues<'program> {
     }
 
     /// Retire current value identities before observing operands that may run
-    /// earlier calls. Unknown effects preserve no live scalar association.
+    /// earlier calls. Unknown effects preserve no addressable scalar association;
+    /// immutable invocation coordinates retain their captured value.
     pub(crate) fn invalidate_operand_writes(&mut self, frame: Option<facts::NormalizedWriteFrame>) {
         let paths = frame.and_then(|frame| frame.into_complete_paths());
         for binding in &mut self.current {
+            // Machine Value/Const coordinates belong to this invocation, not
+            // addressable storage. Even an opaque write cannot change their
+            // exact captured value; ordinary locals still lose their identity.
+            if binding.immutable_coordinate {
+                continue;
+            }
             if paths.as_ref().is_none_or(|paths| {
                 paths
                     .iter()
@@ -875,151 +888,6 @@ impl<'program> CurrentScalarValues<'program> {
         })
         .flatten()
     }
-    /// Simultaneous parameter substitution with independently retained actual
-    /// snapshots. The caller owns selection and exact formal/actual roster
-    /// identity; this owner checks arithmetic meaning before exposing a term.
-    pub(crate) fn bind_parameters(
-        &self,
-        callee: &Machine,
-        state: &State,
-        expression: ExpressionHandle,
-        parameters: &[typed_trees::signature::StateParameter],
-        arguments: &[ExpressionHandle],
-    ) -> Option<ScopedArithmeticExpression> {
-        if parameters.len() != arguments.len() {
-            return None;
-        }
-        let mut formals = Vec::with_capacity(parameters.len());
-        let mut lengths = Vec::new();
-        let mut fields = Vec::new();
-        for (parameter, argument) in parameters.iter().zip(arguments) {
-            let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
-                if let Some(value) = self.collection_length(*argument, 0)
-                    && fixed_length(self.program, parameter.type_reference, String::new).is_some()
-                    && (validation::state_reference_parameter_binding_is_stable(
-                        self.program,
-                        callee,
-                        state,
-                        parameter.symbol,
-                    ) || matches!(
-                        value,
-                        ScopedArithmeticValue::Integer(_)
-                            | ScopedArithmeticValue::BoundedInteger { .. }
-                    ))
-                {
-                    // A closed length is an entry observation. A mutable slice
-                    // parameter may later reseat its descriptor; the requires
-                    // clause still sees the length the caller passed.
-                    lengths.push(Length {
-                        subject: LengthSubject::Storage(parameter.symbol),
-                        name: parameter.name.to_string(),
-                        stable: true,
-                        type_reference: parameter.type_reference,
-                        value: Some(value),
-                    });
-                }
-                for field in self.captured_scalar_fields(*argument, 0) {
-                    fields.push(ScalarField::for_owner(
-                        self.program,
-                        parameter.symbol,
-                        field,
-                    ));
-                }
-                for field in self.captured_field_lengths(*argument, 0) {
-                    lengths.push(Length {
-                        subject: LengthSubject::Field {
-                            owner: parameter.symbol,
-                            path: field.path,
-                        },
-                        name: format!("{}.{}", parameter.name, field.name),
-                        stable: true,
-                        type_reference: field.type_reference,
-                        value: Some(field.value),
-                    });
-                }
-                continue;
-            };
-            formals.push(Binding {
-                symbol: parameter.symbol,
-                name: parameter.name.to_string(),
-                value: Some(ScopedArithmeticValue::Atom {
-                    identity: format!("callee:{:?}", parameter.symbol),
-                    unsigned: unsigned(primitive),
-                }),
-                alternatives: Vec::new(),
-            });
-        }
-        if !admitted(
-            self.program,
-            callee,
-            state,
-            self.statement_index,
-            expression,
-            &formals,
-            &lengths,
-            &fields,
-            0,
-        ) {
-            return None;
-        }
-        let mut goal = scoped(
-            callee,
-            state,
-            self.statement_index,
-            expression,
-            &formals,
-            &lengths,
-            &fields,
-            &self.hypotheses,
-            self.program,
-        )?;
-        for binding in &mut goal.bindings {
-            // A callee field needs an actual-place substitution, including on
-            // recursion. Its entry atom is never the caller's current field
-            // merely because the declaration and formal symbol are equal.
-            if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
-                && length_occurrence(self.program, occurrence, &lengths).is_none()
-                && scalar_field_occurrence(self.program, callee, state, occurrence, &fields)
-                    .is_none()
-                && literal_window_length(self.program, occurrence).is_none()
-            {
-                return None;
-            }
-            if let ScopedArithmeticBinder::Symbol(symbol) = binding.binder {
-                // `scoped` selects the formal occurrences this goal actually
-                // observes. An unrelated operand need not have arithmetic
-                // meaning: it still evaluates and contributes its writes in
-                // the caller's prefix before we bind any observed actual.
-                let position = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == symbol)?;
-                let captured =
-                    self.capture(self.program, self.machine, self.state, arguments[position])?;
-                // The argument's captured identity remains mandatory. Bounds
-                // from its exact caller observation add arrival knowledge
-                // (including acyclic predecessors), never a destination
-                // requirement or permission to revive an invalidated value.
-                binding.value = if let Some((minimum, maximum)) =
-                    validation::occurrence_integer_expression_bounds(
-                        self.program,
-                        self.machine.symbol,
-                        self.state.symbol,
-                        self.statement_index,
-                        arguments[position],
-                    ) {
-                    ScopedArithmeticValue::BoundedInteger {
-                        value: Box::new(captured),
-                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
-                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
-                    }
-                } else {
-                    captured
-                };
-            }
-        }
-        Some(goal)
-    }
-
     fn capture_alternatives(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -1043,130 +911,6 @@ impl<'program> CurrentScalarValues<'program> {
             values.push(value);
         }
         values
-    }
-
-    fn assume_call_ensures(
-        &mut self,
-        expression: ExpressionHandle,
-        result_value: &ScopedArithmeticValue,
-    ) {
-        let Some(call) = self.program.expression_table.call_node(expression) else {
-            return;
-        };
-        if validation::integer_embedding_argument(self.program, expression).is_some() {
-            return;
-        }
-        let Some(parameters) = validation::call_target_parameters(self.program, call.target_symbol)
-        else {
-            return;
-        };
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        if parameters.len() != arguments.len() {
-            return;
-        }
-        let Some((callee, callee_state)) = validation::find_state(self.program, call.target_symbol)
-            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))
-        else {
-            return;
-        };
-        if callee_state.symbol == self.state.symbol {
-            return;
-        }
-        let is_entry = self
-            .program
-            .machine_states(callee)
-            .first()
-            .is_some_and(|entry| entry.symbol == callee_state.symbol);
-        let contracts = self.program.state_contracts(callee_state).iter().chain(
-            self.program
-                .machine_contracts(callee)
-                .iter()
-                .filter(|_| is_entry && callee.symbol != self.machine.symbol),
-        );
-        let mut guarantees = Vec::new();
-        for contract in contracts {
-            if contract.kind != typed_trees::signature::SignatureContractKind::Ensures
-                || contract.binding.is_some()
-            {
-                continue;
-            }
-            for fact in self.program.proof_facts.span_or_empty(contract.facts) {
-                if let Some(guarantee) = fact.as_expression() {
-                    Self::collect_ensures_conjuncts(
-                        self.program,
-                        callee,
-                        callee_state,
-                        *guarantee,
-                        &mut guarantees,
-                        0,
-                    );
-                }
-            }
-        }
-        for guarantee in guarantees {
-            if let Some(mut proposition) =
-                self.bind_parameters(callee, callee_state, guarantee, parameters, arguments)
-            {
-                proposition.bindings.push(ScopedArithmeticBinding {
-                    binder: ScopedArithmeticBinder::Result,
-                    value: result_value.clone(),
-                });
-                if !self
-                    .hypotheses
-                    .iter()
-                    .any(|existing| existing.holds && existing.proposition == proposition)
-                {
-                    self.hypotheses.push(ScopedArithmeticHypothesis {
-                        proposition,
-                        holds: true,
-                    });
-                }
-            }
-        }
-    }
-
-    fn collect_ensures_conjuncts(
-        program: &dyn ::validation::CheckingInput,
-        callee: &Machine,
-        callee_state: &State,
-        expression: ExpressionHandle,
-        out: &mut Vec<ExpressionHandle>,
-        depth: usize,
-    ) {
-        if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
-            return;
-        }
-        if let Some(binary) = program.expression_table.binary_node(expression)
-            && binary.operator == BinaryOperator::And
-            && validation::has_builtin_decomposed_guard_meaning(
-                program,
-                callee,
-                Some(callee_state),
-                expression,
-            )
-        {
-            Self::collect_ensures_conjuncts(
-                program,
-                callee,
-                callee_state,
-                binary.left,
-                out,
-                depth + 1,
-            );
-            Self::collect_ensures_conjuncts(
-                program,
-                callee,
-                callee_state,
-                binary.right,
-                out,
-                depth + 1,
-            );
-            return;
-        }
-        out.push(expression);
     }
 
     pub(crate) fn proves_values_relation(

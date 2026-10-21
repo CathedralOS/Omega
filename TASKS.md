@@ -4420,11 +4420,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     assuming its conclusion is not a proof.
   - Extend source-produced indexed applications beyond the direct all-Value
     scalar-indexed vector fragment. `samples/cli/facts/source_indexed_family`
-    now constructs closed exact-index evidence, forwards it through an erased
-    generic call/result, checks source induction and bounds an executing
-    consumer. Construction supports zero or one direct erased recursive child.
-    Derivation, mutual/nested and multiple-child families, type/level indices
-    and open constructor production remain. Preserve exact parameters,
+    constructs exact-index evidence, checks source induction and bounds an
+    executing consumer across all nine transport places and reject twins. Open
+    constructor schemas now abstract exact value/child/premise telescopes; closed
+    instantiated fibers retain independently checked function applications over
+    exact invocation proof inputs. Construction supports zero or one direct
+    erased recursive child. General runtime-dependent carrier/telescope transport,
+    derivation, mutual/nested and multiple-child families and type/level indices
+    remain. Preserve exact parameters,
     indices, payloads, case constraints and recursive uses; distinguish negative
     recursion, unsupported valid encoding and malformed source. Existing
     Rust-built coverage of the stronger schemes is separate evidence. Add only

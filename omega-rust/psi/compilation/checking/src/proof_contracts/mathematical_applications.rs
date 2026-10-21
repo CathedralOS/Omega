@@ -12,7 +12,8 @@ pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
     PreparedIndexedTheorem, PreparedMathematicalApplications, PreparedMathematicalView,
-    PreparedSourceCarrier, PreparedSourceEvidence, integer_embedding_meaning,
+    PreparedSourceCarrier, PreparedSourceConstructor, PreparedSourceEvidence,
+    integer_embedding_meaning,
 };
 
 use symbols::SymbolHandle;

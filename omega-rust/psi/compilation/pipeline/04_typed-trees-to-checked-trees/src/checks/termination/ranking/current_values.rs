@@ -122,9 +122,23 @@ fn prove_edge(
         selected,
         frames,
     )?;
-    let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(selected)
+    let TransitionTargetNode::Named {
+        path,
+        arguments,
+        evidence_arguments,
+        source_span,
+        authored_call_selection,
+        ..
+    } = program.statement_table.transition_target(selected)
     else {
         return None;
+    };
+    let site = validation::CallSite::TransitionNamed {
+        path,
+        arguments: *arguments,
+        evidence_arguments,
+        source_span: *source_span,
+        authored_call_selection: *authored_call_selection,
     };
     // The arriving value of the target formal at `position`.
     let arriving = |position: u32| {
@@ -153,12 +167,13 @@ fn prove_edge(
             },
         ) => Some((
             ScopedArithmeticValue::Term(values.initial(source_upper)?),
-            ScopedArithmeticValue::Term(values.bind_parameters(
+            ScopedArithmeticValue::Term(values.bind_call_parameters(
                 machine,
                 source,
                 target_upper,
                 program.state_parameters(source),
                 edge.arguments,
+                site,
             )?),
         )),
         _ => None,

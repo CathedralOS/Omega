@@ -155,11 +155,22 @@ impl Elaborator<'_> {
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                // The current constructor producer accepts closed operands.
-                // Open constructors remain under ordinary source checking.
-                if self.scope.is_empty() {
-                    for (expression, reference) in constructors {
+                for (expression, reference) in constructors {
+                    if self.scope.is_empty()
+                        && !self
+                            .program
+                            .state_parameters(state)
+                            .iter()
+                            .any(|parameter| {
+                                parameter.relevance.is_erased()
+                                    && self.known_source_family(parameter.type_reference)
+                            })
+                    {
                         self.source_family_constructor(expression, reference, 0)?;
+                    } else {
+                        self.retain_source_constructor_schema(
+                            expression, reference, machine, state,
+                        )?;
                     }
                 }
             }
@@ -268,6 +279,13 @@ impl Elaborator<'_> {
             let [evidence] = evidence.as_slice() else {
                 continue;
             };
+            // Indexed logical citations have no executable result. A runtime
+            // function's result contract belongs to normal body/return checking;
+            // treating its `result` as a family invariant invents an unrelated
+            // induction goal before the body can establish that value.
+            if !validation::machine_has_unit_result(self.program, machine) {
+                continue;
+            }
             let reference = evidence.type_reference;
             let TypeReferenceNode::Generic {
                 base_symbol,
@@ -524,6 +542,26 @@ impl Elaborator<'_> {
             }
         }
         self.prepared.safety_assumptions = accepted;
+        let rejected_constructor =
+            self.prepared
+                .source_constructors
+                .iter()
+                .find_map(|(_, constructor)| {
+                    let closure = proof_admission::judgment_assumption_closure(
+                        &self.arena,
+                        signature,
+                        &[constructor.schema, constructor.ty],
+                    );
+                    let ungranted = closure
+                        .into_iter()
+                        .filter(|position| !self.prepared.safety_assumptions.contains(position))
+                        .collect::<Vec<_>>();
+                    (!ungranted.is_empty()).then_some((constructor.expression, ungranted))
+                });
+        if let Some((expression, ungranted)) = rejected_constructor {
+            self.span = Some(self.program.expression_table.source_span(expression));
+            return Err(self.refuse(format!("source constructor schema depends on an assumption outside the audited integer safety roster: {ungranted:?}")));
+        }
         let rows = self
             .prepared
             .source_evidence
@@ -602,6 +640,11 @@ impl Elaborator<'_> {
                     .source_evidence
                     .iter()
                     .any(|(_, row)| row.expression == *expression)
+                    || self
+                        .prepared
+                        .source_constructors
+                        .iter()
+                        .any(|(_, row)| row.expression == *expression)
                 {
                     return false;
                 }
@@ -648,6 +691,24 @@ impl Elaborator<'_> {
                     return false;
                 }
                 let identity = self.program.normalized_type_identity(local.type_reference);
+                if let Some(mut constructor) =
+                    self.prepared
+                        .source_constructors
+                        .iter()
+                        .find_map(|(_, row)| {
+                            (row.expression == local.initial_value
+                                && row.machine == *machine
+                                && row.state == *state
+                                && identity.is_valid()
+                                && row.type_identity == identity)
+                                .then_some(row.clone())
+                        })
+                {
+                    constructor.expression = *expression;
+                    self.prepared.source_constructors.append(constructor);
+                    progress = true;
+                    return false;
+                }
                 let Some((term, ty)) = self.prepared.source_evidence.iter().find_map(|(_, row)| {
                     (row.expression == local.initial_value
                         && identity.is_valid()

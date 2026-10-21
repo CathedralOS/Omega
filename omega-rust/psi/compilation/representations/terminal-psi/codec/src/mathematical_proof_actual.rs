@@ -2,6 +2,7 @@
 //! carrier. Canonical decoding establishes representation only; this explicit
 //! boundary operation checks the judgment and the receiver's assumption grants.
 
+mod applications;
 mod slots;
 
 use std::collections::BTreeSet;
@@ -165,16 +166,73 @@ pub fn verify_module_mathematical_actuals(
                         prepare_mathematical_proof_actual(term, identity, &carrier.carrier_key)?;
                     pending.push((decoded, grants(carrier)?));
                 }
-                (ProofTerm::Formal { position }, Some(carrier)) => {
+                (
+                    ProofTerm::MathematicalApplication {
+                        type_identity,
+                        certificate,
+                        formal_arguments,
+                        formal_scope,
+                    },
+                    Some(carrier),
+                ) => {
+                    let identity = expected
+                        .identities
+                        .text(formal.type_identity)
+                        .ok_or(Error::SourceCarrierMismatch)?;
+                    if type_identity != identity {
+                        return Err(Error::SourceCarrierMismatch);
+                    }
+                    let actual_carrier = module
+                        .mathematical_carriers
+                        .iter()
+                        .find(|row| module.identities.text(row.type_identity) == Some(identity))
+                        .ok_or(Error::KernelCarrierMismatch)?;
+                    if actual_carrier.carrier_key != carrier.carrier_key {
+                        return Err(Error::KernelCarrierMismatch);
+                    }
+                    let (caller, trusted_caller) = match formal_scope {
+                        semantic_vocabulary::ProofFormalScope::Block => (
+                            &actual.block.erased_proof_formals,
+                            &trusted.block.erased_proof_formals,
+                        ),
+                        semantic_vocabulary::ProofFormalScope::Invocation => (
+                            &actual.owner.contract.erased_proof_formals,
+                            &trusted.owner.contract.erased_proof_formals,
+                        ),
+                    };
+                    let decoded = applications::prepare(
+                        module,
+                        caller,
+                        expected,
+                        trusted_caller,
+                        certificate,
+                        formal_arguments,
+                        &carrier.carrier_key,
+                        budget,
+                    )?;
+                    pending.push((decoded, grants(carrier)?));
+                }
+                (
+                    ProofTerm::Formal { position } | ProofTerm::InvocationFormal { position },
+                    Some(carrier),
+                ) => {
                     let _authorized = grants(carrier)?;
-                    let source = actual
-                        .block
-                        .erased_proof_formals
+                    let (caller, trusted_caller) =
+                        if matches!(term, ProofTerm::InvocationFormal { .. }) {
+                            (
+                                &actual.owner.contract.erased_proof_formals,
+                                &trusted.owner.contract.erased_proof_formals,
+                            )
+                        } else {
+                            (
+                                &actual.block.erased_proof_formals,
+                                &trusted.block.erased_proof_formals,
+                            )
+                        };
+                    let source = caller
                         .get(*position as usize)
                         .ok_or(Error::SourceCarrierMismatch)?;
-                    let trusted_source = trusted
-                        .block
-                        .erased_proof_formals
+                    let trusted_source = trusted_caller
                         .get(*position as usize)
                         .ok_or(Error::SourceCarrierMismatch)?;
                     if module.identities.text(source.type_identity)
@@ -191,6 +249,7 @@ pub fn verify_module_mathematical_actuals(
                         module,
                         term,
                         &actual.block.erased_proof_formals,
+                        &actual.owner.contract.erased_proof_formals,
                     ) =>
                 {
                     return Err(Error::KernelCarrierMismatch);

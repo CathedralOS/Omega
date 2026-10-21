@@ -10,6 +10,7 @@
 //! constructor applications additionally need their retained derivations.
 
 mod construction;
+pub(super) use construction::SourceConstructorContext;
 mod induction;
 pub(super) use induction::SourceInduction;
 mod terms;
@@ -315,6 +316,7 @@ pub(super) struct SourceCase {
     pub payload: Vec<DataField>,
     pub children: Vec<DataField>,
     pub constraints: TermHandle,
+    pub predicate_expressions: Vec<typed_trees::expression::ExpressionHandle>,
     pub child_indices: Vec<TermHandle>,
 }
 
@@ -491,6 +493,7 @@ impl Elaborator<'_> {
                 predicates.extend_from_slice(self.program.proof_facts.span_or_empty(case_facts));
             }
             let mut propositions = Vec::new();
+            let mut predicate_expressions = Vec::new();
             for fact in predicates {
                 let Some(expression) = fact.as_expression().copied() else {
                     return Err(self.refuse(
@@ -503,6 +506,7 @@ impl Elaborator<'_> {
                         "source indexed constraint has no checked proposition denotation".into(),
                     )
                 })?;
+                predicate_expressions.push(expression);
                 propositions.push(proposition);
             }
             let proposition = if let Some(mut body) = propositions.pop() {
@@ -550,6 +554,7 @@ impl Elaborator<'_> {
                 payload,
                 children,
                 constraints,
+                predicate_expressions,
                 child_indices,
             });
         }

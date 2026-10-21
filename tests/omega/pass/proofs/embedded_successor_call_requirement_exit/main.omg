@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine require_length<Length: u64>()
+requires Length <= 8
+{}
+machine transfer<Length: u64, NextLength: u64>()
+requires Length <= 7 && embed(Length) + 1 == embed(NextLength)
+{
+    require_length<NextLength>();
+}
+machine main() { transfer<0, 1>(); }

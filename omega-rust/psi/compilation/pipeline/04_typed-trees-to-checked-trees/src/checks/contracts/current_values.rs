@@ -145,9 +145,14 @@ pub(crate) fn proves_call(
     else {
         return false;
     };
-    let Some(goal) =
-        values.bind_parameters(callee, callee_state, expression, parameters, arguments)
-    else {
+    let Some(goal) = values.bind_call_parameters(
+        callee,
+        callee_state,
+        expression,
+        parameters,
+        arguments,
+        site,
+    ) else {
         return false;
     };
     values.proves(program, machine, &goal)

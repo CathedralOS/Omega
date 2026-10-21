@@ -953,12 +953,34 @@ fn has_integer_order_meaning(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    integer_meaning(program, machine, state, expression).is_some()
+    if integer_meaning(program, machine, state, expression).is_some()
         || matches!(program.expression_table.expression(expression),
             ExpressionNode::Integer(literal)
                 if literal.landing().is_none()
                     && (literal.value_i64().is_some()
                         || literal.value_bignum().and_then(|value| value.to_u64()).is_some()))
+    {
+        return true;
+    }
+    // `embed` and mathematical Int arithmetic retain the same exact integer
+    // order as their source observations. They have no fixed runtime carrier,
+    // so asking integer_meaning alone discarded equations such as
+    // embed(length) + 1 == embed(next_length) before the live relation owner
+    // could substitute them. Admit only the canonical proof-Int identity;
+    // operand construction still checks selected builtin operation meaning and
+    // never imports a finite bound from this unbounded mathematical carrier.
+    let Some(reference) =
+        crate::expression_result_type_reference(program, machine, state, expression)
+    else {
+        return false;
+    };
+    let Some(proof_integer) =
+        crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)
+    else {
+        return false;
+    };
+    let identity = program.normalized_type_identity(proof_integer);
+    identity.is_valid() && program.normalized_type_identity(reference) == identity
 }
 
 fn integer_carrier_ceiling(primitive: PrimitiveType) -> Option<Operand> {
