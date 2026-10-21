@@ -1,0 +1,2 @@
+result in Region::Owned
+Owned.content(old(&whole)) == Owned.content(&result)
