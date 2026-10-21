@@ -1,1 +1,1 @@
-static type argument uses proof-static index expression `3 + 4` as a runtime type
+call `entry` has an invalid static type argument correspondence

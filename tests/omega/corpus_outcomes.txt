@@ -7690,7 +7690,8 @@ fail/traits/computed_static_effect rejected 35ms expected @abff0035e791
 fail/traits/computed_static_fractional rejected 41ms expected @abff0035e791
 fail/traits/computed_static_overflow rejected 35ms expected @abff0035e791
 fail/traits/computed_static_runtime rejected 20ms expected @abff0035e791
-fail/traits/computed_static_type_category rejected 180ms expected @abff0035e791
+fail/traits/computed_static_type_category rejected 945ms expected @6e8f4d98f4ad+wt
+	call `entry` has an invalid static type argument correspondence
 fail/traits/conformance_item_missing_member rejected 19ms expected @a9ae30e1c334+wt
 fail/traits/conformance_nested_signature_foreign_lifetime rejected 31ms expected @252f1432d9e9
 	applied trait operand has no exact supplying region
