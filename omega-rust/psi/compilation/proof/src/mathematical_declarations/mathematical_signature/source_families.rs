@@ -8,6 +8,15 @@
 //! next indices are closed functions of that same source telescope. This file
 //! does not turn legacy constructor-success verdicts into evidence: actual
 //! constructor applications additionally need their retained derivations.
+//!
+//! Ordinary source Type binders denote Type0 carriers, not scalar tags. They
+//! are retained in the dependent index and label telescope, so `marker: T`
+//! and a recursive child's Type actual remain tied to the same declaration.
+//! That telescope itself inhabits Type1; child positions and predicate proofs
+//! remain at their original levels. Every generated level and application is
+//! still checked by the kernel without cumulativity or a new admission rule.
+//! Higher-universe, const/machine and region-bearing source descriptions are
+//! not silently projected into this ordinary Type/Value fragment.
 
 mod construction;
 pub(super) use construction::SourceConstructorContext;
@@ -43,9 +52,12 @@ pub(super) fn needs_scheme(program: &dyn validation::CheckingInput) -> bool {
                     .is_some_and(|data| {
                         let parameters = program.data_type_parameters(data);
                         !parameters.is_empty()
-                            && parameters
-                                .iter()
-                                .all(|p| matches!(p.kind, TypeParameterKind::Value { .. }))
+                            && parameters.iter().all(|p| {
+                                matches!(
+                                    p.kind,
+                                    TypeParameterKind::Type | TypeParameterKind::Value { .. }
+                                )
+                            })
                     })
                     || program
                         .type_reference_table
@@ -121,7 +133,10 @@ fn erased_family_demands(program: &dyn validation::CheckingInput) -> Vec<SymbolH
                         let parameters = program.data_type_parameters(data);
                         !parameters.is_empty()
                             && parameters.iter().all(|parameter| {
-                                matches!(parameter.kind, TypeParameterKind::Value { .. })
+                                matches!(
+                                    parameter.kind,
+                                    TypeParameterKind::Type | TypeParameterKind::Value { .. }
+                                )
                             })
                             && program.data_members(data).iter().any(|member| {
                                 let fields = match member {
@@ -373,11 +388,14 @@ impl Elaborator<'_> {
         };
         let parameters = self.program.data_type_parameters(&data).to_vec();
         if parameters.is_empty()
-            || parameters
-                .iter()
-                .any(|p| !matches!(p.kind, TypeParameterKind::Value { .. }))
+            || parameters.iter().any(|p| {
+                !matches!(
+                    p.kind,
+                    TypeParameterKind::Type | TypeParameterKind::Value { .. }
+                )
+            })
         {
-            return Err(self.refuse("source W descriptions currently require a Value-index telescope; type/const/machine telescope denotation remains unsupported".into()));
+            return Err(self.refuse("source W descriptions currently require a Type/Value telescope; const/machine telescope denotation remains unsupported".into()));
         }
         if data.quotient.is_some()
             || data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
@@ -438,15 +456,16 @@ impl Elaborator<'_> {
             .data_value_parameter_fields(data)
             .map(|(parameter, field)| (parameter.symbol, field.symbol))
             .collect::<Vec<_>>();
-        if index_fields.len() != parameters.len() {
+        if index_fields.len()
+            != parameters
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
+                .count()
+        {
             return Err(
                 self.refuse("source indexed telescope lost its exact descriptor fields".into())
             );
         }
-        let common_types = common
-            .iter()
-            .map(|field| self.closed_field_domain(field))
-            .collect::<Result<Vec<_>, _>>()?;
         let mut source_cases = Vec::new();
         let mut schemes = Vec::new();
         let rosters = if variants.is_empty() {
@@ -465,8 +484,10 @@ impl Elaborator<'_> {
         };
         for (case_symbol, fields, case_facts) in rosters {
             self.scope.clear();
-            for (field, domain) in common.iter().zip(&common_types) {
-                self.push_scope(Some(field.symbol), field.name.clone(), *domain);
+            self.push_family_type_scope(&parameters);
+            for field in &common {
+                let domain = self.elaborate_type_reference(field.type_reference)?;
+                self.push_scope(Some(field.symbol), field.name.clone(), domain);
             }
             let mut payload = Vec::new();
             let mut children = common_children.clone();
@@ -481,7 +502,10 @@ impl Elaborator<'_> {
                 }
                 let domain = self.closed_field_domain(&field)?;
                 self.push_scope(Some(field.symbol), field.name.clone(), domain);
-                payload_types.push((field.symbol, self.kernel_field_domain(&field)?));
+                payload_types.push((
+                    field.symbol,
+                    self.source_field_function(&field, &parameters)?,
+                ));
                 payload.push(field);
             }
             let mut predicates = self
@@ -559,26 +583,48 @@ impl Elaborator<'_> {
             });
         }
         self.scope.clear();
-        let common_pairs = common
+        let mut common_pairs = common
             .iter()
-            .map(|field| self.kernel_field_domain(field).map(|ty| (field.symbol, ty)))
+            .map(|field| {
+                self.source_field_function(field, &parameters)
+                    .map(|ty| (field.symbol, ty))
+            })
             .collect::<Result<Vec<_>, _>>()?;
-        let index_symbols = index_fields
+        let type_symbols = parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        let type_sort = self
+            .arena
+            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        common_pairs.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+        let mut index_symbols = index_fields
             .iter()
             .map(|(_, field)| *field)
             .collect::<Vec<_>>();
-        let description =
-            terms::description(&mut self.arena, &common_pairs, &index_symbols, &schemes)
-                .map_err(|error| self.refuse(error.into()))?;
+        index_symbols.splice(0..0, type_symbols.iter().copied());
+        let description = terms::description(
+            &mut self.arena,
+            &common_pairs,
+            &index_symbols,
+            &schemes,
+            &type_symbols,
+        )
+        .map_err(|error| self.refuse(error.into()))?;
         let description =
             terms::intern_description(&mut self.arena, &mut self.declarations, description)
                 .map_err(|error| self.refuse(error.into()))?;
         let mut domains = Vec::new();
         for parameter in &parameters {
-            let TypeParameterKind::Value { type_reference } = parameter.kind else {
-                unreachable!()
+            let domain = match parameter.kind {
+                TypeParameterKind::Type => type_sort,
+                TypeParameterKind::Value { type_reference } => {
+                    self.elaborate_type_reference(type_reference)?
+                }
+                _ => unreachable!(),
             };
-            domains.push(self.elaborate_type_reference(type_reference)?);
+            domains.push(domain);
         }
         let indices = (0..parameters.len())
             .map(|ordinal| {
@@ -588,9 +634,12 @@ impl Elaborator<'_> {
             .collect();
         let index = self.index_tuple(indices)?;
         let mut body = description.indexed_w(&mut self.arena, index);
-        let mut ty = self
-            .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        let mut ty = self.arena.insert(Term::Sort(Sort::Type(
+            description.levels[0]
+                .clone()
+                .maximum(description.levels[1].clone())
+                .maximum(description.levels[2].clone()),
+        )));
         for domain in domains.into_iter().rev() {
             body = self.arena.insert(Term::Lambda { domain, body });
             ty = self.arena.insert(Term::Pi {
@@ -664,10 +713,41 @@ impl Elaborator<'_> {
     ) -> bool {
         declaration_contains_family(self.program, owner, reference, references, declarations)
     }
+    pub(super) fn push_family_type_scope(&mut self, parameters: &[TypeParameter]) {
+        for parameter in parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        {
+            let domain = self
+                .arena
+                .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+            self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
+        }
+    }
+
+    /// A payload carrier is a closed function of the exact source Type prefix.
+    /// The shared W builder applies it under keyed dependent label binders.
+    fn source_field_function(
+        &mut self,
+        field: &DataField,
+        parameters: &[TypeParameter],
+    ) -> Result<TermHandle, Vec<Diagnostic>> {
+        let saved = std::mem::take(&mut self.scope);
+        self.push_family_type_scope(parameters);
+        let result = self
+            .kernel_field_domain(field)
+            .map(|body| self.close_family_telescope(body));
+        self.scope = saved;
+        result
+    }
+
     fn closed_field_domain(&mut self, field: &DataField) -> Result<TermHandle, Vec<Diagnostic>> {
         let domain = self.elaborate_type_reference(field.type_reference)?;
-        let context = Context::empty()
-            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        let context = self.scope.iter().fold(
+            Context::empty()
+                .with_signature(Signature::from_declarations(self.declarations.clone())),
+            |context, entry| context.extend(entry.domain),
+        );
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
         proof_admission::infer_sort(&mut self.arena,&context,domain,&mut budget).map_err(|_|self.refuse(format!("indexed payload `{}` has an open dependent carrier whose encoding is unsupported",field.name)))?;
         Ok(domain)
@@ -742,6 +822,9 @@ impl Elaborator<'_> {
         parameter: &TypeParameter,
         aliases: &[(SymbolHandle, SymbolHandle)],
     ) -> Result<TermHandle, Vec<Diagnostic>> {
+        if matches!(parameter.kind, TypeParameterKind::Type) {
+            return self.elaborate_type_reference(reference);
+        }
         let TypeParameterKind::Value {
             type_reference: carrier,
         } = parameter.kind

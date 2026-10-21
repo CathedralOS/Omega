@@ -64,8 +64,8 @@ pub use identity::{
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofFormalScope, ProofTerm,
-    ProofTermField, Proposition, PropositionContext, PropositionError, ScalarReadProjection,
-    ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, MathematicalArgument,
+    ProofFormalScope, ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
+    ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
 };
 pub use structural_places::{AffineConstructionElement, StructuralPlaceKind};

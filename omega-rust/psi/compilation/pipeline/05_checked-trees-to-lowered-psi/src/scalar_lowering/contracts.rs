@@ -13,10 +13,10 @@ use crate::emission::scalar_types::terminal_scalar_type;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
 use crate::terminal_identities::{allocate_dense, value_id};
 use checked_trees::{
-    CheckedErasedProofParameterPlan, CheckedProofTerm, CheckedStructuralScalarParameterPlan,
-    CheckedTrees,
+    CheckedErasedProofParameterPlan, CheckedMathematicalArgument, CheckedProofTerm,
+    CheckedStructuralScalarParameterPlan, CheckedTrees,
 };
-use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
+use semantic_vocabulary::{MathematicalArgument, ProofTerm, ProofTermField, ScalarType};
 use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
 mod indexed_theorems;
@@ -201,6 +201,17 @@ pub(crate) fn erased_proof_formal_declarations(
         .collect()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LoweredMathematicalArgument {
+    Formal {
+        position: u32,
+    },
+    Scalar {
+        type_identity: typed_trees::type_identity::TypeIdentityId,
+        expression: LoweredDirectExpression,
+    },
+}
+
 /// The lowering-stage proof term: identical in shape to the terminal
 /// `ProofTerm`, except scalar payload leaves stay `LoweredDirectExpression`s
 /// until the caller's `ValueDeclaration` namespace exists at emission.
@@ -211,7 +222,7 @@ pub(crate) enum LoweredProofTerm {
     MathematicalApplication {
         type_identity: typed_trees::type_identity::TypeIdentityId,
         certificate: Vec<u8>,
-        formal_arguments: Vec<u32>,
+        arguments: Vec<LoweredMathematicalArgument>,
     },
     Mathematical {
         type_identity: typed_trees::type_identity::TypeIdentityId,
@@ -298,7 +309,7 @@ pub(crate) fn checked_proof_term(
             type_identity,
             term,
             ty,
-            formal_parameters,
+            arguments,
         } => {
             let signature = checked.facts.proof.mathematical_signature.as_ref().ok_or(
                 LoweringError::Unsupported("mathematical function actual has no checked signature"),
@@ -316,13 +327,28 @@ pub(crate) fn checked_proof_term(
                     "mathematical function actual has no independent closed result carrier",
                 );
             }
-            let formal_arguments = formal_parameters.iter().map(|symbol| {
-                let position = caller_erased_proof_parameters.iter().position(|parameter|
-                    parameter.parameter_symbol == *symbol).ok_or(LoweringError::Unsupported(
-                        "mathematical application references a formal outside the caller proof roster"))?;
-                u32::try_from(position).map_err(|_| LoweringError::Unsupported(
-                    "mathematical application proof position exceeds u32"))
-            }).collect::<Result<Vec<_>, _>>()?;
+            let arguments = arguments.iter().map(|argument| {
+                match argument {
+                    CheckedMathematicalArgument::Formal { parameter_symbol } => {
+                        let position = caller_erased_proof_parameters.iter().position(|parameter|
+                            parameter.parameter_symbol == *parameter_symbol).ok_or(LoweringError::Unsupported(
+                                "mathematical application references a formal outside the caller proof roster"))?;
+                        Ok(LoweredMathematicalArgument::Formal { position: u32::try_from(position).map_err(|_| LoweringError::Unsupported(
+                            "mathematical application proof position exceeds u32"))? })
+                    }
+                    CheckedMathematicalArgument::Scalar { type_identity, expression } => {
+                        if !checked.facts.proof.source_evidence_carriers.iter().any(|carrier|
+                            carrier.type_identity == *type_identity && carrier.domains.is_empty()) {
+                            return unsupported("mathematical scalar argument has no independently formed source carrier");
+                        }
+                        Ok(LoweredMathematicalArgument::Scalar {
+                            type_identity: *type_identity,
+                            expression: crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
+                                identities, expression, &[])?,
+                        })
+                    }
+                }
+            }).collect::<Result<Vec<_>, LoweringError>>()?;
             let certificate = proof_admission::MathematicalCertificate {
                 signature: signature.declarations.clone(),
                 level_arity: 0,
@@ -340,7 +366,7 @@ pub(crate) fn checked_proof_term(
             Ok(LoweredProofTerm::MathematicalApplication {
                 type_identity: *type_identity,
                 certificate,
-                formal_arguments,
+                arguments,
             })
         }
         CheckedProofTerm::Construction {
@@ -429,7 +455,7 @@ pub(crate) fn lowered_proof_term(
         LoweredProofTerm::MathematicalApplication {
             type_identity,
             certificate,
-            formal_arguments,
+            arguments,
         } => Ok(ProofTerm::MathematicalApplication {
             type_identity: checked.type_identity_text(*type_identity).ok_or(
                 LoweringError::Unsupported(
@@ -437,7 +463,29 @@ pub(crate) fn lowered_proof_term(
                 ),
             )?,
             certificate: certificate.clone(),
-            formal_arguments: formal_arguments.clone(),
+            arguments: arguments
+                .iter()
+                .map(|argument| match argument {
+                    LoweredMathematicalArgument::Formal { position } => {
+                        Ok(MathematicalArgument::Formal {
+                            position: *position,
+                        })
+                    }
+                    LoweredMathematicalArgument::Scalar {
+                        type_identity,
+                        expression,
+                    } => Ok(MathematicalArgument::Scalar {
+                        type_identity: checked.type_identity_text(*type_identity).ok_or(
+                            LoweringError::Unsupported(
+                                "mathematical scalar argument lost its source type",
+                            ),
+                        )?,
+                        term: crate::proofs::crash_routes::lowered_direct_scalar_term(
+                            expression, values, erased,
+                        )?,
+                    }),
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
             formal_scope: semantic_vocabulary::ProofFormalScope::Block,
         }),
         LoweredProofTerm::Construction {

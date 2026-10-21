@@ -3,6 +3,10 @@
 //! artifact against those inputs. This oracle never manufactures a witness,
 //! chooses grants from a certificate, or grants executable authority.
 
+#[path = "mixed_application_controls.rs"]
+mod mixed_application_controls;
+use super::indexed_family_controls;
+
 use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, MathematicalCertificate};
 use std::collections::BTreeSet;
 use std::time::Instant;
@@ -192,6 +196,9 @@ pub(super) fn produce(
         &mut budget,
     )
     .map_err(|error| format!("mathematical actual receiving: {error:?}"))?;
+    let mixed_controls =
+        mixed_application_controls::check(received.view().module(), expected, &carriers, &grants)?;
+    eprintln!("corpus_runner: mixed_mathematical_application_controls={mixed_controls}");
     eprintln!(
         "corpus_runner: mathematical_actual_receiving source_arena_terms={source_terms} source_declarations={source_declarations} artifact_bytes={} semantic_bytes={} carriers={} indexed_roots={} source_bound_formals={source_bound_formals} receiver_ms={:.3} receiver_steps={}",
         artifact.to_bytes().len(),

@@ -4,7 +4,7 @@
 //! This changes no certificate context, grant, term, or carrier identity.
 
 use crate::lowering_error::LoweringError;
-use semantic_vocabulary::{ProofFormalScope, ProofTerm};
+use semantic_vocabulary::{MathematicalArgument, ProofFormalScope, ProofTerm};
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 
 pub(super) fn bind(machine: &mut TerminalMachine) -> Result<(), LoweringError> {
@@ -71,14 +71,14 @@ fn bind_terms(terms: &mut [ProofTerm], count: usize) -> Result<(), LoweringError
                 };
             }
             ProofTerm::MathematicalApplication {
-                formal_arguments,
+                arguments,
                 formal_scope,
                 ..
             } => {
-                if formal_arguments
-                    .iter()
-                    .any(|position| *position as usize >= count)
-                {
+                if arguments.iter().any(|argument| {
+                    matches!(argument,
+                    MathematicalArgument::Formal { position } if *position as usize >= count)
+                }) {
                     return Err(LoweringError::Unsupported(
                         "mathematical function argument is outside its source invocation roster",
                     ));

@@ -3,7 +3,8 @@
 //! stay in their original telescopes. Only instantiated values and places move.
 
 use semantic_vocabulary::{
-    ContentConservation, ContentTerm, IntegerMathTerm, ProofTerm, Proposition, ScalarTerm,
+    ContentConservation, ContentTerm, IntegerMathTerm, MathematicalArgument, ProofTerm,
+    Proposition, ScalarTerm,
 };
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
 
@@ -54,10 +55,16 @@ impl super::IdentityMap {
                 }
                 ProofTerm::Array { elements, .. } => pending.extend(elements.iter_mut().rev()),
                 ProofTerm::Scalar(term) => self.scalar_term(term),
+                ProofTerm::MathematicalApplication { arguments, .. } => {
+                    for argument in arguments {
+                        if let MathematicalArgument::Scalar { term, .. } = argument {
+                            self.scalar_term(term);
+                        }
+                    }
+                }
                 ProofTerm::Formal { .. }
                 | ProofTerm::InvocationFormal { .. }
-                | ProofTerm::Mathematical { .. }
-                | ProofTerm::MathematicalApplication { .. } => {}
+                | ProofTerm::Mathematical { .. } => {}
             }
         }
     }

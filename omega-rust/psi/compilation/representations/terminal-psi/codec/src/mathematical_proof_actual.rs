@@ -140,10 +140,17 @@ pub fn verify_module_mathematical_actuals(
             return Err(Error::SourceCarrierMismatch);
         }
         slots::bind_slot(module, actual, expected, trusted)?;
-        if actual.actuals.len() != trusted.formals.len() {
+        if actual.actuals.len() != trusted.formals.len()
+            || trusted.actuals.len() != trusted.formals.len()
+        {
             return Err(Error::SourceCarrierMismatch);
         }
-        for (term, formal) in actual.actuals.iter().zip(trusted.formals) {
+        for ((term, formal), source_term) in actual
+            .actuals
+            .iter()
+            .zip(trusted.formals)
+            .zip(trusted.actuals)
+        {
             let carrier = expected
                 .mathematical_carriers
                 .iter()
@@ -170,7 +177,7 @@ pub fn verify_module_mathematical_actuals(
                     ProofTerm::MathematicalApplication {
                         type_identity,
                         certificate,
-                        formal_arguments,
+                        arguments,
                         formal_scope,
                     },
                     Some(carrier),
@@ -200,14 +207,27 @@ pub fn verify_module_mathematical_actuals(
                             &trusted.owner.contract.erased_proof_formals,
                         ),
                     };
+                    let ProofTerm::MathematicalApplication {
+                        arguments: source_arguments,
+                        formal_scope: source_scope,
+                        ..
+                    } = source_term
+                    else {
+                        return Err(Error::SourceCarrierMismatch);
+                    };
+                    if arguments != source_arguments || formal_scope != source_scope {
+                        return Err(Error::SourceCarrierMismatch);
+                    }
                     let decoded = applications::prepare(
                         module,
                         caller,
                         expected,
                         trusted_caller,
                         certificate,
-                        formal_arguments,
+                        arguments,
                         &carrier.carrier_key,
+                        actual,
+                        trusted,
                         budget,
                     )?;
                     pending.push((decoded, grants(carrier)?));

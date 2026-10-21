@@ -48,6 +48,19 @@ pub enum CheckedProofTermRole {
     TransitionContinuationArgument { argument_ordinal: u32 },
 }
 
+/// Typed inputs to a retained closed mathematical function. Scalar expressions
+/// use the same immutable source namespace as ordinary scalar call operands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedMathematicalArgument {
+    Formal {
+        parameter_symbol: SymbolHandle,
+    },
+    Scalar {
+        type_identity: TypeIdentityId,
+        expression: CheckedScalarExpression,
+    },
+}
+
 /// One erased actual recorded at its exact authored position. The term is a
 /// construction, a pass-through of the caller's own erased proof-lane
 /// formal, or — nested inside a construction field — a scalar leaf; none
@@ -63,13 +76,13 @@ pub enum CheckedProofTerm {
         term: proof_admission::TermHandle,
         ty: proof_admission::TermHandle,
     },
-    /// A closed checked function instantiated at exact caller proof formals.
+    /// A closed checked function instantiated at exact caller scalar/proof inputs.
     /// Its certificate stays closed; the receiving scope supplies the arguments.
     MathematicalApplication {
         type_identity: TypeIdentityId,
         term: proof_admission::TermHandle,
         ty: proof_admission::TermHandle,
-        formal_parameters: Vec<SymbolHandle>,
+        arguments: Vec<CheckedMathematicalArgument>,
     },
     /// A checked fixed array, retaining its exact element/extent identity and
     /// authored element order without an executable storage place.

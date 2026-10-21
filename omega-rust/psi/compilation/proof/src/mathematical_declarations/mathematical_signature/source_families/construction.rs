@@ -49,6 +49,49 @@ impl Elaborator<'_> {
             }
             self.source_constructor_parameter(symbol, domain);
         }
+        // A value of an authored Type formal has no primitive carrier to
+        // classify. Its exact domain is the already bound Type coordinate.
+        // Elaborate it only after those placeholders exist, so no free
+        // de Bruijn variable enters the declaration signature. Dependency
+        // abstraction retains both the Type and value binders in order.
+        let typed_values = self
+            .program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_mutable
+                    && matches!(
+                        self.program.type_reference_table.type_reference(parameter.type_reference),
+                        TypeReferenceNode::Named { symbol, .. }
+                            if self.program.machine_type_parameters(machine).iter().any(|binder| {
+                                binder.symbol == *symbol
+                                    && matches!(binder.kind, typed_trees::data::TypeParameterKind::Type)
+                            })
+                    )
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for parameter in typed_values {
+            let TypeReferenceNode::Named { symbol, .. } = self
+                .program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                unreachable!("selected exact Type-formal domain")
+            };
+            if !self
+                .source_constructor_context
+                .values
+                .iter()
+                .any(|(bound, _)| bound == symbol)
+            {
+                return Err(
+                    self.refuse("source constructor value lost its exact Type-formal scope".into())
+                );
+            }
+            let domain = self.elaborate_type_reference(parameter.type_reference)?;
+            self.source_constructor_parameter(parameter.symbol, domain);
+        }
         let evidence = self
             .program
             .state_parameters(state)
@@ -369,13 +412,21 @@ impl Elaborator<'_> {
         };
         let literal = literal.clone();
         self.span = Some(self.program.expression_table.source_span(expression));
-        let TypeReferenceNode::Generic { base_symbol, .. } =
-            self.program.type_reference_table.type_reference(reference)
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = self.program.type_reference_table.type_reference(reference)
         else {
             return Err(
                 self.refuse("source indexed constructor lost its exact family application".into())
             );
         };
+        let arguments = self
+            .program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .to_vec();
         let family = self.source_family(*base_symbol)?;
         let case = if let Some(selected) = literal.case_symbol {
             let actual = self
@@ -417,6 +468,11 @@ impl Elaborator<'_> {
             );
         }
         let mut common = Vec::new();
+        for (parameter, argument) in family.parameters.iter().zip(&arguments) {
+            if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+                common.push(self.elaborate_type_reference(*argument)?);
+            }
+        }
         let mut payload = Vec::new();
         let mut children = Vec::new();
         for field in &family.common {

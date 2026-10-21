@@ -43,8 +43,8 @@ pub use computations::{
 };
 mod proof_terms;
 pub use proof_terms::{
-    CheckedErasedProofParameterPlan, CheckedLocatedProofTerm, CheckedProofTerm,
-    CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
+    CheckedErasedProofParameterPlan, CheckedLocatedProofTerm, CheckedMathematicalArgument,
+    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
 };
 mod structural_values;
 pub use structural_values::{

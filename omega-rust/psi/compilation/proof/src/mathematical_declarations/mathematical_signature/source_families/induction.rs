@@ -223,9 +223,9 @@ impl Elaborator<'_> {
         let common_types = family
             .common
             .iter()
-            .map(|field| self.kernel_field_domain(field))
+            .map(|field| self.source_field_function(field, &family.parameters))
             .collect::<Result<Vec<_>, _>>()?;
-        let common = family
+        let mut common = family
             .common
             .iter()
             .zip(&common_types)
@@ -235,16 +235,32 @@ impl Elaborator<'_> {
             .program
             .unique_data_definition_by_symbol(symbol)
             .expect("retained source family declaration");
-        let index_fields = self
+        let type_symbols = family
+            .parameters
+            .iter()
+            .filter(|parameter| {
+                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        let type_sort = self
+            .arena
+            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        common.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+        let mut index_fields = self
             .program
             .data_value_parameter_fields(data)
             .map(|(_, field)| field.symbol)
             .collect::<Vec<_>>();
+        index_fields.splice(0..0, type_symbols.iter().copied());
         for case in &family.cases {
             let payload = case
                 .payload
                 .iter()
-                .map(|field| self.kernel_field_domain(field).map(|ty| (field.symbol, ty)))
+                .map(|field| {
+                    self.source_field_function(field, &family.parameters)
+                        .map(|ty| (field.symbol, ty))
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             let fields = common
                 .iter()
@@ -253,7 +269,15 @@ impl Elaborator<'_> {
                 .collect::<Vec<_>>();
             let mut values = Vec::new();
             let mut parameters = Vec::new();
-            for &(field, domain) in &fields {
+            for &(field, mut domain) in &fields {
+                if !type_symbols.contains(&field) {
+                    for actual in values.iter().take(type_symbols.len()) {
+                        domain = self.arena.insert(Term::Apply {
+                            function: domain,
+                            argument: *actual,
+                        });
+                    }
+                }
                 // Temporary arbitrary values are not predicate axioms. Every
                 // occurrence is abstracted before the theorem is checked.
                 let position = self.declarations.len() as u32;
@@ -356,6 +380,7 @@ impl Elaborator<'_> {
             invariant,
             &lemmas,
             &mut self.declarations,
+            &type_symbols,
         )
         .map_err(|error| self.refuse(error.into()))?;
         self.check_induction_term(step, step_type, "indexed-family induction step")?;
@@ -402,13 +427,10 @@ impl Elaborator<'_> {
     ) -> Result<(), Vec<Diagnostic>> {
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
-        proof_admission::check_type(
-            &mut self.arena,
-            &context,
-            term,
-            ty,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .map_err(|error| self.refuse(format!("generated {role} fails kernel checking: {error:?}")))
+        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        let result = proof_admission::check_type(&mut self.arena, &context, term, ty, &mut budget);
+        result.map_err(|error| {
+            self.refuse(format!("generated {role} fails kernel checking: {error:?}"))
+        })
     }
 }

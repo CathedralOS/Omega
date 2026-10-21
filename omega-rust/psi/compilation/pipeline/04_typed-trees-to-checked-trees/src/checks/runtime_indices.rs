@@ -703,20 +703,20 @@ impl Scope<'_> {
         if depth > 128 || !expression.is_valid() {
             return None;
         }
-        let reference = validation::expression_result_type_reference(
-            self.program,
-            self.machine,
-            self.state,
-            expression,
-        )?;
-        if !validation::mathematical_applications::is_source_evidence_carrier(
-            self.program,
-            reference,
-        ) {
-            return None;
-        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                let reference = validation::expression_result_type_reference(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                )?;
+                if !validation::mathematical_applications::is_source_evidence_carrier(
+                    self.program,
+                    reference,
+                ) {
+                    return None;
+                }
                 if path.symbol != path.head_symbol
                     || self
                         .program
@@ -736,14 +736,60 @@ impl Scope<'_> {
                     .then_some(reference)
             }
             ExpressionNode::Member(member) => {
-                self.erased_evidence_reference(member.receiver, depth + 1)?;
+                let receiver = self.erased_evidence_reference(member.receiver, depth + 1)?;
                 let field = validation::declared_case_projection_field(
                     self.program,
                     self.machine,
                     Some(self.state),
                     expression,
                 )?;
-                (field.relevance.is_erased()).then_some(reference)
+                if !field.relevance.is_erased() {
+                    return None;
+                }
+                if validation::mathematical_applications::is_source_evidence_carrier(
+                    self.program,
+                    field.type_reference,
+                ) {
+                    return Some(field.type_reference);
+                }
+                // A prepared Type application substitutes its payload types.
+                // Rejoin this exact selection to the independently formed
+                // declaration carrier, not an unregistered applied reference.
+                // actual_erased_identity subsequently applies the receiver's
+                // complete Type/value tuple and exact payload projections.
+                let retained = member.member_symbol;
+                if !retained.is_valid()
+                    || self.program.symbols.get(retained).kind != symbols::SymbolKind::Field
+                {
+                    return None;
+                }
+                let case_symbol = self.program.symbols.get(retained).parent;
+                if !case_symbol.is_valid()
+                    || self.program.symbols.get(case_symbol).kind != symbols::SymbolKind::Variant
+                {
+                    return None;
+                }
+                let owner_symbol = self.program.symbols.get(case_symbol).parent;
+                let owner = self
+                    .program
+                    .unique_data_definition_by_symbol(owner_symbol)?;
+                let case = self.program.data_members(owner).iter().find_map(|member| {
+                    let case = member.as_variant()?;
+                    (case.symbol == case_symbol).then_some(case)
+                })?;
+                let declared = self.program.data_payload_field_by_symbol(case, retained)?;
+                let applied =
+                    self.program
+                        .data_constructor_field(receiver, owner.symbol, retained)?;
+                (declared.relevance.is_erased()
+                    && applied.symbol == field.symbol
+                    && applied.identity == field.identity
+                    && applied.type_reference == field.type_reference
+                    && validation::mathematical_applications::is_source_evidence_carrier(
+                        self.program,
+                        declared.type_reference,
+                    ))
+                .then_some(declared.type_reference)
             }
             _ => None,
         }

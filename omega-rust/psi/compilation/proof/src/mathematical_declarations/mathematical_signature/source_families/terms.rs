@@ -19,6 +19,7 @@ pub(super) enum Key {
 #[derive(Clone)]
 enum S {
     Closed(TermHandle),
+    SourceDomain(TermHandle, Vec<Key>),
     Var(Key),
     Type,
     Two,
@@ -37,6 +38,9 @@ enum S {
     BoxIntro(Box<S>, Box<S>),
     BoxElim(Box<S>, Box<S>, Box<S>),
     EmptyElim(Box<S>, Box<S>),
+    Identity(Box<S>, Box<S>, Box<S>),
+    Reflexivity(Box<S>, Box<S>),
+    IdentityElimination(Box<S>, Box<S>, Box<S>, Box<S>),
 }
 fn app(f: S, x: S) -> S {
     S::App(Box::new(f), Box::new(x))
@@ -71,6 +75,25 @@ impl S {
     ) -> Result<TermHandle, &'static str> {
         let node = match self {
             Self::Closed(t) => return Ok(*t),
+            Self::SourceDomain(function, parameters) => {
+                // These lambdas were just built by source_field_function,
+                // not read from authored functions or predicate evidence.
+                // Reduce only that administrative telescope, preserving its
+                // body and exact source-keyed Type actual under inner binders.
+                let mut result = *function;
+                for parameter in parameters {
+                    let position = scope
+                        .iter()
+                        .rposition(|key| key == parameter)
+                        .ok_or("source payload domain lost its Type binder")?;
+                    let actual = arena.insert(Term::Variable((scope.len() - 1 - position) as u32));
+                    let Term::Lambda { body, .. } = arena.get(result) else {
+                        return Err("source payload domain lost its generated Type telescope");
+                    };
+                    result = proof_admission::substitute(arena, body, actual);
+                }
+                return Ok(result);
+            }
             Self::Var(k) => Term::Variable(
                 scope
                     .iter()
@@ -136,6 +159,21 @@ impl S {
             Self::EmptyElim(a, x) => Term::EmptyElim {
                 ty: a.term(arena, scope)?,
                 scrutinee: x.term(arena, scope)?,
+            },
+            Self::Identity(ty, left, right) => Term::Id {
+                ty: ty.term(arena, scope)?,
+                left: left.term(arena, scope)?,
+                right: right.term(arena, scope)?,
+            },
+            Self::Reflexivity(ty, value) => Term::Refl {
+                ty: ty.term(arena, scope)?,
+                value: value.term(arena, scope)?,
+            },
+            Self::IdentityElimination(motive, base, endpoint, proof) => Term::IdElim {
+                motive: motive.term(arena, scope)?,
+                base: base.term(arena, scope)?,
+                endpoint: endpoint.term(arena, scope)?,
+                proof: proof.term(arena, scope)?,
             },
         };
         Ok(arena.insert(node))
@@ -251,8 +289,23 @@ struct Builder<'a> {
     common: &'a [(SymbolHandle, TermHandle)],
     index_fields: &'a [SymbolHandle],
     cases: &'a [Case],
+    type_parameters: &'a [SymbolHandle],
 }
 impl Builder<'_> {
+    fn domain(&self, symbol: SymbolHandle, ty: TermHandle) -> S {
+        if self.type_parameters.is_empty() || self.type_parameters.contains(&symbol) {
+            S::Closed(ty)
+        } else {
+            S::SourceDomain(
+                ty,
+                self.type_parameters
+                    .iter()
+                    .copied()
+                    .map(Key::Source)
+                    .collect(),
+            )
+        }
+    }
     fn index_type(&mut self) -> Result<S, &'static str> {
         let mut fields = Vec::new();
         for symbol in self.index_fields {
@@ -263,12 +316,12 @@ impl Builder<'_> {
                 .ok_or("source index lost its exact descriptor field")?;
             fields.push((*symbol, *ty));
         }
-        let Some((_, last)) = fields.pop() else {
+        let Some((last_symbol, last)) = fields.pop() else {
             return Ok(self.terms.unit());
         };
-        let mut body = S::Closed(last);
+        let mut body = self.domain(last_symbol, last);
         for (symbol, ty) in fields.into_iter().rev() {
-            body = sigma(Key::Source(symbol), S::Closed(ty), body);
+            body = sigma(Key::Source(symbol), self.domain(symbol, ty), body);
         }
         Ok(body)
     }
@@ -282,7 +335,7 @@ impl Builder<'_> {
     fn payload_type(&self, case: usize) -> S {
         let mut body = self.constraint_application(case);
         for (symbol, ty) in self.cases[case].payload.iter().rev() {
-            body = sigma(Key::Source(*symbol), S::Closed(*ty), body);
+            body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
         }
         body
     }
@@ -302,7 +355,7 @@ impl Builder<'_> {
     fn carrier(&mut self) -> S {
         let mut body = self.sum_type(0);
         for (symbol, ty) in self.common.iter().rev() {
-            body = sigma(Key::Source(*symbol), S::Closed(*ty), body);
+            body = sigma(Key::Source(*symbol), self.domain(*symbol, *ty), body);
         }
         body
     }
@@ -378,7 +431,7 @@ impl Builder<'_> {
         let body = self.eliminate(0, S::Var(tail), kind)?;
         let mut function = lam(tail, sum_type, body);
         for (symbol, ty) in self.common.iter().rev() {
-            function = lam(Key::Source(*symbol), S::Closed(*ty), function);
+            function = lam(Key::Source(*symbol), self.domain(*symbol, *ty), function);
         }
         let mut tail_value = label.clone();
         for _ in self.common {
@@ -450,12 +503,14 @@ pub(super) fn description(
     common: &[(SymbolHandle, TermHandle)],
     index_fields: &[SymbolHandle],
     cases: &[Case],
+    type_parameters: &[SymbolHandle],
 ) -> Result<IndexedFamily, &'static str> {
     let mut b = Builder {
         terms: SourceTerms::default(),
         common,
         index_fields,
         cases,
+        type_parameters,
     };
     let carrier = b.carrier();
     let index = b.index_type()?;
@@ -469,7 +524,11 @@ pub(super) fn description(
     let next_body = b.unpack(S::Var(a), ResultKind::Next)?;
     let next = lam(a, carrier.clone(), next_body);
     Ok(IndexedFamily {
-        levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
+        levels: [
+            Level::Constant(u32::from(!type_parameters.is_empty())),
+            Level::Constant(u32::from(!type_parameters.is_empty())),
+            Level::Constant(0),
+        ],
         index: index.term(arena, &mut Vec::new())?,
         carrier: carrier.term(arena, &mut Vec::new())?,
         children: children.term(arena, &mut Vec::new())?,
@@ -479,19 +538,14 @@ pub(super) fn description(
 }
 
 /// Share closed descriptions using ordinary typed transparent definitions.
+/// Index and label sorts retain their own inferred telescope levels; a Type0
+/// carrier parameter is an index value in Type1, never a Type0 universe axiom.
 /// The caller still checks every declaration body in the whole signature.
 pub(super) fn intern_description(
     arena: &mut TermArena,
     declarations: &mut Vec<proof_admission::Declaration>,
     mut family: IndexedFamily,
 ) -> Result<IndexedFamily, &'static str> {
-    if family
-        .levels
-        .iter()
-        .any(|level| *level != Level::Constant(0))
-    {
-        return Err("source description sharing requires its checked closed level-zero telescope");
-    }
     fn retain(
         arena: &mut TermArena,
         declarations: &mut Vec<proof_admission::Declaration>,
@@ -506,8 +560,14 @@ pub(super) fn intern_description(
         })
     }
     let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
-    family.index = retain(arena, declarations, sort, family.index);
-    family.carrier = retain(arena, declarations, sort, family.carrier);
+    let index_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
+        family.levels[0].clone(),
+    )));
+    let carrier_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
+        family.levels[1].clone(),
+    )));
+    family.index = retain(arena, declarations, index_sort, family.index);
+    family.carrier = retain(arena, declarations, carrier_sort, family.carrier);
     let ty = arena.insert(Term::Pi {
         domain: family.carrier,
         codomain: sort,
@@ -713,10 +773,26 @@ struct InductionBuilder<'a, 'b> {
     family: &'b IndexedFamily,
     iw: TermHandle,
     label_pack: TermHandle,
+    logical_result: TermHandle,
+    reconstruction_equality: TermHandle,
     invariant: TermHandle,
     lemmas: &'b [TermHandle],
 }
 impl InductionBuilder<'_, '_> {
+    fn reconstructed_label(&mut self, label: S) -> S {
+        let mut function = S::Closed(self.label_pack);
+        let mut tail = label;
+        for _ in self.b.common {
+            function = app(function, fst(tail.clone()));
+            tail = snd(tail);
+        }
+        // The outer case motive names the observed tag and its exact
+        // dependent payload separately. Preserve that same reconstruction.
+        if self.b.cases.len() > 1 {
+            tail = pair(fst(tail.clone()), snd(tail));
+        }
+        app(function, tail)
+    }
     fn label(&mut self, start: usize, mut value: S) -> S {
         for _ in 0..start {
             value = pair(S::One, value);
@@ -732,40 +808,15 @@ impl InductionBuilder<'_, '_> {
     }
     fn result_type(&mut self, start: usize, value: S) -> S {
         let label = self.label(start, value);
-        let positions = app(S::Closed(self.family.children), label.clone());
-        let p = self.b.terms.fresh();
-        let next = app(app(S::Closed(self.family.next), label.clone()), S::Var(p));
-        let hypotheses = pi(p, positions, app(S::Closed(self.invariant), next));
-        let ih = self.b.terms.fresh();
-        pi(
-            ih,
-            hypotheses,
-            app(
-                S::Closed(self.invariant),
-                app(S::Closed(self.family.out), label),
-            ),
-        )
+        app(S::Closed(self.logical_result), label)
     }
     fn type_at_label(&mut self, label: S) -> S {
         let positions = app(S::Closed(self.family.children), label.clone());
         let p = self.b.terms.fresh();
         let next = app(app(S::Closed(self.family.next), label.clone()), S::Var(p));
-        let children = pi(p, positions.clone(), app(S::Closed(self.iw), next.clone()));
-        let hypotheses = pi(p, positions, app(S::Closed(self.invariant), next));
+        let children = pi(p, positions, app(S::Closed(self.iw), next));
         let g = self.b.terms.fresh();
-        let ih = self.b.terms.fresh();
-        pi(
-            g,
-            children,
-            pi(
-                ih,
-                hypotheses,
-                app(
-                    S::Closed(self.invariant),
-                    app(S::Closed(self.family.out), label),
-                ),
-            ),
-        )
+        pi(g, children, app(S::Closed(self.logical_result), label))
     }
     fn unit_value(&mut self) -> S {
         let x = self.b.terms.fresh();
@@ -845,7 +896,7 @@ impl InductionBuilder<'_, '_> {
         let body = self.eliminate(0, S::Var(tail))?;
         let mut function = lam(tail, sum_type, body);
         for (symbol, ty) in self.b.common.iter().rev() {
-            function = lam(Key::Source(*symbol), S::Closed(*ty), function);
+            function = lam(Key::Source(*symbol), self.b.domain(*symbol, *ty), function);
         }
         let mut value = S::Var(a);
         for _ in self.b.common {
@@ -860,10 +911,33 @@ impl InductionBuilder<'_, '_> {
         let next = app(app(S::Closed(self.family.next), S::Var(a)), S::Var(p));
         let children = pi(p, positions, app(S::Closed(self.iw), next));
         let g = self.b.terms.fresh();
+        let endpoint = self.b.terms.fresh();
+        let equality = self.b.terms.fresh();
+        let reconstructed = self.reconstructed_label(S::Var(a));
+        let equality_domain = S::Identity(
+            Box::new(S::Closed(self.family.carrier)),
+            Box::new(reconstructed),
+            Box::new(S::Var(endpoint)),
+        );
+        let motive = lam(
+            endpoint,
+            S::Closed(self.family.carrier),
+            lam(
+                equality,
+                equality_domain,
+                app(S::Closed(self.logical_result), S::Var(endpoint)),
+            ),
+        );
+        let transported = S::IdentityElimination(
+            Box::new(motive),
+            Box::new(app(function, value)),
+            Box::new(S::Var(a)),
+            Box::new(app(S::Closed(self.reconstruction_equality), S::Var(a))),
+        );
         Ok(lam(
             a,
             S::Closed(self.family.carrier),
-            lam(g, children, app(function, value)),
+            lam(g, children, transported),
         ))
     }
 }
@@ -938,6 +1012,7 @@ pub(super) fn induction(
     invariant: TermHandle,
     lemmas: &[TermHandle],
     declarations: &mut Vec<proof_admission::Declaration>,
+    type_parameters: &[SymbolHandle],
 ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
     if cases.len() != lemmas.len() {
         return Err("source induction lemma roster differs from its exact cases");
@@ -955,10 +1030,17 @@ pub(super) fn induction(
             levels: vec![],
         })
     }
-    let sort = arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+    let w_sort = arena.insert(Term::Sort(proof_admission::Sort::Type(
+        family
+            .levels
+            .iter()
+            .cloned()
+            .reduce(|left, right| left.maximum(right))
+            .expect("three W levels"),
+    )));
     let function_type = arena.insert(Term::Pi {
         domain: family.index,
-        codomain: sort,
+        codomain: w_sort,
     });
     let i = arena.insert(Term::Variable(0));
     let iw_body = family.indexed_w(arena, i);
@@ -976,6 +1058,7 @@ pub(super) fn induction(
         common,
         index_fields,
         cases,
+        type_parameters,
     };
     let tail = builder.terms.fresh();
     let sum_type = builder.sum_type(0);
@@ -986,25 +1069,108 @@ pub(super) fn induction(
     let mut pack = lam(tail, sum_type.clone(), raw_label);
     let mut pack_type = pi(tail, sum_type, S::Closed(family.carrier));
     for (symbol, ty) in common.iter().rev() {
-        pack = lam(Key::Source(*symbol), S::Closed(*ty), pack);
-        pack_type = pi(Key::Source(*symbol), S::Closed(*ty), pack_type);
+        pack = lam(Key::Source(*symbol), builder.domain(*symbol, *ty), pack);
+        pack_type = pi(
+            Key::Source(*symbol),
+            builder.domain(*symbol, *ty),
+            pack_type,
+        );
     }
     let pack = pack.term(arena, &mut Vec::new())?;
     let pack_type = pack_type.term(arena, &mut Vec::new())?;
     let label_pack = retain(arena, declarations, pack_type, pack);
+    // All source case branches prove this same index-only result. Sharing
+    // its transparent definition avoids reconstructing the dependent IH/out
+    // telescope in every motive and every expected-sort query. The recursive
+    // tree argument still keeps its full IW level outside this Type0 result.
+    let a = arena.insert(Term::Variable(0));
+    let positions = arena.insert(Term::Apply {
+        function: family.children,
+        argument: a,
+    });
+    let next = arena.insert(Term::Apply {
+        function: family.next,
+        argument: a,
+    });
+    let position = arena.insert(Term::Variable(0));
+    let next = proof_admission::shift(arena, next, 0, 1);
+    let next = arena.insert(Term::Apply {
+        function: next,
+        argument: position,
+    });
+    let hypothesis = arena.insert(Term::Apply {
+        function: invariant,
+        argument: next,
+    });
+    let hypotheses = arena.insert(Term::Pi {
+        domain: positions,
+        codomain: hypothesis,
+    });
+    let out = arena.insert(Term::Apply {
+        function: family.out,
+        argument: a,
+    });
+    let goal = arena.insert(Term::Apply {
+        function: invariant,
+        argument: out,
+    });
+    let goal = proof_admission::shift(arena, goal, 0, 1);
+    let result = arena.insert(Term::Pi {
+        domain: hypotheses,
+        codomain: goal,
+    });
+    let result = arena.insert(Term::Lambda {
+        domain: family.carrier,
+        body: result,
+    });
+    let proposition_sort =
+        arena.insert(Term::Sort(proof_admission::Sort::Type(Level::Constant(0))));
+    let result_type = arena.insert(Term::Pi {
+        domain: family.carrier,
+        codomain: proposition_sort,
+    });
+    let logical_result = retain(arena, declarations, result_type, result);
     let mut producer = InductionBuilder {
         b: Builder {
             terms: SourceTerms::default(),
             common,
             index_fields,
             cases,
+            type_parameters,
         },
         family,
         iw,
         label_pack,
+        logical_result,
+        reconstruction_equality: TermHandle::default(),
         invariant,
         lemmas,
     };
+    // Check typed dependent-pair eta once at the actual label carrier. The
+    // case adapter then transports its already proved result along this
+    // ordinary equality, rather than repeatedly comparing the reconstructed
+    // label beneath B/next and every recursive hypothesis. This introduces
+    // neither an equality assumption nor a new computation rule: the full
+    // equality definition and the J motive/base remain signature-checked.
+    let label = producer.b.terms.fresh();
+    let reconstructed = producer.reconstructed_label(S::Var(label));
+    let equality_type = pi(
+        label,
+        S::Closed(family.carrier),
+        S::Identity(
+            Box::new(S::Closed(family.carrier)),
+            Box::new(reconstructed.clone()),
+            Box::new(S::Var(label)),
+        ),
+    )
+    .term(arena, &mut Vec::new())?;
+    let equality_body = lam(
+        label,
+        S::Closed(family.carrier),
+        S::Reflexivity(Box::new(S::Closed(family.carrier)), Box::new(reconstructed)),
+    )
+    .term(arena, &mut Vec::new())?;
+    producer.reconstruction_equality = retain(arena, declarations, equality_type, equality_body);
     let step_body = producer.step()?.term(arena, &mut Vec::new())?;
     let a = producer.b.terms.fresh();
     let result_type = producer.type_at_label(S::Var(a));
@@ -1229,7 +1395,7 @@ mod induction_tests {
                 child_indices: vec![child_index; count],
             })
             .collect::<Vec<_>>();
-        let family = description(&mut arena, &[(field, two)], &[field], &cases).unwrap();
+        let family = description(&mut arena, &[(field, two)], &[field], &cases, &[]).unwrap();
         let family = intern_description(&mut arena, &mut declarations, family).unwrap();
         let index = arena.insert(Term::Variable(0));
         let reflexive = arena.insert(Term::Id {
@@ -1285,6 +1451,7 @@ mod induction_tests {
             invariant,
             &lemmas,
             &mut declarations,
+            &[],
         )
         .unwrap();
         let context =
@@ -1684,7 +1851,7 @@ mod indexed_vector_budget_tests {
         // alias domains remain in the constraint/invariant functions above.
         let common = [(length_symbol, integer), (total_symbol, integer)];
         let indices = [length_symbol, total_symbol];
-        let family = description(&mut arena, &common, &indices, &cases).unwrap();
+        let family = description(&mut arena, &common, &indices, &cases, &[]).unwrap();
         let family = intern_description(&mut arena, &mut declarations, family).unwrap();
         let i = arena.insert(Term::Variable(0));
         let length = arena.insert(Term::Fst { pair: i });
@@ -1812,6 +1979,7 @@ mod indexed_vector_budget_tests {
             invariant,
             &lemmas,
             &mut declarations,
+            &[],
         )
         .unwrap();
         checked(&mut arena, &declarations, step, step_type, "step");

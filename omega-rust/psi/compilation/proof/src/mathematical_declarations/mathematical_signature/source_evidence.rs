@@ -12,6 +12,38 @@ use typed_trees::types::TypeReferenceHandle;
 use validation::mathematical_applications::{PreparedSourceCarrier, PreparedSourceEvidence};
 
 impl Elaborator<'_> {
+    /// Ambient binders do not necessarily occur in a source carrier. Retain
+    /// an empty context only after the ordinary kernel forms this exact type
+    /// without them. Open Type/value coordinates keep their entire telescope;
+    /// no receiving policy or assumption grant follows from this check.
+    /// Both callers precede constructor retention; every preceding successful
+    /// constructor restores its placeholder context before this lookup.
+    fn source_carrier_domains(&mut self, ty: TermHandle) -> Vec<TermHandle> {
+        let domains = self
+            .scope
+            .iter()
+            .map(|entry| entry.domain)
+            .collect::<Vec<_>>();
+        if domains.is_empty() {
+            return domains;
+        }
+        let context = Context::empty().with_signature(
+            proof_admission::Signature::from_declarations(self.declarations.clone()),
+        );
+        if proof_admission::infer_sort(
+            &mut self.arena,
+            &context,
+            ty,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .is_ok()
+        {
+            Vec::new()
+        } else {
+            domains
+        }
+    }
+
     fn known_source_family(&self, reference: TypeReferenceHandle) -> bool {
         matches!(self.program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Generic { base_symbol, .. }
@@ -24,6 +56,7 @@ impl Elaborator<'_> {
         for family in families {
             for case in &family.cases {
                 self.scope.clear();
+                self.push_family_type_scope(&family.parameters);
                 for field in family.common.iter().chain(&case.payload) {
                     let domain = self.elaborate_type_reference(field.type_reference)?;
                     self.push_scope(Some(field.symbol), field.name.clone(), domain);
@@ -31,11 +64,12 @@ impl Elaborator<'_> {
                 for field in &case.children {
                     let reference = field.type_reference;
                     let ty = self.elaborate_type_reference(reference)?;
+                    let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
-                        domains: self.scope.iter().map(|entry| entry.domain).collect(),
+                        domains,
                     });
                 }
             }
@@ -84,17 +118,25 @@ impl Elaborator<'_> {
             self.source_owner = machine.symbol;
             self.span = self.program.symbols.symbol_source_span(machine.symbol);
             let binders = self.program.machine_type_parameters(machine).to_vec();
-            if binders
-                .iter()
-                .any(|binder| !matches!(binder.kind, TypeParameterKind::Value { .. }))
-            {
+            if binders.iter().any(|binder| {
+                !matches!(
+                    binder.kind,
+                    TypeParameterKind::Type | TypeParameterKind::Value { .. }
+                )
+            }) {
                 continue;
             }
             for binder in &binders {
-                let TypeParameterKind::Value { type_reference } = binder.kind else {
-                    unreachable!()
-                };
-                let domain = self.elaborate_type_reference(type_reference)?;
+                let domain =
+                    match binder.kind {
+                        TypeParameterKind::Type => self.arena.insert(proof_admission::Term::Sort(
+                            proof_admission::Sort::Type(proof_admission::Level::Constant(0)),
+                        )),
+                        TypeParameterKind::Value { type_reference } => {
+                            self.elaborate_type_reference(type_reference)?
+                        }
+                        _ => unreachable!(),
+                    };
                 self.push_scope(Some(binder.symbol), binder.name.clone(), domain);
             }
             let machine_depth = self.scope.len();
@@ -111,6 +153,18 @@ impl Elaborator<'_> {
                     {
                         let domain =
                             self.elaborate_source_operand_type(parameter.type_reference)?;
+                        // A mixed constructor application needs an independent
+                        // denotation for each primitive argument, not an assumed
+                        // scalar-to-mathematical cast at the wire boundary.
+                        let domains = self.source_carrier_domains(domain);
+                        self.prepared.source_carriers.append(PreparedSourceCarrier {
+                            source_type: parameter.type_reference,
+                            type_identity: self
+                                .program
+                                .normalized_type_identity(parameter.type_reference),
+                            ty: domain,
+                            domains,
+                        });
                         self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
                     }
                 }
@@ -125,11 +179,12 @@ impl Elaborator<'_> {
                         continue;
                     }
                     let ty = self.elaborate_type_reference(reference)?;
+                    let domains = self.source_carrier_domains(ty);
                     self.prepared.source_carriers.append(PreparedSourceCarrier {
                         source_type: reference,
                         type_identity: self.program.normalized_type_identity(reference),
                         ty,
-                        domains: self.scope.iter().map(|entry| entry.domain).collect(),
+                        domains,
                     });
                 }
                 // Constructors used only in erased locals still demand their
@@ -303,19 +358,23 @@ impl Elaborator<'_> {
                 .to_vec();
             let family = self.source_family(symbol)?;
             let binders = self.program.machine_type_parameters(machine).to_vec();
-            if binders
-                .iter()
-                .any(|binder| !matches!(binder.kind, TypeParameterKind::Value { .. }))
-            {
+            if binders.iter().any(|binder| {
+                !matches!(
+                    binder.kind,
+                    TypeParameterKind::Type | TypeParameterKind::Value { .. }
+                )
+            }) {
                 continue;
             }
             let mut telescope = binders
                 .iter()
                 .map(|binder| {
-                    let TypeParameterKind::Value { type_reference } = binder.kind else {
-                        unreachable!()
+                    let reference = match binder.kind {
+                        TypeParameterKind::Type => None,
+                        TypeParameterKind::Value { type_reference } => Some(type_reference),
+                        _ => unreachable!(),
                     };
-                    (binder.symbol, binder.name.clone(), type_reference)
+                    (binder.symbol, binder.name.clone(), reference)
                 })
                 .collect::<Vec<_>>();
             // A runtime Value instance realizes its original scalar binders as
@@ -399,7 +458,7 @@ impl Elaborator<'_> {
                     telescope.push((
                         parameter.symbol,
                         parameter.name.clone(),
-                        parameter.type_reference,
+                        Some(parameter.type_reference),
                     ));
                 }
             }
@@ -410,7 +469,14 @@ impl Elaborator<'_> {
             self.scope.clear();
             self.span = self.program.symbols.symbol_source_span(machine.symbol);
             for (symbol, name, type_reference) in &telescope {
-                let domain = self.elaborate_type_reference(*type_reference)?;
+                let domain = if let Some(reference) = type_reference {
+                    self.elaborate_type_reference(*reference)?
+                } else {
+                    self.arena
+                        .insert(proof_admission::Term::Sort(proof_admission::Sort::Type(
+                            proof_admission::Level::Constant(0),
+                        )))
+                };
                 self.push_scope(Some(*symbol), name.clone(), domain);
             }
             let actuals = arguments
@@ -512,7 +578,14 @@ impl Elaborator<'_> {
                 );
                 // Restore the exact scalar telescope for another authored clause.
                 for (symbol, name, type_reference) in &telescope {
-                    let domain = self.elaborate_type_reference(*type_reference)?;
+                    let domain = if let Some(reference) = type_reference {
+                        self.elaborate_type_reference(*reference)?
+                    } else {
+                        self.arena
+                            .insert(proof_admission::Term::Sort(proof_admission::Sort::Type(
+                                proof_admission::Level::Constant(0),
+                            )))
+                    };
                     self.push_scope(Some(*symbol), name.clone(), domain);
                 }
             }

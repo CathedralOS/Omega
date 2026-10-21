@@ -5,9 +5,9 @@ use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::{ScalarLocal, located_binding_symbols};
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{
-    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedOperatorFacts,
-    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedScalarExpression,
-    CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
+    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedMathematicalArgument,
+    CheckedOperatorFacts, CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole,
+    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::IntegerLanding;
@@ -530,18 +530,43 @@ pub(crate) fn lower_proof_term(
                     ty: constructor.ty,
                 });
             }
-            if constructor.parameters.iter().all(|symbol| {
-                authored_parameters.iter().any(|parameter| {
-                    parameter.symbol == *symbol
-                        && parameter.relevance == language_core::BindingRelevance::Erased
-                        && !parameter.is_mutable
+            let arguments = constructor
+                .parameters
+                .iter()
+                .map(|symbol| {
+                    let parameter = authored_parameters
+                        .iter()
+                        .find(|parameter| parameter.symbol == *symbol && !parameter.is_mutable)?;
+                    if parameter.relevance == language_core::BindingRelevance::Erased {
+                        return Some(CheckedMathematicalArgument::Formal {
+                            parameter_symbol: *symbol,
+                        });
+                    }
+                    let primitive_type =
+                        program.primitive_type_reference(parameter.type_reference)?;
+                    if primitive_type != PrimitiveType::Bool
+                        && primitive_type.integer_bounds().is_none()
+                    {
+                        return None;
+                    }
+                    let position = parameters
+                        .iter()
+                        .position(|parameter| parameter.symbol == *symbol)?;
+                    Some(CheckedMathematicalArgument::Scalar {
+                        type_identity: program.normalized_type_identity(parameter.type_reference),
+                        expression: CheckedScalarExpression::Parameter {
+                            position,
+                            primitive_type,
+                        },
+                    })
                 })
-            }) {
+                .collect::<Option<Vec<_>>>();
+            if let Some(arguments) = arguments {
                 return Some(CheckedProofTerm::MathematicalApplication {
                     type_identity: constructor.type_identity,
                     term: constructor.schema,
                     ty: constructor.ty,
-                    formal_parameters: constructor.parameters.clone(),
+                    arguments,
                 });
             }
         }

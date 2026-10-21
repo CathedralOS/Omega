@@ -1,7 +1,7 @@
 //! Carrier classification and interning: which scalar carrier an operand
-//! inhabits, and the lazy `Type 0` assumptions (`Int`, `Boolean`, `addr`,
-//! the float formats, `IntLt`/`IntLe`/`Not`/`IntAdd`/`IntSub`, literals)
-//! the bounded vocabulary interns on first use.
+//! inhabits, and the lazy carrier/operation vocabulary interned on first use.
+//! Boolean and its two literals are transparent core definitions; integer,
+//! address and float vocabulary retains its independently audited assumptions.
 
 use numerics::bignum::BigInt;
 use numerics::literals::{FloatFormat, LandedIntegerType};
@@ -361,10 +361,15 @@ impl<'a> Elaborator<'a> {
         self.integer.unwrap()
     }
 
-    /// `bool : Type 0`.
+    /// The two-valued Boolean carrier is a transparent core definition,
+    /// not an extra proposition or an arbitrary inhabited-type assumption.
     pub(super) fn boolean_carrier(&mut self) -> u32 {
         if self.boolean.is_none() {
-            self.boolean = Some(self.push_type_carrier());
+            let ty = self.type_zero();
+            let body = self.arena.insert(Term::Two);
+            let position = self.declarations.len() as u32;
+            self.declarations.push(Declaration::definition(0, ty, body));
+            self.boolean = Some(position);
         }
         self.boolean.unwrap()
     }
@@ -549,7 +554,11 @@ impl<'a> Elaborator<'a> {
         }
         let carrier = self.boolean_carrier();
         let ty = self.constant(carrier);
-        let position = self.push_assumption(ty);
+        let body = self
+            .arena
+            .insert(if value { Term::TwoOne } else { Term::TwoZero });
+        let position = self.declarations.len() as u32;
+        self.declarations.push(Declaration::definition(0, ty, body));
         self.boolean_literals[value as usize] = Some(position);
         self.constant(position)
     }

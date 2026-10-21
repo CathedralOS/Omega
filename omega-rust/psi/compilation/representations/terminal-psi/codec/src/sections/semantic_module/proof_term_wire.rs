@@ -5,7 +5,7 @@
 //! recursive field order, and decode-time structural validation for them, plus
 //! the `ErasedProofFormal` roster encoding.
 
-use semantic_vocabulary::{ProofFormalScope, ProofTerm, ProofTermField};
+use semantic_vocabulary::{MathematicalArgument, ProofFormalScope, ProofTerm, ProofTermField};
 use terminal_psi::ErasedProofFormal;
 use terminal_psi::TerminalIdentityIndex;
 
@@ -20,6 +20,9 @@ const PROOF_TERM_ARRAY: u8 = 4;
 const PROOF_TERM_MATHEMATICAL: u8 = 5;
 const PROOF_TERM_MATHEMATICAL_APPLICATION: u8 = 6;
 const PROOF_TERM_INVOCATION_FORMAL: u8 = 7;
+// Scalar application lanes have their own tag. Existing erased-only terms keep
+// their canonical bytes; mixed terms explicitly encode every argument kind.
+const PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION: u8 = 8;
 
 pub(crate) fn encode_proof_terms(
     writer: &mut Writer,
@@ -53,10 +56,17 @@ fn encode_proof_term(
         ProofTerm::MathematicalApplication {
             type_identity,
             certificate,
-            formal_arguments,
+            arguments,
             formal_scope,
         } => {
-            writer.u8(PROOF_TERM_MATHEMATICAL_APPLICATION);
+            let mixed = arguments
+                .iter()
+                .any(|argument| matches!(argument, MathematicalArgument::Scalar { .. }));
+            writer.u8(if mixed {
+                PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION
+            } else {
+                PROOF_TERM_MATHEMATICAL_APPLICATION
+            });
             writer.string("proof term type identity", type_identity)?;
             writer.len("mathematical function certificate", certificate.len())?;
             writer.bytes(certificate);
@@ -64,9 +74,24 @@ fn encode_proof_term(
                 ProofFormalScope::Block => 0,
                 ProofFormalScope::Invocation => 1,
             });
-            writer.len("mathematical function arguments", formal_arguments.len())?;
-            for position in formal_arguments {
-                writer.u32(*position);
+            writer.len("mathematical function arguments", arguments.len())?;
+            for argument in arguments {
+                match argument {
+                    MathematicalArgument::Formal { position } => {
+                        if mixed {
+                            writer.u8(0);
+                        }
+                        writer.u32(*position);
+                    }
+                    MathematicalArgument::Scalar {
+                        type_identity,
+                        term,
+                    } => {
+                        writer.u8(1);
+                        writer.string("mathematical scalar source carrier", type_identity)?;
+                        encode_scalar_term(writer, term, depth + 1)?;
+                    }
+                }
             }
         }
         ProofTerm::Construction {
@@ -147,7 +172,7 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
             term.validate().map_err(CodecError::MalformedProposition)?;
             Ok(term)
         }
-        PROOF_TERM_MATHEMATICAL_APPLICATION => {
+        tag @ (PROOF_TERM_MATHEMATICAL_APPLICATION | PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION) => {
             let type_identity = reader.string("proof term type identity")?;
             let length = usize::try_from(reader.count()?).expect("u32 fits usize");
             let certificate = reader.take(length)?.to_vec();
@@ -158,18 +183,36 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
                 tag => return Err(CodecError::InvalidTag("proof formal scope", tag)),
             };
             let count = usize::try_from(reader.count()?).expect("u32 fits usize");
-            let length = count.checked_mul(4).ok_or(CodecError::CollectionTooLong(
-                "mathematical function arguments",
-            ))?;
-            let formal_arguments = reader
-                .take(length)?
-                .chunks_exact(4)
-                .map(|bytes| u32::from_le_bytes(bytes.try_into().expect("u32 chunk")))
-                .collect();
+            let minimum_argument_bytes = if tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION {
+                5
+            } else {
+                4
+            };
+            if count > reader.remaining() / minimum_argument_bytes {
+                return Err(CodecError::UnexpectedEnd);
+            }
+            let mut arguments = Vec::with_capacity(count);
+            for _ in 0..count {
+                let kind = if tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION {
+                    reader.u8()?
+                } else {
+                    0
+                };
+                arguments.push(match kind {
+                    0 => MathematicalArgument::Formal {
+                        position: reader.u32()?,
+                    },
+                    1 => MathematicalArgument::Scalar {
+                        type_identity: reader.string("mathematical scalar source carrier")?,
+                        term: decode_scalar_term(reader, depth + 1)?,
+                    },
+                    tag => return Err(CodecError::InvalidTag("mathematical argument kind", tag)),
+                });
+            }
             let term = ProofTerm::MathematicalApplication {
                 type_identity,
                 certificate,
-                formal_arguments,
+                arguments,
                 formal_scope,
             };
             term.validate().map_err(CodecError::MalformedProposition)?;
@@ -267,6 +310,96 @@ pub(crate) fn decode_proof_formals(
 mod mathematical_tests {
     use super::*;
     use proof_admission::{Declaration, MathematicalCertificate, Term, TermArena};
+
+    #[test]
+    fn mixed_application_wire_tags_and_argument_roster_are_explicit() {
+        // A serialization fixture, not semantic receiving authority. Engine
+        // acceptance and corruption controls use source-produced certificates.
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let certificate =
+            super::super::mathematical_certificate_wire::encode_mathematical_certificate(
+                &arena,
+                &MathematicalCertificate {
+                    signature: vec![],
+                    level_arity: 0,
+                    context: vec![],
+                    term: zero,
+                    expected: two,
+                },
+            )
+            .unwrap();
+        let term = ProofTerm::MathematicalApplication {
+            type_identity: "Example".into(),
+            certificate,
+            arguments: vec![
+                MathematicalArgument::Scalar {
+                    type_identity: "Primitive".into(),
+                    term: semantic_vocabulary::ScalarTerm::Value {
+                        id: semantic_vocabulary::ValueId::new(1).unwrap(),
+                        scalar_type: semantic_vocabulary::ScalarType::Boolean,
+                    },
+                },
+                MathematicalArgument::Formal { position: 0 },
+            ],
+            formal_scope: ProofFormalScope::Invocation,
+        };
+        let mut writer = Writer::default();
+        encode_proof_terms(&mut writer, std::slice::from_ref(&term)).unwrap();
+        let encoded = writer.finish();
+        assert_eq!(encoded[4], PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION);
+        assert_eq!(
+            decode_proof_terms(&mut Reader::new(&encoded)).unwrap(),
+            vec![term]
+        );
+        let mut prefix = Reader::new(&encoded);
+        assert_eq!(prefix.count().unwrap(), 1);
+        prefix.u8().unwrap();
+        prefix.string("identity").unwrap();
+        let bytes = prefix.count().unwrap() as usize;
+        prefix.take(bytes).unwrap();
+        prefix.u8().unwrap();
+        prefix.count().unwrap();
+        let argument_offset = encoded.len() - prefix.remaining();
+        let mut changed = encoded.clone();
+        changed[argument_offset] = 255;
+        assert!(matches!(
+            decode_proof_terms(&mut Reader::new(&changed)),
+            Err(CodecError::InvalidTag("mathematical argument kind", 255))
+        ));
+        let mut missing = encoded.clone();
+        missing.pop();
+        assert!(decode_proof_terms(&mut Reader::new(&missing)).is_err());
+        // The old erased-only spelling remains tag 6 byte-for-byte. An
+        // alternative tag-8 spelling with no Scalar is noncanonical: module
+        // ingress performs this same decode/re-encode byte comparison.
+        let mut erased_only = decode_proof_terms(&mut Reader::new(&encoded)).unwrap();
+        let ProofTerm::MathematicalApplication { arguments, .. } = &mut erased_only[0] else {
+            unreachable!()
+        };
+        arguments.retain(|argument| matches!(argument, MathematicalArgument::Formal { .. }));
+        let mut writer = Writer::default();
+        encode_proof_terms(&mut writer, &erased_only).unwrap();
+        let erased_bytes = writer.finish();
+        assert_eq!(erased_bytes[4], PROOF_TERM_MATHEMATICAL_APPLICATION);
+        let mut alternative = erased_bytes.clone();
+        alternative[4] = PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION;
+        alternative.insert(argument_offset, 0);
+        let decoded = decode_proof_terms(&mut Reader::new(&alternative)).unwrap();
+        let mut writer = Writer::default();
+        encode_proof_terms(&mut writer, &decoded).unwrap();
+        let canonical = writer.finish();
+        assert_eq!(canonical, erased_bytes);
+        assert_ne!(canonical, alternative);
+        let mut count_overflow = encoded.clone();
+        count_overflow[argument_offset - 4..argument_offset]
+            .copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(matches!(
+            decode_proof_terms(&mut Reader::new(&count_overflow)),
+            Err(CodecError::UnexpectedEnd)
+        ));
+    }
 
     #[test]
     fn mathematical_actual_round_trips_complete_signature_and_rejects_wire_changes() {

@@ -4446,9 +4446,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     child fibers across all nine places and fact-sensitive twins, with source-bound
     independent receiving. Construction retains complete closed schemas even under
     irrelevant lexical parameters; scalar consumers retain exact positive rational
-    multiples of established correlated bounds. General runtime-dependent
-    carrier/telescope transport, derivation, mutual/nested families and type/level
-    indices remain. Preserve exact parameters,
+    multiples of established correlated bounds. The copy-Type0 payload row in
+    `samples/cli/facts/source_indexed_type_parameter` retains exact bool/u64
+    fibers across the nine places, with source-bound receiving of ordered scalar
+    and erased actuals for independently closed instantiated carriers. General
+    runtime-dependent carrier/telescope transport, derivation, mutual/nested
+    families and higher type/level indices remain. Preserve exact parameters,
     indices, payloads, case constraints and recursive uses; distinguish negative
     recursion, unsupported valid encoding and malformed source. Existing
     Rust-built coverage of the stronger schemes is separate evidence. Add only

@@ -16,7 +16,7 @@ mod value_ids;
 pub use integer_types::{
     IntegerCarrier, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
 };
-pub use proof_terms::{ProofFormalScope, ProofTerm, ProofTermField};
+pub use proof_terms::{MathematicalArgument, ProofFormalScope, ProofTerm, ProofTermField};
 pub use propositions::{Proposition, PropositionContext, PropositionError};
 pub use scalar_terms::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

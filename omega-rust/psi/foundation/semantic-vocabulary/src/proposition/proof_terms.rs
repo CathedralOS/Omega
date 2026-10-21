@@ -11,6 +11,20 @@ pub enum ProofFormalScope {
     Block,
 }
 
+/// An exact input to a closed mathematical function. Scalar observations keep
+/// their independently formed source carrier identity and ordinary SSA term;
+/// they do not become signature assumptions or executable proof values.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MathematicalArgument {
+    Formal {
+        position: u32,
+    },
+    Scalar {
+        type_identity: String,
+        term: ScalarTerm,
+    },
+}
+
 /// One erased term in a call's or edge's erased lane. Proof terms carry
 /// semantic identity only — they own no runtime value, storage, or
 /// evaluation. A `Construction` is a closed data value such as `Nat::Zero`
@@ -30,12 +44,12 @@ pub enum ProofTerm {
         certificate: Vec<u8>,
     },
     /// Ordinary application of a closed mathematical function to this scope's
-    /// exact erased formals. Receiving checks every domain and the result
+    /// exact scalar observations and erased formals. Receiving checks every domain and the result
     /// against independent source carriers; this is never an open certificate.
     MathematicalApplication {
         type_identity: String,
         certificate: Vec<u8>,
-        formal_arguments: Vec<u32>,
+        arguments: Vec<MathematicalArgument>,
         formal_scope: ProofFormalScope,
     },
     /// A fixed array in the erased lane. Its normalized type retains element
@@ -115,14 +129,23 @@ impl ProofTerm {
                 Step::Term(ProofTerm::MathematicalApplication {
                     type_identity,
                     certificate,
-                    formal_arguments,
+                    arguments,
                     ..
                 }) => {
-                    if type_identity.is_empty()
-                        || certificate.is_empty()
-                        || formal_arguments.is_empty()
-                    {
+                    if type_identity.is_empty() || certificate.is_empty() || arguments.is_empty() {
                         return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                    for argument in arguments {
+                        if let MathematicalArgument::Scalar {
+                            type_identity,
+                            term,
+                        } = argument
+                        {
+                            if type_identity.is_empty() {
+                                return Err(PropositionError::EmptyProofTermTypeIdentity);
+                            }
+                            term.validate()?;
+                        }
                     }
                 }
                 Step::Term(ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. }) => {}

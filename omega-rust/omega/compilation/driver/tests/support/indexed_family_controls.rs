@@ -758,7 +758,7 @@ fn first_mathematical_actual_mut(
     }
     Err("source artifact has no direct mathematical actual for transport controls".into())
 }
-fn must_refuse_actual(
+pub(super) fn must_refuse_actual(
     actual: &TerminalModule,
     expected: &TerminalModule,
     carriers: &[(String, Vec<u8>)],
