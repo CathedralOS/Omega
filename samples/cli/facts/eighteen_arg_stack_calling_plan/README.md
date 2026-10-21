@@ -67,6 +67,30 @@ omega --check samples/cli/facts/eighteen_arg_stack_calling_plan/<place>/invalid/
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
 
+### Pinned Fixtures
+
+All nine positive places and nine reject twins are pinned as canonical corpus fixtures:
+- **Pass fixtures** (`tests/omega/pass/facts/`):
+  - `eighteen_arg_stack_calling_plan_through_local_exit/`
+  - `eighteen_arg_stack_calling_plan_through_field_exit/`
+  - `eighteen_arg_stack_calling_plan_through_parameter_exit/`
+  - `eighteen_arg_stack_calling_plan_through_call_result_exit/`
+  - `eighteen_arg_stack_calling_plan_through_match_join_exit/`
+  - `eighteen_arg_stack_calling_plan_through_const_name_exit/`
+  - `eighteen_arg_stack_calling_plan_through_other_state_exit/`
+  - `eighteen_arg_stack_calling_plan_through_other_machine_exit/`
+  - `eighteen_arg_stack_calling_plan_through_target_body_exit/`
+- **Fail fixtures** (`tests/omega/fail/facts/`):
+  - `eighteen_arg_stack_calling_plan_through_local_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_field_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_parameter_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_call_result_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_match_join_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_const_name_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_other_state_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_other_machine_rejected/`
+  - `eighteen_arg_stack_calling_plan_through_target_body_rejected/`
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS-STACK-BOUNDS` / `EIGHTEEN-ARG-STACK-CALLING-PLAN` (`TASKS.md`)
