@@ -53,6 +53,37 @@ Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
 
+Measured discrimination: A 1-token perturbation altering the demanded value from `combined == 40u64` to `combined == 41u64` in `main.omg` was executed against `omega run --both`:
+- Native execution: trapped immediately with `native exit -1073741795` (STATUS_ILLEGAL_INSTRUCTION / Trap crash).
+- Terminal Psi interpreter: trapped with `interp crash: Trap (host presentation agrees)`.
+Both engines trapped consistently on the corrupted value, verifying bidirectional discrimination.
+
+## Pinned Corpus Fixtures
+
+All 18 corpus fixtures are pinned under `tests/omega/`:
+
+### Pass Fixtures (`tests/omega/pass/facts/`)
+- `eleven_variant_enum_payload_bound_through_local_exit`
+- `eleven_variant_enum_payload_bound_through_field_exit`
+- `eleven_variant_enum_payload_bound_through_parameter_exit`
+- `eleven_variant_enum_payload_bound_through_call_result_exit`
+- `eleven_variant_enum_payload_bound_through_match_join_exit`
+- `eleven_variant_enum_payload_bound_through_const_name_exit`
+- `eleven_variant_enum_payload_bound_through_other_state_exit`
+- `eleven_variant_enum_payload_bound_through_other_machine_exit`
+- `eleven_variant_enum_payload_bound_through_target_body_exit`
+
+### Fail Fixtures (`tests/omega/fail/facts/`)
+- `eleven_variant_enum_payload_bound_through_local_rejected`
+- `eleven_variant_enum_payload_bound_through_field_rejected`
+- `eleven_variant_enum_payload_bound_through_parameter_rejected`
+- `eleven_variant_enum_payload_bound_through_call_result_rejected`
+- `eleven_variant_enum_payload_bound_through_match_join_rejected`
+- `eleven_variant_enum_payload_bound_through_const_name_rejected`
+- `eleven_variant_enum_payload_bound_through_other_state_rejected`
+- `eleven_variant_enum_payload_bound_through_other_machine_rejected`
+- `eleven_variant_enum_payload_bound_through_target_body_rejected`
+
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` reject twin that widens one variant's bound (`V11(v: u64) where v >= 39u64 && v <= 80u64`).
@@ -64,7 +95,7 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 21: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
@@ -72,6 +103,11 @@ The compiler strictly fails closed at compile time:
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
 ## Requirements and Evidence (AGENTS.md)
+
+- **Parent outcome:** `CONSERVATION-CONTRACT` / `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`).
+- **Ticket:** `a8efa5c566e445178904dc9110943669`.
+- **Obligation class:** Precondition contract discharge on `verify_payload` (`requires res >= 40 && res <= 80`) via synthesized compile-time interval bounds from exhaustive 11-variant tagged enum matching, preserving bounds without caller runtime guards across all nine transport places.
+- **Requirement established:** Target-neutral compile-time 11-variant tagged enum payload bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, matching an 11-variant tagged enum payload `Packet` (`V1` through `V11`) where every arm satisfies `40u64 <= v <= 80u64` establishes the synthesized post-extraction interval (`res >= 40u64 && res <= 80u64`), discharging exact 64-bit subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V11(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all eleven tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
 - **Identity and lifetime**: The extracted payload interval fact `res in [40, 80]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without semantic loss.
