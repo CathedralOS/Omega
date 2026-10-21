@@ -773,11 +773,16 @@ fn membership_subject_matches_owner(
             return false;
         }
         ExpressionNode::StructLiteral(literal) => {
-            return literal.type_symbol == owner.symbol
-                && program.data_members(owner).iter().any(|member| {
-                    matches!(member, DataMember::Variant(variant)
-                        if literal.case_symbol == Some(variant.symbol))
-                });
+            // A folded constant is a fresh literal, but still has an exact
+            // prepared application. Authenticate its own case first, then use
+            // the same carrier correspondence as every other subject below.
+            if !literal.case_symbol.is_some_and(|case| {
+                case.is_valid()
+                    && program.symbols.get(case).kind == symbols::SymbolKind::Variant
+                    && program.symbols.get(case).parent == literal.type_symbol
+            }) {
+                return false;
+            }
         }
         ExpressionNode::Name(path) if path.head_symbol != path.symbol => {
             return exact_case_reference_owner(program, subject)
@@ -798,12 +803,15 @@ fn membership_subject_matches_owner(
     };
     // Only nominal subjects match. In particular, type_symbol() also walks
     // array/slice element types, which cannot establish a collection's tag.
-    // A call may retain Generic<Base, Args> while its selected classifier
-    // already names the prepared closed declaration. Rejoin the exact applied
-    // carrier, not just its template base or a matching rendered spelling.
+    // Preparation may select a closed classifier for an explicitly typed place,
+    // while a computed subject keeps its authored template classifier until
+    // typing knows the result. Both observe the same exact applied carrier.
+    // Reuse constructor correspondence: it authenticates the retained origin
+    // and rejects sibling applications, without changing the authored selection
+    // ledger or inferring a subject type from the case being tested.
     if program
-        .closed_data_definition(subject_type)
-        .is_some_and(|subject| subject.symbol == owner.symbol)
+        .closed_data_constructor_definition(subject_type, owner.symbol)
+        .is_some()
     {
         return true;
     }
@@ -871,7 +879,7 @@ fn operand_type_at_depth(
                 operand_place_projection_type(program, machine, state, expression, depth + 1)
             })
         }
-        ExpressionNode::Call(_) | ExpressionNode::Binary(_) => {
+        ExpressionNode::Call(_) | ExpressionNode::Binary(_) | ExpressionNode::StructLiteral(_) => {
             // Computed operands use the same selected-result query as value
             // checking. Reconstructing only fixed-integer syntax here lost
             // proof Int and turned embeds/sums into wildcard overload inputs.

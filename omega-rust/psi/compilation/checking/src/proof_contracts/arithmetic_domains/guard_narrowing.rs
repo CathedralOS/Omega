@@ -591,7 +591,8 @@ pub(super) fn narrow_environment_by_comparison(
             state,
             environment,
             subject,
-            comparison.right,
+            condition,
+            comparison,
         );
         return;
     }

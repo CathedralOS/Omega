@@ -671,6 +671,15 @@ pass/facts/erased_reference_contract_through_other_machine_exit built 5108ms exi
 pass/facts/erased_reference_contract_through_other_state_exit built 5117ms exit:0 interpreter-exit:0 interpreter:agrees @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_parameter_exit built 5132ms exit:0 interpreter-exit:0 interpreter:agrees @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_target_body_exit built 5132ms exit:0 interpreter-exit:0 interpreter:agrees @327a3ccb7744+wt
+pass/facts/generic_case_subject_through_call_result_exit built 954ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_const_name_exit built 953ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_field_exit built 952ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_local_exit built 920ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_match_join_exit built 922ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_other_machine_exit built 917ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_other_state_exit built 920ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_parameter_exit built 913ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/generic_case_subject_through_target_body_exit built 916ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
 pass/facts/guarded_line_loan_through_call_result_exit built 39323ms exit:0 interpreter-exit:0 interpreter:agrees @93551ee17f11
 pass/facts/guarded_line_loan_through_const_name_exit built 39470ms exit:0 interpreter-exit:0 interpreter:agrees @93551ee17f11
 pass/facts/guarded_line_loan_through_field_exit built 39329ms exit:0 interpreter-exit:0 interpreter:agrees @93551ee17f11
@@ -901,6 +910,7 @@ pass/generics/borrowed_applied_field_static_selection_exit built 5642ms exit:0 i
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
 pass/generics/contextual_static_machine_const_scopes_exit built 3451ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/contextual_static_machine_open_const_exit built 3537ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
+pass/generics/generic_case_subject_sibling_bounds_exit built 873ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
 pass/generics/open_computed_quantity_result built 17044ms exit:70 interpreter-exit:70 interpreter:agrees @7b786cd56594+wt
 pass/generics/runtime_applied_implementation_qualifier_exit built 4167ms exit:0 interpreter-exit:0 interpreter:agrees @097fbfdea595+wt
 pass/generics/runtime_case_qualified_reference_storage_exit built 2329ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt

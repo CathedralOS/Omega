@@ -13,8 +13,6 @@ use crate::preparation::generic_data::Instantiation;
 
 use crate::preparation::declaration_selection;
 
-use syntax_trees::expression::ExpressionHandle;
-
 /// Destructure syntax lowers to `subject in Base::Case` before this pass. When
 /// the subject is a state parameter or local with an exact synthesized type,
 /// that annotation selects the corresponding closed case identity even when
@@ -131,10 +129,13 @@ pub(in crate::preparation::generic_data) fn named_type_name(
 }
 
 /// When a generic sum has exactly one closed instance, every remaining
-/// `Base::Case` constructor and pattern path is unambiguous. Rewrite that
+/// `Base::Case` constructor value is unambiguous. Rewrite that
 /// fallback cohort to the synthesized nominal identity before symbol
 /// resolution. Multiple-instance uses must already have been selected by exact
 /// context above. Generic template bodies remain parameterized declarations.
+/// Membership classifiers are not constructor values: an early preparation
+/// round's unique instance says nothing about the tested subject. Leave those
+/// authored paths intact for typed subject/application correspondence.
 pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
@@ -168,19 +169,6 @@ pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
                             SumPathExpressionKind::Name,
                             constructor_carrier_span(syntax, *path)?,
                         ),
-                        ExpressionNode::Membership(membership) => {
-                            let [_, _] = syntax
-                                .expressions
-                                .identifier_path_members(membership.domain)
-                            else {
-                                return None;
-                            };
-                            (
-                                constructor_path_name(syntax, membership.domain)?,
-                                SumPathExpressionKind::Membership(membership.value),
-                                constructor_carrier_span(syntax, membership.domain)?,
-                            )
-                        }
                         ExpressionNode::StructLiteral(literal) => (
                             literal.constructor_name.clone(),
                             SumPathExpressionKind::StructLiteral(literal.clone()),
@@ -211,12 +199,6 @@ pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
                     SumPathExpressionKind::Name => {
                         ExpressionNode::Name(closed_sum_path(syntax, closed, carrier_span, case))
                     }
-                    SumPathExpressionKind::Membership(value) => ExpressionNode::Membership(
-                        syntax_trees::expression::TableMembershipExpression {
-                            value,
-                            domain: closed_sum_path(syntax, closed, carrier_span, case),
-                        },
-                    ),
                     SumPathExpressionKind::StructLiteral(mut literal) => {
                         literal.constructor_name = Identifier::new(
                             format!("{closed}::{case}"),
@@ -253,6 +235,5 @@ pub(in crate::preparation::generic_data) fn closed_sum_path(
 #[derive(Clone)]
 pub(in crate::preparation::generic_data) enum SumPathExpressionKind {
     Name,
-    Membership(ExpressionHandle),
     StructLiteral(syntax_trees::expression::TableStructLiteral),
 }

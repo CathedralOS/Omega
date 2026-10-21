@@ -23,29 +23,36 @@ use super::{
 };
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 
-/// Establish `classifier`'s case `where` facts on `subject` inside `environment`.
-/// `classifier` must rejoin its complete retained case reference (the same
-/// ownership spine `has_exact_case_membership_meaning` requires); the subject
-/// must be an operand-identifiable place, since the contribution is defined
-/// as a projection onto that place.
+/// Establish the selected application's case facts on the exact subject.
+/// The authored classifier can still name a generic template; its unspecialized
+/// facts are not the receiving application's facts. Reuse the same authenticated
+/// membership correspondence as tag/payload checking before projecting them.
 pub(super) fn contribute_case_where_facts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
     subject: ExpressionHandle,
-    classifier: ExpressionHandle,
+    condition: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
 ) {
     let Some(state) = state else {
         return;
     };
-    let Some(owner) = meaning::exact_case_reference_owner(program, classifier) else {
+    let Some(selected) = meaning::applied_case_membership_variant(
+        program,
+        machine,
+        Some(state),
+        condition,
+        comparison,
+    ) else {
         return;
     };
-    let Some(case) = program.expression_table.name_path_node(classifier) else {
+    let Some((owner_index, _)) = program.data_variant_position_for_symbol(selected) else {
         return;
     };
-    let Some(variant) = program.data_variant(owner, case.symbol) else {
+    let owner = &program.data_definitions()[owner_index as usize];
+    let Some(variant) = program.data_variant(owner, selected) else {
         return;
     };
     if variant.where_facts.is_empty() {

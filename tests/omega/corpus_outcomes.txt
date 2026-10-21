@@ -3484,6 +3484,33 @@ fail/facts/generic_calling_policy/unresolved_argument rejected 5477ms expected @
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 4935ms expected @164f21ca3402
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
+fail/facts/generic_case_subject_through_call_result_rejected rejected 336ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_const_name_rejected rejected 336ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_field_rejected rejected 344ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_local_rejected rejected 344ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_match_join_rejected rejected 340ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_other_machine_rejected rejected 314ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_other_state_rejected rejected 349ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `next`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_parameter_rejected rejected 318ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_target_body_rejected rejected 319ms expected @4a483c47c357+wt
+	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
+	case `Other::Value` has a payload; construct it with a case literal
 fail/facts/generic_content_transfer_call_result rejected 3883ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
@@ -6793,6 +6820,8 @@ fail/generics/generic_carrier_equation_mismatch rejected 15ms expected @a9ae30e1
 fail/generics/generic_carrier_equation_repeated_carrier_conflict rejected 13ms expected @a9ae30e1c334+wt
 fail/generics/generic_carrier_equation_repeated_index_conflict rejected 14ms expected @a9ae30e1c334+wt
 fail/generics/generic_carrier_field_index_conflict rejected 1446ms expected @a9ae30e1c334+wt
+fail/generics/generic_case_subject_sibling_bounds_rejected rejected 667ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from observe at statement 1: result <= 10
 fail/generics/generic_composite_field_binder_head rejected 29ms expected @a9ae30e1c334+wt
 fail/generics/generic_composite_field_explicit_conflict rejected 20ms expected @a9ae30e1c334+wt
 fail/generics/generic_composite_field_type_extent rejected 874ms expected @a9ae30e1c334+wt
@@ -10984,6 +11013,15 @@ pass/facts/generic_calling_policy/through_other_machine_exit checked 4287ms chec
 pass/facts/generic_calling_policy/through_other_state_exit checked 3975ms check-target:macos_arm64 @54e533003490
 pass/facts/generic_calling_policy/through_parameter_exit checked 3972ms check-target:macos_arm64 @54e533003490
 pass/facts/generic_calling_policy/through_target_body_exit checked 4161ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_case_subject_through_call_result_exit checked 879ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_const_name_exit checked 873ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_field_exit checked 873ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_local_exit checked 969ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_match_join_exit checked 969ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_other_machine_exit checked 973ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_other_state_exit checked 883ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_parameter_exit checked 882ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/generic_case_subject_through_target_body_exit checked 877ms check-target:macos_arm64 @4a483c47c357+wt
 pass/facts/generic_content_transfer_call_result checked 8723ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/generic_content_transfer_const_name checked 8744ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/generic_content_transfer_field checked 8719ms check-target:macos_arm64 @4c6fa0c02bf5+wt
@@ -12403,6 +12441,7 @@ pass/generics/foreign_case_membership_dispatch_exit checked 13819ms check-target
 pass/generics/foreign_case_payload_reads_exit checked 16573ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/forwarded_slice_result_local_receipt checked 1822ms @82646dcce47b+wt
 pass/generics/generic_callback_schema checked 9793ms @5041ef1af684+wt
+pass/generics/generic_case_subject_sibling_bounds_exit checked 890ms check-target:macos_arm64 @4a483c47c357+wt
 pass/generics/generic_data_instantiation checked 1641ms @a9ae30e1c334+wt
 pass/generics/generic_result_parameter_receipt checked 2458ms @6ef08ceefee0+wt
 pass/generics/generic_seq_consuming_map_filter checked 2806ms @fcc053dc7014+wt
