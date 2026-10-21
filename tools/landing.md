@@ -216,8 +216,19 @@ or call a red gate green.
 
 ```text
 git rev-parse HEAD
-python tools/landing.py publish --claim <claim> --base <base> --candidate <verified-sha>
+python tools/landing.py publish --claim <ticket> --base <granted-base> --candidate <verified-sha>
 ```
+
+Both IDs are required and are validated before any queue change: `--claim` is
+the 32-character ticket from `enqueue` (the `claim` that `claim` returns), and
+`--base` is the **full 40-hex lowercase** `base` the reservation granted — not
+your candidate, and not an abbreviated sha. A bare `publish`, or one with a
+short base, exits 1 with only `Base requires a full lowercase Git object ID.`
+or `Supply the 32-character ticket returned by enqueue`.
+
+That refusal validates before it removes anything, so **the claim survives it**
+and a retry inside the same lease is safe: correct the argument and run the
+command again. Re-enqueueing is not required and `cancel` would lose the head.
 
 One atomic push fast-forwards main and removes only the active ticket. Remaining
 tickets keep their order. A concurrent enqueue retries just the queue update
@@ -279,7 +290,7 @@ candidate, publish records who produced it as a git note on
 time, and — when supplied — free-form provenance such as the agent and model:
 
 ```text
-python tools/landing.py publish --claim <claim> --base <base> --candidate <sha> --provenance "agent=devin model=swe-2-medium"
+python tools/landing.py publish --claim <ticket> --base <granted-base> --candidate <sha> --provenance "agent=devin model=swe-2-medium"
 ```
 
 `OMEGA_PROVENANCE` supplies the same text when `--provenance` is absent, so a
@@ -302,7 +313,7 @@ git log --notes=provenance
 
 ```text
 python tools/landing.py cancel --ticket <waiting-ticket>
-python tools/landing.py release --claim <active-claim>
+python tools/landing.py release --claim <active-ticket>
 ```
 
 Both remove your ticket. Rejoining requires a new ticket at the tail. A promoted
