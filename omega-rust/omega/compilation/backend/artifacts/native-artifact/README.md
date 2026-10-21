@@ -88,17 +88,30 @@ It grants no publication, installation, provider, or runtime authority.
 
 ## Physical evidence scope
 
-The current physical lane is deliberately narrow: an unoptimized handoff or a
-verified Psi-phase survivor projection, exact D29 custody for supported
-compiler-intrinsic and checked-body operator applications, supported hosted byte
-input/output and process-exit settlements on Linux x86-64/AArch64 and macOS AArch64,
-and admitted-provider D41
+The current physical lane is deliberately narrow: an unoptimized handoff, exact
+D29 custody for supported compiler-intrinsic and checked-body operator
+applications, supported hosted byte input/output and process-exit settlements on
+Linux x86-64/AArch64 and macOS AArch64, and admitted-provider D41
 custody for supported normalized foreign calls. Each surviving physical
 occurrence has one replayable child bound to its D29 or D41 parent, and that
 scope is bound into artifact identity. Unsupported D29/D41 roles and later
 optimization phases yield no D32 evidence while the underlying native artifact
 remains usable. Consumers requiring final-realization evidence must reject that
 absence.
+
+The verified Psi-phase survivor projection is not part of that lane at this
+revision. Its only constructor,
+`NativePhysicalEvidenceScope::from_validated_fragment_publication`, is uncalled,
+so `ValidatedOptimizedProjection` has no constructor and the retained
+fragment-publication custody it alone builds never reaches derivation. Three
+boundary lanes therefore cannot derive on the surviving scope — an
+installed-provider internal call, a structural boundary result, and a kernel
+entry without a symbolic import — because each rejoins selected-plan rows that
+only that custody carries. `publish_fragment_object` drops the staged source
+that would build it and selects `NativePhysicalEvidenceScope::Unavailable`, so
+no compile reaches derivation either. Wiring that custody to the surviving
+scope is the remaining step; deleting the optimized scope before it removes
+those lanes rather than consolidating them.
 
 The rooted fixed-token structural-result cohort includes one claim-free affine
 record with one relevant signed 64-bit integer field. Source construction,

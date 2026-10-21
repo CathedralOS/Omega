@@ -326,6 +326,27 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     (`omega-rust/omega/compilation/backend/machine-emission/src/function_realization/frame.rs`);
     native-artifact owns `publish_fragment_object`
     (`omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs`).
+  - Current frontier, measured at `71c7be81a957` in native-artifact: the
+    optimized physical-evidence scope is **unwired, not superseded**, so it
+    cannot be consolidated by deleting it. `from_validated_fragment_publication`
+    (`native_artifact.rs:555`) is the only constructor of the
+    fragment-publication custody that three lanes of the surviving derivation
+    require — an installed-provider internal call
+    (`physical/derivation/internal_calls.rs:274` rejoins
+    `selected_plan()`/`text_section()`), a structural boundary result
+    (`physical/derivation/foreign_calls.rs:278`), and a kernel entry without a
+    symbolic import (`physical/derivation/foreign_calls.rs:646`) — and
+    `evidence.rs:140-151` gives the surviving
+    `UnoptimizedCompleteBoundaryEvidence` scope no such custody. It is uncalled
+    because `publish_fragment_object` drops the staged source and selects
+    `Unavailable` (`fragment_object_publication.rs:78` and `:198`), so no
+    compile reaches derivation at all. The step that reaches the acceptance is
+    to retain that staged source through publication and carry the custody on
+    the surviving scope; then the optimized scope and
+    `physical/projection.rs` are deletable as duplicates of the surviving
+    roster derivation. Deleting them first removes
+    `BoundaryTraitSettlementRole::InstalledProviderInternalCall` and its
+    identity encoding instead of consolidating them.
   - Catalog execution stays with EXACT-MACHINE-SIMPLIFICATIONS,
     ALIAS-AWARE-MEMORY and DECLARATIVE-PEEPHOLES; spill-boundary retirement
     with SPILL-REALIZATION.

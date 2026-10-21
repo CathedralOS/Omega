@@ -13,15 +13,8 @@
 //! used only by the children below; code outside `physical` reads the
 //! records, and several public records can be rebuilt from replayed parts.
 //!
-//! Three entries, all called from `native_artifact`:
+//! One entry is called from `native_artifact`:
 //!
-//! - `derive_validated_optimization_scope` (`projection`) builds the scope
-//!   of a validated optimized abstract plan: its surviving operator and
-//!   boundary occurrences, checked against the Terminal
-//!   boundary-application coverage.
-//! - `derive_fragment_publication_scope` (`fragment_publication`) first
-//!   replays the function fragment object and its normalized foreign call
-//!   custody, then builds the same scope and binds the publication to it.
 //! - `derive_physical_evidence` (`derivation`) derives the evidence for an
 //!   emitted artifact within its scope: one child per boundary occurrence,
 //!   from its installed settlement, its normalized foreign call, or an
@@ -33,6 +26,22 @@
 //!   could not bind, or `Unavailable` when the scope admits no derivation.
 //!   The native artifact types call it when built from emitted parts, when
 //!   rebuilt from replayed parts and when validated.
+//!
+//! Two further scope entries have no caller at this revision:
+//! `derive_validated_optimization_scope` (`projection`) and
+//! `derive_fragment_publication_scope` (`fragment_publication`). The latter is
+//! referenced only by
+//! `NativePhysicalEvidenceScope::from_validated_fragment_publication`, which
+//! nothing calls, and the former is reached only through it; so
+//! `ValidatedOptimizedProjection` has no constructor. They are unwired, not
+//! superseded: the retained fragment-publication custody that only they build
+//! is what the surviving `UnoptimizedCompleteBoundaryEvidence` scope lacks for
+//! three boundary lanes — an installed-provider internal call, a structural
+//! boundary result, and a kernel entry without a symbolic import, each of
+//! which rejoins selected-plan rows no other input carries. Wiring that
+//! custody to the surviving route is what lets the optimized scope and
+//! `projection.rs` be deleted; deleting them first removes those lanes
+//! instead.
 
 mod derivation;
 mod fragment_publication;
