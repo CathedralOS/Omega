@@ -7175,6 +7175,14 @@ fail/inline_asm/asm_system_register_wrong_target rejected 6482ms expected @9f1c8
 fail/inline_asm/asm_where_contract rejected 1897ms expected @9f1c8cc89b93+wt
 fail/inline_asm/asm_where_missing_clobber rejected 1ms expected @9f1c8cc89b93+wt
 fail/inline_asm/port_write_selected_state_service_required rejected 2361ms expected @9f1c8cc89b93+wt
+fail/inline_asm/target_family_control_authority rejected 160ms expected @a8fbfdfa4d11
+	machine `observe` uses asm instruction `read_cr0`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
+fail/inline_asm/target_family_control_width rejected 413ms expected @a8fbfdfa4d11
+	asm instruction `read_cr0` operand `destination` requires an exact `u64` writable place for target register `cr0`, found `u32`
+fail/inline_asm/target_family_instruction_operand_crash rejected 984ms expected @a8fbfdfa4d11
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in machine `selector` (Terminal machine 3) at crash terminator in block 7
+	the selected composition retains crash cause Trap through machine `selector` (Terminal machine 3) declared here
 fail/layouts/authored_placed_accessor_requires_realization rejected 344ms expected @0855a204a2df+wt
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 1681ms expected @a9ae30e1c334+wt
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 1580ms expected @a9ae30e1c334+wt
@@ -8362,7 +8370,9 @@ fail/targets/portable_family_private_result_fact_rejected rejected 1700ms expect
 fail/targets/reached_family_missing_member_rejected rejected 16611ms expected @a9ae30e1c334+wt
 fail/targets/reached_foreign_body_through_selected_provider_rejected rejected 20211ms expected @a9ae30e1c334+wt
 fail/targets/reached_foreign_family_relay_rejected rejected 17860ms expected @a9ae30e1c334+wt
-fail/targets/selected_family_exclusion_crash_rejected rejected 21789ms expected @a9ae30e1c334+wt
+fail/targets/selected_family_exclusion_crash_rejected rejected 988ms expected @a8fbfdfa4d11
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 6 at crash terminator in block 6
 fail/targets/selected_family_member_missing_call_rejected rejected 16439ms expected @a9ae30e1c334+wt
 fail/targets/sibling_body_type_error_rejected rejected 2875ms expected @a9ae30e1c334+wt
 fail/targets/single_target_internal_caller_rejected rejected 17647ms expected @a9ae30e1c334+wt
@@ -12814,6 +12824,8 @@ pass/inline_asm/asm_typed_places checked 6665ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_where_contract checked 6746ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_where_exact_clobbers_compile checked 6738ms @9f1c8cc89b93+wt
 pass/inline_asm/port_write_terminal_sequences checked 27155ms terminal-inspections:match @9f1c8cc89b93+wt
+pass/inline_asm/target_family_control_observation checked 965ms check-target:linux_x86_64 @a8fbfdfa4d11
+pass/inline_asm/target_family_instruction_exit checked 1008ms check-target:macos_arm64 @a8fbfdfa4d11
 pass/layouts/access_plan_inaccessible_seed checked 1987ms @a9ae30e1c334+wt
 pass/layouts/alternating_member_padding_layout_compile checked 1807ms @a9ae30e1c334+wt
 pass/layouts/array_align_queries_compile checked 1673ms @a9ae30e1c334+wt
