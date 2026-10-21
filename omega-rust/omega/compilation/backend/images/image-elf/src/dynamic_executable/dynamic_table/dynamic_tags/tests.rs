@@ -428,13 +428,25 @@ fn component_only_imports_omit_absent_version_records_and_their_address_fixup() 
     let descriptors = crate::test_support::linkage_descriptors(inputs);
     let plan = plan_elf_dynamic_tags(descriptors).unwrap();
     assert_eq!(plan.needed_row_count(), 2);
-    assert_eq!(plan.row_count(), 17);
-    assert_eq!(plan.address_obligation_count(), 8);
+    assert_eq!(plan.row_count(), 16);
+    assert_eq!(plan.address_obligation_count(), 7);
     assert!(!plan.has_version_requirements());
     assert!(!plan.contents.rows.iter().any(|row| matches!(
         row.tag,
-        ElfDynamicTag::GnuVersionRequirement | ElfDynamicTag::GnuVersionRequirementCount
+        ElfDynamicTag::GnuSymbolVersion
+            | ElfDynamicTag::GnuVersionRequirement
+            | ElfDynamicTag::GnuVersionRequirementCount
     )));
+    let mut symbol_only = plan.contents.clone();
+    let terminal = symbol_only.rows.pop().unwrap();
+    symbol_only.rows.extend([
+        super::address_row(ElfDynamicTag::GnuSymbolVersion),
+        terminal,
+    ]);
+    assert!(
+        validate_contents(plan.descriptors(), &symbol_only).is_err(),
+        "an unversioned executable cannot advertise a loader version table"
+    );
     let mut malformed = plan.contents.clone();
     let terminal = malformed.rows.pop().unwrap();
     malformed.rows.extend([

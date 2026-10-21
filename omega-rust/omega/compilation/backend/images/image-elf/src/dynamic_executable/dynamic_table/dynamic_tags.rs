@@ -29,8 +29,8 @@ use target::TargetProfile;
 
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
-const UNVERSIONED_FIXED_ROW_COUNT: usize = 15;
-const UNVERSIONED_ADDRESS_COUNT: usize = 8;
+const UNVERSIONED_FIXED_ROW_COUNT: usize = 14;
+const UNVERSIONED_ADDRESS_COUNT: usize = 7;
 /// Independently validated semantic `.dynamic` rows and address obligations.
 ///
 /// The exact eleven-section descriptor carrier remains owned by this non-clone
@@ -234,12 +234,13 @@ fn derive_contents(
     let structural = structural_contents(descriptors);
     let row_capacity = checked_sum(
         structural.needed.len(),
-        UNVERSIONED_FIXED_ROW_COUNT + 2 * usize::from(!structural.verneed.is_empty()),
+        UNVERSIONED_FIXED_ROW_COUNT + 3 * usize::from(!structural.verneed.is_empty()),
         "ELF dynamic row count",
     )?;
     let mut rows = Vec::with_capacity(row_capacity);
-    let mut address_obligations =
-        Vec::with_capacity(UNVERSIONED_ADDRESS_COUNT + usize::from(!structural.verneed.is_empty()));
+    let mut address_obligations = Vec::with_capacity(
+        UNVERSIONED_ADDRESS_COUNT + 2 * usize::from(!structural.verneed.is_empty()),
+    );
     for needed in &structural.needed {
         rows.push(ElfDynamicSemanticRow {
             tag: ElfDynamicTag::Needed,
@@ -324,15 +325,17 @@ fn derive_contents(
             "general relocation entry size",
         )?),
     });
-    push_address_row(
-        &mut rows,
-        &mut address_obligations,
-        ElfDynamicTag::GnuSymbolVersion,
-        ElfDynamicAddressTarget::GnuSymbolVersion,
-    )?;
-    // A present DT_VERNEED points at an actual first record. A zero count
-    // does not make a padding address a record: loaders still inspect it.
+    // DT_VERSYM directs lazy symbol resolution through the loader's version
+    // table even for a global index of one. An unversioned-only executable has
+    // no Verneed/Verdef records from which that table could be established.
+    // Likewise a present DT_VERNEED must point at an actual first record.
     if !structural.verneed.is_empty() {
+        push_address_row(
+            &mut rows,
+            &mut address_obligations,
+            ElfDynamicTag::GnuSymbolVersion,
+            ElfDynamicAddressTarget::GnuSymbolVersion,
+        )?;
         push_address_row(
             &mut rows,
             &mut address_obligations,
@@ -441,7 +444,7 @@ fn validate_contents(
     )?;
     let expected_row_count = checked_sum(
         structural.needed.len(),
-        UNVERSIONED_FIXED_ROW_COUNT + 2 * usize::from(!structural.verneed.is_empty()),
+        UNVERSIONED_FIXED_ROW_COUNT + 3 * usize::from(!structural.verneed.is_empty()),
         "validated ELF dynamic row count",
     )?;
     require(
@@ -564,10 +567,10 @@ fn validate_fixed_rows(
                 "validated general relocation entry size",
             )?),
         },
-        address_row(ElfDynamicTag::GnuSymbolVersion),
     ];
     if !structural.verneed.is_empty() {
         fixed.extend([
+            address_row(ElfDynamicTag::GnuSymbolVersion),
             address_row(ElfDynamicTag::GnuVersionRequirement),
             ElfDynamicSemanticRow {
                 tag: ElfDynamicTag::GnuVersionRequirementCount,
@@ -657,7 +660,7 @@ fn validate_address_obligations(
             ElfDynamicAddressTarget::GnuVersionRequirement,
         ),
     ];
-    let expected_count = UNVERSIONED_ADDRESS_COUNT + usize::from(has_version_requirements);
+    let expected_count = UNVERSIONED_ADDRESS_COUNT + 2 * usize::from(has_version_requirements);
     let expected = &expected[..expected_count];
     require(
         contents.address_obligations.len() == expected.len(),

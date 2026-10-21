@@ -52,7 +52,7 @@ fn expected_targets(
     if semantic_plan(placed).has_version_requirements() {
         &EXPECTED_TARGETS
     } else {
-        &EXPECTED_TARGETS[..EXPECTED_TARGETS.len() - 1]
+        &EXPECTED_TARGETS[..EXPECTED_TARGETS.len() - 2]
     }
 }
 
