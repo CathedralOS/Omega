@@ -26,13 +26,6 @@ impl Fnv1a {
         }
     }
 
-    /// Raw byte feed for callers that own their own field framing.
-    pub fn bytes_raw(&mut self, bytes: &[u8]) {
-        for &byte in bytes {
-            self.byte(byte);
-        }
-    }
-
     pub const fn finish(self) -> u64 {
         self.0
     }

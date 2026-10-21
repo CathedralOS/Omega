@@ -76,9 +76,6 @@ impl ValidatedFunctionFragmentObjectContainerManifest {
         &self.record
     }
 
-    pub fn shared_record(&self) -> Arc<FunctionFragmentObjectContainerManifest> {
-        Arc::clone(&self.record)
-    }
 }
 
 #[derive(Debug)]

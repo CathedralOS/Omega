@@ -1092,37 +1092,6 @@ impl SelectedProviderPlanFacts {
         Ok(())
     }
 
-    /// Every closed requirement identity the roster binds to one retained
-    /// requirement identity, across every selected plan. Empty when no
-    /// roster row rebinds it — the identity is either not generic or was
-    /// never demanded under a closed instance.
-    pub fn closed_requirement_identities<'a>(
-        &'a self,
-        requirement_identity: &'a str,
-    ) -> Vec<&'a str> {
-        self.specialized_requirement_rows
-            .iter()
-            .filter(move |row| {
-                self.identities.text(row.selected_requirement_identity)
-                    == Some(requirement_identity)
-            })
-            .map(|row| {
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default()
-            })
-            .chain(
-                self.external_requirement_applications
-                    .iter()
-                    .filter(|row| {
-                        self.identities.text(row.selected_requirement_identity)
-                            == Some(requirement_identity)
-                    })
-                    .filter_map(|row| self.identities.text(row.requirement_identity)),
-            )
-            .collect()
-    }
-
     /// Requirement lookup for identities realized by exactly one selected
     /// plan. A shared requirement identity — distinct root traits may inherit
     /// the same requirement, so several plans can each carry its row — is

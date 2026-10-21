@@ -283,9 +283,6 @@ impl ValidatedRegisterConstraintCatalog {
         self.physical
     }
 
-    pub fn into_catalog(self) -> RegisterConstraintCatalog {
-        self.catalog
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

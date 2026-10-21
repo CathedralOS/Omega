@@ -81,7 +81,4 @@ impl PostAllocationMachineOptimizationCustody {
         self.selected_bytes
     }
 
-    pub const fn expected_byte_savings(self) -> Option<u64> {
-        self.baseline_bytes.checked_sub(self.selected_bytes)
-    }
 }

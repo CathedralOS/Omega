@@ -78,9 +78,6 @@ impl ValidatedFunctionFragmentEmissionManifest {
         &self.record
     }
 
-    pub fn shared_record(&self) -> Arc<FunctionFragmentEmissionManifest> {
-        Arc::clone(&self.record)
-    }
 }
 
 #[derive(Debug)]

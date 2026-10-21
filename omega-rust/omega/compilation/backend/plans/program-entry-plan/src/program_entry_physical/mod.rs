@@ -275,10 +275,6 @@ impl ProgramEntryPhysicalContractPlan {
         self.target_package
     }
 
-    pub const fn target_package_identity(&self) -> &'static str {
-        self.target_package.manifest_identity()
-    }
-
     pub const fn target_package_source_digest(
         &self,
     ) -> ProgramEntryPhysicalContractPackageSourceDigest {

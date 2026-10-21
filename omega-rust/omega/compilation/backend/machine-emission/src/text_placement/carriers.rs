@@ -20,10 +20,6 @@ impl ValidatedFunctionFragmentTextSectionManifest {
         &self.record
     }
 
-    /// Retain the exact current claim without its admission capsule.
-    pub fn shared_record(&self) -> Arc<FunctionFragmentTextSectionManifest> {
-        Arc::clone(&self.record)
-    }
 }
 
 #[derive(Debug)]
