@@ -1108,6 +1108,55 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// The effect at operation completion. Operands have already executed in
+    /// the proof observer; callers that have not walked them need the complete
+    /// expression frame instead. Unknown chronological origins remain opaque.
+    pub(crate) fn operation_write_frame(
+        &self,
+        current_machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> NormalizedWriteFrame {
+        let Some(machine_symbols) = self.machine_symbols(current_machine) else {
+            return NormalizedWriteFrame::opaque();
+        };
+        let written = with_caller_origins(
+            self.program,
+            current_machine,
+            &self.tables.symbols,
+            CallerWriteSite::Expression(expression),
+            &self.caches.state_write_collections,
+            |inference, prefix| {
+                let mut written = Vec::new();
+                collect_operation_written_paths(
+                    self.program,
+                    expression,
+                    current_machine,
+                    &machine_symbols,
+                    &self.tables.symbols,
+                    inference,
+                    &mut written,
+                    prefix,
+                )?;
+                if !written.is_empty()
+                    && self
+                        .program
+                        .expression_table
+                        .call_node(expression)
+                        .is_some()
+                {
+                    let origins =
+                        self.expression_call_write_origins(current_machine, expression)?;
+                    origins.receiver.as_ref()?;
+                    if origins.arguments.iter().any(Option::is_none) {
+                        return None;
+                    }
+                }
+                Some(written)
+            },
+        );
+        written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+    }
+
     fn expression_write_frame_uncached(
         &self,
         current_machine: &'program Machine,
@@ -1350,36 +1399,58 @@ pub(super) fn collect_expression_call_written_paths(
     if !expression.is_valid() {
         return Some(());
     }
-    let mut visit = |child| {
-        collect_expression_call_written_paths(
-            program,
-            child,
-            current_machine,
-            machine_symbols,
-            symbols,
-            inference,
-            written,
-            origins,
-        )
-    };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            visit(dispatch.subject)?;
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    visit(pattern)?;
-                }
-                visit(arm.value)?;
+    let mut complete = Some(());
+    crate::expression_traversal::executable_children(
+        program,
+        program.expression_table.expression(expression),
+        |child| {
+            if complete.is_some() {
+                complete = collect_expression_call_written_paths(
+                    program,
+                    child,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    inference,
+                    written,
+                    origins,
+                );
             }
-        }
+        },
+    );
+    complete?;
+    collect_operation_written_paths(
+        program,
+        expression,
+        current_machine,
+        machine_symbols,
+        symbols,
+        inference,
+        written,
+        origins,
+    )
+}
+
+/// One operation's own effects, excluding already evaluated operands. Aggregate
+/// footprint queries and chronological proof execution share this resolver;
+/// applying a subtree footprint at each completion would erase child guarantees
+/// a second time after an outer call that never writes their subjects.
+#[allow(clippy::too_many_arguments)]
+fn collect_operation_written_paths(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    written: &mut Vec<String>,
+    origins: &CallOriginContext<'_>,
+) -> Option<()> {
+    match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            if let Some(carrier) =
-                crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+            if crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+                .is_some()
             {
-                visit(carrier.place)?;
-                for operand in carrier.operands {
-                    visit(operand)?;
-                }
                 // Operand calls complete before the attempt. This is a may-write
                 // footprint only; even a publishing success ordering proves no
                 // successful exchange on the mismatch/uncommitted paths.
@@ -1406,17 +1477,9 @@ pub(super) fn collect_expression_call_written_paths(
                         written.push(path);
                     }
                 }
-            } else {
-                visit(atomic.value)?;
             }
         }
         ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                visit(call.receiver)?;
-            }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                visit(*argument)?;
-            }
             // Predicates observe their already evaluated byte operands. Use
             // the same resolved intrinsic identity as stored-call effects;
             // an ordinary same-spelled callable keeps its inferred frame.
@@ -1604,33 +1667,7 @@ pub(super) fn collect_expression_call_written_paths(
                 }
             }
         }
-        ExpressionNode::Binary(binary) => {
-            visit(binary.left)?;
-            visit(binary.right)?;
-        }
-        ExpressionNode::Unary(unary) => visit(unary.operand)?,
-        ExpressionNode::Cast(cast) => visit(cast.value)?,
-        ExpressionNode::Indexed(indexed) => {
-            visit(indexed.collection)?;
-            visit(indexed.index)?;
-        }
-        ExpressionNode::Member(member) => visit(member.receiver)?,
-        ExpressionNode::Borrow(inner) => visit(inner.target)?,
-        ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
-                visit(*element)?;
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                visit(field.value)?;
-            }
-        }
-        ExpressionNode::Range(range) => {
-            visit(range.start)?;
-            visit(range.end)?;
-        }
-        typed_trees::literal_expression_pattern!() => {}
+        _ => {}
     }
     Some(())
 }

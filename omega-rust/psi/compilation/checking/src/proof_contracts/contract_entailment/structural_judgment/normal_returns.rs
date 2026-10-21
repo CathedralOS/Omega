@@ -796,7 +796,7 @@ impl<'program> StructuralJudge<'program> {
             let machine = program.machine(scope.0.symbol)?;
             let writes = self
                 .frame_resolver()?
-                .expression_write_frame(machine, expression);
+                .operation_write_frame(machine, expression);
             if super::super::struct_trace() {
                 eprintln!(
                     "STRUCT normal-write-frame caller={} expression={expression:?} writes={writes:?}",
@@ -1441,7 +1441,7 @@ impl<'program> StructuralJudge<'program> {
             let mut judge = entry.judge;
             let writes = judge
                 .frame_resolver()?
-                .expression_write_frame(scope.0, expression);
+                .operation_write_frame(scope.0, expression);
             if !writes.is_complete() && !judge.requires_value_preservation() {
                 return None;
             }
