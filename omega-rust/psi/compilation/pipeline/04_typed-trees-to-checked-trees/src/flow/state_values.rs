@@ -171,10 +171,14 @@ fn join(
     }
 }
 
-pub(super) fn unknown_inputs(program: &dyn ::validation::CheckingInput) -> Vec<StateValues> {
-    program
-        .machines()
+/// Unknown inputs for every state of the machines at roster `positions`.
+pub(super) fn unknown_inputs(
+    program: &dyn ::validation::CheckingInput,
+    positions: &[usize],
+) -> Vec<StateValues> {
+    positions
         .iter()
+        .map(|position| &program.machines()[*position])
         .flat_map(|machine| {
             program
                 .machine_states(machine)

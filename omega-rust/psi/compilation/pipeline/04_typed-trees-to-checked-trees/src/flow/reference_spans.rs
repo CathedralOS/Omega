@@ -5,7 +5,6 @@
 //! place and copies only when another append has moved the tail, so the
 //! rules for growing and narrowing one of these lists live here instead of
 //! being restated at each producing site.
-use arena::Handle;
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{FactPlan, ProgramPoint};
 

@@ -422,3 +422,11 @@ assembly median 6.956 -> 4.703 ms, minima 6.732 -> 4.542 ms. Total median stays
 724.605 -> 724.604 ms in this batch. The rebuilt producers preserve the 68 scoped
 corpus outcomes and three native/Terminal exit-0 witnesses. The full record keeps
 these integrated observations separate from the original producer batch.
+
+### Iteration 16: Flow Fixed Point per Machine Group (`04_typed-trees-to-checked-trees`)
+- **Regression observed after pulling `794b4cd9f7e`:** `build_flow_facts` on `facts/length/local` rose from `39.7 ms` (Iteration 15) to `~170 ms`, `Stage 05` from `458` to `~648 ms`; flow visited `976` states against `360`. `git bisect` (signal: `05.d.3.b.flow.states_visited <= 450`, `7` builds) named `e2a6d051c73` (`compiler: realize resident storage lifecycles over admitted backing`), which grows the checked program to `153` machines (`149` std). One new std machine, `AccessPlan::with_bounded`, needs a second flow pass for its loop state `seek`.
+- **Why that cost the whole program:** the flow fixed point was global. One unsettled machine re-swept all `~150` machines until the program settled, and Iteration 15's parallel first pass was discarded. It also coupled facts across unrelated machines: a settled machine's repeated pass is not always idempotent, so a loop in an unrelated machine could change another machine's facts or send every machine to the unknown-input fallback.
+- **Change:** every independent group (machines joined by invocations of another machine's non-entry state) now reaches its own fixed point, or its own unknown-input fallback, on a worker; the global sequential route is deleted, and a one-group program runs the same code.
+- **Measured A/B (5 interleaved runs, medians, base `794b4cd9f7e`):** `build_flow_facts` **`175.8 -> 40.9 ms`**; flow states visited `976 -> 397`; `Stage 05` `677.6 -> 551.0 ms`; total `899.9 -> 768.5 ms`.
+- **Corpus Gate Verification:** `python tools/corpus_gate.py --compare 794b4cd9f7e --filter "calls/,host/,arithmetic/,ranges/,borrow/,borrows/,ownership/,drops/,contracts/,control_flow/,layouts/,length_through_,facts/length"`: `2,682` fixtures, `0 lost, 0 gained` after the two `layouts/` fixtures that timed out under `24` jobs re-ran alone (`0 lost`). The groups holding Iteration 15's `15` divergent fixtures (`calls/`, `host/`) keep identical outcomes.
+- **Decision:** Retained.

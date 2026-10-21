@@ -1,7 +1,6 @@
 //! Scope-exit permission events for eligible owned cleanup.
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
-use arena::Arena;
 use checked_trees::{
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation, FlowPermissionEventFact,
 };

@@ -12,13 +12,13 @@
 //!
 //! Value inputs cross state boundaries only along transitions inside one
 //! machine and invocations of another machine's non-entry state, so machines
-//! joined by such invocations form independent groups. The first complete pass
-//! runs each group on its own worker over a copy of the baseline plan, writing
-//! every machine on page `MACHINE_PAGE_BASE + roster position` of each output
-//! arena; the owner adopts those pages, so handles and order match a
-//! sequential sweep that pages the same way. When that pass leaves any input
-//! changed, the program instead takes the sequential fixed point and its
-//! unknown-input fallback, whose repeated passes couple every group.
+//! joined by such invocations form independent groups. Each group reaches its
+//! own fixed point, or its own unknown-input fallback, on a worker over a copy
+//! of the baseline plan, writing every machine on page
+//! `MACHINE_PAGE_BASE + roster position` of each output arena; the owner
+//! adopts those pages, so handles and order follow the roster. A group's facts
+//! depend only on machines its values reach: a loop in an unrelated machine
+//! neither re-sweeps it nor sends it to the fallback.
 use crate::flow::FlowBuildContext;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
@@ -106,28 +106,18 @@ pub(crate) fn build_flow_facts(
     };
 
     let groups = machine_groups(program, borrow);
-    let parallel = if groups.len() > 1 {
-        build_groups_in_parallel(&inputs, &groups, &new_build, semantic)
-    } else {
-        None
-    };
-    let mut flow = parallel.unwrap_or_else(|| build_sequentially(&inputs, new_build(), semantic));
+    let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
     attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow
 }
 
-/// One complete pass of every group, each on a worker. The sequential fixed
-/// point is global: once any input changes, every group is swept again, and a
-/// settled group's repeated pass can still change its own inputs or send the
-/// program to the unknown-input fallback. Only a program settled by its first
-/// complete pass therefore matches group by group; `None` otherwise, leaving
-/// `semantic` at the baseline for the sequential sweep.
-fn build_groups_in_parallel<'plans>(
+/// Every group on a worker; the owner adopts each group's pages.
+fn build_groups<'plans>(
     inputs: &FlowInputs<'plans, '_>,
     groups: &[Vec<usize>],
     new_build: &(dyn Fn() -> FlowBuildContext<'plans> + Sync),
     semantic: &mut FactPlan,
-) -> Option<FlowFacts> {
+) -> FlowFacts {
     let groups_built = validation::checking_thread_pool().install(|| {
         groups
             .par_iter()
@@ -135,20 +125,15 @@ fn build_groups_in_parallel<'plans>(
                 || (inputs.baseline.clone(), new_build()),
                 |(worker_semantic, build), group| {
                     worker_semantic.clone_from(inputs.baseline);
-                    phase_profile::count("05.d.3.b.flow.inner_passes", 1);
-                    sweep(inputs, worker_semantic, build, group, true);
-                    if !build.dirty_state_value_inputs.is_empty() {
-                        build.take_output_pages();
-                        return None;
-                    }
-                    Some((
+                    build_group(inputs, worker_semantic, build, group);
+                    (
                         build.take_output_pages(),
                         worker_semantic.take_additional_pages(),
-                    ))
+                    )
                 },
             )
-            .collect::<Option<Vec<_>>>()
-    })?;
+            .collect::<Vec<_>>()
+    });
     let mut flow = FlowFacts::default();
     for (pages, semantic_pages) in groups_built {
         flow.contexts.adopt_additional_pages(pages.contexts);
@@ -161,28 +146,27 @@ fn build_groups_in_parallel<'plans>(
         flow.control.adopt_additional_pages(pages.control);
         semantic.adopt_additional_pages(semantic_pages);
     }
-    Some(flow)
+    flow
 }
 
-/// The whole program in one context, with its unknown-input fallback.
-fn build_sequentially<'plans>(
+/// One group's fixed point, or its unknown-input fallback.
+fn build_group<'plans>(
     inputs: &FlowInputs<'plans, '_>,
-    mut build: FlowBuildContext<'plans>,
     semantic: &mut FactPlan,
-) -> FlowFacts {
-    let machines = (0..inputs.program.machines().len()).collect::<Vec<_>>();
-    if converge(inputs, semantic, &mut build, &machines) {
-        return build.finish();
+    build: &mut FlowBuildContext<'plans>,
+    machines: &[usize],
+) {
+    if converge(inputs, semantic, build, machines) {
+        return;
     }
     // No provisional input fact survives a nonconvergent graph.
     build.discard_output();
     semantic.clone_from(inputs.baseline);
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
-    build.state_value_inputs = super::state_values::unknown_inputs(inputs.program);
+    build.state_value_inputs = super::state_values::unknown_inputs(inputs.program, machines);
     build.dirty_state_value_inputs.clear();
-    sweep(inputs, semantic, &mut build, &machines, true);
-    build.finish()
+    sweep(inputs, semantic, build, machines, true);
 }
 
 /// Sweep `machines` until their value inputs settle, then confirm with one
