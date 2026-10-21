@@ -48,6 +48,8 @@ pub(crate) use entry_origins::{
     machine_storage_origins, state_origins as state_parameter_origins,
 };
 mod exits;
+mod guard_predicates;
+pub(crate) use guard_predicates::saved_guard_observations;
 mod expression;
 mod operand_contexts;
 mod operand_values;

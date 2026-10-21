@@ -4,8 +4,7 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::FactPayload;
-use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
 use crate::labels::semantic_fact_requirement_label;
@@ -23,7 +22,7 @@ fn selected_transition_premise<'program>(
     call_frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> Option<(
     validation::CallSite<'program>,
-    typed_trees::expression::ExpressionHandle,
+    Vec<typed_trees::expression::ExpressionHandle>,
 )> {
     let call_site = validation::find_call_site(
         program,
@@ -65,29 +64,34 @@ fn selected_transition_premise<'program>(
     if !selects_this_call || !guard_preserves_values(machine, guard, call_frames) {
         return None;
     }
-    let premise = if let Some(captured) =
-        captured_subject_predicate(program, caller_state, call_flow.statement_index, guard)
-    {
-        // Short-circuiting can leave effectful later conjuncts inside the
-        // captured expression. The generated truth test's empty write frame
-        // does not establish currentness of those earlier observations.
-        if !guard_preserves_values(machine, captured, call_frames)
-            || !super::super::guard_operands::premise_reads_survive_arm_operand_writes(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                captured,
-                call_frames,
-            )
-        {
-            return None;
-        }
-        captured
-    } else {
-        guard
-    };
-    Some((call_site, premise))
+    // The flow owner authenticates exact reaching captures, polarity, and
+    // effects through dispatch. Whole requirements and Boolean children must
+    // consume that same observation set, not recover a generated-name capture
+    // through an independent matcher. Arm operands execute after observation.
+    let captured = crate::flow::saved_guard_observations(
+        program,
+        machine,
+        caller_state,
+        call_flow.statement_index,
+        guard,
+        true,
+        call_frames,
+    );
+    let premises = std::iter::once(guard)
+        .chain(captured.into_iter().filter_map(|(premise, holds)| {
+            (holds
+                && super::super::guard_operands::premise_reads_survive_arm_operand_writes(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    premise,
+                    call_frames,
+                ))
+            .then_some(premise)
+        }))
+        .collect();
+    Some((call_site, premises))
 }
 
 /// Query one original Boolean conjunct through the same selected-arm and
@@ -100,7 +104,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, guard)) =
+    let Some((call_site, guards)) =
         selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
     else {
         return false;
@@ -118,80 +122,30 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
         target_parameters,
         expression,
     );
-    (guard_conjunct_matches(program, guard, &required_label)
-        || super::guard_observations::conjunct_matches(
-            program, facts, state_flow, call_flow, guard, expression,
-        )
-        || super::super::call_bounds::proves(
-            program,
-            facts,
-            state_flow,
-            call_flow,
-            &[],
-            expression,
-            Some(guard),
-        ))
-        && super::super::guard_operands::requirement_reads_survive_earlier_operand_writes(
-            program,
-            facts,
-            state_flow,
-            call_flow,
-            validation::call_site_argument_expressions(program, &call_site),
-            target_parameters,
-            &super::super::guard_operands::boolean_requirement_mentions(program, expression),
-            call_frames,
-        )
-}
-
-/// The predicate a COMPUTED transition subject was captured from, when the
-/// guard this arm reads is that captured subject's truth test.
-///
-/// `parse_transition` evaluates a computed subject once, before arm dispatch,
-/// and captures it into a generated local (`__transition_subject#N`); the arms
-/// then read `__transition_subject#N == true`. A requirement proof that matches
-/// a guard against the requirement's own predicate needs the PREDICATE, not the
-/// lowered truth test: a predicate-only domain reduces to exactly the predicate
-/// the capture was built from, and matching the truth test against it finds
-/// nothing. Recovery is refused unless the capture is the statement immediately
-/// before the transition, so no statement can run between the subject's
-/// evaluation and the jump.
-fn captured_subject_predicate(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    transition_index: usize,
-    guard: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let subject = subject_truth_test_symbol(program, guard)?;
-    let capture = program
-        .statement_table
-        .statement_at(state, transition_index.checked_sub(1)?)?;
-    let local = capture.as_local_data()?;
-    if local.symbol != subject || !local.initial_value.is_valid() {
-        return None;
-    }
-    Some(local.initial_value)
-}
-
-/// The symbol a `<subject> == true` guard tests, or `None` for any other guard.
-/// Only the captured-subject truth test has this shape; an authored
-/// `flag == true` comparison is a different expression and is left alone.
-fn subject_truth_test_symbol(
-    program: &dyn ::validation::CheckingInput,
-    guard: ExpressionHandle,
-) -> Option<SymbolHandle> {
-    let binary = program.expression_table.binary_node(guard)?;
-    if binary.operator != typed_trees::expression::BinaryOperator::Equal
-        || !matches!(
-            program.expression_table.expression(binary.right),
-            ExpressionNode::Boolean(true)
-        )
-    {
-        return None;
-    }
-    match program.expression_table.expression(binary.left) {
-        ExpressionNode::Name(path) => Some(path.symbol),
-        _ => None,
-    }
+    guards.iter().any(|guard| {
+        guard_conjunct_matches(program, *guard, &required_label)
+            || super::guard_observations::conjunct_matches(
+                program, facts, state_flow, call_flow, *guard, expression,
+            )
+            || super::super::call_bounds::proves(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                &[],
+                expression,
+                Some(*guard),
+            )
+    }) && super::super::guard_operands::requirement_reads_survive_earlier_operand_writes(
+        program,
+        facts,
+        state_flow,
+        call_flow,
+        validation::call_site_argument_expressions(program, &call_site),
+        target_parameters,
+        &super::super::guard_operands::boolean_requirement_mentions(program, expression),
+        call_frames,
+    )
 }
 
 /// A named transition is itself an incoming edge. Its taken-arm guard may
@@ -209,10 +163,15 @@ pub(super) fn transition_guard_proves_requires(
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, matching_guard)) =
+    let Some((call_site, matching_guards)) =
         selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
     else {
         return false;
+    };
+    let matches_guard = |label: &str| {
+        matching_guards
+            .iter()
+            .any(|guard| guard_conjunct_matches(program, *guard, label))
     };
     let Some(target_parameters) =
         validation::call_target_parameters(program, call_flow.target_symbol)
@@ -237,22 +196,24 @@ pub(super) fn transition_guard_proves_requires(
     };
     let copied_guard_establishes = match fact.payload {
         FactPayload::ContractBooleanExpression { expression, .. } => {
-            super::guard_observations::conjunct_matches(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                matching_guard,
-                expression,
-            )
+            matching_guards.iter().any(|matching_guard| {
+                super::guard_observations::conjunct_matches(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    *matching_guard,
+                    expression,
+                )
+            })
         }
         _ => false,
     };
-    let guard_establishes = guard_conjunct_matches(program, matching_guard, &required_label) || copied_guard_establishes
+    let guard_establishes = matches_guard(&required_label) || copied_guard_establishes
         || super::predicate_domains::predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
             labels
                 .iter()
-                .all(|label| guard_conjunct_matches(program, matching_guard, label))
+                .all(|label| matches_guard(label))
         })
         // The spellings need not agree when both state a closed interval:
         // `index < 16` establishes `requires self <= 15`. Comparing the
@@ -263,12 +224,10 @@ pub(super) fn transition_guard_proves_requires(
                 let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
                     low >= required_low && high <= required_high
                 };
-                super::super::intervals::guard_interval_for_label(
-                    program,
-                    matching_guard,
-                    &subject_label,
-                )
-                .is_some_and(contains)
+                matching_guards.iter().any(|guard| {
+                    super::super::intervals::guard_interval_for_label(program, *guard, &subject_label)
+                        .is_some_and(contains)
+                })
             },
         );
     if !guard_establishes {

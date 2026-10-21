@@ -31,6 +31,7 @@ fn retain_semantic_context(
 
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
+use crate::flow::guard_predicates::{expression_is_stable_predicate, guard_observations};
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
@@ -72,10 +73,11 @@ pub(super) fn append_guard_context(
     // Dispatch tests the saved decision, not its initializer again. Recover
     // that decision once for every guard consumer; numeric bounds must not
     // have a private recovery route that case and Boolean evidence miss.
-    let captured = build.state_location(program, state_symbol).and_then(
+    let captured = build.state_location(program, state_symbol).map_or_else(
+        Vec::new,
         |(machine_position, state_position)| {
             let machine = &program.machines()[machine_position];
-            captured_subject_predicate(
+            crate::flow::saved_guard_observations(
                 program,
                 machine,
                 &program.machine_states(machine)[state_position],
@@ -498,123 +500,6 @@ fn append_case_constraint_context(
     retain_semantic_context(build, active_contexts, active_constraints, context);
 }
 
-/// The signed predicate behind a saved transition decision, when its operands
-/// cannot have changed since evaluation.
-///
-/// `parse_transition` evaluates a computed subject once, before arm dispatch,
-/// and captures it into a generated local (`__transition_subject#N`); the arms
-/// then test the captured decision. Selected builtin Boolean decomposition
-/// supplies its polarity, including false arms and negation. It is
-/// recoverable only while the capture is the statement immediately before the
-/// arm: any statement between them could replace an operand the predicate read.
-/// Both the capture and the dispatch guard must carry COMPLETE EMPTY write
-/// frames. A truth test's own frame says nothing about short-circuited
-/// conjuncts, so a call inside the capture may replace an operand an earlier
-/// conjunct already bounded; a fact minted from such a predicate would be false
-/// at the jump. `checks/contracts/calls/transition_guards.rs` applies this same
-/// empty-frame rule when it recovers the predicate for requirement matching
-/// (`guard_preserves_values`), so both consumers of the recovery read one
-/// condition off the call-frame resolver.
-fn captured_subject_predicate<'program>(
-    program: &dyn ::validation::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    guard: ExpressionHandle,
-    value: bool,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
-) -> Option<(ExpressionHandle, bool)> {
-    let capture = program
-        .statement_table
-        .statement_at(state, statement_index.checked_sub(1)?)?;
-    let local = capture.as_local_data()?;
-    if !local.initial_value.is_valid() {
-        return None;
-    }
-    let mut observations = Vec::new();
-    guard_observations(program, machine, state, guard, value, &mut observations);
-    let polarity = observations.iter().find_map(|(expression, value)| {
-        matches!(program.expression_table.expression(*expression),
-            ExpressionNode::Name(path) if path.symbol == local.symbol)
-        .then_some(*value)
-    })?;
-    let frame_is_empty = call_frames.is_some_and(|frames| {
-        [local.initial_value, guard].into_iter().all(|expression| {
-            frames
-                .expression_write_frame(machine, expression)
-                .into_complete_paths()
-                .is_some_and(|writes| writes.is_empty())
-        })
-    });
-    frame_is_empty.then_some((local.initial_value, polarity))
-}
-
-/// The authored predicate captured for this arm's truth test.
-///
-/// Sibling arms and generated pattern locals sit between the capture and a
-/// later arm. The search stops at any other statement, which could have
-/// replaced a subject the predicate read.
-fn authored_transition_predicate(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    guard: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let subject = subject_truth_test_symbol(program, guard)?;
-    let mut index = statement_index;
-    while let Some(previous) = index.checked_sub(1) {
-        index = previous;
-        let statement = program.statement_table.statement_at(state, index)?;
-        if let Some(local) = statement.as_local_data() {
-            if local.symbol == subject && local.initial_value.is_valid() {
-                return Some(local.initial_value);
-            }
-            if local.name.as_str().starts_with("__") {
-                continue;
-            }
-            return None;
-        }
-        if matches!(
-            statement,
-            typed_trees::statement::StatementNode::Transition(_)
-        ) {
-            continue;
-        }
-        return None;
-    }
-    None
-}
-
-fn path_names_place(path: &str, label: &str) -> bool {
-    path == label
-        || path
-            .strip_prefix(label)
-            .is_some_and(|rest| rest.starts_with('.'))
-        || label
-            .strip_prefix(path)
-            .is_some_and(|rest| rest.starts_with('.'))
-}
-
-/// The local a `<subject> == true` guard tests, or `None` for any other guard.
-fn subject_truth_test_symbol(
-    program: &dyn ::validation::CheckingInput,
-    guard: ExpressionHandle,
-) -> Option<SymbolHandle> {
-    let binary = program.expression_table.binary_node(guard)?;
-    if binary.operator != typed_trees::expression::BinaryOperator::Equal
-        || !matches!(
-            program.expression_table.expression(binary.right),
-            ExpressionNode::Boolean(true)
-        )
-    {
-        return None;
-    }
-    match program.expression_table.expression(binary.left) {
-        ExpressionNode::Name(path) => Some(path.symbol),
-        _ => None,
-    }
-}
-
 /// Conjuncts asserted by taking the `true` arm: split `&&` recursively, and
 /// peel the arm-test `<expr> == true` wrappers. `expr == false` under a true
 /// arm is contradictory and contributes nothing.
@@ -662,76 +547,6 @@ fn flatten_and_conjuncts(
         }
         _ => conjuncts.push(expression),
     }
-}
-
-/// Signed observations guaranteed by the selected Boolean outcome, in
-/// evaluation order. A true conjunction or false disjunction observes both
-/// children. Other short-circuit outcomes establish no individual operand.
-fn guard_observations(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: ExpressionHandle,
-    value: bool,
-    observations: &mut Vec<(ExpressionHandle, bool)>,
-) {
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Unary(unary)
-            if unary.operator == UnaryOperator::LogicalNot
-                && validation::has_builtin_decomposed_guard_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                ) =>
-        {
-            guard_observations(program, machine, state, unary.operand, !value, observations);
-            return;
-        }
-        ExpressionNode::Binary(binary)
-            if (binary.operator == BinaryOperator::And && value)
-                || (binary.operator == BinaryOperator::Or && !value) =>
-        {
-            guard_observations(program, machine, state, binary.left, value, observations);
-            guard_observations(program, machine, state, binary.right, value, observations);
-            return;
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && validation::has_builtin_decomposed_guard_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ) =>
-        {
-            let observed = match (
-                program.expression_table.expression(binary.left),
-                program.expression_table.expression(binary.right),
-            ) {
-                (_, ExpressionNode::Boolean(expected)) => Some((binary.left, *expected)),
-                (ExpressionNode::Boolean(expected), _) => Some((binary.right, *expected)),
-                _ => None,
-            };
-            if let Some((operand, expected)) = observed {
-                let equal = value == (binary.operator == BinaryOperator::Equal);
-                guard_observations(
-                    program,
-                    machine,
-                    state,
-                    operand,
-                    expected == equal,
-                    observations,
-                );
-                return;
-            }
-        }
-        _ => {}
-    }
-    observations.push((expression, value));
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -787,86 +602,6 @@ pub(in crate::flow) fn append_predicate_context(
             value,
             &mut observations,
         );
-        // A computed subject is one local read by every arm as `<local> == true`.
-        // The tag evidence is the authored predicate stored in that local, not
-        // the truth test. Later arms are sibling transitions, so the capture
-        // is not always the immediately previous statement. A call inside the
-        // predicate retires only the subjects it writes.
-        if let Some(captured) =
-            authored_transition_predicate(program, state, statement_index, expression)
-        {
-            let writes = build.call_frames.and_then(|frames| {
-                frames
-                    .expression_write_frame(machine, captured)
-                    .into_complete_paths()
-            });
-            if let Some(writes) = writes {
-                let mut captured_observations = Vec::new();
-                guard_observations(
-                    program,
-                    machine,
-                    state,
-                    captured,
-                    value,
-                    &mut captured_observations,
-                );
-                for (observation, selected) in captured_observations {
-                    let Some(binary) = program.expression_table.binary_node(observation) else {
-                        continue;
-                    };
-                    let Some(case) = validation::applied_case_membership_variant(
-                        program,
-                        machine,
-                        Some(state),
-                        observation,
-                        binary,
-                    ) else {
-                        continue;
-                    };
-                    let Some(subject) = validation::canonical_place_from_expression_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        binary.left,
-                    ) else {
-                        continue;
-                    };
-                    let label = subject.label(program);
-                    let written = writes.iter().any(|path| path_names_place(path, &label));
-                    if written
-                        || !crate::flow::entry_origin_is_stable(
-                            program,
-                            &build.control,
-                            entry_writes,
-                            entry_unknown_write,
-                            &subject,
-                        )
-                    {
-                        continue;
-                    }
-                    append_observation_context(
-                        program,
-                        semantic,
-                        build,
-                        state_symbol,
-                        statement_index,
-                        &[binary.left],
-                        if selected {
-                            FactPayload::AssignedCase { variant: case }
-                        } else {
-                            FactPayload::BooleanValue {
-                                expression: observation,
-                                value: false,
-                            }
-                        },
-                        point,
-                        FactOrigin::TransitionGuard,
-                        active_contexts,
-                        active_constraints,
-                    );
-                }
-            }
-        }
         let last = observations.len().saturating_sub(1);
         for (position, (observation, selected)) in observations.into_iter().enumerate() {
             let Some(binary) = program.expression_table.binary_node(observation) else {
@@ -1189,50 +924,6 @@ fn append_observation_context(
     }
     let context = semantic.append_context(point, refs);
     retain_semantic_context(build, active_contexts, active_constraints, context);
-}
-
-fn expression_is_stable_predicate(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| expression_is_stable_predicate(program, field.value)),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_stable_predicate(program, *value)),
-        ExpressionNode::Member(member) => expression_is_stable_predicate(program, member.receiver),
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_stable_predicate(program, indexed.collection)
-                && expression_is_stable_predicate(program, indexed.index)
-        }
-        ExpressionNode::Unary(unary) => expression_is_stable_predicate(program, unary.operand),
-        ExpressionNode::Binary(binary) => {
-            expression_is_stable_predicate(program, binary.left)
-                && expression_is_stable_predicate(program, binary.right)
-        }
-        ExpressionNode::Borrow(borrow) => expression_is_stable_predicate(program, borrow.target),
-        // A selected primitive observation is repeatable while its operand
-        // storage is preserved. Observation contexts retain those operand
-        // places, so ordinary alias-aware invalidation owns both polarities.
-        ExpressionNode::Call(_) => {
-            typed_trees::byte_predicates::byte_predicate_call(program, expression)
-                .is_some_and(|(_, operand)| expression_is_stable_predicate(program, operand))
-        }
-        _ => false,
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
