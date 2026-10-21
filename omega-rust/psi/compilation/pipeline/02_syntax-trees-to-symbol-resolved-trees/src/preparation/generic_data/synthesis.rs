@@ -456,17 +456,24 @@ pub(crate) fn desugar_generic_data_instances_in(
         }
         // Synthesize each not-yet-built instance: the base's members cloned with
         // the type parameters substituted for the arguments.
-        for instance in &instantiations {
-            synthesize_instance(
-                syntax,
-                warnings,
-                &mut synthesized,
-                &generic_data,
-                &attached_machines,
-                &const_values,
-                selection,
-                instance,
-            )?;
+        if !instantiations.is_empty() {
+            // Discovery closed every argument before this round copies any
+            // declaration. Templates and attached bodies share that immutable
+            // source; each instance still owns its copied expression graph.
+            let snapshot = syntax.clone();
+            for instance in &instantiations {
+                synthesize_instance(
+                    syntax,
+                    &snapshot,
+                    warnings,
+                    &mut synthesized,
+                    &generic_data,
+                    &attached_machines,
+                    &const_values,
+                    selection,
+                    instance,
+                )?;
+            }
         }
 
         // Rewrite this round's spellings to the synthesized instances' plain names.
@@ -526,6 +533,7 @@ pub(crate) fn desugar_generic_data_instances_in(
 /// `const` parameters substituted, as a new concrete record.
 fn synthesize_instance(
     syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
     synthesized: &mut Vec<Instantiation>,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
@@ -638,7 +646,6 @@ fn synthesize_instance(
     // Omit a proven truth, but retain false and mixed predicates with the same
     // substitution as members. Construction and observation own establishment;
     // discovering a contradiction must not make a type declaration illegal.
-    let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
     let fact_expression_watermark = syntax.expressions.frontier();
     let mut first_fact = Handle::invalid();
@@ -663,7 +670,7 @@ fn synthesize_instance(
         let fact_warning_start = warnings.len();
         let const_result = match fact {
             ProofFact::Expression(expression) => evaluate_const_fact_expression(
-                &snapshot,
+                snapshot,
                 *expression,
                 const_values,
                 &const_parameter_scalars,
@@ -675,7 +682,7 @@ fn synthesize_instance(
                 _ => None,
             }),
             ProofFact::Membership(membership) => evaluate_const_membership_fact(
-                &snapshot,
+                snapshot,
                 membership,
                 const_values,
                 &const_parameter_values,
@@ -703,7 +710,7 @@ fn synthesize_instance(
                 .expect("proof fact source handle overflow"),
             base_info.where_facts.start().generation(),
         );
-        let handle = syntax.copy_proof_fact_from(&snapshot, source);
+        let handle = syntax.copy_proof_fact_from(snapshot, source);
         if fact_count == 0 {
             first_fact = handle;
         }
@@ -754,7 +761,7 @@ fn synthesize_instance(
     for member in members {
         let substituted = substitute_member(
             syntax,
-            &snapshot,
+            snapshot,
             member,
             &substitution,
             &type_identities,
@@ -811,7 +818,6 @@ fn synthesize_instance(
     let Some(machine_items) = attached_machines.get(&instance.template) else {
         return Ok(());
     };
-    let snapshot = syntax.clone();
     for &item_index in machine_items {
         let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index) else {
             continue;
@@ -819,7 +825,7 @@ fn synthesize_instance(
         let type_watermark = syntax.tables.type_references.node_count();
         let expression_watermark = syntax.expressions.frontier();
         let Item::Machine(mut clone) =
-            syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
+            syntax.copy_item_from(snapshot, &Item::Machine(machine.clone()))
         else {
             continue;
         };
@@ -845,7 +851,7 @@ fn synthesize_instance(
         // retaining only the span would lose an imported qualification.
         clone.attached_data = Some(
             closed_constructor_carrier(
-                &snapshot,
+                snapshot,
                 selection,
                 instance,
                 machine.attached_data.as_ref().expect("selected attachment"),
