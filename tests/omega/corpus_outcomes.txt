@@ -13982,6 +13982,7 @@ pass/wire/wire_preserving_decode_relay_exit checked 4293ms check-target:macos_ar
 pass/wire/wire_retired_field checked 5808ms @5041ef1af684+wt
 pass/write_only/returned_destination_transport_exit checked 13696ms check-target:macos_arm64 @c5d73037f08c+wt
 pass/write_only/state_forwarded_scalar_store_exit checked 11575ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/arithmetic/disjoint_pressure_regions checked 14745ms check-target:macos_arm64 @c1aa4ca6360b
 run/arithmetic/fixed_input_reused_across_calls checked 11597ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/arithmetic/fixed_integer_operand_after_call checked 6744ms check-target:macos_arm64 @589aedee8ebc+wt
 run/arithmetic/fixed_integer_operand_after_pressure checked 6940ms check-target:macos_arm64 @589aedee8ebc+wt
