@@ -246,3 +246,32 @@ OMEGA_CORPUS_HOST_PROVISIONS=1 python3 tools/corpus_gate.py \
 The host-specific golden requires seven machine observations. An unsupported
 host's unavailable record cannot match it. This separate runtime golden keeps
 ordinary source acceptance portable without claiming unavailable executions.
+
+`runtime portable cleanup-resume` selects a trusted SDK lifecycle provision on
+the existing projected nominal cleanup fixture's `exercise_unit_projection`.
+With `OMEGA_CORPUS_HOST_PROVISIONS=1`, it consumes the roundtripped inspection
+artifact and explicitly admits one exact normal Unit/i32 Console byte import
+under the corpus host's policy, then binds it to a recorded semantic sink.
+Uninstalled construction must refuse; catalog availability alone supplies no
+provider. It checks the authored `OPBA` line under unbounded execution and
+one retained instance funded one refused site at a time: before edge cleanup,
+inside the parent hook after `P`, and inside the child hook after `B`. Unfunded
+retries preserve output, effects and fuel; live close stays Busy, and completion
+matches the entire reference effect stream and per-site fuel usage. This is
+portable interpreter acceptance, not native Console or native fuel evidence.
+Without the opt-in it records `unrequested`; unknown portable provisions refuse.
+The ordinary immutable capture/verification environment also binds runtime
+inspection artifacts under `inspection/<program-fingerprint>/portable/terminal.psiart`
+before the SDK provision executes; verification compares bytes without replacing
+the retained artifact.
+
+The macOS ARM64 record requires the actual SDK runtime match:
+
+```sh
+OMEGA_CORPUS_HOST_PROVISIONS=1 python3 tools/corpus_gate.py \
+  --golden tests/omega/corpus_host_provisions_macos_arm64.txt \
+  --filter pass/drops/runtime_projected_nominal_cleanup_exit
+```
+
+Other hosts can execute the portable provision but remain unqualified by this
+host's record. Ordinary source/native goldens retain the opt-out observation.

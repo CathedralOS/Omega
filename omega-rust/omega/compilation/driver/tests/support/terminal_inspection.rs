@@ -30,6 +30,12 @@ enum InspectionControls {
     MathematicalActuals,
 }
 
+#[derive(Clone, Copy)]
+enum RuntimeHost {
+    LinuxX86_64,
+    Portable,
+}
+
 pub(super) fn inspect(root: &Path, fixture: &Path) -> Result<Vec<String>, Vec<Diagnostic>> {
     inspect_machines(root, fixture).map_err(|message| vec![Diagnostic::error(message)])
 }
@@ -52,8 +58,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
     for selection in selections {
         let words = selection.split_whitespace().collect::<Vec<_>>();
         let (machine, runtime_words) = match words.as_slice() {
-            [machine, "runtime", "linux_x86_64", provisions @ ..] if !provisions.is_empty() => {
-                (*machine, Some(provisions))
+            [machine, "runtime", host, provisions @ ..] if !provisions.is_empty() => {
+                let host = match *host {
+                    "linux_x86_64" => RuntimeHost::LinuxX86_64,
+                    "portable" => RuntimeHost::Portable,
+                    _ => return Err(format!("unknown Terminal provision host {host}")),
+                };
+                (*machine, Some((host, provisions)))
             }
             [machine, ..] => (*machine, None),
             _ => return Err(format!("{ORACLE} requires a machine")),
@@ -127,17 +138,42 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         {
             return Err(format!("inspection {machine} changed during transport"));
         }
-        if let Some(words) = runtime_words {
+        if let Some((host, words)) = runtime_words {
+            let fingerprint = artifact
+                .manifest()
+                .semantic()
+                .program_fingerprint
+                .as_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            if let Some(capture) = crate::artifact_capture::Capture::from_environment(
+                "inspection",
+                &fingerprint,
+                "portable",
+            )? {
+                capture.observe("terminal.psiart", &transported)?;
+            }
             if !host_provisions {
                 observations.push(format!("terminal-runtime.{machine}:unrequested"));
-            } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-                host_provisions::observe(&decoded, words)
-                    .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
-                observations.push(format!("terminal-runtime.{machine}:match"));
             } else {
-                observations.push(format!(
-                    "terminal-runtime.{machine}:unavailable-linux_x86_64"
-                ));
+                match host {
+                    RuntimeHost::Portable => {
+                        host_provisions::observe_portable(&decoded, words)
+                            .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
+                        observations.push(format!("terminal-runtime.{machine}:match"));
+                    }
+                    RuntimeHost::LinuxX86_64
+                        if cfg!(all(target_os = "linux", target_arch = "x86_64")) =>
+                    {
+                        host_provisions::observe(&decoded, words)
+                            .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
+                        observations.push(format!("terminal-runtime.{machine}:match"));
+                    }
+                    RuntimeHost::LinuxX86_64 => observations.push(format!(
+                        "terminal-runtime.{machine}:unavailable-linux_x86_64"
+                    )),
+                }
             }
         }
         if let Some(controls) = conformance_controls {

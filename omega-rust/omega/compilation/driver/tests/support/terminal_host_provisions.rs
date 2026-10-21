@@ -1,3 +1,17 @@
+#[path = "terminal_cleanup_resume.rs"]
+mod cleanup_resume;
+
+/// Portable provisions supply semantic test sinks, never native host services.
+pub(super) fn observe_portable(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    words: &[&str],
+) -> Result<(), String> {
+    match words {
+        ["cleanup-resume"] => cleanup_resume::observe(artifact),
+        _ => Err("unknown portable Terminal fixture provision".to_owned()),
+    }
+}
+
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 mod linux {
     //! Explicit trusted corpus provisions for actual libc carrier exchange and owned entry arrivals.
