@@ -325,6 +325,11 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
+            self.operations.register_structural_materialization(
+                place,
+                self.state,
+                self.statement,
+            )?;
             return Ok(StructuralArgument {
                 place,
                 path: Vec::new(),

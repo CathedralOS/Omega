@@ -16,7 +16,7 @@ pub struct ContextualCleanupStateIndex {
         (SymbolHandle, SymbolHandle),
         Vec<Handle<ContextualCleanupDisposition>>,
     >,
-    selected: Vec<bool>,
+    selected: Vec<Handle<ContextualCleanupDisposition>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -42,13 +42,15 @@ pub struct ContextualCleanupFacts {
     /// storage survives refreshing the selected death occurrences.
     pub entry_requirements: ContextualCleanupEntryRequirements,
     /// `(machine, state)` and selected-disposition lookup owned by this ledger.
-    pub state_index: OwnedIndex<ContextualCleanupStateIndex>,
+    pub state_index: OwnedIndex<ContextualCleanupStateIndex, (u64, u64)>,
 }
 
 impl ContextualCleanupFacts {
     fn with_state_index<R>(&self, run: impl FnOnce(&ContextualCleanupStateIndex) -> R) -> R {
-        let revision =
-            self.dispositions.revision() ^ self.selected_dispositions.revision().rotate_left(32);
+        let revision = (
+            self.dispositions.revision(),
+            self.selected_dispositions.revision(),
+        );
         self.state_index.with(
             revision,
             || {
@@ -62,12 +64,15 @@ impl ContextualCleanupFacts {
                         .or_default()
                         .push(handle);
                 }
-                let mut selected = vec![false; self.dispositions.len()];
-                for (_, candidate) in self.selected_dispositions.iter() {
-                    if let Some(slot) = selected.get_mut(candidate.arena_index() as usize) {
-                        *slot = true;
-                    }
-                }
+                // Selection names exact occurrences, including their generations.
+                // Active row count is neither a slot bound nor a handle identity.
+                let mut selected: Vec<_> = self
+                    .selected_dispositions
+                    .iter()
+                    .map(|(_, candidate)| *candidate)
+                    .collect();
+                selected.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+                selected.dedup();
                 ContextualCleanupStateIndex { by_state, selected }
             },
             run,
@@ -78,9 +83,10 @@ impl ContextualCleanupFacts {
         self.with_state_index(|index| {
             index
                 .selected
-                .get(handle.arena_index() as usize)
-                .copied()
-                .unwrap_or(false)
+                .binary_search_by_key(&(handle.arena_index(), handle.generation()), |candidate| {
+                    (candidate.arena_index(), candidate.generation())
+                })
+                .is_ok()
         })
     }
 
@@ -286,5 +292,35 @@ impl ContextualCleanupEntryRequirement {
             return None;
         };
         Some((*parameter_position, path, expected))
+    }
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::{ContextualCleanupDisposition, ContextualCleanupFacts};
+
+    #[test]
+    fn selected_membership_preserves_full_handles_and_sparse_rosters() {
+        let mut facts = ContextualCleanupFacts::default();
+        let first = facts
+            .dispositions
+            .insert(ContextualCleanupDisposition::default());
+        facts.selected_dispositions.insert(first);
+        assert!(facts.is_selected_disposition(first));
+        let last = facts
+            .dispositions
+            .insert(ContextualCleanupDisposition::default());
+        facts.selected_dispositions.insert(last);
+        assert!(facts.is_selected_disposition(last));
+        assert!(facts.dispositions.free(first));
+        assert!(facts.is_selected_disposition(last));
+        let replacement = facts
+            .dispositions
+            .insert(ContextualCleanupDisposition::default());
+        assert_eq!(first.arena_index(), replacement.arena_index());
+        assert_ne!(first.generation(), replacement.generation());
+        assert!(!facts.is_selected_disposition(replacement));
+        facts.selected_dispositions.insert(replacement);
+        assert!(facts.is_selected_disposition(replacement));
     }
 }

@@ -200,6 +200,11 @@ impl OperationFrame<'_, '_> {
         produced: terminal_psi::StructuralOperationResult,
         discard_on_return: bool,
     ) -> Result<(), LoweringError> {
+        self.operations.register_structural_materialization(
+            declaration.id,
+            self.state,
+            result.statement_index,
+        )?;
         self.results.push(declaration, discard_on_return);
         // Every performed call publishes its exact expression home, including
         // preparatory calls. A containing value's consumer cannot reconstruct

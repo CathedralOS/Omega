@@ -295,7 +295,13 @@ pub(super) fn complete_structural_return(
     let mut regions = super::cleanup::for_exit_regions(
         identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
     )?;
-    super::cleanup::selection(&state.operations, evaluation, operations, &mut regions)?;
+    super::cleanup::selection(
+        state.state,
+        &state.operations,
+        evaluation,
+        operations,
+        &mut regions,
+    )?;
     let completion = Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,

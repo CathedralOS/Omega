@@ -302,6 +302,7 @@ pub fn prepare_typed_trees(
     // the unchanged source roster or electing a private realization's fields.
     data_applications::elaborate_new_types(&mut program, signature_type_start)?;
     crate::assignment_destinations::prepare(&mut program);
+    entry_contexts::validate_zero_contexts(&program, request.entry_contexts)?;
     crate::assembly_control::admit(&program)?;
     // Mathematical source applications consume the same exact application
     // views, implicit index descriptors and final operand occurrences as

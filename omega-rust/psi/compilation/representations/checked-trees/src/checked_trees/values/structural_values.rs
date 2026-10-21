@@ -16,11 +16,9 @@ pub struct CheckedStructuralValuePlans {
     pub record_fields: Arena<CheckedStructuralRecordField>,
     call_schedules: Arena<StructuralCallSchedule>,
     calls: Arena<crate::CheckedStructuralValueCall>,
-    roots_by_state: arena::OwnedIndex<(
-        u64,
-        usize,
+    roots_by_state: arena::OwnedIndex<
         symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedStructuralValueRoot>>>,
-    )>,
+    >,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -401,52 +399,18 @@ impl CheckedStructuralValuePlans {
         state: SymbolHandle,
         run: impl FnOnce(&[Handle<CheckedStructuralValueRoot>]) -> R,
     ) -> R {
-        self.roots_by_state.with_mut(
-            0,
-            || (0, 0, symbols::SymbolKeyMap::default()),
-            |(seen_revision, indexed_len, by_state)| {
-                let current_revision = self.roots.revision();
-                if *seen_revision != current_revision {
-                    let slice = self.roots.storage_slice();
-                    let delta = slice.len().checked_sub(*indexed_len);
-                    let rev_delta = current_revision.checked_sub(*seen_revision);
-                    if self.roots.len() == slice.len()
-                        && let (Some(delta), Some(rev_delta)) = (delta, rev_delta)
-                        && rev_delta == delta as u64
-                    {
-                        let mut valid_tail = true;
-                        for (offset, root) in slice[*indexed_len..].iter().enumerate() {
-                            let Some(arena_index) = (*indexed_len + offset)
-                                .checked_add(1)
-                                .and_then(|idx| u32::try_from(idx).ok())
-                            else {
-                                valid_tail = false;
-                                break;
-                            };
-                            let handle = Handle::from_parts(arena_index, 1);
-                            if !self.roots.is_valid(handle) {
-                                valid_tail = false;
-                                break;
-                            }
-                            by_state.entry(root.state).or_default().push(handle);
-                        }
-                        if !valid_tail {
-                            by_state.clear();
-                            for (handle, root) in self.roots.iter() {
-                                by_state.entry(root.state).or_default().push(handle);
-                            }
-                        }
-                    } else {
-                        by_state.clear();
-                        for (handle, root) in self.roots.iter() {
-                            by_state.entry(root.state).or_default().push(handle);
-                        }
-                    }
-                    *seen_revision = current_revision;
-                    *indexed_len = slice.len();
+        // Batch insertion and mutation have independent revision/length effects.
+        // Only the arena's exact revision establishes freshness of every bucket.
+        self.roots_by_state.with(
+            self.roots.revision(),
+            || {
+                let mut by_state = symbols::SymbolKeyMap::<SymbolHandle, Vec<_>>::default();
+                for (handle, root) in self.roots.iter() {
+                    by_state.entry(root.state).or_default().push(handle);
                 }
-                run(by_state.get(&state).map_or(&[], Vec::as_slice))
+                by_state
             },
+            |by_state| run(by_state.get(&state).map_or(&[], Vec::as_slice)),
         )
     }
 
@@ -518,4 +482,35 @@ macro_rules! record_or_structural_case_pattern {
         $crate::CheckedStructuralValueKind::Record { $($fields)* }
             | $crate::CheckedStructuralValueKind::StructuralCase { $($fields)* }
     };
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::{CheckedStructuralValuePlans, CheckedStructuralValueRoot, SymbolHandle};
+
+    #[test]
+    fn root_index_preserves_mutation_before_batch_append() {
+        let mut plans = CheckedStructuralValuePlans::default();
+        let original = SymbolHandle::from_parts(1, 1);
+        let moved = SymbolHandle::from_parts(2, 1);
+        let first = plans.roots.insert(CheckedStructuralValueRoot {
+            state: original,
+            ..CheckedStructuralValueRoot::default()
+        });
+        plans.with_state_roots(original, |handles| assert_eq!(handles, [first]));
+        plans.roots.get_mut(first).state = moved;
+        plans.roots.insert_many([
+            CheckedStructuralValueRoot {
+                state: original,
+                ..CheckedStructuralValueRoot::default()
+            },
+            CheckedStructuralValueRoot {
+                state: original,
+                ..CheckedStructuralValueRoot::default()
+            },
+        ]);
+        plans.with_state_roots(moved, |handles| assert_eq!(handles, [first]));
+        assert!(plans.roots.free(first));
+        plans.with_state_roots(moved, |handles| assert!(handles.is_empty()));
+    }
 }

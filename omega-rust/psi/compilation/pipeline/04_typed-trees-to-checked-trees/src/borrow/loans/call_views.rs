@@ -299,9 +299,9 @@ fn call_view_signature(
 }
 
 /// The loan place for a call argument that the called machine's returned view
-/// borrows (elision rule 1). Handles arguments that are themselves
-/// view-producing calls (a nested one-ref-input machine call) by recursing
-/// into the call's own loan place.
+/// borrows (elision rule 1). A view-producing call follows its declared input
+/// relation. Explicit address formation instead lends the captured storage,
+/// including a call result's own temporary home.
 pub(crate) fn argument_borrow_loan_place(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
@@ -317,20 +317,6 @@ pub(crate) fn argument_borrow_loan_place(
                 statement_index,
                 machine_symbol,
                 inner_call,
-            )
-        }
-        checked_trees::expression::ExpressionNode::Borrow(inner)
-            if matches!(
-                program.expression_table.expression(inner.target),
-                checked_trees::expression::ExpressionNode::Call(_)
-            ) =>
-        {
-            argument_borrow_loan_place(
-                program,
-                state_symbol,
-                statement_index,
-                machine_symbol,
-                inner.target,
             )
         }
         _ => borrow_access_place(

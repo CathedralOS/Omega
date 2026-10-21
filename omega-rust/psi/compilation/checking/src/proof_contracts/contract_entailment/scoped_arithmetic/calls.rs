@@ -9,11 +9,11 @@
 
 use super::super::specification_calls::{
     SelectedCallContract, fact_roots, owner_contracts, owner_parameters, owner_symbol,
-    selected_call_contract,
+    selected_call_contract, selected_call_site_contract,
 };
 use super::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue,
+    ScopedArithmeticHypothesis, ScopedArithmeticValue, ScopedCallCompletion,
 };
 use crate::expression_traversal::children;
 use symbols::SymbolHandle;
@@ -23,6 +23,33 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
 mod collections;
+
+/// Expression handles name value occurrences; statement calls additionally
+/// need their exact state/ordinal because no expression result identifies them.
+#[derive(Clone, Copy)]
+enum CallOccurrence {
+    Expression(ExpressionHandle),
+    Statement { state: SymbolHandle, ordinal: usize },
+}
+
+impl CallOccurrence {
+    fn post_atom(
+        self,
+        context: SymbolHandle,
+        scope: usize,
+        owner: SymbolHandle,
+        formal: SymbolHandle,
+    ) -> String {
+        match self {
+            Self::Expression(expression) => {
+                format!("\0scoped-call-formal:{scope}:{expression:?}:{owner:?}:{formal:?}")
+            }
+            Self::Statement { state, ordinal } => format!(
+                "\0scoped-statement-formal:{scope}:{context:?}:{state:?}:{ordinal}:{owner:?}:{formal:?}"
+            ),
+        }
+    }
+}
 
 pub(in crate::proof_contracts::contract_entailment) struct ScopedCalls<'program> {
     program: &'program dyn crate::CheckingInput,
@@ -186,7 +213,13 @@ impl<'program> ScopedCalls<'program> {
             };
             let independent = self
                 .independent(owner, &mut Vec::new(), &mut Vec::new())
-                .unwrap_or(false);
+                .unwrap_or(false)
+                && super::super::structural_judgment::independent_call_application(
+                    self.program,
+                    self.context,
+                    owner_symbol(&owner),
+                    typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                );
             let interval = if independent {
                 crate::proof_contracts::arithmetic_domains::call_result_interval(self.program, call)
             } else {
@@ -218,46 +251,14 @@ impl<'program> ScopedCalls<'program> {
                 .expression_table
                 .expression_handles(call.arguments);
             if independent && parameters.len() == arguments.len() {
-                let mut bindings = vec![ScopedArithmeticBinding {
-                    binder: ScopedArithmeticBinder::Result,
-                    value: result.clone(),
-                }];
-                // Noninteger formal subjects remain outside the integer engine;
-                // it may still read unrelated scalar conjuncts of the contract.
-                for (parameter, argument) in parameters.iter().zip(arguments) {
-                    if self
-                        .program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some_and(|primitive| primitive.is_fixed_integer())
-                    {
-                        bindings.push(ScopedArithmeticBinding {
-                            binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
-                            // The source owner captures admitted argument
-                            // denotations before contract substitution. An
-                            // unobserved actual remains opaque; its spelling
-                            // cannot supply a polynomial or unfold a body.
-                            value: prepared
-                                .bindings
-                                .iter()
-                                .find(|binding| {
-                                    binding.binder == ScopedArithmeticBinder::Occurrence(*argument)
-                                })
-                                .map(|binding| binding.value.clone())
-                                .unwrap_or_else(|| ScopedArithmeticValue::Atom {
-                                    identity: format!("\0scoped-actual:{scope}:{argument:?}"),
-                                    unsigned: self
-                                        .program
-                                        .primitive_type_reference(parameter.type_reference)
-                                        .is_some_and(|primitive| {
-                                            matches!(
-                                                primitive,
-                                                typed_trees::unsigned_integer_primitive_pattern!()
-                                            )
-                                        }),
-                                }),
-                        });
-                    }
-                }
+                let bindings = self.completed_bindings(
+                    owner,
+                    arguments,
+                    CallOccurrence::Expression(expression),
+                    &prepared.bindings,
+                    Some(result.clone()),
+                    scope,
+                )?;
                 self.transport_guarantees(owner, &bindings, None)?;
             }
             prepared.bindings.push(ScopedArithmeticBinding {
@@ -267,6 +268,170 @@ impl<'program> ScopedCalls<'program> {
         }
         self.scopes[scope].1 = prepared.clone();
         Some(prepared)
+    }
+
+    /// Bind one completed result through its selected public contract. The
+    /// caller supplies captured actuals; this owner supplies return-phase
+    /// formal identities, contract independence and arithmetic adaptation.
+    pub(super) fn completed_guarantees(
+        &mut self,
+        machine: &Machine,
+        completion: ScopedCallCompletion<'_>,
+    ) -> Option<Vec<ScopedArithmeticHypothesis>> {
+        let ScopedCallCompletion {
+            state,
+            statement_index,
+            site,
+            actuals,
+            machine_values,
+            result,
+        } = completion;
+        let occurrence = match site {
+            crate::CallSite::Expression { expression, call } => {
+                if self.program.expression_table.call_node(expression)? != call
+                    || crate::integer_embedding_argument(self.program, expression).is_some()
+                    || result.is_none()
+                {
+                    return None;
+                }
+                CallOccurrence::Expression(expression)
+            }
+            crate::CallSite::Statement(call) => {
+                if self
+                    .program
+                    .statement_table
+                    .statement_at(state, statement_index)?
+                    .as_call()?
+                    != call
+                    || result.is_some()
+                {
+                    return None;
+                }
+                CallOccurrence::Statement {
+                    state: state.symbol,
+                    ordinal: statement_index,
+                }
+            }
+            crate::CallSite::TransitionNamed { .. } => return None,
+        };
+        let selected_call = match site {
+            crate::CallSite::Statement(call) => {
+                typed_trees::references::StaticArgumentCall::Statement(call)
+            }
+            crate::CallSite::Expression { expression, call } => {
+                typed_trees::references::StaticArgumentCall::Expression(expression, call)
+            }
+            crate::CallSite::TransitionNamed { .. } => return None,
+        };
+        let owner = selected_call_site_contract(self.program, site)?;
+        let arguments = crate::call_site_argument_expressions(self.program, &site);
+        if matches!(owner, SelectedCallContract::DynamicSlot { .. })
+            || !self.independent(owner, &mut Vec::new(), &mut Vec::new())?
+            || !super::super::structural_judgment::independent_call_application(
+                self.program,
+                self.context,
+                owner_symbol(&owner),
+                selected_call,
+            )
+            || owner_parameters(self.program, &owner).len() != arguments.len()
+        {
+            return None;
+        }
+        if let crate::CallSite::Expression { expression, .. } = site {
+            let declared = super::super::specification_calls::owner_return_type(&owner);
+            let observed =
+                crate::expression_result_type_reference(self.program, machine, state, expression)?;
+            if !self
+                .program
+                .primitive_type_reference(declared)?
+                .is_fixed_integer()
+                || !crate::declared_carriers_match(self.program, observed, declared)
+                || self.program.arithmetic_domain_for_type_reference(observed)
+                    != self.program.arithmetic_domain_for_type_reference(declared)
+            {
+                return None;
+            }
+        }
+        let mut bindings =
+            self.completed_bindings(owner, arguments, occurrence, actuals, result, 0)?;
+        for (symbol, value) in machine_values {
+            self.step()?;
+            if bindings
+                .iter()
+                .any(|binding| binding.binder == ScopedArithmeticBinder::Symbol(*symbol))
+            {
+                return None;
+            }
+            bindings.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Symbol(*symbol),
+                value: self.value(value)?,
+            });
+        }
+        self.transport_guarantees(owner, &bindings, None)?;
+        self.hypotheses(&[])
+    }
+
+    fn completed_bindings(
+        &mut self,
+        owner: SelectedCallContract<'program>,
+        arguments: &[ExpressionHandle],
+        occurrence: CallOccurrence,
+        actuals: &[ScopedArithmeticBinding],
+        result: Option<ScopedArithmeticValue>,
+        scope: usize,
+    ) -> Option<Vec<ScopedArithmeticBinding>> {
+        let mut bindings = Vec::new();
+        if let Some(value) = result {
+            bindings.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Result,
+                value,
+            });
+        }
+        let program = self.program;
+        for (parameter, argument) in owner_parameters(program, &owner).iter().zip(arguments) {
+            self.step()?;
+            // An owned mutable formal names the callee's post-state value.
+            // Its incoming argument is a different observation, even when the
+            // actual is a literal. Immutable descriptor observations remain
+            // available to the shared collection-measure binder.
+            let captured = (!parameter.is_mutable)
+                .then(|| {
+                    actuals
+                        .iter()
+                        .find(|binding| {
+                            binding.binder == ScopedArithmeticBinder::Occurrence(*argument)
+                        })
+                        .map(|binding| binding.value.clone())
+                })
+                .flatten();
+            let value = if let Some(value) = captured {
+                value
+            } else {
+                let Some(primitive) = program
+                    .primitive_type_reference(parameter.type_reference)
+                    .filter(|primitive| primitive.is_fixed_integer())
+                else {
+                    continue;
+                };
+                ScopedArithmeticValue::Atom {
+                    identity: occurrence.post_atom(
+                        self.context,
+                        scope,
+                        owner_symbol(&owner),
+                        parameter.symbol,
+                    ),
+                    unsigned: matches!(
+                        primitive,
+                        typed_trees::unsigned_integer_primitive_pattern!()
+                    ),
+                }
+            };
+            bindings.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
+                value,
+            });
+        }
+        Some(bindings)
     }
 
     fn transport_guarantees(
@@ -286,7 +451,46 @@ impl<'program> ScopedCalls<'program> {
                 _ => None,
             })
             .collect();
-        for guarantee in guarantees {
+        let mut pending = guarantees;
+        while let Some(guarantee) = pending.pop() {
+            self.step()?;
+            // Only the authenticated conjunction grants each independent
+            // conjunct. An unsupported neighboring subject need not erase a
+            // usable guarantee about the completed result.
+            if let Some(binary) = self.program.expression_table.binary_node(guarantee)
+                && binary.operator == typed_trees::expression::BinaryOperator::And
+                && match owner {
+                    SelectedCallContract::Concrete(machine, state) => {
+                        crate::has_builtin_decomposed_guard_meaning(
+                            self.program,
+                            machine,
+                            Some(state),
+                            guarantee,
+                        )
+                    }
+                    SelectedCallContract::Signature(signature)
+                    | SelectedCallContract::DynamicSlot { signature, .. } => {
+                        crate::has_builtin_parameter_bound_expression_meaning(
+                            self.program,
+                            signature.symbol,
+                            parameters,
+                            guarantee,
+                        )
+                    }
+                    SelectedCallContract::Operator(operator) => {
+                        crate::has_builtin_parameter_bound_expression_meaning(
+                            self.program,
+                            operator.symbol,
+                            parameters,
+                            guarantee,
+                        )
+                    }
+                }
+            {
+                pending.push(binary.right);
+                pending.push(binary.left);
+                continue;
+            }
             let builtin = match owner {
                 SelectedCallContract::Concrete(machine, state) => {
                     crate::has_builtin_bound_expression_meaning(
@@ -315,6 +519,21 @@ impl<'program> ScopedCalls<'program> {
                 }
             };
             if builtin {
+                if result_length.is_none()
+                    && !bindings
+                        .iter()
+                        .any(|binding| binding.binder == ScopedArithmeticBinder::Result)
+                {
+                    let mut occurrences = Vec::new();
+                    self.postorder(guarantee, &mut occurrences)?;
+                    if occurrences.iter().any(|expression| {
+                        self.program
+                            .expression_table
+                            .names_reserved_result(*expression)
+                    }) {
+                        continue;
+                    }
+                }
                 let mut roster = bindings.to_vec();
                 self.bind_length_projections(owner, guarantee, result_length, &mut roster)?;
                 let proposition = self.expression(&ScopedArithmeticExpression {

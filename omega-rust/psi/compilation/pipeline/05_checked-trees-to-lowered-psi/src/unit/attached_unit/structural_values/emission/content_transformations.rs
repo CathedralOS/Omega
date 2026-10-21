@@ -297,6 +297,8 @@ impl Emission<'_, '_, '_> {
                     structural_type: self.structural_type,
                 },
             });
+        self.operations
+            .register_structural_materialization(place, self.state, self.statement)?;
         Ok(StructuralArgument::whole(place, StructuralAccess::Owned))
     }
 

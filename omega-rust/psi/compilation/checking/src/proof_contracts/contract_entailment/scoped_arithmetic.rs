@@ -157,6 +157,33 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
     engine.integer_comparisons_unsatisfiable(normalized)
 }
 
+/// One completed call's retained caller observations. Source ordinal belongs
+/// to the invocation itself, not the later proof point consuming its facts.
+/// A statement completion has no result value; its Result clauses stay unbound.
+pub struct ScopedCallCompletion<'scope> {
+    pub state: &'scope typed_trees::state::State,
+    pub statement_index: usize,
+    pub site: crate::CallSite<'scope>,
+    pub actuals: &'scope [ScopedArithmeticBinding],
+    pub machine_values: &'scope [(symbols::SymbolHandle, ScopedArithmeticValue)],
+    pub result: Option<ScopedArithmeticValue>,
+}
+
+/// Published arithmetic guarantees for one already completed call. Actuals
+/// retain caller snapshots; mutable owned formals have fresh post-state values.
+/// Selected public scope, contract independence, builtin meaning and result
+/// carrier/policy remain with the shared call guarantee transport. This supplies
+/// optional proof premises, never call formation or loan authority.
+pub fn scoped_completed_call_guarantees(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    completion: ScopedCallCompletion<'_>,
+) -> Vec<ScopedArithmeticHypothesis> {
+    calls::ScopedCalls::new(program, machine)
+        .completed_guarantees(machine, completion)
+        .unwrap_or_default()
+}
+
 /// Judge `goal` from `hypotheses`, each read under its own roster. An
 /// asserted hypothesis contributes the conjuncts the engine can read; a
 /// hypothesis or goal whose roster fails to install answers `Unknown`.

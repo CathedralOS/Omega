@@ -430,11 +430,11 @@ pub use proof_contracts::contract_entailment::{
 pub use proof_contracts::contract_entailment::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
+    ScopedCallCompletion, StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
     scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
     scoped_arithmetic_value_bounds, scoped_arithmetic_values_relation,
-    strict_arithmetic_expression_implication,
+    scoped_completed_call_guarantees, strict_arithmetic_expression_implication,
 };
 pub use proof_contracts::contract_entailment::{
     anonymous_integer_math_literal, proof_integer_expression,

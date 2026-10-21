@@ -262,6 +262,7 @@ pass/borrows/runtime_mutable_primitive_reference_exit built 3504ms exit:0 @9beb2
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit built 1743ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 1155ms exit:70 @104c2da31081
 pass/borrows/runtime_nested_carrier_reference_read_exit built 1164ms exit:70 @104c2da31081
+pass/borrows/runtime_nested_owned_call_backing_exit built 3739ms exit:0 @7b9581cd8838
 pass/borrows/runtime_nested_reference_array_bounded_read_exit built 1916ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 1200ms exit:70 @104c2da31081
 pass/borrows/runtime_owned_writeonly_carrier_field_exit built 3465ms exit:0 @3d1bd96aeaa5
@@ -843,6 +844,8 @@ pass/contracts/range_requires_discharge checked 15299ms @5041ef1af684+wt
 pass/contracts/requires_narrow_ceiling_unproven built 2806ms exit:70 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 2894ms exit:70 @527c7c316c6f+wt
 pass/contracts/runtime_later_arm_call_requires_exit built 3086ms exit:70 @53d5dde47ae5
+pass/contracts/runtime_mutable_owned_call_poststate_exit built 931ms exit:0 @6a99f62cecec
+pass/contracts/runtime_mutable_owned_collection_poststate_exit built 856ms exit:0 @6a99f62cecec
 pass/contracts/saved_call_case_guarantee_requires_exit built 2689ms exit:0 @903765547ffe
 pass/contracts/saved_case_guarantee checked 9599ms @5041ef1af684+wt
 pass/contracts/terminal_contract checked 9532ms @5041ef1af684+wt

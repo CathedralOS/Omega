@@ -943,6 +943,7 @@ pub(super) fn emit(
         }
         cleanup_regions.extend(normal_regions);
         super::completion_cleanup::selection(
+            plan.state,
             &plan.operations,
             &evaluation,
             &operations,

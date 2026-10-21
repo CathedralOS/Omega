@@ -28,6 +28,52 @@ pub(super) fn prepare(
     Ok(())
 }
 
+/// Field applications must have their final substituted views before zero
+/// admission. The generated caller is formed earlier so it participates in
+/// the same specialization and checking as every authored body.
+pub(super) fn validate_zero_contexts(
+    program: &TypedTrees,
+    requests: &[EntryContextOrigin],
+) -> Result<(), Vec<Diagnostic>> {
+    for origin in requests {
+        let entry = program.machine_by_symbol(origin.entry).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "entry context request has no exact source machine",
+            )]
+        })?;
+        let parameter = program
+            .machine_states(entry)
+            .first()
+            .and_then(|state| {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == origin.context_parameter)
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "entry context request names a foreign parameter",
+                )]
+            })?;
+        let owned = program
+            .type_reference_table
+            .peeled_type_reference(parameter.type_reference);
+        let definition = program.closed_data_definition(owned).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "entry context requires a closed record type",
+            )]
+        })?;
+        if validation::data_requires_establishment(program, definition) {
+            return Err(vec![Diagnostic::error(format!(
+                "entry machine `{}` requests a provisioned `{}` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
+                entry.name.as_str(),
+                definition.name.as_str()
+            ))]);
+        }
+    }
+    Ok(())
+}
+
 fn prepare_entry(program: &mut TypedTrees, origin: EntryContextOrigin) -> Result<(), Diagnostic> {
     if program
         .machines()
@@ -68,19 +114,6 @@ fn prepare_entry(program: &mut TypedTrees, origin: EntryContextOrigin) -> Result
             "entry context request requires an ordinary mutable record parameter",
         ));
     }
-    let owned = program
-        .type_reference_table
-        .peeled_type_reference(parameters[context].type_reference);
-    if let Some(definition) = program.closed_data_definition(owned)
-        && validation::data_requires_establishment(program, definition)
-    {
-        return Err(Diagnostic::error(format!(
-            "entry machine `{}` requests a provisioned `{}` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
-            entry.name.as_str(),
-            definition.name.as_str()
-        )));
-    }
-
     let helper_name = format!("{}$entry_context", entry.symbol_spelling());
     let helper_symbol =
         program

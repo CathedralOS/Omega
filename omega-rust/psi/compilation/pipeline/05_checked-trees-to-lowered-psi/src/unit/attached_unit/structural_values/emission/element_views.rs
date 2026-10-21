@@ -123,12 +123,18 @@ impl Emission<'_, '_, '_> {
                 self.structural_types,
             )?;
             if let Some(establishment) = establishment {
-                self.environment.private_places.push(view_ranges::establish(
+                let declaration = view_ranges::establish(
                     &establishment,
                     self.values,
                     self.next_value,
                     self.operations,
-                )?);
+                )?;
+                self.operations.register_structural_materialization(
+                    declaration.id,
+                    self.state,
+                    self.statement,
+                )?;
+                self.environment.private_places.push(declaration);
             }
             let place = place_id(allocate_dense(self.environment.next_place)?);
             let declaration = view_ranges::emit(
@@ -151,6 +157,11 @@ impl Emission<'_, '_, '_> {
                 self.operations,
                 self.calls,
                 self.environment,
+            )?;
+            self.operations.register_structural_materialization(
+                place,
+                self.state,
+                self.statement,
             )?;
             self.environment.private_places.push(declaration);
             return Ok(place);
@@ -239,6 +250,8 @@ impl Emission<'_, '_, '_> {
                 id,
                 self.operations,
             ));
+        self.operations
+            .register_structural_materialization(place, self.state, self.statement)?;
         Ok(place)
     }
 }

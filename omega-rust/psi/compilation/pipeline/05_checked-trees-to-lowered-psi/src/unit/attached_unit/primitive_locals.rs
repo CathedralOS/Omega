@@ -359,6 +359,8 @@ impl OperationFrame<'_, '_> {
             declarations,
             range_obligation,
         )?;
+        self.operations
+            .register_structural_materialization(place, self.state, *statement_index)?;
         // Publish the original home once, rather than copying its initializer
         // or leaving constructor consumers with a private primitive index.
         self.evaluation.structural_locals.push(
@@ -551,6 +553,13 @@ impl super::argument_evaluation::Evaluation {
             next_place,
             operations,
             places,
+        )?;
+        // The checked local names this value's original declaration. Later
+        // address observations retain that same point, never their use site.
+        operations.register_structural_materialization(
+            place,
+            state_symbol,
+            local.statement_index,
         )?;
         let home = crate::expression_preparation::bindings::StructuralLocalBinding {
             result_binding_ordinal: None,

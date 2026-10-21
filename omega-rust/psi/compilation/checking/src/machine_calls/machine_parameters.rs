@@ -10,7 +10,9 @@
 mod callable_shape;
 mod family_demands;
 mod selected_dependencies;
-pub(crate) use selected_dependencies::machine_selection_dependency_symbols;
+pub(crate) use selected_dependencies::{
+    call_selection_dependency_symbols, machine_selection_dependency_symbols,
+};
 mod closed_types;
 mod type_selections;
 pub use closed_types::closed_static_call_type_bindings;

@@ -12,6 +12,7 @@ mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
 mod selected_contracts;
+pub(in crate::proof_contracts::contract_entailment) use selected_contracts::independent_call_application;
 mod storage_effects;
 mod value_predicates;
 

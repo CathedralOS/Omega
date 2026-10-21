@@ -183,8 +183,9 @@ pub(crate) use scoped_arithmetic::scoped_arithmetic_implication_for_declaration;
 pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
-    scoped_arithmetic_value_bounds, scoped_arithmetic_values_relation,
+    ScopedCallCompletion, scoped_arithmetic_comparisons_unsatisfiable,
+    scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
+    scoped_arithmetic_values_relation, scoped_completed_call_guarantees,
 };
 pub use specification_calls::call_contract_parameter_position;
 pub(crate) use specification_calls::{

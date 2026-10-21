@@ -645,12 +645,20 @@ pub(crate) fn type_atoms(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<(PrimitiveType, Vec<(SymbolHandle, SemanticDomainId)>), LoweringError> {
-    let primitive =
-        checked
-            .primitive_type_reference(reference)
-            .ok_or(LoweringError::Unsupported(
-                "scalar qualification has no primitive carrier",
-            ))?;
+    let primitive = checked
+        .primitive_type_reference(reference)
+        .or_else(|| {
+            // A retained scalar field read can name its borrowed source.
+            // Classify exactly that observation's referee, while the full
+            // traversal below still checks the original reference type and
+            // refuses transporting semantic atoms through it. Permission to
+            // observe remains owned by the checked storage-read operation.
+            validation::reference_shell(&checked.typed, reference)
+                .and_then(|shell| checked.primitive_type_reference(shell.referee))
+        })
+        .ok_or(LoweringError::Unsupported(
+            "scalar qualification has no primitive carrier",
+        ))?;
     let mut current = reference;
     let mut active = Vec::new();
     let mut atoms = Vec::new();

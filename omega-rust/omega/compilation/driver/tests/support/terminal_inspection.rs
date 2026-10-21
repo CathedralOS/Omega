@@ -121,6 +121,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
             .map_err(|error| format!("inspection {machine} transport: {error:?}"))?;
+        inspect_cleanup_obligations(&decoded)?;
         if decoded.semantic_bytes() != artifact.semantic_bytes()
             || decoded.manifest() != artifact.manifest()
         {
@@ -199,6 +200,42 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         return Err(format!("{ORACLE} needs at least one machine selection"));
     }
     Ok(observations)
+}
+
+/// Source-produced cleanup invocations retain one positional obligation for
+/// each selected hook prerequisite. Runtime agreement alone cannot detect a
+/// lost proof slot: the hook can still execute with the expected output.
+fn inspect_cleanup_obligations(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
+    let module = artifact.semantic_module();
+    for machine in &module.machines {
+        for block in &machine.blocks {
+            for (_, actions) in block.terminator.cleanup_rosters() {
+                for action in actions {
+                    let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action
+                    else {
+                        continue;
+                    };
+                    let target = module.machine(cleanup.cleanup_machine).ok_or_else(|| {
+                        format!(
+                            "inspection cleanup target {:?} is absent",
+                            cleanup.cleanup_machine
+                        )
+                    })?;
+                    if cleanup.requirement_obligations.len() != target.contract.requires.len() {
+                        return Err(format!(
+                            "inspection cleanup {:?} in machine {:?}, block {:?} has {} obligation slots for {} prerequisites",
+                            cleanup.cleanup_machine,
+                            machine.id,
+                            block.id,
+                            cleanup.requirement_obligations.len(),
+                            target.contract.requires.len(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Mutate actual Source-produced payloads at the public artifact ingress seam.

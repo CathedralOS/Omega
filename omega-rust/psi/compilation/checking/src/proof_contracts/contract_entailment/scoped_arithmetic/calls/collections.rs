@@ -6,11 +6,12 @@
 //! dependency exclusion and guarantee transport.
 
 use super::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticValue,
+    CallOccurrence, ScopedCalls, SelectedCallContract, owner_parameters, owner_symbol,
+    selected_call_contract,
 };
 use super::{
-    ScopedCalls, SelectedCallContract, owner_parameters, owner_symbol, selected_call_contract,
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticValue,
 };
 use crate::value_custody::places::collection_operations::{
     MeasureReceiver, collection_measure_member,
@@ -69,6 +70,12 @@ impl<'program> ScopedCalls<'program> {
             .expression_table
             .expression_handles(call.arguments);
         if parameters.len() != arguments.len()
+            || !super::super::super::structural_judgment::independent_call_application(
+                self.program,
+                self.context,
+                owner_symbol(&owner),
+                typed_trees::references::StaticArgumentCall::Expression(source.expression, call),
+            )
             || !self
                 .independent(owner, &mut Vec::new(), &mut Vec::new())
                 .unwrap_or(false)
@@ -76,21 +83,24 @@ impl<'program> ScopedCalls<'program> {
             return Some(result);
         }
         self.depth += 1;
-        let transported =
-            (|| {
-                let mut bindings = Vec::new();
-                for (parameter, argument) in parameters.iter().zip(arguments) {
-                    if let Some(actual) = source.bindings.iter().find(|binding| {
-                        binding.binder == ScopedArithmeticBinder::Occurrence(*argument)
-                    }) {
-                        bindings.push(ScopedArithmeticBinding {
-                            binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
-                            value: self.value(&actual.value)?,
-                        });
-                    }
-                }
-                self.transport_guarantees(owner, &bindings, Some(&result))
-            })();
+        let transported = (|| {
+            let mut actuals = Vec::new();
+            for actual in &source.bindings {
+                actuals.push(ScopedArithmeticBinding {
+                    binder: actual.binder,
+                    value: self.value(&actual.value)?,
+                });
+            }
+            let bindings = self.completed_bindings(
+                owner,
+                arguments,
+                CallOccurrence::Expression(source.expression),
+                &actuals,
+                None,
+                self.lengths.len() - 1,
+            )?;
+            self.transport_guarantees(owner, &bindings, Some(&result))
+        })();
         self.depth -= 1;
         transported?;
         Some(result)

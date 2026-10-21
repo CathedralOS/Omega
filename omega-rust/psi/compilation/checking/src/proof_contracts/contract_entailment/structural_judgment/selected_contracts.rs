@@ -676,7 +676,7 @@ pub(super) fn independent_callee(
 /// Independence belongs to the selected application, including the exact
 /// callback machines supplied to its generic telescope. A helper's authored
 /// requirement alone does not identify the selected callback's proof sources.
-pub(super) fn independent_application(
+pub(in crate::proof_contracts::contract_entailment) fn independent_application(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
     callee: SymbolHandle,
@@ -688,6 +688,30 @@ pub(super) fn independent_application(
             program, selections,
         ),
     );
+    independent_declarations(program, caller, pending)
+}
+
+/// Exact call-owned selection custody, including operands removed from the
+/// executable call by specialization. It shares the ordinary dependency walk;
+/// no selection or call formation is inferred by this proof-availability query.
+pub(in crate::proof_contracts::contract_entailment) fn independent_call_application(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    callee: SymbolHandle,
+    call: typed_trees::references::StaticArgumentCall<'_>,
+) -> bool {
+    let mut pending = vec![callee];
+    pending.extend(
+        crate::machine_calls::machine_parameters::call_selection_dependency_symbols(program, call),
+    );
+    independent_declarations(program, caller, pending)
+}
+
+fn independent_declarations(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    mut pending: Vec<SymbolHandle>,
+) -> bool {
     let mut visited = Vec::new();
     while let Some(declaration) = pending.pop() {
         let Some((owner, dependencies)) =

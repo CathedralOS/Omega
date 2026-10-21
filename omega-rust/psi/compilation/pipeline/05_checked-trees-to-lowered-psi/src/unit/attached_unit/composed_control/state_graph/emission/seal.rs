@@ -89,6 +89,7 @@ impl StateGraphEmission<'_, '_> {
                 &operations,
             )?;
             super::super::cleanup::selection(
+                state.state,
                 &state.operations,
                 &evaluation,
                 &operations,

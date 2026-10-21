@@ -29,9 +29,11 @@ impl MachineEmission<'_> {
             .ok_or(LoweringError::Unsupported(
                 "Unit local ordinal is not dense",
             ))?;
-        self.operations
-            .structural_declarations
-            .push((local.id, *statement_index));
+        self.operations.register_structural_materialization(
+            local.id,
+            self.plan.state,
+            *statement_index,
+        )?;
         Ok(Some(OperationKind::EstablishTrivialAffineLocal {
             destination: local.id,
         }))

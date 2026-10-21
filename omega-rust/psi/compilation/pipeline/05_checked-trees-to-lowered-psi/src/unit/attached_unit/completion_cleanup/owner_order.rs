@@ -91,6 +91,7 @@ pub(super) fn declaring_order(
 }
 
 pub(crate) fn selection(
+    state: symbols::SymbolHandle,
     planned: &[CheckedUnitEffectOperationPlan],
     evaluation: &Evaluation,
     operations: &OperationBuffer,
@@ -176,30 +177,25 @@ pub(crate) fn selection(
             .structural_establishments
             .iter()
             .position(|root| *root == place);
-        let anonymous = evaluation
-            .structural_value_owners
-            .iter()
-            .find(|owner| owner.value.place == place)
-            .map(|owner| owner.statement)
-            .or_else(|| produced.map(|result| result.statement_index))
-            .or_else(|| {
-                operations
-                    .structural_declarations
-                    .iter()
-                    .find(|(root, _)| *root == place)
-                    .map(|(_, statement)| *statement)
-            })
-            .zip(physical)
-            .map(|(statement, ordinal)| (1, statement, ordinal));
-        let order = explicit
+        let declared_order = explicit
             .map(|(kind, coordinate)| (kind, coordinate, if kind == 0 { 0 } else { usize::MAX }))
             .or(parameter)
             .or(current)
-            .or(declared_result)
-            .or(anonymous)
-            .ok_or(LoweringError::Unsupported(
-                "normal cleanup owner has no checked declaration or completed producer coordinate",
-            ))?;
+            .or(declared_result);
+        let order = if let Some(order) = declared_order {
+            order
+        } else {
+            // Multiplicity and a surviving source alias do not describe where
+            // a home was born. Nested plain backing has neither an affine owner
+            // nor an authored result ordinal, but retains its materialization.
+            operations
+                .structural_materialization_statement(place, state)?
+                .zip(physical)
+                .map(|(statement, ordinal)| (1, statement, ordinal))
+                .ok_or(LoweringError::Unsupported(
+                    "normal cleanup owner has no checked declaration or completed producer coordinate",
+                ))?
+        };
         roots.push((place, order));
     }
     // Stable ties preserve the checked per-declaration schedule: the current

@@ -65,6 +65,10 @@ impl Emission<'_, '_, '_> {
         place: PlaceId,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
+        // These callers just emitted storage or an owned result arrival. An
+        // alias uses complete_value/complete_loan without asserting a new birth.
+        self.operations
+            .register_structural_materialization(place, self.state, self.statement)?;
         if let Some(continuation) = continuation {
             self.complete_value(
                 StructuralArgument {

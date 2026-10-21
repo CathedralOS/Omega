@@ -478,16 +478,49 @@ pub(crate) fn selected_call_contract<'program>(
     call: &TableCallExpression,
 ) -> Option<SelectedCallContract<'program>> {
     if let Some(dispatch) = &call.static_requirement_dispatch {
-        let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
-        return program
-            .trait_machine_signature_by_symbol(definition, dispatch.contract_symbol())
-            .map(SelectedCallContract::Signature);
+        return selected_requirement_contract(program, dispatch);
     }
     selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
         typed_trees::operator::resolve_named_expression_call(program, call)
             .map(SelectedCallContract::Operator)
     })
 }
+
+/// Statement and expression completion consume the same selected public owner.
+/// A private realization cannot replace its retained requirement contract.
+pub(super) fn selected_call_site_contract<'program>(
+    program: &'program dyn crate::CheckingInput,
+    site: crate::CallSite<'_>,
+) -> Option<SelectedCallContract<'program>> {
+    match site {
+        crate::CallSite::Expression { call, .. } => selected_call_contract(program, call),
+        crate::CallSite::Statement(call) => {
+            if let Some(dispatch) = site.static_requirement_dispatch() {
+                return selected_requirement_contract(program, dispatch);
+            }
+            selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
+                let candidates =
+                    typed_trees::operator::named_statement_call_candidates(program, call);
+                match candidates.as_slice() {
+                    [operator] => Some(SelectedCallContract::Operator(operator)),
+                    _ => None,
+                }
+            })
+        }
+        crate::CallSite::TransitionNamed { .. } => None,
+    }
+}
+
+fn selected_requirement_contract<'program>(
+    program: &'program dyn crate::CheckingInput,
+    dispatch: &typed_trees::typed_trees::StaticRequirementDispatch,
+) -> Option<SelectedCallContract<'program>> {
+    let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
+    program
+        .trait_machine_signature_by_symbol(definition, dispatch.contract_symbol())
+        .map(SelectedCallContract::Signature)
+}
+
 /// Resolve an already retained public callable identity. No spelling or
 /// realization target substitutes for a missing exact contract owner.
 pub(super) fn selected_contract_by_symbol(

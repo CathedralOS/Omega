@@ -24,6 +24,36 @@ pub(crate) fn machine_selection_dependency_symbols(
     dependencies.symbols
 }
 
+/// A completed/specification call retains source, contextual and executable
+/// selections independently. Specialization may empty the live argument list;
+/// the ordinary reference walk still owns every callback dependency in the
+/// invocation and qualifier applications. This classifies dependencies only.
+pub(crate) fn call_selection_dependency_symbols<'call>(
+    program: &'call dyn crate::CheckingInput,
+    call: typed_trees::references::StaticArgumentCall<'call>,
+) -> Vec<SymbolHandle> {
+    let mut dependencies = MachineSelectionDependencies {
+        program,
+        symbols: Vec::new(),
+        types: Vec::new(),
+    };
+    let live = match call {
+        typed_trees::references::StaticArgumentCall::Expression(_, call) => &call.machine_arguments,
+        typed_trees::references::StaticArgumentCall::Statement(call) => &call.machine_arguments,
+    };
+    for argument in live.iter().chain(call.arguments(program)) {
+        typed_trees::references::visit_static_argument(program, &mut dependencies, argument);
+    }
+    for application in call.applications() {
+        typed_trees::references::visit_static_machine_bindings(
+            program,
+            &mut dependencies,
+            application,
+        );
+    }
+    dependencies.symbols
+}
+
 struct MachineSelectionDependencies<'program> {
     program: &'program dyn crate::CheckingInput,
     symbols: Vec<SymbolHandle>,

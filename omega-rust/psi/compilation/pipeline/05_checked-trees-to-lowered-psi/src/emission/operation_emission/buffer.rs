@@ -219,6 +219,15 @@ pub(crate) struct ComputedValueBinding {
     pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
 }
 
+/// A physical home's checked birth, independent of its later source aliases.
+/// Statement ordinals are meaningful only inside their checked state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct StructuralMaterialization {
+    place: PlaceId,
+    state: symbols::SymbolHandle,
+    statement: u32,
+}
+
 pub(crate) struct OperationBuffer {
     pub(crate) source_returns:
         Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
@@ -240,9 +249,10 @@ pub(crate) struct OperationBuffer {
     /// completed joins. Cleanup uses this chronology, never local declarations
     /// alone; each selected exit still supplies its own disposal authority.
     pub(crate) structural_establishments: Vec<PlaceId>,
-    /// Storage-only declarations have no result binding. Their establishing
-    /// operation retains the checked statement coordinate for normal death.
-    pub(crate) structural_declarations: Vec<(PlaceId, u32)>,
+    /// Actual storage producers retain chronology even when unrestricted backing
+    /// has no affine owner row or public result ordinal. This is not a frontier:
+    /// only checked cleanup actions authorize disposal or home retirement.
+    structural_materializations: Vec<StructuralMaterialization>,
     /// Literal operations have Unit results, so their emitting owner retains
     /// the carrier here rather than recovering it from a source-call shape.
     pub(crate) literal_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
@@ -317,7 +327,7 @@ impl OperationBuffer {
             // This owner has no operation result, but its actual establishment
             // still belongs to the same cleanup chronology. Checked completion
             // supplies its disposal authority independently.
-            self.structural_establishments.push(*destination);
+            self.retain_structural_establishment(*destination);
         }
         self.operations.push(operation);
     }
@@ -325,10 +335,69 @@ impl OperationBuffer {
     pub(crate) fn bind_structural_value(&mut self, ordinal: u32, value: StructuralBinding) {
         // A control join or literal can complete without producing an operation.
         // Aliases name existing storage and do not establish another home.
-        if value.path().is_empty() && !self.structural_establishments.contains(&value.place()) {
-            self.structural_establishments.push(value.place());
+        if value.path().is_empty() {
+            self.retain_structural_establishment(value.place());
         }
         self.structural_values.push((ordinal, value));
+    }
+
+    fn retain_structural_establishment(&mut self, place: PlaceId) {
+        if !self.structural_establishments.contains(&place) {
+            self.structural_establishments.push(place);
+        }
+    }
+
+    /// Register only an actual storage declaration or completed owned producer.
+    /// Reborrows, projected aliases and later publications preserve the existing
+    /// birth; they must not call this with their receiving use-site coordinate.
+    pub(crate) fn register_structural_materialization(
+        &mut self,
+        place: PlaceId,
+        state: symbols::SymbolHandle,
+        statement: u32,
+    ) -> Result<(), LoweringError> {
+        let point = StructuralMaterialization {
+            place,
+            state,
+            statement,
+        };
+        if let Some(existing) = self
+            .structural_materializations
+            .iter()
+            .find(|row| row.place == place)
+        {
+            if *existing != point {
+                return Err(LoweringError::Unsupported(
+                    "one structural home has conflicting checked materializations",
+                ));
+            }
+            return Ok(());
+        }
+        self.structural_materializations.push(point);
+        // Owned arrival homes need no producing operation. Their completion is
+        // nevertheless a physical establishment, before the next operand runs.
+        self.retain_structural_establishment(place);
+        Ok(())
+    }
+
+    pub(crate) fn structural_materialization_statement(
+        &self,
+        place: PlaceId,
+        state: symbols::SymbolHandle,
+    ) -> Result<Option<u32>, LoweringError> {
+        let Some(point) = self
+            .structural_materializations
+            .iter()
+            .find(|row| row.place == place)
+        else {
+            return Ok(None);
+        };
+        if point.state != state {
+            return Err(LoweringError::Unsupported(
+                "cleanup home materialization belongs to another checked state",
+            ));
+        }
+        Ok(Some(point.statement))
     }
 
     /// A completed value keeps its producer contract when its operations move
@@ -402,7 +471,7 @@ impl OperationBuffer {
             structural_values: Vec::new(),
             computed_values: Vec::new(),
             structural_establishments: Vec::new(),
-            structural_declarations: Vec::new(),
+            structural_materializations: Vec::new(),
             literal_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
             scalar_index_coordinates: Vec::new(),

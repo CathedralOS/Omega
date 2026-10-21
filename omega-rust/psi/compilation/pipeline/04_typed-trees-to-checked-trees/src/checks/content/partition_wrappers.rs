@@ -215,7 +215,8 @@ pub(crate) fn returned_partition_invocations(
                     // itself. Retain that exact completed value so the
                     // wrapper's substitution reads the arm's own capture.
                     if let Some(alternative) = alternatives.iter().find(|alternative| {
-                        alternative.expression == expression && alternative.type_reference.is_valid()
+                        alternative.expression == expression
+                            && alternative.type_reference.is_valid()
                     }) {
                         if let Some(handle) = facts.flow.control.operands.handle_of(alternative) {
                             completed_value = handle;

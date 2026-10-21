@@ -486,6 +486,8 @@ fail/borrows/named_jump_receiver_under_argument_loan rejected 1616ms expected @a
 fail/borrows/named_slice_call_result_shared_to_mutable rejected 904ms expected @a9ae30e1c334+wt
 fail/borrows/nested_array_reference_call_stale_index rejected 628ms expected @3ea0aec65b44+wt
 fail/borrows/nested_array_shared_view_write rejected 845ms expected @a9ae30e1c334+wt
+fail/borrows/nested_owned_call_backing_keeps_input_loan rejected 642ms expected @7b9581cd8838
+	statement 3 mutates `second.payload` while local borrow `__hoist_14` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/nested_reference_call_stale_index rejected 627ms expected @3ea0aec65b44+wt
 fail/borrows/nested_reference_live_source_write rejected 1573ms expected @a9ae30e1c334+wt
 fail/borrows/nested_result_retains_operand_loan rejected 568ms expected @c4c0ab7a5d11
@@ -1075,6 +1077,10 @@ fail/contracts/literal_view_extent_not_invented rejected 876ms expected @ef79628
 fail/contracts/machine_requires_later_state_parameter_rejected rejected 823ms expected @a9ae30e1c334+wt
 fail/contracts/mixed_requirement_prior_float_capture rejected 1065ms expected @cf645a79ddb2+wt
 fail/contracts/mixed_result_requirement_integer_bound rejected 1074ms expected @cf645a79ddb2+wt
+fail/contracts/mutable_owned_call_ensures_keeps_poststate rejected 490ms expected @6a99f62cecec
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 5): returned == 1 && preserved == 3 && completed == 8
+fail/contracts/mutable_owned_collection_ensures_keeps_poststate rejected 489ms expected @6a99f62cecec
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 4): view.len == 1
 fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 1725ms expected @a9ae30e1c334+wt
 fail/contracts/named_tail_return_contract rejected 1599ms expected @a9ae30e1c334+wt
 fail/contracts/negated_edge_guard_unproven_bound rejected 1542ms expected @a9ae30e1c334+wt
@@ -8729,6 +8735,7 @@ pass/borrows/runtime_mutable_reference_captures_selector_exit checked 10316ms ch
 pass/borrows/runtime_nested_array_range_record_domains_exit checked 10497ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 11146ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 11084ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_nested_owned_call_backing_exit checked 3551ms check-target:macos_arm64 @7b9581cd8838
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 10949ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_reference_partition_exit checked 2973ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -9490,6 +9497,8 @@ pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-tar
 pass/contracts/runtime_indexed_element_requirements_exit checked 2817ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/runtime_later_arm_call_requires_exit checked 11514ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/runtime_literal_view_extent_calls_exit checked 7388ms check-target:macos_arm64 @e02ff5008d25+wt
+pass/contracts/runtime_mutable_owned_call_poststate_exit checked 743ms check-target:macos_arm64 @6a99f62cecec
+pass/contracts/runtime_mutable_owned_collection_poststate_exit checked 743ms check-target:macos_arm64 @6a99f62cecec
 pass/contracts/runtime_postcall_storage_identity_exit checked 2178ms check-target:macos_arm64 @359b1dba56f5
 pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/saved_call_case_guarantee_requires_exit checked 11049ms check-target:macos_arm64 @a9ae30e1c334+wt

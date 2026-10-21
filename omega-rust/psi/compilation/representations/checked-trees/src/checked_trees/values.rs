@@ -176,11 +176,7 @@ pub struct CheckedScalarExpressionPlans {
     pub binding_symbols: Arena<SymbolHandle>,
     #[doc(hidden)]
     pub state_index: arena::OwnedIndex<
-        (
-            symbols::SymbolKeyMap<SymbolHandle, Vec<u32>>,
-            symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
-        ),
-        (usize, u64),
+        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
     >,
 }
 
@@ -216,38 +212,23 @@ impl CheckedScalarExpressionPlans {
     fn with_state_index<R>(
         &self,
         run: impl FnOnce(
-            &symbols::SymbolKeyMap<SymbolHandle, Vec<u32>>,
             &symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
         ) -> R,
     ) -> R {
         self.state_index.with(
-            (self.expressions.len(), self.source_bindings.revision()),
+            self.source_bindings.revision(),
             || {
-                let mut expressions_by_state =
-                    symbols::SymbolKeyMap::<SymbolHandle, Vec<u32>>::default();
-                for (index, expression) in self.expressions.iter().enumerate() {
-                    if let Ok(index) = u32::try_from(index) {
-                        expressions_by_state
-                            .entry(expression.state)
-                            .or_default()
-                            .push(index);
-                    }
-                }
-                let mut bindings_by_state = symbols::SymbolKeyMap::<
-                    SymbolHandle,
-                    Vec<Handle<CheckedScalarExpressionBindings>>,
-                >::default();
+                let mut bindings_by_state =
+                    symbols::SymbolKeyMap::<SymbolHandle, Vec<_>>::default();
                 for (handle, binding) in self.source_bindings.iter() {
                     bindings_by_state
                         .entry(binding.state)
                         .or_default()
                         .push(handle);
                 }
-                (expressions_by_state, bindings_by_state)
+                bindings_by_state
             },
-            |(expressions_by_state, bindings_by_state)| {
-                run(expressions_by_state, bindings_by_state)
-            },
+            run,
         )
     }
 
@@ -260,7 +241,7 @@ impl CheckedScalarExpressionPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<(&CheckedScalarExpressionBindings, &CheckedScalarExpression)> {
-        self.with_state_index(|expressions_by_state, bindings_by_state| {
+        self.with_state_index(|bindings_by_state| {
             let mut bindings = bindings_by_state
                 .get(&state)?
                 .iter()
@@ -274,15 +255,12 @@ impl CheckedScalarExpressionPlans {
             if bindings.next().is_some() {
                 return None;
             }
-            let mut expressions = expressions_by_state
-                .get(&state)?
-                .iter()
-                .filter_map(|index| self.expressions.get(*index as usize))
-                .filter(|expression| {
-                    expression.state == state
-                        && expression.statement_ordinal == statement_ordinal
-                        && expression.role == role
-                });
+            // This public vector has no mutation revision; query its current rows.
+            let mut expressions = self.expressions.iter().filter(|expression| {
+                expression.state == state
+                    && expression.statement_ordinal == statement_ordinal
+                    && expression.role == role
+            });
             let expression = &expressions.next()?.expression;
             if expressions.next().is_some() {
                 return None;
@@ -297,18 +275,14 @@ impl CheckedScalarExpressionPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<&CheckedScalarExpression> {
-        self.with_state_index(|expressions_by_state, _| {
-            expressions_by_state
-                .get(&state)?
-                .iter()
-                .filter_map(|index| self.expressions.get(*index as usize))
-                .find(|expression| {
-                    expression.state == state
-                        && expression.statement_ordinal == statement_ordinal
-                        && expression.role == role
-                })
-                .map(|expression| &expression.expression)
-        })
+        self.expressions
+            .iter()
+            .find(|expression| {
+                expression.state == state
+                    && expression.statement_ordinal == statement_ordinal
+                    && expression.role == role
+            })
+            .map(|expression| &expression.expression)
     }
 }
 
@@ -512,4 +486,42 @@ macro_rules! integer_widen_triple_pattern {
             | $crate::CheckedScalarExpression::IntegerExactCast { $($fields)* }
             | $crate::CheckedScalarExpression::IntegerWiden { $($fields)* }
     };
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::{
+        CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
+        CheckedScalarExpressionPlans, CheckedScalarExpressionRole, SymbolHandle,
+    };
+
+    #[test]
+    fn expression_lookup_observes_same_length_state_mutation() {
+        let mut plans = CheckedScalarExpressionPlans::default();
+        let original = SymbolHandle::from_parts(1, 1);
+        let moved = SymbolHandle::from_parts(2, 1);
+        let role = CheckedScalarExpressionRole::Return;
+        plans.expressions.push(CheckedLocatedScalarExpression {
+            state: original,
+            statement_ordinal: 0,
+            role,
+            expression: CheckedScalarExpression::IntegerLiteral {
+                literal: numerics::literals::IntegerLiteral::from_value(23),
+            },
+        });
+        let binding = plans
+            .source_bindings
+            .insert(CheckedScalarExpressionBindings {
+                state: original,
+                ..CheckedScalarExpressionBindings::default()
+            });
+        assert!(plans.expression_at(original, 0, role).is_some());
+        assert!(plans.bound_expression_at(original, 0, role).is_some());
+        plans.expressions[0].state = moved;
+        // Warm the index before changing the binding arena as well.
+        assert!(plans.expression_at(moved, 0, role).is_some());
+        plans.source_bindings.get_mut(binding).state = moved;
+        assert!(plans.bound_expression_at(moved, 0, role).is_some());
+        assert!(plans.expression_at(original, 0, role).is_none());
+    }
 }

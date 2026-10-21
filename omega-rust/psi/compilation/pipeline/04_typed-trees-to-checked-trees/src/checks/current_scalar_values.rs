@@ -268,6 +268,7 @@ impl<'program> CurrentScalarValues<'program> {
                 }
                 StatementNode::LocalData(local) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
+                    let actuals = values.capture_call_actuals(local.initial_value);
                     let value = values.capture(program, machine, state, local.initial_value);
                     let conditions = values.capture_conditions(local.initial_value, 0);
                     values.replace_conditions(local.symbol, &[], conditions);
@@ -300,7 +301,12 @@ impl<'program> CurrentScalarValues<'program> {
                             Some(observed_scalar(state, local.symbol, ordinal, primitive))
                         });
                         if let Some(result_value) = &value {
-                            values.assume_call_ensures(local.initial_value, result_value);
+                            values.assume_call_ensures(
+                                local.initial_value,
+                                result_value,
+                                &actuals,
+                                ordinal,
+                            );
                         }
                         values.current.push(Binding {
                             symbol: local.symbol,
@@ -313,6 +319,7 @@ impl<'program> CurrentScalarValues<'program> {
                 }
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
+                    let actuals = values.capture_call_actuals(assignment.value);
                     let value = values.capture(program, machine, state, assignment.value);
                     let conditions = values.capture_conditions(assignment.value, 0);
                     let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
@@ -360,7 +367,12 @@ impl<'program> CurrentScalarValues<'program> {
                             Some(observed_scalar(state, name.symbol, ordinal, primitive))
                         });
                         if let Some(result_value) = &next_value {
-                            values.assume_call_ensures(assignment.value, result_value);
+                            values.assume_call_ensures(
+                                assignment.value,
+                                result_value,
+                                &actuals,
+                                ordinal,
+                            );
                         }
                         if let Some(binding) = values
                             .current
@@ -407,7 +419,7 @@ impl<'program> CurrentScalarValues<'program> {
                     values.invalidate_operand_writes(
                         frames.map(|frames| frames.may_write_frame(machine, call)),
                     );
-                    values.assume_statement_ensures(call);
+                    values.assume_statement_ensures(call, ordinal);
                 }
                 StatementNode::Expression(_) => {
                     values.invalidate_operand_effects(program, machine, statement, frames)

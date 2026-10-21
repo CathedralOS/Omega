@@ -91,7 +91,13 @@ pub(crate) fn scalar_returns(
                 identities, claims, checked, source, exit, catalog, parameters, evaluation,
                 operations,
             )?;
-            selection(source.operations, evaluation, operations, &mut actions)?;
+            selection(
+                exit.state_symbol,
+                source.operations,
+                evaluation,
+                operations,
+                &mut actions,
+            )?;
             Ok(ScalarReturnCleanup {
                 exit,
                 destination,

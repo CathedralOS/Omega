@@ -1,8 +1,8 @@
 //! Call contracts bind both machine value coordinates and ordinary operands.
 //! Each actual is a current snapshot after the caller's ordered prefix; unknown
-//! writes withdraw addressable captures, while invocation indices remain exact. Completed statement and expression invocations share
-//! guarantee import, while results and recursive self-contracts retain their
-//! separate availability obligations.
+//! writes withdraw addressable captures, while invocation indices remain exact.
+//! Requires use entry substitution; completed invocations transport guarantees
+//! through the shared public-contract owner and its post-state formal roster.
 
 use super::{
     Binding, CurrentScalarValues, Length, LengthSubject, ScalarField, admitted, fixed_length,
@@ -10,13 +10,13 @@ use super::{
     unsigned,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, StaticMachineArgument};
+use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceNode;
 use validation::{
     CallSite, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue,
+    ScopedArithmeticValue,
 };
 
 impl CurrentScalarValues<'_> {
@@ -155,151 +155,103 @@ impl CurrentScalarValues<'_> {
         Some(ScopedArithmeticValue::Integer(BigInt::from_i128(value)))
     }
 
+    pub(super) fn capture_call_actuals(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Vec<ScopedArithmeticBinding> {
+        let Some(call) = self.program.expression_table.call_node(expression) else {
+            return Vec::new();
+        };
+        self.capture_site_actuals(CallSite::Expression { expression, call })
+    }
+
+    fn capture_site_actuals(&self, site: CallSite<'_>) -> Vec<ScopedArithmeticBinding> {
+        // The caller has applied the ordered operand-write barrier. It erases
+        // overlapping knowledge and installs no post-call values; an affected
+        // source read cannot be recaptured as the later value.
+        validation::call_site_argument_expressions(self.program, &site)
+            .iter()
+            .filter_map(|argument| {
+                self.capture(self.program, self.machine, self.state, *argument)
+                    .map(|value| ScopedArithmeticBinding {
+                        binder: ScopedArithmeticBinder::Occurrence(*argument),
+                        value,
+                    })
+            })
+            .collect()
+    }
+
     pub(super) fn assume_call_ensures(
         &mut self,
         expression: ExpressionHandle,
         result: &ScopedArithmeticValue,
+        actuals: &[ScopedArithmeticBinding],
+        statement_index: usize,
     ) {
         let Some(call) = self.program.expression_table.call_node(expression) else {
             return;
         };
-        if validation::integer_embedding_argument(self.program, expression).is_some() {
-            return;
-        }
-        let Some((callee, state)) = validation::find_state(self.program, call.target_symbol)
-            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))
-        else {
-            return;
-        };
-        let Some(parameters) = validation::call_target_parameters(self.program, call.target_symbol)
-        else {
-            return;
-        };
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        self.assume_invocation_ensures(
-            callee,
-            state,
-            parameters,
-            arguments,
+        self.assume_completed_guarantees(
             CallSite::Expression { expression, call },
-            Some(result),
+            actuals,
+            Some(result.clone()),
+            statement_index,
         );
     }
 
-    pub(super) fn assume_statement_ensures(&mut self, call: &typed_trees::statement::TableCall) {
-        let Some((callee, state)) = validation::find_state(self.program, call.target_symbol)
-            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))
-        else {
-            return;
-        };
-        let Some(parameters) = validation::call_target_parameters(self.program, call.target_symbol)
-        else {
-            return;
-        };
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        self.assume_invocation_ensures(
-            callee,
-            state,
-            parameters,
-            arguments,
-            CallSite::Statement(call),
-            None,
-        );
-    }
-
-    fn assume_invocation_ensures(
+    pub(super) fn assume_statement_ensures(
         &mut self,
-        callee: &Machine,
-        state: &State,
-        parameters: &[typed_trees::signature::StateParameter],
-        arguments: &[ExpressionHandle],
-        site: CallSite<'_>,
-        result: Option<&ScopedArithmeticValue>,
+        call: &typed_trees::statement::TableCall,
+        statement_index: usize,
     ) {
-        if parameters.len() != arguments.len() || state.symbol == self.state.symbol {
-            return;
-        }
-        let is_entry = self
-            .program
-            .machine_states(callee)
-            .first()
-            .is_some_and(|entry| entry.symbol == state.symbol);
-        // Guarantee availability is bounded by source contract formation and
-        // common call-cycle admission: state arrivals carry requires only;
-        // proof-only recursive occurrences require strict edge descent; runtime
-        // components admit only classified tail occurrences. In particular an
-        // ordinary statement invocation cannot borrow a runtime component's
-        // eventual termination as an induction hypothesis. The occurrence
-        // inventory in runtime_ranking is checked before prefix frame shortcuts.
-        let contracts = self.program.state_contracts(state).iter().chain(
-            self.program
-                .machine_contracts(callee)
-                .iter()
-                .filter(|_| is_entry && callee.symbol != self.machine.symbol),
-        );
-        let mut guarantees = Vec::new();
-        for contract in contracts {
-            if contract.kind != typed_trees::signature::SignatureContractKind::Ensures
-                || contract.binding.is_some()
-            {
-                continue;
+        let site = CallSite::Statement(call);
+        let actuals = self.capture_site_actuals(site);
+        self.assume_completed_guarantees(site, &actuals, None, statement_index);
+    }
+
+    fn assume_completed_guarantees(
+        &mut self,
+        site: CallSite<'_>,
+        actuals: &[ScopedArithmeticBinding],
+        result: Option<ScopedArithmeticValue>,
+        statement_index: usize,
+    ) {
+        let target = site.target_symbol(self.program);
+        let machine_values = if let Some((callee, _)) = validation::find_state(self.program, target)
+            .or_else(|| validation::find_machine_head(self.program, target))
+        {
+            let Some(values) = self.machine_value_bindings(callee, site) else {
+                return;
+            };
+            values
+        } else {
+            // Signature/operator contracts without a concrete machine retain
+            // their ordinary operand roster. An unsupported static telescope
+            // is unavailable rather than guessed from a realization.
+            let has_static_arguments = match site {
+                CallSite::Statement(call) => !call.machine_arguments.is_empty(),
+                CallSite::Expression { call, .. } => !call.machine_arguments.is_empty(),
+                CallSite::TransitionNamed { .. } => return,
+            };
+            if has_static_arguments {
+                return;
             }
-            for fact in self.program.proof_facts.span_or_empty(contract.facts) {
-                if let Some(guarantee) = fact.as_expression() {
-                    Self::collect_ensures_conjuncts(
-                        self.program,
-                        callee,
-                        state,
-                        *guarantee,
-                        &mut guarantees,
-                        0,
-                    );
-                }
-            }
-        }
-        for guarantee in guarantees {
-            if result.is_none() {
-                let mut contains_result = false;
-                validation::expression_traversal::visit_post_order(
-                    self.program,
-                    guarantee,
-                    &mut Vec::new(),
-                    |expression, _| {
-                        contains_result |= self
-                            .program
-                            .expression_table
-                            .names_reserved_result(expression);
-                    },
-                );
-                if contains_result {
-                    continue;
-                }
-            }
-            if let Some(mut proposition) =
-                self.bind_call_parameters(callee, state, guarantee, parameters, arguments, site)
-            {
-                if let Some(result) = result {
-                    proposition.bindings.push(ScopedArithmeticBinding {
-                        binder: ScopedArithmeticBinder::Result,
-                        value: result.clone(),
-                    });
-                }
-                if !self
-                    .hypotheses
-                    .iter()
-                    .any(|existing| existing.holds && existing.proposition == proposition)
-                {
-                    self.hypotheses.push(ScopedArithmeticHypothesis {
-                        proposition,
-                        holds: true,
-                    });
-                }
+            Vec::new()
+        };
+        for hypothesis in validation::scoped_completed_call_guarantees(
+            self.program,
+            self.machine,
+            validation::ScopedCallCompletion {
+                state: self.state,
+                statement_index,
+                site,
+                actuals,
+                machine_values: &machine_values,
+                result,
+            },
+        ) {
+            if !self.hypotheses.contains(&hypothesis) {
+                self.hypotheses.push(hypothesis);
             }
         }
     }
@@ -462,46 +414,5 @@ impl CurrentScalarValues<'_> {
             }
         }
         Some(goal)
-    }
-
-    fn collect_ensures_conjuncts(
-        program: &dyn ::validation::CheckingInput,
-        callee: &Machine,
-        callee_state: &State,
-        expression: ExpressionHandle,
-        out: &mut Vec<ExpressionHandle>,
-        depth: usize,
-    ) {
-        if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
-            return;
-        }
-        if let Some(binary) = program.expression_table.binary_node(expression)
-            && binary.operator == BinaryOperator::And
-            && validation::has_builtin_decomposed_guard_meaning(
-                program,
-                callee,
-                Some(callee_state),
-                expression,
-            )
-        {
-            Self::collect_ensures_conjuncts(
-                program,
-                callee,
-                callee_state,
-                binary.left,
-                out,
-                depth + 1,
-            );
-            Self::collect_ensures_conjuncts(
-                program,
-                callee,
-                callee_state,
-                binary.right,
-                out,
-                depth + 1,
-            );
-            return;
-        }
-        out.push(expression);
     }
 }

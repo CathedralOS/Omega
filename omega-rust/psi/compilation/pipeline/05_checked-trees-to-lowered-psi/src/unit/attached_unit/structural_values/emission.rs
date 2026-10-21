@@ -83,6 +83,12 @@ pub(crate) fn emit<'source>(
     let structural_type = production.structural_type;
     let multiplicity = crate::terminal_identities::structural_multiplicity(production.multiplicity);
     let occurrence = checked.facts.values.structural_values.nodes.get(*value);
+    if occurrence.machine != machine
+        || occurrence.state != state
+        || occurrence.statement_index != production.statement
+    {
+        return unsupported("structural producer has a different checked source coordinate");
+    }
     let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
         identities,
         checked,
@@ -662,6 +668,13 @@ pub(crate) fn emit<'source>(
         emission.evaluation.structural_root_parameters(),
         arrival_claims,
     )?;
+    if emission.result_access == StructuralAccess::Owned && declaration.is_some() {
+        emission.operations.register_structural_materialization(
+            place,
+            state,
+            production.statement,
+        )?;
+    }
     Ok(CompletedValue {
         argument: StructuralArgument::whole(place, emission.result_access),
         binding: completed.into(),
@@ -1690,6 +1703,15 @@ impl Emission<'_, '_, '_> {
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<StructuralArgument, LoweringError> {
         let node = self.structural_value_node(value);
+        // Recursive value nodes are checked in this one statement's namespace.
+        // Authenticate that coordinate before retaining any physical birth;
+        // private block ordinals are not source statement or state identities.
+        if node.machine != self.machine
+            || node.state != self.state
+            || node.statement_index != self.statement
+        {
+            return unsupported("structural operand has a different checked source coordinate");
+        }
         let transaction = self.content_transformation(&node)?;
         if let Some(transaction) = transaction {
             // Formation owns the transaction, before any enclosing join can
@@ -2354,6 +2376,8 @@ impl Emission<'_, '_, '_> {
         self.complete_value(source.clone(), &mut continuation)?;
         self.arrival_claims.push((place, source_claims));
         self.start(block);
+        self.operations
+            .register_structural_materialization(place, self.state, self.statement)?;
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
             self.evaluation.structural_locals.retain(
                 |crate::expression_preparation::bindings::StructuralLocalBinding {
@@ -2495,6 +2519,11 @@ impl Emission<'_, '_, '_> {
         let Some(continuation) = continuation else {
             // At the value root the fresh place publishes directly — the copy
             // consumes nothing, so there is no custody edge to join.
+            self.operations.register_structural_materialization(
+                place,
+                self.state,
+                self.statement,
+            )?;
             return Ok(place);
         };
         self.completed(place, Some(continuation))?;
@@ -2708,6 +2737,13 @@ impl Emission<'_, '_, '_> {
         continuation: &ValueContinuation,
     ) -> Result<(), LoweringError> {
         self.start(continuation.block);
+        if self.result_access == StructuralAccess::Owned {
+            self.operations.register_structural_materialization(
+                continuation.place,
+                self.state,
+                self.statement,
+            )?;
+        }
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters.clone();
         self.evaluation.block_structural_parameters = continuation.structural_parameters.clone();
