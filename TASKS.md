@@ -985,6 +985,10 @@ defines the complete product bar.
     consume retained claims. Preserve the selected transfer and ordered
     residual complement under the original owner, never a second whole
     temporary for the selected field.
+    Keep `samples/cli/facts/returned_linear_residual/` and its pinned
+    pass/reject pairs for selected by-value linear-child consumption and
+    original-owner residual cleanup. Preserve the owner-telescope review
+    control `runtime_generic_cleanup_owner_telescope_exit` alongside it.
     Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
     `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
     and Terminal controls for conditional establishment, descendant identity

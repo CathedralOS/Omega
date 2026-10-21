@@ -1763,9 +1763,13 @@ fail/drops/claim_bearing_temporary_hook_prerequisite rejected 1555ms expected @a
 fail/drops/claim_bearing_temporary_requires_disposition rejected 1169ms expected @a9ae30e1c334+wt
 fail/drops/cleanup_helper_guarantee_after_parent_hook rejected 1661ms expected @a9ae30e1c334+wt
 fail/drops/cleanup_helper_guarantee_after_write rejected 1593ms expected @a9ae30e1c334+wt
+fail/drops/cleanup_method_local_lifetime rejected 360ms expected @794b4cd9f7e8+wt
+	cleanup machine `Owner::drop` may not declare method-local lifetime or type parameters
 fail/drops/cleanup_method_local_type_parameter rejected 894ms expected @a9ae30e1c334+wt
 fail/drops/cleanup_mutated_integer_contract rejected 1603ms expected @a9ae30e1c334+wt
 fail/drops/cleanup_owner_application_mismatch rejected 846ms expected @a9ae30e1c334+wt
+fail/drops/cleanup_wrong_nominal_owner rejected 360ms expected @794b4cd9f7e8+wt
+	cleanup machine `Owner::drop` must take exactly one exclusive loan of its own data and no other parameters, as `drop(value: &mut Owner)`
 fail/drops/composed_cleanup_authored_hook_call rejected 831ms expected @a9ae30e1c334+wt
 fail/drops/composed_cleanup_authored_hook_transition rejected 943ms expected @a9ae30e1c334+wt
 fail/drops/composed_cleanup_crash_outcome rejected 848ms expected @a9ae30e1c334+wt
@@ -10350,6 +10354,7 @@ pass/drops/runtime_computed_call_owner_retirement_exit checked 11944ms check-tar
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 11381ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_empty_array_owner_cleanup_exit checked 12216ms check-target:macos_arm64 @a4f0ef6b6479+wt
 pass/drops/runtime_empty_array_owner_cleanup_sites_exit checked 12124ms check-target:macos_arm64 @a4f0ef6b6479+wt
+pass/drops/runtime_generic_cleanup_owner_telescope_exit checked 855ms check-target:macos_arm64 @794b4cd9f7e8+wt
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 13564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 13406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_generic_reserved_construction_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
