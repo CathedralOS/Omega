@@ -150,8 +150,10 @@ The applicable requirement categories above extend through the component edge:
   capsule, selected representation and full calling application. The receiver
   cannot donate a contract or geometry to the producer.
 - Identity and lifetime retain the producing artifact, actual child invocation
-  namespace and owned result until the receiver commits it. The shared host
-  store consumes the exact nonrecycled token; artifact-local type coordinates
+  namespace and owned result until the receiver commits it. Sponsor suspension
+  resumes that same child without replaying committed effects or replenishing
+  its original total budget. The shared host store consumes the exact
+  nonrecycled token; artifact-local type coordinates
   are compared through their owning identities rather than as global numbers.
 - Composition joins the exact requirement, provider, target and full ABI/opaque
   applications at each selected export. Every place performs the same field
@@ -167,8 +169,12 @@ The applicable requirement categories above extend through the component edge:
   and materialize the exported calling policy from those inputs. The consumer
   independently checks its complete calling application and selected carrier.
 - Instruction and frame realization compile the export as a separate callable
-  object and entry bridge, carrying its actual stack contribution and checked
-  transitive authority into the receiving call plan.
+  object and entry bridge. Complete product admission compares their actual
+  stack bytes and alignment with the exact full provider-plan contribution;
+  smaller or misaligned claims and unrelated plans reject. Publication and
+  process admission also rejoin the actual root's imports and full call bindings
+  with its retained image/runtime roster, rejecting missing, empty or unrelated
+  products. Checked transitive authority remains on the receiving call plan.
 - Encoding emits a distinct Linux ELF shared component with a strong
   image/slot-qualified protected export. The root names its content-addressed
   sibling in `DT_NEEDED`; GNU version requirements cover actual versioned

@@ -6030,13 +6030,16 @@ wait for Cathedral's instruction coverage. The interpreter is
   then stable-slot replacement. Runtime packages or Cathedral own deployment
   and update policy; the deleted compiler-side component deployment/publication
   simulators are not a substrate to restore.
-  - Package review publishes the dependency description
-    (`omega-rust/omega/packages/package-manager/src/build_session/component_publication.rs`),
-    and provider planning checks it, but
-    `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/composition_modes.rs`
-    rejects every `Independent` edge before production. Replace that fence
-    only with real independent products carrying symbolic imports/exports,
-    entry/leave resources and installation obligations; never silently fuse.
+  - Package review and provider planning retain verified canonical artifacts
+    and exact exported applications. The
+    [closed Inert result row](samples/cli/facts/opaque_closed_carrier_exchange/README.md)
+    uses separate Linux ELF products and real Terminal child instances; canonical
+    macOS checking and flat publication retain distinct dylib products without
+    macOS execution evidence. Physical stack demand, complete provider plans,
+    actual root imports and retained runtime products rejoin before publication
+    or process admission. Opaque inputs, claim-bearing results and unsupported
+    structural carriers remain fail-closed; broader composition and replacement
+    acceptance below remains open. No Independent edge silently fuses.
   - Complete the entry, outgoing-authority, service, mapping, lease, stack and
     retained-provider inventories; include native stack and realization
     identity in the published description where a native compilation supplies
