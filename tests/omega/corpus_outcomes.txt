@@ -5814,6 +5814,52 @@ fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
+fail/facts/target_recursive_bound_through_call_result rejected 604ms expected @e2a6d051c734+wt
+	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_const_name rejected 595ms expected @e2a6d051c734+wt
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_field rejected 601ms expected @e2a6d051c734+wt
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_local rejected 600ms expected @e2a6d051c734+wt
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_match_join rejected 600ms expected @e2a6d051c734+wt
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_other_machine rejected 596ms expected @e2a6d051c734+wt
+	machine `main` state `entry` value call to `Worker::deliver` violates required fact `value <= 60`: the instantiated fact is structurally false (`61 <= 60`)
+fail/facts/target_recursive_bound_through_other_state rejected 599ms expected @e2a6d051c734+wt
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_parameter rejected 595ms expected @e2a6d051c734+wt
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_target_body rejected 588ms expected @e2a6d051c734+wt
+	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 fail/facts/target_scoped_constant_false_contract rejected 5015ms expected @7df3e6a600f1+wt
 	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
 fail/facts/target_scoped_constant_missing_method rejected 75ms expected @7df3e6a600f1+wt
@@ -9441,6 +9487,7 @@ pass/calls/structural_mut_to_shared_argument checked 11451ms check-target:macos_
 pass/calls/structural_self_rooted_argument checked 11517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/subslice_argument_result_shapes_exit checked 12215ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/sum_receiver_dispatch checked 9560ms @5041ef1af684+wt
+pass/calls/target_attached_recursive_tail_exit checked 1819ms check-target:macos_arm64 @e2a6d051c734+wt
 pass/calls/terminal_call_acknowledgements checked 5834ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/calls/terminal_call_acknowledgements_declarations checked 1665ms @589aedee8ebc+wt
 pass/calls/transition_arg_local_from_embedded_call_exit checked 13114ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -11917,6 +11964,15 @@ pass/facts/stack_frame_slot_isolation_through_other_state_exit checked 7666ms ch
 pass/facts/stack_frame_slot_isolation_through_parameter_exit checked 7730ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_target_body_exit checked 7822ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
+pass/facts/target_recursive_bound_through_call_result_exit checked 1816ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_const_name_exit checked 1815ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_field_exit checked 1823ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_local_exit checked 1812ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_match_join_exit checked 1818ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_other_machine_exit checked 1813ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_other_state_exit checked 1826ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_parameter_exit checked 1811ms check-target:macos_arm64 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_target_body_exit checked 1866ms check-target:macos_arm64 @e2a6d051c734+wt
 pass/facts/target_scoped_constant_multi_method_exit checked 11109ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/target_scoped_constant_realization_exit checked 11802ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/target_scoped_constant_realization_through_call_result_exit checked 11555ms check-target:macos_arm64 @7df3e6a600f1+wt

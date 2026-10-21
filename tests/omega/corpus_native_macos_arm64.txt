@@ -632,6 +632,7 @@ pass/calls/structural_mut_to_shared_argument built 300ms @48008365d839
 pass/calls/structural_self_rooted_argument built 3452ms exit:0 @693920652f41
 pass/calls/subslice_argument_result_shapes_exit built 2908ms exit:0 @a9c1e4380afa+wt
 pass/calls/sum_receiver_dispatch checked 9544ms @5041ef1af684+wt
+pass/calls/target_attached_recursive_tail_exit built 2072ms exit:0 @e2a6d051c734+wt
 pass/calls/terminal_call_acknowledgements built 9112ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 pass/calls/terminal_call_acknowledgements_declarations checked 3365ms @589aedee8ebc+wt
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
@@ -1989,6 +1990,15 @@ pass/facts/stack_frame_slot_isolation_through_other_machine_exit built 12924ms e
 pass/facts/stack_frame_slot_isolation_through_other_state_exit built 12927ms exit:0 @952bc99fb970
 pass/facts/stack_frame_slot_isolation_through_parameter_exit built 12885ms exit:0 @952bc99fb970
 pass/facts/stack_frame_slot_isolation_through_target_body_exit built 12978ms exit:0 @952bc99fb970
+pass/facts/target_recursive_bound_through_call_result_exit built 1994ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_const_name_exit built 1738ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_field_exit built 2141ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_local_exit built 1912ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_match_join_exit built 2215ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_other_machine_exit built 2362ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_other_state_exit built 2293ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_parameter_exit built 1837ms exit:0 @e2a6d051c734+wt
+pass/facts/target_recursive_bound_through_target_body_exit built 2438ms exit:0 @e2a6d051c734+wt
 pass/facts/temporary_case_cleanup_original_exit built 3991ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit built 3819ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_const_name_exit built 3904ms exit:0 @46f72294c589

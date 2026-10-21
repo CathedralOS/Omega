@@ -1,6 +1,5 @@
 mod assembly;
 mod routing;
-mod tail_calls;
 
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolTable;
@@ -145,13 +144,6 @@ fn assign_machine_references(
                 *ranking_range,
             );
         }
-        let entry = machine_state_handles
-            .span_or_empty(*states)
-            .first()
-            .map(|entry| {
-                let entry = machine_states.get(*entry);
-                (entry.symbol, entry.return_type.clone())
-            });
         for state_handle in machine_state_handles.span_or_empty(*states).iter().copied() {
             let state = machine_states.get_mut(state_handle);
             let state_symbol = state.symbol;
@@ -229,23 +221,6 @@ fn assign_machine_references(
                 statement_path_members,
                 symbols,
             );
-            // A value call checks its result against this state's complete
-            // destination type. A jump has no value-result check, so only
-            // normalize when the full resolved result declarations agree.
-            // Child handles/constraints remain part of equality: uncertain
-            // equivalence keeps the original call for ordinary checking.
-            if let Some((entry_symbol, ref entry_return_type)) = entry
-                && state.return_type == *entry_return_type
-            {
-                tail_calls::normalize_recursive_tail_calls(
-                    &machine_scope,
-                    symbols,
-                    entry_symbol,
-                    expression_table,
-                    statement_path_members,
-                    statements,
-                );
-            }
             assembly::AssemblyScopeRouting {
                 graphs: assembly_graphs,
                 blocks: assembly_blocks,

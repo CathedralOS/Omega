@@ -335,6 +335,13 @@ impl StatementTable {
         self.nodes.transition_targets.get(handle)
     }
 
+    pub fn insert_transition_target(
+        &mut self,
+        target: TransitionTargetNode,
+    ) -> TransitionTargetHandle {
+        self.nodes.transition_targets.insert(target)
+    }
+
     pub fn transition_target_mut(
         &mut self,
         handle: TransitionTargetHandle,
@@ -674,7 +681,10 @@ impl StatementTable {
         span
     }
 
-    fn insert_name_path_members(&mut self, path: &[DiagnosticName]) -> HandleSpan<DiagnosticName> {
+    pub fn insert_name_path_members(
+        &mut self,
+        path: &[DiagnosticName],
+    ) -> HandleSpan<DiagnosticName> {
         self.paths
             .name_path_members
             .insert_many(path.iter().cloned())
@@ -719,7 +729,7 @@ impl StatementTable {
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
 
-        self.nodes.transition_targets.insert(target)
+        self.insert_transition_target(target)
     }
 }
 
