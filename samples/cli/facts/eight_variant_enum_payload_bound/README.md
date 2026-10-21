@@ -3,6 +3,7 @@
 Fact: matching an 8-variant tagged enum payload Packet { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
 Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Obligation Class: Tagged case payload layout plans and variant discriminant tags (`wiki/spec/layouts/plans.md`) — an 8-variant enum tagged case payload preserves payload interval bounds `40u64 <= payload <= 80u64` to discharge exact subtractions `80u64 - payload` and `payload - 40u64` across all 9 transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`).
 
 Every positive place and reject twin tests an 8-variant tagged enum (`data Packet [copy]`) with bounded 64-bit unsigned payloads across all variants (`V1(v: u64)`, `V2(v: u64)`, `V3(v: u64)`, `V4(v: u64)`, `V5(v: u64)`, `V6(v: u64)`, `V7(v: u64)`, and `V8(v: u64)` where `v >= 40u64 && v <= 80u64`).
 Matching or extracting the active variant payload yields an exact result `res: u64` statically guaranteed to lie in `[40, 80]`.
@@ -52,6 +53,37 @@ Because all eight variant arms enforce `v >= 40u64 && v <= 80u64`, the exhaustiv
 Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u64` and `margin = res - 40u64 = 20u64`) evaluate to `20u64 + 20u64 = 40u64`.
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+
+Measured discrimination: A 1-token perturbation altering the demanded value from `combined == 40u64` to `combined == 41u64` in `main.omg` was executed against `omega run --both`:
+- Native execution: trapped immediately with `native exit -1073741795` (STATUS_ILLEGAL_INSTRUCTION / Trap crash).
+- Terminal Psi interpreter: trapped with `interp crash: Trap (host presentation agrees)`.
+Both engines trapped consistently on the corrupted value, verifying bidirectional discrimination.
+
+## Pinned Corpus Fixtures
+
+All 18 corpus fixtures are pinned under `tests/omega/`:
+
+### Pass Fixtures (`tests/omega/pass/facts/`)
+- `eight_variant_enum_payload_bound_through_local_exit`
+- `eight_variant_enum_payload_bound_through_field_exit`
+- `eight_variant_enum_payload_bound_through_parameter_exit`
+- `eight_variant_enum_payload_bound_through_call_result_exit`
+- `eight_variant_enum_payload_bound_through_match_join_exit`
+- `eight_variant_enum_payload_bound_through_const_name_exit`
+- `eight_variant_enum_payload_bound_through_other_state_exit`
+- `eight_variant_enum_payload_bound_through_other_machine_exit`
+- `eight_variant_enum_payload_bound_through_target_body_exit`
+
+### Fail Fixtures (`tests/omega/fail/facts/`)
+- `eight_variant_enum_payload_bound_through_local_rejected`
+- `eight_variant_enum_payload_bound_through_field_rejected`
+- `eight_variant_enum_payload_bound_through_parameter_rejected`
+- `eight_variant_enum_payload_bound_through_call_result_rejected`
+- `eight_variant_enum_payload_bound_through_match_join_rejected`
+- `eight_variant_enum_payload_bound_through_const_name_rejected`
+- `eight_variant_enum_payload_bound_through_other_state_rejected`
+- `eight_variant_enum_payload_bound_through_other_machine_rejected`
+- `eight_variant_enum_payload_bound_through_target_body_rejected`
 
 ### Invalid controls and reject twins
 
