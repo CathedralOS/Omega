@@ -174,6 +174,10 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
     pub(crate) fn provider_program(&self) -> &TerminalProgram<'artifact> {
         &self.program
     }
+    pub(super) const fn has_pending_invocation(&self) -> bool {
+        self.pending.is_some()
+    }
+
     pub(crate) fn pending_at(&self, operation: OperationId) -> bool {
         self.pending
             .as_ref()

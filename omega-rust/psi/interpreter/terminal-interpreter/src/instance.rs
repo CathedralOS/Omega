@@ -521,6 +521,15 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .take_returned_provider_storage(path)
     }
 
+    /// Producing activations that still own their invocation, including fuel
+    /// pauses. This observation grants no entry, adapter or completion custody.
+    pub fn active_component_invocation_count(&self) -> usize {
+        self.components
+            .values()
+            .filter(|binding| binding.has_pending_invocation())
+            .count()
+    }
+
     /// The recorded effect receipt stream of this instance: empty before the
     /// first committed effect and after `close` releases execution state.
     pub fn effects(&self) -> &[TerminalEffect] {

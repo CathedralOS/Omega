@@ -85,6 +85,12 @@ pub struct TerminalRuntimeObservation {
     pub stderr: Vec<u8>,
     pub private_entry_ram: Vec<(u32, Vec<u8>)>,
     pub effects: Vec<terminal_interpreter::TerminalEffect>,
+    /// Actual logical work, including independently executing children.
+    pub fuel_usage: terminal_fuel::TerminalFuelUsage,
+    /// Fuel pauses resumed by this sponsor, never replayed invocations.
+    pub fuel_suspensions: u64,
+    /// Pauses at which a real producing child still owns its invocation.
+    pub component_suspensions: u64,
 }
 
 #[derive(Debug)]
@@ -135,6 +141,17 @@ impl std::error::Error for TerminalRuntimeError {}
 /// Terminal program; it never enables synthetic context or host bindings.
 pub fn execute(
     request: TerminalRuntimeRequest<'_>,
+) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    execute_sliced(request, std::num::NonZeroU64::MAX)
+}
+
+/// Execute the same admitted root with a bounded sponsor scheduling quantum.
+/// The driver owns every invocation and its observed outcome. Replenishment
+/// keeps the same meter and instance, never exceeds the request's total fuel
+/// allowance, and grants no new host binding or result-producing callback.
+pub fn execute_sliced(
+    request: TerminalRuntimeRequest<'_>,
+    quantum: std::num::NonZeroU64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = request.artifact.view();
     let program = TerminalProgram::borrow(artifact);
@@ -343,10 +360,26 @@ pub fn execute(
             .bind_external_completion(demand.boundary, admission)
             .map_err(TerminalRuntimeError::Binding)?;
     }
-    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(request.fuel_allowance);
-    let status = instance
-        .invoke(&mut fuel)
-        .map_err(TerminalRuntimeError::Execution)?;
+    let first_quantum = request.fuel_allowance.min(quantum.get());
+    let mut remaining = request.fuel_allowance - first_quantum;
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(first_quantum);
+    let mut fuel_suspensions = 0u64;
+    let mut component_suspensions = 0u64;
+    let status = loop {
+        let status = instance
+            .invoke(&mut fuel)
+            .map_err(TerminalRuntimeError::Execution)?;
+        if !matches!(status, TerminalExecutionStatus::SponsorExhausted(_)) || remaining == 0 {
+            break status;
+        }
+        fuel_suspensions += 1;
+        component_suspensions += u64::from(instance.active_component_invocation_count() != 0);
+        let additional = remaining.min(quantum.get());
+        remaining -= additional;
+        fuel.replenish(additional).map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("sponsor fuel replenishment overflows")
+        })?;
+    };
     let stdout = output.stdout.snapshot()?;
     let stderr = output.stderr.snapshot()?;
     let private_entry_ram = instance
@@ -354,6 +387,9 @@ pub fn execute(
         .map_err(TerminalRuntimeError::Execution)?;
     let effects = instance.effects().to_vec();
     Ok(TerminalRuntimeObservation {
+        fuel_usage: fuel.into_usage(),
+        fuel_suspensions,
+        component_suspensions,
         effects,
         private_entry_ram,
         status,
