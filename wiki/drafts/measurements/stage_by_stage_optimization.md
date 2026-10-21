@@ -400,7 +400,25 @@ Measured with `OMEGA_PHASE_PROFILE=1 target/release/omega.exe --timings samples/
 At `245ce317c67`, twenty paired `length/local --check` runs put uninstrumented
 source assembly at 7.091 ms median out of 723.767 ms total; Stage 05 is 607.165 ms.
 Entry-contract imports and the Build prelude dominate assembly; custody validation
-and syntax copying are small. Decision: retain the measurement, remove the probes,
-and reject another ingress rewrite for this workload. No compiler behavior or
-performance improvement is claimed. Native and Terminal execution both exit 0.
+and syntax copying are small. This attribution capture retained no implementation.
+Its initial stop decision based on whole-program share was superseded by the
+owner's per-layer requirement and the parser experiment below. Native and
+Terminal execution both exit 0.
 [Full record, replay patch and observations](source_assembly_2026_10_21/README.md).
+
+### Avoid impossible applied-requirement probes
+
+A necessary token-prefix test avoids 1,456 of 1,982 scratch type parses. On the
+17-file ingress parser workload this removes 16,128 allocation calls and 885,413
+requested bytes. Eleven alternating fresh-process pairs put assembly at 6.830 ms
+baseline versus 4.747 ms candidate median (minima 6.652 versus 4.635 ms), with
+the full grammar retained for possible applications. The separated probe also
+keeps its roughly 20 KiB stack frame off ordinary-name paths.
+[Mechanism, repeated measurements, validation and replay](source_assembly_2026_10_21/prefix_probe/README.md).
+This finishes one measured work reduction, not the source-assembly layer.
+
+After integrating 15 main commits, fourteen fresh pairs corroborate the reduction:
+assembly median 6.956 -> 4.703 ms, minima 6.732 -> 4.542 ms. Total median stays
+724.605 -> 724.604 ms in this batch. The rebuilt producers preserve the 68 scoped
+corpus outcomes and three native/Terminal exit-0 witnesses. The full record keeps
+these integrated observations separate from the original producer batch.

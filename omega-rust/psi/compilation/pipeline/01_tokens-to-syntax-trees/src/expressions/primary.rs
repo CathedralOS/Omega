@@ -349,6 +349,25 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 /// static argument list takes this form; a comparison never continues with
 /// `::`, so the speculation cannot steal an ordinary expression.
 fn starts_applied_requirement_call(input: Input<'_, '_>) -> bool {
+    // A named application must continue its first name with `<` or `::`.
+    // Ordinary value names cannot reach this form, so do not construct a
+    // disposable syntax forest and parse them as types. Possible applications
+    // still use the full type grammar below, including its ambiguity rules.
+    let Ok((_, after_name)) = input.expect_token() else {
+        return false;
+    };
+    if !after_name.at_punctuation(PunctuationKind::Less)
+        && !after_name.at_punctuation(PunctuationKind::ColonColon)
+    {
+        return false;
+    }
+    probe_applied_requirement_call(input)
+}
+
+// Keep the scratch forest's stack frame off the prefix-only path. Inlining
+// this probe reserves and touches that frame even when the prefix rejects.
+#[inline(never)]
+fn probe_applied_requirement_call(input: Input<'_, '_>) -> bool {
     let mut scratch = SyntaxTrees::new(input.source_id);
     let Ok((reference, rest)) = parse_type_reference_handle(&mut scratch, input) else {
         return false;

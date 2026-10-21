@@ -1,9 +1,11 @@
 # Source assembly attribution, 2026-10-21
 
 Source assembly is 7.091 ms median, about 0.98% of the 723.767 ms median
-`length/local --check` workload. No implementation change is retained. The next
-useful performance question remains Stage 05's repeated dependency checking,
-owned by `CHECKED-PACKAGE-REUSE`; this measurement does not close that task.
+`length/local --check` workload. This first attribution capture retained no
+implementation change. Its original decision to stop because assembly was a
+small whole-program fraction was incorrect for the requested per-layer work.
+The [subsequent parser experiment](prefix_probe/README.md) removes measured
+work and reduces assembly time; `CHECKED-PACKAGE-REUSE` remains separate.
 
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;
@@ -42,13 +44,11 @@ Across all physical import waves (including preparation, not only assembly),
 import discovery 0.498 ms. `append` includes source loading, lexing, parsing,
 and syntax-page adoption. This capture does not isolate parsing CPU from I/O.
 
-The profile therefore does not justify another custody/clone optimization or
-an assembly cache on this workload. Removing the entire measured assembly
-interval would recover only about 1% under this configuration; this is a scale
-estimate, not a measured skip experiment or a speedup promise. Stage 05 is
-about 84% of total elapsed. Reusing its checked dependency graphs must preserve
-body-dependent queries and exact identities, as its existing task requires.
-No source checks, target entry contracts or validation gates were removed.
+This capture alone does not isolate a custody, clone or parser cause. Assembly's
+roughly 1% share of total time does not establish that its work is necessary or
+that optimization should stop. The follow-up isolates speculative parser work
+and removes it without a cache or relaxed checks. Stage 05 remains about 84%
+of this historical total; that does not supersede the owner's per-layer scope.
 
 ## Replay and validation
 
