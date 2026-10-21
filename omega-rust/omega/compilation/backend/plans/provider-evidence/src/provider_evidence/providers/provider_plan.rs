@@ -20,6 +20,8 @@ mod digest_encoder;
 pub(crate) use digest_encoder::DigestFeed;
 mod evaluated_bindings;
 mod identity_table;
+mod retained_inputs;
+pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
 
 pub use evaluated_bindings::{

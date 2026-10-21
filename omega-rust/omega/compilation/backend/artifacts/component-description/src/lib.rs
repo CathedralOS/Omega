@@ -32,7 +32,7 @@ pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod component_verification;
 mod publication;
 pub use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts, DescribeError,
+    COMPONENT_DESCRIPTION_SCHEMA_V3, ComponentDescriptionFacts, DescribeError,
     decode_component_description, description_subject, encode_component_description,
 };
 pub use component_verification::{

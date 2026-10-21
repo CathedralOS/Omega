@@ -125,7 +125,7 @@ pub enum ComponentVerificationRejection {
     /// A `ProviderSealed` row names a plan digest outside the provider roster
     /// or seals a requirement that provider does not claim.
     UnsealedProvider(String),
-    /// A retained provider claims a requirement no outgoing row names.
+    /// A retained provider claims neither a called requirement nor an exact checked export.
     SmuggledProviderRequirement(String),
     /// A boundary requirement is neither provider-sealed nor import-bound.
     UnboundRequirement(String),
@@ -688,7 +688,7 @@ pub fn verify_component(
     check_entries(&description, &inventory)?;
     check_exports(&description, &inventory)?;
     let sealed = check_outgoing(&description, &inventory)?;
-    check_providers(&description, &inventory, &sealed)?;
+    check_providers(&description, module, &inventory, &sealed)?;
     check_service_bounds(&description, &inventory)?;
     check_custody(&description, &inventory)?;
     check_imports(&description)?;
@@ -968,10 +968,11 @@ fn check_outgoing(
 /// The retained provider roster must be internally consistent: every sealed
 /// requirement resolves to a listed plan digest that claims it, no two
 /// providers claim the same requirement, no provider claims a requirement
-/// the component does not name, and a nonempty roster carries a nonzero
+/// neither a real outgoing call nor an exact checked export, and a nonempty roster carries a nonzero
 /// closure digest.
 fn check_providers(
     description: &ComponentDescription,
+    module: &terminal_psi::TerminalModule,
     inventory: &crate::component_description::DerivedInventory,
     sealed: &BTreeMap<String, [u8; 32]>,
 ) -> Result<(), ComponentVerificationRejection> {
@@ -998,21 +999,41 @@ fn check_providers(
                 "a retained provider seals no requirement",
             ));
         }
-        for requirement in &provider.requirement_identities {
-            if !called.contains(requirement.as_str()) {
+        let plan = effects::provider_plan::ProviderPlanInput::read(
+            &provider.plan_input,
+            &provider.plan_digest,
+        )
+        .map_err(ComponentVerificationRejection::InconsistentProviderClosure)?;
+        let mut requirements: Vec<_> = plan.rows.iter().map(|row| row.requirement).collect();
+        requirements.sort();
+        if requirements
+            != provider
+                .requirement_identities
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        {
+            return Err(ComponentVerificationRejection::InconsistentProviderClosure(
+                "retained requirement roster differs from the complete committed plan",
+            ));
+        }
+        for row in &plan.rows {
+            let requirement = row.requirement;
+            if called.contains(requirement) {
+                match sealed.get(requirement) {
+                    Some(digest) if *digest == provider.plan_digest => {}
+                    _ => {
+                        return Err(ComponentVerificationRejection::InconsistentProviderClosure(
+                            "a called provider requirement is not sealed to that provider's plan",
+                        ));
+                    }
+                }
+            } else if !is_checked_export(module, &plan, row) {
                 return Err(ComponentVerificationRejection::SmuggledProviderRequirement(
-                    requirement.clone(),
+                    requirement.to_owned(),
                 ));
             }
-            match sealed.get(requirement) {
-                Some(digest) if *digest == provider.plan_digest => {}
-                _ => {
-                    return Err(ComponentVerificationRejection::InconsistentProviderClosure(
-                        "a provider requirement is not sealed to that provider's plan",
-                    ));
-                }
-            }
-            if !claimed.insert(requirement.as_str()) {
+            if !claimed.insert(requirement) {
                 return Err(ComponentVerificationRejection::InconsistentProviderClosure(
                     "two providers claim the same requirement",
                 ));
@@ -1025,6 +1046,59 @@ fn check_providers(
         ));
     }
     Ok(())
+}
+
+/// A selected-satisfied export is not an outgoing call. Its committed plan
+/// row must identify one exact canonical checked candidate, including source
+/// package custody. The verified candidate retains its selecting declaration,
+/// signature/refinement and actual body; a description's exported names never
+/// establish this association and this check installs nothing.
+fn is_checked_export(
+    module: &terminal_psi::TerminalModule,
+    plan: &effects::provider_plan::ProviderPlanInput<'_>,
+    row: &effects::provider_plan::ProviderPlanInputRow<'_>,
+) -> bool {
+    let Some((machine, package)) = row.checked_adapter else {
+        return false;
+    };
+    if plan.provider.is_empty()
+        || plan.provider_package != package
+        || plan.origin_package != package
+    {
+        return false;
+    }
+    let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+        module
+            .identities
+            .text(candidate.source_requirement_identity)
+            == Some(row.requirement)
+            && module.identities.text(candidate.provider_identity) == Some(plan.provider)
+            && module.identities.text(candidate.source_candidate_identity) == Some(machine)
+            && candidate
+                .source_candidate_package_identity
+                .map(|identity| identity.digest())
+                == package
+            && module
+                .identities
+                .text(candidate.provider_declaration.identity())
+                .is_some_and(|identity| !identity.is_empty())
+            && module
+                .machine(candidate.candidate)
+                .and_then(|body| body.declaration.as_ref())
+                .is_some_and(|declaration| {
+                    module.identities.text(declaration.callable)
+                        == module.identities.text(candidate.candidate_identity)
+                        && module.identities.text(
+                            declaration
+                                .specialization
+                                .as_ref()
+                                .map_or(declaration.callable, |specialization| {
+                                    specialization.template_callable
+                                }),
+                        ) == Some(machine)
+                })
+    });
+    candidates.next().is_some() && candidates.next().is_none()
 }
 
 /// Custody rows must cover the derived set under the same evidence rules as

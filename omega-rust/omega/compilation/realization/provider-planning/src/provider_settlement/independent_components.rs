@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 
 use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentVerificationRequest, VerifiedComponent,
+    COMPONENT_DESCRIPTION_SCHEMA_V3, ComponentVerificationRequest, VerifiedComponent,
     verify_component,
 };
 use diagnostics::Diagnostic;
@@ -41,7 +41,7 @@ fn verification_request(
 ) -> ComponentVerificationRequest {
     ComponentVerificationRequest {
         expected_subject: description.expected_subject(),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
+        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
         accepted_assumptions: accepted_assumptions.clone(),
     }
 }

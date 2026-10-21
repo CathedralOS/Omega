@@ -35,11 +35,11 @@ const REGISTER_MECHANISM_DOMAIN: &[u8] = b"omega-component-register-mechanism-v1
 
 /// Current and only published description schema.
 ///
-/// V2 publishes each retained installation-bound reach row as its own
-/// service-bound roster entry beside the concrete reach's ceiling rows;
-/// under V1 every dependency's upper bound was unioned into the one
-/// `service_ceiling`, so a bound could stand in for resolved reach.
-pub const COMPONENT_DESCRIPTION_SCHEMA_V2: u32 = 2;
+/// V3 retains the complete original normalized provider-plan input. Consumers
+/// replay its strong commitment and independently authenticate uncalled checked
+/// exports, separately from the outgoing-call roster. V2 retained only plan
+/// digests and could not authenticate those selected-satisfied exports.
+pub const COMPONENT_DESCRIPTION_SCHEMA_V3: u32 = 3;
 
 /// Hard bound on one encoded description, including the embedded artifact.
 pub(crate) const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
@@ -367,6 +367,8 @@ pub struct CustodyConstraint {
 pub struct RetainedProvider {
     pub report_identity: u64,
     pub plan_digest: [u8; 32],
+    /// Complete canonical v4 commitment input, never executable authority.
+    pub plan_input: Vec<u8>,
     /// Exact requirement identities this provider seals for the component.
     pub requirement_identities: Vec<String>,
 }
@@ -1060,6 +1062,7 @@ pub(crate) fn describe_decoded_component_facts(
             RetainedProvider {
                 report_identity: plan.report_fingerprint(),
                 plan_digest: *plan.identity_digest().as_bytes(),
+                plan_input: plan.identity_preimage(),
                 requirement_identities,
             }
         })
@@ -1176,7 +1179,7 @@ pub(crate) fn describe_decoded_component_facts(
     obligations.dedup();
 
     Ok(ComponentDescription {
-        schema: COMPONENT_DESCRIPTION_SCHEMA_V2,
+        schema: COMPONENT_DESCRIPTION_SCHEMA_V3,
         frontier: DescriptionFrontier::TerminalArtifactClosure,
         artifact_bytes,
         imports,
@@ -1377,6 +1380,8 @@ pub fn encode_component_description(description: &ComponentDescription) -> Vec<u
     for provider in &providers {
         push_u64(&mut out, provider.report_identity);
         out.extend_from_slice(&provider.plan_digest);
+        push_u32(&mut out, provider.plan_input.len() as u32);
+        out.extend_from_slice(&provider.plan_input);
         push_u32(&mut out, provider.requirement_identities.len() as u32);
         for requirement in &provider.requirement_identities {
             push_identity(&mut out, requirement);
@@ -1439,6 +1444,11 @@ pub(crate) fn decode_component_description_with_artifact(
         return Err(DescriptionDecodeRejection::InvalidMagic);
     }
     let schema = reader.u32()?;
+    if schema != COMPONENT_DESCRIPTION_SCHEMA_V3 {
+        return Err(DescriptionDecodeRejection::UnsupportedTag(
+            "description schema",
+        ));
+    }
     let frontier = DescriptionFrontier::from_tag(reader.u8()?)
         .ok_or(DescriptionDecodeRejection::UnsupportedTag("frontier tag"))?;
 
@@ -1593,6 +1603,13 @@ pub(crate) fn decode_component_description_with_artifact(
     for _ in 0..reader.roster_len("provider")? {
         let report_identity = reader.u64()?;
         let plan_digest = reader.array::<32>()?;
+        let plan_input_length = reader.u32()? as usize;
+        if plan_input_length > MAX_COMPONENT_DESCRIPTION_BYTES {
+            return Err(DescriptionDecodeRejection::RosterBoundExceeded(
+                "provider plan input",
+            ));
+        }
+        let plan_input = reader.take(plan_input_length)?.to_vec();
         let requirement_count = reader.roster_len("provider requirement")?;
         let mut requirement_identities = Vec::with_capacity(requirement_count);
         let mut last_requirement: Option<String> = None;
@@ -1613,6 +1630,7 @@ pub(crate) fn decode_component_description_with_artifact(
         providers.push(RetainedProvider {
             report_identity,
             plan_digest,
+            plan_input,
             requirement_identities,
         });
     }

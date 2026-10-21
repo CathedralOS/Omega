@@ -186,7 +186,7 @@ fn component(root: &Path, output: &Path) {
     std::fs::write(output.join("component-digest.bin"), digest).unwrap();
     let mut request = component_description::ComponentVerificationRequest {
         expected_subject: subject,
-        accepted_schemas: BTreeSet::from([component_description::COMPONENT_DESCRIPTION_SCHEMA_V2]),
+        accepted_schemas: BTreeSet::from([component_description::COMPONENT_DESCRIPTION_SCHEMA_V3]),
         accepted_assumptions: BTreeSet::from([digest]),
     };
     let verified = component_description::verify_component(&bytes, &request).unwrap();
