@@ -19,7 +19,6 @@
 
 mod artifacts;
 mod authority_digests;
-pub(crate) use optimization_core::digest_encoder;
 mod fnv1a;
 mod installation;
 mod placement;

@@ -1,14 +1,12 @@
 //! Install authorities, receipts, installed code, its registry authority
 //! and installation diagnostics.
 
-use crate::artifacts::InstallationAudience;
 use crate::authority_digests::{
     ArtifactId, CodePlacementId, FinalValidationId, InstallationFactDigest, InstallationScopeId,
     InstalledCodeId,
 };
 use crate::placement::ValidatedPlacement;
 use crate::placement::ValidatedPlacementEvidence;
-use installation_evidence::InstalledArtifactOccurrenceDigest;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
 use target::Architecture;
 
@@ -127,56 +125,6 @@ impl InstalledCode {
         self.validated.frozen.placement.scope
     }
 
-    /// Test both sides of a relocatable installation: the exact frozen
-    /// compiler-authored bytes before relocation and the exact materialized
-    /// bytes after the admitted relocation set was applied. No bytes or
-    /// addresses cross this evidence boundary.
-    pub fn binds_exact_materialized_artifact_bytes(
-        &self,
-        expected_unrelocated: &[u8],
-        expected_materialized: &[u8],
-    ) -> bool {
-        let frozen = &self.validated.frozen;
-        frozen.artifact.artifact.0.code == expected_unrelocated
-            && frozen.materialized.bytes() == expected_materialized
-    }
-
-    /// Test the exact materialized byte interval beginning at one admitted
-    /// entry. The installed image remains provider-side: callers can bind a
-    /// generated stub to its frozen executable bytes without receiving either
-    /// the image or an executable address.
-    pub fn binds_exact_materialized_entry_bytes(
-        &self,
-        entry: EntryStubId,
-        expected: &[u8],
-    ) -> bool {
-        if expected.is_empty() {
-            return false;
-        }
-        let frozen = &self.validated.frozen;
-        let Some(candidate) = frozen.artifact.artifact.entry(entry) else {
-            return false;
-        };
-        let Ok(start) = usize::try_from(candidate.code_offset) else {
-            return false;
-        };
-        let Some(end) = start.checked_add(expected.len()) else {
-            return false;
-        };
-        frozen.materialized.bytes().get(start..end) == Some(expected)
-    }
-
-    /// Test the exact admitted code offset of one selected entry without
-    /// exposing a resolved address.
-    pub fn binds_entry_offset(&self, entry: EntryStubId, expected_offset: u64) -> bool {
-        self.validated
-            .frozen
-            .artifact
-            .artifact
-            .entry(entry)
-            .is_some_and(|candidate| candidate.code_offset == expected_offset)
-    }
-
     /// Exact placement constraints retained by this installed occurrence.
     /// The projection is descriptive evidence — normalized range, alignment,
     /// phase, regime, and scope identities — and grants no placement or
@@ -202,10 +150,6 @@ impl InstalledCode {
 
     pub fn receipt_context(&self) -> InstalledCodeContext {
         InstalledCodeContext(InstalledCodeEvidence::from_installed(self))
-    }
-
-    pub fn occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
-        installed_artifact_occurrence_digest(&InstalledCodeEvidence::from_installed(self))
     }
 
     /// Returns a sealed target only for an entry admitted with this installed
@@ -237,12 +181,6 @@ pub(crate) struct InstalledCodeEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledCodeContext(pub(crate) InstalledCodeEvidence);
 
-impl InstalledCodeContext {
-    pub fn occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
-        installed_artifact_occurrence_digest(&self.0)
-    }
-}
-
 impl InstalledCodeEvidence {
     pub(crate) fn from_installed(installed: &InstalledCode) -> Self {
         Self {
@@ -251,99 +189,6 @@ impl InstalledCodeEvidence {
             wx: installed.wx,
         }
     }
-}
-
-fn installed_artifact_occurrence_digest(
-    evidence: &InstalledCodeEvidence,
-) -> InstalledArtifactOccurrenceDigest {
-    fn bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: &[u8]) {
-        digest.u64(value.len() as u64);
-        digest.raw(&value);
-    }
-
-    fn optional_u64(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: Option<u64>) {
-        match value {
-            Some(value) => {
-                digest.byte(1);
-                digest.raw(&value.to_le_bytes());
-            }
-            None => digest.byte(0),
-        }
-    }
-
-    let validated = &evidence.validated;
-    let admitted = &validated.admission_evidence;
-    let constraints = validated.constraints;
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.installed-artifact-occurrence.sha256.v1\0",
-    );
-    digest.raw(&admitted.artifact.content().digest());
-    digest.raw(
-        &admitted
-            .artifact
-            .identity()
-            .normalized_identity()
-            .to_le_bytes(),
-    );
-    digest.raw(&admitted.admission.normalized_identity().to_le_bytes());
-    digest.raw(&evidence.installed.normalized_identity().to_le_bytes());
-    digest.raw(&validated.placement.normalized_identity().to_le_bytes());
-    digest.raw(&validated.scope.normalized_identity().to_le_bytes());
-    digest.byte(match validated.audience {
-        InstallationAudience::DormantLocal => 1,
-        InstallationAudience::FutureFetcher => 2,
-        InstallationAudience::PossibleCurrentExecutor => 3,
-    });
-    match constraints.permitted_range() {
-        Some(range) => {
-            digest.byte(1);
-            digest.raw(&range.start_inclusive().to_le_bytes());
-            digest.raw(&range.end_exclusive().to_le_bytes());
-        }
-        None => digest.byte(0),
-    }
-    digest.raw(&constraints.alignment().to_le_bytes());
-    digest.byte(match constraints.phase() {
-        layout_plans::PlacementPhase::Build => 1,
-        layout_plans::PlacementPhase::Load => 2,
-        layout_plans::PlacementPhase::PostHandoff => 3,
-    });
-    optional_u64(
-        &mut digest,
-        constraints
-            .machine_regime()
-            .map(|identity| identity.normalized_identity()),
-    );
-    optional_u64(
-        &mut digest,
-        constraints
-            .installation_scope()
-            .map(|identity| identity.normalized_identity()),
-    );
-    digest.raw(&validated.base.to_le_bytes());
-    digest.raw(&validated.length.to_le_bytes());
-    digest.raw(&validated.address_space.normalized_identity().to_le_bytes());
-    digest.u64(validated.rights.identities().count() as u64);
-    for right in validated.rights.identities() {
-        digest.raw(&right.normalized_identity().to_le_bytes());
-    }
-    digest.raw(&validated.provenance.normalized_identity().to_le_bytes());
-    digest.raw(&validated.era.normalized_identity().to_le_bytes());
-    digest.raw(&validated.lineage.normalized_identity().to_le_bytes());
-    bytes(&mut digest, &validated.final_bytes);
-    digest.raw(
-        &validated
-            .realized_footprint
-            .normalized_identity()
-            .to_le_bytes(),
-    );
-    digest.raw(&validated.validation.normalized_identity().to_le_bytes());
-    digest.byte(match evidence.wx {
-        WxEnforcement::HardwareEnforced => 1,
-        WxEnforcement::ConventionOnly => 2,
-        WxEnforcement::Unsupported => 3,
-    });
-    InstalledArtifactOccurrenceDigest::from_sha256(digest.finish())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

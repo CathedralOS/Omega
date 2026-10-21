@@ -47,13 +47,6 @@ pub struct ArtifactEntry {
 }
 
 impl ArtifactEntry {
-    pub const fn from_canonical_decode(identity: EntryStubId, code_offset: u64) -> Self {
-        Self {
-            identity,
-            code_offset,
-        }
-    }
-
     pub const fn identity(self) -> EntryStubId {
         self.identity
     }
