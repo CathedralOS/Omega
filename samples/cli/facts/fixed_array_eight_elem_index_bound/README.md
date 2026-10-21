@@ -45,7 +45,8 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating fixed-size array indexing on `[10u64, 20u64, 30u64, 40u64, 50u64, 60u64, 70u64, 80u64]` with index `5u64` statically verified to satisfy `idx < 8u64` retrieves element `60u64`. In `main`, `transition elem == 60` transitions to `state done() {}`, terminating with native exit 0. If indexing produces any unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating fixed-size array indexing on `[10u64, 20u64, 30u64, 40u64, 50u64, 60u64, 70u64, 80u64]` with index `5u64` statically verified to satisfy `idx < 8u64` retrieves element `60u64`. In `main`, `transition elem == 60` transitions to `state done() {}`, terminating with native exit 0. If indexing produces any unexpected value, execution branches to `state bad() { crash Trap; }`, causing a Trap crash.
+- Measured discrimination: perturbing `elem == 60` to `elem == 61` on `main.omg` causes native execution to crash with STATUS_ILLEGAL_INSTRUCTION (-1073741795) and the Terminal Psi interpreter to crash with `Trap (host presentation agrees)`. Both engines trap and reject the perturbation.
 - Each invalid twin widens the index bound contract to `index <= 8` (or `LIMIT = 9`), so the index may reach or exceed length 8. Fixed-size array indexing `values[index]` fails closed at compile time with `cannot prove index ... is within length 8`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -61,23 +62,26 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/fixed_array_eight_elem_index_bound --jobs 4
+python tools/sample_native_gate.py --filter cli/facts/fixed_array_eight_elem_index_bound
 ```
 
 `sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
+- 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 18/18 intended-invalid controls match their authored rejection (`cannot prove index`).
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/fixed_array_eight_elem_index_bound_through_*` and
-`tests/omega/fail/facts/fixed_array_eight_elem_index_bound_unproved_*` fixtures.
+The row is pinned under:
+- `tests/omega/pass/facts/fixed_array_eight_elem_index_bound_through_<place>_exit/`
+- `tests/omega/fail/facts/fixed_array_eight_elem_index_bound_through_<place>_rejected/`
+
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for 8-element fixed-size array indexing (`[u64; 8]`, `[layout plans](wiki/spec/layouts/plans.md)`). Specifically, a static index bound `idx < 8u64` carried through the place proves safe fixed-size array indexing `arr[idx]` on `[u64; 8]` without out-of-bounds access across all nine places.
+- **Obligation class:** Layout geometry preservation and array index boundary verification across transport places.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Static requires precondition `requires index < 8` establishes that `index` is strictly less than the length 8 of `[u64; 8]`. The index bound is checked and verified at compile time before any array dereference occurs.
