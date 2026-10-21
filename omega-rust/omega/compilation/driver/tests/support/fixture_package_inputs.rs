@@ -104,14 +104,6 @@ pub fn bundled_standard_library_root() -> PathBuf {
     repo_root().join("source/library/std")
 }
 
-/// The bundled standard library's root as a `Source::Path` location literal:
-/// absolute, with forward slashes on every host.
-pub fn bundled_standard_library_location() -> String {
-    bundled_standard_library_root()
-        .to_string_lossy()
-        .replace('\\', "/")
-}
-
 /// One dependency a fixture authored in its own `build.omg`, resolved against
 /// the project that declared it.
 #[derive(Debug)]
@@ -287,36 +279,6 @@ fn fixture_build_string_literal(
             )
         })
         .to_owned()
-}
-
-/// Restate a fixture's authored dependency rows for a scratch copy of its
-/// source.
-///
-/// A scratch copy loses the fixture's directory, so each authored location is
-/// restated as the absolute path it resolved to; the operation and an
-/// explicitly authored alias are preserved exactly as the fixture wrote them.
-pub fn fixture_dependency_declarations(project_root: &Path) -> String {
-    fixture_path_dependencies(project_root)
-        .iter()
-        .map(|dependency| {
-            let location = dependency.location.to_string_lossy().replace('\\', "/");
-            let operation = if dependency.purpose.is_product() {
-                "depend"
-            } else {
-                "build_depend"
-            };
-            if dependency.explicit_alias {
-                format!(
-                    "    builder.{operation}_as(\"{}\", Source::Path {{\n        location: \"{location}\"\n    }});\n",
-                    dependency.alias
-                )
-            } else {
-                format!(
-                    "    builder.{operation}(Source::Path {{\n        location: \"{location}\"\n    }});\n"
-                )
-            }
-        })
-        .collect()
 }
 
 /// The root package a fixture's own build declaration names, with its role.
@@ -1545,18 +1507,4 @@ fn dangerous_service_bindings(
         )?);
     }
     Ok(bindings)
-}
-
-/// The root-slot owner a scratch build binds `ProgramEntry` under, read from
-/// the target vocabulary. Only profiles with a native realization own a
-/// hosted ProgramEntry root; asking for any other profile is a harness
-/// defect, not a fixture outcome.
-pub fn hosted_program_entry_owner(target: &str) -> &'static str {
-    let profile = TargetProfile::from_canonical_target_name(target)
-        .unwrap_or_else(|error| panic!("harness names an unknown target `{target}`: {error}"));
-    assert!(
-        profile.native_realization().is_some(),
-        "no hosted ProgramEntry root owner for target `{target}`"
-    );
-    profile.root_slot_owner_name()
 }
