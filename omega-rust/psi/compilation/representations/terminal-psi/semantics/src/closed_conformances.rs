@@ -11,9 +11,9 @@ use terminal_psi::{
     ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
 };
 
-/// A machine-backed opaque signature retains that machine's own declaration,
-/// not its provider's. Trait/operator schemas and synthetic evidence can have
-/// no such source. A portable family additionally authenticates its independent
+/// An opaque signature retains its own checked machine or trait declaration,
+/// not its provider's. Legacy operators and synthetic evidence can have no
+/// such source. A portable family additionally authenticates its independent
 /// published overload and contract; a foreign leaf's export name is not that
 /// overload and is never parsed to recover one.
 pub fn validate_boundary_callable(
@@ -46,7 +46,7 @@ pub fn validate_boundary_callable(
             &module.identities,
         )
     {
-        return Err("checked boundary declaration differs from its exact machine owner");
+        return Err("checked boundary declaration differs from its exact declaration owner");
     }
     match &declaration.specialization {
         Some(specialization) => {

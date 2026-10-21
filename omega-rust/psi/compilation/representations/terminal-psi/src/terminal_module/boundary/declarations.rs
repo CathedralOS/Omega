@@ -191,8 +191,9 @@ pub enum BoundaryLifetimeDependency {
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
     /// Exact checked callable behind an opaque signature, when one exists.
-    /// Schema-only requirements and synthetic contract evidence have no body
-    /// declaration. This is the head's provenance, never a provider donation.
+    /// Authored trait requirements retain their own checked signature and
+    /// contract capsule without a body. Synthetic evidence has no declaration.
+    /// This is the head's provenance, never a provider donation.
     pub declaration: Option<CheckedBoundaryCallable>,
     pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
@@ -303,6 +304,7 @@ impl CheckedBoundaryCallable {
     ) -> bool {
         self.source
             .same_identity_as(identities, &other.source, other_identities)
+            && self.execution == other.execution
             && self.method_arguments.len() == other.method_arguments.len()
             && self
                 .method_arguments

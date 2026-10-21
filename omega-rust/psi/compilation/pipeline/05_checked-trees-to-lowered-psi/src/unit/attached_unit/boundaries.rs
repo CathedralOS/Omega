@@ -149,37 +149,36 @@ pub(crate) fn lower_declarations(
         )?;
         declarations.push(BoundaryMachineDeclaration {
             scalar_domain_requirements,
-            declaration: checked
-                .machine(plan.machine)
-                .map(|_| {
-                    Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
-                        execution: match typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
-                            &checked.typed, plan.machine,
-                        ).map_err(|_| LoweringError::Unsupported("placement primitive declaration is malformed"))? {
-                            None => terminal_psi::CheckedBoundaryExecution::Provider,
-                            Some(declaration) => match declaration.operation() {
-                                typed_trees::typed_trees::PlacementLifecycleOperation::Initialize =>
-                                    terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
-                                typed_trees::typed_trees::PlacementLifecycleOperation::MoveOut =>
-                                    terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
-                            },
+            declaration: crate::machine_lowering::declarations::boundary_identity(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                plan.machine,
+            )
+            .map_err(LoweringError::Unsupported)?
+            .map(|source| {
+                Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
+                    source,
+                    execution: match typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+                        &checked.typed, plan.machine,
+                    ).map_err(|_| LoweringError::Unsupported("placement primitive declaration is malformed"))? {
+                        None => terminal_psi::CheckedBoundaryExecution::Provider,
+                        Some(declaration) => match declaration.operation() {
+                            typed_trees::typed_trees::PlacementLifecycleOperation::Initialize =>
+                                terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
+                            typed_trees::typed_trees::PlacementLifecycleOperation::MoveOut =>
+                                terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
                         },
-                        source: crate::machine_lowering::declarations::identity(
+                    },
+                    method_arguments:
+                        crate::retention::conformance_applications::checked_method_arguments(
                             identities,
                             checked,
-                            exact_toolchain_sources,
                             plan.machine,
-                        )
-                        .map_err(LoweringError::Unsupported)?,
-                        method_arguments:
-                            crate::retention::conformance_applications::checked_method_arguments(
-                                identities,
-                                checked,
-                                plan.machine,
-                            )?,
-                    })
+                        )?,
                 })
-                .transpose()?,
+            })
+            .transpose()?,
             role: terminal_psi::BoundaryDeclarationRole::Callable,
             unconditional_termination: unconditional_termination(checked, plan)?,
             completion: validation::boundary_requirement_completion(&checked.typed, plan.machine),

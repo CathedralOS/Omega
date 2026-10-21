@@ -104,6 +104,69 @@ pub(crate) fn identity(
     })
 }
 
+/// Retain a requirement's own checked callable, independently of its selected
+/// implementation. Trait signatures have no Machine or entry body: their exact
+/// owner/signature coordinates and complete contract already live in the
+/// checked requirement capsule. Lower those coordinates rather than borrowing
+/// an implementation's declaration or re-deriving a contract from source.
+pub(crate) fn boundary_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    target: SymbolHandle,
+) -> Result<Option<CheckedMachineDeclaration>, &'static str> {
+    if checked.machine(target).is_some() {
+        return identity(identities, checked, sources, target).map(Some);
+    }
+    let program = &checked.typed;
+    let mut requirements = program.traits().iter().flat_map(|owner| {
+        program
+            .trait_machine_instances(owner)
+            .filter_map(move |signature| (signature.symbol == target).then_some((owner, signature)))
+    });
+    let Some((owner, signature)) = requirements.next() else {
+        // Synthetic evidence and legacy operator declarations do not masquerade
+        // as authored machine or trait requirements.
+        return Ok(None);
+    };
+    if requirements.next().is_some() {
+        return Err("boundary requirement has multiple checked declaration owners");
+    }
+    let capsule = checked
+        .facts
+        .contract_plans
+        .crash_capsule(owner.symbol, signature.symbol)
+        .ok_or("boundary requirement lost its complete checked contract capsule")?;
+    let contract = capsule.target_contract_commitment();
+    if contract.is_zero() {
+        return Err("boundary requirement has an empty checked contract commitment");
+    }
+    let parameter_types = program
+        .state_signature_parameters(signature)
+        .iter()
+        .map(|parameter| {
+            identities
+                .intern(&program.package_qualified_type_identity_text(parameter.type_reference))
+        })
+        .collect();
+    Ok(Some(CheckedMachineDeclaration {
+        machine: nominal(identities, checked, sources, owner.symbol)?,
+        state: nominal(identities, checked, sources, signature.symbol)?,
+        semantic_declaration: identities.intern(
+            &program
+                .normalized_hermetic_symbol_identity(signature.symbol)
+                .map_err(|_| "boundary requirement has no hermetic declaration identity")?,
+        ),
+        parameter_types,
+        callable: identities
+            .intern(&program.trait_requirement_callable_identity_text(owner, signature)),
+        result_type: identities
+            .intern(&program.package_qualified_type_identity_text(signature.return_type)),
+        contract: contract.as_bytes(),
+        specialization: None,
+    }))
+}
+
 pub(super) fn retain(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,

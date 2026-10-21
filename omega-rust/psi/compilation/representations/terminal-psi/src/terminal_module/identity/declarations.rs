@@ -38,8 +38,10 @@ impl NominalDeclarationIdentity {
     }
 }
 
-/// Exact checked callable and initial state from which an executable body is
-/// produced. Optimization preserves this identity, not the source arenas.
+/// Exact checked callable coordinates. Machine bodies use the machine and its
+/// initial state; bodyless trait requirements use the declaring trait and its
+/// signature. Neither coordinate names a selected implementation. Optimization
+/// preserves this identity, not the source arenas.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedMachineDeclaration {
     pub machine: NominalDeclarationIdentity,
