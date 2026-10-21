@@ -42,12 +42,7 @@ pub fn builtin_index_read_is_spelled(
     // A by-value `[]` operator still matches the collection after the
     // occurrence declines it. Builtin geometry admits that place read.
     unresolved
-        || declined_copy_index_is_builtin_place(
-            program,
-            machine_symbol,
-            expression,
-            operand_types,
-        )
+        || declined_copy_index_is_builtin_place(program, machine_symbol, expression, operand_types)
 }
 
 pub fn resolve_indexed_spelling_for_operands<'program>(
@@ -304,7 +299,9 @@ fn collection_has_builtin_index_geometry(
     for _ in 0..8 {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. }
-            | TypeReferenceNode::Reference { referee: base_type, .. } => reference = *base_type,
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            } => reference = *base_type,
             TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => return true,
             _ => return false,
         }
@@ -319,82 +316,63 @@ fn index_occurrence_copies_element(
     if !occurrence.is_valid() {
         return true;
     }
-    !place_index_contains(program, occurrence)
+    !program.index_occurrence_selects_place(occurrence)
 }
 
-fn place_index_contains(
-    program: &TypedTrees,
-    occurrence: crate::expression::ExpressionHandle,
-) -> bool {
-    use std::cell::RefCell;
-    use std::collections::HashSet;
+#[cfg(test)]
+mod tests {
+    use super::index_occurrence_copies_element;
+    use crate::TypedTrees;
+    use crate::expression::{ExpressionNode, TableMemberExpression};
+    use crate::name::Identifier;
+    use symbols::SymbolHandle;
 
-    struct PlaceCache {
-        program: usize,
-        expression_count: usize,
-        machine_count: usize,
-        places: HashSet<crate::expression::ExpressionHandle>,
+    #[test]
+    fn place_occurrence_changes_after_same_length_expression_rewrite() {
+        let mut program = TypedTrees::default();
+        let occurrence = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let parent =
+            program
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: occurrence,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: Identifier::from("payload"),
+                    case_variant: None,
+                }));
+        let count = program.expression_table.expression_count();
+        assert!(!index_occurrence_copies_element(&program, occurrence));
+        *program.expression_table.expression_mut(parent) = ExpressionNode::Boolean(false);
+        assert_eq!(program.expression_table.expression_count(), count);
+        assert!(index_occurrence_copies_element(&program, occurrence));
     }
 
-    thread_local! {
-        static PLACE_CACHE: RefCell<Option<PlaceCache>> = RefCell::new(None);
+    #[test]
+    fn cloned_place_occurrences_follow_their_own_mutations() {
+        let mut original = TypedTrees::default();
+        let occurrence = original
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let parent =
+            original
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: occurrence,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: Identifier::from("payload"),
+                    case_variant: None,
+                }));
+        assert!(!index_occurrence_copies_element(&original, occurrence));
+        let mut changed = original.clone();
+        *changed.expression_table.expression_mut(parent) = ExpressionNode::Boolean(false);
+        assert!(index_occurrence_copies_element(&changed, occurrence));
+        assert!(!index_occurrence_copies_element(&original, occurrence));
+        let other_generation =
+            arena::Handle::from_parts(occurrence.arena_index(), occurrence.generation() + 1);
+        assert!(index_occurrence_copies_element(&original, other_generation));
+        original = changed;
+        assert!(index_occurrence_copies_element(&original, occurrence));
     }
-
-    let program_key = std::ptr::from_ref(program) as usize;
-    let expression_count = program.expression_table.expression_count();
-    let machine_count = program.machines().len();
-    PLACE_CACHE.with(|cache| {
-        let fresh = cache.borrow().as_ref().is_some_and(|current| {
-            current.program == program_key
-                && current.expression_count == expression_count
-                && current.machine_count == machine_count
-        });
-        if !fresh {
-            *cache.borrow_mut() = Some(PlaceCache {
-                program: program_key,
-                expression_count,
-                machine_count,
-                places: collect_place_index_occurrences(program),
-            });
-        }
-        cache
-            .borrow()
-            .as_ref()
-            .expect("place index cache")
-            .places
-            .contains(&occurrence)
-    })
-}
-
-/// Expressions that select storage through an index without copying the
-/// element: the receiver of a field projection, the collection of a further
-/// index, or an assignment target.
-fn collect_place_index_occurrences(
-    program: &TypedTrees,
-) -> std::collections::HashSet<crate::expression::ExpressionHandle> {
-    use crate::expression::ExpressionNode;
-
-    let mut places = std::collections::HashSet::new();
-    let mut remember = |handle: crate::expression::ExpressionHandle| {
-        if handle.is_valid() {
-            places.insert(handle);
-        }
-    };
-    for (_, node) in program.expression_table.iter_expressions() {
-        match node {
-            ExpressionNode::Member(member) => remember(member.receiver),
-            ExpressionNode::Indexed(indexed) => remember(indexed.collection),
-            _ => {}
-        }
-    }
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                if let crate::statement::StatementNode::Assignment(assignment) = statement {
-                    remember(assignment.target);
-                }
-            }
-        }
-    }
-    places
 }
