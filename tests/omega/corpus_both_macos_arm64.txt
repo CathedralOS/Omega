@@ -207,6 +207,7 @@ pass/borrows/stored_reference_projection_exit built 1368ms exit:70 interpreter-e
 pass/borrows/structural_operand_view_catalog_exit built 3342ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/borrows/terminal_call_loan_completion_exit built 11678ms exit:0 interpreter-exit:0 interpreter:agrees @f772dfc723fb+wt
 pass/borrows/transition_shared_borrow_result built 7025ms exit:181 interpreter-exit:181 interpreter:agrees @5889f8b8208f+wt
+pass/boundary/interleaved_structural_crash_formal_exit built 947ms exit:0 interpreter-exit:0 interpreter:agrees @96673576ab49
 pass/boundary/later_state_requirement_scalar_result_exit built 69713ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_opaque_qualifier_exit built 762ms exit:0 interpreter-exit:0 interpreter:agrees @f07d2c3e0d94+wt
