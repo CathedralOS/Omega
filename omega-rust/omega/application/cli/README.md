@@ -28,6 +28,10 @@ including interpreter disagreement. An explicit target compiles without running
 the image. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
+`run --keep` retains the published native image, its exact `program.oterm`,
+`native.identity.txt`, and comparison streams when requested. It does not
+pretty-print the native object's internal evidence graph into a text dump.
+
 Ordinary host runs inherit the caller's stdin without waiting for EOF upfront.
 When a compared program (`--both`) demands a standard-input host import,
 comparison snapshots stdin to EOF for independent Terminal and native replay;

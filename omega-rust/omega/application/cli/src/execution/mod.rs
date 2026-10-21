@@ -150,16 +150,13 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     if request.keep_artifacts
         && let Some(artifact) = report.retained_native_artifact()
     {
-        // Keep the exact canonical product and replay model that produced this
-        // image, rather than a separate Source recompile or reconstructed frame.
+        // Keep the exact canonical product that produced this image, not a
+        // Source recompile. Debug-formatting the complete native object turned
+        // a 257 KiB filesystem image into 6 GiB of text. That diagnostic is not
+        // an executable or a replay artifact.
         std::fs::write(
             build_dir.join("program.oterm"),
             artifact.psi_artifact().to_bytes(),
-        )
-        .map_err(RunError::ReferenceOutput)?;
-        std::fs::write(
-            build_dir.join("native.object.txt"),
-            format!("{:#?}", artifact.object()),
         )
         .map_err(RunError::ReferenceOutput)?;
         std::fs::write(

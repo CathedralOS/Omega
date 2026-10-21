@@ -88,7 +88,9 @@ def main():
                   + (1).to_bytes(4, 'little') + (1).to_bytes(4, 'little') + (8).to_bytes(4, 'little'))
         assert len(header) == 84
         assert (saved / 'native.entry-ram.frames').read_bytes() == header + backing
-        assert (saved / 'native.object.txt').stat().st_size and (saved / 'omega-program').stat().st_size
+        # Canonical admission above checks the replay product. Native object Debug
+        # text is not a replay format and is intentionally no longer retained.
+        assert (saved / 'native.identity.txt').stat().st_size and (saved / 'omega-program').stat().st_size
         print(f'{name}: actual native and Terminal {stdout.decode().strip()}, original backing {backing.hex()}', flush=True)
 
     if not args.positive_only:
