@@ -106,6 +106,51 @@ recovery tool repair; it never replaces the interrupted attempt's original
 candidate. Assess normally afterward and rerun the interrupted check. Recovery
 supplies no runtime, package, filesystem, source-reuse or publication authority.
 
+When the command completed and its immutable `<running.id>.json` receipt was
+written, but the final atomic state replacement failed (for example, disk
+full), use `recover-completed --state PATH --revision N --review FILE` instead.
+Do not delete the completed receipt, edit state, rerun the command to disguise
+the orphan, or use interruption recovery. Run the committed recovery tool with
+`--repository` naming the original clean worktree; that worktree's HEAD must
+still equal `running.candidate` and its assessed candidate. A descendant tool
+commit is not a substitute for this exact original source.
+
+The independent review schema is `qualification-completed-recovery-review-v1`.
+It has the same accepted/reviewer/rationale, `recovered_at_head` and SHA-pinned
+stopped-process-tree evidence as interruption recovery, but both exact bindings
+also contain `original_receipt: {"path": ABSOLUTE_PATH, "sha256": SHA256}`.
+The path must be the original immutable `<running.id>.json` in the state's
+records directory. The reviewer must authenticate the real completed capture
+and the reason its state update failed; a receipt alone does not prove a disk
+failure. The full stopped-tree judgment remains required even when original
+PIDs are unavailable: record that limitation, never invent PIDs, and supply
+actual executor/process evidence for the judgment.
+
+This conservative path accepts only a complete exit-zero observation with no
+invalidations, still applicable to its exact definition, command, source,
+artifacts, producer profiles, environment and separate stream hashes. It
+requires the original capture's source reference, stamp rosters, timestamp and
+duration. Original stamps are retained verbatim: they describe the captured
+interval, whose after-check succeeded, not present filesystem metadata. Recovery
+checks current logical identities and fresh stamps stable through recovery;
+it does not invent missing before/after maps or require historical inodes and
+change timestamps to remain current after byte-preserving maintenance.
+
+Recovery writes a separate immutable `*.completed-recovery.json` with every
+original capture field and ID unchanged, adding only recovery provenance pinned
+to the original receipt, independent review and process evidence. The normal
+locked atomic state update appends that receipt and clears only the exact
+reservation. A second failed state replacement leaves both immutable receipts
+untouched; retry requires the unchanged state and fresh evidence. The check
+command never reexecutes; ordinary producer-profile inspection may query the
+pinned binary's `--build-profile`. Final evidence must retain and authenticate
+the original receipt, review, process evidence and raw streams alongside the
+new receipt: ordinary applicability checks authenticate the indexed receipt,
+not every external recovery-provenance reference recursively.
+Assess normally afterward: recovery does not waive
+ordinary check applicability, final review, package acceptance or the exact
+landing build.
+
 Set `final:true` for checks that must observe the exact integrated candidate,
 including user-required final review. Dependency equality cannot carry these
 checks across a SHA change. Landing's exact-SHA build check remains mandatory

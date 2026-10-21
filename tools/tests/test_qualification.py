@@ -2,6 +2,7 @@
 """Real commands and Git integration; no remote coordination or compiler mocks."""
 
 import copy
+import errno
 import io
 import json
 import os
@@ -24,6 +25,7 @@ landing = kit.load_module(TOOLS / "landing.py", "landing_under_test")
 class QualificationTests(unittest.TestCase):
     def setUp(self):
         self.root, self.repository = kit.seed_repository(self, "omega-qualification-")
+        self.root, self.repository = self.root.resolve(), self.repository.resolve()
         (self.repository / "src").mkdir()
         (self.repository / "src" / "program").write_text("stable source\n")
         (self.repository / "check.py").write_text("print('validated output')\n")
@@ -114,7 +116,9 @@ class QualificationTests(unittest.TestCase):
     def test_source_input_batch_preserves_exact_existing_and_missing_objects(self):
         names = ["source with spaces Ω.txt"]
         if os.name != "nt":
-            names += ["source\twith\ttabs", "source\nwith\nnewlines", os.fsdecode(b"source-\xff")]
+            names += ["source\twith\ttabs", "source\nwith\nnewlines"]
+            if sys.platform != "darwin":  # APFS rejects non-UTF-8 path bytes.
+                names.append(os.fsdecode(b"source-\xff"))
         for name in names:
             (self.repository / name).write_text("source payload\n")
         self.git("add", ".")
@@ -1122,7 +1126,7 @@ class InterruptedQualificationTests(unittest.TestCase):
         record, review, _ = self.interruption()
         before = self.state.read_bytes();original = qualification.atomic_json
         def fail_state(path, *arguments, **keywords):
-            if Path(path) == self.state:raise OSError("replacement failure")
+            if Path(path).resolve() == self.state.resolve():raise OSError("replacement failure")
             return original(path, *arguments, **keywords)
         with mock.patch.object(qualification, "atomic_json", side_effect=fail_state):
             with self.assertRaisesRegex(OSError, "replacement failure"):
@@ -1178,6 +1182,221 @@ class InterruptedQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(qualification.RecoveryError, "completed observation exists"):
             qualification.recover_interrupted(self.repository, self.state, record["revision"], review)
         self.assertEqual(self.state.read_bytes(), before)
+
+
+class CompletedQualificationTests(unittest.TestCase):
+    setUp = QualificationTests.setUp
+    git = QualificationTests.git
+    commit = QualificationTests.commit
+
+    def completed_orphan(self):
+        # The subprocess really completes and writes once. ENOSPC occurs only
+        # when its already-written immutable receipt is indexed in state.
+        self.counter = self.root / "command-count"
+        code = ("import os\nfrom pathlib import Path\np=Path(" + repr(str(self.counter)) + ")\n"
+                "p.write_text(str(int(p.read_text())+1) if p.exists() else '1')\n"
+                "print('pid:' + str(os.getpid()))\n")
+        self.base = self.commit("check.py", code)
+        self.config["checks"][0]["producer"] = dict(
+            revision=self.base, inputs=["src"], executables=[str(self.library)])
+        record = qualification.load(self.state)
+        record = qualification.amend(self.state, record["revision"], self.config, "compiler-backed capture")
+        record = qualification.assess(self.repository, self.state, record["revision"], self.base)
+        original = qualification.atomic_json
+        def fail_final(path, value, **keywords):
+            if Path(path) == self.state and value["running"] is None and value["runs"]:
+                raise OSError(errno.ENOSPC, "simulated disk full after completed receipt")
+            return original(path, value, **keywords)
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_final):
+            with self.assertRaisesRegex(OSError, "simulated disk full"):
+                qualification.run_check(self.repository, self.state, record["revision"], "values")
+        record = qualification.load(self.state)
+        receipt = self.state.with_suffix(".records") / (record["running"]["id"] + ".json")
+        capture = json.loads(receipt.read_text())
+        self.assertEqual(capture["exit"], 0)
+        self.assertEqual(capture["invalidations"], [])
+        self.assertEqual(self.counter.read_text(), "1")
+        return record, receipt, capture
+
+    def completed_review(self, record, receipt, stopped_pids=None):
+        binding = dict(state=str(self.state.resolve()), state_sha256=qualification.file_digest(self.state),
+            state_revision=record["revision"], running=record["running"], config_digest=record["config_digest"],
+            original_receipt=dict(path=str(receipt.resolve()), sha256=qualification.file_digest(receipt)))
+        if stopped_pids is None:
+            capture = json.loads(receipt.read_text())
+            stopped_pids = [int(Path(capture["stdout"]["path"]).read_text().strip().split(":")[1])]
+        evidence = self.root / "completed-stopped.json"
+        qualification.atomic_json(evidence, dict(schema="qualification-stopped-process-tree-v1",
+            observed_utc=qualification.datetime.now(qualification.timezone.utc).isoformat(),
+            controller_stopped=True, qualification_stopped=True, children_stopped=True,
+            unresolved_processes=[], stopped_pids=stopped_pids, binding=binding))
+        review = self.root / "completed-review.json"
+        qualification.atomic_json(review, dict(schema="qualification-completed-recovery-review-v1",
+            accepted=True, reviewer="independent test executor adapter", rationale="Real subprocess exited; no descendants",
+            recovered_at_head=self.base, binding=binding,
+            process_evidence=dict(path=str(evidence), sha256=qualification.file_digest(evidence))))
+        return review, evidence
+
+    def recover(self, record, review):
+        return qualification.recover_completed(self.repository, self.state, record["revision"], review)
+
+    def test_enospc_recovery_indexes_complete_command_once_and_assesses_normally(self):
+        # Earlier successful records remain untouched too.
+        previous, accepted = qualification.run_check(self.repository, self.state, 0, "values")
+        self.assertTrue(accepted)
+        record, receipt, capture = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt)
+        original_bytes = receipt.read_bytes()
+        result = self.recover(record, review)
+        self.assertEqual(result["runs"][:-1], previous["runs"])
+        self.assertIsNone(result["running"])
+        self.assertEqual(self.counter.read_text(), "1")
+        self.assertEqual(receipt.read_bytes(), original_bytes)
+        recovered = result["runs"][-1]
+        self.assertEqual({k:v for k,v in recovered.items() if k not in {"recovery", "receipt"}}, capture)
+        self.assertNotEqual(recovered["receipt"]["path"], str(receipt))
+        self.assertEqual(recovered["recovery"]["original_receipt"]["sha256"], qualification.file_digest(receipt))
+        self.assertEqual(qualification.reasons(self.repository, result, result["config"]["checks"][0],
+                                            recovered, self.base), [])
+        assessed = qualification.assess(self.repository, self.state, result["revision"], self.base)
+        self.assertEqual(assessed["assessments"][-1]["checks"][0]["action"], "reuse")
+        qualification.validate(self.repository, self.state, self.base, self.base)
+        self.assertEqual(self.counter.read_text(), "1")
+
+    def test_completed_cli_requires_review_and_uses_existing_capture(self):
+        record, receipt, _ = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt)
+        args = ["recover-completed", "--repository", str(self.repository), "--state", str(self.state),
+                "--revision", str(record["revision"])]
+        with mock.patch("sys.stderr", new=io.StringIO()):
+            self.assertEqual(qualification.main(args), 1)
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(qualification.main(args + ["--review", str(review)]), 0)
+        self.assertEqual(self.counter.read_text(), "1")
+
+    def test_completed_recovery_refuses_stale_state_receipt_and_review(self):
+        record, receipt, _ = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt)
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "stale qualification"):
+            qualification.recover_completed(self.repository, self.state, record["revision"] - 1, review)
+        original = receipt.read_bytes();receipt.write_bytes(original + b" ")
+        with self.assertRaisesRegex(qualification.RecoveryError, "exact state, reservation and original receipt"):
+            self.recover(record, review)
+        receipt.write_bytes(original)
+        document = json.loads(review.read_text());document["binding"]["config_digest"] = "stale"
+        qualification.atomic_json(review, document)
+        with self.assertRaisesRegex(qualification.RecoveryError, "exact state, reservation and original receipt"):
+            self.recover(record, review)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_completed_recovery_requires_distinct_review_and_complete_original_fields(self):
+        record, receipt, capture = self.completed_orphan()
+        before = self.state.read_bytes()
+        for key, replacement in [("source_stamps", None), ("compiler_profiles", []),
+                                 ("artifact_stamps", {}), ("duration_seconds", None),
+                                 ("command", ["different"]), ("id", "different"),
+                                 ("exit", 7), ("invalidations", ["command_unfinished"])]:
+            with self.subTest(key=key):
+                changed = copy.deepcopy(capture)
+                if replacement is None:changed.pop(key)
+                else:changed[key] = replacement
+                qualification.atomic_json(receipt, changed)
+                review, _ = self.completed_review(record, receipt)
+                with self.assertRaises(qualification.RecoveryError):self.recover(record, review)
+                self.assertEqual(self.state.read_bytes(), before)
+        qualification.atomic_json(receipt, capture)
+        review, _ = self.completed_review(record, receipt)
+        document = json.loads(review.read_text());document["schema"] = "qualification-interruption-review-v1"
+        qualification.atomic_json(review, document)
+        with self.assertRaisesRegex(qualification.RecoveryError, "independent completed-capture"):
+            self.recover(record, review)
+
+    def test_completed_recovery_refuses_live_missing_or_expired_process_evidence(self):
+        record, receipt, _ = self.completed_orphan()
+        review, evidence = self.completed_review(record, receipt, [os.getpid()])
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "still live"):
+            self.recover(record, review)
+        for field, value in [("children_stopped", False), ("observed_utc", "2000-01-01T00:00:00+00:00")]:
+            review, evidence = self.completed_review(record, receipt)
+            data = json.loads(evidence.read_text());data[field] = value;qualification.atomic_json(evidence, data)
+            document = json.loads(review.read_text());document["process_evidence"]["sha256"] = qualification.file_digest(evidence)
+            qualification.atomic_json(review, document)
+            with self.assertRaises(qualification.RecoveryError):self.recover(record, review)
+        review, evidence = self.completed_review(record, receipt);evidence.unlink()
+        with self.assertRaisesRegex(qualification.RecoveryError, "evidence changed"):
+            self.recover(record, review)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_completed_recovery_refuses_changed_source_artifacts_environment_and_streams(self):
+        record, receipt, capture = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt)
+        before = self.state.read_bytes()
+        for item in [self.repository / "src/program", self.library, Path(capture["stdout"]["path"]),
+                     Path(capture["stderr"]["path"])]:
+            with self.subTest(path=item):
+                saved = item.read_bytes();item.write_bytes(saved + b"corrupted")
+                with self.assertRaises(qualification.RecoveryError):self.recover(record, review)
+                item.write_bytes(saved)
+                self.assertEqual(self.state.read_bytes(), before)
+        with mock.patch.dict(os.environ, {"CARGO_BUILD_JOBS": "changed"}):
+            with self.assertRaises(qualification.RecoveryError):self.recover(record, review)
+        self.commit("another", "different checkpoint")
+        with self.assertRaisesRegex(qualification.RecoveryError, "original candidate"):
+            self.recover(record, review)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_completed_recovery_preserves_new_orphan_if_state_replacement_fails_again(self):
+        record, receipt, _ = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt)
+        before = self.state.read_bytes();original_bytes = receipt.read_bytes();atomic = qualification.atomic_json
+        def fail_state(path, *arguments, **keywords):
+            if Path(path).resolve() == self.state.resolve():raise OSError(errno.ENOSPC, "second disk full")
+            return atomic(path, *arguments, **keywords)
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, "second disk full"):self.recover(record, review)
+        orphan = next(self.state.with_suffix(".records").glob("*.completed-recovery.json"))
+        orphan_bytes = orphan.read_bytes()
+        self.assertEqual(self.state.read_bytes(), before)
+        result = self.recover(record, review)
+        self.assertIsNone(result["running"])
+        self.assertEqual(receipt.read_bytes(), original_bytes)
+        self.assertEqual(orphan.read_bytes(), orphan_bytes)
+        self.assertEqual(self.counter.read_text(), "1")
+
+    def test_completed_recovery_refuses_input_replacement_and_restoration_during_recovery(self):
+        record, receipt, _ = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt)
+        before = self.state.read_bytes();original = qualification.atomic_json
+        saved = self.library.read_bytes()
+        def replace_after_receipt(path, *arguments, **keywords):
+            result = original(path, *arguments, **keywords)
+            if str(path).endswith(".completed-recovery.json"):
+                self.library.write_bytes(b"different input")
+                self.library.write_bytes(saved)
+            return result
+        with mock.patch.object(qualification, "atomic_json", side_effect=replace_after_receipt):
+            with self.assertRaisesRegex(qualification.RecoveryError, "inputs or streams changed"):
+                self.recover(record, review)
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertEqual(self.counter.read_text(), "1")
+
+    def test_completed_recovery_retains_historical_stamps_after_byte_preserving_maintenance(self):
+        record, receipt, capture = self.completed_orphan()
+        original_stamps = copy.deepcopy(capture["artifact_stamps"])
+        replacement = self.root / "replacement.rlib"
+        replacement.write_bytes(self.library.read_bytes())
+        replacement.replace(self.library)
+        self.assertNotEqual(original_stamps[str(self.library)],
+                            qualification.artifact_stamps([str(self.library)])[str(self.library)])
+        # The independent test adapter judges the whole reaped process tree;
+        # an empty PID roster is not itself that judgment.
+        review, _ = self.completed_review(record, receipt, stopped_pids=[])
+        result = self.recover(record, review)
+        self.assertEqual(result["runs"][-1]["artifact_stamps"], original_stamps)
+        self.assertIsNone(result["running"])
+        self.assertEqual(self.counter.read_text(), "1")
 
 
 if __name__ == "__main__":

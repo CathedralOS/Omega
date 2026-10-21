@@ -495,25 +495,12 @@ def require_stopped_pid(pid):
             "interruption process is still live or its PID was reused")
 
 
-def recover_interrupted(repository, path, expected, review_path):
-    """Record a stopped capture without asserting its lost inputs or exit.
-
-    The independent executor review supplies process-tree evidence, not runtime
-    authority. Recovery never accepts a command, recreates before-stamps, or
-    erases a failed attempt. Normal assessment and a fresh run remain required.
-    """
-    path, review_path = Path(path).resolve(), Path(review_path).resolve()
-    recovered_at_head = clean_head(repository)
-    review_hash = file_digest(review_path)
-    review = read_json(review_path)
-    require(isinstance(review, dict), "independent interruption review must be an object")
-    require(review.get("schema") == "qualification-interruption-review-v1"
-            and review.get("accepted") is True
-            and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
-            and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
-            "independent interruption review required")
+def _stopped_process_tree(review):
+    """Authenticate the executor adapter's full-tree judgment and probe its PIDs."""
     evidence_reference = review.get("process_evidence", {})
     require(isinstance(evidence_reference, dict), "interruption process evidence reference required")
+    require(isinstance(evidence_reference.get("path"), str) and evidence_reference["path"],
+            "interruption process evidence path required")
     evidence_path = Path(evidence_reference.get("path", "")).resolve()
     require(evidence_path.is_file() and file_digest(evidence_path) == evidence_reference.get("sha256"),
             "interruption process evidence changed")
@@ -536,6 +523,27 @@ def recover_interrupted(repository, path, expected, review_path):
         for pid in evidence["stopped_pids"]:
             require_stopped_pid(pid)
     require_stopped_processes()
+    return evidence_reference, evidence_path, evidence, observed, require_stopped_processes
+
+
+def recover_interrupted(repository, path, expected, review_path):
+    """Record a stopped capture without asserting its lost inputs or exit.
+
+    The independent executor review supplies process-tree evidence, not runtime
+    authority. Recovery never accepts a command, recreates before-stamps, or
+    erases a failed attempt. Normal assessment and a fresh run remain required.
+    """
+    path, review_path = Path(path).resolve(), Path(review_path).resolve()
+    recovered_at_head = clean_head(repository)
+    review_hash = file_digest(review_path)
+    review = read_json(review_path)
+    require(isinstance(review, dict), "independent interruption review must be an object")
+    require(review.get("schema") == "qualification-interruption-review-v1"
+            and review.get("accepted") is True
+            and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
+            and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
+            "independent interruption review required")
+    evidence_reference, evidence_path, evidence, observed, require_stopped_processes = _stopped_process_tree(review)
     def change(record):
         require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
         running = record["running"]
@@ -579,6 +587,137 @@ def recover_interrupted(repository, path, expected, review_path):
         # Retain it; another exact recovery creates a new receipt, never overwrites.
         destination = directory / (uuid.uuid4().hex + ".interrupted.json")
         atomic_json(destination, observation)
+        observation["receipt"] = dict(path=str(destination), sha256=file_digest(destination))
+        record["runs"].append(observation)
+        record["running"] = None
+    return update(path, expected, change)
+
+
+def recover_completed(repository, path, expected, review_path):
+    """Index an authenticated complete capture left behind by a failed state write.
+
+    This never executes the command or repairs its observation. The original
+    immutable receipt remains authoritative capture data; a new receipt retains
+    every field and adds only independent recovery provenance.
+    """
+    path, review_path = Path(path).resolve(), Path(review_path).resolve()
+    head = clean_head(repository)
+    review_hash = file_digest(review_path)
+    review = read_json(review_path)
+    require(isinstance(review, dict)
+            and review.get("schema") == "qualification-completed-recovery-review-v1"
+            and review.get("accepted") is True
+            and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
+            and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
+            "independent completed-capture recovery review required")
+    evidence_reference, evidence_path, evidence, observed, require_stopped_processes = _stopped_process_tree(review)
+
+    def change(record):
+        require(record["repository"] == str(Path(repository).resolve()), "qualification worktree mismatch")
+        running = record["running"]
+        require(isinstance(running, dict), "no completed capture reservation")
+        require(head == running["candidate"], "completed recovery requires the original candidate")
+        allowed = record["assessments"][-1]["candidate"] if record["assessments"] else record["qualification_revision"]
+        require(head == allowed, "completed capture candidate is no longer assessed")
+        operation = running.get("id")
+        require(isinstance(operation, str) and re.fullmatch(r"[0-9a-f]{32}", operation),
+                "invalid completed capture identity")
+        require(not any(run.get("id") == operation for run in record["runs"]),
+                "completed capture is already indexed")
+        check = next((row for row in record["config"]["checks"] if row["id"] == running["check"]), None)
+        require(check is not None, "completed check no longer defined")
+        directory = path.with_suffix(".records")
+        original = directory / (operation + ".json")
+        require(original.is_file() and not original.is_symlink(), "complete original receipt required")
+        original_reference = dict(path=str(original), sha256=file_digest(original))
+        binding = dict(state=str(path), state_sha256=file_digest(path), state_revision=expected,
+                       running=running, config_digest=record["config_digest"],
+                       original_receipt=original_reference)
+        require(review.get("binding") == binding and evidence.get("binding") == binding,
+                "completed recovery review must bind the exact state, reservation and original receipt")
+        require(review.get("recovered_at_head") == head,
+                "completed recovery review must bind the original candidate")
+        capture = read_json(original)
+        required = {"id", "check", "revision", "definition", "command", "source_inputs", "artifacts",
+                    "environment", "producer", "compiler_profiles", "source_ref", "source_stamps",
+                    "artifact_stamps", "exit", "invalidations", "duration_seconds", "repeated_work",
+                    "utc", "stdout", "stderr"}
+        require(isinstance(capture, dict) and required <= capture.keys()
+                and "receipt" not in capture and "recovery" not in capture
+                and all(isinstance(capture[name], dict) for name in ("source_inputs", "artifacts", "environment"))
+                and isinstance(capture["compiler_profiles"], list)
+                and capture["source_inputs"] and all(capture["source_inputs"].values()),
+                "complete original capture fields required")
+        require(capture["id"] == operation and capture["check"] == check["id"]
+                and capture["revision"] == head and capture["command"] == check["command"],
+                "completed capture identity or command mismatch")
+        # This recovery serves successful captures only. A nonzero/invalidated
+        # observation remains preserved and requires its own disposition.
+        require(type(capture["exit"]) is int and capture["exit"] == check["expected_exit"] == 0
+                and capture["invalidations"] == [], "completed recovery needs an uninvalidated exit-zero capture")
+        require(type(capture["duration_seconds"]) in {int, float}
+                and 0 <= capture["duration_seconds"] < float("inf")
+                and type(capture["repeated_work"]) is bool, "complete capture timing required")
+        try:
+            timestamp = datetime.fromisoformat(capture["utc"])
+            require(timestamp.utcoffset() is not None, "complete capture timestamp required")
+        except (TypeError, ValueError):
+            raise RecoveryError("complete capture timestamp required")
+        require(isinstance(capture["source_ref"], str)
+                and capture["source_ref"].startswith("refs/qualification/")
+                and git(repository, "rev-parse", capture["source_ref"]) == head,
+                "completed capture source reference mismatch")
+        for name in ("stdout", "stderr"):
+            stream = directory / (operation + "." + name)
+            require(stream.is_file() and not stream.is_symlink()
+                    and capture[name] == dict(path=str(stream.resolve()), sha256=file_digest(stream)),
+                    "completed capture stream mismatch: " + name)
+        # Use ordinary assessment's definition/source/artifact/environment and
+        # profile binding rules on the original receipt, not synthesized facts.
+        indexed = dict(capture, receipt=original_reference)
+        require(not reasons(repository, record, check, indexed, head),
+                "completed capture is not applicable to the current definition and inputs")
+        try:
+            profiles = [require_optimized(binary) for binary in check.get("producer", {}).get("executables", [])]
+        except CompilerProfileError as error:
+            raise RecoveryError(str(error)) from error
+        require(capture["compiler_profiles"] == profiles, "completed compiler profile changed")
+        require(all(capture["artifacts"].get(profile["build_receipt"]["path"])
+                    == profile["build_receipt"]["sha256"] for profile in profiles if profile.get("build_receipt")),
+                "completed compiler build receipt is not bound to captured artifacts")
+        current_source = source_stamps(repository, head, input_paths(check))
+        current_artifacts = artifact_stamps(capture["artifacts"])
+        for name, current in (("source_stamps", current_source), ("artifact_stamps", current_artifacts)):
+            stamps = capture[name]
+            require(isinstance(stamps, dict) and stamps.keys() == current.keys()
+                    and all(isinstance(values, list) and len(values) == 5
+                            and all(type(value) is int for value in values) for values in stamps.values()),
+                    "complete original capture stamps required: " + name)
+
+        def still_bound():
+            require_stopped_processes()
+            require(0 <= (datetime.now(timezone.utc) - observed).total_seconds() <= 600,
+                    "stale interruption process evidence")
+            require(clean_head(repository) == head and file_digest(review_path) == review_hash
+                    and file_digest(evidence_path) == evidence_reference["sha256"]
+                    and file_digest(original) == original_reference["sha256"]
+                    and git(repository, "rev-parse", capture["source_ref"]) == head,
+                    "completed recovery review, receipt or source changed")
+            require(not reasons(repository, record, check, indexed, head)
+                    and current_source == source_stamps(repository, head, input_paths(check))
+                    and current_artifacts == artifact_stamps(capture["artifacts"]),
+                    "completed recovery inputs or streams changed")
+
+        still_bound()
+        observation = copy.deepcopy(capture)
+        observation["recovery"] = dict(kind="completed-capture", recovered_at_head=head,
+            utc=datetime.now(timezone.utc).isoformat(), binding=binding,
+            original_receipt=original_reference,
+            review=dict(path=str(review_path), sha256=review_hash), process_evidence=evidence_reference)
+        destination = directory / (uuid.uuid4().hex + ".completed-recovery.json")
+        require(not destination.exists(), "completed recovery receipt already exists")
+        atomic_json(destination, observation)
+        still_bound()
         observation["receipt"] = dict(path=str(destination), sha256=file_digest(destination))
         record["runs"].append(observation)
         record["running"] = None
@@ -979,7 +1118,7 @@ def state_output(record, path, summary):
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context", "recover-interrupted"))
+    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context", "recover-interrupted", "recover-completed"))
     parser.add_argument("--repository", default=".")
     parser.add_argument("--summary-output", action="store_true",
                         help="present state command summaries; retain the complete canonical state")
@@ -991,7 +1130,7 @@ def main(arguments=None):
     parser.add_argument("--reason")
     parser.add_argument("--role", choices=("implementation", "review", "continuation"))
     parser.add_argument("--previous", help="prior handoff JSON for focused continuation fingerprint comparison")
-    parser.add_argument("--review", help="independent source-reuse or interruption review JSON with the exact binding")
+    parser.add_argument("--review", help="independent source-reuse or capture recovery review JSON with the exact binding")
     options = parser.parse_args(arguments)
     try:
         repository = Path(options.repository).resolve()
@@ -1036,6 +1175,11 @@ def main(arguments=None):
             if options.command == "recover-interrupted":
                 require(options.review, "interruption recovery needs --review")
                 result = recover_interrupted(repository, path, options.revision, options.review)
+                print(state_output(result, path, options.summary_output))
+                return 0
+            if options.command == "recover-completed":
+                require(options.review, "completed recovery needs --review")
+                result = recover_completed(repository, path, options.revision, options.review)
                 print(state_output(result, path, options.summary_output))
                 return 0
             if options.command == "amend":
