@@ -251,11 +251,17 @@ pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
             {
                 return None;
             }
+            // A membership whose domain reference declares no value-domain theory
+            // names a carry permission. Carry travels with claim custody, which
+            // the carry channel checks and retains; it publishes no structural
+            // qualification and its authorized route still reaches that
+            // channel. Denying the result plan here refused every requirement
+            // whose result contract established a carry permission.
             let Some(domain) = crate::facts::qualification_evidence::domain_definition(
                 program,
                 membership.domain_symbol,
             ) else {
-                return None;
+                continue;
             };
             guaranteed.push((membership.semantic_domain, domain.symbol));
         }
