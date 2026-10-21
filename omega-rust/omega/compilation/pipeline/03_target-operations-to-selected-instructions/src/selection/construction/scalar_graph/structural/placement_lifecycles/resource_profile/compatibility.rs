@@ -12,7 +12,7 @@ use access_plans::{
     AtomicPermissions, BoundaryReach, ExternalRead, FieldAccess, ValidatedPlacementPlan,
 };
 
-pub(in super::super) const COMPATIBILITY_SCRATCH_BYTES: u32 = 176;
+pub(in super::super) const COMPATIBILITY_SCRATCH_BYTES: u32 = 200;
 const COMPATIBLE: u32 = 48;
 const MODULUS: u32 = 56;
 const RESIDUE: u32 = 64;
@@ -29,6 +29,9 @@ const ALIGNMENT: u32 = 144;
 const FOUND: u32 = 152;
 const CONTAINS: u32 = 160;
 const SHARED_MODULUS: u32 = 168;
+const INNER_WALK: u32 = 176;
+const INNER_CANDIDATE: u32 = 184;
+const RUN_END: u32 = 192;
 
 pub(in super::super) struct Compatibility {
     // False is malformed provider data, not an ordinary placement rejection.
@@ -329,7 +332,7 @@ fn effective_alignment(
     let one = emission.constant(builder, 1)?;
     emission.write_scratch(builder, ALIGNMENT, zero)?;
     match access {
-        FieldAccess::Inaccessible | FieldAccess::StableRegion { .. } => {
+        FieldAccess::Inaccessible | FieldAccess::Region { .. } => {
             return Err(failure(
                 "field without primitive transfer geometry acquired a runtime transfer descriptor",
             ));
@@ -441,7 +444,7 @@ fn combine_alignment(
     emission: Emission<'_>,
     builder: &mut Builder<'_>,
     alignment: VirtualRegisterId,
-    offset: u64,
+    offset: VirtualRegisterId,
 ) -> Result<(), SelectedInstructionError> {
     let previous_modulus = emission.read_scratch(builder, MODULUS)?;
     let previous_residue = emission.read_scratch(builder, RESIDUE)?;
@@ -452,7 +455,13 @@ fn combine_alignment(
         alignment,
         one,
     )?;
-    let negated_offset = emission.constant(builder, offset.wrapping_neg())?;
+    let zero = emission.constant(builder, 0)?;
+    let negated_offset = emission.binary(
+        builder,
+        SelectedInstructionKind::WrappingSubtractI64,
+        zero,
+        offset,
+    )?;
     let residue = emission.binary(
         builder,
         SelectedInstructionKind::BitwiseAndI64,
@@ -493,9 +502,10 @@ fn combine_alignment(
 }
 
 #[derive(Clone, Copy)]
-enum CoverageDemand {
+enum CoverageDemand<'a> {
     SameRegion(VirtualRegisterId),
     Stable { read: bool, write: bool },
+    Repeated(&'a access_plans::FieldRegion),
 }
 
 /// Extend coverage through containing/adjacent rows. Primitive transfers require
@@ -509,11 +519,12 @@ fn extend_coverage(
     pointer: VirtualRegisterId,
     count: VirtualRegisterId,
     target_end: VirtualRegisterId,
-    demand: CoverageDemand,
+    demand: CoverageDemand<'_>,
     reach: &BoundaryReach,
+    counters: [u32; 2],
 ) -> Result<(), SelectedInstructionError> {
-    emission.repeat(builder, count, WALK, |builder, _| {
-        emission.repeat(builder, count, CANDIDATE, |builder, position| {
+    emission.repeat(builder, count, counters[0], |builder, _| {
+        emission.repeat(builder, count, counters[1], |builder, position| {
             let covered = emission.read_scratch(builder, COVERED)?;
             let complete = emission.at_most(builder, target_end, covered)?;
             let incomplete = emission.invert(builder, complete)?;
@@ -557,15 +568,97 @@ fn extend_coverage(
                             reachable,
                         )?
                     }
+                    CoverageDemand::Repeated(region) => {
+                        // Coalesce equivalent adjacent raw rows before testing
+                        // a complete transfer. Never split one External access
+                        // merely because the provider described two rows.
+                        extend_coverage(
+                            emission,
+                            builder,
+                            layout,
+                            pointer,
+                            count,
+                            target_end,
+                            CoverageDemand::SameRegion(candidate),
+                            reach,
+                            [INNER_WALK, INNER_CANDIDATE],
+                        )?;
+                        let supplied_end = emission.read_scratch(builder, COVERED)?;
+                        emission.write_scratch(builder, COVERED, covered)?;
+                        emission.write_scratch(builder, RUN_END, target_end)?;
+                        let inside = emission.at_most(builder, supplied_end, target_end)?;
+                        operation_control::when_nonzero(
+                            builder,
+                            emission.row,
+                            inside,
+                            |builder| emission.write_scratch(builder, RUN_END, supplied_end),
+                        )?;
+                        let run_end = emission.read_scratch(builder, RUN_END)?;
+                        let span = emission.binary(
+                            builder,
+                            SelectedInstructionKind::WrappingSubtractI64,
+                            run_end,
+                            covered,
+                        )?;
+                        let width = emission
+                            .constant(builder, u64::from(region.transfer_width_bits() / 8))?;
+                        let mask = emission
+                            .constant(builder, u64::from(region.transfer_width_bits() / 8) - 1)?;
+                        let remainder = emission.binary(
+                            builder,
+                            SelectedInstructionKind::BitwiseAndI64,
+                            span,
+                            mask,
+                        )?;
+                        let zero = emission.constant(builder, 0)?;
+                        let tiled = emission.equal(builder, remainder, zero)?;
+                        let alignment = effective_alignment(
+                            emission,
+                            builder,
+                            layout,
+                            candidate,
+                            &region.scalar_access(),
+                        )?;
+                        let supplied = emission.nonzero(builder, alignment)?;
+                        let single = emission.at_most(builder, span, width)?;
+                        let aligned_stride = emission.at_most(builder, alignment, width)?;
+                        let stride = emission.binary(
+                            builder,
+                            SelectedInstructionKind::BitwiseOrI64,
+                            single,
+                            aligned_stride,
+                        )?;
+                        let reachable = reaches(emission, builder, layout, candidate, reach)?;
+                        let mut supported = tiled;
+                        for predicate in [supplied, stride, reachable] {
+                            supported = emission.binary(
+                                builder,
+                                SelectedInstructionKind::BitwiseAndI64,
+                                supported,
+                                predicate,
+                            )?;
+                        }
+                        operation_control::when_nonzero(
+                            builder,
+                            emission.row,
+                            supported,
+                            |builder| combine_alignment(emission, builder, alignment, covered),
+                        )?;
+                        supported
+                    }
                 };
                 operation_control::when_nonzero(builder, emission.row, supported, |builder| {
-                    let length = emission.load(builder, candidate, layout.length)?;
-                    let end = emission.binary(
-                        builder,
-                        SelectedInstructionKind::WrappingAddI64,
-                        start,
-                        length,
-                    )?;
+                    let end = if matches!(demand, CoverageDemand::Repeated(_)) {
+                        emission.read_scratch(builder, RUN_END)?
+                    } else {
+                        let length = emission.load(builder, candidate, layout.length)?;
+                        emission.binary(
+                            builder,
+                            SelectedInstructionKind::WrappingAddI64,
+                            start,
+                            length,
+                        )?
+                    };
                     emission.write_scratch(builder, COVERED, end)
                 })
             })
@@ -625,6 +718,7 @@ pub(in super::super) fn assess(
                 write: operation == terminal_psi::TerminalPlacementLifecycleOperation::Initialize,
             },
             placement.reach(),
+            [WALK, CANDIDATE],
         )?;
         let covered = emission.read_scratch(builder, COVERED)?;
         let complete = emission.at_most(builder, length, covered)?;
@@ -672,6 +766,7 @@ pub(in super::super) fn assess(
                         end,
                         CoverageDemand::SameRegion(region),
                         placement.reach(),
+                        [WALK, CANDIDATE],
                     )?;
                     let covered = emission.read_scratch(builder, COVERED)?;
                     let contained = emission.at_most(builder, end, covered)?;
@@ -693,19 +788,19 @@ pub(in super::super) fn assess(
                     )?;
                     emission.write_scratch(builder, FOUND, supported)?;
                     operation_control::when_nonzero(builder, row, supported, |builder| {
-                        combine_alignment(emission, builder, alignment, offset)
+                        combine_alignment(emission, builder, alignment, start)
                     })
                 })
             })?;
             let found = emission.read_scratch(builder, FOUND)?;
             intersect(emission, builder, COMPATIBLE, found)?;
         }
-        for region in placement.access().stable_regions() {
+        for region in placement.access().field_regions() {
             let start = emission.constant(builder, region.byte_offset())?;
             let end = region
                 .byte_offset()
                 .checked_add(region.byte_length())
-                .ok_or_else(|| failure("stable structural region interval overflows"))?;
+                .ok_or_else(|| failure("structural region interval overflows"))?;
             let end = emission.constant(builder, end)?;
             emission.write_scratch(builder, COVERED, start)?;
             extend_coverage(
@@ -715,17 +810,22 @@ pub(in super::super) fn assess(
                 pointer,
                 count,
                 end,
-                CoverageDemand::Stable {
-                    read: region.permits_read(),
-                    write: region.permits_write(),
+                if region.observation() == access_plans::ObservationModel::Stable {
+                    CoverageDemand::Stable {
+                        read: region.permits_read(),
+                        write: region.permits_write(),
+                    }
+                } else {
+                    CoverageDemand::Repeated(region)
                 },
                 placement.reach(),
+                [WALK, CANDIDATE],
             )?;
             let covered = emission.read_scratch(builder, COVERED)?;
             let complete = emission.at_most(builder, end, covered)?;
             intersect(emission, builder, COMPATIBLE, complete)?;
             let alignment = emission.constant(builder, region.byte_alignment())?;
-            combine_alignment(emission, builder, alignment, region.byte_offset())?;
+            combine_alignment(emission, builder, alignment, start)?;
         }
         Ok(())
     })?;

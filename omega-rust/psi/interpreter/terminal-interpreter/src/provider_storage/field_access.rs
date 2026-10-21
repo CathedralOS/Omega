@@ -58,7 +58,7 @@ impl TerminalExecution<'_> {
             StructuralAccess::MutableBorrow => BorrowPolarity::Exclusive,
             _ => return Err(malformed()),
         };
-        let projected = if access.stable_region(entry.key()).is_some() {
+        let projected = if access.field_region(entry.key()).is_some() {
             Some(
                 terminal_semantics::placed_region_projection(
                     &self.program.catalogs.structural_types,
@@ -75,7 +75,7 @@ impl TerminalExecution<'_> {
             None
         };
         let authorized = if let Some(projected) = projected {
-            access.authorize_stable_projection(
+            access.authorize_region_projection(
                 entry.key(),
                 projected.byte_offset,
                 u16::from(
@@ -145,7 +145,7 @@ impl TerminalExecution<'_> {
         } else {
             compatibility
                 .placement()
-                .stable_regions()
+                .field_regions()
                 .iter()
                 .any(|region| {
                     region.key() == entry.key()
@@ -270,7 +270,7 @@ impl TerminalExecution<'_> {
                 plan.placement.layout(),
                 entry.field(),
                 access
-                    .stable_region(entry.key())
+                    .field_region(entry.key())
                     .ok_or_else(malformed)?
                     .byte_offset(),
                 footprint.length_bytes(),

@@ -286,7 +286,7 @@ pub fn validate_placed_view_catalog(
                 return Err(PlacedPlanError::AccessorMissing);
             };
             let descriptor = plan.placement.access().field_descriptor(access.key());
-            let region = plan.placement.access().stable_region(access.key());
+            let region = plan.placement.access().field_region(access.key());
             if let Some(region) = region {
                 let source_type = schema_field
                     .field_type
@@ -310,6 +310,11 @@ pub fn validate_placed_view_catalog(
             } else {
                 descriptor.map_or(0, |descriptor| descriptor.effect_footprint().length_bytes())
             };
+            if region
+                .is_some_and(|region| u64::from(region.transfer_width_bits()) != expected_size * 8)
+            {
+                return Err(PlacedPlanError::SchemaFieldMismatch);
+            }
             let expected_storage = descriptor
                 .map(
                     |descriptor| semantic_vocabulary::AuthoredFieldStorage::Direct {

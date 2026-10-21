@@ -284,7 +284,7 @@ pub use machine_calls::machine_parameters::{
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{
-    bind_float_conversion_casts, resolve_named_result_overloads,
+    bind_float_conversion_casts, collect_expected_expression_calls, resolve_named_result_overloads,
 };
 pub use machine_calls::static_arguments;
 pub use machine_calls::static_bindings;

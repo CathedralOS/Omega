@@ -829,7 +829,10 @@ fn select_unbound_overload_family_symbol(
     }
 }
 
-fn collect_expected_expression_calls(
+/// Receiving contexts shared by overload selection and generic application
+/// inference. This relation selects types only; stores still prove their
+/// authored predicates and calls still prove the selected binder obligations.
+pub fn collect_expected_expression_calls(
     program: &dyn crate::CheckingInput,
 ) -> Vec<(ExpressionHandle, TypeReferenceHandle)> {
     let mut expected = Vec::new();
@@ -883,7 +886,9 @@ fn collect_expected_expression_calls(
                         }
                     }
                     StatementNode::LocalData(local)
-                        if local.initial_value.is_valid() && local.type_reference.is_valid() =>
+                        if local.initial_value.is_valid()
+                            && local.type_reference.is_valid()
+                            && !local.type_is_inferred =>
                     {
                         push_expected_call(
                             program,
@@ -997,7 +1002,15 @@ fn push_expected_call(
             }
         }
         ExpressionNode::Borrow(inner) => {
-            push_expected_call(program, inner.target, expected_type, expected)
+            // The receiving context describes the borrowed value. Its target
+            // produces the referent, not another reference. Borrow legality and
+            // lifetime remain independent checks after application selection.
+            let reference = crate::peel_declared_constraints(program, expected_type);
+            if let TypeReferenceNode::Reference { referee, .. } =
+                program.type_reference_table.type_reference(reference)
+            {
+                push_expected_call(program, inner.target, *referee, expected);
+            }
         }
         ExpressionNode::Atomic(atomic) => {
             // A whole Once result is not an ordinary callee result. Its

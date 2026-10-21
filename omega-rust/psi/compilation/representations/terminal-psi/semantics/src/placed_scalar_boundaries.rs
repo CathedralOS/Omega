@@ -10,7 +10,7 @@ use terminal_psi::{
 
 pub use terminal_psi::PlacedScalarBoundaryDemand;
 
-/// Resolve a captured, statically bounded projection within one Stable region.
+/// Resolve a captured, statically bounded projection within one field region.
 /// Paths are relative to the parent field and contain frozen coordinates, not
 /// caller-supplied byte offsets. This describes a leaf transfer; the consumer
 /// must still authenticate the occurrence, permissions, live loan and supply.
@@ -30,8 +30,8 @@ pub fn placed_region_projection(
     let region = plan
         .placement
         .access()
-        .stable_region(entry.key())
-        .ok_or_else(|| "placed projection requires a Stable parent region".to_owned())?;
+        .field_region(entry.key())
+        .ok_or_else(|| "placed projection requires a repeated parent region".to_owned())?;
     let schema = declarations
         .iter()
         .find(|row| row.id == plan.schema)
@@ -51,6 +51,7 @@ pub fn placed_region_projection(
             .ok_or_else(|| "placed region leaf has no fixed storage width".to_owned())?,
     );
     if projection.logical_scalar != projection.stored_scalar
+        || width * 8 != u64::from(region.transfer_width_bits())
         || projection
             .byte_offset
             .checked_add(width)
@@ -155,7 +156,7 @@ pub fn placed_scalar_boundary_demand(
         .ok_or_else(|| "placed scalar access slot is missing".to_owned())?;
     let (byte_offset, transfer_width_bits, observation) = match (
         plan.placement.access().field_descriptor(entry.key()),
-        plan.placement.access().stable_region(entry.key()),
+        plan.placement.access().field_region(entry.key()),
     ) {
         (Some(descriptor), None) => (
             descriptor.container_byte_offset(),
@@ -168,7 +169,7 @@ pub fn placed_scalar_boundary_demand(
                 crate::reference_storage_byte_width(scalar)
                     .ok_or_else(|| "placed scalar leaf has no fixed storage width".to_owned())?,
             ) * 8,
-            access_plans::ObservationModel::Stable,
+            region.observation(),
         ),
         _ => return Err("placed scalar field is inaccessible".to_owned()),
     };

@@ -144,15 +144,10 @@ fn validate_expression(
                         .peeled_type_reference(formation.view_type),
                 )
         })
-        && plan.fields.iter().any(|field| {
-            matches!(
-                field.access,
-                FieldAccess::External {
-                    read: access_plans::ExternalRead::Take,
-                    ..
-                }
-            )
-        })
+        && plan
+            .fields
+            .iter()
+            .any(|field| field.access.has_destructive_read())
     {
         // A content write can return the same Resident only while no operation
         // creates an untracked hole. Ordinary borrowed-storage windows do not
@@ -366,7 +361,7 @@ fn access_exposure(access: &FieldAccess) -> Option<AccessExposure> {
     match access {
         FieldAccess::Inaccessible => None,
         FieldAccess::Stable { exposure, .. }
-        | FieldAccess::StableRegion { exposure, .. }
+        | FieldAccess::Region { exposure, .. }
         | FieldAccess::External { exposure, .. }
         | FieldAccess::Atomic { exposure, .. } => Some(*exposure),
     }

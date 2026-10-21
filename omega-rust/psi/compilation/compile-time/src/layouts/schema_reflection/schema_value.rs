@@ -176,6 +176,10 @@ pub(crate) fn build_selected_schema_value(
                         kind,
                         declared_range,
                         repeated,
+                        scalar_leaf_width_bits: super::scalar_leaf_width_bits(
+                            typed,
+                            field.type_reference,
+                        ),
                     }
                 });
                 build_schema_field_value(info.as_ref())

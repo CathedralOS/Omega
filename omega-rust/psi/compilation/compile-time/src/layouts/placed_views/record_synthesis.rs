@@ -399,7 +399,7 @@ fn access_is_exported(access: &FieldAccess) -> bool {
         FieldAccess::Stable {
             exposure: AccessExposure::Exported,
             ..
-        } | FieldAccess::StableRegion {
+        } | FieldAccess::Region {
             exposure: AccessExposure::Exported,
             ..
         } | FieldAccess::External {

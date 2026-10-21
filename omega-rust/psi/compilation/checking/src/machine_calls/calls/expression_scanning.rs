@@ -130,69 +130,6 @@ impl<'program> ValueCallee<'program> {
     }
 }
 
-/// A data place used as `place.operation()` names the callee's first
-/// parameter when that parameter's carrier is the place's carrier
-/// (`roll(dice: &mut Dice)` called as `main.dice.roll()`). That place is not
-/// a namespace, so the retired value-qualified diagnostic does not apply.
-/// A callee with no such parameter is still using the value as a qualifier
-/// and stays retired. The explicit `Type::operation(&mut place)` form keeps
-/// ordinary argument-access checking; this recognition only stops the
-/// retired report from sitting beside the result's own store obligation.
-fn receiver_supplies_first_parameter(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    receiver: ExpressionHandle,
-    callee_state: &State,
-) -> bool {
-    if !receiver.is_valid() {
-        return false;
-    }
-    let Some(parameter) = program
-        .state_parameters(callee_state)
-        .iter()
-        .find(|parameter| !parameter.is_const)
-    else {
-        return false;
-    };
-    let Some(receiver_type) = crate::value_custody::places::declared_place_type(
-        program,
-        current_machine,
-        current_state,
-        receiver,
-    ) else {
-        return false;
-    };
-    let Some(parameter_type) = program.unwrapped_type_reference(parameter.type_reference) else {
-        return false;
-    };
-    same_unwrapped_carrier(program, receiver_type, parameter_type)
-}
-
-fn same_unwrapped_carrier(
-    program: &dyn crate::CheckingInput,
-    left: typed_trees::types::TypeReferenceHandle,
-    right: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    let left = program.unwrapped_type_reference(left).unwrap_or(left);
-    let right = program.unwrapped_type_reference(right).unwrap_or(right);
-    if !left.is_valid() || !right.is_valid() {
-        return false;
-    }
-    let left_symbol = program.type_reference_table.type_symbol(left);
-    let right_symbol = program.type_reference_table.type_symbol(right);
-    if left_symbol.is_valid() && left_symbol == right_symbol {
-        return true;
-    }
-    matches!(
-        (
-            program.primitive_type_reference(left),
-            program.primitive_type_reference(right),
-        ),
-        (Some(left_primitive), Some(right_primitive)) if left_primitive == right_primitive
-    )
-}
-
 /// One VALUE-position call occurrence and the caller facts its resolved
 /// callee is checked against.
 struct ValueCallSite<'a> {
@@ -732,9 +669,7 @@ fn validate_expression_call_bounds(
     let namespace = traversal::is_declaration_namespace(program, call.receiver);
     // A placed accessor is selected by its compiler-owned plan, not by methods
     // on a data type. Preserve this memory operation without retaining general
-    // data-receiver dispatch. A receiver place whose carrier is the callee's
-    // first parameter is not a retired qualifier; every other value qualifier
-    // stays retired.
+    // data-receiver dispatch or inferring an implicit operand.
     let placed_accessor = receiver_type_reference
         .and_then(|reference| program.placed_view_field_plan_for_type_reference(reference))
         .is_some_and(|(_, field)| {
@@ -743,20 +678,8 @@ fn validate_expression_call_bounds(
                     && target.operation == call.target.as_str()
             })
         });
-    let receiver_argument =
-        machine_state_by_symbol(program, call.target_symbol).and_then(|(_, callee_state)| {
-            receiver_supplies_first_parameter(
-                program,
-                current_machine,
-                Some(current_state),
-                call.receiver,
-                callee_state,
-            )
-            .then_some(call.receiver)
-        });
     if !namespace
         && !placed_accessor
-        && receiver_argument.is_none()
         && machine_state_by_symbol(program, call.target_symbol).is_some()
     {
         if program
@@ -772,30 +695,6 @@ fn validate_expression_call_bounds(
         diagnostics.push(Diagnostic::error(
             "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
         ));
-        return;
-    }
-    if !namespace && !placed_accessor && receiver_argument.is_some() {
-        // The place is the declared first parameter. Requiring a separately
-        // spelled `&mut` argument here repeats a receiver the call already
-        // named and hides the store conversion that consumes the result.
-        // Qualifier-only calls returned above. Explicit `Type::operation`
-        // calls still pass their arguments through the ordinary access checks.
-        let Some((_, callee_state)) = machine_state_by_symbol(program, call.target_symbol) else {
-            return;
-        };
-        let parameters = program
-            .state_parameters(callee_state)
-            .iter()
-            .filter(|parameter| !parameter.is_const)
-            .count();
-        if arguments.len() + 1 != parameters {
-            diagnostics.push(Diagnostic::error(format!(
-                "state `{}` expects {} argument(s), got {}",
-                callee_state.name.as_str(),
-                parameters.saturating_sub(1),
-                arguments.len(),
-            )));
-        }
         return;
     }
     // Static qualification retains the exact owner; no data type or display

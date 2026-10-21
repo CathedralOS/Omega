@@ -1,8 +1,7 @@
 use crate::{AccessFieldKey, PlacementPlanId, ResourceProfileId};
 use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalRead, ExternalReadBehavior,
-    FieldAccess, ResourceRegion, StableFieldRegion, ValidatedPlacementPlan,
-    ValidatedResourceProfile,
+    FieldAccess, FieldRegion, ResourceRegion, ValidatedPlacementPlan, ValidatedResourceProfile,
 };
 
 /// Normalized power-of-two constraint on the concrete loan base.
@@ -37,7 +36,7 @@ pub struct PlacementResourceCompatibility {
     profile: ResourceProfileId,
     pub(crate) base: BaseCongruence,
     pub(crate) fields: Vec<EffectiveFieldSupply>,
-    pub(crate) stable_regions: Vec<StableFieldRegion>,
+    pub(crate) field_regions: Vec<FieldRegion>,
 }
 
 /// Supply compatibility for writing a complete initial image and then using
@@ -203,8 +202,8 @@ impl PlacementResourceCompatibility {
         &self.fields
     }
 
-    pub fn stable_regions(&self) -> &[StableFieldRegion] {
-        &self.stable_regions
+    pub fn field_regions(&self) -> &[FieldRegion] {
+        &self.field_regions
     }
 
     pub(crate) fn field(&self, key: AccessFieldKey) -> Option<&EffectiveFieldSupply> {
@@ -288,16 +287,54 @@ pub fn validate_placement_resources(
             kind,
         });
     }
-    for region in &plan.access.stable_regions {
-        require_stable_region_supply(
-            profile,
-            region.byte_offset,
-            region.byte_length,
-            region.read,
-            region.write,
-            &plan.reach,
-            &format!("stable structural field `{}`", region.field),
-        )?;
+    for region in &plan.access.field_regions {
+        if region.observation == crate::ObservationModel::Stable {
+            require_stable_region_supply(
+                profile,
+                region.byte_offset,
+                region.byte_length,
+                region.permissions.read,
+                region.permissions.write,
+                &plan.reach,
+                &format!("stable structural field `{}`", region.field),
+            )?;
+        } else {
+            let width = u64::from(region.transfer_width_bits / 8);
+            let access = region.scalar_access();
+            let mut offset = region.byte_offset;
+            let end = offset + region.byte_length;
+            while offset < end {
+                let supply = profile.regions.iter().find(|supply| {
+                    supply.offset <= offset && offset + width <= supply.offset + supply.length
+                }).ok_or_else(|| AccessPlanDiagnostic(format!(
+                    "structural field `{}` transfer at {offset} lacks one complete resource region", region.field
+                )))?;
+                if !supply.reach.contains_all(&plan.reach) {
+                    return Err(AccessPlanDiagnostic(format!(
+                        "structural field `{}` lacks boundary reach",
+                        region.field
+                    )));
+                }
+                let (_, alignment) = select_effective_supply(&region.field, &access, supply)?;
+                require_base_congruence(&mut congruence, &region.field, offset, alignment)?;
+                // Check an entire run against one supply row. Repeating the
+                // same transfer millions of times adds no compatibility fact.
+                let covered_end = end.min(supply.offset + supply.length);
+                if (covered_end - offset) % width != 0 {
+                    return Err(AccessPlanDiagnostic(format!(
+                        "structural field `{}` transfer straddles a resource boundary",
+                        region.field
+                    )));
+                }
+                if covered_end - offset > width && width % alignment != 0 {
+                    return Err(AccessPlanDiagnostic(format!(
+                        "structural field `{}` transfer stride violates supplied alignment",
+                        region.field
+                    )));
+                }
+                offset = covered_end;
+            }
+        }
         require_base_congruence(
             &mut congruence,
             &region.field,
@@ -310,7 +347,7 @@ pub fn validate_placement_resources(
         profile: profile.identity,
         base: congruence.value,
         fields,
-        stable_regions: plan.access.stable_regions.clone(),
+        field_regions: plan.access.field_regions.clone(),
     })
 }
 
@@ -320,8 +357,8 @@ fn select_effective_supply(
     region: &ResourceRegion,
 ) -> Result<(EffectiveSupplyKind, u64), AccessPlanDiagnostic> {
     match access {
-        FieldAccess::StableRegion { .. } => Err(AccessPlanDiagnostic(
-            "structural Stable supply cannot be selected as one primitive transfer".into(),
+        FieldAccess::Region { .. } => Err(AccessPlanDiagnostic(
+            "structural region supply cannot be selected as one primitive transfer".into(),
         )),
         FieldAccess::Inaccessible => {
             unreachable!("inaccessible fields do not have validated descriptors")

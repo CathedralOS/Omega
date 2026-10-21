@@ -5096,8 +5096,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     report only their primary diagnostic. Semantic/provenance atoms, reference
     qualifications and float policy still retain their own obligations.
     `fail/arithmetic/implicit_store_call_result_conversion_rejected` reports
-    the store conversion alone; a value used only as a qualifier still reports
-    the retired call.
+    the store conversion alone with an explicit `Dice::roll(&mut main.dice)`
+    call; value-qualified calls remain retired even when the value's carrier
+    matches the callee's first parameter.
   - Float-policy customers: on Windows the five native oracles match their
     recorded outcomes. `named_provider_multiply_then_add_exit` and
     `runtime_named_policy_result_exit` exit 70,

@@ -148,18 +148,22 @@ fn hash_field_access_sha(
 ) {
     match access {
         FieldAccess::Inaccessible => digest.byte(0),
-        FieldAccess::StableRegion {
+        FieldAccess::Region {
             byte_length,
             byte_alignment,
-            read,
-            write,
+            transfer_width_bits,
+            observation,
+            permissions,
             exposure,
         } => {
-            digest.byte(4);
+            digest.byte(5);
             hash_u64_sha(digest, *byte_length);
             hash_u64_sha(digest, *byte_alignment);
-            digest.byte(u8::from(*read));
-            digest.byte(u8::from(*write));
+            hash_u64_sha(digest, u64::from(*transfer_width_bits));
+            digest.byte(*observation as u8);
+            digest.byte(u8::from(permissions.read));
+            digest.byte(u8::from(permissions.take));
+            digest.byte(u8::from(permissions.write));
             hash_exposure_sha(digest, *exposure);
         }
         FieldAccess::Stable {
@@ -335,18 +339,22 @@ pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
         hash.u64(u64::from(entry.key.slot));
         match &entry.access {
             FieldAccess::Inaccessible => hash.byte(0),
-            FieldAccess::StableRegion {
+            FieldAccess::Region {
                 byte_length,
                 byte_alignment,
-                read,
-                write,
+                transfer_width_bits,
+                observation,
+                permissions,
                 exposure,
             } => {
-                hash.byte(4);
+                hash.byte(5);
                 hash.u64(*byte_length);
                 hash.u64(*byte_alignment);
-                hash.byte(u8::from(*read));
-                hash.byte(u8::from(*write));
+                hash.u64(u64::from(*transfer_width_bits));
+                hash.byte(*observation as u8);
+                hash.byte(u8::from(permissions.read));
+                hash.byte(u8::from(permissions.take));
+                hash.byte(u8::from(permissions.write));
                 hash_exposure(&mut hash, *exposure);
             }
             FieldAccess::Stable {

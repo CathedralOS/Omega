@@ -169,6 +169,7 @@ pub(super) fn collect_call_selections(
     let contract_expressions: HashSet<ExpressionHandle> =
         contract_expressions.iter().copied().collect();
     let mut covered_expressions = HashSet::new();
+    let expected_calls = validation::collect_expected_expression_calls(program);
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -199,67 +200,15 @@ pub(super) fn collect_call_selections(
                             upsert_selection(&mut selections, selection);
                         }
                     }
-                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(local.initial_value)
-                            && typed_trees::operator::resolve_named_expression_call(program, call)
-                                .is_none()
-                        {
-                            covered_expressions.insert(local.initial_value);
-                            if let Some(selection) = selection_for_call(
-                                program,
-                                machine,
-                                state,
-                                candidates,
-                                callee_states,
-                                CallSite::Expression(local.initial_value),
-                                call.target_symbol,
-                                &call.machine_arguments,
-                                program.expression_table.expression_handles(call.arguments),
-                                (local.type_reference.is_valid() && !local.type_is_inferred)
-                                    .then_some(local.type_reference),
-                                program
-                                    .typed_program()
-                                    .callable_body_has_open_parameters(machine),
-                            ) {
-                                upsert_selection(&mut selections, selection);
-                            }
-                        }
-                    }
-                    StatementNode::Expression(expression) => {
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(*expression)
-                            && typed_trees::operator::resolve_named_expression_call(program, call)
-                                .is_none()
-                        {
-                            covered_expressions.insert(*expression);
-                            if let Some(selection) = selection_for_call(
-                                program,
-                                machine,
-                                state,
-                                candidates,
-                                callee_states,
-                                CallSite::Expression(*expression),
-                                call.target_symbol,
-                                &call.machine_arguments,
-                                program.expression_table.expression_handles(call.arguments),
-                                None,
-                                program
-                                    .typed_program()
-                                    .callable_body_has_open_parameters(machine),
-                            ) {
-                                upsert_selection(&mut selections, selection);
-                            }
-                        }
-                    }
                     _ => {}
                 }
             }
         }
     }
 
-    // Nested calls retain their lexical caller even without a direct result
-    // annotation. Their argument types can determine the specialization tuple.
+    // Every expression call retains its lexical caller and the shared receiving
+    // context. A local initializer, indexed assignment and match arm do not
+    // require different generic-selection paths.
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut expressions = Vec::new();
@@ -332,7 +281,14 @@ pub(super) fn collect_call_selections(
                     call.target_symbol,
                     &call.machine_arguments,
                     program.expression_table.expression_handles(call.arguments),
-                    None,
+                    expected_calls.iter().find_map(|(candidate, expected)| {
+                        (*candidate == expression
+                            && (program
+                                .typed_program()
+                                .callable_body_has_open_parameters(machine)
+                                || !static_bindings::names_type_binder(program, *expected)))
+                        .then_some(*expected)
+                    }),
                     program
                         .typed_program()
                         .callable_body_has_open_parameters(machine),

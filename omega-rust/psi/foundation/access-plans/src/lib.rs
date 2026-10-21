@@ -47,8 +47,8 @@ pub use access_plan::diagnostic::AccessPlanDiagnostic;
 pub use access_plan::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessPermissions, AccessPlan, AccessPlanId,
     AtomicPermissions, AuthorizedFieldAccess, EffectFootprint, ExternalRead, FieldAccess,
-    FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment, ObservationModel,
-    RelativeEffectFootprint, StableFieldRegion, ValidatedAccessPlan,
+    FieldAccessDescriptor, FieldRegion, LogicalFieldExtent, LogicalFieldFragment, ObservationModel,
+    RelativeEffectFootprint, ValidatedAccessPlan,
 };
 pub use placements::atomic_resident_views::{
     BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentPlacement,

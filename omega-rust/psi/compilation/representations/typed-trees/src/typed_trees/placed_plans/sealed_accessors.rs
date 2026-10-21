@@ -122,7 +122,7 @@ impl PlacedScalarAccessorDeclaration {
             ));
         }
         if typed.primitive_type_reference(field.value_type).is_none()
-            && !matches!(field.access, access_plans::FieldAccess::StableRegion { .. })
+            && !matches!(field.access, access_plans::FieldAccess::Region { .. })
         {
             // Another provider catalog owns structural carriers; absence here
             // must not reject a valid declaration that this entry never calls.

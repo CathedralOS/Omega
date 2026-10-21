@@ -291,7 +291,7 @@ impl<'program> ShapeCollector<'program> {
         let byte_size = if view
             .placement
             .access()
-            .stable_region(field.access_key)
+            .field_region(field.access_key)
             .is_some()
         {
             let (value, _) = field.scalar_projection_leaf(self.program).ok()?;
@@ -1172,7 +1172,7 @@ impl<'program> ShapeCollector<'program> {
                 } else if let Some(region) = view
                     .placement
                     .access()
-                    .stable_region(placed_field.access_key)
+                    .field_region(placed_field.access_key)
                 {
                     field_plan.storage = Some(semantic_vocabulary::AuthoredFieldStorage::Direct {
                         byte_offset: region.byte_offset(),

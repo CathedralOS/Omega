@@ -121,7 +121,7 @@ pub fn placed_ram_plan_correspondence(
         // Only the actual source declaration supplies its codec and location.
         // Opaque accessor geometry and the requested plan do not prove these.
         let mut path = vec![StructuralPathSegment::Field(source_field.identity)];
-        if let Some(region) = plan.placement.access().stable_region(access.key()) {
+        if let Some(region) = plan.placement.access().field_region(access.key()) {
             let source_region =
                 crate::reference_storage_region(declarations.iter(), source_schema, &path)
                     .ok_or_else(|| "RAM array source has no complete storage region".to_owned())?;

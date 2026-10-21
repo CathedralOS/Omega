@@ -2,8 +2,8 @@
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_counted};
 use access_plans::{
-    AccessExposure, AtomicPermissions, BoundaryReach, BoundaryServiceReachId, ExternalRead,
-    FieldAccess, PlacementPlanSnapshot,
+    AccessExposure, AccessPermissions, AtomicPermissions, BoundaryReach, BoundaryServiceReachId,
+    ExternalRead, FieldAccess, ObservationModel, PlacementPlanSnapshot,
 };
 use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -287,18 +287,28 @@ fn decode_exposure(reader: &mut Reader<'_>) -> Result<AccessExposure, CodecError
 fn encode_access(writer: &mut Writer, access: &FieldAccess) {
     match access {
         FieldAccess::Inaccessible => writer.u8(0),
-        FieldAccess::StableRegion {
+        FieldAccess::Region {
             byte_length,
             byte_alignment,
-            read,
-            write,
+            transfer_width_bits,
+            observation,
+            permissions,
             exposure: scope,
         } => {
-            writer.u8(4);
+            // Tag 4 was the retired Stable-only region without a retained
+            // leaf width. It cannot be replayed as this richer demand.
+            writer.u8(5);
             writer.u64(*byte_length);
             writer.u64(*byte_alignment);
-            writer.boolean(*read);
-            writer.boolean(*write);
+            writer.u16(*transfer_width_bits);
+            writer.u8(match observation {
+                ObservationModel::Stable => 0,
+                ObservationModel::External => 1,
+                ObservationModel::Atomic => 2,
+            });
+            writer.boolean(permissions.read);
+            writer.boolean(permissions.take);
+            writer.boolean(permissions.write);
             exposure(writer, *scope);
         }
         FieldAccess::Stable {
@@ -359,11 +369,21 @@ fn encode_access(writer: &mut Writer, access: &FieldAccess) {
 fn decode_access(reader: &mut Reader<'_>) -> Result<FieldAccess, CodecError> {
     Ok(match reader.u8()? {
         0 => FieldAccess::Inaccessible,
-        4 => FieldAccess::StableRegion {
+        5 => FieldAccess::Region {
             byte_length: reader.u64()?,
             byte_alignment: reader.u64()?,
-            read: reader.boolean()?,
-            write: reader.boolean()?,
+            transfer_width_bits: reader.u16()?,
+            observation: match reader.u8()? {
+                0 => ObservationModel::Stable,
+                1 => ObservationModel::External,
+                tag => return Err(CodecError::InvalidTag("placed repeated observation", tag)),
+            },
+            permissions: AccessPermissions {
+                read: reader.boolean()?,
+                take: reader.boolean()?,
+                write: reader.boolean()?,
+                ..Default::default()
+            },
             exposure: decode_exposure(reader)?,
         },
         1 => FieldAccess::Stable {

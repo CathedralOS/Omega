@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use access_plans::{
-    AccessExposure, AccessPlan, AtomicPermissions, BoundaryReach, BoundaryServiceReachId,
-    ExternalRead, FieldAccess, PlacementPlan, ValidatedAccessPlan, ValidatedPlacementPlan,
-    validate_access_plan, validate_placement_plan,
+    AccessExposure, AccessPermissions, AccessPlan, AtomicPermissions, BoundaryReach,
+    BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, PlacementPlan,
+    ValidatedAccessPlan, ValidatedPlacementPlan, validate_access_plan, validate_placement_plan,
 };
 use build_time_values::BuildTimeValue;
 use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
@@ -198,27 +198,51 @@ fn parse_field_access(
             schema_field.name
         ));
     };
+    // Repetition changes geometry, not the requested observation or permission.
+    // Retain one bounded region and derive a scalar transfer only after an
+    // exact indexed projection; never expand an array into synthetic fields.
+    if schema_field.primitive.is_none() && matches!(short_name(variant), "Stable" | "External") {
+        let transfer_width_bits = schema_field.scalar_leaf_width_bits.ok_or_else(|| {
+            format!(
+                "field `{}` requires a supported scalar-leaf array projection for aggregate access",
+                schema_field.name
+            )
+        })?;
+        let (observation, read, take) = match short_name(variant) {
+            "Stable" => (
+                ObservationModel::Stable,
+                bool_payload(payload, "read")?,
+                false,
+            ),
+            _ => {
+                let read = external_read_payload(payload)?;
+                (
+                    ObservationModel::External,
+                    read == ExternalRead::Read,
+                    read == ExternalRead::Take,
+                )
+            }
+        };
+        return Ok(FieldAccess::Region {
+            byte_length: schema_field.size,
+            byte_alignment: schema_field.align,
+            transfer_width_bits,
+            observation,
+            permissions: AccessPermissions {
+                read,
+                take,
+                write: bool_payload(payload, "write")?,
+                ..Default::default()
+            },
+            exposure: exposure_payload(payload)?,
+        });
+    }
     match short_name(variant) {
         "Inaccessible" => {
             require_empty_payload(payload, "Inaccessible")?;
             Ok(FieldAccess::Inaccessible)
         }
         "Stable" => {
-            if schema_field.primitive.is_none() {
-                if schema_field.repeated.is_none() {
-                    return Err(format!(
-                        "field `{}` requires a supported scalar-leaf array projection for Stable aggregate access",
-                        schema_field.name
-                    ));
-                }
-                return Ok(FieldAccess::StableRegion {
-                    byte_length: schema_field.size,
-                    byte_alignment: schema_field.align,
-                    read: bool_payload(payload, "read")?,
-                    write: bool_payload(payload, "write")?,
-                    exposure: exposure_payload(payload)?,
-                });
-            }
             let width = transfer_width_bits(schema_field, layout)?;
             Ok(FieldAccess::Stable {
                 transfer_width_bits: width,

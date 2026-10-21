@@ -129,7 +129,7 @@ pub(super) fn validate(
         placement
             .placement
             .access()
-            .stable_region(entry.key())
+            .field_region(entry.key())
             .is_some()
             && u64::from(demand.transfer_width_bits) == logical_bits
     };

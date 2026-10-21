@@ -36,6 +36,7 @@ pub(crate) struct SchemaFieldInfo {
     pub(crate) kind: &'static str,
     pub(crate) declared_range: Option<(i64, i64)>,
     pub(crate) repeated: Option<RepeatedFieldInfo>,
+    pub(crate) scalar_leaf_width_bits: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -114,6 +115,7 @@ pub(crate) fn schema_fields_for(
             kind,
             declared_range,
             repeated,
+            scalar_leaf_width_bits: scalar_leaf_width_bits(typed, field.type_reference),
         });
     }
     if fields.is_empty() && typed.data_members(data).is_empty() {
@@ -134,6 +136,26 @@ pub(crate) fn schema_fields_for(
         ));
     }
     Ok((fields, normalized_schema_report_fingerprint(typed, data)))
+}
+
+fn scalar_leaf_width_bits(
+    typed: &TypedTrees,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<u16> {
+    loop {
+        if let Some(primitive) = typed.primitive_type_reference(reference) {
+            return u16::try_from(primitive_byte_size(primitive)?.checked_mul(8)?).ok();
+        }
+        reference = typed
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        match typed.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                reference = *element_type
+            }
+            _ => return None,
+        }
+    }
 }
 
 /// Schema arguments must have one physical meaning before a pure policy runs.

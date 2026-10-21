@@ -2,7 +2,7 @@
 //
 // `Dice::roll` declares a plain `-> u32` with no range and no `ensures`, so
 // range analysis leaves its result without an analysed carrier, and the
-// anonymous `6` lands on that call's type: `6 + main.dice.roll()` is a `u32`.
+// anonymous `6` lands on that call's type: `6 + Dice::roll(&mut main.dice)` is a `u32`.
 // Storing it into the `i32 in Wrapping` field changes both carrier and policy
 // silently, exactly like storing a `u32` field there. A call result keeps
 // its declared type; the conversion must be spelled (a named narrowing
@@ -15,7 +15,7 @@ machine Dice::roll(dice: &mut Dice) -> u32 {
     transition { _ -> (dice.state) }
 }
 machine Main::main(main: &mut Main) reaches Console {
-    main.health = 6 + main.dice.roll();
+    main.health = 6 + Dice::roll(&mut main.dice);
     let o: i32 = 70;
     Console::exit_process(o);
 }

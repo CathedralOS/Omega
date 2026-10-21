@@ -105,14 +105,15 @@ impl AccessPermissions {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FieldAccess {
     Inaccessible,
-    /// Stable permission over a structural field, not a single transfer.
+    /// Repeated scalar permission over a structural field, not one giant transfer.
     /// Projection must authenticate the field's shape and select a bounded
     /// leaf before an operation can acquire a primitive transfer descriptor.
-    StableRegion {
+    Region {
         byte_length: u64,
         byte_alignment: u64,
-        read: bool,
-        write: bool,
+        transfer_width_bits: u16,
+        observation: ObservationModel,
+        permissions: AccessPermissions,
         exposure: AccessExposure,
     },
     Stable {
@@ -135,14 +136,36 @@ pub enum FieldAccess {
 }
 
 impl FieldAccess {
+    /// Destructive observation changes content custody independently of whether
+    /// the permission covers one scalar or a repeated region of scalar leaves.
+    pub const fn has_destructive_read(&self) -> bool {
+        match self {
+            Self::External { read, .. } => matches!(read, ExternalRead::Take),
+            Self::Region { permissions, .. } => permissions.take,
+            Self::Inaccessible | Self::Stable { .. } | Self::Atomic { .. } => false,
+        }
+    }
+
     /// The operation names a diagnostic reports for this access: stable and
     /// external reads and writes are `read`/`write`, an external take is
     /// `take`; atomic and inaccessible fields name no ordinary operations.
     pub fn operation_names(&self) -> Vec<&'static str> {
         match self {
             FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
-            FieldAccess::Stable { read, write, .. }
-            | FieldAccess::StableRegion { read, write, .. } => {
+            FieldAccess::Region { permissions, .. } => {
+                let mut operations = Vec::new();
+                if permissions.read {
+                    operations.push("read");
+                }
+                if permissions.take {
+                    operations.push("take");
+                }
+                if permissions.write {
+                    operations.push("write");
+                }
+                operations
+            }
+            FieldAccess::Stable { read, write, .. } => {
                 let mut operations = Vec::new();
                 if *read {
                     operations.push("read");
@@ -536,27 +559,28 @@ pub struct ValidatedAccessPlan {
     pub(crate) layout_commitment: AccessLayoutCommitment,
     pub(crate) plan: AccessPlan,
     pub(crate) fields: Vec<FieldAccessDescriptor>,
-    pub(crate) stable_regions: Vec<StableFieldRegion>,
+    pub(crate) field_regions: Vec<FieldRegion>,
     pub(crate) layout_size_bytes: u64,
 }
 
-/// Sealed permission and geometry for one structural Stable field. It grants
+/// Sealed permission and geometry for one repeated scalar field. It grants
 /// no scalar event: in particular, a page is not a 32768-bit primitive access.
 /// The exact source shape and relative projection remain independent inputs
 /// to leaf specialization, together with the live parent occurrence and loan.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StableFieldRegion {
+pub struct FieldRegion {
     pub(crate) key: AccessFieldKey,
     pub(crate) field: String,
     pub(crate) byte_offset: u64,
     pub(crate) byte_length: u64,
     pub(crate) byte_alignment: u64,
-    pub(crate) read: bool,
-    pub(crate) write: bool,
+    pub(crate) transfer_width_bits: u16,
+    pub(crate) observation: ObservationModel,
+    pub(crate) permissions: AccessPermissions,
     pub(crate) exposure: AccessExposure,
 }
 
-impl StableFieldRegion {
+impl FieldRegion {
     pub const fn key(&self) -> AccessFieldKey {
         self.key
     }
@@ -573,10 +597,48 @@ impl StableFieldRegion {
         self.byte_alignment
     }
     pub const fn permits_read(&self) -> bool {
-        self.read
+        self.permissions.read
     }
     pub const fn permits_write(&self) -> bool {
-        self.write
+        self.permissions.write
+    }
+    pub const fn observation(&self) -> ObservationModel {
+        self.observation
+    }
+    pub const fn transfer_width_bits(&self) -> u16 {
+        self.transfer_width_bits
+    }
+    pub const fn permissions(&self) -> AccessPermissions {
+        self.permissions
+    }
+    /// The same permission applies independently to each complete scalar leaf.
+    /// This is demand data; projection still authenticates its bounded offset.
+    pub fn scalar_access(&self) -> FieldAccess {
+        match self.observation {
+            ObservationModel::Stable => FieldAccess::Stable {
+                transfer_width_bits: self.transfer_width_bits,
+                read: self.permissions.read,
+                write: self.permissions.write,
+                exposure: self.exposure,
+            },
+            ObservationModel::External => FieldAccess::External {
+                transfer_width_bits: self.transfer_width_bits,
+                read: if self.permissions.take {
+                    ExternalRead::Take
+                } else if self.permissions.read {
+                    ExternalRead::Read
+                } else {
+                    ExternalRead::None
+                },
+                write: self.permissions.write,
+                exposure: self.exposure,
+            },
+            ObservationModel::Atomic => FieldAccess::Atomic {
+                transfer_width_bits: self.transfer_width_bits,
+                operations: self.permissions.atomic,
+                exposure: self.exposure,
+            },
+        }
     }
     pub const fn exposure(&self) -> AccessExposure {
         self.exposure
@@ -621,13 +683,13 @@ impl ValidatedAccessPlan {
         &self.fields
     }
 
-    pub fn stable_region(&self, key: AccessFieldKey) -> Option<&StableFieldRegion> {
+    pub fn field_region(&self, key: AccessFieldKey) -> Option<&FieldRegion> {
         self.field(key)?;
-        self.stable_regions.iter().find(|region| region.key == key)
+        self.field_regions.iter().find(|region| region.key == key)
     }
 
-    pub fn stable_regions(&self) -> &[StableFieldRegion] {
-        &self.stable_regions
+    pub fn field_regions(&self) -> &[FieldRegion] {
+        &self.field_regions
     }
 
     pub const fn layout_size_bytes(&self) -> u64 {
@@ -645,7 +707,7 @@ impl ValidatedAccessPlan {
             AccessPlanDiagnostic("field key does not belong to the validated access plan".into())
         })?;
         let descriptor = self.field_descriptor(key).ok_or_else(|| {
-            AccessPlanDiagnostic(if self.stable_region(key).is_some() {
+            AccessPlanDiagnostic(if self.field_region(key).is_some() {
                 format!(
                     "field `{}` requires a checked structural projection before primitive access",
                     entry.field
@@ -663,11 +725,11 @@ impl ValidatedAccessPlan {
         })
     }
 
-    /// Bind a compiler-resolved leaf to its parent Stable region. The semantic
+    /// Bind a compiler-resolved leaf to its parent repeated region. The semantic
     /// owner must derive geometry from the retained source/accessor path; this
     /// layer checks containment and permissions, not type correspondence. No
     /// source primitive exposes this coordinate-taking internal operation.
-    pub fn authorize_stable_projection(
+    pub fn authorize_region_projection(
         &self,
         key: AccessFieldKey,
         byte_offset: u64,
@@ -676,13 +738,14 @@ impl ValidatedAccessPlan {
         source_loan: BorrowPolarity,
         operation: AccessOperation,
     ) -> Result<AuthorizedFieldAccess, AccessPlanDiagnostic> {
-        let region = self.stable_region(key).ok_or_else(|| {
+        let region = self.field_region(key).ok_or_else(|| {
             AccessPlanDiagnostic(
-                "projected field key does not name a Stable region in this plan".into(),
+                "projected field key does not name a repeated region in this plan".into(),
             )
         })?;
         let length_bytes = u64::from(transfer_width_bits / 8);
-        if transfer_width_bits == 0
+        if transfer_width_bits != region.transfer_width_bits
+            || transfer_width_bits == 0
             || transfer_width_bits > 128
             || transfer_width_bits % 8 != 0
             || !length_bytes.is_power_of_two()
@@ -694,12 +757,12 @@ impl ValidatedAccessPlan {
             || region.byte_alignment % length_bytes != 0
         {
             return Err(AccessPlanDiagnostic(
-                "Stable projection exceeds its parent region or leaf alignment".into(),
+                "projection exceeds its parent region, exact leaf width or alignment".into(),
             ));
         }
         let layout_bit_offset = byte_offset
             .checked_mul(8)
-            .ok_or_else(|| AccessPlanDiagnostic("Stable projection bit offset overflows".into()))?;
+            .ok_or_else(|| AccessPlanDiagnostic("region projection bit offset overflows".into()))?;
         let descriptor = FieldAccessDescriptor {
             key,
             field: region.field.clone(),
@@ -716,12 +779,8 @@ impl ValidatedAccessPlan {
                 byte_offset,
                 length_bytes,
             },
-            observation: ObservationModel::Stable,
-            permissions: AccessPermissions {
-                read: region.read,
-                write: region.write,
-                ..AccessPermissions::default()
-            },
+            observation: region.observation,
+            permissions: region.permissions,
             exposure: region.exposure,
         };
         authorize_descriptor(&descriptor, current_borrow, source_loan, operation)?;
