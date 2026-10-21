@@ -55,17 +55,17 @@ Check each twin with:
 omega --check samples/cli/facts/fourteen_arg_stack_calling_plan/<place>/invalid/main.omg
 ```
 
-| Place | Reject Twin | Authored Diagnostic Fragment |
-| --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
+| Place | Positive Project | Pinned Pass Fixture | Reject Twin | Pinned Fail Fixture | Authored Diagnostic Fragment |
+| --- | --- | --- | --- | --- | --- |
+| local | [`local/main.omg`](local/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_local_exit` | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_local_rejected` | `may overflow \`u64\`` |
+| field | [`field/main.omg`](field/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_field_exit` | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_field_rejected` | `may overflow \`u64\`` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_parameter_exit` | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_parameter_rejected` | `may overflow \`u64\`` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_call_result_exit` | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_call_result_rejected` | `may overflow \`u64\`` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_match_join_exit` | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_match_join_rejected` | `may overflow \`u64\`` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_const_name_exit` | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_const_name_rejected` | `may overflow \`u64\`` |
+| another state | [`other_state/main.omg`](other_state/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_other_state_exit` | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_other_state_rejected` | `may overflow \`u64\`` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_other_machine_exit` | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_other_machine_rejected` | `may overflow \`u64\`` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | `tests/omega/pass/facts/fourteen_arg_stack_calling_plan_through_target_body_exit` | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/fail/facts/fourteen_arg_stack_calling_plan_through_target_body_rejected` | `may overflow \`u64\`` |
 
 ## Requirements and Evidence
 
