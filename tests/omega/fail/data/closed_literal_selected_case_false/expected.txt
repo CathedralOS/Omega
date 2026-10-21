@@ -1,0 +1,1 @@
+data `Packet` case `Ready` literal violates the case constraint

@@ -5,6 +5,13 @@
 //! preserves nested projections without importing the constructor's own invariant.
 //! A copied field cannot become a later version of its source after a sibling
 //! writes that source. Every reachable entry must establish each predicate.
+//!
+//! Closed literal operands have no storage observations or effects to replay.
+//! Try their exact terms with an empty judge first, sharing the ordinary field
+//! substitution and predicate judgment. This avoids repeatedly walking a large
+//! enclosing constructor for each nested literal (notably reflected schemas).
+//! Only an entirely proven result skips prefix observation; independent field,
+//! omission and nested-construction admission still runs in the caller.
 
 use super::citations::CitationFacts;
 use super::refuted_requires::instantiated_selected_fact_judgment;
@@ -14,7 +21,7 @@ use super::structural_prefix::{
     StructuralPrefixSite, StructuralPrefixVisitor, expression_is_transition_target,
     observe_acyclic_invocation_prefix, observe_runtime_state_prefix,
 };
-use typed_trees::expression::{ExpressionHandle, TableStructLiteral};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::signature::StateParameter;
 use typed_trees::{machine::Machine, state::State};
 
@@ -35,12 +42,7 @@ pub(crate) fn construction_predicate_judgments(
         site: StructuralPrefixSite {
             state: state.symbol,
             statement_index,
-            in_transition_target: expression_is_transition_target(
-                program,
-                state,
-                statement_index,
-                expression,
-            ),
+            in_transition_target: false,
         },
         expression,
         literal,
@@ -49,6 +51,13 @@ pub(crate) fn construction_predicate_judgments(
         observed: false,
         judgments: vec![StructuralJudgment::Proven; predicates.len()],
     };
+    if let Some(judgments) = visitor.closed_literal_judgments(program, machine, state) {
+        return judgments;
+    }
+    // Searching the enclosing transition is part of prefix observation, not
+    // literal proof. Delay its whole-root walk until that path is needed.
+    visitor.site.in_transition_target =
+        expression_is_transition_target(program, state, statement_index, expression);
     let mut incoming = visitor.clone();
     let local_complete = observe_runtime_state_prefix(program, machine, state, &mut visitor)
         .is_some()
@@ -104,6 +113,96 @@ struct ConstructionPredicates<'query> {
 }
 
 impl ConstructionPredicates<'_> {
+    fn closed_literal_judgments(
+        &self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+    ) -> Option<Vec<StructuralJudgment>> {
+        let supplied = program.expression_table.struct_fields(self.literal.fields);
+        if !supplied
+            .iter()
+            .all(|field| is_closed_literal(program, field.value))
+        {
+            return None;
+        }
+        // Do not intake state-entry domains or complete the constructor to get
+        // its operands: either would allow its own obligation to become a premise.
+        let judge = StructuralJudge::from_runtime_requires(program, machine, &[]);
+        let judgments = self.judge_operands(program, machine, state, &judge, |position| {
+            super::structural_terms::structural_term(
+                program,
+                Some((machine, state, Default::default())),
+                None,
+                supplied[position].value,
+                None,
+            )
+        });
+        judgments
+            .iter()
+            .all(|judgment| matches!(judgment, StructuralJudgment::Proven))
+            .then_some(judgments)
+    }
+
+    fn judge_operands(
+        &self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        judge: &StructuralJudge,
+        mut supplied_value: impl FnMut(usize) -> Option<StructuralTerm>,
+    ) -> Vec<StructuralJudgment> {
+        let supplied = program.expression_table.struct_fields(self.literal.fields);
+        let mut parameters = Vec::new();
+        let mut bindings = Vec::new();
+        for parameter in self.parameters {
+            let mut matches = supplied.iter().enumerate().filter(|(_, field)| {
+                crate::value_custody::struct_literals::selected_construction_field(
+                    program,
+                    self.expression,
+                    self.literal,
+                    field.field_symbol,
+                )
+                .is_some_and(|selected| selected.symbol == parameter.symbol)
+            });
+            let value = if let Some((position, _)) = matches.next() {
+                if matches.next().is_some() {
+                    None
+                } else {
+                    supplied_value(position)
+                }
+            } else {
+                // Independent omission checking still owns establishment.
+                super::structural_terms::zero_value_structural_term(
+                    program,
+                    parameter.type_reference,
+                )
+            };
+            // An unrelated field need not have a mathematical denotation.
+            // Remove its formal as well as its binding so a caller namesake
+            // cannot accidentally supply the missing observation.
+            if let Some(value) = value {
+                parameters.push(parameter.clone());
+                bindings.push((parameter.name.to_string(), value));
+            }
+        }
+        self.predicates
+            .iter()
+            .map(|&predicate| {
+                instantiated_selected_fact_judgment(
+                    program,
+                    judge,
+                    self.literal.type_symbol,
+                    &parameters,
+                    predicate,
+                    &bindings,
+                    &[],
+                    Some((machine, state)),
+                )
+            })
+            .collect()
+    }
+
     fn retain(&mut self, predicate_index: usize, judgment: StructuralJudgment) {
         self.judgments[predicate_index] = match (self.judgments[predicate_index], judgment) {
             (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
@@ -175,55 +274,39 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
                 }
                 continue;
             }
-            let mut parameters = Vec::new();
-            let mut bindings = Vec::new();
-            for parameter in self.parameters {
-                let mut matches = supplied.iter().enumerate().filter(|(_, field)| {
-                    crate::value_custody::struct_literals::selected_construction_field(
-                        program,
-                        self.expression,
-                        self.literal,
-                        field.field_symbol,
-                    )
-                    .is_some_and(|selected| selected.symbol == parameter.symbol)
-                });
-                let value = if let Some((position, _)) = matches.next() {
-                    if matches.next().is_some() {
-                        None
-                    } else {
+            if let Some(state) = program.state_in_machine(machine, self.site.state) {
+                let judgments =
+                    self.judge_operands(program, machine, state, &entry.judge, |position| {
                         entry.arguments.get(position).cloned()
-                    }
-                } else {
-                    // Independent omission checking still owns establishment.
-                    // An unrelated field need not have a mathematical denotation
-                    // to prove a predicate about another field. Only observed
-                    // fields enter the formal substitution; an unsupported field
-                    // therefore declines instead of resolving a caller namesake.
-                    super::structural_terms::zero_value_structural_term(
-                        program,
-                        parameter.type_reference,
-                    )
-                };
-                if let Some(value) = value {
-                    parameters.push(parameter.clone());
-                    bindings.push((parameter.name.to_string(), value));
+                    });
+                for (predicate_index, judgment) in judgments.into_iter().enumerate() {
+                    self.retain(predicate_index, judgment);
                 }
             }
-            for (predicate_index, &predicate) in self.predicates.iter().enumerate() {
-                let judgment = instantiated_selected_fact_judgment(
-                    program,
-                    &entry.judge,
-                    self.literal.type_symbol,
-                    &parameters,
-                    predicate,
-                    &bindings,
-                    &[],
-                    program
-                        .state_in_machine(machine, self.site.state)
-                        .map(|state| (machine, state)),
-                );
-                self.retain(predicate_index, judgment);
-            }
         }
+    }
+}
+
+/// Eligibility only, never an evaluator or a construction certificate. In
+/// particular names, calls, casts and reads must use occurrence snapshots even
+/// when the general term producer could assign them a mathematical denotation.
+fn is_closed_literal(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::String(_) => true,
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| is_closed_literal(program, field.value)),
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .all(|&element| is_closed_literal(program, element)),
+        _ => false,
     }
 }

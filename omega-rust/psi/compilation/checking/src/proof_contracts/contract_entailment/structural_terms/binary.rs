@@ -75,6 +75,12 @@ pub(crate) fn binary_term_in_scope(
     let state_scope = scope
         .map(|(machine, state, _)| (machine, state))
         .or_else(|| {
+            // A declaration frame already owns both the operator and operand
+            // types below. Walking a data field's ancestors through every
+            // machine cannot contribute a runtime scope to that decision.
+            if frame.is_some() {
+                return None;
+            }
             expression_scope(program, expression, 0)
                 .and_then(|symbol| scoped_machine_state(program, symbol))
         });

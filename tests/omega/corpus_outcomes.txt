@@ -1362,6 +1362,12 @@ fail/data/bare_payload_case_equality_suggests_in rejected 743ms expected @39840d
 fail/data/boundary_data_construction_rejected rejected 871ms expected @a9ae30e1c334+wt
 fail/data/boundary_data_relaxed_carry_unadmitted rejected 831ms expected @a9ae30e1c334+wt
 fail/data/case_payload_equality_interim rejected 47ms expected @a9ae30e1c334+wt
+fail/data/closed_literal_nested_predicate_false rejected 187ms expected @d81382f05a6c+wt
+	data `Cell` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/data/closed_literal_omitted_zero_invalid rejected 174ms expected @d81382f05a6c+wt
+	data `Cell` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/data/closed_literal_selected_case_false rejected 170ms expected @d81382f05a6c+wt
+	data `Packet` case `Ready` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/constructor_case_payload_call_result_window rejected 519ms expected @408e4fc23fbc
 fail/data/constructor_distinct_field_versions rejected 183ms expected @408e4fc23fbc
 fail/data/constructor_prior_operand_write rejected 181ms expected @408e4fc23fbc
@@ -9163,6 +9169,7 @@ pass/core/vacant_extent_partition_endpoints checked 2333ms @61fab13095e7+wt
 pass/core/zii_default_composite_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/case_first_payload_zero_established checked 1779ms @a9ae30e1c334+wt
 pass/data/case_membership_union_guard_exit checked 12174ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/data/closed_literal_nested_predicates checked 457ms @d81382f05a6c+wt
 pass/data/match_exhaustive_by_case_union_domain checked 11952ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 11549ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/opaque_copy_selected checked 11297ms check-target:macos_arm64 @a9ae30e1c334+wt
