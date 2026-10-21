@@ -6,6 +6,81 @@ use super::{
 };
 use crate::ValueId;
 
+fn predicate_exchange_alternatives() -> (Proposition, Proposition) {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let subject = ScalarTerm::value(ValueId::FIRST, ScalarType::Integer(integer));
+    let zero = ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).expect("zero");
+    let one = ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).expect("one");
+    (
+        Proposition::Equal(subject.clone(), zero),
+        Proposition::Equal(subject, one),
+    )
+}
+
+#[test]
+fn predicate_exchange_keeps_every_disjunction_alternative() {
+    let (zero, one) = predicate_exchange_alternatives();
+    let duplicated = Proposition::Disjunction(vec![zero.clone(), zero.clone()]);
+    let widened = Proposition::Disjunction(vec![zero, one]);
+    assert!(!duplicated.same_commutative_predicate(&widened));
+    assert!(!widened.same_commutative_predicate(&duplicated));
+}
+
+#[test]
+fn predicate_exchange_keeps_every_conjunction_requirement() {
+    let (zero, one) = predicate_exchange_alternatives();
+    let duplicated = Proposition::Conjunction(vec![zero.clone(), zero.clone()]);
+    let complete = Proposition::Conjunction(vec![zero, one]);
+    assert!(!duplicated.same_commutative_predicate(&complete));
+    assert!(!complete.same_commutative_predicate(&duplicated));
+}
+
+#[test]
+fn predicate_exchange_preserves_reordering_and_duplicate_equivalence() {
+    let (zero, one) = predicate_exchange_alternatives();
+    let left = Proposition::Disjunction(vec![zero.clone(), one.clone(), zero.clone()]);
+    let right = Proposition::Disjunction(vec![one.clone(), one, zero]);
+    assert!(left.same_commutative_predicate(&right));
+    assert!(right.same_commutative_predicate(&left));
+    let repeated = Proposition::Disjunction(vec![left.clone(), left.clone()]);
+    let more_repetitions = Proposition::Disjunction(vec![right.clone(), right.clone(), right]);
+    assert!(repeated.same_commutative_predicate(&more_repetitions));
+    assert!(more_repetitions.same_commutative_predicate(&repeated));
+}
+
+#[test]
+fn predicate_exchange_retains_other_logical_structure() {
+    let (zero, one) = predicate_exchange_alternatives();
+    let conjunction = Proposition::Conjunction(vec![zero.clone(), one.clone()]);
+    let disjunction = Proposition::Disjunction(vec![zero.clone(), one.clone()]);
+    let forward = Proposition::Implication {
+        premise: Box::new(zero.clone()),
+        conclusion: Box::new(one.clone()),
+    };
+    let backward = Proposition::Implication {
+        premise: Box::new(one),
+        conclusion: Box::new(zero),
+    };
+    assert!(!conjunction.same_commutative_predicate(&disjunction));
+    assert!(!forward.same_commutative_predicate(&backward));
+}
+
+#[test]
+fn predicate_exchange_preserves_symmetric_equality_and_subject_identity() {
+    let (zero, _) = predicate_exchange_alternatives();
+    let Proposition::Equal(subject, literal) = zero.clone() else {
+        panic!("equality");
+    };
+    let reversed = Proposition::Equal(literal.clone(), subject);
+    assert!(zero.same_commutative_predicate(&reversed));
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let foreign_subject = ScalarTerm::value(
+        ValueId::new(2).expect("other subject"),
+        ScalarType::Integer(integer),
+    );
+    assert!(!zero.same_commutative_predicate(&Proposition::Equal(foreign_subject, literal)));
+}
+
 #[test]
 fn ieee_float_field_terms_retain_format_and_structural_dependencies() {
     use crate::{

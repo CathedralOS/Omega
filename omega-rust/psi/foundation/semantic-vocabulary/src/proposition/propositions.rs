@@ -78,6 +78,36 @@ pub enum Proposition {
 }
 
 impl Proposition {
+    /// Compare predicate structure under equality-operand exchange and Boolean
+    /// child order/idempotence. This is not implication, formation validation,
+    /// or a general logical normalizer: typed terms, roots, other operators
+    /// and nesting retain their identities. Canonical wire admission remains
+    /// the caller's separate obligation.
+    pub fn same_commutative_predicate(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Equal(left_a, left_b), Self::Equal(right_a, right_b)) => {
+                (left_a == right_a && left_b == right_b) || (left_a == right_b && left_b == right_a)
+            }
+            (Self::Disjunction(left), Self::Disjunction(right))
+            | (Self::Conjunction(left), Self::Conjunction(right)) => {
+                // Equal lengths plus one-way coverage is not set equality:
+                // [P, P] would match [P, Q] and could mint P for a Q-only value.
+                // Normalization can create duplicates even from distinct
+                // encoded children, so canonical input order cannot replace
+                // the reverse coverage check.
+                left.iter().all(|row| {
+                    right
+                        .iter()
+                        .any(|other| row.same_commutative_predicate(other))
+                }) && right.iter().all(|row| {
+                    left.iter()
+                        .any(|other| row.same_commutative_predicate(other))
+                })
+            }
+            _ => self == other,
+        }
+    }
+
     /// The (left, right) scalar terms, if this proposition is an equality.
     pub fn as_equal(&self) -> Option<(&ScalarTerm, &ScalarTerm)> {
         let Proposition::Equal(left, right) = self else {

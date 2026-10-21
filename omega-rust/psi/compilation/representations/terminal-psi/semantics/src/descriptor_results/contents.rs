@@ -457,7 +457,7 @@ fn admit_declared_scalar_refinement(
         // Domain rows lower a comparison as `true = (left ~ right)`. The
         // carrier refinement states that comparison directly.
         normalize_boolean_comparison(&mut proposition);
-        if same_declared_predicate(&proposition, refinement.predicate()) {
+        if proposition.same_commutative_predicate(refinement.predicate()) {
             contract.qualifications.push(domain.id);
         }
     }
@@ -612,30 +612,6 @@ fn normalize_boolean_comparison(proposition: &mut semantic_vocabulary::Propositi
             normalize_boolean_comparison(conclusion);
         }
         _ => {}
-    }
-}
-
-/// Equality and Boolean connectives compare as sets. Operand order inside one
-/// equality is not part of the declared theory.
-fn same_declared_predicate(
-    left: &semantic_vocabulary::Proposition,
-    right: &semantic_vocabulary::Proposition,
-) -> bool {
-    use semantic_vocabulary::Proposition;
-    match (left, right) {
-        (Proposition::Equal(left_a, left_b), Proposition::Equal(right_a, right_b)) => {
-            (left_a == right_a && left_b == right_b) || (left_a == right_b && left_b == right_a)
-        }
-        (Proposition::Disjunction(left), Proposition::Disjunction(right))
-        | (Proposition::Conjunction(left), Proposition::Conjunction(right)) => {
-            left.len() == right.len()
-                && left.iter().all(|row| {
-                    right
-                        .iter()
-                        .any(|other| same_declared_predicate(row, other))
-                })
-        }
-        _ => left == right,
     }
 }
 
