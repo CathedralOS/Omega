@@ -172,9 +172,13 @@ The applicable requirement categories above extend through the component edge:
 - Encoding emits a distinct Linux ELF shared component with a strong
   image/slot-qualified protected export. The root names its content-addressed
   sibling in `DT_NEEDED`; GNU version requirements cover actual versioned
-  foreign objects. Ordinary publication retains and validates the exact root
-  and component bytes before process execution. This initial process route
-  does not establish hot replacement, stable-handle eras or cross-host loading.
+  foreign objects. Canonical macOS checking realizes a separate `MH_DYLIB`
+  with an exact export trie and `@loader_path` sibling binding, using its own
+  segment indices for rebases and eager imports. Ordinary flat publication
+  retains distinct root and component receipts and validates their exact bytes.
+  The macOS files have been produced on Linux; their execution is unobserved.
+  This initial process route does not establish hot replacement, stable-handle
+  eras or cross-host loading.
 
 Raw observations remain in the existing swarm qualification record, bound to
 actual producer revisions and accepted project locks. Full provider/carrier/

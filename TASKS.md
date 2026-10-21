@@ -4401,8 +4401,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   x86-64 across transport places, with cleanup-only rejects. Its named constants
   are construction inputs, not compile-time opaque occurrences. Matching-host
   qualification on macOS/Linux ARM64 and a verified Windows provider remain;
-  entry declarations do not establish those results. Independent-component
-  composition and mismatched-component admission also remain open.
+  entry declarations do not establish those results. Independent two-package
+  closed Inert results now preserve the same exchange across all nine places
+  with Linux native/Terminal agreement and cleanup twins; canonical macOS
+  checking realizes separate dylib products, without macOS execution evidence.
+  Same-layout carrier drift rejects at the exact composition join. Opaque input
+  arguments and the remaining provider, target, lifecycle, multiplicity and
+  historical-selection mismatch controls remain open.
   `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
   derives occurrence paths and placements; connect them to provider call-frame
   transport and backend emission. Physical copies preserve one semantic
