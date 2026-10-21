@@ -2285,6 +2285,8 @@ fail/facts/boundary_provider_call_through_target_body_rejected rejected 19568ms 
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/bounded_activation_escape_rejected rejected 15715ms expected @03517371da00
 	activation claim cannot escape its owning activation through return from escape state escape::entry at statement 0
+fail/facts/bounded_activation_extent_composition_rejected rejected 1104ms expected @96673576ab49+wt
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation co-live bound leaves closed stack demand open")))
 fail/facts/bounded_activation_release_order_rejected rejected 38642ms expected @03517371da00
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claims must release in reverse establishment order in their owning activation")))
 fail/facts/bounded_activation_stale_loan_rejected rejected 14297ms expected @03517371da00
@@ -10736,6 +10738,7 @@ pass/facts/boundary_provider_call_through_other_state_exit checked 83776ms check
 pass/facts/boundary_provider_call_through_parameter_exit checked 84256ms check-target:macos_arm64 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_target_body_exit checked 84193ms check-target:macos_arm64 @2f87a2fd7fac+wt
 pass/facts/bounded_activation_cleanup_crossing_exit checked 1147ms check-target:macos_arm64 @26348267c99f+wt
+pass/facts/bounded_activation_extent_composition_exit checked 1168ms check-target:macos_arm64 @96673576ab49+wt
 pass/facts/bounded_activation_through_call_result_exit checked 13151ms check-target:macos_arm64 @f74c72195fbf+wt
 pass/facts/bounded_activation_through_const_name_exit checked 13627ms check-target:macos_arm64 @f74c72195fbf+wt
 pass/facts/bounded_activation_through_field_exit checked 15654ms check-target:macos_arm64 @f74c72195fbf+wt

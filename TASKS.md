@@ -6155,10 +6155,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   - An admitted claim keeps its caller home across suspension, including a
     nominal cleanup of a different carrier. `bounded_activation_cleanup_crossing_exit`
     exits 0 on both engines; the claim's place is that storage role. An
-    unselected admission still cannot cross. Remaining: extent
-    splitting/merging and further target execution. Co-live bounds sum
-    (aligned); exclusive branches compose by maximum; open demand still
-    rejects before establishment. Backing does not move.
+    unselected admission still cannot cross. Co-live bounds of 8 and 8 inside
+    bound 16, and exclusive branches of 16 and 12, exit 0 in
+    `extent_composition`. A co-live sum that overflows the closed demand
+    rejects before establishment. Remaining: splitting one claim into children
+    that cover it and merging those children, then further target execution.
+    Open demand still rejects before establishment. Backing does not move.
   Acceptance: a run fixture where `committed > bound` returns checked failure
   (no trap or clamp) and a within-bound claim executes; escaping claims, wrong
   activation, stale loans and invalid release order reject. **FRAME-LAYOUT** in

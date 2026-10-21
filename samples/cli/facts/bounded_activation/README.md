@@ -60,7 +60,7 @@ mechanism witnesses:
 | other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Linear `ActivationClaim` carried across state transition `state hop(claim) -> state established(claim)`. |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Cross-machine `Accessor::write_read(bytes)` accesses the borrowed activation slice before release. |
 | target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped `target_exercise` bodies across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. |
-| `field_transport`, `parameter_committed`, `named_attempt`, `named_bound`, `computed_bound`, `generic_bound`, `zero_bound`, `unsigned_max_request`, `nested_lifo`, `multiple_bounds`, `cleanup_pure`, `page_bound` | `<witness>/main.omg` | `tests/omega/fail/facts/bounded_activation_*_rejected` | Specialized mechanism witnesses for generic/computed/page bounds, co-live LIFO claims, and pure nominal cleanup hooks. |
+| `field_transport`, `parameter_committed`, `named_attempt`, `named_bound`, `computed_bound`, `generic_bound`, `zero_bound`, `unsigned_max_request`, `nested_lifo`, `multiple_bounds`, `cleanup_pure`, `page_bound`, `extent_composition` | `<witness>/main.omg` | `tests/omega/fail/facts/bounded_activation_*_rejected` | Specialized mechanism witnesses for generic/computed/page bounds, co-live LIFO claims, bound composition, and pure nominal cleanup hooks. |
 
 Matching `bounded_activation_*` and `bounded_activation_through_<place>_{exit,rejected}` corpus fixtures pin both engine exits as zero and verify source-check rejections.
 Source assertions check extent and contents; those values are not printed
@@ -89,8 +89,8 @@ measurements. Perturbing a single token in the root oracle (`observed == 37u8` -
   - `tests/omega/fail/facts/bounded_activation_through_other_machine_rejected`
   - `tests/omega/fail/facts/bounded_activation_through_target_body_rejected`
 - Additional mechanism & control fixtures:
-  - `tests/omega/pass/facts/bounded_activation_{main,field_transport,parameter_committed,named_attempt,named_bound,computed_bound,generic_bound,zero_bound,unsigned_max_request,nested_lifo,multiple_bounds,cleanup_pure,cleanup_crossing,page_bound}_exit`
-  - `tests/omega/fail/facts/bounded_activation_{escape,stale_loan,wrong_activation,release_order}_rejected`
+  - `tests/omega/pass/facts/bounded_activation_{main,field_transport,parameter_committed,named_attempt,named_bound,computed_bound,generic_bound,zero_bound,unsigned_max_request,nested_lifo,multiple_bounds,cleanup_pure,cleanup_crossing,page_bound,extent_composition}_exit`
+  - `tests/omega/fail/facts/bounded_activation_{escape,stale_loan,wrong_activation,release_order,extent_composition}_rejected`
 
 | Obligation Class | How This Fact Row Establishes It |
 |---|---|
@@ -117,8 +117,12 @@ This establishes the bounded serial path through source checking, checked-to-
 Terminal lowering, current optimized semantics, ordinary calling plans, fixed
 frame realization, instruction selection and native image emission, including
 retention of an admitted claim across that suspension. No provider supplies
-the grant. Extent splitting and merging, partial mutable-owner windows, and
-further target execution remain open.
+the grant. `extent_composition` keeps two 8-byte claims live inside bound 16
+and then takes one of the exclusive 16-byte and 12-byte branches; both engines
+exit 0. Two co-live bounds that sum past the closed demand reject before
+establishment with `activation co-live bound leaves closed stack demand open`.
+Splitting one claim into covering children and merging those children, partial
+mutable-owner windows, and further target execution remain open.
 
 Invocation-local ignored `build/activation-slot4` retains producer identities,
 canonical passages with source revisions, raw observations, qualification and
