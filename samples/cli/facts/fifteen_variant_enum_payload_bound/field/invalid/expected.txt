@@ -1,1 +1,1 @@
-error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
