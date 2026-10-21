@@ -934,8 +934,7 @@ pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 1
 pass/control_flow/runtime_parameter_index_state_loan_exit built 10551ms exit:0 @589aedee8ebc+wt
 pass/control_flow/runtime_projected_case_large_offset_exit built 5014ms exit:70 @441e8f33f8c7+wt
 pass/control_flow/runtime_projected_case_payload_forwarding_exit built 1757ms exit:70 @441e8f33f8c7+wt
-pass/control_flow/runtime_projected_case_payload_snapshots_exit rejected 722ms @2e8db3108ed0
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "retained state loan home has different selected cleanup partitions", gap: None })
+pass/control_flow/runtime_projected_case_payload_snapshots_exit built 2012ms exit:0 @a033397f1dba
 pass/control_flow/runtime_projected_index_case_payload_forwarding_exit built 3843ms exit:70 @0c36a0fe0b35
 pass/control_flow/runtime_projected_index_single_case_payload_exit built 2297ms exit:70 @0c36a0fe0b35
 pass/control_flow/runtime_projected_single_case_payload_exit built 1166ms exit:70 @441e8f33f8c7+wt

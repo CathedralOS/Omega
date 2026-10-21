@@ -11,8 +11,8 @@ use crate::LoweringError;
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalMachine, Terminator,
+    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 
 pub(super) fn finish(
@@ -96,38 +96,49 @@ fn authenticate_home_dispositions(
 /// Retain the checked ordered disposition, including contextual nominal
 /// invocations. Source checking discharges their requirements after the lending
 /// successor's normal completion. Storage lifetime grants no new disposition.
+///
+/// One home's checked death is one partition, and a case-selected graph may
+/// slice it across whichever edges its arms actually reach: the whole-home
+/// action on the state's own exits, and a regional death of one arm's selected
+/// subtree elsewhere. A whole-home action already selects every region it
+/// contains, so it decides the disposition and every strictly smaller death on
+/// the same home is one of its slices rather than a competing selection; two
+/// different whole-home actions stay refused. Without one, the home's selected
+/// partitions must agree, and the one relaxation is that slices of a checked
+/// partition are disjoint: two occurrences may each name a different cell of
+/// the same death, while two that overlap are one home dying twice and are
+/// refused.
 pub(super) fn whole_home_actions(
     machine: &TerminalMachine,
     home: PlaceId,
 ) -> Result<Option<Vec<TerminalAffineCleanupAction>>, LoweringError> {
+    let mut whole_home: Option<TerminalAffineCleanupAction> = None;
     let mut found: Option<Vec<TerminalAffineCleanupAction>> = None;
     for block in &machine.blocks {
         for (_, actions) in block.terminator.cleanup_rosters() {
-            let selected = actions
-                .iter()
-                .filter(|action| action.place() == home)
-                .cloned()
-                .collect::<Vec<_>>();
+            let selected = normalized_home_actions(actions, home);
             if selected.is_empty() {
                 continue;
             }
-            // Obligation slots belong to occurrences, not the disposition's
-            // authority. Compare the entire ordered receiver/target roster.
-            let normalized = |actions: &[TerminalAffineCleanupAction]| {
-                actions
-                    .iter()
-                    .cloned()
-                    .map(|mut action| {
-                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = &mut action {
-                            cleanup.requirement_obligations.clear();
-                        }
-                        action
-                    })
-                    .collect::<Vec<_>>()
-            };
-            if found
-                .as_ref()
-                .is_some_and(|prior| normalized(prior) != normalized(&selected))
+            if let Some(claim) = selected
+                .iter()
+                .find(|action| disposes_whole_home(action, home))
+            {
+                if whole_home.as_ref().is_some_and(|prior| *prior != *claim) {
+                    return Err(LoweringError::Unsupported(
+                        "retained state loan home has different selected cleanup partitions",
+                    ));
+                }
+                whole_home.get_or_insert(claim.clone());
+                continue;
+            }
+            // Without a whole-home action the occurrences must agree, except
+            // that disjoint regional deaths compose one checked partition.
+            let disagrees = found.as_ref().is_some_and(|prior| *prior != selected);
+            if disagrees
+                && !found
+                    .as_ref()
+                    .is_some_and(|prior| disjoint_regional_deaths(prior, &selected))
             {
                 return Err(LoweringError::Unsupported(
                     "retained state loan home has different selected cleanup partitions",
@@ -136,7 +147,72 @@ pub(super) fn whole_home_actions(
             found.get_or_insert(selected);
         }
     }
-    Ok(found)
+    // Disposal authority stays with `authenticate_home_dispositions`, which
+    // requires the whole-home `[DiscardRoot(home)]` no-code action.
+    Ok(whole_home.map(|action| vec![action]).or(found))
+}
+
+/// The home's own slice of one roster, with obligation slots removed: those
+/// belong to occurrences, not to the disposition's authority.
+fn normalized_home_actions(
+    actions: &[TerminalAffineCleanupAction],
+    home: PlaceId,
+) -> Vec<TerminalAffineCleanupAction> {
+    actions
+        .iter()
+        .filter(|action| action.place() == home)
+        .cloned()
+        .map(|mut action| {
+            if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = &mut action {
+                cleanup.requirement_obligations.clear();
+            }
+            action
+        })
+        .collect()
+}
+
+/// Two occurrences whose only difference is that each names a different region
+/// of the same checked partition still describe one death of that home.
+fn disjoint_regional_deaths(
+    left: &[TerminalAffineCleanupAction],
+    right: &[TerminalAffineCleanupAction],
+) -> bool {
+    let regions = |actions: &[TerminalAffineCleanupAction]| {
+        actions
+            .iter()
+            .map(|action| match action {
+                TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard.clone()),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+    };
+    let (Some(left), Some(right)) = (regions(left), regions(right)) else {
+        return false;
+    };
+    !left.is_empty()
+        && !right.is_empty()
+        && !left.iter().any(|earlier| {
+            right
+                .iter()
+                .any(|discard| residual_regions_overlap(earlier, discard))
+        })
+}
+
+/// One action's claim that the whole home dies here. `DiscardRoot` selects the
+/// home's entire region; `RetireHome` only ends its frame epoch after a
+/// separate disposal partition and selects no region of its own.
+fn disposes_whole_home(action: &TerminalAffineCleanupAction, home: PlaceId) -> bool {
+    matches!(action, TerminalAffineCleanupAction::DiscardRoot(place) if *place == home)
+}
+
+fn residual_regions_overlap(
+    left: &StructuralAffineDiscard,
+    right: &StructuralAffineDiscard,
+) -> bool {
+    left.place == right.place
+        && (left.path.starts_with(right.path.as_slice())
+            || right.path.starts_with(left.path.as_slice())
+            || terminal_semantics::structural_paths_may_overlap(&left.path, &right.path))
 }
 
 pub(super) fn whole_home_disposition(
