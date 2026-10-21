@@ -101,6 +101,24 @@ fail/arithmetic/indexed_divisor_copied_selector_write rejected 820ms expected @a
 fail/arithmetic/indexed_divisor_selector_write rejected 817ms expected @a9ae30e1c334+wt
 fail/arithmetic/indexed_divisor_storage_write rejected 886ms expected @a9ae30e1c334+wt
 fail/arithmetic/indexed_divisor_wrong_collection rejected 837ms expected @a9ae30e1c334+wt
+fail/arithmetic/integer_multiple_remainder_exact_overflow rejected 309ms expected @dbebd59811f6+wt
+	data `Zero` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	exact arithmetic in construction of `Zero` field `value` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `invalid` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/integer_multiple_remainder_saturation rejected 309ms expected @dbebd59811f6+wt
+	data `Zero` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/arithmetic/integer_multiple_remainder_signed_minimum rejected 310ms expected @dbebd59811f6+wt
+	data `Zero` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	partial exact remainder in construction of `Zero` field `value`: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
+	partial exact remainder in machine `invalid` state `entry` terminal expression: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/integer_multiple_remainder_stale_capture rejected 310ms expected @dbebd59811f6+wt
+	data `Even` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/arithmetic/integer_multiple_remainder_wrapping rejected 307ms expected @dbebd59811f6+wt
+	data `Zero` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/arithmetic/integer_multiple_remainder_zero_divisor rejected 307ms expected @dbebd59811f6+wt
+	data `Zero` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	remainder by zero in construction of `Zero` field `value`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+	remainder by zero in machine `invalid` state `entry` terminal expression: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit rejected 877ms expected @a9ae30e1c334+wt
 fail/arithmetic/match_constructor_divisor_requires_nonzero rejected 862ms expected @a9ae30e1c334+wt
 fail/arithmetic/mixed_signed_exclusion_has_no_sign rejected 3981ms expected @7875d3411f26+wt
@@ -3919,6 +3937,27 @@ fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 3113
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 2890ms expected @cd657b07c6e2+wt
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/integer_multiple_remainder_call_result rejected 311ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/integer_multiple_remainder_const_name rejected 311ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/integer_multiple_remainder_field rejected 310ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/integer_multiple_remainder_local rejected 310ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/integer_multiple_remainder_match_join rejected 390ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/integer_multiple_remainder_other_machine rejected 390ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/integer_multiple_remainder_other_state rejected 547ms expected @dbebd59811f6+wt
+	cannot prove requires contract for call completed from probe: (count * 2 + 1 as u16) % 2 == 0 (needs fact `length % 2 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_multiple_remainder_parameter rejected 548ms expected @dbebd59811f6+wt
+	cannot prove requires contract for call receive from probe: (count * 2 + 1 as u16) % 2 == 0 (needs fact `length % 2 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_multiple_remainder_target_body rejected 273ms expected @dbebd59811f6+wt
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 3488ms expected @ff8be1e0d475
 	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 3482ms expected @ff8be1e0d475
@@ -8751,6 +8790,7 @@ pass/arithmetic/fixed_unsigned_multiply_values_survive_calls_exit checked 7506ms
 pass/arithmetic/full_width_integer_literals_compose_exit checked 12587ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/indexed_divisor_requirement checked 1676ms @a9ae30e1c334+wt
 pass/arithmetic/int_literal_suffixes checked 9774ms @5041ef1af684+wt
+pass/arithmetic/integer_multiple_remainder_exit checked 749ms check-target:macos_arm64 @dbebd59811f6+wt
 pass/arithmetic/mixed_len_compare checked 10385ms @5041ef1af684+wt
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 11904ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/negative_div_remainder checked 9987ms @5041ef1af684+wt
@@ -11302,6 +11342,15 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit checked 10468
 pass/facts/inferred_array_equation_call_through_other_state_exit checked 10003ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_parameter_exit checked 10223ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_target_body_exit checked 12212ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/integer_multiple_remainder_call_result checked 748ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_const_name checked 711ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_field checked 711ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_local checked 709ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_match_join checked 713ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_other_machine checked 704ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_other_state checked 700ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_parameter checked 808ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_target_body checked 808ms check-target:macos_arm64 @dbebd59811f6+wt
 pass/facts/integer_range_delivery_through_call_result_exit checked 8927ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_const_name_exit checked 7937ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_field_exit checked 8077ms check-target:macos_arm64 @ff8be1e0d475

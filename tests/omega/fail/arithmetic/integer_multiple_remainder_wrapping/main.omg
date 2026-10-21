@@ -1,0 +1,3 @@
+data Zero where value == 0 { value: u8 in Wrapping; }
+machine invalid(value: u8 in Wrapping) -> Zero { Zero { value: (value * 3) % 3 } }
+machine main() {}

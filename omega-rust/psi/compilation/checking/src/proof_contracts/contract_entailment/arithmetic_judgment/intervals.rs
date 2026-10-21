@@ -263,6 +263,22 @@ impl<'program> Engine<'program> {
         {
             return None;
         }
+        // Every monomial is integral. A nonzero constant dividing every
+        // coefficient therefore divides the entire polynomial, for either
+        // dividend sign under truncating remainder. Intervals alone forget
+        // this correlation (for example, (count * 2) % 2).
+        // This simplifies only the value: callers retain the original operand
+        // and divisor formation obligations, including Exact MIN % -1 and
+        // overflow in the polynomial's authored intermediate operations.
+        if let Some(divisor) = modulus.constant_value()
+            && operand.terms.values().all(|coefficient| {
+                coefficient
+                    .div_rem(&divisor)
+                    .is_some_and(|(_, remainder)| remainder.is_zero())
+            })
+        {
+            return Some(Polynomial::constant(BigInt::zero()));
+        }
         let interval = self.remainder_interval(&operand, &modulus, tight_interval);
         // Match quotient identity: normalized operands, not source spelling.
         // The private prefix cannot collide with an authored parameter name.

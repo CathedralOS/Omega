@@ -1,0 +1,1 @@
+signed `MIN / -1` primitive pair must be excluded
