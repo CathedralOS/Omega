@@ -52,8 +52,8 @@ fn host_links_into_a_capture_read_captured_bytes_on_every_repeated_route() {
     let mut view = SourceFileSystem::new();
     view.add_capture(project.clone(), Arc::new(tree)).unwrap();
 
-    // Repeated routes share one link observation per prefix; the answer must
-    // stay the captured backing, never the host file behind the alias.
+    // Repeated routes must stay on the captured backing, never the host file
+    // behind the alias.
     for _ in 0..2 {
         let read = |path: &Path| view.read_to_string(path).unwrap().to_string();
         assert_eq!(read(&alias.join("main.omg")), "captured");
@@ -63,7 +63,96 @@ fn host_links_into_a_capture_read_captured_bytes_on_every_repeated_route() {
         assert!(!view.exists(&alias.join("missing.omg")));
     }
 
-    // Clones share observations but compare by mounts alone.
+    // Clones preserve the mounted source view.
     assert_eq!(view.clone(), view);
     assert_ne!(view, SourceFileSystem::new());
+}
+
+#[cfg(unix)]
+fn changing_host_alias_enters_capture(start_with_link: bool) {
+    let directory = temporary_directory();
+    let project = directory.0.join("project");
+    let outside = directory.0.join("outside");
+    let alias = directory.0.join("alias");
+    std::fs::create_dir(&project).unwrap();
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::write(project.join("main.omg"), "live capture disk").unwrap();
+    std::fs::write(project.join("missing.omg"), "disk only").unwrap();
+    std::fs::write(outside.join("main.omg"), "outside").unwrap();
+    std::fs::write(outside.join("missing.omg"), "outside missing").unwrap();
+    if start_with_link {
+        std::os::unix::fs::symlink(&outside, &alias).unwrap();
+    } else {
+        std::fs::create_dir(&alias).unwrap();
+        std::fs::write(alias.join("main.omg"), "outside").unwrap();
+        std::fs::write(alias.join("missing.omg"), "outside missing").unwrap();
+    }
+    let tree = CapturedSourceTree::new([
+        (
+            PathBuf::from("main.omg"),
+            captured_file("captured immutable"),
+        ),
+        (
+            PathBuf::from("captured_directory"),
+            CapturedSourceNode::Directory,
+        ),
+    ])
+    .unwrap();
+    let mut view = SourceFileSystem::new();
+    view.add_capture(project.clone(), Arc::new(tree)).unwrap();
+    let clone = view.clone();
+    assert_eq!(
+        view.read_to_string(&alias.join("main.omg"))
+            .unwrap()
+            .as_ref(),
+        "outside"
+    );
+    assert!(view.exists(&alias.join("missing.omg")));
+    if start_with_link {
+        std::fs::remove_file(&alias).unwrap();
+    } else {
+        std::fs::remove_dir_all(&alias).unwrap();
+    }
+    std::os::unix::fs::symlink(&project, &alias).unwrap();
+
+    for view in [&view, &clone] {
+        assert_eq!(
+            view.read_to_string(&alias.join("main.omg"))
+                .unwrap()
+                .as_ref(),
+            "captured immutable"
+        );
+        assert_eq!(
+            view.canonicalize(&alias.join("main.omg")).unwrap(),
+            project.join("main.omg")
+        );
+        assert!(view.is_file(&alias.join("main.omg")));
+        assert!(view.is_dir(&alias.join("captured_directory")));
+        assert!(!view.exists(&alias.join("missing.omg")));
+        assert!(!view.is_file(&alias.join("missing.omg")));
+        assert_eq!(
+            view.read_to_string(&alias.join("missing.omg"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(
+            view.canonicalize(&alias.join("missing.omg"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn replaced_host_directory_cannot_bypass_a_capture() {
+    changing_host_alias_enters_capture(false);
+}
+
+#[cfg(unix)]
+#[test]
+fn retargeted_host_link_cannot_bypass_a_capture() {
+    changing_host_alias_enters_capture(true);
 }
