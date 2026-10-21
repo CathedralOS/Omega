@@ -1050,6 +1050,7 @@ pass/dependent/data_where_relational_callee_restored_exit built 971ms exit:70 @a
 pass/dependent/data_where_standing_bound_exit built 584ms exit:70
 pass/dependent/local_alias_forwards_entry_origin checked 170ms
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 187ms
+pass/dependent/runtime_borrowed_coupled_last_store_exit built 872ms exit:0 @ceb07da2eef4
 pass/dependent/runtime_dependent_subtract_exit built 579ms exit:2
 pass/dependent/runtime_requires_guarded_call_exit built 1461ms exit:6 @63377f7122bb+wt
 pass/dependent/runtime_sibling_len_index_exit built 4522ms exit:7 @4ffed225fc45+wt
@@ -2456,6 +2457,8 @@ pass/ownership/runtime_borrowed_carried_loan_transform_exit built 11600ms exit:4
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit built 11264ms exit:42 @55ccf9be57c4
 pass/ownership/runtime_borrowed_case_restore_variants_exit built 11932ms exit:0 @55ccf9be57c4
 pass/ownership/runtime_borrowed_case_result_restore_exit built 11927ms exit:0 @55ccf9be57c4
+pass/ownership/runtime_borrowed_content_partition_exit built 1060ms exit:0 @ceb07da2eef4
+pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit built 1060ms exit:0 @ceb07da2eef4
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
 pass/ownership/runtime_borrowed_referent_move_variants_exit built 12176ms exit:0 @896172b5d9d8+wt

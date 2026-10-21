@@ -439,6 +439,7 @@ pass/data/runtime_case_payload_call_result_window_exit built 8466ms exit:0 inter
 pass/data/runtime_mixed_case_nested_common_fields_exit built 3565ms exit:0 interpreter-exit:0 interpreter:agrees @9cc6a58bcdc4+wt
 pass/data/runtime_mixed_case_payload_dispatch_exit built 1553ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/data/runtime_zeroed_first_case_enum_payload_exit built 1462ms exit:70 interpreter-exit:70 interpreter:agrees @194c7a0f42ea+wt
+pass/dependent/runtime_borrowed_coupled_last_store_exit built 833ms exit:0 interpreter-exit:0 interpreter:agrees @ceb07da2eef4
 pass/dependent/runtime_sibling_len_index_exit built 4665ms exit:7 interpreter-exit:7 interpreter:agrees @e477ee0294de+wt
 pass/domains/bitwise_live_membership_exit built 13956ms exit:0 interpreter-exit:0 interpreter:agrees @d1fa4738e67a+wt
 pass/domains/case_payload_call_restore_exit built 1232ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
@@ -989,6 +990,8 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit built 1683ms exit:42
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 1774ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit built 1772ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_borrowed_case_result_restore_exit built 1724ms exit:0 interpreter-exit:0 interpreter:agrees @332ced10410b+wt
+pass/ownership/runtime_borrowed_content_partition_exit built 1072ms exit:0 interpreter-exit:0 interpreter:agrees @ceb07da2eef4
+pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit built 1072ms exit:0 interpreter-exit:0 interpreter:agrees @ceb07da2eef4
 pass/ownership/runtime_captured_byte_destination_exit built 2959ms exit:0 interpreter-exit:0 interpreter:agrees @096f2ecfd243+wt
 pass/ownership/runtime_captured_selector_partial_cleanup_exit built 5333ms exit:0 interpreter-exit:0 interpreter:agrees @65a791f12e28+wt
 pass/ownership/runtime_complete_array_reference_store_exit built 3120ms exit:0 interpreter-exit:0 interpreter:agrees @f48a7c9556ec+wt

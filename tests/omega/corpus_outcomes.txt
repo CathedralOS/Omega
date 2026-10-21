@@ -1422,6 +1422,10 @@ fail/data/zero_length_byte_literal_length_rejected rejected 1885ms expected @a9a
 fail/dependent/applied_default_domain_mutable_requirement_stale rejected 3481ms expected @a9ae30e1c334+wt
 fail/dependent/applied_default_domain_unrelated_bound rejected 3383ms expected @a9ae30e1c334+wt
 fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction rejected 3567ms expected @a9ae30e1c334+wt
+fail/dependent/borrowed_coupled_invalid_zero rejected 491ms expected @ceb07da2eef4
+	data `Coupled` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/dependent/borrowed_coupled_unrestored_count rejected 492ms expected @ceb07da2eef4
+	data `Coupled`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/case_where_payload_write_exit_open rejected 807ms expected @a9ae30e1c334+wt
 fail/dependent/case_where_sibling_payload_scope rejected 182ms expected @408e4fc23fbc
 fail/dependent/case_where_unproved_bound_rejected rejected 806ms expected @a9ae30e1c334+wt
@@ -1458,6 +1462,10 @@ fail/dependent/requires_call_unproven_rejected rejected 5046ms expected @a9ae30e
 fail/dependent/reserved_child_keeps_parent_invariant rejected 875ms expected @a9ae30e1c334+wt
 fail/dependent/reserved_generic_container_missing_sibling rejected 817ms expected @a9ae30e1c334+wt
 fail/dependent/state_arrival_byte_predicate_unproven_rejected rejected 1587ms expected @a9ae30e1c334+wt
+fail/dependent/stored_observation_overlapping_alias_write rejected 796ms expected @ceb07da2eef4
+	cannot prove requires contract for call consume from exercise: pair.left == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/dependent/stored_predicate_same_spelled_missing_field rejected 341ms expected @ceb07da2eef4
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/transitive_call_frame_invalidates_written_fact_rejected rejected 838ms expected @a9ae30e1c334+wt
 fail/dependent/zero_gated_record_field_store_unproven rejected 1169ms expected @896172b5d9d8+wt
 fail/dependent/zero_storage_prefix_does_not_establish rejected 265ms expected @8fd8af53161a+wt
@@ -7135,6 +7143,28 @@ fail/optimizer/unexecutable_post_allocation_rule_rejected rejected 28691ms expec
 fail/optimizer/xor_zero_materialization_requires_x86_64 rejected 29325ms expected @e5140c7a7be2+wt
 fail/ownership/assign_immutable_parameter rejected 150ms expected @c4c0ab7a5d11
 fail/ownership/borrowed_carrier_transform_keeps_backing_loan rejected 1648ms expected @a9ae30e1c334+wt
+fail/ownership/borrowed_content_partition_duplicate rejected 836ms expected @ceb07da2eef4
+	cannot use `parts.rest` in machine `carve` state `entry` (statement 4) after `parts.rest` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `parts.rest` first
+fail/ownership/borrowed_content_partition_fabricated rejected 984ms expected @ceb07da2eef4
+	cannot prove requires contract for call partition from carve: tail in Region::Owned in state `entry`
+	cannot prove initializer of `tail` in carve is in domain `Region::Owned`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Region::Owned` in carve state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/ownership/borrowed_content_partition_other_receiver rejected 487ms expected @ceb07da2eef4
+	data `Strategy`'s default domain is still FALSE at state exit: the invariant window opened on `strategy` must close first -- restore the `where` facts before this consumption point (ch11)
+	data `Strategy`'s default domain is still FALSE at state exit: the invariant window opened on `other` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/ownership/borrowed_content_partition_stale_count rejected 471ms expected @ceb07da2eef4
+	data `Strategy`'s default domain is still FALSE at state exit: the invariant window opened on `strategy` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/ownership/borrowed_content_partition_unrestored rejected 838ms expected @ceb07da2eef4
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `carve`, state `entry` (statement 0): `strategy.tail` must hold a value again before this state's exits consume the borrow
+fail/ownership/borrowed_content_partition_wrong_conservation rejected 859ms expected @ceb07da2eef4
+	cannot prove ensures contract for exit from partition at statement 2: result.rest.length == whole.length - requested
+	cannot prove ensures contract for exit from partition at statement 2: Owned.content(old(&whole)) == separate(Owned.content(&result.taken), Owned.content(&result.rest))
+	cannot prove default-domain field requirement for return from partition, state entry, at statement 2: Parts.taken requires Region::Owned
+	cannot prove default-domain field requirement for return from partition, state entry, at statement 2: Parts.rest requires Region::Owned
+	construction value is not proven in domain `Region::Owned` in partition state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `taken` is not proven in domain `Region::Owned` in partition state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Owned` in partition state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `rest` is not proven in domain `Region::Owned` in partition state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 fail/ownership/borrowed_detached_aggregate_missing_repair rejected 338ms expected @b5b743bb02aa+wt
 fail/ownership/borrowed_operand_later_read rejected 1239ms expected @a9ae30e1c334+wt
 fail/ownership/borrowed_storage_boundary_call rejected 1714ms expected @a9ae30e1c334+wt
@@ -9889,6 +9919,7 @@ pass/dependent/invariant_field_store_compile checked 1670ms @a9ae30e1c334+wt
 pass/dependent/local_alias_forwards_entry_origin checked 1650ms @a9ae30e1c334+wt
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 1634ms @a9ae30e1c334+wt
 pass/dependent/runtime_applied_default_domain_setter_exit checked 11181ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/dependent/runtime_borrowed_coupled_last_store_exit checked 1047ms check-target:macos_arm64 @ceb07da2eef4
 pass/dependent/runtime_dependent_subtract_exit checked 12642ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/runtime_dynamic_record_replacement_exit checked 12503ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/runtime_requires_guarded_call_exit checked 13584ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -12792,6 +12823,8 @@ pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 11152ms chec
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 11412ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_case_restore_variants_exit checked 13206ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_case_result_restore_exit checked 14042ms check-target:macos_arm64 @55ccf9be57c4
+pass/ownership/runtime_borrowed_content_partition_exit checked 1217ms check-target:macos_arm64 @ceb07da2eef4
+pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit checked 1217ms check-target:macos_arm64 @ceb07da2eef4
 pass/ownership/runtime_borrowed_operand_order_exit checked 11218ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 12190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 11409ms check-target:macos_arm64 @a9ae30e1c334+wt
