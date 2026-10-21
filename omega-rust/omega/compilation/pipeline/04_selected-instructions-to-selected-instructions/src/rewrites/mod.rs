@@ -23,12 +23,11 @@
 //! `runtime_spill` are the
 //! recovery rewrites register assignment replays, in cost order. `block_edges`,
 //! `condition_state` and `window_hazards` are the block-boundary,
-//! flag-state and hazard vocabulary those and the unexecuted families
-//! share.
+//! flag-state and hazard vocabulary the executed set shares.
 //!
-//! `unexecuted` holds every other rewrite family: catalogued in
-//! `module_catalog` with the board row that owns its execution, tested in
-//! isolation, and reached by no production route. See its module doc for the
+//! `unexecuted` holds the design record of every other rewrite family,
+//! rostered against the board row that owns its execution, reached by no
+//! production route, and compiled nowhere. See its module doc for the
 //! disposition roster.
 
 /// Every validated rewrite exposes the same three accessors: the

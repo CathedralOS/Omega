@@ -1,22 +1,28 @@
-//! Optimizer module role: stage group. Rewrite families the stage catalogues
-//! but does not execute.
+//! Optimizer module role: stage group. Design records for the staged rewrite
+//! families, with the roster naming the board row that owns each one.
 //!
-//! Every family here has a proposer, an independent validator and its own
-//! tests, and no production route: `optimize_selected_instructions` executes
-//! only the slices `super::catalog` admits, and none of these families has a
-//! catalog row yet. They stay compiled and tested so the owning board item
-//! can give each one a stage-catalog row or delete it; nothing outside this
-//! module may call them until that row exists (`super::module_catalog`
-//! reconciles the roster below and rejects a production caller).
+//! No family here is compiled or tested: every family file is a `//!` record
+//! with no code, and no `mod` declaration in this crate reaches it.
+//! `peepholes/mod.rs` is the one file below that a declaration reaches, and it
+//! is a record too — it declares no family. The dead-island campaign
+//! (`468959b67ce`) deleted these records' proposers, validators and tests plus
+//! every `mod` declaration naming them; `c6a6397a34a` restored the records
+//! without the declarations. `optimize_selected_instructions` executes only
+//! the slices `super::catalog` admits, and none of these families has a
+//! catalog row. Below, proposers, validators, tests and shared vocabulary name
+//! the mechanism each record describes, not a file that exists here. This
+//! roster is the surviving record of what each family proves and which board
+//! item owns it; a family stays until that item gives it a stage-catalog row
+//! or retires it.
 //!
 //! Disposition roster. A family stays only while it proves something no
 //! other family here proves. `relocation` derives the crossed window from
 //! the CFG itself, so every shape whose traversal set the move preserves —
 //! the in-block move, the single `Jump` edge, the block chain, the complete
 //! diamond, the bypassed triangle, and each of their run forms — is one
-//! admission over a run and a destination, with its own test in
-//! `relocation/tests.rs`. The twelve families that enumerated those same
-//! windows by hand are deleted rather than staged.
+//! admission over a run and a destination, with its own test suite. The twelve
+//! families that enumerated those same windows by hand are deleted rather than
+//! staged.
 //!
 //! `relocation` takes whichever direction has acyclic paths, so the upstream
 //! shapes — across the sole edge into a block, out of a join through the
@@ -75,8 +81,8 @@
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
 //!
-//! `commuting_accesses` and `dead_path` are the shared vocabulary these
-//! staged families read; `super::place_storage` also serves executed forwarding; `super::block_edges`,
-//! `super::condition_state` and `super::window_hazards` are shared with the
-//! executed set.
+//! The executed set shares `super::place_storage` (which also serves
+//! forwarding), `super::block_edges`, `super::condition_state` and
+//! `super::window_hazards`. The staged records below name `commuting_accesses`
+//! and `dead_path` as their vocabulary; neither exists in the crate today.
 pub(crate) mod peepholes;
