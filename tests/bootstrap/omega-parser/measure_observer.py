@@ -1,12 +1,15 @@
 """Disposable Linux observer: exact seed, wall/CPU, and read-only Gamma cursor."""
 import ctypes
+from contextlib import contextmanager
 import datetime
+import errno
 import hashlib
 import json
 import os
 from pathlib import Path
 import struct
 import subprocess
+import signal
 import threading
 import time
 from measure_heap import HeapPhases
@@ -34,6 +37,37 @@ def cursor(pid):
     return {'heap_cursor': current, 'heap_limit': limit,
             'cumulative_pairs': (current - ARENA) // 40}
 
+@contextmanager
+def traced_child(executable):
+    with subprocess.Popen([str(executable)], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          preexec_fn=lambda: trace(0)) as process:
+        try:
+            _, status, _ = os.wait4(process.pid, os.WUNTRACED)
+            if not os.WIFSTOPPED(status):
+                process.returncode = os.waitstatus_to_exitcode(status)
+                raise RuntimeError('child did not stop at exec')
+            trace(0x4200, process.pid, 0, 0x100040)  # TRACEEXIT | EXITKILL
+            trace(7, process.pid)
+            yield process
+        finally:
+            if process.returncode is None:
+                # Popen.kill() polls and can consume a ptrace stop as an exit.
+                try:
+                    os.kill(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                while process.returncode is None:
+                    try:
+                        trace(7, process.pid)
+                    except OSError as error:
+                        if error.errno != errno.ESRCH:
+                            raise
+                    _, status, _ = os.wait4(process.pid, os.WUNTRACED)
+                    if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+                        process.returncode = os.waitstatus_to_exitcode(status)
+
+
 def observe(directory, label, request, timeout=14400, phase_stdin=None, cursor_points=None, output_points=None):
     directory = Path(directory)
     if (directory / f'{label}.json').exists():
@@ -44,15 +78,7 @@ def observe(directory, label, request, timeout=14400, phase_stdin=None, cursor_p
     phases = None
     started_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
     print(f'{label}: start', flush=True)
-    with subprocess.Popen([str(directory / 'evaluator.exe')],
-                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          preexec_fn=lambda: trace(0)) as process:
-        _, status, _ = os.wait4(process.pid, os.WUNTRACED)
-        if not os.WIFSTOPPED(status):
-            raise RuntimeError('child did not stop at exec')
-        trace(0x4200, process.pid, 0, 0x40)  # SETOPTIONS, TRACEEXIT
-        trace(7, process.pid)  # CONT
+    with traced_child(directory / 'evaluator.exe') as process:
         captured = {}
         def write_input():
             try:
@@ -96,7 +122,10 @@ def observe(directory, label, request, timeout=14400, phase_stdin=None, cursor_p
                 last_scan = now
             if now - started > timeout and not timed_out:
                 timed_out = True
-                process.kill()
+                try:
+                    os.kill(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
             if not exiting and now - last_report >= 60:
                 progress = {'elapsed_seconds': now-started, **cursor(process.pid)}
                 if phases is not None:

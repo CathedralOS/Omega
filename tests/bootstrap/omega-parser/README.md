@@ -225,7 +225,10 @@ unrelated `L0` literal, checks sequential reads, and compares the complete publi
 output. Each real invocation must likewise match its independent Epsilon-model
 output exactly before its heap phase projection is accepted. Model execution
 time is never bootstrap timing. The observer does not stop the child during
-execution; ptrace stops occur only at exec and exit.
+execution; normal ptrace stops occur only at exec and exit. Cleanup owns the
+tracee's wait status directly: `Popen.kill()` can poll a ptrace stop as though
+it were an exit. An injected cursor-read failure checks that cleanup reaps the
+child, and a separate positive Gamma control still returns its exact result.
 
 Phase events record exact cumulative pair ordinals and sampling intervals for
 wall and child CPU time. Loading runs from a unit's final header-byte read to its
@@ -249,8 +252,9 @@ wsl.exe -d Ubuntu -- sh /mnt/c/SoftwareDevelopmentKits/Omega/tests/bootstrap/ome
 ```
 
 The script verifies source/seed identities through the existing materializers,
-reconstructs the receipt, checks scalar/pair counter controls and the phase
-calibration, then executes datasets sequentially. `OMEGA_LAYER0_SECONDS`
+reconstructs the receipt, checks scalar/pair counter controls, phase projection,
+source-array boundaries and forwarded view lengths, then executes datasets
+sequentially. `OMEGA_LAYER0_SECONDS`
 (default 14400) is a per-case observation watchdog, never a language judgment.
 A failed case stops the sequence. `--prepare-only` after the result directory
 materializes and checks the frozen inputs without starting any VM. Existing
@@ -308,11 +312,33 @@ The hosted-target Rust package audit completed fresh analysis of the three
 declared packages; the Alpha-target audit panicked. Neither observation provides
 an exact Alpha C source snapshot. Independent Epsilon-model results predict
 `Incomplete` for all 18 selected C unit occurrences (17 distinct files), but
-none is yet a native C verdict.
+none is a native C verdict. The small unit's predicted stop is its state
+`requires` clause at bytes 888..896; D's header parser routes that keyword to
+`incomplete_root`. Its existing coverage therefore does not establish full C
+parsing even in the reference engine.
 
 A separate fixture-only comparison primes the scanner before parser counters
 are first stored. Epsilon record writes copy linked-list prefixes, so scanner
 insertion order is a plausible allocation driver. Its prepared C bytes and
 expected outputs match the baseline exactly; D and the lower-chain artifacts
-are unchanged. Native execution is pending. No smaller language profile is
-selected, and full `OMEGA-D` acceptance remains open.
+are unchanged. This variant also reached the four-hour watchdog, with
+112,523,485 cumulative pairs and no public output. Its C-call heap window
+contains at least 92,669,578 pairs; its phase projection is also unvalidated.
+Control-window counts changed from 296,212 to 199,545 pairs for the newline,
+1,507,032 to 711,222 for `answer`, and 228,119 to 186,161 for NUL. These are
+heap-only observations from interrupted invocations. The amount of completed C
+work is unknown, so no real-C improvement or regression is established. The
+counterfactual is **inconclusive** and no production change is retained.
+
+The enlarged-window calibration completed natively in 4.500 seconds with exact
+public output `000000000041`. It crosses an i32 state parameter through 255/256,
+checks array branches at 16,384 and 65,536 plus the final 131,071 index, and
+forwards an exact 20,511-byte partial slice through three nested receivers.
+Its 4.5-second overlap with the primed case is recorded; wall timings
+are contended single observations. This calibrates the fixture, not C parsing.
+
+This bounded round stops at the first unqualified C unit. Layer 0 still needs a
+completed native observation with exact public-output agreement, larger-unit
+and subtree scaling evidence, and an exact C closure. D's grammar coverage also
+prevents treating partial syntax work as full parsing. The full-language
+contract and `OMEGA-D` acceptance remain unchanged; no smaller profile is chosen.

@@ -60,7 +60,8 @@ def prepare(directory, frozen=None):
     record['prepared_utc'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     record['diagnostic_sources'] = {path.name: identity(path.read_bytes()) for path in
         (Path(__file__), Path(__file__).with_name('measure_observer.py'),
-         Path(__file__).with_name('measure_heap.py'), Path(__file__).with_name('measure.epsilon'))}
+         Path(__file__).with_name('measure_heap.py'), Path(__file__).with_name('measure.epsilon'),
+         Path(__file__).with_name('measure_observer_test.py'))}
     for name in record['diagnostic_sources']:
         (directory / name).write_bytes(Path(__file__).with_name(name).read_bytes())
     record['artifacts'] = {name: identity((directory / name).read_bytes()) for name in
@@ -167,6 +168,84 @@ machine Main::main(&mut self) {
     assert [row['name'] for row in phases['events']] == [
         'stdin-tree-ready', 'entry-ready', 'read-one', 'output-prefix', 'read-two',
         'read-three', 'write-one', 'write-two', 'write-three', 'finish']
+    array_window_selfcheck(directory)
+    subprocess.run([sys.executable, str(Path(__file__).with_name('measure_observer_test.py')),
+                    str(directory)], check=True, timeout=30)
+
+
+def array_window_selfcheck(directory):
+    # The diagnostic widens D's source array; exercise its actual branch boundaries.
+    source = b'''boundary trait Console {
+ machine exit_process(value: i32) -> never;
+ machine read_byte() -> i32;
+ machine write_byte(value: i32);
+ machine write_line(text: &[u8]);
+}
+data ViewLeaf { accepted: i32; }
+machine ViewLeaf::verify(&mut self, source: &[u8]) {
+ self.accepted = 0;
+ transition source.len == 20511 { true -> read() _ -> return }
+ state read() {
+  transition (source[256] == 41) && (source[16384] == 42) &&
+   (source[20510] == 45) { true -> accept() _ -> return }
+ }
+ state accept() { self.accepted = 1; }
+}
+data ViewForwarder { leaf: ViewLeaf; }
+machine ViewForwarder::forward(&mut self, source: &[u8]) {
+ self.leaf.verify(source);
+}
+data WindowProbe { accepted: i32; child: ViewForwarder; }
+machine WindowProbe::verify(&mut self, source: &[u8]) {
+ self.accepted = 0;
+ transition source.len == 131072 { true -> read() _ -> return }
+ state read() {
+  transition (source[255] == 41) && (source[256] == 41) &&
+   (source[257] == 41) && (source[16383] == 0) && (source[16384] == 42) &&
+   (source[65535] == 0) && (source[65536] == 43) &&
+   (source[131070] == 0) && (source[131071] == 44) {
+   true -> accept() _ -> return
+  }
+ }
+ state accept() { self.accepted = 1; }
+}
+machine WindowProbe::verify_partial(&mut self, source: &[u8]) {
+ self.accepted = 0;
+ self.child.forward(source);
+ self.accepted = self.child.leaf.accepted;
+}
+data Main {
+ console: Console; probe: WindowProbe; source: [u8; 131072];
+ length: i32;
+}
+machine Main::main(&mut self) {
+ transition true { true -> step(254) }
+ state step(index: i32) {
+  transition index < 258 { true -> fill(index) _ -> bounds() }
+ }
+ state fill(index: i32) {
+  self.source[index] = 41;
+  transition true { true -> step(index + 1) }
+ }
+ state bounds() {
+  self.source[16384] = 42;
+  self.source[20510] = 45;
+  self.source[65536] = 43;
+  self.source[131071] = 44;
+  self.length = 131072;
+  self.probe.verify(self.source.as_slice[0..self.length]);
+  transition self.probe.accepted { 1 -> partial() _ -> self.console.exit_process(1) }
+ }
+ state partial() {
+  self.length = 20511;
+  self.probe.verify_partial(self.source.as_slice[0..self.length]);
+  transition self.probe.accepted { 1 -> pass() _ -> self.console.exit_process(1) }
+ }
+ state pass() { self.console.write_byte(65); }
+}
+'''
+    output = observe(directory, 'array-window', frame(directory, source, b''), 30)
+    assert output == bytes(5) + b'A'
 
 
 def main():

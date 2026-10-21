@@ -1142,20 +1142,22 @@
     "diagnostic_loading_pairs_per_byte": 695.0532397250256
   },
   "counterfactual": {
-    "role": "Unexecuted counterfactual preparation. Not a production fix or baseline result.",
+    "role": "Fixture-only counterfactual observation; not a production fix or baseline result.",
     "hypothesis": "Priming scanner before parser counters makes the hot scanner the first stored child; linked-list field updates then avoid copying the cold-field prefix.",
     "change": "One extra fixture statement before parse-start marker: self.parser.scan.reset(0);",
     "D_source_sha256": "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842",
     "C_inputs": "Reuse ../array frozen files byte exactly.",
     "expected_semantics": "All public outputs must equal baseline model outputs.",
     "reject_if": "Any semantic/control disagreement, or no material reduction in parser allocations.",
-    "next": "After baseline finishes, run primed-tools/measure.py prepare primed-replay ../array, check all expected bytes match baseline, then run cases primed-replay small. Serialize native VMs.",
+    "execution": "Prepared against the frozen baseline, verified matching C bytes and model expectations, then ran the native small case after the baseline ended.",
     "limitations": "Extra fixture reset is outside the parser marker window and included in the loader window. This tests initialization-history cost and is not a final OCREQ decoder or general record-store fix.",
     "preparation_result": "Independent model public output, all raw C units, sealed stdin, lower artifacts and package inventory match baseline exactly. Only fixture scanner reset added.",
-    "native_result": "Starting small comparison after baseline VM exited; public comparison pending.",
+    "native_result": "Four-hour watchdog, SIGKILL, 112523485 cumulative Gamma pairs, no public output; no native C verdict or validated phase projection.",
     "baseline_status": -9,
     "baseline_timed_out": true,
-    "started_utc": "2026-10-21T08:35:21.812555+00:00"
+    "started_utc": "2026-10-21T01:35:21.812555-07:00",
+    "runner_status": 1,
+    "decision": "Inconclusive on real C. Both variants timed out; control traces do not establish a real-C performance win. No production change retained."
   },
   "excluded_observations": [
     "File-backed /mnt/c bytewise receipt attempt: mismatched transport and interrupted.",
@@ -1172,8 +1174,521 @@
   "raw_evidence": "C:\\SoftwareDevelopmentKits\\Omega\\build\\layer0-20261020\\final-replay",
   "validation": [
     "Observer scalar/pair controls and phase calibration completed with exact public outputs.",
-    "Shell prepare-only replay matched frozen datasets, expected outputs, artifacts and all census identities.",
+    "Final shell prepare-only replay in build/layer0-20261020/prepare-final-check matched the baseline customer, all three raw C datasets, stdin and model outputs, and all 161 census identities; all five diagnostic sources were archived.",
     "Existing omega-parser identity legs passed; execution qualification was not rerun.",
     "Python syntax, shell syntax and git diff --check passed. No Rust sources changed."
-  ]
+  ],
+  "array_window_calibration": {
+    "source": {
+      "bytes": 2230,
+      "sha256": "64dc5f8ff7957bb1ddb64555baf09a1f80f70cac510c6bcd729cdd4aa7e223ce"
+    },
+    "native": {
+      "label": "array-window",
+      "status": 0,
+      "started_utc": "2026-10-21T11:36:55.283027+00:00",
+      "observer": {
+        "bytes": 6916,
+        "sha256": "c3a50ada6619594ff683e8030aaf19595ad87248a86c0b6ed01ecee743193344"
+      },
+      "heap_projection": {
+        "bytes": 8334,
+        "sha256": "25db171f413d4ce7d1f18b2f2901eefc38c96a989afd3755a5ab06bcbe03d2ee"
+      },
+      "transport": "PIPE stdin/stdout/stderr",
+      "phase_projection_valid": null,
+      "wall_seconds": 4.4995316460008326,
+      "observer_cpu_seconds": 0.009943726,
+      "user_seconds": 4.228515,
+      "system_seconds": 0.220026,
+      "max_rss_kib": 11900,
+      "timed_out": false,
+      "input": {
+        "bytes": 731346,
+        "sha256": "97f38a09e2ae626b4646bd4b81c5a2e812ccaf41254ec9b21a59494973c43161"
+      },
+      "heap_cursor": 542062656,
+      "heap_limit": 137438953472,
+      "cumulative_pairs": 24936,
+      "output": {
+        "bytes": 6,
+        "sha256": "df546563e75afe20db92d830a610d6dc4f6dc4fde7f379e6b8811ef78b99a329"
+      },
+      "output_prefix": "000000000041",
+      "stderr": ""
+    },
+    "checks": "i32 cursor crosses 255/256; array reads/writes at 16384, 65536 and 131071; default zero siblings, exact full-view length and a 20511-byte partial view forwarded through three nested receivers.",
+    "public_output_matches_model_and_hand_oracle": true,
+    "scope": "Epsilon backing/forwarding check only; not a D parser result.",
+    "overlap": "Its 4.500-second execution overlapped the primed C observation; wall timings are not isolated."
+  },
+  "observer_cleanup_control": {
+    "control": {
+      "role": "Profiler cleanup control, not a language rejection.",
+      "injected_read_failure_raised": true,
+      "native_child_reaped": true,
+      "positive_gamma_42_exact": true,
+      "wall_seconds": 0.049274553999566706
+    },
+    "positive_native": {
+      "label": "observer-cleanup-positive",
+      "status": 0,
+      "started_utc": "2026-10-21T12:17:29.968570+00:00",
+      "observer": {
+        "bytes": 8050,
+        "sha256": "02415bcf36c36d85c141278923c1f40970516e51b8bfed2ca3b6668b979c652f"
+      },
+      "heap_projection": {
+        "bytes": 8334,
+        "sha256": "25db171f413d4ce7d1f18b2f2901eefc38c96a989afd3755a5ab06bcbe03d2ee"
+      },
+      "transport": "PIPE stdin/stdout/stderr",
+      "phase_projection_valid": null,
+      "wall_seconds": 0.033646078001766,
+      "observer_cpu_seconds": 0.0031669820000000057,
+      "user_seconds": 0.0012129999999999999,
+      "system_seconds": 0.0,
+      "max_rss_kib": 11112,
+      "timed_out": false,
+      "input": {
+        "bytes": 24,
+        "sha256": "83c01dc3b449a020a8855b214459328ce5ba216f50d2dbeecc459e5e64fa5629"
+      },
+      "heap_cursor": 541065216,
+      "heap_limit": 137438953472,
+      "cumulative_pairs": 0,
+      "output": {
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      "output_prefix": "2a",
+      "stderr": ""
+    },
+    "scope": "Injected profiler read failure, actual child reaping, and a separate positive Gamma 42. No language rejection is inferred."
+  },
+  "grammar_coverage": {
+    "source_span": [
+      888,
+      896
+    ],
+    "text": "requires",
+    "source_path": "source/psi/parse/input.omg",
+    "implementation": "bootstrap/5_omega/parser.epsilon: finish_machine_parameters -> machine_header_end_token -> machine_header_keyword -> incomplete_root.",
+    "role": "Source inspection and reference-model prediction. A native C verdict requires a completed observation."
+  },
+  "audit_producer_revision": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)",
+  "evidence_applicability": [
+    "The active baseline and primed subjects use their frozen requests, customers, Epsilon closure, receipt and seed; no compiler implementation changed.",
+    "The primed observer/heap remained frozen throughout. Later repository helper changes add calibrations and tracer cleanup; they do not alter those recorded producer identities.",
+    "Historical observations keep their actual source hashes. No timing from the reference model is used as bootstrap cost."
+  ],
+  "counterfactual_observation": {
+    "native": {
+      "label": "small",
+      "status": -9,
+      "started_utc": "2026-10-21T08:35:23.238438+00:00",
+      "observer": {
+        "bytes": 6917,
+        "sha256": "eef3778269afd9b2250f9e13de6cf89309115778a7dda2c766d52de99cfc1ec8"
+      },
+      "heap_projection": {
+        "bytes": 8334,
+        "sha256": "25db171f413d4ce7d1f18b2f2901eefc38c96a989afd3755a5ab06bcbe03d2ee"
+      },
+      "transport": "PIPE stdin/stdout/stderr",
+      "phase_projection_valid": false,
+      "wall_seconds": 14400.318631273,
+      "observer_cpu_seconds": 87.518871699,
+      "user_seconds": 14370.105483,
+      "system_seconds": 12.869167,
+      "max_rss_kib": 4393728,
+      "timed_out": true,
+      "input": {
+        "bytes": 1323652,
+        "sha256": "52234bec4927e1d3cc48cc27c5e37747491d13f95adb5bf1cf3f698f0c7031c1"
+      },
+      "heap_cursor": 5042004616,
+      "heap_limit": 137438953472,
+      "cumulative_pairs": 112523485,
+      "output": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "output_prefix": "",
+      "stderr": ""
+    },
+    "phases": {
+      "role": "Read-only heap profiling; public output validates this projection.",
+      "stdin_sha256": "a4626873fbc4a956d6ac1f1ffb5c1d5e92b9cd584a53875c060e15b790ebf084",
+      "input_root": 545177896,
+      "last_input_cursor": 20559,
+      "output_hex": "4c30f0f101000000010000000100000000000000000000000000000000000000000000000000000000000000f0f11d000000010000001d00000000000000000000000000000000000000000000000000000001000000f0f101000000020000000000000000000000010000000000000000000000000000000000000000000000f0",
+      "events": [
+        {
+          "name": "stdin-tree-ready",
+          "allocation_pair": 102818,
+          "wall_lower": 14.577278003000174,
+          "wall_upper": 14.679728391998651,
+          "cpu_lower": 14.5,
+          "cpu_upper": 14.61
+        },
+        {
+          "name": "checking-finished",
+          "allocation_pair": 1965092,
+          "wall_lower": 2079.3471099529997,
+          "wall_upper": 2079.449092445,
+          "cpu_lower": 2078.76,
+          "cpu_upper": 2078.86
+        },
+        {
+          "name": "mode-read",
+          "allocation_pair": 4448129,
+          "wall_lower": 2177.598405962999,
+          "wall_upper": 2177.6998918530007,
+          "cpu_lower": 2176.93,
+          "cpu_upper": 2177.02
+        },
+        {
+          "name": "output-prefix",
+          "allocation_pair": 4448272,
+          "wall_lower": 2177.598405962999,
+          "wall_upper": 2177.6998918530007,
+          "cpu_lower": 2176.93,
+          "cpu_upper": 2177.02
+        },
+        {
+          "name": "0:header-read",
+          "allocation_pair": 4448615,
+          "wall_lower": 2177.6998918530007,
+          "wall_upper": 2177.801629881,
+          "cpu_lower": 2177.02,
+          "cpu_upper": 2177.13
+        },
+        {
+          "name": "0:source-read",
+          "allocation_pair": 4449322,
+          "wall_lower": 2177.801629881,
+          "wall_upper": 2177.9028037940006,
+          "cpu_lower": 2177.13,
+          "cpu_upper": 2177.23
+        },
+        {
+          "name": "0:parse-start",
+          "allocation_pair": 4453351,
+          "wall_lower": 2178.206649677999,
+          "wall_upper": 2178.3080813569977,
+          "cpu_lower": 2177.53,
+          "cpu_upper": 2177.63
+        },
+        {
+          "name": "0:parse-end",
+          "allocation_pair": 4652896,
+          "wall_lower": 2196.8932900170003,
+          "wall_upper": 2196.994466037999,
+          "cpu_lower": 2196.21,
+          "cpu_upper": 2196.31
+        },
+        {
+          "name": "0:report-end",
+          "allocation_pair": 4657601,
+          "wall_lower": 2198.217355542998,
+          "wall_upper": 2198.3213522689985,
+          "cpu_lower": 2197.53,
+          "cpu_upper": 2197.63
+        },
+        {
+          "name": "1:header-read",
+          "allocation_pair": 4657931,
+          "wall_lower": 2198.3213522689985,
+          "wall_upper": 2198.438925694998,
+          "cpu_lower": 2197.63,
+          "cpu_upper": 2197.75
+        },
+        {
+          "name": "1:source-read",
+          "allocation_pair": 4678036,
+          "wall_lower": 2201.0766160929998,
+          "wall_upper": 2201.178000049,
+          "cpu_lower": 2200.38,
+          "cpu_upper": 2200.49
+        },
+        {
+          "name": "1:parse-start",
+          "allocation_pair": 4682147,
+          "wall_lower": 2201.416458517,
+          "wall_upper": 2201.518097209999,
+          "cpu_lower": 2200.72,
+          "cpu_upper": 2200.83
+        },
+        {
+          "name": "1:parse-end",
+          "allocation_pair": 5393369,
+          "wall_lower": 2298.121329685,
+          "wall_upper": 2298.2249278140007,
+          "cpu_lower": 2297.27,
+          "cpu_upper": 2297.38
+        },
+        {
+          "name": "1:report-end",
+          "allocation_pair": 5398074,
+          "wall_lower": 2299.760544782999,
+          "wall_upper": 2299.8620377749976,
+          "cpu_lower": 2298.91,
+          "cpu_upper": 2299.01
+        },
+        {
+          "name": "2:header-read",
+          "allocation_pair": 5398404,
+          "wall_lower": 2299.760544782999,
+          "wall_upper": 2299.8620377749976,
+          "cpu_lower": 2298.91,
+          "cpu_upper": 2299.01
+        },
+        {
+          "name": "2:source-read",
+          "allocation_pair": 5399109,
+          "wall_lower": 2299.8620377749976,
+          "wall_upper": 2299.9632026990002,
+          "cpu_lower": 2299.01,
+          "cpu_upper": 2299.11
+        },
+        {
+          "name": "2:parse-start",
+          "allocation_pair": 5403232,
+          "wall_lower": 2300.2667781479977,
+          "wall_upper": 2300.368269546001,
+          "cpu_lower": 2299.42,
+          "cpu_upper": 2299.52
+        },
+        {
+          "name": "2:parse-end",
+          "allocation_pair": 5589393,
+          "wall_lower": 2319.6481417449977,
+          "wall_upper": 2319.749363414998,
+          "cpu_lower": 2318.79,
+          "cpu_upper": 2318.89
+        },
+        {
+          "name": "2:report-end",
+          "allocation_pair": 5594099,
+          "wall_lower": 2320.762460457001,
+          "wall_upper": 2320.863607547999,
+          "cpu_lower": 2319.9,
+          "cpu_upper": 2320.0
+        },
+        {
+          "name": "3:header-read",
+          "allocation_pair": 5594429,
+          "wall_lower": 2320.762460457001,
+          "wall_upper": 2320.863607547999,
+          "cpu_lower": 2319.9,
+          "cpu_upper": 2320.0
+        },
+        {
+          "name": "3:source-prefix:1024",
+          "allocation_pair": 6306341,
+          "wall_lower": 2425.2475291070004,
+          "wall_upper": 2425.3488251909985,
+          "cpu_lower": 2424.19,
+          "cpu_upper": 2424.29
+        },
+        {
+          "name": "3:source-prefix:2048",
+          "allocation_pair": 7018026,
+          "wall_lower": 2528.193730695999,
+          "wall_upper": 2528.294895504998,
+          "cpu_lower": 2527.05,
+          "cpu_upper": 2527.15
+        },
+        {
+          "name": "3:source-prefix:3072",
+          "allocation_pair": 7729706,
+          "wall_lower": 2626.0765647139997,
+          "wall_upper": 2626.1777755939984,
+          "cpu_lower": 2624.85,
+          "cpu_upper": 2624.95
+        },
+        {
+          "name": "3:source-prefix:4096",
+          "allocation_pair": 8441391,
+          "wall_lower": 2713.885469470999,
+          "wall_upper": 2713.9862512990003,
+          "cpu_lower": 2712.52,
+          "cpu_upper": 2712.62
+        },
+        {
+          "name": "3:source-prefix:5120",
+          "allocation_pair": 9153066,
+          "wall_lower": 2796.772070149,
+          "wall_upper": 2796.8731273619997,
+          "cpu_lower": 2795.33,
+          "cpu_upper": 2795.43
+        },
+        {
+          "name": "3:source-prefix:6144",
+          "allocation_pair": 9864751,
+          "wall_lower": 2880.273083822998,
+          "wall_upper": 2880.3744827189985,
+          "cpu_lower": 2878.73,
+          "cpu_upper": 2878.83
+        },
+        {
+          "name": "3:source-prefix:7168",
+          "allocation_pair": 10576431,
+          "wall_lower": 2963.587865892001,
+          "wall_upper": 2963.6886081129996,
+          "cpu_lower": 2961.89,
+          "cpu_upper": 2961.99
+        },
+        {
+          "name": "3:source-prefix:8192",
+          "allocation_pair": 11288116,
+          "wall_lower": 3046.326503051001,
+          "wall_upper": 3046.4272304900005,
+          "cpu_lower": 3044.51,
+          "cpu_upper": 3044.61
+        },
+        {
+          "name": "3:source-prefix:9216",
+          "allocation_pair": 11999786,
+          "wall_lower": 3131.120318849,
+          "wall_upper": 3131.221357415001,
+          "cpu_lower": 3129.22,
+          "cpu_upper": 3129.32
+        },
+        {
+          "name": "3:source-prefix:10240",
+          "allocation_pair": 12711471,
+          "wall_lower": 3213.4180747339997,
+          "wall_upper": 3213.5188143390005,
+          "cpu_lower": 3211.47,
+          "cpu_upper": 3211.57
+        },
+        {
+          "name": "3:source-prefix:11264",
+          "allocation_pair": 13423151,
+          "wall_lower": 3294.9817465009983,
+          "wall_upper": 3295.082597173998,
+          "cpu_lower": 3292.92,
+          "cpu_upper": 3293.02
+        },
+        {
+          "name": "3:source-prefix:12288",
+          "allocation_pair": 14134836,
+          "wall_lower": 3375.9558633669985,
+          "wall_upper": 3376.056903354998,
+          "cpu_lower": 3373.81,
+          "cpu_upper": 3373.91
+        },
+        {
+          "name": "3:source-prefix:13312",
+          "allocation_pair": 14846511,
+          "wall_lower": 3456.9772344739977,
+          "wall_upper": 3457.077989483998,
+          "cpu_lower": 3454.76,
+          "cpu_upper": 3454.86
+        },
+        {
+          "name": "3:source-prefix:14336",
+          "allocation_pair": 15558196,
+          "wall_lower": 3538.0254225259996,
+          "wall_upper": 3538.1261263630004,
+          "cpu_lower": 3535.71,
+          "cpu_upper": 3535.81
+        },
+        {
+          "name": "3:source-prefix:15360",
+          "allocation_pair": 16269876,
+          "wall_lower": 3618.963065005999,
+          "wall_upper": 3619.0637336439977,
+          "cpu_lower": 3616.55,
+          "cpu_upper": 3616.65
+        },
+        {
+          "name": "3:source-prefix:16384",
+          "allocation_pair": 16981561,
+          "wall_lower": 3699.6817795069983,
+          "wall_upper": 3699.7824334899997,
+          "cpu_lower": 3697.14,
+          "cpu_upper": 3697.24
+        },
+        {
+          "name": "3:source-prefix:17408",
+          "allocation_pair": 17693226,
+          "wall_lower": 3780.700887643001,
+          "wall_upper": 3780.803855353999,
+          "cpu_lower": 3778.05,
+          "cpu_upper": 3778.16
+        },
+        {
+          "name": "3:source-prefix:18432",
+          "allocation_pair": 18404911,
+          "wall_lower": 3861.3233580769993,
+          "wall_upper": 3861.4240127720004,
+          "cpu_lower": 3858.57,
+          "cpu_upper": 3858.67
+        },
+        {
+          "name": "3:source-prefix:19456",
+          "allocation_pair": 19116591,
+          "wall_lower": 3942.242293604999,
+          "wall_upper": 3942.3430258900007,
+          "cpu_lower": 3939.41,
+          "cpu_upper": 3939.51
+        },
+        {
+          "name": "3:source-prefix:20480",
+          "allocation_pair": 19828276,
+          "wall_lower": 4022.9697342539985,
+          "wall_upper": 4023.0703907419993,
+          "cpu_lower": 4020.04,
+          "cpu_upper": 4020.14
+        },
+        {
+          "name": "3:source-read",
+          "allocation_pair": 19849790,
+          "wall_lower": 4025.3876133970007,
+          "wall_upper": 4025.488347655999,
+          "cpu_lower": 4022.45,
+          "cpu_upper": 4022.55
+        },
+        {
+          "name": "3:parse-start",
+          "allocation_pair": 19853907,
+          "wall_lower": 4025.790512132,
+          "wall_upper": 4025.891509797999,
+          "cpu_lower": 4022.85,
+          "cpu_upper": 4022.95
+        }
+      ],
+      "validated_against_public_output": false
+    },
+    "customer": {
+      "bytes": 573973,
+      "sha256": "bba26f3584812b54a28724077dbdedb03102b7a5648cf198fefb0e70a481d5bf"
+    },
+    "observation_completed": false,
+    "heap_output_prefix_matches_expected": true,
+    "control_parser_pairs": [
+      199545,
+      711222,
+      186161
+    ],
+    "baseline_control_parser_pairs": [
+      296212,
+      1507032,
+      228119
+    ],
+    "censored_screen": {
+      "role": "Unvalidated heap projection; unfinished call. Not a completed parser rate or source verdict.",
+      "parser_pairs_so_far": 92669578,
+      "parser_pairs_so_far_per_input_byte": 4518.042903807713,
+      "parser_wall_seconds_so_far_lower_sample": 10374.108490202001,
+      "parser_wall_seconds_so_far_per_input_byte": 0.5057826771099411,
+      "conditional_1x_census_parser_pairs_floor": 13316610677.927063,
+      "conditional_2x_census_parser_pairs_floor": 26633221355.854126,
+      "conditional_1x_census_parser_days_floor": 17.254149655225422,
+      "conditional_2x_census_parser_days_floor": 34.508299310450845
+    }
+  }
 }
