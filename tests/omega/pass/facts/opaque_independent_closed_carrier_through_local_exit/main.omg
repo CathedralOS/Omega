@@ -6,10 +6,10 @@ public data AddressPair { first: InternetAddress; second: InternetAddress; }
 
 machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
     let mut pair: AddressPair = AddressPair { first: first, second: second };
-    let old_host: u32 = AddressParts::host(pair.first);
+    let old_host: u32 = AddressBridge::host(pair.first);
     pair.first = AddressBridge::make(10, 1027);
-    let sibling_host: u32 = AddressParts::host(pair.second);
-    let replacement_host: u32 = AddressParts::host(pair.first);
+    let sibling_host: u32 = AddressBridge::host(pair.second);
+    let replacement_host: u32 = AddressBridge::host(pair.first);
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
 machine observe() -> bool reaches AddressParts, AddressBridge {

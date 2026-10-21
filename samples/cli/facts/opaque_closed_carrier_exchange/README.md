@@ -4,9 +4,9 @@ Parent: [OPAQUE-BY-VALUE-BOUNDARY-ABI](../../../../TASKS.md).
 Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,
 including replacement of one field without disturbing its sibling. This is
-host-boundary evidence and initial independent closed-result exchange. Complete
-opaque-input exchange, mismatch admission and replacement lifecycle acceptance
-remain open.
+host-boundary evidence and initial independent closed Affine input/result
+exchange. Copy, qualified or claim-bearing component inputs, remaining mismatch
+admission and replacement lifecycle acceptance remain open.
 
 **Closed nested Inert carrier transport preserves libc host numbers 66051 and
 513 and replacement 1027 while retaining the disjoint sibling.**
@@ -108,22 +108,31 @@ but have no matching-host runtime observation here. This exact BSD inet API has
 no verified Windows provider in this row: a Windows entry declaration does not
 establish provider availability. Full crosshost coverage therefore remains open.
 
-The parent also still requires independently compiled producer/consumer exchange
-and exact composition-edge rejection of provider, carrier, target, lifecycle,
-multiplicity and historical-selection drift. The host adapter and equal layouts
-do not establish that independent-component acceptance.
+The parent still requires complete composition-edge rejection of provider,
+carrier, target, lifecycle, multiplicity and historical-selection drift. The
+initial independent exchange below covers closed Affine occurrences; the host
+adapter and equal layouts do not establish the remaining acceptance.
 
 
-## Independent closed results
+## Independent closed Affine exchange
 
 The [two-package root](independent/main.omg) and the places below keep the same
 fact, inputs and consuming operation. [The producing package](independent/producer/main.omg)
 returns each address through `AddressBridge::make`; the consumer selects
 `CompositionMode::Independent`. Both packages choose their own exact closed
-representation. The ordinary `AddressParts::host` operation consumes each
-returned value in the receiver. These witnesses establish the result direction;
-local parameters and forwarding do not claim opaque input arguments crossing a
-component edge.
+representation. Every `AddressBridge::host` call sends the owned address back
+across the component edge, where the producing package invokes the same actual
+`AddressParts::host` operation. The receiver still consumes and replaces the
+first field while preserving its sibling. Its helper and transport places do
+not inspect or reconstruct the opaque carrier.
+
+The producer's root deliberately retains its original direct `AddressParts::host`
+call. Selecting the complete `AddressBridgeProvider` application exports the
+checked `host` member even though no internal root call happens to use it.
+Exports derive from selected satisfaction; outgoing imports derive from actual
+calls. The complete retained plan preimage is replayed against its commitment
+and exact verified candidate/body identities, without donating a receiver
+contract or turning a description into execution authority.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -150,21 +159,33 @@ The applicable requirement categories above extend through the component edge:
   capsule, selected representation and full calling application. The receiver
   cannot donate a contract or geometry to the producer.
 - Identity and lifetime retain the producing artifact, actual child invocation
-  namespace and owned result until the receiver commits it. Sponsor suspension
-  resumes that same child without replaying committed effects or replenishing
-  its original total budget. The shared host store consumes the exact
-  nonrecycled token; artifact-local type coordinates
-  are compared through their owning identities rather than as global numbers.
+  namespace and owned result until the receiver commits it. An owned input is
+  authenticated against its actual opaque host atom and ordinary affine
+  frontier; a real installed child accepts that exact tuple before the parent
+  commits its transfer. Pending calls retain the original scalar/structural
+  operands and atoms. Sponsor suspension resumes the same child without
+  rereading a consumed parent home, replaying committed effects or replenishing
+  its original total budget. The focused six-call fuel witness compares every
+  effect and resource attribution with ordinary execution, including exhausted
+  total budgets. The shared host store consumes the exact nonrecycled token;
+  artifact-local type coordinates are compared through their owning identities
+  rather than as global numbers.
 - Composition joins the exact requirement, provider, target and full ABI/opaque
   applications at each selected export. Every place performs the same field
   replacement while preserving the sibling.
 - Soundness keeps provider selection, execution authority and publication
   separate. Descriptions and equal layouts do not mint an installed address,
-  an opaque occurrence or a host result.
+  an opaque occurrence or a host result. This input lane requires owned Affine,
+  closed Inert atoms. It explicitly refuses claims, memberships, loans,
+  materialized backing/view sidecars, active subtree metadata and other
+  multiplicities rather than silently dropping their custody. Ancestor cases
+  and disjoint siblings remain with the residual parent.
 - Checked-to-Terminal lowering retains the requirement's own source declaration
   and checked contract. A real independently supplied child executes the
-  producer, with owned completion and separate effect namespaces; the driver
-  supplies no fabricated callback result.
+  producer with admitted owned inputs, owned completion and separate effect
+  namespaces; the driver supplies no fabricated callback result. Preparation
+  executes no child operation, and all fallible input checks precede the
+  parent's ordinary whole-root or projected affine retirement.
 - Provider settlement and ABI realization retain independent producing inputs
   and materialize the exported calling policy from those inputs. The consumer
   independently checks its complete calling application and selected carrier.
@@ -178,7 +199,9 @@ The applicable requirement categories above extend through the component edge:
 - Encoding emits a distinct Linux ELF shared component with a strong
   image/slot-qualified protected export. The root names its content-addressed
   sibling in `DT_NEEDED`; GNU version requirements cover actual versioned
-  foreign objects. Canonical macOS checking realizes a separate `MH_DYLIB`
+  foreign objects. Unversioned component-only roots omit the GNU version tags
+  and their fixups; versioned and mixed imports retain their exact version
+  roster. Canonical macOS checking realizes a separate `MH_DYLIB`
   with an exact export trie and `@loader_path` sibling binding, using its own
   segment indices for rebases and eager imports. Ordinary flat publication
   retains distinct root and component receipts and validates their exact bytes.
@@ -188,6 +211,8 @@ The applicable requirement categories above extend through the component edge:
 
 Raw observations remain in the existing swarm qualification record, bound to
 actual producer revisions and accepted project locks. Full provider/carrier/
-target/lifecycle/multiplicity/historical-selection mismatch controls, opaque
-input arguments, qualified or linear carriers, and matching-host execution on
-the other hosted targets remain separate acceptance until demonstrated.
+target/lifecycle/multiplicity/historical-selection mismatch controls, Copy,
+qualified or linear component inputs, materialized/view-backed inputs, and
+matching-host execution on the other hosted targets remain separate acceptance
+until demonstrated. The fact row and focused fuel witness do not close those
+remaining parent requirements.

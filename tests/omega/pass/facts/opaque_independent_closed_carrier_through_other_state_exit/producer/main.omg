@@ -75,8 +75,12 @@ linux_arm64 machine host(address: InternetAddress) -> u32
 
 public boundary trait AddressBridge {
  machine make(network: u32, host: u32) -> InternetAddress reaches AddressParts;
+ machine host(address: InternetAddress) -> u32 reaches AddressParts;
 }
 public AddressBridgeProvider satisfies AddressBridge {
+ machine host(address: InternetAddress) -> u32 reaches AddressParts {
+  AddressParts::host(address)
+ }
  machine make(network: u32, host: u32) -> InternetAddress reaches AddressParts {
   AddressParts::make(network, host)
  }
