@@ -56,6 +56,26 @@ impl ValidatedElfDynamicSectionPlan {
         self.contents.needed.len()
     }
 
+    /// Version-need groups cover only locator objects with GNU versioned
+    /// symbols. An independently linked component is still DT_NEEDED, but its
+    /// exact image/slot-qualified global symbol has no GNU version dependency.
+    /// Derive the count from original locators, not the candidate table rows.
+    pub(crate) fn required_version_object_count(&self) -> usize {
+        let mut objects = self
+            .inputs
+            .imports()
+            .iter()
+            .filter_map(|request| match &request.locator {
+                ElfImportLocator::Versioned { object, .. } => Some(object.as_slice()),
+                ElfImportLocator::Component { .. }
+                | ElfImportLocator::StringBackedBootstrap { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        objects.sort_unstable();
+        objects.dedup();
+        objects.len()
+    }
+
     pub(crate) fn required_version_count(&self) -> usize {
         self.contents
             .verneed

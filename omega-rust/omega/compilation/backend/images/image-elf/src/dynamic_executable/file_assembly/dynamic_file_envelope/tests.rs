@@ -89,7 +89,7 @@ fn resolved(
     image.symbol_table.imports.insert(FinalImageImport {
         symbol_handle: imported,
         import: FinalImageImportPlan::Normalized(
-            (normalize_foreign_locator(
+            normalize_foreign_locator(
                 ForeignLocatorCandidate::ElfVersioned {
                     object: b"libdynamic-envelope.so".to_vec(),
                     symbol: imported_symbol.to_vec(),
@@ -97,8 +97,8 @@ fn resolved(
                 },
                 target,
             )
-            .unwrap(),)
-                .into(),
+            .unwrap()
+            .into(),
         ),
     });
     let (offset, kind) = match target {

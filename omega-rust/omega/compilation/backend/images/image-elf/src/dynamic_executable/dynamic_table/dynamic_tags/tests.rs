@@ -336,3 +336,58 @@ fn malformed_offsets_counts_and_arithmetic_reject_without_panicking() {
     candidate.contents.address_obligations[0].row_ordinal = u32::MAX;
     assert!(validate_candidate(candidate).is_err());
 }
+
+#[test]
+fn unversioned_component_remains_needed_without_inventing_a_gnu_version() {
+    let profile = TargetProfile::LinuxX64;
+    let inputs = crate::test_support::dynamic_import_inputs(
+        profile,
+        &IMPORTS,
+        "__omega_mixed_import_",
+        "valid locator",
+        "valid interpreter",
+    );
+    let (mut image, interpreter, _) = inputs.into_parts();
+    let locator =
+        target::NormalizedComponentLocator::for_image(profile, b"component bytes", [7; 32])
+            .expect("exact component locator");
+    image.memory.text[48] = 0xe8;
+    crate::test_support::import_with_text_relocations(
+        &mut image,
+        "__omega_component",
+        image::FinalImageImportPlan::Normalized(locator.into()),
+        &[49],
+    );
+    let inputs = crate::plan_elf_dynamic_link_inputs(image, interpreter).unwrap();
+    let descriptors = crate::test_support::linkage_descriptors(inputs);
+    let plan = plan_elf_dynamic_tags(descriptors).expect("mixed versioned and component imports");
+    assert_eq!(plan.needed_row_count(), 3);
+    assert_eq!(structural_contents(plan.descriptors()).verneed.len(), 2);
+    let sections = plan.descriptors().templates().linkage().descriptors();
+    let requirements = sections.contents().descriptors.iter().find(|row|
+        row.kind == crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind::GnuVersionRequirement).unwrap();
+    assert_eq!(
+        requirements.info, 2,
+        "section sh_info counts Verneed records, not DT_NEEDED objects"
+    );
+
+    let count_row = plan
+        .contents
+        .rows
+        .iter()
+        .position(|row| row.tag == ElfDynamicTag::GnuVersionRequirementCount)
+        .unwrap();
+    assert_eq!(
+        plan.contents.rows[count_row].value,
+        ElfDynamicValue::VersionRequirementRecordCount(2)
+    );
+    for incorrect_count in [1, 3] {
+        let mut malformed = plan.contents.clone();
+        malformed.rows[count_row].value =
+            ElfDynamicValue::VersionRequirementRecordCount(incorrect_count);
+        assert!(
+            validate_contents(plan.descriptors(), &malformed).is_err(),
+            "missing/extra version-need counts must still reject"
+        );
+    }
+}

@@ -224,6 +224,12 @@ fn independent_validation_rejects_every_cross_table_corruption() {
         Box::new(|contents| contents.gnu_hash.chains[0] ^= 2),
         Box::new(|contents| contents.gnu_hash.chains[3] &= !1),
         Box::new(|contents| contents.versym[1] = 1),
+        Box::new(|contents| {
+            contents.verneed.pop();
+        }),
+        Box::new(|contents| {
+            contents.verneed.push(contents.verneed[0].clone());
+        }),
         Box::new(|contents| contents.verneed[0].count += 1),
         Box::new(|contents| contents.verneed[0].auxiliary_offset = 0),
         Box::new(|contents| contents.verneed[0].next_offset = 0),

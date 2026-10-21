@@ -683,7 +683,7 @@ pub(crate) mod test_support {
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: imported,
             import: FinalImageImportPlan::Normalized(
-                (normalize_foreign_locator(
+                normalize_foreign_locator(
                     ForeignLocatorCandidate::ElfVersioned {
                         object: object.to_vec(),
                         symbol: symbol.to_vec(),
@@ -691,8 +691,8 @@ pub(crate) mod test_support {
                     },
                     target,
                 )
-                .expect(locator_expect),)
-                    .into(),
+                .expect(locator_expect)
+                .into(),
             ),
         });
         imported

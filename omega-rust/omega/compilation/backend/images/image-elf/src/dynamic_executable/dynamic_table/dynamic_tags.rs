@@ -590,8 +590,11 @@ fn validate_fixed_rows(
         "DT_PLTRELSZ does not match exact Elf64_Rela JUMP_SLOT rows",
     )?;
     require(
-        structural.verneed.len() == structural.needed.len(),
-        "DT_VERNEEDNUM does not cover the exact needed-object roster",
+        structural.verneed.len()
+            == dynamic_payloads(descriptors)
+                .plan()
+                .required_version_object_count(),
+        "DT_VERNEEDNUM does not cover the exact versioned-object roster",
     )
 }
 

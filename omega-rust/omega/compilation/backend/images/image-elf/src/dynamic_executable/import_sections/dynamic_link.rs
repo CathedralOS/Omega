@@ -202,7 +202,7 @@ mod tests {
         version: &[u8],
     ) -> FinalImageImportPlan {
         FinalImageImportPlan::Normalized(
-            (normalize_foreign_locator(
+            normalize_foreign_locator(
                 ForeignLocatorCandidate::ElfVersioned {
                     object: object.to_vec(),
                     symbol: symbol.to_vec(),
@@ -210,8 +210,8 @@ mod tests {
                 },
                 target,
             )
-            .expect("valid versioned ELF locator"),)
-                .into(),
+            .expect("valid versioned ELF locator")
+            .into(),
         )
     }
 

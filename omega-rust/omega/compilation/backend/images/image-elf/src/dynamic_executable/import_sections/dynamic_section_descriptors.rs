@@ -213,8 +213,9 @@ fn derive_contents(
     payloads: &ValidatedElfDynamicSectionPayloads,
 ) -> Result<ElfDynamicSectionDescriptorContents, Diagnostic> {
     let bytes = payloads.payloads();
-    let needed_object_count = u32::try_from(payloads.plan().needed_object_count())
-        .map_err(|_| Diagnostic::error("ELF version-need section info exceeds Elf64_Word"))?;
+    let required_version_object_count =
+        u32::try_from(payloads.plan().required_version_object_count())
+            .map_err(|_| Diagnostic::error("ELF version-need section info exceeds Elf64_Word"))?;
     let descriptors = vec![
         descriptor(
             ElfDynamicSectionKind::Interpreter,
@@ -280,7 +281,7 @@ fn derive_contents(
             4,
             0,
             Some(ElfDynamicSectionKind::DynamicString),
-            needed_object_count,
+            required_version_object_count,
         )?,
         descriptor(
             ElfDynamicSectionKind::GnuHash,
@@ -441,8 +442,10 @@ fn validate_row(
     row: &ElfAddressFreeSectionDescriptor,
 ) -> Result<(), Diagnostic> {
     let bytes = payloads.payloads();
-    let needed_object_count = u32::try_from(payloads.plan().needed_object_count())
-        .map_err(|_| Diagnostic::error("validated needed-object count exceeds Elf64_Word"))?;
+    let required_version_object_count =
+        u32::try_from(payloads.plan().required_version_object_count()).map_err(|_| {
+            Diagnostic::error("validated version-need object count exceeds Elf64_Word")
+        })?;
     let expected = match row.kind {
         ElfDynamicSectionKind::Interpreter => (
             INTERPRETER_NAME_OFFSET,
@@ -496,7 +499,7 @@ fn validate_row(
             4,
             0,
             Some(ElfDynamicSectionKind::DynamicString),
-            needed_object_count,
+            required_version_object_count,
         ),
         ElfDynamicSectionKind::GnuHash => (
             GNU_HASH_NAME_OFFSET,
@@ -543,7 +546,7 @@ fn validate_cross_payloads(
         .find(|descriptor| descriptor.kind == ElfDynamicSectionKind::GnuVersionRequirement)
         .ok_or_else(|| Diagnostic::error("ELF GNU version requirement descriptor is absent"))?;
     require(
-        version_requirement.info as usize == payloads.plan().needed_object_count(),
+        version_requirement.info as usize == payloads.plan().required_version_object_count(),
         "ELF GNU version requirement sh_info does not match the Verneed count",
     )
 }
