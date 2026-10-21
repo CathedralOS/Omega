@@ -307,6 +307,7 @@ pub(crate) fn emit<'source>(
         arrival_claims: Vec::new(),
         completion_claims: result_claims.clone(),
         direct_establishments,
+        selection_route: Vec::new(),
     };
     // An owned projection of an already established place transfers one child
     // and preserves the remaining siblings
@@ -1107,6 +1108,7 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// would create them after the actual establishment.
     completion_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
     direct_establishments: Vec<semantic_vocabulary::ClaimId>,
+    selection_route: Vec<crate::emission::claim_bindings::selections::SelectedDecision>,
 }
 
 pub(super) struct ValueContinuation {
@@ -1115,6 +1117,7 @@ pub(super) struct ValueContinuation {
     structural_parameters: Vec<StructuralParameterDeclaration>,
     place: PlaceId,
     remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
+    claim_destinations: Vec<language_semantics::PermissionClaimIdentity>,
     /// Memberships are the intersection of completed incoming values, never
     /// facts inferred from the receiving annotation. An empty first roster is
     /// distinct from a join that has not received an edge yet.
@@ -2373,6 +2376,7 @@ impl Emission<'_, '_, '_> {
             structural_parameters,
             place,
             remaining_owners,
+            claim_destinations: Vec::new(),
             has_incoming_memberships: false,
         };
         self.complete_value(source.clone(), &mut continuation)?;
@@ -2427,6 +2431,7 @@ impl Emission<'_, '_, '_> {
             structural_parameters,
             place,
             remaining_owners: Vec::new(),
+            claim_destinations: Vec::new(),
             has_incoming_memberships: false,
         };
         let loan = match argument.access {
@@ -2726,6 +2731,7 @@ impl Emission<'_, '_, '_> {
             )],
             place,
             remaining_owners: self.owners.clone(),
+            claim_destinations: Vec::new(),
             has_incoming_memberships: false,
         })
     }

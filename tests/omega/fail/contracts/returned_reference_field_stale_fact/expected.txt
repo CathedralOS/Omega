@@ -1,0 +1,2 @@
+cannot prove requires contract
+captured.counter.value == 7

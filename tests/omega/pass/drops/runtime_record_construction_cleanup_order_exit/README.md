@@ -1,7 +1,9 @@
 Partial construction disposes only established fields, in reverse establishment
 order. Complete construction invokes the containing hook before its children.
 Replacing one field disposes that old field once without retiring its parent.
-Both execution engines must emit `AB|XCBA|BDA` followed by a newline and exit 0.
+A moved field and its residual source retain independent declaring-owner order
+even when they share backing: later C, moved A, then residual B, exactly once.
+Both execution engines must emit `AB|XCBA|BDA|CAB` followed by a newline and exit 0.
 
 From the repository root, prepare the ordinary package review, accept the named
 Console output/termination and external-supply decisions, then resume it:

@@ -75,8 +75,20 @@ pub(crate) fn apply_recorded_statement_events(
         });
     let mut selected = super::super::selected_evaluation::SelectedEvaluation::new();
     let mut current = places.to_vec();
-    let join = |current: &mut Vec<LinearPlace>, sibling: &Vec<LinearPlace>| {
-        super::super::selected_evaluation::join_places(current, sibling)
+    let site = super::super::selected_evaluation::place_bindings::SelectionSite {
+        machine: machine.symbol,
+        state: state.symbol,
+        statement: statement_index,
+        evaluation,
+    };
+    let join = |branch, current: &mut Vec<LinearPlace>, sibling: &Vec<LinearPlace>| {
+        super::super::selected_evaluation::place_bindings::join_recorded_places(
+            &facts.flow.ownership,
+            site,
+            branch,
+            current,
+            sibling,
+        )
     };
     for event in events.iter().copied().filter(|event| {
         permission_event_statement_index(event.source) == Some(statement_index)

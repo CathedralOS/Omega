@@ -347,7 +347,7 @@ impl SelectedCleanup {
         }
         let mut present = vec![true; self.owners.len()];
         let mut selection = super::selected_evaluation::SelectedEvaluation::new();
-        let join = |current: &mut Vec<bool>, sibling: &Vec<bool>| {
+        let join = |_branch, current: &mut Vec<bool>, sibling: &Vec<bool>| {
             for (current, sibling) in current.iter_mut().zip(sibling) {
                 *current |= *sibling;
             }

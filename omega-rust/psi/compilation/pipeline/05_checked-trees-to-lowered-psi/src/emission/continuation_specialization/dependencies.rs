@@ -200,13 +200,25 @@ pub(super) fn live_inputs(
         for position in (0..topology.continuations.len()).rev() {
             let continuation = &topology.continuations[position];
             let mut incoming = local[continuation.original_block].clone();
-            for (_, successor) in &continuation.successors {
+            for (edge, successor) in &continuation.successors {
                 incoming.values.extend_from_slice(&live[*successor].values);
                 incoming.places.extend_from_slice(&live[*successor].places);
                 incoming
                     .operations
                     .extend_from_slice(&live[*successor].operations);
-                incoming.claims.extend_from_slice(&live[*successor].claims);
+                for claim in &live[*successor].claims {
+                    let mut bindings = rows
+                        .claim_edge_bindings
+                        .iter()
+                        .filter(|binding| binding.edge == *edge && binding.destination == *claim);
+                    let source = bindings.next().map_or(*claim, |binding| binding.source);
+                    if bindings.next().is_some() {
+                        return Err(LoweringError::Unsupported(
+                            "continuation edge repeats a claim binding",
+                        ));
+                    }
+                    incoming.claims.push(source);
+                }
                 incoming
                     .obligations
                     .extend_from_slice(&live[*successor].obligations);

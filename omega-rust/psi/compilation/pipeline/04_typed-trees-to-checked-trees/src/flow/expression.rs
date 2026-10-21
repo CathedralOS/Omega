@@ -37,6 +37,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod constructed_values;
 mod dispatch;
+mod live_memberships;
 mod result_facts;
 mod transitions;
 mod view_referents;
@@ -1701,6 +1702,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         evaluated: &mut HandleSpan<FlowSemanticContextRef>,
         evaluated_constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
+        let mut memberships = self.live_memberships(skipped);
+        let incoming = self.live_memberships(*evaluated);
+        memberships.retain(|membership| incoming.contains(membership));
         let retained: Vec<_> = self
             .context
             .contexts
@@ -1753,5 +1757,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             *evaluated,
             &self.context.contexts.semantic_context_refs,
         );
+        self.publish_live_memberships(memberships, evaluated, evaluated_constraints);
     }
 }

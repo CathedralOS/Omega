@@ -251,6 +251,21 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
+    for (_, binding) in checked.facts.flow.ownership.selection_place_bindings.iter() {
+        if state_owners
+            .iter()
+            .any(|(state, machine)| *state == binding.state && *machine == binding.machine)
+            && !claims
+                .source_claims
+                .iter()
+                .any(|(identity, _)| *identity == binding.destination.claim_identity)
+        {
+            let claim = claim_id(allocate_dense(&mut next_claim)?);
+            claims
+                .source_claims
+                .push((binding.destination.claim_identity, claim));
+        }
+    }
     // A structural call result establishes the claims it carries when the
     // call completes. A received result keeps the receiving local's identity
     // (or an input's, returned on every exit); a result no place receives is
@@ -975,6 +990,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             source_returns: &mut occurrences.source_returns,
             continuation_value_uses: &continuation_value_uses,
             claim_introductions: &mut occurrences.claim_introductions,
+            claim_edge_bindings: &occurrences.claim_edge_bindings,
             source_calls: &mut occurrences.source_calls,
             scalar_block_invariants: &mut scalar_block_invariants,
             qualification_coercions: &mut qualification_coercions,

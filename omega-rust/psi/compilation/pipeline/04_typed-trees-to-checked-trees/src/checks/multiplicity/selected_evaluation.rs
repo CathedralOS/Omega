@@ -14,6 +14,8 @@ use diagnostics::Diagnostic;
 use language_semantics::{Multiplicity, PermissionEventSource};
 use typed_trees::expression::ExpressionHandle;
 
+pub(super) mod place_bindings;
+
 pub(super) struct ExpressionRoutes {
     completed: Vec<(ExpressionHandle, Vec<EvaluationBranch>)>,
 }
@@ -109,7 +111,7 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
         &mut self,
         route: &[EvaluationBranch],
         current: &mut Custody,
-        mut join: impl FnMut(&mut Custody, &Custody) -> Result<(), Diagnostic>,
+        mut join: impl FnMut(EvaluationBranch, &mut Custody, &Custody) -> Result<(), Diagnostic>,
     ) -> Result<(), Diagnostic> {
         let common = self
             .decisions
@@ -126,6 +128,7 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
         while self.decisions.len() > retained {
             if let Some(decision) = self.decisions.pop() {
                 join(
+                    decision.branch,
                     current,
                     decision.sibling.as_ref().unwrap_or(&decision.entry),
                 )?;
@@ -165,8 +168,25 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
 pub(super) fn join_places(
     current: &mut [super::linear_obligations::LinearPlace],
     sibling: &[super::linear_obligations::LinearPlace],
+    mut bind: impl FnMut(
+        &super::linear_obligations::LinearPlace,
+        &super::linear_obligations::LinearPlace,
+    ) -> Result<checked_trees::FlowSelectionPlaceArrival, Diagnostic>,
 ) -> Result<(), Diagnostic> {
+    if current.len() != sibling.len() {
+        return Err(Diagnostic::error(
+            "expression selection has different storage rosters",
+        ));
+    }
     for (place, other) in current.iter_mut().zip(sibling) {
+        if place.root != other.root
+            || place.path != other.path
+            || place.multiplicity != other.multiplicity
+        {
+            return Err(Diagnostic::error(
+                "expression selection has incompatible typed places",
+            ));
+        }
         // A skipped transfer retains its exact debt in SelectedCleanup. It
         // is unavailable for ordinary use here, but must still prove an
         // owner-authorized disposition at death. A different claim or a
@@ -177,10 +197,24 @@ pub(super) fn join_places(
                 || place.claim_identity != other.claim_identity
                 || place.provenance != other.provenance)
         {
-            return Err(Diagnostic::error(format!(
-                "expression selection has incompatible live linear custody for `{}`",
-                place.name
-            )));
+            if !(place.live
+                && other.live
+                && place.ever_established
+                && other.ever_established
+                && !place.case_excluded
+                && !other.case_excluded)
+            {
+                return Err(Diagnostic::error(format!(
+                    "expression selection has incompatible live linear custody for `{}`",
+                    place.name
+                )));
+            }
+            // Only differing arrivals need a source-level name. Lowering
+            // retains their separate namespaces at the unchanged storage
+            // home; unaffected siblings keep their exact existing claims.
+            let destination = bind(place, other)?;
+            place.claim_identity = Some(destination.claim_identity);
+            place.provenance = Some(destination.provenance);
         }
         place.live &= other.live;
         place.ever_established &= other.ever_established;

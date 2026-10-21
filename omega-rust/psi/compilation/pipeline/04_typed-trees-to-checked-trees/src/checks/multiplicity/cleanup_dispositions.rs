@@ -3,7 +3,6 @@
 //! This is a projection of the permission producer's occurrence order, not a
 //! second control-flow analysis. The producer forks this state alongside its
 //! ordinary ownership state for each outgoing edge.
-use arena::Arena;
 use checked_trees::{
     ContextualCleanupDisposition, ContextualCleanupFacts, FlowClaimJoinExit,
     FlowPermissionEventFact,
@@ -306,7 +305,7 @@ impl RemainingCustody {
             return Ok(());
         }
         let mut selected = super::selected_evaluation::SelectedEvaluation::new();
-        let join = |current: &mut Self, sibling: &Self| {
+        let join = |_branch, current: &mut Self, sibling: &Self| {
             current.join(sibling);
             Ok(())
         };

@@ -1101,13 +1101,31 @@ fn claim_outcome_source_for_event(
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> CheckedClaimOutcomeSource {
+    claim_outcome_source_for_identity(
+        program,
+        state,
+        event.claim_identity,
+        event.provenance,
+        segments,
+        permission_events,
+    )
+}
+
+fn claim_outcome_source_for_identity(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    claim_identity: PermissionClaimIdentity,
+    provenance: PermissionProvenance,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+) -> CheckedClaimOutcomeSource {
     if let Some(entry) = permission_events.iter().find(|candidate| {
         candidate.state_symbol == state.symbol
             && candidate.source == PermissionEventSource::StateEntry
             && candidate.kind == PermissionEventKind::Establish
             && candidate.access == PermissionAccess::Owned
-            && candidate.claim_identity == event.claim_identity
-            && candidate.provenance == event.provenance
+            && candidate.claim_identity == claim_identity
+            && candidate.provenance == provenance
     }) && let Some(parameter_symbol) = entry.root.as_symbol()
         && parameter_for_symbol(program, state, parameter_symbol).is_some()
     {
@@ -1117,8 +1135,8 @@ fn claim_outcome_source_for_event(
         };
     }
     CheckedClaimOutcomeSource::Established {
-        claim_identity: event.claim_identity,
-        provenance: event.provenance,
+        claim_identity,
+        provenance,
     }
 }
 

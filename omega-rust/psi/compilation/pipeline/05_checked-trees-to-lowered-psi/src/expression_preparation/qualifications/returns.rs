@@ -298,7 +298,8 @@ fn matches_exit(
     }
     match exit.kind {
         // Structural selection ancestry is not a scalar return decision.
-        FlowClaimJoinExitKind::SelectionArm { .. } => false,
+        FlowClaimJoinExitKind::SelectionArm { .. }
+        | FlowClaimJoinExitKind::SelectionDecision { .. } => false,
         FlowClaimJoinExitKind::FinalExpression => !decision.transition_target.is_valid(),
         FlowClaimJoinExitKind::TransitionTarget | FlowClaimJoinExitKind::TransitionContinuation => {
             let Some(state) = checked.typed.state_by_symbol(decision.state) else {

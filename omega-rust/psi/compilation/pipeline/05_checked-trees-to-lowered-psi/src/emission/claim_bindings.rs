@@ -9,6 +9,8 @@ use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::ClaimId;
 
+pub(crate) mod selections;
+
 /// One exact producing operation defines this machine-local claim name.
 /// Namespace reservation is not an introduction; forwarded claims retain the
 /// incoming name when continuations specialize their producer occurrences.
@@ -16,6 +18,16 @@ use semantic_vocabulary::ClaimId;
 pub(crate) struct ClaimIntroduction {
     pub(crate) operation: semantic_vocabulary::OperationId,
     pub(crate) claim: ClaimId,
+}
+
+/// A lowering-time name on one control edge. Publication substitutes the
+/// actual incoming claim throughout that continuation; no runtime resource
+/// is introduced, moved, or renamed at its unchanged storage home.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ClaimEdgeBinding {
+    pub(crate) edge: semantic_vocabulary::EdgeId,
+    pub(crate) destination: ClaimId,
+    pub(crate) source: ClaimId,
 }
 
 /// The caller's claim namespace.
@@ -71,8 +83,15 @@ impl ClaimBindings<'_> {
         &mut self,
         identity: PermissionClaimIdentity,
     ) -> Result<ClaimId, LoweringError> {
+        self.reserve_checked_binding(identity)
+    }
+
+    pub(crate) fn reserve_checked_binding(
+        &mut self,
+        identity: PermissionClaimIdentity,
+    ) -> Result<ClaimId, LoweringError> {
         if identity == PermissionClaimIdentity::Unknown {
-            return unsupported("loan completion has no checked claim identity");
+            return unsupported("receiving binding has no checked claim identity");
         }
         match lookup_claim_id(self.bindings(), identity) {
             Ok(claim) => Ok(claim),
@@ -119,7 +138,8 @@ impl ClaimBindings<'_> {
         }
     }
 
-    /// Mint only an authenticated new establishment in this body.
+    /// Allocate a name for an authenticated establishment or checked join.
+    /// Reserving a join name does not establish another resource obligation.
     fn mint(&mut self, identity: PermissionClaimIdentity) -> Result<ClaimId, LoweringError> {
         let Self::Growable {
             bindings,

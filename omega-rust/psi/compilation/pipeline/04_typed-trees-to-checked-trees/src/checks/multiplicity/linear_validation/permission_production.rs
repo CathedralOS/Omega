@@ -13,7 +13,10 @@ use crate::checks::multiplicity::linear_obligations::{
 use crate::checks::multiplicity::linear_validation::claim_provenance::{
     completed_statement_values, written_linear_targets, written_owner_targets,
 };
-use crate::checks::multiplicity::selected_evaluation::{SelectedEvaluation, join_places};
+use crate::checks::multiplicity::selected_evaluation::SelectedEvaluation;
+use crate::checks::multiplicity::selected_evaluation::place_bindings::{
+    SelectionSite, enter_produced,
+};
 use crate::checks::multiplicity::{projected_affine, temporary_results};
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
@@ -172,17 +175,11 @@ pub(crate) fn apply_statement_permission_production(
     let mut custody = (places.to_vec(), remaining.clone());
     let mut selected = SelectedEvaluation::new();
     let mut projected_temporaries = Vec::new();
-    let join = |current: &mut (
-        Vec<LinearPlace>,
-        super::super::cleanup_dispositions::RemainingCustody,
-    ),
-                sibling: &(
-        Vec<LinearPlace>,
-        super::super::cleanup_dispositions::RemainingCustody,
-    )| {
-        join_places(&mut current.0, &sibling.0)?;
-        current.1.join(&sibling.1);
-        Ok(())
+    let selection_site = SelectionSite {
+        machine: machine_symbol,
+        state: state_symbol,
+        statement: statement_index,
+        evaluation,
     };
     // Calls are completion facts, not a second ordering authority. Grouping
     // them before construction moves delays anonymous custody past joins.
@@ -231,7 +228,14 @@ pub(crate) fn apply_statement_permission_production(
                 // the join even when every arm transfers it. The route joins
                 // custody without publishing an unconditional move or losing
                 // the cleanup owed by an arm that did not transfer it.
-                selected.enter(&occurrence.route, &mut custody, join)?;
+                enter_produced(
+                    &mut selected,
+                    &occurrence.route,
+                    &mut custody,
+                    selection_site,
+                    &mut facts.flow.ownership,
+                    claim_identities,
+                )?;
                 let (places, remaining) = &mut custody;
                 // Moving a subtree out of an anonymous owner is that owner's
                 // last use. A call that receives the subtree directly retires
@@ -391,7 +395,14 @@ pub(crate) fn apply_statement_permission_production(
             }
 
             StatementStep::Complete(expression) => {
-                selected.enter(&occurrence.route, &mut custody, join)?;
+                enter_produced(
+                    &mut selected,
+                    &occurrence.route,
+                    &mut custody,
+                    selection_site,
+                    &mut facts.flow.ownership,
+                    claim_identities,
+                )?;
                 let (places, remaining) = &mut custody;
                 // Invalid handles are the standalone statement/named-target
                 // boundary. The exact evaluation filter above selects that
@@ -679,7 +690,14 @@ pub(crate) fn apply_statement_permission_production(
             }
         }
     }
-    selected.enter(&[], &mut custody, join)?;
+    enter_produced(
+        &mut selected,
+        &[],
+        &mut custody,
+        selection_site,
+        &mut facts.flow.ownership,
+        claim_identities,
+    )?;
     places.clone_from_slice(&custody.0);
     *remaining = custody.1;
     // An anonymous owner's untouched complement dies when the statement that

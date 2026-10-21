@@ -76,9 +76,18 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
                 )
         }
         StructuralTerm::CallProjection { .. } => true,
-        // A produced aggregate's reference field is still a descriptor. An
-        // exact input subject projection instead starts at its retained binder.
-        StructuralTerm::Projection { subject, .. } => !has_produced_subject(subject),
+        // A produced owned field can be borrowed as its exact carrier too.
+        // Check every projection crossing: a reference field is a descriptor,
+        // not a snapshot of the storage it points at.
+        StructuralTerm::Projection { subject, .. } => {
+            !has_produced_subject(subject)
+                || completed_owned_carrier(program, term).is_some_and(|reference| {
+                    crate::reference_shell(program, declared).is_some_and(|shell| {
+                        shell.access.is_readable()
+                            && crate::declared_carriers_match(program, shell.referee, reference)
+                    })
+                })
+        }
         StructuralTerm::Opaque(_)
         | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::MathematicalBinary { .. } => false,
@@ -162,6 +171,63 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
         }
         _ => false,
     }
+}
+
+/// Recover a produced value's owned carrier through ordinary record fields.
+/// The term's declaration-bound result type selects each field; neither a
+/// destination type nor a reference's referent can supply a missing crossing.
+/// Case payloads need independent active-case evidence and are not record fields.
+fn completed_owned_carrier(
+    program: &dyn crate::CheckingInput,
+    term: &StructuralTerm,
+) -> Option<TypeReferenceHandle> {
+    let reference = match term {
+        StructuralTerm::Application { result_type, .. }
+        | StructuralTerm::CapturedValue { result_type, .. } => *result_type,
+        StructuralTerm::IndexedValue { element_type, .. } => *element_type,
+        StructuralTerm::CallProjection {
+            result_type,
+            field,
+            field_name,
+            ..
+        } => {
+            if crate::reference_shell(program, *result_type).is_some() {
+                return None;
+            }
+            program
+                .closed_data_member_field(*result_type, *field, field_name)?
+                .type_reference
+        }
+        StructuralTerm::Projection { subject, path } => {
+            let mut reference = completed_owned_carrier(program, subject)?;
+            for name in path.split('.') {
+                let definition = program.closed_data_definition(reference)?;
+                let mut fields = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| {
+                        let typed_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.name.as_str() == name).then_some(field)
+                    });
+                let field = fields.next()?;
+                if fields.next().is_some() {
+                    return None;
+                }
+                reference = program
+                    .closed_data_member_field(reference, field.symbol, name)?
+                    .type_reference;
+                if crate::reference_shell(program, reference).is_some() {
+                    return None;
+                }
+            }
+            reference
+        }
+        _ => return None,
+    };
+    (reference.is_valid() && crate::reference_shell(program, reference).is_none())
+        .then_some(reference)
 }
 
 fn has_produced_subject(term: &StructuralTerm) -> bool {

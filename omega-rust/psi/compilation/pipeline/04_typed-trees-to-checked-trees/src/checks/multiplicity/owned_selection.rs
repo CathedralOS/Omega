@@ -24,7 +24,9 @@ mod occurrences;
 mod operands;
 mod results;
 pub(super) use occurrences::SelectionOccurrences;
-pub(in crate::checks::multiplicity) use results::{selection_claim_origin, terminal_arms};
+pub(in crate::checks::multiplicity) use results::{
+    selection_claim_origin, terminal_arm_route, terminal_arms,
+};
 
 /// Finite stored-value transport is independent of access, availability and
 /// retirement. Loan checking retains every descriptor's exact backing frontier.

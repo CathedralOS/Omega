@@ -78,6 +78,7 @@ pub(crate) fn prepare_permission_events(
     facts.flow.ownership.selection_transfers = Default::default();
     facts.flow.ownership.selection_transfer_claims = Default::default();
     facts.flow.ownership.selection_result_claims = Default::default();
+    facts.flow.ownership.selection_place_bindings = Default::default();
     facts.flow.ownership.selection_produced_claims = Default::default();
     let mut claim_identities = ClaimIdentityAllocator::default();
     facts.flow.ownership.loan_completions = Default::default();

@@ -173,8 +173,9 @@ pub use flow::{
     FlowOperandRetention, FlowOperatorInvocationFact, FlowOwnedSelectionClaim,
     FlowOwnedSelectionProducedClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionResultClaim,
     FlowOwnedSelectionSource, FlowOwnedSelectionTransfer, FlowOwnershipFacts,
-    FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
-    FlowStateOutgoingFact, FlowStatementFact, FlowStorageTransferFact, FlowStorageTransferSource,
+    FlowPermissionEvaluation, FlowPermissionEventFact, FlowSelectionPlaceArrival,
+    FlowSelectionPlaceBinding, FlowSemanticContextRef, FlowStateFact, FlowStateOutgoingFact,
+    FlowStatementFact, FlowStorageTransferFact, FlowStorageTransferSource,
     FlowValueObservationFact, RetiredFlowCall, checked_structural_type_by_identity,
     is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };

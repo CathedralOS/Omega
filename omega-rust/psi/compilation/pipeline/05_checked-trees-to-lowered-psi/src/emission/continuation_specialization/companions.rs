@@ -81,6 +81,7 @@ pub(super) fn instantiate(
             {
                 let mut completion = original.clone();
                 namespace.loan_completion(&mut completion);
+                completion.claims.sort_by_key(|binding| binding.claim);
                 machine.loan_completions.push(completion);
             }
         }
@@ -95,6 +96,11 @@ pub(super) fn instantiate(
             }
         }
     }
+    // Instance discovery follows control reachability, not operation identity.
+    // Publish the remapped companion catalogue in its canonical key order.
+    machine.loan_completions.sort_by(|left, right| {
+        (left.operation, left.place, &left.path).cmp(&(right.operation, right.place, &right.path))
+    });
     // Signature-level source decisions are outside any private block's
     // namespace. Their identities and original evidence remain unchanged.
     rows.source_checked_obligations

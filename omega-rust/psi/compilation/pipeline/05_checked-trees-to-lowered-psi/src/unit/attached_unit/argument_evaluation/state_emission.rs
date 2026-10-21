@@ -47,6 +47,7 @@ pub(super) fn emit_state(
     blocks: &mut Vec<Block>,
     environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
     evaluation: &mut super::Evaluation,
+    claim_edge: Option<&crate::scalar_lowering::computations::PreparedClaimEdge>,
 ) -> Result<(), LoweringError> {
     let erased_formals = declarations(&state.erased_formal_types, next_value)?;
     let mut block_erased_formals = erased_formals.clone();
@@ -449,9 +450,21 @@ pub(super) fn emit_state(
             } else {
                 regions.into_iter().map(|region| region.action).collect()
             };
+            let edge = edge_id(allocate_dense(next_edge)?);
+            if let Some(plan) = claim_edge {
+                operations.claim_edge_bindings.extend(
+                    crate::emission::claim_bindings::selections::edge_bindings(
+                        checked,
+                        &plan.destinations,
+                        &plan.route,
+                        edge,
+                        &calls.claims,
+                    )?,
+                );
+            }
             Terminator::Jump {
                 structural_arguments: structural_arguments.clone(),
-                edge: edge_id(allocate_dense(next_edge)?),
+                edge,
                 target: *targets.get(*target).ok_or(LoweringError::Unsupported(
                     "call computation target is absent",
                 ))?,

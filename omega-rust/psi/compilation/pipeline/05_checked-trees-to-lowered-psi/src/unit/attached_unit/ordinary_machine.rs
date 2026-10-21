@@ -1093,6 +1093,7 @@ pub(super) fn emit(
     let OperationBuffer {
         mut source_returns,
         mut claim_introductions,
+        claim_edge_bindings,
         mut block_entry_claims,
         selected_cleanup_groups,
         mut scalar_block_invariants,
@@ -1237,6 +1238,7 @@ pub(super) fn emit(
             source_returns: &mut source_returns,
             continuation_value_uses: &[],
             claim_introductions: &mut claim_introductions,
+            claim_edge_bindings: &claim_edge_bindings,
             source_calls: &mut source_calls,
             scalar_block_invariants: &mut scalar_block_invariants,
             qualification_coercions: &mut evaluation.qualification_coercions,

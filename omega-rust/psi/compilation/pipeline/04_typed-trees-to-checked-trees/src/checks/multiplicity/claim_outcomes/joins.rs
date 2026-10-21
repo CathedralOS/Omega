@@ -29,6 +29,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
+mod selected_storage;
+use selected_storage::{expand_storage_frontier, selection_routes_agree};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ExitFrontier {
     exits: Vec<FlowClaimJoinExit>,
@@ -46,6 +49,14 @@ enum JoinedOccurrence {
     Selection {
         state: SymbolHandle,
         statement: usize,
+        expression: ExpressionHandle,
+    },
+    Storage {
+        state: SymbolHandle,
+        statement: usize,
+        evaluation: checked_trees::FlowPermissionEvaluation,
+        expression: ExpressionHandle,
+        decision: usize,
     },
 }
 
@@ -493,26 +504,34 @@ fn expand_joined_frontier(
         .iter()
         .find_map(|entry| match entry.source {
             CheckedClaimOutcomeSource::Established {
+                claim_identity,
                 provenance:
-                    PermissionProvenance::Joined {
+                    provenance @ PermissionProvenance::Joined {
                         machine_symbol,
                         state_symbol,
                         source: PermissionEventSource::Statement { statement_index },
                         ..
                     },
-                ..
-            } => Some((machine_symbol, state_symbol, statement_index)),
+            } if super::super::owned_selection::selection_claim_origin(
+                ownership,
+                claim_identity,
+                provenance,
+            ) =>
+            {
+                Some((machine_symbol, state_symbol, statement_index))
+            }
             _ => None,
         });
     if let Some((machine, owner, statement)) = selected {
+        let (_, receipt) = ownership.owned_selection_at(owner, statement as u32)?;
         let occurrence = JoinedOccurrence::Selection {
             state: owner,
             statement,
+            expression: receipt.expression,
         };
         if owner != state.symbol || visited.contains(&occurrence) {
             return None;
         }
-        let (_, receipt) = ownership.owned_selection_at(owner, statement as u32)?;
         if receipt.machine != machine {
             return None;
         }
@@ -522,6 +541,14 @@ fn expand_joined_frontier(
         for (arm, alternatives) in
             selection_alternatives(program, state, ownership, events, receipt)?
         {
+            let route = super::super::owned_selection::terminal_arm_route(
+                program,
+                receipt.expression,
+                arm,
+            )?;
+            if !selection_routes_agree(program, &frontier.exits, owner, statement, &route)? {
+                continue;
+            }
             let mut next = frontier.clone();
             next.exits.push(FlowClaimJoinExit {
                 state_symbol: owner,
@@ -539,12 +566,6 @@ fn expand_joined_frontier(
                 else {
                     continue;
                 };
-                if !matches!(provenance, PermissionProvenance::Joined { machine_symbol, state_symbol,
-                    source: PermissionEventSource::Statement { statement_index }, .. }
-                    if (machine_symbol, state_symbol, statement_index) == (machine, owner, statement))
-                {
-                    continue;
-                }
                 let mut bindings = ownership
                     .selection_result_claims
                     .span_or_empty(receipt.result_claims)
@@ -552,7 +573,9 @@ fn expand_joined_frontier(
                     .filter(|claim| {
                         claim.claim_identity == claim_identity && claim.provenance == provenance
                     });
-                let binding = bindings.next()?;
+                let Some(binding) = bindings.next() else {
+                    continue;
+                };
                 if bindings.next().is_some() {
                     return None;
                 }
@@ -578,6 +601,51 @@ fn expand_joined_frontier(
             )?);
         }
         return Some(expanded);
+    }
+    if let Some(binding) = frontier.entries.iter().find_map(|entry| {
+        let CheckedClaimOutcomeSource::Established {
+            claim_identity,
+            provenance,
+        } = entry.source
+        else {
+            return None;
+        };
+        ownership
+            .selection_place_bindings
+            .iter()
+            .find_map(|(_, binding)| {
+                (binding.selected != binding.remaining
+                    && binding.destination.claim_identity == claim_identity
+                    && binding.destination.provenance == provenance)
+                    .then_some(binding)
+            })
+    }) {
+        return expand_storage_frontier(
+            program,
+            borrow,
+            state,
+            ownership,
+            events,
+            maps,
+            active,
+            visited,
+            frontier.clone(),
+            binding,
+        );
+    }
+    if frontier.entries.iter().any(|entry| {
+        matches!(
+            entry.source,
+            CheckedClaimOutcomeSource::Established {
+                provenance: PermissionProvenance::Joined {
+                    source: PermissionEventSource::Statement { .. },
+                    ..
+                },
+                ..
+            }
+        )
+    }) {
+        return None;
     }
     let joined = frontier
         .entries
@@ -1420,6 +1488,10 @@ pub(crate) fn validate_call_claim_joins(
             }
         ) {
             super::super::owned_selection::selection_claim_origin(
+                ownership,
+                event.claim_identity,
+                event.provenance,
+            ) || super::super::selected_evaluation::place_bindings::claim_origin(
                 ownership,
                 event.claim_identity,
                 event.provenance,

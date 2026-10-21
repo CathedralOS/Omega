@@ -80,6 +80,7 @@ pub struct FlowOwnershipFacts {
     pub selection_transfers: Arena<super::FlowOwnedSelectionTransfer>,
     pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
     pub selection_result_claims: Arena<super::FlowOwnedSelectionResultClaim>,
+    pub selection_place_bindings: Arena<super::FlowSelectionPlaceBinding>,
     pub selection_produced_claims: Arena<super::FlowOwnedSelectionProducedClaim>,
     pub permissions_by_state: arena::OwnedIndex<
         symbols::SymbolKeyMap<SymbolHandle, Vec<arena::Handle<FlowPermissionEventFact>>>,
@@ -112,6 +113,7 @@ impl FlowOwnershipFacts {
             selection_transfers: Arena::default(),
             selection_transfer_claims: Arena::default(),
             selection_result_claims: Arena::default(),
+            selection_place_bindings: Arena::default(),
             selection_produced_claims: Arena::default(),
             permissions_by_state: arena::OwnedIndex::default(),
         }
@@ -462,6 +464,7 @@ paged_flow_roots!(FlowOwnershipFacts {
         selection_transfers,
         selection_transfer_claims,
         selection_result_claims,
+        selection_place_bindings,
         selection_produced_claims,
     ],
     indexes: [permissions_by_state],

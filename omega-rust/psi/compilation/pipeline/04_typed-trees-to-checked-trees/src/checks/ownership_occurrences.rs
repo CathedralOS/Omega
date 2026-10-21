@@ -17,6 +17,26 @@ pub(super) struct EvaluationBranch {
 }
 
 impl EvaluationBranch {
+    pub(super) fn new(expression: ExpressionHandle, decision: usize, selected: bool) -> Self {
+        Self {
+            expression,
+            decision,
+            selected,
+        }
+    }
+
+    pub(super) fn expression(self) -> ExpressionHandle {
+        self.expression
+    }
+
+    pub(super) fn decision(self) -> usize {
+        self.decision
+    }
+
+    pub(super) fn selected(self) -> bool {
+        self.selected
+    }
+
     pub(super) fn same_decision(self, other: Self) -> bool {
         self.expression == other.expression && self.decision == other.decision
     }

@@ -1480,13 +1480,10 @@ fn collect_operation_written_paths(
             }
         }
         ExpressionNode::Call(call) => {
-            // Predicates observe their already evaluated byte operands. Use
-            // the same resolved intrinsic identity as stored-call effects;
+            // Queries observe their already evaluated operands. Use the
+            // same resolved intrinsic identity as stored-call effects;
             // an ordinary same-spelled callable keeps its inferred frame.
-            if matches!(
-                crate::compiler_operations::classify_expression_call_intrinsic(program, call),
-                Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_))
-            ) {
+            if crate::compiler_operations::expression_call_only_observes_operands(program, call) {
                 return Some(());
             }
             // Named operators may acquire their exact identity after initial

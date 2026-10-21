@@ -45,8 +45,19 @@ impl Emission<'_, '_, '_> {
         } else {
             owned_continuation =
                 self.root_value_continuation(self.values[..source_count].to_vec())?;
+            owned_continuation.claim_destinations =
+                crate::emission::claim_bindings::selections::reserve(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    self.statement,
+                    expression,
+                    0,
+                    &mut self.calls.claims,
+                )?;
             &mut owned_continuation
         };
+        let route_prefix = self.selection_route.len();
         for (position, arm) in arms.iter().enumerate() {
             let mut fallback = None;
             if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
@@ -119,7 +130,26 @@ impl Emission<'_, '_, '_> {
             } else {
                 None
             };
+            if position + 1 < arms.len() {
+                self.selection_route.push(
+                    crate::emission::claim_bindings::selections::SelectedDecision {
+                        expression,
+                        decision: position,
+                        selected: true,
+                    },
+                );
+            }
             let emitted = self.value(identities, arm.value, Some(&mut *continuation));
+            self.selection_route.truncate(route_prefix + position);
+            if position + 1 < arms.len() {
+                self.selection_route.push(
+                    crate::emission::claim_bindings::selections::SelectedDecision {
+                        expression,
+                        decision: position,
+                        selected: false,
+                    },
+                );
+            }
             if let Some((claims, introductions)) = previous {
                 self.completion_claims = claims;
                 self.direct_establishments = introductions;
@@ -127,6 +157,7 @@ impl Emission<'_, '_, '_> {
             emitted?;
             self.restore_fallback(fallback);
         }
+        self.selection_route.truncate(route_prefix);
         if is_root {
             self.record_root_continuation(continuation)?;
         }

@@ -76,6 +76,13 @@ enum EstablishedValue {
 /// Only the common producer publishes physical bindings during emission.
 pub(crate) struct PreparedExpansion {
     pub(crate) states: Vec<LoweredScalarBranchState>,
+    pub(crate) claim_edges: Vec<PreparedClaimEdge>,
+}
+
+pub(crate) struct PreparedClaimEdge {
+    pub(crate) state_position: usize,
+    pub(crate) destinations: Vec<language_semantics::PermissionClaimIdentity>,
+    pub(crate) route: Vec<crate::emission::claim_bindings::selections::SelectedDecision>,
 }
 
 pub(crate) struct Expansion<'a> {
@@ -91,6 +98,7 @@ pub(crate) struct Expansion<'a> {
     /// edge terms stay in scope on the emitted block.
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
+    claim_edges: Vec<PreparedClaimEdge>,
     calls: Vec<SourceCallCoordinate>,
     produced_values: Vec<produced_values::Slot>,
     subslices: Vec<subslices::Slot>,
@@ -126,6 +134,7 @@ impl<'a> Expansion<'a> {
             base,
             erased_proof_formals: Vec::new(),
             states: Vec::new(),
+            claim_edges: Vec::new(),
             calls: Vec::new(),
             produced_values: Vec::new(),
             subslices: Vec::new(),
@@ -167,6 +176,7 @@ impl<'a> Expansion<'a> {
     pub(crate) fn finish(self) -> PreparedExpansion {
         PreparedExpansion {
             states: self.states,
+            claim_edges: self.claim_edges,
         }
     }
 
@@ -805,8 +815,13 @@ impl<'a> Expansion<'a> {
                 };
                 self.argument(identities, &operand, input_types, bound, site, active)?
             }
-            CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(
+            CheckedScalarComputationKind::Dispatch {
+                source_expression,
+                subject,
+                arms,
+            } => self.dispatch(
                 identities,
+                source_expression,
                 subject,
                 arms,
                 result_type,
@@ -851,12 +866,14 @@ impl<'a> Expansion<'a> {
                 )
             }
             CheckedScalarComputationKind::Select {
+                source_expression,
                 condition,
                 when_true,
                 when_false,
                 ..
             } => self.selection(
                 identities,
+                source_expression,
                 condition,
                 when_true,
                 when_false,

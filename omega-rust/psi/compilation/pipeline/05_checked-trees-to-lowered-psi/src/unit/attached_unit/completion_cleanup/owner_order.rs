@@ -4,6 +4,14 @@ use super::{CleanupRegion, Evaluation, LoweringError, OperationBuffer};
 use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::PlaceId;
 
+/// One declaring owner's cleanup may share a home with a moved field's later
+/// declaration. Physical coalescing must not merge their independent schedules.
+struct CleanupOwner {
+    place: PlaceId,
+    declaration: Option<(u8, u32)>,
+    order: (u8, u32, usize),
+}
+
 /// Name the checked declaring owner before physical storage aliases can lose
 /// the distinction between a replacement's supplier and receiving declaration.
 pub(super) fn declaring_order(
@@ -125,21 +133,15 @@ pub(crate) fn selection(
             declarations.push((*symbol, *statement_index));
         }
     }
-    let mut roots = Vec::<(PlaceId, (u8, u32, usize))>::new();
+    let mut roots = Vec::<CleanupOwner>::new();
     for action in actions.iter() {
         let place = action.action.place();
-        if roots.iter().any(|(root, _)| *root == place) {
-            continue;
-        }
-        let mut declared = actions
+        let explicit = action.declaration_order;
+        if roots
             .iter()
-            .filter(|region| region.action.place() == place)
-            .filter_map(|region| region.declaration_order);
-        let explicit = declared.next();
-        if declared.any(|order| Some(order) != explicit) {
-            return Err(LoweringError::Unsupported(
-                "one cleanup home names distinct declaring owners",
-            ));
+            .any(|root| root.place == place && root.declaration == explicit)
+        {
+            continue;
         }
         let parameter = evaluation
             .structural_parameters
@@ -196,19 +198,27 @@ pub(crate) fn selection(
                     "normal cleanup owner has no checked declaration or completed producer coordinate",
                 ))?
         };
-        roots.push((place, order));
+        roots.push(CleanupOwner {
+            place,
+            declaration: explicit,
+            order,
+        });
     }
     // Stable ties preserve the checked per-declaration schedule: the current
     // occupant dies before its older retained candidates. Anonymous siblings
-    // at one statement retain reverse actual establishment order. Each root's
-    // parent/descendant action sequence remains intact.
-    roots.sort_by_key(|(_, order)| std::cmp::Reverse(*order));
+    // at one statement retain reverse actual establishment order. Each owner's
+    // parent/descendant action sequence remains intact, even when another
+    // declaration owns a moved field in the same physical home.
+    roots.sort_by_key(|root| std::cmp::Reverse(root.order));
     let previous = std::mem::take(actions);
-    for (place, _) in roots {
+    for root in roots {
         actions.extend(
             previous
                 .iter()
-                .filter(|region| region.action.place() == place)
+                .filter(|region| {
+                    region.action.place() == root.place
+                        && region.declaration_order == root.declaration
+                })
                 .cloned(),
         );
     }

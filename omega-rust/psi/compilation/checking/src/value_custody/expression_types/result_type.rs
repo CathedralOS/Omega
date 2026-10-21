@@ -206,6 +206,16 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => (|| {
+            // Storage observation returns an address, not its operand's
+            // reference type or an unresolved machine result. Keep this
+            // compiler-owned carrier visible to every result consumer without
+            // granting authority or equations about the observed address.
+            if crate::compiler_operations::storage_address_operand(program, call).is_some() {
+                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    BuiltinTypeAtom::Address,
+                );
+            }
             // The sealed embedding has an unbounded Int result, not an
             // unresolved runtime call. Its operand still owes the independent
             // embedding/formation checks. Losing this type lets unrelated

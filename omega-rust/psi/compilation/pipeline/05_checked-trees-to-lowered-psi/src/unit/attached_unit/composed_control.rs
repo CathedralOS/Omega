@@ -30,6 +30,8 @@ pub(in crate::unit::attached_unit) struct ComposedOccurrences {
         Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(in crate::unit::attached_unit) claim_introductions:
         Vec<crate::emission::claim_bindings::ClaimIntroduction>,
+    pub(in crate::unit::attached_unit) claim_edge_bindings:
+        Vec<crate::emission::claim_bindings::ClaimEdgeBinding>,
     pub(in crate::unit::attached_unit) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
     pub(in crate::unit::attached_unit) quotient_adaptations:
@@ -55,6 +57,8 @@ impl ComposedOccurrences {
             .extend(operations.selected_cleanup_groups);
         self.claim_introductions
             .extend(operations.claim_introductions);
+        self.claim_edge_bindings
+            .extend(operations.claim_edge_bindings);
         self.source_calls.extend(operations.source_calls);
         self.quotient_adaptations
             .extend(operations.quotient_adaptations);

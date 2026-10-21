@@ -16,6 +16,7 @@ impl Expansion<'_> {
     pub(super) fn dispatch(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: typed_trees::expression::ExpressionHandle,
         subject: Computation,
         arms: arena::HandleSpan<CheckedScalarDispatchArm>,
         result_type: QualifiedScalarType,
@@ -87,14 +88,36 @@ impl Expansion<'_> {
         let mut tested_types = saved_types.clone();
         tested_types.push(subject_type);
         let mut continuation = None;
-        for arm in arms.iter().rev() {
+        for (position, arm) in arms.iter().enumerate().rev() {
+            let mut route = (0..position)
+                .map(
+                    |decision| crate::emission::claim_bindings::selections::SelectedDecision {
+                        expression,
+                        decision,
+                        selected: false,
+                    },
+                )
+                .collect::<Vec<_>>();
+            if position + 1 < arms.len() {
+                route.push(
+                    crate::emission::claim_bindings::selections::SelectedDecision {
+                        expression,
+                        decision: position,
+                        selected: true,
+                    },
+                );
+            }
+            let mut completed_types = input_types.to_vec();
+            completed_types.push(result_type);
+            let completion =
+                self.claim_continuation(expression, route, &completed_types, target, site)?;
             // Arm bodies receive the original prefix. The saved subject and
             // last pattern value are no longer live once an arm is selected.
             let selected = self.argument(
                 identities,
                 &Argument::Computation(arm.value),
                 input_types,
-                target,
+                completion,
                 site,
                 active,
             )?;

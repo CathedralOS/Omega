@@ -15,10 +15,49 @@ use super::{
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 
 impl Expansion<'_> {
+    /// Each selected arm crosses an explicit namespace edge before the common
+    /// scalar continuation. Nested selections compose through the same aliases;
+    /// they do not move, copy, or recreate the storage whose claims changed.
+    pub(super) fn claim_continuation(
+        &mut self,
+        expression: typed_trees::expression::ExpressionHandle,
+        route: Vec<crate::emission::claim_bindings::selections::SelectedDecision>,
+        types: &[QualifiedScalarType],
+        target: usize,
+        site: &Site<'_>,
+    ) -> Result<usize, LoweringError> {
+        let destinations = crate::emission::claim_bindings::selections::destinations(
+            self.checked,
+            self.machine,
+            site.state,
+            site.statement,
+            expression,
+            0,
+        )?;
+        if destinations.is_empty() {
+            return Ok(target);
+        }
+        let state_position = self.states.len();
+        let completion = self.push(LoweredScalarBranchState::jumping(
+            target,
+            Vec::new(),
+            types.to_vec(),
+            types,
+            Vec::new(),
+        ));
+        self.claim_edges.push(super::PreparedClaimEdge {
+            state_position,
+            destinations,
+            route,
+        });
+        Ok(completion)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn selection(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: typed_trees::expression::ExpressionHandle,
         condition: Computation,
         when_true: Computation,
         when_false: Computation,
@@ -79,17 +118,30 @@ impl Expansion<'_> {
             let completion = self.push(LoweredScalarBranchState {
                 structural_parameters: Vec::new(),
                 structural_effects: Vec::new(),
-                parameter_types: result_types,
+                parameter_types: result_types.clone(),
                 erased_formal_types: Vec::new(),
                 erased_proof_formals: Vec::new(),
                 bindings: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::jump(target, arguments),
             });
+            let when_true_completion = self.claim_continuation(
+                expression,
+                vec![
+                    crate::emission::claim_bindings::selections::SelectedDecision {
+                        expression,
+                        decision: 0,
+                        selected: true,
+                    },
+                ],
+                &result_types,
+                completion,
+                site,
+            )?;
             let when_true_target = self.argument(
                 identities,
                 &Argument::Computation(when_true),
                 carried,
-                completion,
+                when_true_completion,
                 site,
                 active,
             )?;
@@ -111,11 +163,24 @@ impl Expansion<'_> {
             let mut continuation = if identical_values {
                 when_true_target
             } else {
+                let when_false_completion = self.claim_continuation(
+                    expression,
+                    vec![
+                        crate::emission::claim_bindings::selections::SelectedDecision {
+                            expression,
+                            decision: 0,
+                            selected: false,
+                        },
+                    ],
+                    &result_types,
+                    completion,
+                    site,
+                )?;
                 let when_false_target = self.argument(
                     identities,
                     &Argument::Computation(when_false),
                     carried,
-                    completion,
+                    when_false_completion,
                     site,
                     active,
                 )?;

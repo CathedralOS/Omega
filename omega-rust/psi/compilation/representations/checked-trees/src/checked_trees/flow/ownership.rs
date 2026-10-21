@@ -175,6 +175,32 @@ pub struct FlowOwnedSelectionResultClaim {
     pub provenance: language_semantics::PermissionProvenance,
 }
 
+/// One side of a selected storage binding. It retains the arriving obligation,
+/// not a theorem that the two sides have common establishment lineage.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowSelectionPlaceArrival {
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+    pub provenance: language_semantics::PermissionProvenance,
+}
+
+/// A live place after one source selection decision. Both paths must supply
+/// the same complete typed ownership frontier before destination names bind.
+/// The binary decision preserves nested topology without enumerating paths.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowSelectionPlaceBinding {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_ordinal: usize,
+    pub evaluation: FlowPermissionEvaluation,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub decision: usize,
+    pub root: facts::PlaceRoot,
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub selected: FlowSelectionPlaceArrival,
+    pub remaining: FlowSelectionPlaceArrival,
+    pub destination: FlowSelectionPlaceArrival,
+}
+
 /// A checked literal producer establishes this root obligation on one arm.
 /// Its result path locates that producer beneath the selected aggregate.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -312,6 +338,14 @@ pub enum FlowClaimJoinExitKind {
     SelectionArm {
         expression: typed_trees::expression::ExpressionHandle,
         arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    },
+    /// A selected storage binding can outlive an expression whose result has
+    /// no owned claims. Keep its binary edge independently of result custody.
+    SelectionDecision {
+        evaluation: FlowPermissionEvaluation,
+        expression: typed_trees::expression::ExpressionHandle,
+        decision: usize,
+        selected: bool,
     },
 }
 

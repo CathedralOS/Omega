@@ -1352,17 +1352,24 @@ impl Evaluation {
         environment: &mut OperationEnvironment<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
         let states = &expansion.states;
-        if let Some(completed) = self.complete_straight_line(
-            identities,
-            checked,
-            states,
-            entry_index,
-            result_types,
-            values,
-            next_value,
-            operations,
-            calls,
-        )? {
+        for plan in &expansion.claim_edges {
+            for destination in &plan.destinations {
+                calls.claims.reserve_checked_binding(*destination)?;
+            }
+        }
+        if expansion.claim_edges.is_empty()
+            && let Some(completed) = self.complete_straight_line(
+                identities,
+                checked,
+                states,
+                entry_index,
+                result_types,
+                values,
+                next_value,
+                operations,
+                calls,
+            )?
+        {
             return Ok(completed);
         }
         let source_types = values
@@ -1438,6 +1445,10 @@ impl Evaluation {
                 &mut self.blocks,
                 environment,
                 &mut state_evaluation,
+                expansion
+                    .claim_edges
+                    .iter()
+                    .find(|plan| plan.state_position == index),
             )?;
             crate::expression_preparation::bindings::retain_completed_structural_homes(
                 &mut self.structural_locals,

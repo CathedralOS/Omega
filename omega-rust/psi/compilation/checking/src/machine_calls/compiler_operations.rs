@@ -248,3 +248,19 @@ pub fn storage_address_operand(
     .filter(|arguments| arguments.len() == 1)
     .map(|arguments| arguments[0])
 }
+
+/// These resolved observations neither write caller storage nor install
+/// reference slots. Their runtime operands still execute with their ordinary
+/// effects; an ordinary same-spelled declaration does not select this rule.
+pub(crate) fn expression_call_only_observes_operands(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    matches!(
+        classify_expression_call_intrinsic(program, call),
+        Some(
+            AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+        )
+    )
+}

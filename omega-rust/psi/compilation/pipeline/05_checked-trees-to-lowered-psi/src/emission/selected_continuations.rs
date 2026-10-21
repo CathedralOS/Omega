@@ -69,6 +69,7 @@ pub(crate) fn prepare(
     blocks: &[Block],
     types: &[StructuralTypeDeclaration],
     groups: &[SelectedCleanupGroup],
+    has_claim_bindings: bool,
 ) -> Result<Option<Specialization>, LoweringError> {
     let mut regions = Vec::new();
     for group in groups {
@@ -85,7 +86,7 @@ pub(crate) fn prepare(
     }
     let extractions = super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
     let copied_roots = super::affine_cleanup::copied_operand_roots(parameters, blocks);
-    let mut projected_roots =
+    let projected_roots =
         super::affine_cleanup::partitioned_roots(blocks, &extractions, &copied_roots);
     if !projected_roots.is_empty() {
         // Preserve partitioned roots through their discriminator branches.
@@ -102,7 +103,7 @@ pub(crate) fn prepare(
             }
         }
     }
-    if regions.is_empty() {
+    if regions.is_empty() && !has_claim_bindings {
         return Ok(None);
     }
     let entry = block_position(blocks, entry)?;

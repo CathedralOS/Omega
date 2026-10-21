@@ -39,6 +39,7 @@ pub(crate) struct CompanionRows<'a> {
         &'a mut Vec<LoweredSelectedIntegerComparisonOccurrence>,
     pub(crate) source_checked_obligations: &'a mut Vec<ObligationId>,
     pub(crate) claim_introductions: &'a [super::claim_bindings::ClaimIntroduction],
+    pub(crate) claim_edge_bindings: &'a [super::claim_bindings::ClaimEdgeBinding],
 }
 
 pub(crate) struct Counters<'a> {
@@ -74,6 +75,7 @@ pub(crate) fn complete(
         &machine.blocks,
         types,
         groups,
+        !rows.claim_edge_bindings.is_empty(),
     )?
     else {
         return Ok(Vec::new());
@@ -81,7 +83,7 @@ pub(crate) fn complete(
     // A projected frontier that already has one continuation per source block
     // needs no identity work. Candidate groups can still redirect edges, so
     // their ordinary specialization remains necessary even without clones.
-    if groups.is_empty() {
+    if groups.is_empty() && rows.claim_edge_bindings.is_empty() {
         let mut retained = vec![false; machine.blocks.len()];
         if topology.continuations.iter().all(|continuation| {
             !std::mem::replace(&mut retained[continuation.original_block], true)
@@ -113,6 +115,11 @@ pub(crate) fn complete(
                 .flat_map(|completion| completion.claims.iter().map(|row| row.claim.get())),
         )
         .chain(rows.claim_introductions.iter().map(|row| row.claim.get()))
+        .chain(
+            rows.claim_edge_bindings
+                .iter()
+                .flat_map(|row| [row.destination.get(), row.source.get()]),
+        )
         .max()
         .unwrap_or(0)
         .checked_add(1)
@@ -137,7 +144,23 @@ pub(crate) fn complete(
         let mut namespace = instances[position].namespace.clone();
         let mut successors = Vec::new();
         for (edge, target) in &topology.continuations[continuation].successors {
-            let incoming = captured_namespace(&mut namespace, &live[*target]);
+            // All substitutions read the predecessor namespace before any
+            // destination is installed. Swaps and correlated sibling claims
+            // therefore cannot observe a partially rebound frontier.
+            let substitutions = rows
+                .claim_edge_bindings
+                .iter()
+                .filter(|binding| binding.edge == *edge)
+                .map(|binding| (binding.destination, namespace.claim(binding.source)))
+                .collect::<Vec<_>>();
+            let mut incoming_namespace = namespace.clone();
+            for (destination, source) in substitutions {
+                incoming_namespace
+                    .claims
+                    .retain(|(name, _)| *name != destination);
+                incoming_namespace.claims.push((destination, source));
+            }
+            let incoming = captured_namespace(&mut incoming_namespace, &live[*target]);
             let target_instance = if let Some(existing) = instances.iter().position(|instance| {
                 instance.continuation == *target && instance.incoming == incoming
             }) {

@@ -129,9 +129,10 @@ pub fn expression_has_inert_prefix(
 }
 
 /// Completed sibling subtrees before one operation's operand evaluation.
-/// The enclosing operation and later siblings have not executed. Alternatives
-/// are conservatively unioned, so an effect in an earlier alternative can
-/// prevent preservation but cannot manufacture it. Repeated endpoint handles
+/// The enclosing operation and later siblings have not executed. An endpoint
+/// inside a match arm sees the subject and preceding patterns, not sibling arm
+/// bodies. A completed selection before the endpoint remains a whole subtree:
+/// its consumer still unions every possible effect. Repeated endpoint handles
 /// decline: a static handle cannot select between different occurrences.
 pub(crate) fn expressions_before_occurrence(
     program: &dyn crate::CheckingInput,
@@ -145,6 +146,7 @@ pub(crate) fn expressions_before_occurrence(
         depth: usize,
         occurrences: &mut usize,
         prefix: &mut Vec<ExpressionHandle>,
+        captured: &mut Vec<ExpressionHandle>,
     ) -> Option<()> {
         if !expression.is_valid() {
             return Some(());
@@ -154,32 +156,87 @@ pub(crate) fn expressions_before_occurrence(
         }
         if expression == endpoint {
             *occurrences += 1;
+            if *occurrences == 1 {
+                captured.clone_from(prefix);
+            }
             return Some(());
         }
         let start = prefix.len();
-        let mut completed = Some(());
-        executable_children(
-            program,
-            program.expression_table.expression(expression),
-            |child| {
-                if visit(program, child, endpoint, depth + 1, occurrences, prefix).is_none() {
+        let node = program.expression_table.expression(expression);
+        if let ExpressionNode::Match(dispatch) = node {
+            visit(
+                program,
+                dispatch.subject,
+                endpoint,
+                depth + 1,
+                occurrences,
+                prefix,
+                captured,
+            )?;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                if let MatchPattern::Value(pattern) = arm.pattern {
+                    visit(
+                        program,
+                        pattern,
+                        endpoint,
+                        depth + 1,
+                        occurrences,
+                        prefix,
+                        captured,
+                    )?;
+                }
+                let patterns_end = prefix.len();
+                visit(
+                    program,
+                    arm.value,
+                    endpoint,
+                    depth + 1,
+                    occurrences,
+                    prefix,
+                    captured,
+                )?;
+                // Only a failed pattern reaches the next arm. The selected
+                // body cannot donate effects to that mutually exclusive path.
+                prefix.truncate(patterns_end);
+            }
+        } else {
+            let mut completed = Some(());
+            executable_children(program, node, |child| {
+                if visit(
+                    program,
+                    child,
+                    endpoint,
+                    depth + 1,
+                    occurrences,
+                    prefix,
+                    captured,
+                )
+                .is_none()
+                {
                     completed = None;
                 }
-            },
-        );
-        completed?;
-        if *occurrences == 0 {
-            prefix.truncate(start);
-            prefix.push(expression);
+            });
+            completed?;
         }
+        prefix.truncate(start);
+        prefix.push(expression);
         Some(())
     }
     let mut occurrences = 0;
     let mut prefix = Vec::new();
+    let mut captured = Vec::new();
     for root in roots {
-        visit(program, *root, endpoint, 0, &mut occurrences, &mut prefix)?;
+        visit(
+            program,
+            *root,
+            endpoint,
+            0,
+            &mut occurrences,
+            &mut prefix,
+            &mut captured,
+        )?;
     }
-    (occurrences == 1).then_some(prefix)
+    (occurrences == 1).then_some(captured)
 }
 
 pub fn children(

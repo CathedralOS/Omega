@@ -102,6 +102,15 @@ impl Emission<'_, '_, '_> {
             self.values.iter().map(|value| value.id).collect(),
             structural_arguments,
         )?;
+        self.operations.claim_edge_bindings.extend(
+            crate::emission::claim_bindings::selections::edge_bindings(
+                self.checked,
+                &continuation.claim_destinations,
+                &self.selection_route,
+                edge.edge,
+                &self.calls.claims,
+            )?,
+        );
         self.finish_jump(edge, Vec::new());
         Ok(())
     }
@@ -130,6 +139,15 @@ impl Emission<'_, '_, '_> {
             self.values.iter().map(|value| value.id).collect(),
             vec![argument],
         )?;
+        self.operations.claim_edge_bindings.extend(
+            crate::emission::claim_bindings::selections::edge_bindings(
+                self.checked,
+                &continuation.claim_destinations,
+                &self.selection_route,
+                edge.edge,
+                &self.calls.claims,
+            )?,
+        );
         self.finish_jump(edge, Vec::new());
         Ok(())
     }
