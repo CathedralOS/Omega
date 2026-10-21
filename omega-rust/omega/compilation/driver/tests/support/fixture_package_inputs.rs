@@ -10,9 +10,9 @@
 //! - [`fixture_package_inputs_bound_to`] binds that closure with the
 //!   compilation root at marker 1 and the bundled standard library at
 //!   marker 2, the identity entry and dangerous-service acceptance name;
-//! - [`join_dependency_builds`] executes the dependency Build occurrences that
-//!   closure requires through the driver's package route and joins their
-//!   generated source into the root's inputs, as the product compile does;
+//! - [`fixture_occurrences`] submits the authored dependency-first closure to
+//!   the driver package facade; generated source and demanded verified component
+//!   products remain in the fixture session through checking and production;
 //! - [`reviewed_repository_fixture_package_inputs`] stages the fixture's
 //!   sealed source snapshot, binds the root package to it, and adds this
 //!   repository's test acceptance: the target profile's reviewed
@@ -898,6 +898,8 @@ pub struct ReviewedFixtureCompilation {
     pub assumed_permissions:
         Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
     pub session: compiler::CompilationSession,
+    graph: Option<FixturePackageGraph>,
+    authored_project_root: PathBuf,
 }
 
 /// Consume the fixture's explicit consent through the same package-product
@@ -915,7 +917,7 @@ pub fn accepted_fixture_product_request(
     request.build_snapshot = snapshot;
     request.build_dir = Some(build_dir);
     Ok(compiler::PackageCompilationRequest {
-        occurrences: vec![request],
+        occurrences: fixture_occurrences(prepared, request)?,
         product,
         terminal_permissions: prepared.assumed_permissions.take(),
     })
@@ -1025,9 +1027,13 @@ pub fn reviewed_repository_fixture_package_inputs(
             package_inputs: None,
             assumed_permissions: None,
             session: compiler::CompilationSession::default(),
+            graph: None,
+            authored_project_root: authored_project_root.to_path_buf(),
         });
     };
-    if let Some(graph) = &graph {
+    if target_name.is_none()
+        && let Some(graph) = &graph
+    {
         package_inputs = join_dependency_builds(
             graph,
             package_inputs,
@@ -1091,19 +1097,30 @@ pub fn reviewed_repository_fixture_package_inputs(
     // writable staging a real activation gets; the default beside the root
     // source is inside the sealed snapshot.
     let mut session = compiler::CompilationSession::default();
-    let preliminary = session
-        .check(CheckedCompileRequest {
-            package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
-            permit_unsettled_fused_service_fields: true,
-            build_snapshot: fixture_build_snapshot(&root_path)?,
-            build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
-                &repo_root(),
-                authored_project_root,
-            )),
-            ..CheckedCompileRequest::new(&root_path, target_name)
-        })
-        .result
-        .map_err(|failure| failure.into_diagnostics())?;
+    let request = CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
+        permit_unsettled_fused_service_fields: true,
+        build_snapshot: fixture_build_snapshot(&root_path)?,
+        build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
+            &repo_root(),
+            authored_project_root,
+        )),
+        ..CheckedCompileRequest::new(&root_path, target_name)
+    };
+    let preliminary = if target_name.is_some()
+        && let Some(graph) = &graph
+    {
+        let occurrences =
+            dependency_requests(graph, &package_inputs, authored_project_root, request)?;
+        session
+            .check_package(occurrences)
+            .map_err(|failure| failure.failure.into_diagnostics())?
+    } else {
+        session
+            .check(request)
+            .result
+            .map_err(|failure| failure.into_diagnostics())?
+    };
     for (owner, _) in package_inputs.packages() {
         let required =
             dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);
@@ -1188,6 +1205,8 @@ pub fn reviewed_repository_fixture_package_inputs(
         package_inputs: Some(package_inputs),
         assumed_permissions,
         session,
+        graph,
+        authored_project_root: authored_project_root.to_path_buf(),
     })
 }
 
@@ -1219,10 +1238,27 @@ fn join_dependency_builds(
     if target_name.is_none() && consumes_product_output {
         return Ok(inputs);
     }
-    let occurrences = graph.dependency_occurrences(&inputs);
+    let mut root_request = CheckedCompileRequest::new(root_path, target_name);
+    root_request.package_inputs = Some(inputs.clone());
+    root_request.build_execution_profile = TargetProfile::host_if_supported();
+    let requests = dependency_requests(graph, &inputs, authored_project_root, root_request)?;
+    with_dependency_build_session(|session| session.join_dependency_builds(requests))
+        .map_err(|failure| failure.failure.into_diagnostics())
+}
+
+/// Submit the authored closure for this activation. Dependency Build receipts
+/// and verified component products stay in the caller's compilation session.
+fn dependency_requests(
+    graph: &FixturePackageGraph,
+    inputs: &PackageCompilationInputs,
+    authored_project_root: &Path,
+    root_request: CheckedCompileRequest,
+) -> Result<Vec<CheckedCompileRequest>, Vec<Diagnostic>> {
+    let occurrences = graph.dependency_occurrences(inputs);
     if occurrences.is_empty() {
-        return Ok(inputs);
+        return Ok(vec![root_request]);
     }
+    let target_name = root_request.target_name.as_deref();
     let execution_profile = TargetProfile::host_if_supported();
     let staging = {
         let fixture_staging =
@@ -1277,13 +1313,42 @@ fn join_dependency_builds(
             ..CheckedCompileRequest::new(&entry, occurrence_target.as_deref())
         });
     }
-    requests.push(CheckedCompileRequest {
-        package_inputs: Some(inputs),
-        build_execution_profile: execution_profile,
-        ..CheckedCompileRequest::new(root_path, target_name)
-    });
-    with_dependency_build_session(|session| session.join_dependency_builds(requests))
-        .map_err(|failure| failure.failure.into_diagnostics())
+    requests.push(root_request);
+    Ok(requests)
+}
+
+pub fn fixture_occurrences(
+    prepared: &ReviewedFixtureCompilation,
+    request: CheckedCompileRequest,
+) -> Result<Vec<CheckedCompileRequest>, Vec<Diagnostic>> {
+    if request.target_name.is_some()
+        && let (Some(graph), Some(inputs)) = (&prepared.graph, &request.package_inputs)
+    {
+        let inputs = inputs.clone();
+        return dependency_requests(graph, &inputs, &prepared.authored_project_root, request);
+    }
+    Ok(vec![request])
+}
+
+/// Check this fixture activation through its authored package closure when it
+/// has a concrete target. Target-neutral source checking keeps its own route.
+pub fn check_fixture_request(
+    prepared: &mut ReviewedFixtureCompilation,
+    request: CheckedCompileRequest,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    if request.target_name.is_some() && request.package_inputs.is_some() {
+        let occurrences = fixture_occurrences(prepared, request)?;
+        prepared
+            .session
+            .check_package(occurrences)
+            .map_err(|failure| failure.failure.into_diagnostics())
+    } else {
+        prepared
+            .session
+            .check(request)
+            .result
+            .map_err(|failure| failure.into_diagnostics())
+    }
 }
 
 /// Lend `work` a compiler session reserved for dependency Build occurrences,

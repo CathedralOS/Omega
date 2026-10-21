@@ -467,7 +467,9 @@ fn produce_terminal_semantic(
     rollback: Option<&OptimizationRollback>,
 ) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
     let mut prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
-    if prepared.assumed_permissions.is_some() {
+    if prepared.assumed_permissions.is_some()
+        || (prepared.package_inputs.is_some() && target.is_some())
+    {
         let request = fixture_package_inputs::accepted_fixture_product_request(
             &mut prepared,
             target.as_deref(),
@@ -622,7 +624,10 @@ fn published_files(
             root_path,
             declared_realization_target(root_path).as_deref(),
         )?;
-        if prepared.assumed_permissions.is_some() {
+        if prepared.assumed_permissions.is_some()
+            || (prepared.package_inputs.is_some()
+                && declared_realization_target(root_path).is_some())
+        {
             let request = fixture_package_inputs::accepted_fixture_product_request(
                 &mut prepared,
                 declared_realization_target(root_path).as_deref(),
@@ -828,17 +833,13 @@ fn interpret_checked_fixture(
         let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
         let snapshot = fixture_build_snapshot(&prepared.root_path)?;
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
-        request.package_inputs = prepared.package_inputs;
+        request.package_inputs = prepared.package_inputs.take();
         request.build_snapshot = snapshot;
         request.build_dir = Some(build_dir.clone());
         if let Some(rollback) = rollback {
             request.optimization_rollback = rollback.clone();
         }
-        prepared
-            .session
-            .check(request)
-            .result
-            .map_err(|failure| failure.into_diagnostics())
+        fixture_package_inputs::check_fixture_request(&mut prepared, request)
     };
     let checked = compile_checked();
     let _ = fs::remove_dir_all(&build_dir);
@@ -1073,7 +1074,7 @@ fn build_native_fixture(
         }
     }
     let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
-    let accepted_reports = if prepared.assumed_permissions.is_some() {
+    let accepted_reports = if prepared.package_inputs.is_some() {
         let requests = targets
             .iter()
             .map(|profile| {
@@ -1361,10 +1362,11 @@ fn check_fail_fixture(
         terminal_authority_permission_policy: None,
         optimization_rollback: rollback.cloned().unwrap_or_default(),
     });
-    let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
+    let mut prepared =
+        reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CheckedCompileRequest::new(&prepared.root_path, target_name.as_deref());
-    request.package_inputs = prepared.package_inputs;
+    request.package_inputs = prepared.package_inputs.take();
     request.build_snapshot = build_snapshot;
     // A fail fixture's build machine may still reach the build filesystem
     // before the rule it is pinned on refuses, and the staging a compilation
@@ -1510,22 +1512,48 @@ fn check_fail_fixture(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let mut session = if absent_outputs.is_empty() && request.evaluation_sponsor.is_none() {
+    let reuse_session = absent_outputs.is_empty() && request.evaluation_sponsor.is_none();
+    let package_mode = target_name.is_some() && request.package_inputs.is_some();
+    let mut request = Some(request);
+    let package_occurrences = if package_mode {
+        Some(fixture_package_inputs::fixture_occurrences(
+            &prepared,
+            request.take().expect("root request"),
+        )?)
+    } else {
+        None
+    };
+    let mut session = if reuse_session {
         prepared.session
     } else {
         compiler::CompilationSession::default()
     };
-    let mut result = if let Some(native_product) = native_product {
+    let mut result = if let Some(occurrences) = package_occurrences {
+        let product = native_product.map_or(
+            compiler::CompilationProduct::Check,
+            compiler::CompilationProduct::Native,
+        );
+        session
+            .compile_packages(vec![compiler::PackageCompilationRequest {
+                occurrences,
+                product,
+                terminal_permissions: prepared.assumed_permissions,
+            }])
+            .pop()
+            .expect("one fixture product")
+            .map(|_| ())
+            .map_err(|error| error.failure.into_diagnostics())
+    } else if let Some(native_product) = native_product {
         session
             .produce(
-                request,
+                request.take().expect("root request"),
                 compiler::CompilationProduct::Native(native_product),
             )
             .map(|_| ())
             .map_err(compiler::CompilationProductError::into_diagnostics)
     } else {
         session
-            .check(request)
+            .check(request.take().expect("root request"))
             .result
             .map(|_| ())
             .map_err(|failure| failure.into_diagnostics())
@@ -1570,7 +1598,9 @@ fn realize_fixture(
     let mut prepared =
         reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    if prepared.assumed_permissions.is_some() {
+    if prepared.assumed_permissions.is_some()
+        || (prepared.package_inputs.is_some() && target_name.is_some())
+    {
         let product =
             compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
                 private_entry_ram: Vec::new(),

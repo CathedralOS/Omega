@@ -41,6 +41,7 @@ impl CompilationSession {
             let Some((first_position, first)) = members.next() else {
                 continue;
             };
+            let permits_unsettled = first.permits_unsettled_fused_service_fields();
             let (_, target, inputs, rollback, mut prepared) = first.into_continuation();
             let first_timings = std::mem::replace(&mut prepared.timings, completion_timings);
             let discovery = prepared
@@ -66,9 +67,10 @@ impl CompilationSession {
                             &source,
                             Some(target),
                             Some(&inputs),
-                            false,
+                            permits_unsettled,
                         ));
                     for (position, member) in members {
+                        let permits_unsettled = member.permits_unsettled_fused_service_fields();
                         let (_, target, inputs, _, prepared) = member.into_continuation();
                         let mut application = source.clone();
                         // The program and source custody are common; admission,
@@ -83,7 +85,7 @@ impl CompilationSession {
                                 &application,
                                 Some(target),
                                 Some(&inputs),
-                                false,
+                                permits_unsettled,
                             ));
                     }
                 }

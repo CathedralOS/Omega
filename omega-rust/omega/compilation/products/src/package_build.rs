@@ -20,6 +20,7 @@ pub struct PreparedPackageBuild {
     target: TargetProfile,
     inputs: PackageCompilationInputs,
     rollback: OptimizationRollback,
+    permit_unsettled_fused_service_fields: bool,
     prepared: PreparedBuild,
     generated_sources: PackageGeneratedSourceBundle,
 }
@@ -69,6 +70,7 @@ impl PreparedPackageBuild {
         inputs: PackageCompilationInputs,
         rollback: OptimizationRollback,
         prepared: PreparedBuild,
+        permit_unsettled_fused_service_fields: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         let generated_sources = prepared.build_sources.package_generated_source_bundle(
             prepared.built.source.typed(),
@@ -85,6 +87,7 @@ impl PreparedPackageBuild {
             target,
             inputs,
             rollback,
+            permit_unsettled_fused_service_fields,
             prepared,
             generated_sources,
         })
@@ -100,6 +103,10 @@ impl PreparedPackageBuild {
 
     pub fn package_inputs(&self) -> &PackageCompilationInputs {
         &self.inputs
+    }
+
+    pub fn permits_unsettled_fused_service_fields(&self) -> bool {
+        self.permit_unsettled_fused_service_fields
     }
 
     pub fn timings(&self) -> &artifacts::compile_timings::CompileTimings {

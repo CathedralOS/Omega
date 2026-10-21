@@ -137,6 +137,7 @@ pub(super) fn prepare_package_build_worker(
         inputs.clone(),
         request.optimization_rollback,
         prepared,
+        request.permit_unsettled_fused_service_fields,
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));

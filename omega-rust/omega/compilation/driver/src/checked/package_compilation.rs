@@ -29,6 +29,50 @@ pub struct PackageCompileFailure {
 }
 
 impl CompilationSession {
+    /// Check a dependency-ordered package activation without producing its root.
+    /// Demanded independent dependencies still require their own verified products;
+    /// a description alone cannot settle the root's boundary applications.
+    pub fn check_package(
+        &mut self,
+        occurrences: Vec<CheckedCompileRequest>,
+    ) -> Result<super::CheckedCompilation, PackageCompileFailure> {
+        let root = occurrences.len().saturating_sub(1);
+        super::run_on_compile_thread(|| {
+            let prepared = self
+                .prepare_packages(vec![PackagePlan {
+                    occurrences,
+                    join_root: false,
+                }])
+                .pop();
+            let build = match prepared {
+                Some(Ok(PreparedPackageRoot::Build(build))) => *build,
+                Some(Err(error)) => return Ok(Err(error)),
+                _ => {
+                    return Ok(Err(PackageCompileFailure {
+                        occurrence: root,
+                        failure: vec![Diagnostic::error("package checking lost its prepared root")]
+                            .into(),
+                    }));
+                }
+            };
+            let selected = self.select_build_batch(vec![build]).pop().ok_or_else(|| {
+                vec![Diagnostic::error("package checking lost its selected root")]
+            })?;
+            Ok::<_, Vec<Diagnostic>>(selected.install().result.map_err(|failure| {
+                PackageCompileFailure {
+                    occurrence: root,
+                    failure,
+                }
+            }))
+        })
+        .unwrap_or_else(|diagnostics| {
+            Err(PackageCompileFailure {
+                occurrence: root,
+                failure: diagnostics.into(),
+            })
+        })
+    }
+
     /// Compile the complete admitted roster through its requested products.
     /// Source checking, consent comparison and production belong to this call;
     /// package operations provide policy inputs, not a mid-pipeline callback.
