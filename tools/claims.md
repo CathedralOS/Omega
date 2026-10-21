@@ -72,6 +72,19 @@ python tools/claims.py recover --ticket TICKET --reason "Session confirmed stopp
 python tools/claims.py claim --item NEXT-ITEM --owner "Name / outcome" --release-ticket FINISHED-TICKET
 ```
 
+`reserve` takes `--item`, `--owner`, `--session-id` and `--note`; `--note`
+is optional there and omitting it registers a claim with no durable record, so
+pass it in every automatic reservation:
+
+```text
+python tools/claims.py reserve --item ITEM --owner LABEL --session-id codex:ID --note "Acceptance; failure; next action; dependencies"
+```
+
+`--session` and `--reason` are **not** `reserve` flags on this revision;
+`--session-id` and `--note` are, and `--reason` belongs to `recover`. Note text
+is capped at 2000 characters **after** substitution, so a template can pass a
+manual count and still be refused; count the rendered note, not the template.
+
 Renew while working. Release when the work lands or the session stops, not
 every commit. `renew`, `release`, and `recover` accept repeated or
 comma/whitespace-separated `--ticket` values and apply the entire batch in a
@@ -141,10 +154,10 @@ Mutations compare-and-swap the Git reference. Ordinary `claim` remains advisory:
 concurrent claims on one item survive. Opt-in `reserve` rechecks the canonical
 outcome and optional namespaced session ID after every collision; one succeeds,
 others return exit 2 (`occupied`). All nine places of a fact share its key.
-Paths remain advisory. `reserve --item ITEM --owner LABEL --session-id codex:ID`
-uses the existing registry, not a second queue. Optional `--machine-id`,
-`--environment-id`, `--workspace-id` and `--dispatch-id` labels are useful
-provenance, not authenticated identities.
+Paths remain advisory. `reserve --item ITEM --owner LABEL --session-id codex:ID
+--note TEXT` uses the existing registry, not a second queue. Optional
+`--machine-id`, `--environment-id`, `--workspace-id` and `--dispatch-id` labels
+are useful provenance, not authenticated identities.
 
 Exit 3/unknown reservation writes stop automatic dispatch. They do not authorize
 isolated implementation. Expired unresolved records also exclude automatic
