@@ -233,6 +233,11 @@ pub(crate) fn call_argument_substitution<'program>(
                                     operators,
                                     semantic,
                                     &entry_contexts,
+                                    facts::ProgramPoint::Statement {
+                                        machine_symbol: machine.symbol,
+                                        state_symbol: state.symbol,
+                                        statement_index: before_statement,
+                                    },
                                     place,
                                 )
                                 .map(facts::ScalarValue::Boolean)

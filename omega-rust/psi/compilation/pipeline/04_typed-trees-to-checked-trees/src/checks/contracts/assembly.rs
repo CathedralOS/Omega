@@ -321,6 +321,9 @@ fn assembly_fact_is_proven(
     handle: arena::Handle<typed_trees::domain::ProofFact>,
     entry_preserved: bool,
 ) -> bool {
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
+        return false;
+    };
     match program.proof_facts.get(handle) {
         typed_trees::domain::ProofFact::Expression(expression) => {
             live_contexts_prove_boolean_expression(
@@ -335,6 +338,11 @@ fn assembly_fact_is_proven(
                     program,
                     &facts.semantic,
                     contexts,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index: statement,
+                    },
                     *expression,
                 ))
         }

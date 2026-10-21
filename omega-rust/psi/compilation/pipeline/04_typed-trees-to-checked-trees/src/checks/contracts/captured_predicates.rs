@@ -133,6 +133,11 @@ pub(super) fn transport(
             &facts.operators,
             &facts.semantic,
             &contexts,
+            facts::ProgramPoint::Statement {
+                machine_symbol: state.machine_symbol,
+                state_symbol: capture.epoch.state_symbol,
+                statement_index: capture.epoch.statement_index,
+            },
         );
         let origin = facts
             .flow

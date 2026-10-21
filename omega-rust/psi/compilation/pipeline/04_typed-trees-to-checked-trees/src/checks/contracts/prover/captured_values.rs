@@ -64,6 +64,15 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                 &facts.operators,
                 &facts.semantic,
                 &contexts,
+                facts::ProgramPoint::Statement {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: if crate::flow::operand_binds_stable_copy(program, reference) {
+                        operand.state_symbol
+                    } else {
+                        state.state_symbol
+                    },
+                    statement_index: statement,
+                },
             );
             let mut candidate = None;
             for place in places? {
@@ -81,6 +90,17 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                         &facts.operators,
                         &facts.semantic,
                         &contexts,
+                        facts::ProgramPoint::Statement {
+                            machine_symbol: state.machine_symbol,
+                            state_symbol: if crate::flow::operand_binds_stable_copy(
+                                program, reference,
+                            ) {
+                                operand.state_symbol
+                            } else {
+                                state.state_symbol
+                            },
+                            statement_index: statement,
+                        },
                         &place.projected,
                     )
                     .map(facts::ScalarValue::Boolean)

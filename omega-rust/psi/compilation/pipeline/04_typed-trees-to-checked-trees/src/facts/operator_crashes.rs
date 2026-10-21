@@ -334,6 +334,11 @@ fn retained_operator_crash_routes(
                 if operator_use.is_valid() {
                     crate::checks::operator_route_is_false(
                         program,
+                        facts::ProgramPoint::Statement {
+                            machine_symbol,
+                            state_symbol,
+                            statement_index,
+                        },
                         flow,
                         semantic,
                         operator_use,

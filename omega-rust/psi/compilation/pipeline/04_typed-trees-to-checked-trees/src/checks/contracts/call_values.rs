@@ -310,7 +310,17 @@ pub(crate) fn captured_arithmetic_observation(
                     {
                         return None;
                     }
-                    match scalar_at(program, facts, &contexts, place)? {
+                    match scalar_at(
+                        program,
+                        facts,
+                        &contexts,
+                        facts::ProgramPoint::Statement {
+                            machine_symbol: state.machine_symbol,
+                            state_symbol: captured.operand.state_symbol,
+                            statement_index: captured.operand.statement_index,
+                        },
+                        place,
+                    )? {
                         facts::ScalarValue::Integer(value) => Some(value),
                         _ => None,
                     }
@@ -581,7 +591,17 @@ fn bind_current(
     if program.primitive_type_reference(type_reference) != Some(primitive) {
         return None;
     }
-    if let Some(value) = scalar_at(program, facts, contexts, &place) {
+    if let Some(value) = scalar_at(
+        program,
+        facts,
+        contexts,
+        facts::ProgramPoint::Statement {
+            machine_symbol: state.machine_symbol,
+            state_symbol: state.state_symbol,
+            statement_index: call.statement_index,
+        },
+        &place,
+    ) {
         if let Some(literal) = observed_literal(value, primitive) {
             return Some(literal);
         }
@@ -602,6 +622,7 @@ fn scalar_at(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
+    point: facts::ProgramPoint,
     place: &CanonicalPlace,
 ) -> Option<facts::ScalarValue> {
     super::prover::boolean_value_at_place(
@@ -609,6 +630,7 @@ fn scalar_at(
         &facts.operators,
         &facts.semantic,
         contexts,
+        point,
         place,
     )
     .map(facts::ScalarValue::Boolean)
@@ -780,6 +802,11 @@ pub(crate) fn proves_bound_predicate<'program>(
         &facts.operators,
         &facts.semantic,
         &selected_contexts,
+        facts::ProgramPoint::Statement {
+            machine_symbol: state.machine_symbol,
+            state_symbol: state.state_symbol,
+            statement_index: call.statement_index,
+        },
     );
     // Common observation contexts retain guards on current storage. Per-value
     // producer contexts are joined below, with all dependencies epoch-checked;
@@ -803,7 +830,17 @@ pub(crate) fn proves_bound_predicate<'program>(
         frames,
     ));
     crate::facts::boolean_predicates::proves(&retained, &current, |place| {
-        scalar_at(program, facts, &selected_contexts, place)
+        scalar_at(
+            program,
+            facts,
+            &selected_contexts,
+            facts::ProgramPoint::Statement {
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                statement_index: call.statement_index,
+            },
+            place,
+        )
     })
 }
 

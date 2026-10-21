@@ -4,6 +4,8 @@
 
 use validation::CanonicalPlace;
 
+mod availability;
+pub(crate) use availability::case_premise_is_available;
 mod normalization;
 mod paths;
 use arena::HandleSpan;
@@ -463,6 +465,7 @@ pub(crate) fn retained(
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
+    point: ProgramPoint,
 ) -> Vec<BoundPredicate> {
     let mut rows = Vec::new();
     for context in contexts {
@@ -470,7 +473,9 @@ pub(crate) fn retained(
             .context_view(semantic.contexts.get(*context))
             .facts()
         {
-            if let Some(predicate_rows) = domain_predicates(program, operators, semantic, fact) {
+            if let Some(predicate_rows) =
+                domain_predicates(program, operators, semantic, contexts, point, fact)
+            {
                 for row in predicate_rows {
                     if !rows.contains(&row) {
                         rows.push(row);
@@ -529,10 +534,14 @@ pub(crate) fn retained(
 /// Live membership entails its declaration's predicates at the same exact
 /// subject. Reuse contract lowering and formal binding; no source initializer,
 /// receiving annotation or establishment route supplies an observation.
+/// A conditional payload invariant additionally needs independent selected-tag
+/// evidence at the consumer's scope before it becomes a Boolean premise.
 fn domain_predicates(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    point: ProgramPoint,
     fact: &facts::Fact,
 ) -> Option<Vec<BoundPredicate>> {
     let (_, _, symbol, identity) = fact.payload.domain_membership()?;
@@ -546,6 +555,9 @@ fn domain_predicates(
         semantic,
         semantic.places.get(place),
     )?;
+    if !case_premise_is_available(program, semantic, contexts, point, &subject) {
+        return None;
+    }
     domain_predicates_for_subject(program, operators, domain, &subject)
 }
 

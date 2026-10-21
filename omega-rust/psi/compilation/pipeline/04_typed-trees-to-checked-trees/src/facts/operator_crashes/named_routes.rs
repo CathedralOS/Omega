@@ -74,6 +74,11 @@ pub(super) fn named_route_is_false(
         let operand_labels = super::named_call_operand_labels(program, parameters, operands);
         return crate::checks::named_operator_route_is_false(
             program,
+            facts::ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
             flow,
             semantic,
             named_use,
@@ -238,8 +243,20 @@ fn leaf_has_polarity(
     );
     if polarity {
         return context_rows.iter().all(|row| {
-            row.iter()
-                .any(|context| context_proves_boolean_label(program, semantic, *context, &required))
+            row.iter().any(|context| {
+                context_proves_boolean_label(
+                    program,
+                    semantic,
+                    *context,
+                    row,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol,
+                        state_symbol,
+                        statement_index: before_statement,
+                    },
+                    &required,
+                )
+            })
         });
     }
     context_rows.iter().all(|row| {

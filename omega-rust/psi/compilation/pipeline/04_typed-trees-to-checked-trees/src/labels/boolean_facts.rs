@@ -1,6 +1,8 @@
 //! Per-context Boolean fact queries shared by selected operator requires
 //! and named crash-route discharge. Callers select contexts, polarity and
 //! incoming rows; this module only matches a retained true fact's label.
+//! Payload-domain expansion additionally requires selected cases in that exact
+//! incoming row and consumer scope; conditional validity is not a true clause.
 
 use facts::{FactContextHandle, FactPayload, FactPlan};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -13,6 +15,8 @@ pub(crate) fn context_proves_boolean_label(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: FactContextHandle,
+    contexts: &[FactContextHandle],
+    point: facts::ProgramPoint,
     required_label: &str,
 ) -> bool {
     let context = semantic.contexts.get(context);
@@ -55,6 +59,18 @@ pub(crate) fn context_proves_boolean_label(
                 let Some(place) = fact.place.as_place() else {
                     return false;
                 };
+                let Some(subject) = crate::flow::canonical_place_from_semantic_place(
+                    program,
+                    semantic,
+                    semantic.places.get(place),
+                ) else {
+                    return false;
+                };
+                if !crate::facts::boolean_predicates::case_premise_is_available(
+                    program, semantic, contexts, point, &subject,
+                ) {
+                    return false;
+                }
                 let canonical_base = semantic.place_label(program, place);
                 let display_base = program.expression_table.display_name(value);
                 domain_proves_expression_label(

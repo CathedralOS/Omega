@@ -51,6 +51,7 @@ impl CurrentCleanupFacts {
         &self,
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
+        point: facts::ProgramPoint,
         place: &CanonicalPlace,
     ) -> Option<ScalarValue> {
         if self.opaque_write
@@ -61,7 +62,7 @@ impl CurrentCleanupFacts {
         {
             return None;
         }
-        ordinary_value(program, facts, &self.entry_contexts, place)
+        ordinary_value(program, facts, &self.entry_contexts, point, place)
     }
 
     /// Entry transport cannot repair a premise killed by an earlier hook.
@@ -192,6 +193,7 @@ fn ordinary_value(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
+    point: facts::ProgramPoint,
     place: &CanonicalPlace,
 ) -> Option<ScalarValue> {
     crate::checks::contracts::boolean_value_at_place(
@@ -199,6 +201,7 @@ fn ordinary_value(
         &facts.operators,
         &facts.semantic,
         contexts,
+        point,
         place,
     )
     .map(ScalarValue::Boolean)

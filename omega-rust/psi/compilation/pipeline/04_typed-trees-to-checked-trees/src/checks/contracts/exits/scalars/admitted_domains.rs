@@ -67,8 +67,17 @@ impl BoundaryRefutations {
             .iter()
             .map(|reference| reference.context)
             .collect::<Vec<_>>();
-        let retained =
-            boolean_predicates::retained(program, &facts.operators, &facts.semantic, &contexts);
+        let retained = boolean_predicates::retained(
+            program,
+            &facts.operators,
+            &facts.semantic,
+            &contexts,
+            facts::ProgramPoint::Statement {
+                machine_symbol: exit.machine_symbol,
+                state_symbol: exit.state_symbol,
+                statement_index: exit.statement_index,
+            },
+        );
         let evaluator = ExitScalars {
             program,
             facts,

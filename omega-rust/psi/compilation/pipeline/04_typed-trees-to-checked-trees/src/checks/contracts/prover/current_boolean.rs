@@ -13,13 +13,14 @@ pub(crate) fn boolean_value_at_place(
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
+    point: ProgramPoint,
     actual: &CanonicalPlace,
 ) -> Option<bool> {
     if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
         return Some(value);
     }
     let predicates =
-        crate::facts::boolean_predicates::retained(program, operators, semantic, contexts);
+        crate::facts::boolean_predicates::retained(program, operators, semantic, contexts, point);
     crate::facts::boolean_predicates::inferred_booleans(&predicates, |place| {
         ordinary_boolean_value_at_place(program, semantic, contexts, place)
             .map(ScalarValue::Boolean)

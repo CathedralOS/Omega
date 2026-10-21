@@ -67,7 +67,17 @@ pub(super) fn capture(
         candidate
     };
     let mut result = Vec::new();
-    for predicate in boolean_predicates::retained(program, build.operators, semantic, &contexts) {
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
+        return Vec::new();
+    };
+    let point = ProgramPoint::Statement {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index,
+    };
+    for predicate in
+        boolean_predicates::retained(program, build.operators, semantic, &contexts, point)
+    {
         // Forwarded observations keep their relational meaning. Only an input
         // that disappears may fold from the exact outgoing edge's live facts.
         let Some(mut predicate) = boolean_predicates::fold(&predicate, |place| {
@@ -83,6 +93,7 @@ pub(super) fn capture(
                 build.operators,
                 semantic,
                 &contexts,
+                point,
                 place,
             )
             .map(ScalarValue::Boolean)

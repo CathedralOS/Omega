@@ -10,17 +10,27 @@ pub(super) fn prove_boolean_expression_via_context_domain_membership(
     program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
+    contexts: &[facts::FactContextHandle],
+    point: facts::ProgramPoint,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let candidate_label = program.expression_table.display_name(expression);
 
-    context_domain_proves_label(program, semantic, context, &candidate_label)
+    context_domain_proves_label(
+        program,
+        semantic,
+        context,
+        contexts,
+        point,
+        &candidate_label,
+    )
 }
 
 pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership(
     program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
+    contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &validation::CallSite<'_>,
@@ -36,7 +46,21 @@ pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membershi
         expression,
     );
 
-    context_domain_proves_label(program, semantic, context, &candidate_label)
+    let Some(machine) = program.machine_holding_state(caller_state_symbol) else {
+        return false;
+    };
+    context_domain_proves_label(
+        program,
+        semantic,
+        context,
+        contexts,
+        facts::ProgramPoint::Statement {
+            machine_symbol: machine.symbol,
+            state_symbol: caller_state_symbol,
+            statement_index,
+        },
+        &candidate_label,
+    )
 }
 
 /// The context-domain scan both membership proofs run once `candidate_label`
@@ -46,6 +70,8 @@ fn context_domain_proves_label(
     program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
+    contexts: &[facts::FactContextHandle],
+    point: facts::ProgramPoint,
     candidate_label: &String,
 ) -> bool {
     semantic.context_view(context).facts().any(|fact| {
@@ -67,6 +93,18 @@ fn context_domain_proves_label(
             }
             _ => return false,
         };
+        let Some(subject) = crate::flow::canonical_place_from_semantic_place(
+            program,
+            semantic,
+            semantic.places.get(place),
+        ) else {
+            return false;
+        };
+        if !crate::facts::boolean_predicates::case_premise_is_available(
+            program, semantic, contexts, point, &subject,
+        ) {
+            return false;
+        }
         let canonical_base_label = semantic.place_label(program, place);
         let display_base_label = program.expression_table.display_name(value);
         domain_proves_expression_label(

@@ -69,45 +69,64 @@ pub(super) fn append_guard_context(
         statement_index,
         transition_target,
     };
-    append_predicate_context(
-        program,
-        semantic,
-        build,
-        state_symbol,
-        statement_index,
-        expression,
-        value,
-        point,
-        entry_writes,
-        entry_unknown_write,
-        active_contexts,
-        active_constraints,
+    // Dispatch tests the saved decision, not its initializer again. Recover
+    // that decision once for every guard consumer; numeric bounds must not
+    // have a private recovery route that case and Boolean evidence miss.
+    let captured = build.state_location(program, state_symbol).and_then(
+        |(machine_position, state_position)| {
+            let machine = &program.machines()[machine_position];
+            captured_subject_predicate(
+                program,
+                machine,
+                &program.machine_states(machine)[state_position],
+                statement_index,
+                expression,
+                value,
+                build.call_frames,
+            )
+        },
     );
-    if value {
-        append_case_constraint_context(
+    for (expression, value) in std::iter::once((expression, value)).chain(captured) {
+        append_predicate_context(
             program,
             semantic,
             build,
             state_symbol,
             statement_index,
             expression,
+            value,
             point,
+            entry_writes,
+            entry_unknown_write,
             active_contexts,
             active_constraints,
         );
-        append_comparison_bounds_context(
-            program,
-            semantic,
-            build,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            expression,
-            point,
-            FactOrigin::TransitionGuard,
-            active_contexts,
-            active_constraints,
-        );
+        if value {
+            append_case_constraint_context(
+                program,
+                semantic,
+                build,
+                state_symbol,
+                statement_index,
+                expression,
+                point,
+                active_contexts,
+                active_constraints,
+            );
+            append_comparison_bounds_context(
+                program,
+                semantic,
+                build,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                expression,
+                point,
+                FactOrigin::TransitionGuard,
+                active_contexts,
+                active_constraints,
+            );
+        }
     }
 }
 
@@ -181,22 +200,6 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     // Arm tests arrive as `<guard> == true`; peel that wrapper off before
     // reading conjuncts, then split `&&` as the arm's own test would.
     append_true_arm_conjuncts(program, expression, &mut conjuncts);
-    // A COMPUTED transition subject is evaluated once into a generated local
-    // immediately before the arm, and the taken arm then reads that capture's
-    // truth test. The authored predicate still holds on this arm, so its
-    // conjuncts bound the same operands an authored comparison guard would.
-    // Without them `<operand> < 128` establishes nothing about `operand`, and a
-    // later element store of that operand loses the byte class the guard proved.
-    if let Some(captured) = captured_subject_predicate(
-        program,
-        machine,
-        state,
-        statement_index,
-        expression,
-        build.call_frames,
-    ) {
-        append_true_arm_conjuncts(program, captured, &mut conjuncts);
-    }
     struct GuardBound {
         place: facts::PlaceHandle,
         carrier: facts::IntegerRange,
@@ -394,13 +397,38 @@ fn append_case_constraint_context(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
+    let Some((machine_position, state_position)) = build.state_location(program, state_symbol)
+    else {
+        return;
+    };
+    let machine = &program.machines()[machine_position];
+    let state = &program.machine_states(machine)[state_position];
     let mut conjuncts = Vec::new();
     flatten_and_conjuncts(program, expression, &mut conjuncts);
     let mut refs = HandleSpan::empty();
     for conjunct in conjuncts {
-        let Some((subject, variant, definition)) = case_membership_claim(program, conjunct) else {
+        let Some(binary) = program.expression_table.binary_node(conjunct) else {
             continue;
         };
+        // The same selected membership that authorizes payload access also
+        // owns its where facts. Equality spelling alone grants neither.
+        let Some(selected) = validation::applied_case_membership_variant(
+            program,
+            machine,
+            Some(state),
+            conjunct,
+            binary,
+        ) else {
+            continue;
+        };
+        let Some((owner_position, _)) = program.data_variant_position_for_symbol(selected) else {
+            continue;
+        };
+        let definition = &program.data_definitions()[owner_position as usize];
+        let Some(variant) = program.data_variant(definition, selected) else {
+            continue;
+        };
+        let subject = binary.left;
         if variant.where_facts.is_empty() {
             continue;
         }
@@ -470,17 +498,17 @@ fn append_case_constraint_context(
     retain_semantic_context(build, active_contexts, active_constraints, context);
 }
 
-/// The predicate a COMPUTED transition subject was captured from, when the
-/// taken arm's guard is that capture's truth test.
+/// The signed predicate behind a saved transition decision, when its operands
+/// cannot have changed since evaluation.
 ///
 /// `parse_transition` evaluates a computed subject once, before arm dispatch,
 /// and captures it into a generated local (`__transition_subject#N`); the arms
-/// then read `__transition_subject#N == true`. What this arm establishes is
-/// therefore the capture's initial value, not the truth test, and it is
+/// then test the captured decision. Selected builtin Boolean decomposition
+/// supplies its polarity, including false arms and negation. It is
 /// recoverable only while the capture is the statement immediately before the
 /// arm: any statement between them could replace an operand the predicate read.
-/// The recovered predicate must also carry a COMPLETE EMPTY write frame. The
-/// truth test's own frame is empty and says nothing about short-circuited
+/// Both the capture and the dispatch guard must carry COMPLETE EMPTY write
+/// frames. A truth test's own frame says nothing about short-circuited
 /// conjuncts, so a call inside the capture may replace an operand an earlier
 /// conjunct already bounded; a fact minted from such a predicate would be false
 /// at the jump. `checks/contracts/calls/transition_guards.rs` applies this same
@@ -493,23 +521,32 @@ fn captured_subject_predicate<'program>(
     state: &typed_trees::state::State,
     statement_index: usize,
     guard: ExpressionHandle,
+    value: bool,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
-) -> Option<ExpressionHandle> {
-    let subject = subject_truth_test_symbol(program, guard)?;
+) -> Option<(ExpressionHandle, bool)> {
     let capture = program
         .statement_table
         .statement_at(state, statement_index.checked_sub(1)?)?;
     let local = capture.as_local_data()?;
-    if local.symbol != subject || !local.initial_value.is_valid() {
+    if !local.initial_value.is_valid() {
         return None;
     }
+    let mut observations = Vec::new();
+    guard_observations(program, machine, state, guard, value, &mut observations);
+    let polarity = observations.iter().find_map(|(expression, value)| {
+        matches!(program.expression_table.expression(*expression),
+            ExpressionNode::Name(path) if path.symbol == local.symbol)
+        .then_some(*value)
+    })?;
     let frame_is_empty = call_frames.is_some_and(|frames| {
-        frames
-            .expression_write_frame(machine, local.initial_value)
-            .into_complete_paths()
-            .is_some_and(|writes| writes.is_empty())
+        [local.initial_value, guard].into_iter().all(|expression| {
+            frames
+                .expression_write_frame(machine, expression)
+                .into_complete_paths()
+                .is_some_and(|writes| writes.is_empty())
+        })
     });
-    frame_is_empty.then_some(local.initial_value)
+    frame_is_empty.then_some((local.initial_value, polarity))
 }
 
 /// The authored predicate captured for this arm's truth test.
@@ -695,50 +732,6 @@ fn guard_observations(
         _ => {}
     }
     observations.push((expression, value));
-}
-
-/// Recognize `subject == Type::Case` (or its commute), the tag compare a
-/// case-membership `in` test lowers to, and return the subject with the
-/// resolved variant and its data definition.
-fn case_membership_claim(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<(
-    ExpressionHandle,
-    &typed_trees::data::DataVariant,
-    &typed_trees::data::DataDefinition,
-)> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
-    if binary.operator != typed_trees::expression::BinaryOperator::Equal {
-        return None;
-    }
-    for (case_reference, subject) in [(binary.right, binary.left), (binary.left, binary.right)] {
-        let Some(path) = program.expression_table.name_path_node(case_reference) else {
-            continue;
-        };
-        let Some(definition) = program.data_definition_by_symbol(path.head_symbol) else {
-            continue;
-        };
-        let Some(variant) =
-            program
-                .data_members(definition)
-                .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.symbol == path.symbol =>
-                    {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
-        else {
-            continue;
-        };
-        return Some((subject, variant, definition));
-    }
-    None
 }
 
 #[allow(clippy::too_many_arguments)]

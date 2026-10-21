@@ -299,6 +299,11 @@ impl Execution<'_, '_, '_> {
                             self.context.operators,
                             self.semantic,
                             &captured_contexts,
+                            ProgramPoint::Statement {
+                                machine_symbol: self.machine.symbol,
+                                state_symbol: self.state.symbol,
+                                statement_index: self.statement_index,
+                            },
                             &place,
                         )
                         .map(ScalarValue::Boolean)

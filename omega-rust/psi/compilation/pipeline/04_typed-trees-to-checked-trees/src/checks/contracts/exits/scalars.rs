@@ -223,6 +223,11 @@ impl ExitScalars<'_, '_> {
                 self.program,
                 &self.facts.semantic,
                 self.contexts,
+                facts::ProgramPoint::Statement {
+                    machine_symbol: self.machine.symbol,
+                    state_symbol: self.exit.state_symbol,
+                    statement_index: self.exit.statement_index,
+                },
                 expression,
             )
         {
@@ -312,6 +317,11 @@ impl ExitScalars<'_, '_> {
             &self.facts.operators,
             &self.facts.semantic,
             self.contexts,
+            facts::ProgramPoint::Statement {
+                machine_symbol: self.machine.symbol,
+                state_symbol: self.exit.state_symbol,
+                statement_index: self.exit.statement_index,
+            },
         );
         if let Some(frames) = self.call_frames
             && let Some(state) = caller
@@ -333,6 +343,11 @@ impl ExitScalars<'_, '_> {
                 &self.facts.operators,
                 &self.facts.semantic,
                 self.contexts,
+                facts::ProgramPoint::Statement {
+                    machine_symbol: self.machine.symbol,
+                    state_symbol: self.exit.state_symbol,
+                    statement_index: self.exit.statement_index,
+                },
                 place,
             )
             .map(ScalarValue::Boolean)

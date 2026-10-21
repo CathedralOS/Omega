@@ -57,6 +57,7 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
     program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     entry_contexts: &[facts::FactContextHandle],
+    point: facts::ProgramPoint,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     matches!(
@@ -67,6 +68,8 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
             program,
             semantic,
             semantic.contexts.get(*entry_context),
+            entry_contexts,
+            point,
             expression,
         )
     })
@@ -351,7 +354,14 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 checked_trees::expression::ExpressionNode::Boolean(true)
             ) || entry_contexts.iter().any(|entry_context| {
                 let context = semantic.contexts.get(*entry_context);
-                semantic_context_proves_boolean_expression(program, semantic, context, expression)
+                semantic_context_proves_boolean_expression(
+                    program,
+                    semantic,
+                    context,
+                    entry_contexts,
+                    point,
+                    expression,
+                )
             })
         }
         FactPayload::PropositionApplication { .. }

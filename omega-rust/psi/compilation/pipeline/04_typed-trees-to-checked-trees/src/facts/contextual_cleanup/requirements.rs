@@ -195,15 +195,21 @@ struct SelectedRequirement {
 
 impl SelectedRequirement {
     fn proven(&self, program: &dyn ::validation::CheckingInput, facts: &CheckFacts) -> bool {
+        let disposition = facts.contextual_cleanup.dispositions.get(self.disposition);
+        let point = facts::ProgramPoint::Statement {
+            machine_symbol: disposition.machine,
+            state_symbol: disposition.state,
+            statement_index: self.statement,
+        };
         let mut retained = boolean_predicates::retained(
             program,
             &facts.operators,
             &facts.semantic,
             &self.current.contexts,
+            point,
         );
         retained.extend(self.current.guarantees.iter().cloned());
         let mut required = self.predicate.clone();
-        let disposition = facts.contextual_cleanup.dispositions.get(self.disposition);
         if let Some(state) = facts
             .flow
             .control
@@ -234,13 +240,14 @@ impl SelectedRequirement {
             &required,
             |place| {
                 self.current
-                    .value_at_place(program, facts, place)
+                    .value_at_place(program, facts, point, place)
                     .or_else(|| {
                         boolean_value_at_place(
                             program,
                             &facts.operators,
                             &facts.semantic,
                             &self.current.contexts,
+                            point,
                             place,
                         )
                         .map(facts::ScalarValue::Boolean)

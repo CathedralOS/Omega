@@ -64,6 +64,7 @@ pub(crate) use invocation::InvocationContexts;
 /// selected comparisons have no inferred arithmetic/complement laws here.
 pub(crate) fn operator_route_is_false(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     flow: &checked_trees::FlowFacts,
     semantic: &FactPlan,
     operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
@@ -74,6 +75,7 @@ pub(crate) fn operator_route_is_false(
     let contexts = InvocationContexts::from_flow(flow, semantic, operator_use, operands);
     expression_has_polarity(
         program,
+        point,
         semantic,
         &contexts,
         parameters,
@@ -95,6 +97,7 @@ pub(crate) fn operator_route_is_false(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn named_operator_route_is_false(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     flow: &checked_trees::FlowFacts,
     semantic: &FactPlan,
     named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
@@ -106,6 +109,7 @@ pub(crate) fn named_operator_route_is_false(
     let contexts = InvocationContexts::from_named_use(flow, semantic, named_use, operands);
     expression_has_polarity(
         program,
+        point,
         semantic,
         &contexts,
         parameters,
@@ -113,6 +117,24 @@ pub(crate) fn named_operator_route_is_false(
         expression,
         false,
     )
+}
+
+/// Only an executable occurrence supplies a caller payload namespace. Other
+/// origins have no invocation field premises to expand.
+fn operator_consumer_point(origin: checked_trees::CheckedValueOrigin) -> facts::ProgramPoint {
+    match origin {
+        checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            ..
+        } => facts::ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+        },
+        _ => facts::ProgramPoint::Global,
+    }
 }
 
 /// Operand labels as the spelled surface renders them. The named-call seam
@@ -135,6 +157,7 @@ fn operand_labels(
 #[allow(clippy::too_many_arguments)]
 fn expression_has_polarity(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -149,6 +172,7 @@ fn expression_has_polarity(
         &mut |expression, polarity| {
             leaf_has_polarity(
                 program,
+                point,
                 semantic,
                 contexts,
                 parameters,
@@ -162,6 +186,7 @@ fn expression_has_polarity(
 
 fn leaf_has_polarity(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -172,6 +197,7 @@ fn leaf_has_polarity(
     if polarity {
         return contexts_prove_boolean_leaf(
             program,
+            point,
             semantic,
             contexts,
             parameters,
@@ -269,9 +295,11 @@ pub(super) fn selected_binary_requires_diagnostics(
         let operands = operator_use.operands(program).unwrap_or_default();
         let operand_labels = operand_labels(program, &operands);
         let invocation_contexts = InvocationContexts::new(facts, operator_use_handle, &operands);
+        let point = operator_consumer_point(operator_use.origin);
 
         check_requires_facts(
             program,
+            point,
             facts,
             &invocation_contexts,
             parameters,
@@ -354,9 +382,11 @@ pub(super) fn selected_binary_requires_diagnostics(
             named_use_handle,
             &operands,
         );
+        let point = operator_consumer_point(named_use.origin);
 
         check_requires_facts(
             program,
+            point,
             facts,
             &invocation_contexts,
             parameters,
@@ -477,6 +507,7 @@ fn operator_path_label(
 #[allow(clippy::too_many_arguments)]
 fn check_requires_facts(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     facts: &CheckFacts,
     invocation_contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -490,6 +521,7 @@ fn check_requires_facts(
     for fact in requires_facts {
         let proven = requires_fact_proven(
             program,
+            point,
             &facts.semantic,
             &facts.operators,
             invocation_contexts,
@@ -507,6 +539,7 @@ fn check_requires_facts(
 
 fn requires_fact_proven(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
@@ -546,6 +579,7 @@ fn requires_fact_proven(
         }
         ProofFact::Expression(expression) => contexts_prove_boolean_expression(
             program,
+            point,
             semantic,
             operators,
             contexts,
@@ -598,6 +632,7 @@ fn requires_fact_proven(
 /// membership whose body states the clause) or is a closed-literal claim.
 fn contexts_prove_boolean_expression(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
@@ -609,6 +644,7 @@ fn contexts_prove_boolean_expression(
     let leaf_is_proven = |expression| {
         contexts_prove_boolean_leaf(
             program,
+            point,
             semantic,
             contexts,
             parameters,
@@ -632,6 +668,7 @@ fn contexts_prove_boolean_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => contexts_prove_boolean_expression(
             program,
+            point,
             semantic,
             operators,
             contexts,
@@ -645,6 +682,7 @@ fn contexts_prove_boolean_expression(
             BinaryOperator::And => {
                 contexts_prove_boolean_expression(
                     program,
+                    point,
                     semantic,
                     operators,
                     contexts,
@@ -654,6 +692,7 @@ fn contexts_prove_boolean_expression(
                     binary.left,
                 ) && contexts_prove_boolean_expression(
                     program,
+                    point,
                     semantic,
                     operators,
                     contexts,
@@ -666,6 +705,7 @@ fn contexts_prove_boolean_expression(
             BinaryOperator::Or => {
                 contexts_prove_boolean_expression(
                     program,
+                    point,
                     semantic,
                     operators,
                     contexts,
@@ -675,6 +715,7 @@ fn contexts_prove_boolean_expression(
                     binary.left,
                 ) || contexts_prove_boolean_expression(
                     program,
+                    point,
                     semantic,
                     operators,
                     contexts,
@@ -692,6 +733,7 @@ fn contexts_prove_boolean_expression(
 
 fn contexts_prove_boolean_leaf(
     program: &dyn ::validation::CheckingInput,
+    point: facts::ProgramPoint,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -705,9 +747,16 @@ fn contexts_prove_boolean_leaf(
         expression,
     );
     let contexts = contexts.for_expressions(program, parameters, [expression]);
-    contexts
-        .iter()
-        .any(|context| context_proves_boolean_label(program, semantic, *context, &required_label))
+    contexts.iter().any(|context| {
+        context_proves_boolean_label(
+            program,
+            semantic,
+            *context,
+            &contexts,
+            point,
+            &required_label,
+        )
+    })
 }
 
 /// An instantiated membership obligation (`<operand> in Domain`) is proven by

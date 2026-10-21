@@ -61,9 +61,20 @@ pub(super) fn proves(
         return Some(false);
     };
     actual.segments.append(&mut required.segments);
+    let machine = program.machine_holding_state(caller_state)?;
     Some(
-        super::boolean_value_at_place(program, operators, semantic, contexts, &actual)
-            == Some(true),
+        super::boolean_value_at_place(
+            program,
+            operators,
+            semantic,
+            contexts,
+            facts::ProgramPoint::Statement {
+                machine_symbol: machine.symbol,
+                state_symbol: caller_state,
+                statement_index,
+            },
+            &actual,
+        ) == Some(true),
     )
 }
 
