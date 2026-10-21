@@ -97,6 +97,20 @@ impl SyntaxTrees {
         SyntaxCopy::new(self).copy_static_machine_argument(other, argument)
     }
 
+    /// Transfer owned argument buffers and remap only their arena-backed
+    /// descendants. Each outer argument keeps the independent copy relation
+    /// used when importing a borrowed argument from another syntax forest.
+    pub fn transfer_static_machine_arguments(
+        &mut self,
+        other: &SyntaxTrees,
+        mut arguments: Box<[crate::expression::StaticMachineArgument]>,
+    ) -> Box<[crate::expression::StaticMachineArgument]> {
+        for argument in arguments.iter_mut() {
+            SyntaxCopy::new(self).remap_static_machine_argument(other, argument);
+        }
+        arguments
+    }
+
     pub(crate) fn copy_mathematical_definition(
         &mut self,
         other: &SyntaxTrees,

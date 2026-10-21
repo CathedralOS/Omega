@@ -334,6 +334,28 @@ fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
             .integer_range_normalization(owner, 0),
         Some(&normalized)
     );
+
+    let path_storage = argument.path.as_ptr();
+    let application_storage = argument.application.as_deref().unwrap() as *const _;
+    let nested_storage = argument.application.as_ref().unwrap().arguments.as_ptr();
+    let arguments = vec![argument].into_boxed_slice();
+    let argument_storage = arguments.as_ptr();
+    let transferred = copied.transfer_static_machine_arguments(&original, arguments);
+    assert_eq!(transferred.as_ptr(), argument_storage);
+    assert_eq!(transferred[0].path.as_ptr(), path_storage);
+    let application = transferred[0].application.as_deref().unwrap();
+    assert_eq!(application as *const _, application_storage);
+    assert_eq!(application.arguments.as_ptr(), nested_storage);
+    let transferred_owner = application.arguments[0].type_reference;
+    assert_ne!(transferred_owner, owner);
+    assert_ne!(transferred_owner, copied_owner);
+    drop(original);
+    assert_eq!(
+        copied
+            .type_references
+            .integer_range_normalization(transferred_owner, 0),
+        Some(&normalized)
+    );
 }
 
 #[test]

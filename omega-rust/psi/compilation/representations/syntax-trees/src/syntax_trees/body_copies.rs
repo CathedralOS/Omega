@@ -58,15 +58,21 @@ impl SyntaxCopy<'_> {
         argument: &crate::expression::StaticMachineArgument,
     ) -> crate::expression::StaticMachineArgument {
         let mut copied = argument.clone();
-        copied.type_reference = self.copy_type_reference_handle(other, argument.type_reference);
-        if let Some(application) = &mut copied.application {
-            application.arguments = application
-                .arguments
-                .iter()
-                .map(|nested| self.copy_static_machine_argument(other, nested))
-                .collect();
-        }
+        self.remap_static_machine_argument(other, &mut copied);
         copied
+    }
+
+    pub(super) fn remap_static_machine_argument(
+        &mut self,
+        other: &SyntaxTrees,
+        argument: &mut crate::expression::StaticMachineArgument,
+    ) {
+        argument.type_reference = self.copy_type_reference_handle(other, argument.type_reference);
+        if let Some(application) = &mut argument.application {
+            for nested in application.arguments.iter_mut() {
+                self.remap_static_machine_argument(other, nested);
+            }
+        }
     }
 
     pub(crate) fn copy_state_handle_span(

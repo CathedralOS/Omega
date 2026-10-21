@@ -586,13 +586,10 @@ pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
                 && end.tokens.is_empty()
                 && !end.at_punctuation(PunctuationKind::Greater)
             {
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| syntax_trees.copy_static_machine_argument(&scratch, argument))
-                    .collect::<Vec<_>>();
+                let arguments = syntax_trees.transfer_static_machine_arguments(&scratch, arguments);
                 let mut rest = input;
                 rest.tokens = &input.tokens[offset..];
-                return Ok(Some((arguments.into_boxed_slice(), rest)));
+                return Ok(Some((arguments, rest)));
             }
         }
         match punctuation {
