@@ -11,10 +11,15 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 use crate::machine_calls::calls::write_frames::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
+};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
+use typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 
 /// Instantiate every proven result route through its exact actual input.
 /// The shared body relation preserves each normal completion's origins and
@@ -40,7 +45,7 @@ pub(crate) fn transparent_call_result_origins(
         return None;
     }
 
-    let result_origins = transparent_callee_result_origins(
+    let mut result_origins = transparent_callee_result_origins(
         program,
         callee_machine,
         callee_state,
@@ -48,6 +53,14 @@ pub(crate) fn transparent_call_result_origins(
         inference,
     )?;
     let parameters = program.state_parameters(callee_state);
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    retain_reachable_transition_results(
+        program,
+        callee_state,
+        parameters,
+        arguments,
+        &mut result_origins,
+    );
     let mut origins = Vec::new();
     for result_origin in result_origins {
         if !result_origin.parameter_symbol.is_valid() {
@@ -176,8 +189,10 @@ pub(crate) fn transparent_place_expression_origins(
 
 /// Every proven parameter-relative route the callee's result may alias.
 /// Conditional arms keep their exact finite union; an arm that cannot name a
-/// caller-reachable parameter root fails the whole relation closed. Internal state
-/// cycles use the finite result solver; recursive machine calls remain opaque.
+/// caller-reachable parameter root fails the whole relation closed. A caller
+/// may later drop an arm whose sequential guard is refuted by a literal actual.
+/// Internal state cycles use the finite result solver; recursive machine calls
+/// remain opaque.
 pub(crate) fn transparent_callee_result_origins(
     program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
@@ -250,4 +265,199 @@ pub(crate) fn transparent_callee_result_origins(
         }
     }
     (!returned.is_empty()).then_some(returned)
+}
+
+/// A transition block is sequential. The next arm runs only when the previous
+/// ordinary guard falls through. Literal actuals can refute that guard, which
+/// removes the unselected referent from the caller-visible candidate union.
+fn retain_reachable_transition_results(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    origins: &mut Vec<ParameterRelativeFrameOrigin>,
+) {
+    let Some(reachable) = reachable_value_parameters(program, state, parameters, arguments) else {
+        return;
+    };
+    let filtered: Vec<_> = origins
+        .iter()
+        .filter(|origin| {
+            !origin.parameter_symbol.is_valid() || reachable.contains(&origin.parameter_symbol)
+        })
+        .cloned()
+        .collect();
+    if !filtered.is_empty() {
+        *origins = filtered;
+    }
+}
+
+fn reachable_value_parameters(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<SymbolHandle>> {
+    let mut fall_through = true;
+    let mut reachable = Vec::new();
+    let mut saw_value = false;
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        let truth = guard_truth(program, parameters, arguments, transition.guard);
+        if transition.exit == TransitionExit::Ordinary && fall_through && truth != BoolTruth::False
+        {
+            for edge in transition.targets() {
+                match program.statement_table.transition_target(edge) {
+                    TransitionTargetNode::Value(result) => {
+                        saw_value = true;
+                        reachable.push(value_parameter_symbol(program, parameters, *result)?);
+                    }
+                    TransitionTargetNode::Named { .. } => return None,
+                    TransitionTargetNode::Terminal => {}
+                }
+            }
+        } else if transition.exit == TransitionExit::Ordinary && fall_through {
+            for edge in transition.targets() {
+                if matches!(
+                    program.statement_table.transition_target(edge),
+                    TransitionTargetNode::Value(_)
+                ) {
+                    saw_value = true;
+                }
+            }
+        }
+        if truth == BoolTruth::True {
+            fall_through = false;
+        }
+    }
+    saw_value.then_some(reachable)
+}
+
+fn value_parameter_symbol(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    mut result: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    loop {
+        match program.expression_table.expression(result) {
+            ExpressionNode::Borrow(borrow) => result = borrow.target,
+            ExpressionNode::Name(path) => {
+                return parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == path.symbol)
+                    .map(|parameter| parameter.symbol);
+            }
+            _ => return None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BoolTruth {
+    True,
+    False,
+    Unknown,
+}
+
+fn guard_truth(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    guard: TransitionGuardNode,
+) -> BoolTruth {
+    match guard {
+        TransitionGuardNode::Always => BoolTruth::True,
+        TransitionGuardNode::When(condition) => {
+            bool_truth(program, parameters, arguments, condition)
+        }
+    }
+}
+
+fn bool_truth(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> BoolTruth {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) => {
+            if *value {
+                BoolTruth::True
+            } else {
+                BoolTruth::False
+            }
+        }
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            match bool_truth(program, parameters, arguments, unary.operand) {
+                BoolTruth::True => BoolTruth::False,
+                BoolTruth::False => BoolTruth::True,
+                BoolTruth::Unknown => BoolTruth::Unknown,
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = bool_truth(program, parameters, arguments, binary.left);
+            let right = bool_truth(program, parameters, arguments, binary.right);
+            match binary.operator {
+                BinaryOperator::Equal => left.equal(right),
+                BinaryOperator::NotEqual => left.equal(right).negate(),
+                BinaryOperator::And => left.and(right),
+                BinaryOperator::Or => left.or(right),
+                _ => BoolTruth::Unknown,
+            }
+        }
+        ExpressionNode::Name(path) => parameters
+            .iter()
+            .position(|parameter| parameter.symbol == path.symbol)
+            .and_then(|index| arguments.get(index))
+            .map(
+                |actual| match program.expression_table.expression(*actual) {
+                    ExpressionNode::Boolean(value) => {
+                        if *value {
+                            BoolTruth::True
+                        } else {
+                            BoolTruth::False
+                        }
+                    }
+                    _ => BoolTruth::Unknown,
+                },
+            )
+            .unwrap_or(BoolTruth::Unknown),
+        _ => BoolTruth::Unknown,
+    }
+}
+
+impl BoolTruth {
+    fn negate(self) -> Self {
+        match self {
+            Self::True => Self::False,
+            Self::False => Self::True,
+            Self::Unknown => Self::Unknown,
+        }
+    }
+
+    fn equal(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            (Self::True, Self::True) | (Self::False, Self::False) => Self::True,
+            _ => Self::False,
+        }
+    }
+
+    fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::False, _) | (_, Self::False) => Self::False,
+            (Self::True, Self::True) => Self::True,
+            _ => Self::Unknown,
+        }
+    }
+
+    fn or(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::True, _) | (_, Self::True) => Self::True,
+            (Self::False, Self::False) => Self::False,
+            _ => Self::Unknown,
+        }
+    }
 }

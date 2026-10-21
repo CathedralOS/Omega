@@ -4193,6 +4193,32 @@ fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a4
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/may_write_choice_through_call_result_overlapping rejected 1482ms expected @96673576ab49+wt
+	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_through_const_name_overlapping rejected 1472ms expected @96673576ab49+wt
+	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_through_field_overlapping rejected 1446ms expected @96673576ab49+wt
+	cannot prove index `bounds.other` is within length 4 in main::entry
+fail/facts/may_write_choice_through_local_overlapping rejected 1464ms expected @96673576ab49+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_choice_through_match_join_overlapping rejected 1440ms expected @96673576ab49+wt
+	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_through_other_machine_overlapping rejected 1447ms expected @96673576ab49+wt
+	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_through_other_state_overlapping rejected 1196ms expected @96673576ab49+wt
+	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_through_parameter_overlapping rejected 1192ms expected @96673576ab49+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_choice_through_target_body_overlapping rejected 1221ms expected @96673576ab49+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
 fail/facts/mixed_width_record_padding_geometry_unproved_call_result rejected 35090ms expected @e29d1dd099de
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/mixed_width_record_padding_geometry_unproved_const_name rejected 38250ms expected @e29d1dd099de
@@ -11458,6 +11484,15 @@ pass/facts/matched_window_through_other_machine_exit checked 5396ms check-target
 pass/facts/matched_window_through_other_state_exit checked 5647ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_parameter_exit checked 5559ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_target_body_exit checked 5406ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/may_write_choice_through_call_result_exit checked 2055ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_const_name_exit checked 2054ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_field_exit checked 2060ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_local_exit checked 2053ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_match_join_exit checked 2065ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_other_machine_exit checked 2062ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_other_state_exit checked 2068ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_parameter_exit checked 2061ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_choice_through_target_body_exit checked 2117ms check-target:macos_arm64 @96673576ab49+wt
 pass/facts/mixed_width_record_padding_geometry_through_call_result_exit checked 75864ms check-target:macos_arm64 @e29d1dd099de
 pass/facts/mixed_width_record_padding_geometry_through_const_name_exit checked 76959ms check-target:macos_arm64 @e29d1dd099de
 pass/facts/mixed_width_record_padding_geometry_through_field_exit checked 74773ms check-target:macos_arm64 @e29d1dd099de
