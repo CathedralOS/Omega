@@ -117,19 +117,6 @@ impl<'input> ComponentNativeExport<'input> {
         })
     }
 
-    /// Transfer the separately emitted body and its actual ABI bridge into
-    /// container preparation. The complete application supplies the slot key;
-    /// no caller-authored symbol or local machine ID can choose another slot.
-    pub fn into_function_image(self) -> Result<image_emission::ComponentFunctionImage, Diagnostic> {
-        image_emission::prepare_component_function_image(
-            self.body,
-            self.entry_bridge,
-            component_export_slot(
-                self.component.subject(),
-                &self.calling_application.commitment,
-            ),
-        )
-    }
 }
 
 /// Physical linkage identifies one component version as well as its complete

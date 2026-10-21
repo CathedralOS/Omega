@@ -102,18 +102,6 @@ impl PreparedRetainedNativeProviders<'_> {
 }
 
 impl TerminalNativeRealizationProposal {
-    /// Select work before preparing foreign execution records. Complete retained
-    /// declarations are not executable demand, and a foreign leaf is not an
-    /// alternative implementation of the wrapper that happens to call it.
-    pub fn prepare_native_execution(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
-    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
-    {
-        self.prepare_native_execution_with_components(artifact, private_entry_ram, &[])
-    }
-
     /// A checked component crossing is an executable scope boundary. Its
     /// producer closure is emitted separately, never added to the receiver's
     /// local provider roots. Admission still owes the selected call settlement.

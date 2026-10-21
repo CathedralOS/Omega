@@ -223,9 +223,6 @@ impl CheckedCompilation {
         &mut self.timings
     }
 
-    pub fn into_program(self) -> CheckedTrees {
-        Arc::try_unwrap(self.execution.settled.program).unwrap_or_else(|shared| (*shared).clone())
-    }
 }
 
 impl std::ops::Deref for CheckedCompilation {

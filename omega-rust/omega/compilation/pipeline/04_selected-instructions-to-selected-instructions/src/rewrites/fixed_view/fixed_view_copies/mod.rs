@@ -49,9 +49,6 @@ pub struct StagedOptimizedFixedViewCopies {
 }
 
 impl StagedOptimizedFixedViewCopies {
-    pub const fn source_segment_home_stage(&self) -> &StagedOptimizedFixedPrecoloredSegmentHomes {
-        &self.source
-    }
     pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
         self.source.source_legality_stage()
     }

@@ -222,30 +222,6 @@ impl VerifiedPsiOptimizationInput {
         &self.selected_provider_requirement_identities
     }
 
-    /// Rejoin an already admitted closed Import coordinate to its exact raw
-    /// selected row. This projection supplies no execution or stack authority.
-    pub fn selected_external_requirement_application(
-        &self,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-        requirement: &str,
-        selected_requirement: &str,
-        provider_plan_report_identity: u64,
-    ) -> Option<&effects::SelectedExternalRequirementApplication> {
-        let declaration = terminal_psi::find_boundary_machine(
-            &self.context.module().boundary_machines,
-            boundary,
-        )?;
-        if self.context.module().identities.text(declaration.identity) != Some(requirement) {
-            return None;
-        }
-        let identities = &self.selected_provider_requirement_identities;
-        self.external_requirement_applications.iter().find(|row| {
-            identities.text(row.requirement_identity) == Some(requirement)
-                && identities.text(row.selected_requirement_identity) == Some(selected_requirement)
-                && row.provider_plan_report_identity == provider_plan_report_identity
-        })
-    }
-
     /// Exact geometry closure retained separately from immutable canonical Psi.
     /// The executable plan uses only this receipt's selected declarations.
     pub fn target_layout_selections(

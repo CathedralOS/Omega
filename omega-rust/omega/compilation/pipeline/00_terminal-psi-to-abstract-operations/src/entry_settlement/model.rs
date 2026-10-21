@@ -288,15 +288,6 @@ impl ValidatedNativeProgramEntrySettlement {
         self.semantic_calling_application.as_ref()
     }
 
-    pub const fn semantic_calling_plan(
-        &self,
-    ) -> Option<&calling_conventions::ValidatedBoundaryEntryPlan> {
-        match self.admitted_calling_plans.as_ref() {
-            Some(plans) => Some(&plans.semantic),
-            None => None,
-        }
-    }
-
     pub const fn physical_calling_plan(
         &self,
     ) -> Option<&calling_conventions::ValidatedBoundaryEntryPlan> {

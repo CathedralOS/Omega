@@ -789,19 +789,6 @@ pub(crate) fn internal_borrow_shape(
     }
 }
 
-/// Borrow geometry for an exact plain record, including nested owned records.
-/// This does not authorize constructing those nested fields.
-pub(crate) fn plain_record_shape(
-    structural_type: StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<ValueShape> {
-    find_structural_type(declarations, structural_type)
-        .filter(|declaration| matches!(declaration.shape, StructuralTypeShape::Record { .. }))?;
-    // Borrowing needs the complete referent footprint, including untouched byte
-    // siblings. It does not need permission to construct or copy that payload.
-    shape(structural_type, declarations)
-}
-
 /// Physical storage of a whole owned aggregate, independently of permission to
 /// copy its contents. Existing erased fields occupy no bytes; nested loan
 /// carriers retain their own geometry and independently checked custody. Owned
