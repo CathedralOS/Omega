@@ -15,21 +15,7 @@ pub(super) fn project_observed_value(
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
     for segment in path {
-        let mut crossing = reference;
-        let mut crossed = Vec::new();
-        while let Some(shell) = crate::reference_shell(program, crossing) {
-            if crossed.contains(&crossing) {
-                return None;
-            }
-            crossed.push(crossing);
-            if !shell.access.is_readable()
-                || !super::structural_terms::scalar_operand_is_observed(program, crossing, &value)
-                || shell.referee == crossing
-            {
-                return None;
-            }
-            crossing = shell.referee;
-        }
+        readable_projection_crossings(program, reference, &value)?;
         let projected = crate::value_custody::places::project_type_reference_from_segments(
             program,
             reference,
@@ -105,6 +91,53 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::ObservedValue { .. } => None,
     }
+}
+
+/// Observe an authenticated builtin element of a completed collection value.
+/// The caller owns the captured selector and storage revision. A descriptor
+/// whose referent was not observed cannot supply contents by projection.
+pub(super) fn project_index(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+    index: StructuralTerm,
+) -> Option<StructuralTerm> {
+    readable_projection_crossings(program, reference, &value)?;
+    if !super::structural_terms::scalar_operand_is_observed(program, reference, &value) {
+        return None;
+    }
+    let element_type =
+        crate::value_custody::places::collection_element_type_reference(program, reference)?;
+    Some(StructuralTerm::IndexedValue {
+        element_type,
+        element_identity: program.normalized_type_identity(element_type),
+        collection: Box::new(value),
+        index: Box::new(index),
+    })
+}
+
+/// A captured coordinate identifies storage, not permission to observe it.
+/// Fields and elements retain the same readable-reference and origin fences.
+fn readable_projection_crossings(
+    program: &dyn crate::CheckingInput,
+    mut crossing: TypeReferenceHandle,
+    value: &StructuralTerm,
+) -> Option<()> {
+    let mut crossed = Vec::new();
+    while let Some(shell) = crate::reference_shell(program, crossing) {
+        if crossed.contains(&crossing) {
+            return None;
+        }
+        crossed.push(crossing);
+        if !shell.access.is_readable()
+            || !super::structural_terms::scalar_operand_is_observed(program, crossing, value)
+            || shell.referee == crossing
+        {
+            return None;
+        }
+        crossing = shell.referee;
+    }
+    Some(())
 }
 
 /// Authenticate an actual integer data field; collection metadata is not a field.

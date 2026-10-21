@@ -9,9 +9,11 @@ use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 mod byte_sequences;
 mod element_views;
 mod structural_fields;
+mod structural_transfers;
 pub(super) use byte_sequences::*;
 pub(super) use element_views::*;
 pub(super) use structural_fields::*;
+pub(super) use structural_transfers::*;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape, TerminalMachine, TerminalModule, is_static_structural_scalar_store_path,

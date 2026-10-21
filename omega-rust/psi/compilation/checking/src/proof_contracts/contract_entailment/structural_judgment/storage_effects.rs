@@ -13,6 +13,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
 
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
@@ -27,6 +28,61 @@ pub(super) struct CapturedStorageCoordinate {
 enum CapturedStorageSegment {
     Place(facts::PlaceSegment),
     Index(super::StructuralTerm),
+}
+
+impl CapturedStorageSegment {
+    fn projected_type(
+        &self,
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        match self {
+            Self::Place(segment) => {
+                crate::value_custody::places::project_type_reference_from_segments(
+                    program,
+                    reference,
+                    std::slice::from_ref(segment),
+                )
+            }
+            Self::Index(_) => {
+                crate::value_custody::places::collection_element_type_reference(program, reference)
+            }
+        }
+    }
+}
+
+/// Project the same completed value through typed fields and frozen selectors.
+/// These paths were authenticated when captured; no live selector is reevaluated
+/// and no receiving declaration contributes a premise about its own initializer.
+fn project_captured_value(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    mut value: super::StructuralTerm,
+    path: &[CapturedStorageSegment],
+) -> Option<super::StructuralTerm> {
+    for segment in path {
+        let projected = segment.projected_type(program, reference)?;
+        value = match segment {
+            CapturedStorageSegment::Place(segment) => {
+                super::super::observed_projections::project_observed_value(
+                    program,
+                    reference,
+                    value,
+                    std::slice::from_ref(segment),
+                )?
+            }
+            CapturedStorageSegment::Index(index) => {
+                super::super::observed_projections::project_index(
+                    program,
+                    reference,
+                    value,
+                    index.clone(),
+                )?
+            }
+        };
+        reference = projected;
+    }
+    Some(value)
 }
 
 /// One evaluated place keeps its detached entry snapshot beside its live value.
@@ -287,13 +343,50 @@ impl StructuralJudge<'_> {
             {
                 return None;
             }
+            let root_reference =
+                crate::declaration_type_reference(self.program, place.root.as_symbol()?)?;
+            let mut reference = stored
+                .coordinate
+                .segments
+                .iter()
+                .try_fold(root_reference, |reference, segment| {
+                    segment.projected_type(self.program, reference)
+                })?;
             let mut value = stored.current.clone()?;
             for segment in &place.segments[stored.coordinate.segments.len()..] {
-                let CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol }) = segment
-                else {
-                    return None;
+                let projected_type = segment.projected_type(self.program, reference)?;
+                value = match segment {
+                    CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol }) => {
+                        self.observed_field_term(value, self.program.symbols.name(*symbol), 0)?
+                    }
+                    CapturedStorageSegment::Index(_) => {
+                        // Preserve the current-field reader's completed-value
+                        // and descriptor fences for indexed observations too.
+                        let current = if self.runtime_body_values {
+                            self.completed_value_identity(value)
+                        } else {
+                            self.resolve_at(value, 1)
+                        };
+                        if self.require_closed_computation && !current.is_closed_value() {
+                            return None;
+                        }
+                        let projected = project_captured_value(
+                            self.program,
+                            reference,
+                            current,
+                            std::slice::from_ref(segment),
+                        )?;
+                        if super::super::structural_terms::term_is_unobserved_descriptor(
+                            self.program,
+                            &projected,
+                        ) {
+                            return None;
+                        }
+                        projected
+                    }
+                    CapturedStorageSegment::Place(_) => return None,
                 };
-                value = self.observed_field_term(value, self.program.symbols.name(*symbol), 0)?;
+                reference = projected_type;
             }
             Some(value)
         })
@@ -329,18 +422,11 @@ impl StructuralJudge<'_> {
                     return None;
                 }
                 let current = stored.current.clone()?;
-                let suffix = stored.coordinate.segments[coordinate.segments.len()..]
-                    .iter()
-                    .map(|segment| match segment {
-                        CapturedStorageSegment::Place(segment) => Some(*segment),
-                        CapturedStorageSegment::Index(_) => None,
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let projection = super::super::observed_projections::project_observed_value(
+                let projection = project_captured_value(
                     self.program,
                     reference,
                     value.clone(),
-                    &suffix,
+                    &stored.coordinate.segments[coordinate.segments.len()..],
                 )?;
                 Some((projection, current))
             })
@@ -490,20 +576,7 @@ impl StructuralJudge<'_> {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),
             }?;
-            let path = coordinate
-                .segments
-                .iter()
-                .map(|segment| match segment {
-                    CapturedStorageSegment::Place(segment) => Some(*segment),
-                    CapturedStorageSegment::Index(_) => None,
-                })
-                .collect::<Option<Vec<_>>>()?;
-            super::super::observed_projections::project_observed_value(
-                self.program,
-                reference,
-                value,
-                &path,
-            )
+            project_captured_value(self.program, reference, value, &coordinate.segments)
         })
     }
 

@@ -918,9 +918,9 @@ impl TerminalExecution<'_> {
             captured.projected_qualifications = projected.to_vec();
             if let crate::record::storage::ConstructorValue::PackedScalars { elements, .. } = &value
             {
-                // A guard may strengthen a pure byte theory on this edge.
-                // Establish it from these exact current bytes, never merely
-                // from the receiving parameter's annotation.
+                // Psi checked this edge's predicate memberships. Transport
+                // them with the completed scalar payload after checking its
+                // exact geometry; do not replay a byte-only predicate theory.
                 self.validate_scalar_array_contents_qualifications(
                     parameter.structural_type,
                     elements,

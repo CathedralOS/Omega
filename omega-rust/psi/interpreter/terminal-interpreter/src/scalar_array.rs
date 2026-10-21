@@ -65,8 +65,9 @@ impl TerminalExecution<'_> {
         Ok(snapshot)
     }
 
-    /// Predicate membership is checked against the exact current payload;
-    /// neither a receiving type nor a prior initializer can invent authority.
+    /// Logical membership was discharged by Psi and authority was admitted by
+    /// the verified product. Runtime transport checks the exact scalar shape
+    /// and nominal carrier, not a byte-only reconstruction of that proof.
     pub(crate) fn validate_scalar_array_qualifications(
         &self,
         snapshot: &TerminalScalarArrayValue,
@@ -79,47 +80,35 @@ impl TerminalExecution<'_> {
         )
     }
 
-    /// The same current-byte judgment applies to packed state operands before
-    /// their payload is staged into ordinary placed storage.
+    /// Packed operands and placed snapshots obey the same transport contract.
+    /// Qualification adds no payload bytes and does not change array geometry.
     pub(crate) fn validate_scalar_array_contents_qualifications(
         &self,
         structural_type: StructuralTypeId,
         elements: &[TerminalScalarValue],
         qualifications: &[semantic_vocabulary::StructuralDomainId],
     ) -> Result<(), TerminalInterpretError> {
-        if !qualifications.is_empty() {
-            // Predicate qualification observes the current exact bytes. It
-            // never changes the array's storage or lends route/claim authority.
-            let types = self.program.structural_types();
-            let StructuralTypeShape::FixedArray { element, .. } =
-                types.get(&structural_type).ok_or_else(malformed)?.shape
-            else {
-                return Err(malformed());
-            };
-            let byte_type = semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned,
-                8,
-            )
-            .map_err(|_| malformed())?;
-            if types.get(&element).map(|row| &row.shape)
-                != Some(&StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                    byte_type,
-                )))
-            {
-                return Err(malformed());
-            }
-            let bytes = elements
+        let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
+            self.program.structural_types().values(),
+            structural_type,
+        )
+        .ok_or_else(malformed)?;
+        if u64::try_from(elements.len()).ok() != Some(count)
+            || elements
                 .iter()
-                .map(crate::structural_inputs::byte_arrays::storage::scalar_byte)
-                .collect::<Result<Vec<_>, _>>()?;
-            if !terminal_semantics::byte_literal_qualifications_hold_in(
-                self.program.catalogs.structural_domains.iter(),
-                structural_type,
-                qualifications,
-                &bytes,
-            ) {
-                return Err(malformed());
-            }
+                .any(|value| value.scalar_type() != scalar_type)
+            || qualifications.iter().any(|domain| {
+                !self
+                    .program
+                    .catalogs
+                    .structural_domains
+                    .iter()
+                    .any(|declaration| {
+                        declaration.id == *domain && declaration.carrier == structural_type
+                    })
+            })
+        {
+            return Err(malformed());
         }
         Ok(())
     }

@@ -1486,6 +1486,11 @@ fail/domains/completed_membership_before_later_guarantee rejected 679ms expected
 fail/domains/computed_qualification_requires_operand_facts rejected 5363ms expected @a9ae30e1c334+wt
 fail/domains/computed_scalar_alias_requires_all_predicates rejected 827ms expected @a9ae30e1c334+wt
 fail/domains/constructor_invalidated_byte_membership rejected 772ms expected @2ef2ab353498+wt
+fail/domains/copied_array_domain_after_source_mutation rejected 470ms expected @e34cad686b12
+	cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail`; an annotation cannot establish routed qualification
+fail/domains/copied_array_domain_without_issuer rejected 470ms expected @e34cad686b12
+	cannot prove requires contract for call read_tail from main: captured in [u16; N]::Issued in state `entry`
+	cannot prove initializer of `captured` in main is in domain `[u16; N]::Issued`; an annotation cannot establish routed qualification
 fail/domains/dependent_coordinate_sum_extra_monomial rejected 1518ms expected @92056ecd9701
 	cannot prove ensures contract for exit from open_total at statement 0: result <= 80
 fail/domains/dependent_coordinate_sum_insufficient_ceiling rejected 1541ms expected @92056ecd9701
@@ -4334,6 +4339,28 @@ fail/facts/placed_stable_write/parameter rejected 13169ms expected @3b18b32f7117
 	placed write application: the placement plan does not permit this operation
 fail/facts/placed_stable_write/target_body rejected 13626ms expected @3b18b32f7117+wt
 	placed write application: the placement plan does not permit this operation
+fail/facts/predicate_array_copy_through_call_result rejected 527ms expected @e34cad686b12
+	cannot prove default-domain field requirement for return from produce, state entry, at statement 3: values requires [u16; N]::ZeroTail
+fail/facts/predicate_array_copy_through_const_name rejected 527ms expected @e34cad686b12
+	cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail`; an annotation cannot establish routed qualification
+fail/facts/predicate_array_copy_through_field rejected 458ms expected @e34cad686b12
+	cannot prove requires contract for call consume from main: envelope.values in [u16; N]::ZeroTail in state `entry`
+	construction of `Envelope` field `values` is not proven in domain `[u16; N]::ZeroTail` in main state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/predicate_array_copy_through_local rejected 260ms expected @e34cad686b12
+	exact arithmetic in machine `main` state `entry` local `answer` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/predicate_array_copy_through_match_join rejected 442ms expected @e34cad686b12
+	cannot prove initializer of `captured` in choose is in domain `[u16; N]::ZeroTail`; an annotation cannot establish routed qualification
+fail/facts/predicate_array_copy_through_other_machine rejected 456ms expected @e34cad686b12
+	cannot prove requires contract for call qualify from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/predicate_array_copy_through_other_state rejected 442ms expected @e34cad686b12
+	cannot prove requires contract for call accept from main: values in [u16; N]::ZeroTail in state `entry`
+fail/facts/predicate_array_copy_through_parameter rejected 440ms expected @e34cad686b12
+	cannot prove requires contract for call consume from main: values in [u16; N]::ZeroTail in state `entry`
+fail/facts/predicate_array_copy_through_target_body rejected 446ms expected @e34cad686b12
+	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/qualified_field_capacity_through_call_result_mismatch rejected 4780ms expected @ca117899bfe3+wt
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/qualified_field_capacity_through_const_name_mismatch rejected 4825ms expected @ca117899bfe3+wt
@@ -9538,6 +9565,7 @@ pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 168
 pass/domains/captured_predicate_readonly_call_exit checked 647ms @cc9e4517d62d+wt
 pass/domains/case_payload_call_restore_exit checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/case_payload_predicate_domain_member_exit checked 11675ms check-target:macos_arm64 @7c847bad15b6+wt
+pass/domains/copied_array_domain_survives_original_mutation_exit checked 689ms check-target:macos_arm64 @e34cad686b12
 pass/domains/dependent_coordinate_sum_rational_bound checked 1903ms @92056ecd9701
 pass/domains/dependent_coordinate_sum_upper_bound checked 1826ms @92056ecd9701
 pass/domains/domain_axis_cast checked 9738ms @5041ef1af684+wt
@@ -10799,6 +10827,15 @@ pass/facts/placed_stable_write/other_machine checked 51678ms check-target:macos_
 pass/facts/placed_stable_write/other_state checked 52020ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/facts/placed_stable_write/parameter checked 51520ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/facts/placed_stable_write/target_body checked 53045ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/predicate_array_copy_through_call_result_exit checked 689ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_const_name_exit checked 640ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_field_exit checked 636ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_local_exit checked 624ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_match_join_exit checked 613ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_other_machine_exit checked 617ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_other_state_exit checked 611ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_parameter_exit checked 637ms check-target:macos_arm64 @e34cad686b12
+pass/facts/predicate_array_copy_through_target_body_exit checked 637ms check-target:macos_arm64 @e34cad686b12
 pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/qualified_field_capacity_through_call_result_exit checked 17493ms check-target:macos_arm64 @ca117899bfe3+wt
 pass/facts/qualified_field_capacity_through_const_name_exit checked 17487ms check-target:macos_arm64 @ca117899bfe3+wt

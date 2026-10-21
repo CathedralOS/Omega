@@ -122,7 +122,8 @@ pub(super) fn analyze(
         if let Some(primitive) = primitive
             && let Some(range) = primitive_range(primitive)
             && (operation.result_fits(primitive, range, interval, false)
-                || operation.relationally_fits_carrier(Some(primitive)))
+                || operation.relationally_fits_carrier(Some(primitive))
+                || operation.completed_operands_fit())
         {
             interval = interval.intersect(range);
             exact_result_proven = true;
@@ -398,7 +399,11 @@ impl Operation<'_, '_> {
             exact,
             primitive,
             interval,
-            self.relationally_fits_carrier(Some(primitive)),
+            primitive_range(primitive).is_some_and(|range| {
+                self.result_fits(primitive, range, interval, false)
+                    || self.relationally_fits_carrier(Some(primitive))
+                    || self.completed_operands_fit()
+            }),
             None,
             &mut super::ArithmeticDecisions::default(),
             &mut unproven,
@@ -954,20 +959,11 @@ impl Operation<'_, '_> {
         interval: Interval,
         exact_result_proven: bool,
     ) -> bool {
-        // An unknown address ceiling is not infinity. Query the same completed
-        // operand observations as exact casts, before the result can donate its
-        // own proposed bound. This also checks a wide-address distance against
-        // the independent u64 result ceiling.
+        // An unknown address ceiling is not infinity. Only the completed
+        // occurrence judgment above can establish its symbolic fit. Reuse that
+        // decision here instead of repeating the structural prefix walk.
         if self.has_address_operand() {
-            return self.walk.checks_occurrence_fit
-                && self.walk.state.is_some_and(|state| {
-                    crate::proof_contracts::contract_entailment::exact_binary_fits_at_occurrence(
-                        self.walk.program,
-                        self.walk.machine,
-                        state,
-                        self.expression,
-                    )
-                });
+            return exact_result_proven;
         }
         let operator = self.operator();
         // The interval route needs every operand already bounded; the
@@ -977,7 +973,7 @@ impl Operation<'_, '_> {
         let increase_fits =
             || operator == BinaryOperator::Add && self.unsigned_increase_fits(range.high);
         if primitive != PrimitiveType::U64 {
-            return range.contains(interval) || increase_fits();
+            return exact_result_proven || range.contains(interval) || increase_fits();
         }
         // `None` is an unknown ceiling, not evidence of fitting u64::MAX.
         // Mathematical carrier bounds and retained relational proofs establish
@@ -996,6 +992,24 @@ impl Operation<'_, '_> {
             // can re-enter arithmetic analysis for this entire operand tree.
             // Retained relations still prove sums that carrier bounds cannot.
             || increase_fits()
+    }
+
+    /// Intervals are only a cheap projection of the available theory. The
+    /// occurrence judgment also sees admitted aggregate predicates and exact
+    /// operand identities. Use it for every integer carrier, before the result
+    /// exists; neither a proposed result bound nor a receiving annotation may
+    /// justify this operation. Meaning-only analysis disables this recursive
+    /// bridge while the structural judgment reconstructs operand denotations.
+    fn completed_operands_fit(&self) -> bool {
+        self.walk.checks_occurrence_fit
+            && self.walk.state.is_some_and(|state| {
+                crate::proof_contracts::contract_entailment::exact_binary_fits_at_occurrence(
+                    self.walk.program,
+                    self.walk.machine,
+                    state,
+                    self.expression,
+                )
+            })
     }
 
     fn unsigned_increase_fits(&self, ceiling: Option<i64>) -> bool {
