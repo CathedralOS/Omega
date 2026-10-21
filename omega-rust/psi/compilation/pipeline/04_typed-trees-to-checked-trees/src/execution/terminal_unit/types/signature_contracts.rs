@@ -354,6 +354,97 @@ pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
     Some(())
 }
 
+/// Freeze each authored `requires <formal> in <domain>` entry membership on the
+/// structural formal it names. A bare annotation does not erase a requires
+/// membership: the scalar formal route publishes the same requirement on its
+/// declaration, and this is that rule's structural sibling. The body assumes
+/// the proposition its own entry clause states, while the caller's arrival still
+/// owes that domain's establishment route, which its checked call admitted.
+/// Registration describes the selected domain's theory; it establishes no
+/// membership and grants no custody.
+pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
+) -> Option<()> {
+    let parameters = program.state_parameters(state);
+    let entry_state = program
+        .machine_states(machine)
+        .first()
+        .map(|state| state.symbol);
+    let contracts = program.state_contracts(state).iter().chain(
+        program
+            .machine_contracts(machine)
+            .iter()
+            .filter(|_| entry_state == Some(state.symbol)),
+    );
+    for contract in contracts {
+        if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let Some(membership) = fact.as_membership() else {
+                continue;
+            };
+            let Some(root) = validation::single_segment_name_symbol(program, membership.value)
+            else {
+                continue;
+            };
+            let Some(source_position) = parameters
+                .iter()
+                .position(|parameter| parameter.symbol == root)
+            else {
+                continue;
+            };
+            let Some(parameter) = structural_parameters
+                .iter_mut()
+                .find(|parameter| parameter.position as usize == source_position)
+            else {
+                continue;
+            };
+            let routed = validation::field_domains::domain_requires_provenance(
+                program,
+                membership.domain_symbol,
+            );
+            let vacuous = validation::field_domains::domain_is_vacuous(
+                program,
+                membership.domain_symbol,
+                &mut Vec::new(),
+            );
+            // Predicate-only membership keeps its independent predicate owner.
+            if !routed && !vacuous {
+                continue;
+            }
+            let Some(domain) = crate::facts::qualification_evidence::domain_definition(
+                program,
+                membership.domain_symbol,
+            ) else {
+                return None;
+            };
+            if !membership.semantic_domain.is_valid() {
+                return None;
+            }
+            shapes.add_selected_domain(
+                membership.semantic_domain,
+                domain.symbol,
+                parameters[source_position].type_reference,
+                &[],
+                false,
+            )?;
+            if !parameter
+                .qualifications
+                .contains(&membership.semantic_domain)
+            {
+                parameter.qualifications.push(membership.semantic_domain);
+                parameter.qualifications.sort_by_key(|domain| domain.0);
+            }
+        }
+    }
+    Some(())
+}
+
 /// Body commitments whose theory belongs to structural carriers. Classify
 /// normalized domain instances by their carrier, not by their predicates or
 /// the arrangement of an authored cast. Scalar computations retain scalar
