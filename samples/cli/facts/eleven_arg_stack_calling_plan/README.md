@@ -24,6 +24,30 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned Fixtures
+
+The nine positive places are pinned under:
+`tests/omega/pass/facts/eleven_arg_stack_calling_plan_through_<place>_exit/`
+each containing `build.omg`, `main.omg`, and `expected_native_exit.txt` (`0`), binding `ProgramEntry` for all 4 hosted targets.
+
+The nine reject twins are pinned under:
+`tests/omega/fail/facts/eleven_arg_stack_calling_plan_through_<place>_rejected/`
+each containing `build.omg`, `main.omg`, and `expected.txt` (`may overflow `u64``), binding `ProgramEntry` for all 4 hosted targets.
+
+## Discrimination and Obligation Class
+
+This fact's obligation belongs to the **calling plan bound / arithmetic interval bound** obligation class. The calling convention partitions the 11 arguments across register lanes and stack slots, ensuring the 11th stack-passed argument retains its static interval bound `40u64 <= a11 <= 80u64` at runtime.
+
+Discrimination was verified through two independent checks:
+1. **Static refusal on construct domain breach**: In all nine `<place>/invalid/main.omg` reject twins, mutating the 11th argument input from `60u64` to `39u64` (outside the required lower bound `40u64`) causes static proof verification (`omega --check`) to fail closed with `error: exact arithmetic in machine ... may overflow `u64`` on the exact subtraction `margin = res - 40;`, refusing compilation and preventing any native binary emission.
+2. **Runtime trap on oracle discrimination**: A 1-token runtime perturbation of the demanded equality check in `main()` (`let check: i32 = (total as i32) - 40;` -> `let check: i32 = (total as i32) - 41;`) reaches native execution, evaluates `check == 0` to false, takes the `bad()` transition edge, and crashes `Trap`. Both engines trap: native execution exits non-zero (`exit 3221225501 != 0` on Windows STATUS_BREAKPOINT trap) and Terminal Psi interpreter crashes with `Trap`.
+
+| Perturbation | Reaches Native? | Native Engine | Terminal Psi |
+| --- | --- | --- | --- |
+| 11th argument `a11 = 39u64` (violates bound) | No (checker refuses) | `may overflow `u64`` | `may overflow `u64`` |
+| Demanded check `total - 41` (runtime perturbation) | Yes | `exit 3221225501` (trap) | `crash: Trap` |
+
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS` / `ACTIVATION-STORAGE` / `STORAGE` ([TASKS.md](../../../../TASKS.md)).
