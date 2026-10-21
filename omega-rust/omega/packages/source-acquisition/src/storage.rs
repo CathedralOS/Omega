@@ -1,12 +1,8 @@
 //! Retained private directory custody for ordinary source acquisition.
 
 use super::SourceResolveError;
-use super::custody::platform::same_capability_file_identity;
 use super::custody::publication::{create_private_cache_directory, retain_private_cache_directory};
-use super::custody::tree::{
-    CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root,
-    verify_git_cache_root_custody,
-};
+use super::custody::tree::{CacheCustodyKind, verify_retained_cache_custody_root};
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};
@@ -68,11 +64,10 @@ impl RetainedStorageRoot {
     }
 
     pub(crate) fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
-        verify_git_cache_root_custody(&self.path)?;
-        verify_retained_directory_identity(
+        verify_retained_cache_custody_root(
             &self.path,
-            &self.directory,
             CacheCustodyKind::Git,
+            &self.directory,
             "private resolver root pathname no longer identifies its retained directory",
         )
     }
@@ -125,11 +120,10 @@ impl RetainedStorageLane {
     }
 
     pub fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
-        verify_cache_custody_root(&self.path, self.kind)?;
-        verify_retained_directory_identity(
+        verify_retained_cache_custody_root(
             &self.path,
-            &self.directory,
             self.kind,
+            &self.directory,
             "private resolver lane pathname no longer identifies its retained directory",
         )
     }
@@ -180,26 +174,4 @@ fn absolute_path_from_environment(
             message: format!("host location `{name}` is not absolute"),
         })
     }
-}
-
-/// The pathname's live metadata must still identify the directory its custody
-/// grant retained; the error names whichever lane owns the grant.
-fn verify_retained_directory_identity(
-    path: &Path,
-    directory: &CapabilityDirectory,
-    kind: CacheCustodyKind,
-    message: &'static str,
-) -> Result<(), SourceResolveError> {
-    let retained = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
-    let named_directory =
-        open_absolute_directory_nofollow(path).map_err(|error| io_error(path, error))?;
-    let named = named_directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
-    if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
-        return Err(cache_custody_invalid(kind, path, message));
-    }
-    Ok(())
 }

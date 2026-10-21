@@ -313,6 +313,26 @@ pub(crate) fn verify_macos_open_cache_directory_acl_custody(
             "cache custody directory changed between classification and no-follow open",
         ));
     }
+    verify_macos_opened_cache_directory_acl_custody(kind, path, &directory)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn verify_macos_open_cache_directory_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+/// Read a directory's ACL facts through a handle the caller already opened
+/// no-follow and reconciled with its classification.
+#[cfg(target_os = "macos")]
+pub(crate) fn verify_macos_opened_cache_directory_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    directory: &CapabilityDirectory,
+) -> Result<(), SourceResolveError> {
     verify_macos_open_cache_extended_acl_custody(
         kind,
         path,
@@ -324,10 +344,10 @@ pub(crate) fn verify_macos_open_cache_directory_acl_custody(
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn verify_macos_open_cache_directory_acl_custody(
+pub(crate) fn verify_macos_opened_cache_directory_acl_custody(
     _kind: CacheCustodyKind,
     _path: &Path,
-    _classified: &std::fs::Metadata,
+    _directory: &CapabilityDirectory,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }

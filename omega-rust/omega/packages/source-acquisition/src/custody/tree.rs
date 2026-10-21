@@ -1,12 +1,14 @@
 //! Filesystem custody shared by local snapshots and Git cache entries.
 
+use super::lock::same_std_and_capability_file_identity;
 #[cfg(windows)]
 use super::platform::verify_windows_open_cache_ancestry_identity;
 use super::platform::{
     same_capability_file_identity, verify_cache_node_owner_and_mode,
     verify_capability_cache_node_owner_and_mode, verify_macos_cache_link_extended_acl_custody,
     verify_macos_open_cache_directory_acl_custody, verify_macos_open_cache_extended_acl_custody,
-    verify_macos_open_cache_regular_file_acl_custody, verify_windows_open_cache_directory_identity,
+    verify_macos_open_cache_regular_file_acl_custody,
+    verify_macos_opened_cache_directory_acl_custody, verify_windows_open_cache_directory_identity,
     verify_windows_open_cache_link_identity, verify_windows_open_cache_regular_file_identity,
 };
 use crate::SourceResolveError;
@@ -134,6 +136,57 @@ pub(crate) fn verify_cache_custody_root(
     verify_cache_node_owner_and_mode(kind, root, &metadata)?;
     verify_macos_open_cache_directory_acl_custody(kind, root, &metadata)?;
     verify_windows_open_cache_directory_identity(kind, root, &metadata)
+}
+
+/// `verify_cache_custody_root` for a directory the resolver already retains,
+/// plus the check that `root` still names that retained directory.
+///
+/// One no-follow open serves every fact about `root`: it must be the directory
+/// just classified, its ACL facts are read through it, and it must be the
+/// retained directory. Opening once for the ACL and again for the retained
+/// comparison would let a replacement land between the two, so the ACL and
+/// the identity would describe different objects; one handle binds all three.
+pub(crate) fn verify_retained_cache_custody_root(
+    root: &Path,
+    kind: CacheCustodyKind,
+    retained: &CapabilityDirectory,
+    replaced: &'static str,
+) -> Result<(), SourceResolveError> {
+    verify_cache_ancestry(kind, root)?;
+    let metadata = std::fs::symlink_metadata(root).map_err(|error| io_error(root, error))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(cache_custody_invalid(
+            kind,
+            root,
+            "cache custody root is not a concrete directory",
+        ));
+    }
+    verify_cache_node_owner_and_mode(kind, root, &metadata)?;
+    let named = open_absolute_directory_nofollow(root).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            root,
+            format!("could not retain cache custody directory: {error}"),
+        )
+    })?;
+    let opened = named
+        .dir_metadata()
+        .map_err(|error| io_error(root, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(&metadata, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            root,
+            "cache custody directory changed between classification and no-follow open",
+        ));
+    }
+    verify_macos_opened_cache_directory_acl_custody(kind, root, &named)?;
+    let retained_metadata = retained
+        .dir_metadata()
+        .map_err(|error| io_error(root, error))?;
+    if !same_capability_file_identity(&retained_metadata, &opened) {
+        return Err(cache_custody_invalid(kind, root, replaced));
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
