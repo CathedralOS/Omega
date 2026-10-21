@@ -392,7 +392,8 @@ fail/borrows/constructor_case_owner_mismatch rejected 812ms expected @a9ae30e1c3
 fail/borrows/constructor_reference_element_mismatch rejected 903ms expected @a9ae30e1c334+wt
 fail/borrows/consumed_nominal_carrier_retains_backing rejected 2334ms expected @a9ae30e1c334+wt
 fail/borrows/copied_borrowed_slot_retains_parent_loan rejected 626ms expected @3ea0aec65b44+wt
-fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 909ms expected @ef7962801508
+fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 344ms expected @37bad412b02a
+	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/copied_computed_backing_retains_nested_loan rejected 1615ms expected @a9ae30e1c334+wt
 fail/borrows/copied_reference_cohort_live_source_write rejected 1704ms expected @a9ae30e1c334+wt
 fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 1747ms expected @dd658fb23eef
@@ -789,7 +790,8 @@ fail/calls/constructor_child_membership_precedes_repair rejected 616ms expected 
 fail/calls/constructor_child_named_state_epochs_not_equal rejected 618ms expected @408e4fc23fbc
 fail/calls/constructor_projected_membership_precedes_repair rejected 684ms expected @d75fe4ba5012+wt
 fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 851ms expected @ef7962801508
-fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 801ms expected @ef7962801508
+fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 343ms expected @37bad412b02a
+	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
 fail/calls/copied_argument_inherited_membership_precedes_repair rejected 683ms expected @d75fe4ba5012+wt
 fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 1639ms expected @a9ae30e1c334+wt
 fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 683ms expected @d75fe4ba5012+wt
@@ -1119,7 +1121,8 @@ fail/contracts/shift_result_count_exceeds_left_width rejected 231ms expected @f7
 fail/contracts/shift_result_negative_wrapping_count rejected 444ms expected @f70cef10b430
 fail/contracts/shift_result_wrong_count rejected 445ms expected @f70cef10b430
 fail/contracts/slice_descriptor_does_not_preserve_mutated_contents rejected 658ms expected @6756ba1b9853
-fail/contracts/slice_index_requirement_retires_mutated_contents rejected 656ms expected @6756ba1b9853
+fail/contracts/slice_index_requirement_retires_mutated_contents rejected 344ms expected @37bad412b02a
+	cannot prove requires contract for call need from stale: items[0] == before (needs fact `items[0] == before` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 2593ms expected @4a9ab33501da+wt
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
 fail/contracts/target_family_recursive_guarantee rejected 9778ms expected @46f9e865d179+wt
@@ -7349,7 +7352,7 @@ fail/providers/module_operator_satisfier_signature_mismatch rejected 12598ms exp
 fail/providers/named_boundary_issuance_ordinary_guarantee rejected 312ms expected @d75fe4ba5012+wt
 fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9ae30e1c334+wt
 fail/providers/named_target_family_sibling_guarantee_rejected rejected 587ms expected @d7fd01f47497+wt
-fail/providers/native_fixed_array_unproved_domain rejected 1954ms expected @52d766727e1e+wt
+fail/providers/native_fixed_array_unproved_domain rejected 337ms expected @37bad412b02a
 	cannot prove requires contract for call read from main: words in [u16; N]::TerminatedWords in state `entry`
 fail/providers/nested_binding_missing_establishment rejected 1147ms expected @ff11b3a0f8c7
 	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `windows_x86_64`
@@ -11539,7 +11542,7 @@ pass/filesystem/runtime_local_host_result_dispatch_exit checked 9920ms check-tar
 pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_portable_directory_failure_exit checked 15138ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_directory_names_exit checked 13411ms check-target:macos_arm64 @7e6a01265b4b+wt
-pass/filesystem/runtime_portable_metadata_availability_exit checked 51681ms check-target:macos_arm64 @eaf5a1200c8e+wt
+pass/filesystem/runtime_portable_metadata_availability_exit checked 15047ms check-target:macos_arm64 @37bad412b02a
 pass/filesystem/runtime_portable_metadata_exit checked 12499ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_permissions_exit checked 54296ms check-target:macos_arm64 @eaf5a1200c8e+wt
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 35978ms check-target:macos_arm64 @d3af6d5ca3c5
@@ -11554,7 +11557,7 @@ pass/filesystem/windows_native_create_write_close_exit checked 4007ms check-targ
 pass/filesystem/windows_raw_argument_failures_exit checked 4134ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_bounded_view_exit checked 4305ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_breadth_exit checked 4543ms check-target:windows_x86_64 @034b5e35c420
-pass/filesystem/windows_raw_metadata_exit checked 8789ms check-target:windows_x86_64 @8fdb0071edab
+pass/filesystem/windows_raw_metadata_exit checked 13189ms check-target:windows_x86_64 terminal-inspections:match @37bad412b02a
 pass/filesystem/windows_set_file_time_exit checked 4261ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_wrapper_results_exit checked 20212ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/wrapper_lock_metadata_exit checked 20511ms check-target:macos_arm64 @7c847bad15b6+wt
@@ -12585,7 +12588,7 @@ pass/providers/runtime_provider_reference_deep_exit checked 7654ms check-target:
 pass/providers/runtime_provider_reference_nested_exit checked 7272ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_state_exit checked 7267ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_view_exit checked 7059ms check-target:linux_x86_64 @4aceb3a86756
-pass/providers/runtime_qualified_fixed_array_foreign_exit checked 9919ms check-target:macos_arm64 @52d766727e1e+wt
+pass/providers/runtime_qualified_fixed_array_foreign_exit checked 645ms check-target:macos_arm64 @37bad412b02a
 pass/providers/runtime_result_domain_requirement_overload_exit checked 9458ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_transitive_provider_slot_exit checked 6816ms check-target:macos_arm64 @aebe0714a499+wt
 pass/providers/same_name_requirement_dispatch_exit checked 9979ms check-target:macos_arm64 @03d6ab4d9d4c

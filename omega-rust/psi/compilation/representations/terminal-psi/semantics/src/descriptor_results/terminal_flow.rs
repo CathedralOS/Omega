@@ -121,21 +121,34 @@ pub(super) fn adapt(
                     .payload_scalar_definitions
                     .insert(position, vec![result.id]);
             }
-            if let OperationKind::StructuralScalarFieldStore {
-                destination,
-                path,
-                field,
-                value,
-                ..
-            } = &operation.kind
+            let scalar_store = match &operation.kind {
+                OperationKind::WriteOnlyPrimitiveStore {
+                    destination,
+                    path,
+                    value,
+                    ..
+                } => Some((*destination, path.as_slice(), None, *value)),
+                OperationKind::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } => Some((*destination, path.as_slice(), Some(*field), *value)),
+                _ => None,
+            };
+            if let Some((destination, path, field, value)) = scalar_store
                 && let Some(value) =
-                    super::payload_predicates::terminal_scalar_expression(machine, *value)
+                    super::payload_predicates::terminal_scalar_expression(machine, value)
+                // Only an exact typed coordinate can capture stored contents.
+                // Runtime selectors retain their ordinary invalidation below.
+                && let Some(destination) = location(destination, path, field)
             {
                 graph
                     .scalar_payload_writes
                     .entry(position)
                     .or_default()
-                    .push((location(*destination, path, Some(*field))?, value));
+                    .push((destination, value));
             }
             if let OperationKind::ScalarStructuralField {
                 source,
