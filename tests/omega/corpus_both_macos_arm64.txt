@@ -983,6 +983,7 @@ pass/generics/runtime_copied_indexed_case_subject_exit built 1602ms exit:70 inte
 pass/generics/runtime_finite_recursive_reference_catalog_exit built 2249ms exit:0 interpreter-exit:0 interpreter:agrees @f5eade25e1fd+wt
 pass/generics/runtime_generic_array_field_writes_exit built 8409ms exit:70 interpreter-exit:70 interpreter:agrees @ebb617ff4f07+wt
 pass/generics/runtime_inherited_composite_requirement_exit built 2899ms exit:0 interpreter-exit:0 interpreter:agrees @eed71058e867
+pass/generics/runtime_transition_result_inference_exit built 724ms exit:0 interpreter-exit:0 interpreter:agrees @a94178e1c015
 pass/generics/swapped_type_parameter_result checked 1783ms @c083b963e5ba
 pass/generics/type_index_forwarding_exit built 11812ms exit:0 interpreter-exit:0 interpreter:agrees @7b786cd56594+wt
 pass/host/console_exit_process_exit built 1352ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c
@@ -1038,6 +1039,8 @@ pass/layouts/runtime_captured_encoded_reference_replacement_exit built 1862ms ex
 pass/layouts/runtime_encoded_physical_view_exit built 1730ms exit:0 interpreter-exit:0 interpreter:agrees @d56a61c738bf
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 1619ms exit:0 interpreter-exit:0 interpreter:agrees @89699170f158+wt
 pass/layouts/runtime_offset_encoded_reference_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @6282711b68c7
+pass/layouts/runtime_placed_outcome_array_read_exit built 1431ms exit:0 interpreter-exit:0 interpreter:agrees @a94178e1c015
+pass/layouts/runtime_placed_outcome_nested_array_read_exit built 1434ms exit:0 interpreter-exit:0 interpreter:agrees @a94178e1c015
 pass/layouts/runtime_plan_laid_compact_bits_exit built 1688ms exit:70 interpreter-exit:70 interpreter:agrees @acdf102c21ea+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1748ms exit:72 interpreter-exit:72 interpreter:agrees @bf12cd0f89bb+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 1565ms exit:70 interpreter-exit:70 interpreter:agrees @acdf102c21ea+wt

@@ -7175,6 +7175,8 @@ fail/generics/static_requirement_record_public_requires rejected 2291ms expected
 fail/generics/static_requirement_record_wrong_conformance rejected 594ms expected @b338d531fce8
 fail/generics/structured_const_ineligible_float_field rejected 20ms expected @a9ae30e1c334+wt
 fail/generics/structured_const_rat_unreduced rejected 57ms expected @a9ae30e1c334+wt
+fail/generics/transition_result_cannot_reselect_explicit_extent rejected 84ms expected @a94178e1c015
+	generic machine `empty` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/generics/transition_value_generic_result_parameter_mismatch rejected 239ms expected @6ef08ceefee0+wt
 fail/generics/transition_value_slice_element_mismatch rejected 243ms expected @6ef08ceefee0+wt
 fail/generics/type_index_compound_wrong_actual rejected 915ms expected @7b786cd56594+wt
@@ -7294,6 +7296,8 @@ fail/layouts/placed_reference_results/stale_after_write rejected 7963ms expected
 	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
 fail/layouts/placed_reference_results/wrong_backing rejected 7676ms expected @ca1b6be3f607
 	machine `borrow_view` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
+fail/layouts/placed_return_alternative_wrong_lifetime rejected 630ms expected @a94178e1c015
+	machine `second_view` returns a view with lifetime `'a`, but no input borrows `'a`; annotate the input the view comes from, e.g. `buffer: &'a T`
 fail/layouts/placed_shared_formal_cannot_write rejected 5899ms expected @287adceca130+wt
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placed_stable_array_index_unbounded rejected 744ms expected @6242664f2106+wt
@@ -7302,6 +7306,8 @@ fail/layouts/placed_stable_array_readonly_write rejected 259ms expected @6242664
 	placed write application: the placement plan does not permit this operation
 fail/layouts/placed_stable_array_shared_write rejected 420ms expected @6242664f2106+wt
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
+fail/layouts/placed_transition_result_type_mismatch rejected 249ms expected @a94178e1c015
+	placed read application: value type does not match the placed field's exact value type
 fail/layouts/placement_policy_unproved_callee_premise rejected 34ms expected @171dad7fbf01+wt
 fail/layouts/plan_laid_dynamic_plan rejected 1752ms expected @a9ae30e1c334+wt
 fail/layouts/plan_laid_policy_without_plan_machine rejected 69ms expected @a9ae30e1c334+wt
@@ -12814,6 +12820,7 @@ pass/generics/runtime_qualified_closed_equation_exit checked 5819ms check-target
 pass/generics/runtime_selected_operator_body_exit checked 11640ms check-target:macos_arm64 @f137abafccda+wt
 pass/generics/runtime_static_requirement_complex_composition_exit checked 17350ms check-target:macos_arm64 @b338d531fce8
 pass/generics/runtime_symbolic_receiver_extent_exit checked 11324ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_transition_result_inference_exit checked 725ms check-target:macos_arm64 @a94178e1c015
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/seq_map_filter checked 10288ms @fcc053dc7014+wt
 pass/generics/static_callable_local_type_argument_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -12975,6 +12982,8 @@ pass/layouts/runtime_multi_origin_encoded_reference_exit checked 11104ms check-t
 pass/layouts/runtime_nested_restricted_field_read checked 11370ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_offset_encoded_reference_exit checked 11087ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_placed_accessor_writeback_exit checked 23897ms check-target:macos_arm64 @287adceca130+wt
+pass/layouts/runtime_placed_outcome_array_read_exit checked 1415ms check-target:macos_arm64 @a94178e1c015
+pass/layouts/runtime_placed_outcome_nested_array_read_exit checked 1422ms check-target:macos_arm64 @a94178e1c015
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_erased_field_exit checked 22134ms check-target:macos_arm64 @3d664be0c918+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 11579ms check-target:macos_arm64 @a9ae30e1c334+wt
