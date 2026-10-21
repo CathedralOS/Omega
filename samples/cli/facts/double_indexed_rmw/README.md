@@ -30,10 +30,11 @@ omega run --both samples/cli/facts/double_indexed_rmw/main.omg
 omega run --both samples/cli/facts/double_indexed_rmw/invalid/main.omg
 ```
 
-On Windows x86-64, opt-level 1, commit parent `8796b7e02d1e369f62ad219fcec6bad9af8a2e9c`:
-the positive witness reports native exit 0 and interpreter exit 0. The twin
-reports native exit `-1073741795` (`0xC000001D`) and interpreter crash `Trap`,
-and the host presentation agrees.
+On Windows x86-64, opt-level 1, after rebasing onto
+`ff5d57b7c845c9e903bddba537b7a8688b70d079`: the positive witness reports
+native exit 0 and interpreter exit 0. The twin reports native exit
+`-1073741795` (`0xC000001D`) and interpreter crash `Trap`, and the host
+presentation agrees.
 
 ## Requirements and evidence
 
