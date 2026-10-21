@@ -147,7 +147,7 @@ fn validate_macho_object_fixups(
         });
     }
     rebases.sort_unstable_by_key(|pointer| pointer.data_offset);
-    let mut imports = Vec::new();
+    let mut imported_locations = Vec::new();
     let mut data_end = object_data_bytes;
     for (handle, symbol) in referenced_imports() {
         let mut locators = object
@@ -159,34 +159,56 @@ fn validate_macho_object_fixups(
             if locators.next().is_some() || import.locator.target() != isa.target_profile() {
                 return Err(invalid());
             }
-            let target::NormalizedImportLocator::Foreign(locator) = &import.locator else {
-                return Err(invalid());
-            };
-            let target::ForeignLocatorCandidate::MachODylibSymbol {
-                install_name,
-                symbol,
-            } = locator.locator()
-            else {
-                return Err(invalid());
-            };
-            (install_name.as_slice(), symbol.as_slice())
+            match &import.locator {
+                target::NormalizedImportLocator::Foreign(locator) => {
+                    let target::ForeignLocatorCandidate::MachODylibSymbol {
+                        install_name,
+                        symbol,
+                    } = locator.locator()
+                    else {
+                        return Err(invalid());
+                    };
+                    (
+                        std::borrow::Cow::Borrowed(install_name.as_slice()),
+                        std::borrow::Cow::Borrowed(symbol.as_slice()),
+                    )
+                }
+                target::NormalizedImportLocator::Component(component) => {
+                    // Reconstruct the physical lookup from the exact tagged
+                    // object input, independently of emitted thunk labels or
+                    // bind bytes. File/slot identity remains in that locator;
+                    // spelling supplies no provider or installation authority.
+                    (
+                        std::borrow::Cow::Owned(
+                            format!("@loader_path/{}", component.image_filename()).into_bytes(),
+                        ),
+                        std::borrow::Cow::Owned(component.export_symbol().into_bytes()),
+                    )
+                }
+            }
         } else {
             (
-                calling_conventions::darwin_import_library(&symbol.name).as_bytes(),
-                symbol.name.as_bytes(),
+                std::borrow::Cow::Borrowed(
+                    calling_conventions::darwin_import_library(&symbol.name).as_bytes(),
+                ),
+                std::borrow::Cow::Borrowed(symbol.name.as_bytes()),
             )
         };
         let data_offset = data_end.checked_add(7).ok_or_else(invalid)? & !7;
         data_end = data_offset.checked_add(8).ok_or_else(invalid)?;
-        imports.push(MachoImportPointer {
-            data_offset,
-            install_name,
-            symbol: bind_symbol,
-        });
+        imported_locations.push((data_offset, install_name, bind_symbol));
     }
     if data_end != output.final_data_bytes.len() {
         return Err(invalid());
     }
+    let imports: Vec<_> = imported_locations
+        .iter()
+        .map(|(data_offset, install_name, symbol)| MachoImportPointer {
+            data_offset: *data_offset,
+            install_name: install_name.as_ref(),
+            symbol: symbol.as_ref(),
+        })
+        .collect();
     validate_macho_aarch64_loader_fixups(
         &output.bytes,
         &output.final_data_bytes,
