@@ -172,7 +172,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     }
 
     machine create_dir_all(path: &[u8] in Path) -> UnitResult
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     {
         let mut context: PosixFilesystem;
@@ -923,7 +923,7 @@ invokes
 }
 
 machine PosixFilesystem::create_dir_all(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
@@ -933,7 +933,7 @@ invokes
 }
 
 machine PosixFilesystem::mkall_walk(filesystem: &mut PosixFilesystem, path: &[u8] in Path, i: u64) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 
 terminates by (i, path.len) -> Nat::BoundedDistance;
 
@@ -945,13 +945,24 @@ terminates by (i, path.len) -> Nat::BoundedDistance;
     }
     state mkall_leaf(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> UnitResult {
         let rc: i32 = PosixFilesystemHost::create_dir(path, filesystem.dir_mode);
-        transition rc == 0 { true -> ok(filesystem) _ -> exists_ok(filesystem, rc) }
+        transition rc == 0 { true -> ok(filesystem) _ -> exists_ok(filesystem, path, rc) }
     }
     state ok(filesystem: &mut PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    state exists_ok(filesystem: &mut PosixFilesystem, rc: i32) -> UnitResult {
-
+    state exists_ok(filesystem: &mut PosixFilesystem, path: &[u8] in Path, rc: i32) -> UnitResult {
         let code: i32 = PosixFilesystem::native_error_code_i32(filesystem, rc);
-        transition code == 17 { true -> ok(filesystem) _ -> mkall_error(filesystem, rc) }
+        transition code == 17 { true -> existing_kind(filesystem, path, rc) _ -> mkall_error(filesystem, rc) }
+    }
+    state existing_kind(filesystem: &mut PosixFilesystem, path: &[u8] in Path, rc: i32) -> UnitResult {
+        // EEXIST also names ordinary files. Only a followed directory satisfies
+        // this operation; a failed query preserves the original mkdir error.
+        let result: MetadataResult = PosixFilesystem::metadata_path(filesystem, path);
+        transition result {
+            MetadataResult::Ok { meta } -> existing_metadata(filesystem, rc, meta)
+            _ -> mkall_error(filesystem, rc)
+        }
+    }
+    state existing_metadata(filesystem: &mut PosixFilesystem, rc: i32, metadata: Metadata) -> UnitResult {
+        transition metadata.kind { FileKind::Directory -> ok(filesystem) _ -> mkall_error(filesystem, rc) }
     }
     state mkall_error(filesystem: &mut PosixFilesystem, rc: i32) -> UnitResult {
         let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, rc);

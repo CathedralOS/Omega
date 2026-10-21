@@ -352,7 +352,7 @@ public boundary trait FilesystemService {
     invokes WindowsFilesystemHost;
     machine create_dir_all(path: &[u8] in Path) -> UnitResult
     blocks;
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     invokes WindowsFilesystemHost;
     machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
@@ -635,7 +635,7 @@ invokes FilesystemService;
 
 public machine Filesystem::create_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 blocks;
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     block FilesystemService::create_dir_all(path)

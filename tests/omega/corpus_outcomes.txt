@@ -1770,6 +1770,8 @@ fail/drops/transitive_state_loan_cleanup_prerequisite rejected 7721ms expected @
 fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 1530ms expected @a9ae30e1c334+wt
 fail/effects/boundary_empty_provider_hides_reach rejected 337ms expected @c5a7c1ce1957+wt
 fail/effects/boundary_explicit_capability_required rejected 334ms expected @c5a7c1ce1957+wt
+fail/effects/create_dir_all_requires_metadata_query rejected 5018ms expected @73f515379bec
+	machine `create_without_query` publishes service reach `FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/directory_entry_query_requires_metadata_reach rejected 4722ms expected @d81382f05a6c+wt
 	machine `list_without_metadata` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/filesystem_readonly_requires_metadata_query rejected 15645ms expected @eaf5a1200c8e+wt
@@ -11272,6 +11274,8 @@ pass/facts/zero_byte_erased_carrier_through_other_machine_exit checked 36254ms c
 pass/facts/zero_byte_erased_carrier_through_other_state_exit checked 36644ms check-target:macos_arm64 @7bfdc8af4bb2
 pass/facts/zero_byte_erased_carrier_through_parameter_exit checked 36209ms check-target:macos_arm64 @7bfdc8af4bb2
 pass/facts/zero_byte_erased_carrier_through_target_body_exit checked 36876ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/filesystem/create_dir_all_existing_file_exit checked 18575ms check-target:macos_arm64 @73f515379bec
+pass/filesystem/create_dir_all_symlink_kind_exit checked 17486ms check-target:macos_arm64 @73f515379bec
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize checked 25257ms check-target:macos_arm64 @c9eefa9130a0+wt
