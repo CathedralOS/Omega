@@ -8,7 +8,8 @@
 //! an unrelated arena with the same revision during product pruning.
 
 use super::{FlowControlFacts, FlowStateFact};
-use arena::{Arena, Handle, OwnedIndex};
+use arena::{Handle, OwnedIndex};
+type Arena<T> = arena::PagedArenaSet<T>;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Default)]
@@ -231,15 +232,13 @@ mod tests {
         assert_eq!(equal_revision.states.revision(), replacement.revision());
         *equal_revision.states = replacement;
         assert_roster(&equal_revision);
-        assert!(facts.states.free(first));
-        assert_roster(&facts);
         facts.states.insert(FlowStateFact {
             machine_symbol: replacement_machine,
             state_symbol: replacement_state,
             ..FlowStateFact::default()
         });
         assert_roster(&facts);
-        facts.states.clear();
+        facts.states.reset_retain_capacity();
         assert_roster(&facts);
         assert_roster(&snapshot);
     }

@@ -2422,6 +2422,7 @@ dependencies = [
  "phase-profile",
  "proof",
  "proof-admission",
+ "rayon",
  "representation-selections",
  "semantic-vocabulary",
  "source",

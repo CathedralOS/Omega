@@ -483,9 +483,9 @@ pub use machine_calls::reference_result_custody;
 pub use program_validation::{
     ExactIntegerCastFact, ExpressionInterval, OpaquePropertyValidation, ProgramValidation,
     ProgramValidationFacts, ProvenContractExpressions, admit_prepared_program_effects,
-    checked_operator_contract_snapshot, expression_interval, prepare_specialized_program,
-    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
-    validate_program,
+    checked_operator_contract_snapshot, checking_thread_pool, expression_interval,
+    prepare_specialized_program, validate_checked_operator_realization_contract,
+    validate_generic_machine_contract_entailment, validate_program,
 };
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;

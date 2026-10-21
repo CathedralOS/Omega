@@ -80,7 +80,7 @@ impl ClaimOutcomePreparation {
     pub(crate) fn resolve(
         &mut self,
         program: &dyn validation::CheckingInput,
-        segments: &arena::Arena<facts::PlaceSegment>,
+        segments: &arena::PagedArenaSet<facts::PlaceSegment>,
         event: &mut FlowPermissionEventFact,
         permission_events: &[FlowPermissionEventFact],
     ) {
@@ -669,7 +669,7 @@ fn claim_outcomes_for_named_transition(
     statement_index: usize,
     target_symbol: SymbolHandle,
     arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Vec<CheckedClaimOutcomeEntry> {
@@ -1098,7 +1098,7 @@ fn claim_outcome_source_for_event(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     event: &FlowPermissionEventFact,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> CheckedClaimOutcomeSource {
     if let Some(entry) = permission_events.iter().find(|candidate| {
@@ -1125,7 +1125,7 @@ fn claim_outcome_source_for_event(
 fn claim_origin_for_source(
     state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<(PermissionProvenance, PermissionClaimIdentity)> {
     match source {
@@ -1173,7 +1173,7 @@ fn bind_claim_outcome_source_at_call(
     call: &typed_trees::expression::TableCallExpression,
     target_state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<CheckedClaimOutcomeSource> {
     let (machine, _) = validation::find_state(program, caller_state.symbol)?;
@@ -1231,7 +1231,7 @@ fn bind_claim_outcome_source_at_arguments(
     target_state: &typed_trees::state::State,
     invocation: PermissionEventSource,
     source: &CheckedClaimOutcomeSource,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
 ) -> Option<CheckedClaimOutcomeSource> {
     let CheckedClaimOutcomeSource::Input {
@@ -1344,7 +1344,7 @@ pub(crate) use validation::receiving_value;
 
 pub(crate) fn call_result_origin_rewrites(
     program: &dyn ::validation::CheckingInput,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
 ) -> Vec<(
@@ -1366,7 +1366,7 @@ pub(crate) fn call_result_origin_rewrites(
 
 fn call_result_origin_rewrite(
     program: &dyn validation::CheckingInput,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     event: &FlowPermissionEventFact,
     permission_events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
@@ -1492,8 +1492,8 @@ pub(crate) fn publish_claim_outcome_maps(
     facts: &mut CheckFacts,
     maps: Vec<CheckedClaimOutcomeMap>,
 ) {
-    facts.flow.ownership.claim_outcome_entries = arena::Arena::default();
-    facts.flow.ownership.claim_outcome_maps = arena::Arena::default();
+    facts.flow.ownership.claim_outcome_entries = Default::default();
+    facts.flow.ownership.claim_outcome_maps = Default::default();
     for map in maps {
         let mut entries = Vec::new();
         for entry in map.entries {

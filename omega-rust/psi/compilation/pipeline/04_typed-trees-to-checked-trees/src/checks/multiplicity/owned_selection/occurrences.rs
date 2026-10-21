@@ -148,7 +148,7 @@ impl SelectionOccurrences {
     pub(in crate::checks::multiplicity) fn check_events<'a>(
         &self,
         events: impl IntoIterator<Item = &'a FlowPermissionEventFact>,
-        segments: &arena::Arena<facts::PlaceSegment>,
+        segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     ) -> Result<(), Diagnostic> {
         for event in events {
             if event.access == PermissionAccess::Owned

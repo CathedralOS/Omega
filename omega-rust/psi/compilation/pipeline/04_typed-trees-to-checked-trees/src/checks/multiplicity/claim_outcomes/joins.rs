@@ -128,7 +128,7 @@ impl CallJoinPreparation {
 
     pub(super) fn resolve(
         &mut self,
-        segments: &arena::Arena<PlaceSegment>,
+        segments: &arena::PagedArenaSet<PlaceSegment>,
         expression: ExpressionHandle,
         event: &mut FlowPermissionEventFact,
     ) {
@@ -1236,11 +1236,11 @@ pub(crate) fn publish_call_claim_joins(
         return Err("call-result claim joins did not converge");
     }
     let receipts = derive_receipts(program, &facts.borrow, ownership, &events)?;
-    ownership.permissions = arena::Arena::default();
+    ownership.permissions = Default::default();
     ownership.permissions.insert_many(events);
-    ownership.claim_join_receipts = arena::Arena::default();
-    ownership.claim_join_alternatives = arena::Arena::default();
-    ownership.claim_join_exits = arena::Arena::default();
+    ownership.claim_join_receipts = Default::default();
+    ownership.claim_join_alternatives = Default::default();
+    ownership.claim_join_exits = Default::default();
     let mut prepared = Vec::new();
     for receipt in receipts {
         let PermissionClaimIdentity::Established { source, .. } = receipt.identity else {

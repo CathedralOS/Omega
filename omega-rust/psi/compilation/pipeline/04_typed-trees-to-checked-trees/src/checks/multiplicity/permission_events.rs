@@ -65,21 +65,21 @@ pub(crate) fn prepare_permission_events(
     facts.qualifications.content.body_available_inputs = Default::default();
     facts.qualifications.content.body_transformations = Default::default();
     facts.qualifications.content.body_derivations = Default::default();
-    facts.flow.ownership.instruction_dispositions = arena::Arena::default();
-    facts.flow.ownership.instruction_effect_receipts = arena::Arena::default();
-    facts.flow.ownership.storage_transfers = arena::Arena::default();
-    facts.flow.ownership.selected_cleanup_permissions = arena::Arena::default();
+    facts.flow.ownership.instruction_dispositions = Default::default();
+    facts.flow.ownership.instruction_effect_receipts = Default::default();
+    facts.flow.ownership.storage_transfers = Default::default();
+    facts.flow.ownership.selected_cleanup_permissions = Default::default();
     let mut permission_events = Vec::new();
     let mut conditional_carrier_transfers = Vec::new();
     let mut selection_diagnostics = Vec::new();
-    facts.flow.ownership.owned_selections = arena::Arena::default();
-    facts.flow.ownership.selection_sources = arena::Arena::default();
-    facts.flow.ownership.selection_transfers = arena::Arena::default();
-    facts.flow.ownership.selection_transfer_claims = arena::Arena::default();
-    facts.flow.ownership.selection_result_claims = arena::Arena::default();
-    facts.flow.ownership.selection_produced_claims = arena::Arena::default();
+    facts.flow.ownership.owned_selections = Default::default();
+    facts.flow.ownership.selection_sources = Default::default();
+    facts.flow.ownership.selection_transfers = Default::default();
+    facts.flow.ownership.selection_transfer_claims = Default::default();
+    facts.flow.ownership.selection_result_claims = Default::default();
+    facts.flow.ownership.selection_produced_claims = Default::default();
     let mut claim_identities = ClaimIdentityAllocator::default();
-    facts.flow.ownership.loan_completions = arena::Arena::default();
+    facts.flow.ownership.loan_completions = Default::default();
     let mut owned_frames = None;
     let call_frames =
         crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
@@ -588,7 +588,7 @@ pub(crate) fn prepare_permission_events(
         !absent_carrier_transfer
     });
 
-    facts.flow.ownership.permissions = arena::Arena::default();
+    facts.flow.ownership.permissions = Default::default();
     facts
         .flow
         .ownership
@@ -1119,7 +1119,7 @@ fn reconcile_state_call_result_origins(
 
 fn apply_statically_inactive_call_results(
     program: &dyn ::validation::CheckingInput,
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &mut [FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
 ) -> bool {

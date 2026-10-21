@@ -2,7 +2,8 @@
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use std::fmt;
 
-use arena::{Arena, Handle};
+use arena::Handle;
+type Arena<T> = arena::PagedArenaSet<T>;
 
 use super::{FactContext, ProgramPoint};
 use crate::FactContextHandle;
@@ -91,9 +92,45 @@ impl FactContexts {
         }
     }
 
-    pub fn append(&mut self, context: FactContext) -> FactContextHandle {
-        let point = context.point;
-        let context = self.contexts.append(context);
+    /// Append later contexts and their links on page `generation`.
+    pub fn begin_page(&mut self, generation: u32) {
+        self.contexts.begin_page(generation);
+        self.links.begin_page(generation);
+    }
+
+    /// The contexts written after the first page. Links and point groups are
+    /// derived and may have rewritten a baseline tail, so they stay behind;
+    /// adoption relinks the taken contexts instead of copying them.
+    pub fn take_additional_pages(&mut self) -> Self {
+        let contexts = self.contexts.take_additional_pages();
+        self.links.take_additional_pages();
+        Self {
+            contexts,
+            links: Arena::default(),
+            groups: HashMap::default(),
+        }
+    }
+
+    /// Adopt taken contexts under their minted handles, then link each one
+    /// into its point group on its own page, exactly as `append` would have.
+    pub fn adopt_additional_pages(&mut self, other: Self) {
+        let adopted = other
+            .contexts
+            .iter()
+            .map(|(handle, context)| (handle, context.point))
+            .collect::<Vec<_>>();
+        self.contexts.adopt_additional_pages(other.contexts);
+        let mut page = 0;
+        for (context, point) in adopted {
+            if context.generation() != page {
+                page = context.generation();
+                self.links.begin_page(page);
+            }
+            self.link(context, point);
+        }
+    }
+
+    fn link(&mut self, context: FactContextHandle, point: ProgramPoint) {
         let link = self.links.append(ContextLink {
             context,
             next: Handle::invalid(),
@@ -105,6 +142,12 @@ impl FactContexts {
             group.first = link;
         }
         group.last = link;
+    }
+
+    pub fn append(&mut self, context: FactContext) -> FactContextHandle {
+        let point = context.point;
+        let context = self.contexts.append(context);
+        self.link(context, point);
         context
     }
 

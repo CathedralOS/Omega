@@ -6,7 +6,7 @@ use checked_trees::{
 };
 
 pub(super) fn append_contiguous_borrow_root_constraints(
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     refs: &mut arena::HandleSpan<FlowConstraintRef>,
     roots: arena::HandleSpan<BorrowWritableRootFact>,
 ) {
@@ -25,7 +25,7 @@ pub(super) fn append_contiguous_borrow_root_constraints(
 }
 
 pub(super) fn append_contiguous_borrow_access_constraints(
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     refs: &mut arena::HandleSpan<FlowConstraintRef>,
     accesses: arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {

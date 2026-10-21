@@ -1656,7 +1656,7 @@ fn owned_argument_claim_transfers(
     target_state: SymbolHandle,
     structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[&checked_trees::FlowPermissionEventFact],
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
 ) -> Result<Vec<CheckedUnitClaimTransferPlan>, &'static str> {
     let mut claim_transfers = Vec::with_capacity(transfers.len());
     if transfers.is_empty() {

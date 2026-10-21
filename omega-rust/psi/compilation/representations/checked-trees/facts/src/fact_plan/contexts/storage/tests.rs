@@ -20,20 +20,27 @@ fn clone_from_restores_baseline_groups_and_discards_divergent_tail_links() {
         state_symbol: SymbolHandle::from_arena_index(8),
     };
     let mut baseline = FactContexts::default();
-    baseline.append(context(ProgramPoint::Global, 1));
+    let first_context = baseline.append(context(ProgramPoint::Global, 1));
     baseline.append(context(machine, 2));
+    let first_link = baseline.groups[&ProgramPoint::Global].first;
     let declaration = baseline.group_at_point(machine);
     let expected = baseline.handles_in_group(declaration).collect::<Vec<_>>();
     let mut scratch = baseline.clone();
     scratch.append(context(machine, 3));
     scratch.append(context(state, 4));
-    let contexts_pointer = scratch.contexts.storage_slice().as_ptr();
-    let links_pointer = scratch.links.storage_slice().as_ptr();
+    let contexts_pointer = std::ptr::from_ref(scratch.contexts.get(first_context));
+    let links_pointer = std::ptr::from_ref(scratch.links.get(first_link));
     for _ in 0..3 {
         scratch.clone_from(&baseline);
         assert_eq!(scratch, baseline);
-        assert_eq!(scratch.contexts.storage_slice().as_ptr(), contexts_pointer);
-        assert_eq!(scratch.links.storage_slice().as_ptr(), links_pointer);
+        assert_eq!(
+            std::ptr::from_ref(scratch.contexts.get(first_context)),
+            contexts_pointer
+        );
+        assert_eq!(
+            std::ptr::from_ref(scratch.links.get(first_link)),
+            links_pointer
+        );
         assert_eq!(
             scratch.handles_in_group(declaration).collect::<Vec<_>>(),
             expected
@@ -350,5 +357,49 @@ fn mixed_append_and_free_sequences_match_the_original_scan_after_every_change() 
             assert_eq!(storage.free(candidate), reference.free(candidate));
         }
         assert_matches_scan(&storage, &reference, &selected);
+    }
+}
+
+#[test]
+fn adopted_worker_pages_equal_sequential_partition_pages() {
+    let state = |machine, state| ProgramPoint::State {
+        machine_symbol: SymbolHandle::from_arena_index(machine),
+        state_symbol: SymbolHandle::from_arena_index(state),
+    };
+    // The first partition extends a group the baseline already holds, so its
+    // first append rewrites a baseline tail link.
+    let mut baseline = FactContexts::default();
+    baseline.append(context(state(1, 2), 1));
+    baseline.append(context(ProgramPoint::Global, 2));
+
+    let mut sequential = baseline.clone();
+    sequential.begin_page(2);
+    let first = sequential.append(context(state(1, 2), 3));
+    sequential.append(context(state(1, 3), 4));
+    sequential.begin_page(3);
+    let second = sequential.append(context(state(4, 5), 5));
+
+    let mut worker = |page, appends: &[(ProgramPoint, u32)]| {
+        let mut copy = baseline.clone();
+        copy.begin_page(page);
+        for (point, ordinal) in appends {
+            copy.append(context(*point, *ordinal));
+        }
+        copy.take_additional_pages()
+    };
+    let first_pages = worker(2, &[(state(1, 2), 3), (state(1, 3), 4)]);
+    let second_pages = worker(3, &[(state(4, 5), 5)]);
+    let mut merged = baseline.clone();
+    merged.adopt_additional_pages(second_pages);
+    merged.adopt_additional_pages(first_pages);
+
+    assert_eq!(merged, sequential);
+    assert_eq!(merged.get(first), sequential.get(first));
+    assert_eq!(merged.get(second), sequential.get(second));
+    for point in [state(1, 2), state(1, 3), state(4, 5), ProgramPoint::Global] {
+        assert_eq!(
+            merged.handles_at_point(point).collect::<Vec<_>>(),
+            sequential.handles_at_point(point).collect::<Vec<_>>(),
+        );
     }
 }

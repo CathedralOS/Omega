@@ -166,7 +166,7 @@ fn apply_fact_pruning(
             .filter(|state| retained.contains(&state.machine_symbol))
             .cloned()
             .collect();
-        let mut states = arena::Arena::default();
+        let mut states = arena::PagedArenaSet::default();
         states.insert_many(kept);
         facts.flow.control.states = states.into();
     }

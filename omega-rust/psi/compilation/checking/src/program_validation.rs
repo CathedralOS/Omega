@@ -1128,12 +1128,12 @@ struct MachineValidation {
     self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
 }
 
-/// Machine validation recurses as deeply as the compile thread does, so its
+/// Checking recurses as deeply as the compile thread does, so the stage's
 /// workers carry that thread's stack budget instead of the host default.
 /// The stage owns this pool; no caller configures the process-wide one.
 const CHECKING_STACK_SIZE: usize = 256 * 1024 * 1024;
 
-fn checking_thread_pool() -> &'static rayon::ThreadPool {
+pub fn checking_thread_pool() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {
         rayon::ThreadPoolBuilder::new()

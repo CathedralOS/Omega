@@ -1,4 +1,4 @@
-use arena::Arena;
+type Arena<T> = arena::PagedArenaSet<T>;
 use symbols::SymbolHandle;
 
 use super::{
@@ -381,3 +381,121 @@ impl FlowFacts {
         }
     }
 }
+
+/// Page partitioning for flow producers that build disjoint machine groups
+/// on separate workers: each worker writes every machine on its own page,
+/// hands back those pages, and the owner adopts them without remapping a
+/// handle. `begin_page` names every field, so a new one must be classified
+/// as a paged arena, a derived index rebuilt from revisions, or a carried
+/// list before it compiles.
+macro_rules! paged_flow_roots {
+    (
+        $name:ident {
+            arenas: [$($arena:ident),* $(,)?],
+            indexes: [$($index:ident),* $(,)?],
+            lists: [$($list:ident),* $(,)?] $(,)?
+        }
+    ) => {
+        impl $name {
+            /// Empty every arena, keeping each first page's allocation.
+            pub fn reset_pages(&mut self) {
+                $(self.$arena.reset_retain_capacity();)*
+                $(self.$list.clear();)*
+            }
+
+            pub fn begin_page(&mut self, generation: u32) {
+                let Self {
+                    $($arena,)*
+                    $($index: _,)*
+                    $($list: _,)*
+                } = self;
+                $($arena.begin_page(generation);)*
+            }
+
+            pub fn take_additional_pages(&mut self) -> Self {
+                let mut taken = Self::default();
+                $(taken.$arena.adopt_additional_pages(self.$arena.take_additional_pages());)*
+                $(taken.$list = std::mem::take(&mut self.$list);)*
+                taken
+            }
+
+            pub fn adopt_additional_pages(&mut self, mut other: Self) {
+                $(self.$arena.adopt_additional_pages(other.$arena.take_additional_pages());)*
+                $(self.$list.append(&mut other.$list);)*
+            }
+        }
+    };
+}
+
+paged_flow_roots!(FlowContextFacts {
+    arenas: [semantic_context_refs, constraint_refs],
+    indexes: [],
+    lists: [],
+});
+paged_flow_roots!(FlowInvalidationFacts {
+    arenas: [segments, events],
+    indexes: [],
+    lists: [],
+});
+paged_flow_roots!(FlowBorrowLifetimeFacts {
+    arenas: [activations, weakenings],
+    indexes: [],
+    lists: [],
+});
+paged_flow_roots!(FlowOwnershipFacts {
+    arenas: [
+        instruction_effect_receipts,
+        instruction_dispositions,
+        segments,
+        storage_transfers,
+        permissions,
+        borrow_claims,
+        selected_cleanup_permissions,
+        loan_completions,
+        claim_outcome_entries,
+        claim_outcome_maps,
+        claim_join_receipts,
+        claim_join_alternatives,
+        claim_join_exits,
+        owned_selections,
+        selection_sources,
+        selection_transfers,
+        selection_transfer_claims,
+        selection_result_claims,
+        selection_produced_claims,
+    ],
+    indexes: [permissions_by_state],
+    lists: [],
+});
+paged_flow_roots!(FlowBoundaryFacts {
+    arenas: [edges],
+    indexes: [],
+    lists: [],
+});
+paged_flow_roots!(FlowControlFacts {
+    arenas: [
+        value_observations,
+        atomic_executions,
+        case_accesses,
+        operator_invocations,
+        operands,
+        operand_children,
+        operand_child_paths,
+        operand_origin_writes,
+        operand_referents,
+        operand_referent_segments,
+        operand_retentions,
+        operand_retained_roots,
+        operand_retained_leaves,
+        operand_retained_paths,
+        statements,
+        calls,
+        call_arguments,
+        exits,
+        outgoing,
+        exit_parameter_origins,
+        states,
+    ],
+    indexes: [],
+    lists: [retired_calls],
+});

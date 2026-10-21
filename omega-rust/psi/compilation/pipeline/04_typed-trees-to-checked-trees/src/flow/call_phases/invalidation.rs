@@ -136,7 +136,7 @@ pub(in crate::flow) fn apply_call_invalidations(
             invalidations: HandleSpan::empty(),
         };
     }
-    let invalidations_start = build.invalidations.events.len();
+    let invalidations_start = build.invalidations.events.frontier();
     let post_contexts = match mutated_places {
         None => HandleSpan::empty(),
         Some(mutated_places) => filter_contexts_after_place_mutations(

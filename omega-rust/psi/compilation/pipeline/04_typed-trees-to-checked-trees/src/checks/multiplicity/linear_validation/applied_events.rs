@@ -17,7 +17,7 @@ use symbols::SymbolHandle;
 
 pub(crate) fn apply_recorded_state_entry_events(
     events: &[&FlowPermissionEventFact],
-    segments: &arena::Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     places: &mut [LinearPlace],
 ) {
     for event in events.iter().copied().filter(|event| {
@@ -262,7 +262,7 @@ pub(crate) fn append_borrow_permission_events(
         })
         .collect::<Vec<_>>();
 
-    facts.flow.ownership.borrow_claims = arena::Arena::default();
+    facts.flow.ownership.borrow_claims = Default::default();
     for (machine_symbol, state_symbol, activations, weakenings) in states {
         for activation in facts
             .flow

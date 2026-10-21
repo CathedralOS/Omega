@@ -10,7 +10,7 @@ use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRe
 use facts::{FactPlan, ProgramPoint};
 
 pub(crate) fn retained_flow_contexts(
-    semantic_context_refs: &arena::Arena<FlowSemanticContextRef>,
+    semantic_context_refs: &arena::PagedArenaSet<FlowSemanticContextRef>,
     source: arena::HandleSpan<FlowSemanticContextRef>,
 ) -> arena::HandleSpan<FlowSemanticContextRef> {
     if semantic_context_refs.span_or_empty(source).is_empty() {
@@ -27,45 +27,26 @@ pub(crate) fn retained_flow_contexts(
 // Callers supply a validated selection or a list built here. Revalidating its
 // entire prefix on every append would turn list construction quadratic.
 pub(crate) fn append_flow_reference<T: Copy + Default>(
-    references: &mut arena::Arena<T>,
+    references: &mut arena::PagedArenaSet<T>,
     span: &mut arena::HandleSpan<T>,
     reference: T,
 ) {
-    if !span.is_empty()
-        && (span.start().generation() != 1
-            || u64::from(span.start().arena_index()) + u64::from(span.count())
-                != references.storage_slice().len() as u64 + 1)
-    {
-        *span = references.copy_span_pair(*span, arena::HandleSpan::empty());
-    }
+    // A span off the current page or behind its tail is first copied there.
     references.append_to_span(span, reference);
 }
 
-pub(crate) fn appended_span_since<T: Clone + Default + PartialEq + Eq>(
-    arena: &arena::Arena<T>,
-    start_len: usize,
+pub(crate) fn appended_span_since<T: Default>(
+    arena: &arena::PagedArenaSet<T>,
+    start: arena::PagedArenaFrontier<T>,
 ) -> arena::HandleSpan<T> {
-    let appended = arena.len().saturating_sub(start_len);
-    if appended == 0 {
-        arena::HandleSpan::empty()
-    } else {
-        arena::HandleSpan::from_parts(
-            Handle::from_arena_index(
-                start_len
-                    .checked_add(1)
-                    .and_then(|index| index.try_into().ok())
-                    .unwrap(),
-            ),
-            appended.try_into().unwrap(),
-        )
-    }
+    arena.span_since(start)
 }
 
 pub(crate) fn append_place_segments(
-    segments_arena: &mut arena::Arena<facts::PlaceSegment>,
+    segments_arena: &mut arena::PagedArenaSet<facts::PlaceSegment>,
     segments: &[facts::PlaceSegment],
 ) -> arena::HandleSpan<facts::PlaceSegment> {
-    let start_len = segments_arena.len();
+    let start_len = segments_arena.frontier();
     for segment in segments {
         segments_arena.append(*segment);
     }
@@ -74,9 +55,9 @@ pub(crate) fn append_place_segments(
 
 pub(crate) fn append_flow_contexts_for_points(
     semantic: &FactPlan,
-    semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
+    semantic_context_refs: &mut arena::PagedArenaSet<FlowSemanticContextRef>,
     refs: &mut arena::HandleSpan<FlowSemanticContextRef>,
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     points: &[ProgramPoint],
 ) {
@@ -93,9 +74,9 @@ pub(crate) fn append_flow_contexts_for_points(
 
 pub(crate) fn append_flow_contexts(
     contexts: impl Iterator<Item = facts::FactContextHandle>,
-    semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
+    semantic_context_refs: &mut arena::PagedArenaSet<FlowSemanticContextRef>,
     refs: &mut arena::HandleSpan<FlowSemanticContextRef>,
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     constraints: &mut arena::HandleSpan<FlowConstraintRef>,
 ) {
     // Both lists describe the same selected contexts. Keep their arena order.
@@ -114,7 +95,7 @@ pub(crate) fn append_flow_contexts(
 }
 
 pub(crate) fn retained_constraint_refs(
-    constraint_refs: &arena::Arena<FlowConstraintRef>,
+    constraint_refs: &arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
     if constraint_refs.span_or_empty(source).is_empty() {
@@ -147,7 +128,7 @@ pub(crate) fn append_semantic_context(
 }
 
 pub(crate) fn append_constraint_ref(
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     refs: &mut arena::HandleSpan<FlowConstraintRef>,
     kind: FlowConstraintKind,
 ) {
@@ -155,10 +136,10 @@ pub(crate) fn append_constraint_ref(
 }
 
 pub(crate) fn project_constraint_refs_to_active_contexts(
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     active_contexts: arena::HandleSpan<FlowSemanticContextRef>,
-    semantic_context_refs: &arena::Arena<FlowSemanticContextRef>,
+    semantic_context_refs: &arena::PagedArenaSet<FlowSemanticContextRef>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
     let active_contexts = semantic_context_refs.span_or_empty(active_contexts);
     filter_constraint_refs(
@@ -174,7 +155,7 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
 }
 
 pub(crate) fn filter_constraint_refs(
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     keep: impl FnMut(FlowConstraintRef) -> bool,
 ) -> arena::HandleSpan<FlowConstraintRef> {
@@ -182,7 +163,7 @@ pub(crate) fn filter_constraint_refs(
 }
 
 pub(crate) fn filter_flow_references<T: Copy + Default>(
-    references: &mut arena::Arena<T>,
+    references: &mut arena::PagedArenaSet<T>,
     source: arena::HandleSpan<T>,
     mut keep: impl FnMut(T) -> bool,
 ) -> arena::HandleSpan<T> {

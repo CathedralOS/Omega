@@ -31,7 +31,18 @@ impl<T> Clone for PagedArenaFrontier<T> {
 
 impl<T> Copy for PagedArenaFrontier<T> {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+// An empty first page: generation 1, next one-based slot 1.
+impl<T> Default for PagedArenaFrontier<T> {
+    fn default() -> Self {
+        Self {
+            generation: 1,
+            next_arena_index: 1,
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct PagedArenaSet<T: Default> {
     first_generation: u32,
     first_page: Arena<T>,
@@ -41,9 +52,39 @@ pub struct PagedArenaSet<T: Default> {
     dummy: T,
 }
 
+// Replacing a set keeps each page's allocation where the page survives, so a
+// pass that restores a baseline every sweep does not reallocate it.
+impl<T: Default + Clone> Clone for PagedArenaSet<T> {
+    fn clone(&self) -> Self {
+        Self {
+            first_generation: self.first_generation,
+            first_page: self.first_page.clone(),
+            additional_pages: self.additional_pages.clone(),
+            current_generation: self.current_generation,
+            active_count: self.active_count,
+            dummy: self.dummy.clone(),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.first_generation = source.first_generation;
+        self.first_page.clone_from(&source.first_page);
+        self.additional_pages.clone_from(&source.additional_pages);
+        self.current_generation = source.current_generation;
+        self.active_count = source.active_count;
+        self.dummy.clone_from(&source.dummy);
+    }
+}
+
 impl<T: Default> PagedArenaSet<T> {
     pub fn new() -> Self {
         Self::with_generation(1)
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut set = Self::new();
+        set.reserve(capacity);
+        set
     }
 
     pub fn with_generation(generation: u32) -> Self {
@@ -83,6 +124,34 @@ impl<T: Default> PagedArenaSet<T> {
             .expect("paged arena active count overflow");
     }
 
+    /// Move every page after the first into a new set whose first page is
+    /// empty, leaving this set with only its first page. A worker that built
+    /// pages over a copied baseline hands back just the pages it produced.
+    pub fn take_additional_pages(&mut self) -> Self {
+        let mut taken = Self::with_generation(self.first_generation);
+        taken.additional_pages = std::mem::take(&mut self.additional_pages);
+        taken.active_count = taken.pages().skip(1).map(Arena::len).sum();
+        taken.current_generation = self.current_generation;
+        self.current_generation = self.first_generation;
+        self.active_count = self.first_page.len();
+        taken
+    }
+
+    /// Adopt every page of `other` after its first, without copying rows or
+    /// remapping handles. Generations order pages, so adoption order is free.
+    pub fn adopt_additional_pages(&mut self, other: Self) {
+        for (index, page) in other.additional_pages.into_iter().enumerate() {
+            let Some(page) = page else { continue };
+            let generation = other
+                .first_generation
+                .checked_add(u32::try_from(index + 1).expect("paged arena generation offset"))
+                .expect("paged arena generation overflow");
+            self.active_count += page.len();
+            self.insert_page(generation, *page);
+        }
+        self.current_generation = self.current_generation.max(other.current_generation);
+    }
+
     /// Start a later append page after previously published pages.
     pub fn begin_page(&mut self, generation: u32) {
         assert!(
@@ -101,10 +170,20 @@ impl<T: Default> PagedArenaSet<T> {
         self.current_mut().reserve(additional);
     }
 
+    /// A handle's generation names its page, so a page never hands a freed
+    /// slot out again under a bumped generation: insertion always appends.
     pub fn insert(&mut self, item: T) -> Handle<T> {
-        let handle = self.current_mut().insert(item);
-        self.active_count += 1;
-        handle
+        self.append(item)
+    }
+
+    /// Retire one row. Its handle stops resolving and the slot is never
+    /// reused, so later rows keep their page identity.
+    pub fn free(&mut self, handle: Handle<T>) -> bool {
+        let freed = self.page_mut(handle).is_some_and(|page| page.free(handle));
+        if freed {
+            self.active_count -= 1;
+        }
+        freed
     }
 
     pub fn append(&mut self, item: T) -> Handle<T> {
@@ -124,8 +203,11 @@ impl<T: Default> PagedArenaSet<T> {
                 .to_vec();
             *span = self.insert_many(retained);
         }
+        // A stale tail span is relocated by copying its rows, so count the
+        // page's growth rather than one appended row.
+        let before = self.current().len();
         let handle = self.current_mut().append_to_span(span, item);
-        self.active_count += 1;
+        self.active_count += self.current().len() - before;
         handle
     }
 
@@ -256,6 +338,55 @@ impl<T: Default> PagedArenaSet<T> {
         }
     }
 
+    /// Rows appended since `frontier`, as one span. Appends always land on
+    /// the current page, so a frontier taken on an earlier page means every
+    /// row since then is the current page's.
+    pub fn span_since(&self, frontier: PagedArenaFrontier<T>) -> HandleSpan<T> {
+        let end = self.frontier();
+        let start = if frontier.generation == end.generation {
+            frontier.next_arena_index
+        } else {
+            1
+        };
+        let count = end.next_arena_index.saturating_sub(start);
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(Handle::from_parts(start, end.generation), count)
+        }
+    }
+
+    /// Empty every page while keeping the first page's allocation, as a
+    /// fresh set would start, including a dummy no lookup has rewritten.
+    pub fn reset_retain_capacity(&mut self) {
+        self.first_page.reset_retain_capacity();
+        self.additional_pages.clear();
+        self.current_generation = self.first_generation;
+        self.active_count = 0;
+        self.dummy = T::default();
+    }
+
+    /// Freshness key over every page. Each mutation moves one page's own
+    /// revision forward and adoption adds pages, so the sum only grows.
+    pub fn revision(&self) -> u64 {
+        self.pages()
+            .map(Arena::revision)
+            .fold(self.page_count() as u64, u64::wrapping_add)
+    }
+
+    /// Handle of a row borrowed from this set, by locating its page.
+    pub fn handle_of(&self, item: &T) -> Option<Handle<T>> {
+        self.pages().find_map(|page| page.handle_of(item))
+    }
+
+    fn pages(&self) -> impl Iterator<Item = &Arena<T>> {
+        std::iter::once(&self.first_page).chain(
+            self.additional_pages
+                .iter()
+                .filter_map(|page| page.as_deref()),
+        )
+    }
+
     pub fn page_count(&self) -> usize {
         1 + self
             .additional_pages
@@ -376,5 +507,60 @@ mod tests {
 
         assert_eq!(names.start().generation(), 2);
         assert_eq!(first.span_or_empty(names), ["alpha", "beta", "gamma"]);
+    }
+
+    #[test]
+    fn span_since_names_rows_appended_after_a_frontier_on_any_page() {
+        let mut set = PagedArenaSet::<String>::new();
+        set.append("before".to_owned());
+        let same_page = set.frontier();
+        set.append("first".to_owned());
+        set.append("second".to_owned());
+        assert_eq!(
+            set.span_or_empty(set.span_since(same_page)),
+            ["first", "second"]
+        );
+        assert!(set.span_since(set.frontier()).is_empty());
+
+        let earlier_page = set.frontier();
+        set.begin_page(2);
+        set.append("later".to_owned());
+        assert_eq!(set.span_or_empty(set.span_since(earlier_page)), ["later"]);
+    }
+
+    #[test]
+    fn revision_grows_with_every_mutation_and_page() {
+        let mut set = PagedArenaSet::<String>::new();
+        let empty = set.revision();
+        let handle = set.append("value".to_owned());
+        let appended = set.revision();
+        set.get_mut(handle).push('!');
+        let rewritten = set.revision();
+        set.begin_page(2);
+        let paged = set.revision();
+        assert!(empty < appended && appended < rewritten && rewritten < paged);
+    }
+
+    #[test]
+    fn relocating_a_stale_tail_span_counts_every_copied_row() {
+        let mut set = PagedArenaSet::<String>::new();
+        let mut stale = set.insert_many(["alpha".to_owned(), "beta".to_owned()]);
+        set.append("tail".to_owned());
+        set.append_to_span(&mut stale, "gamma".to_owned());
+        assert_eq!(set.span_or_empty(stale), ["alpha", "beta", "gamma"]);
+        assert_eq!(set.len(), set.iter().count());
+    }
+
+    #[test]
+    fn reset_returns_to_an_empty_first_page() {
+        let mut set = PagedArenaSet::<String>::new();
+        set.append("alpha".to_owned());
+        set.begin_page(2);
+        set.append("beta".to_owned());
+        set.reset_retain_capacity();
+        assert!(set.is_empty());
+        assert_eq!(set.page_count(), 1);
+        let handle = set.append("gamma".to_owned());
+        assert_eq!((handle.generation(), handle.arena_index()), (1, 1));
     }
 }

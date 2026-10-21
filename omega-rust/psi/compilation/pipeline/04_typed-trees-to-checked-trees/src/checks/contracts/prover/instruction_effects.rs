@@ -79,7 +79,7 @@ pub(in crate::checks) struct InstructionEffectEvidence {
 impl InstructionEffectEvidence {
     pub(in crate::checks) fn publish(
         &self,
-        arena: &mut arena::Arena<checked_trees::flow::FlowInstructionEffectReceiptFact>,
+        arena: &mut arena::PagedArenaSet<checked_trees::flow::FlowInstructionEffectReceiptFact>,
     ) -> arena::Handle<checked_trees::flow::FlowInstructionEffectReceiptFact> {
         let record = self.record(arena);
         arena.append(record)
@@ -90,7 +90,7 @@ impl InstructionEffectEvidence {
 
     fn record(
         &self,
-        arena: &mut arena::Arena<checked_trees::flow::FlowInstructionEffectReceiptFact>,
+        arena: &mut arena::PagedArenaSet<checked_trees::flow::FlowInstructionEffectReceiptFact>,
     ) -> checked_trees::flow::FlowInstructionEffectReceiptFact {
         let children = self
             .children

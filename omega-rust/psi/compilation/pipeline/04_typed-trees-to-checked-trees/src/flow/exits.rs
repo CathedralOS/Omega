@@ -68,9 +68,12 @@ pub(super) fn append_state_exit_facts(
         let outgoing = build
             .control
             .outgoing
-            .storage_slice()
-            .get(build.state_outgoing_start..)
-            .unwrap_or(&[])
+            .span_or_empty(
+                build
+                    .control
+                    .outgoing
+                    .span_since(build.state_outgoing_start),
+            )
             .iter()
             .filter_map(|outgoing| {
                 (outgoing.machine_symbol == machine_symbol

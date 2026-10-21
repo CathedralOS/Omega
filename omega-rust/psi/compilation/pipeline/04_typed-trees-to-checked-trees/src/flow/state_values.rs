@@ -62,12 +62,20 @@ pub(super) fn field_predicate_ceiling<'a>(
     field.map_or(&[], |field| field.predicate_ceiling())
 }
 
+pub(super) fn entry_state_index(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Option<usize> {
+    validation::activation_target_state_index(program, machine, machine.symbol)
+}
+
 fn entry_state<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program typed_trees::state::State> {
-    let index = validation::activation_target_state_index(program, machine, machine.symbol)?;
-    program.machine_states(machine).get(index)
+    program
+        .machine_states(machine)
+        .get(entry_state_index(program, machine)?)
 }
 
 fn reachable(

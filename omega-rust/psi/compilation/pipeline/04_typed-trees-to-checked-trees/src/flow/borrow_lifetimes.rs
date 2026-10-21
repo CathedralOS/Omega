@@ -12,8 +12,8 @@ use checked_trees::{
 };
 
 pub(crate) fn filter_expired_borrow_loans(
-    borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    borrow_weakenings: &mut arena::PagedArenaSet<FlowBorrowWeakeningFact>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     statement_index: usize,
@@ -62,8 +62,8 @@ pub(crate) fn filter_expired_borrow_loans(
 /// traversing statements. `None` is that immutable preparation's failed result,
 /// not a request to reconstruct the resolver for each loan-lifetime query.
 pub(crate) fn filter_reassigned_borrow_loans(
-    borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    borrow_weakenings: &mut arena::PagedArenaSet<FlowBorrowWeakeningFact>,
+    constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     program: &dyn ::validation::CheckingInput,

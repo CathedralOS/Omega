@@ -18,7 +18,7 @@ use typed_trees::statement::StatementNode;
 /// replay of a local initializer: the event selects this statement's write.
 pub fn receiving_value<'a>(
     program: &dyn crate::CheckingInput,
-    segments: &'a arena::Arena<PlaceSegment>,
+    segments: &'a arena::PagedArenaSet<PlaceSegment>,
     event: &FlowPermissionEventFact,
 ) -> Option<(usize, ExpressionHandle, &'a [PlaceSegment])> {
     let statement_index = match event.source {

@@ -39,7 +39,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     execution_order: &typed_trees::statement::StatementExecutionOrder,
 ) -> arena::HandleSpan<FlowCallFact> {
     let mut state_calls = arena::HandleSpan::empty();
-    build.state_statements_start = build.control.statements.len();
+    build.state_statements_start = build.control.statements.frontier();
     let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
     let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
     let source_count = state.statement_nodes.len();

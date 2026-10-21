@@ -191,14 +191,14 @@ pub(super) fn build_state_flow_fact<'plans>(
         retained_flow_contexts(&build.contexts.semantic_context_refs, state_contexts);
     let mut active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, state_constraints);
-    let state_invalidations_start = build.invalidations.events.len();
-    let state_borrow_activations_start = build.borrow_lifetimes.activations.len();
-    let state_borrow_weakenings_start = build.borrow_lifetimes.weakenings.len();
-    let state_boundary_edges_start = build.boundaries.edges.len();
-    let state_statements_start = build.control.statements.len();
-    let state_case_accesses_start = build.control.case_accesses.len();
-    let state_exits_start = build.control.exits.len();
-    let state_outgoing_start = build.control.outgoing.len();
+    let state_invalidations_start = build.invalidations.events.frontier();
+    let state_borrow_activations_start = build.borrow_lifetimes.activations.frontier();
+    let state_borrow_weakenings_start = build.borrow_lifetimes.weakenings.frontier();
+    let state_boundary_edges_start = build.boundaries.edges.frontier();
+    let state_statements_start = build.control.statements.frontier();
+    let state_case_accesses_start = build.control.case_accesses.frontier();
+    let state_exits_start = build.control.exits.frontier();
+    let state_outgoing_start = build.control.outgoing.frontier();
     build.state_outgoing_start = state_outgoing_start;
     let execution_order = program
         .statement_table

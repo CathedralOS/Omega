@@ -7,7 +7,8 @@ pub mod places;
 #[cfg(test)]
 mod tests;
 
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Handle, HandleSpan};
+type Arena<T> = arena::PagedArenaSet<T>;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -89,6 +90,122 @@ impl Clone for FactPlan {
         self.refs.clone_from(&source.refs);
         self.contexts.clone_from(&source.contexts);
         self.symbol_sets.clone_from(&source.symbol_sets);
+    }
+}
+
+/// Page partitioning for producers that extend one baseline plan from several
+/// workers. A worker copies the baseline, writes each partition on its own
+/// page, and hands back only those pages; adopting them keeps every handle
+/// the worker minted. Every field is named so a new arena cannot be skipped.
+impl FactPlan {
+    /// Append later rows of every arena on page `generation`.
+    pub fn begin_page(&mut self, generation: u32) {
+        let Self {
+            places,
+            place_segments,
+            facts,
+            scalar_values,
+            boolean_predicates,
+            boolean_predicate_bindings,
+            integer_ranges,
+            qualification_correspondences,
+            domain_definition_facts,
+            data_definition_facts,
+            instantiated_expressions,
+            refs,
+            contexts,
+            symbol_sets,
+        } = self;
+        places.begin_page(generation);
+        place_segments.begin_page(generation);
+        facts.begin_page(generation);
+        scalar_values.begin_page(generation);
+        boolean_predicates.begin_page(generation);
+        boolean_predicate_bindings.begin_page(generation);
+        integer_ranges.begin_page(generation);
+        qualification_correspondences.begin_page(generation);
+        domain_definition_facts.begin_page(generation);
+        data_definition_facts.begin_page(generation);
+        instantiated_expressions.begin_page(generation);
+        refs.begin_page(generation);
+        contexts.begin_page(generation);
+        symbol_sets.begin_page(generation);
+    }
+
+    /// The pages written after the first, leaving this plan at its first page.
+    pub fn take_additional_pages(&mut self) -> Self {
+        let Self {
+            places,
+            place_segments,
+            facts,
+            scalar_values,
+            boolean_predicates,
+            boolean_predicate_bindings,
+            integer_ranges,
+            qualification_correspondences,
+            domain_definition_facts,
+            data_definition_facts,
+            instantiated_expressions,
+            refs,
+            contexts,
+            symbol_sets,
+        } = self;
+        Self {
+            places: places.take_additional_pages(),
+            place_segments: place_segments.take_additional_pages(),
+            facts: facts.take_additional_pages(),
+            scalar_values: scalar_values.take_additional_pages(),
+            boolean_predicates: boolean_predicates.take_additional_pages(),
+            boolean_predicate_bindings: boolean_predicate_bindings.take_additional_pages(),
+            integer_ranges: integer_ranges.take_additional_pages(),
+            qualification_correspondences: qualification_correspondences.take_additional_pages(),
+            domain_definition_facts: domain_definition_facts.take_additional_pages(),
+            data_definition_facts: data_definition_facts.take_additional_pages(),
+            instantiated_expressions: instantiated_expressions.take_additional_pages(),
+            refs: refs.take_additional_pages(),
+            contexts: contexts.take_additional_pages(),
+            symbol_sets: symbol_sets.take_additional_pages(),
+        }
+    }
+
+    /// Adopt pages taken from a copy of this plan's baseline.
+    pub fn adopt_additional_pages(&mut self, other: Self) {
+        let Self {
+            places,
+            place_segments,
+            facts,
+            scalar_values,
+            boolean_predicates,
+            boolean_predicate_bindings,
+            integer_ranges,
+            qualification_correspondences,
+            domain_definition_facts,
+            data_definition_facts,
+            instantiated_expressions,
+            refs,
+            contexts,
+            symbol_sets,
+        } = other;
+        self.places.adopt_additional_pages(places);
+        self.place_segments.adopt_additional_pages(place_segments);
+        self.facts.adopt_additional_pages(facts);
+        self.scalar_values.adopt_additional_pages(scalar_values);
+        self.boolean_predicates
+            .adopt_additional_pages(boolean_predicates);
+        self.boolean_predicate_bindings
+            .adopt_additional_pages(boolean_predicate_bindings);
+        self.integer_ranges.adopt_additional_pages(integer_ranges);
+        self.qualification_correspondences
+            .adopt_additional_pages(qualification_correspondences);
+        self.domain_definition_facts
+            .adopt_additional_pages(domain_definition_facts);
+        self.data_definition_facts
+            .adopt_additional_pages(data_definition_facts);
+        self.instantiated_expressions
+            .adopt_additional_pages(instantiated_expressions);
+        self.refs.adopt_additional_pages(refs);
+        self.contexts.adopt_additional_pages(contexts);
+        self.symbol_sets.adopt_additional_pages(symbol_sets);
     }
 }
 

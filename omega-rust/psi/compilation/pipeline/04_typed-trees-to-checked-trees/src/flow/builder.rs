@@ -9,13 +9,37 @@
 //! Whole-output storage is reused only while unpublished; no sweep-local handle
 //! survives that replacement boundary. Baseline contents still copy per sweep,
 //! including context-point links, while clone_from reuses their allocations.
-//! This is not a generation-preserving suffix rollback into a live fact plan.
+//!
+//! Value inputs cross state boundaries only along transitions inside one
+//! machine and invocations of another machine's non-entry state, so machines
+//! joined by such invocations form independent groups. The first complete pass
+//! runs each group on its own worker over a copy of the baseline plan, writing
+//! every machine on page `MACHINE_PAGE_BASE + roster position` of each output
+//! arena; the owner adopts those pages, so handles and order match a
+//! sequential sweep that pages the same way. When that pass leaves any input
+//! changed, the program instead takes the sequential fixed point and its
+//! unknown-input fallback, whose repeated passes couple every group.
 use crate::flow::FlowBuildContext;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
 use crate::flow::build_state_flow_fact;
 use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
 use facts::{FactPlan, ProgramPoint};
+use rayon::prelude::*;
+
+/// Page 1 holds the baseline plan; machine pages follow in roster order.
+const MACHINE_PAGE_BASE: u32 = 2;
+
+/// The program-fixed inputs every sweep reads.
+struct FlowInputs<'program, 'local> {
+    program: &'program dyn ::validation::CheckingInput,
+    borrow: &'local BorrowFacts,
+    proof: &'local ProofFacts,
+    domains: &'local DomainFacts,
+    baseline: &'local FactPlan,
+    global_contexts: facts::FactContextGroup,
+    machine_contexts: &'local [facts::FactContextGroup],
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_flow_facts(
@@ -37,7 +61,6 @@ pub(crate) fn build_flow_facts(
     // once, in typed-machine order, instead of rediscovering Global/Machine
     // groups for every state on every input pass. The baseline clones preserve
     // these handles. State-input and rebased contexts remain pass-local below.
-    let global_contexts = baseline.context_group_at_point(ProgramPoint::Global);
     let machine_contexts: Vec<_> = program
         .machines()
         .iter()
@@ -47,6 +70,15 @@ pub(crate) fn build_flow_facts(
             })
         })
         .collect();
+    let inputs = FlowInputs {
+        program,
+        borrow,
+        proof,
+        domains,
+        baseline: &baseline,
+        global_contexts: baseline.context_group_at_point(ProgramPoint::Global),
+        machine_contexts: &machine_contexts,
+    };
     // Symbol preparation depends on the immutable program, not the changing
     // incoming value facts. Prefix origins still resolve at each exact site.
     // Direct assignments also use prefix alias closure when there are no calls.
@@ -60,25 +92,116 @@ pub(crate) fn build_flow_facts(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
-    let mut build = FlowBuildContext::new(
-        borrow,
-        proof,
-        semantic,
-        scalar_expressions,
-        operators,
-        exact_integer_casts,
-        call_frames,
-        state_mutation_summary_cache,
-    );
+    let new_build = || {
+        FlowBuildContext::new(
+            borrow,
+            proof,
+            &baseline,
+            scalar_expressions,
+            operators,
+            exact_integer_casts,
+            call_frames,
+            state_mutation_summary_cache,
+        )
+    };
+
+    let groups = machine_groups(program, borrow);
+    let parallel = if groups.len() > 1 {
+        build_groups_in_parallel(&inputs, &groups, &new_build, semantic)
+    } else {
+        None
+    };
+    let mut flow = parallel.unwrap_or_else(|| build_sequentially(&inputs, new_build(), semantic));
+    attach_reach_summaries(program, &mut flow, service_reaches, operational);
+    flow
+}
+
+/// One complete pass of every group, each on a worker. The sequential fixed
+/// point is global: once any input changes, every group is swept again, and a
+/// settled group's repeated pass can still change its own inputs or send the
+/// program to the unknown-input fallback. Only a program settled by its first
+/// complete pass therefore matches group by group; `None` otherwise, leaving
+/// `semantic` at the baseline for the sequential sweep.
+fn build_groups_in_parallel<'plans>(
+    inputs: &FlowInputs<'plans, '_>,
+    groups: &[Vec<usize>],
+    new_build: &(dyn Fn() -> FlowBuildContext<'plans> + Sync),
+    semantic: &mut FactPlan,
+) -> Option<FlowFacts> {
+    let groups_built = validation::checking_thread_pool().install(|| {
+        groups
+            .par_iter()
+            .map_init(
+                || (inputs.baseline.clone(), new_build()),
+                |(worker_semantic, build), group| {
+                    worker_semantic.clone_from(inputs.baseline);
+                    phase_profile::count("05.d.3.b.flow.inner_passes", 1);
+                    sweep(inputs, worker_semantic, build, group, true);
+                    if !build.dirty_state_value_inputs.is_empty() {
+                        build.take_output_pages();
+                        return None;
+                    }
+                    Some((
+                        build.take_output_pages(),
+                        worker_semantic.take_additional_pages(),
+                    ))
+                },
+            )
+            .collect::<Option<Vec<_>>>()
+    })?;
+    let mut flow = FlowFacts::default();
+    for (pages, semantic_pages) in groups_built {
+        flow.contexts.adopt_additional_pages(pages.contexts);
+        flow.invalidations
+            .adopt_additional_pages(pages.invalidations);
+        flow.borrow_lifetimes
+            .adopt_additional_pages(pages.borrow_lifetimes);
+        flow.ownership.adopt_additional_pages(pages.ownership);
+        flow.boundaries.adopt_additional_pages(pages.boundaries);
+        flow.control.adopt_additional_pages(pages.control);
+        semantic.adopt_additional_pages(semantic_pages);
+    }
+    Some(flow)
+}
+
+/// The whole program in one context, with its unknown-input fallback.
+fn build_sequentially<'plans>(
+    inputs: &FlowInputs<'plans, '_>,
+    mut build: FlowBuildContext<'plans>,
+    semantic: &mut FactPlan,
+) -> FlowFacts {
+    let machines = (0..inputs.program.machines().len()).collect::<Vec<_>>();
+    if converge(inputs, semantic, &mut build, &machines) {
+        return build.finish();
+    }
+    // No provisional input fact survives a nonconvergent graph.
+    build.discard_output();
+    semantic.clone_from(inputs.baseline);
+    // Unknown is absorbing: immediate joins during fallback cannot establish
+    // a new provisional constant in a state built later in this pass.
+    build.state_value_inputs = super::state_values::unknown_inputs(inputs.program);
+    build.dirty_state_value_inputs.clear();
+    sweep(inputs, semantic, &mut build, &machines, true);
+    build.finish()
+}
+
+/// Sweep `machines` until their value inputs settle, then confirm with one
+/// complete pass. `false` when the bound is exhausted or confirmation fails.
+fn converge<'plans>(
+    inputs: &FlowInputs<'plans, '_>,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext<'plans>,
+    machines: &[usize],
+) -> bool {
+    let program = inputs.program;
     let mut complete_pass = true;
     // Each state becomes reachable once; each formal can acquire a constant
     // then lose it to unknown once. Include convergence and final materialization.
-    let mut pass_limit = 2 + program
-        .machines()
+    let mut pass_limit = 2 + machines
         .iter()
-        .map(|machine| {
+        .map(|position| {
             program
-                .machine_states(machine)
+                .machine_states(&program.machines()[*position])
                 .iter()
                 .map(|state| 1 + 2 * program.state_parameters(state).len())
                 .sum::<usize>()
@@ -89,32 +212,9 @@ pub(crate) fn build_flow_facts(
         phase_profile::count("05.d.3.b.flow.inner_passes", 1);
         if pass != 0 {
             build.discard_output();
-            semantic.clone_from(&baseline);
+            semantic.clone_from(inputs.baseline);
         }
-        for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
-            for state in program.machine_states(machine) {
-                if !complete_pass && !build.dirty_state_value_inputs.contains(&state.symbol) {
-                    continue;
-                }
-                phase_profile::count("05.d.3.b.flow.states_visited", 1);
-                // Clear before transfer: a self/back edge may dirty this state
-                // again. A later destination can still run in this same sweep.
-                build
-                    .dirty_state_value_inputs
-                    .retain(|symbol| *symbol != state.symbol);
-                build_state_flow_fact(
-                    program,
-                    borrow,
-                    proof,
-                    semantic,
-                    domains,
-                    &mut build,
-                    machine,
-                    state,
-                    [global_contexts, *machine_contexts],
-                );
-            }
-        }
+        sweep(inputs, semantic, build, machines, complete_pass);
         // Each newly reached field contributes one literal and its finite
         // predicate set; parameter qualifications contribute finite membership
         // cells. Scalar parameter intervals additionally traverse a finite
@@ -122,44 +222,114 @@ pub(crate) fn build_flow_facts(
         pass_limit = pass_limit.saturating_add(build.new_state_field_input_height);
         if build.dirty_state_value_inputs.is_empty() {
             if complete_pass {
-                let mut flow = { build.finish() };
-                attach_reach_summaries(program, &mut flow, service_reaches, operational);
-                return flow;
+                return true;
             }
             complete_pass = true;
         } else {
             if complete_pass && pass != 0 {
                 // Final publication must confirm the fixed point; never expose
                 // provisional evidence if an untracked dependency changed it.
-                break;
+                return false;
             }
             complete_pass = false;
         }
         pass += 1;
     }
-    // No provisional input fact survives a nonconvergent graph.
-    build.discard_output();
-    *semantic = baseline;
-    // Unknown is absorbing: immediate joins during fallback cannot establish
-    // a new provisional constant in a state built later in this pass.
-    build.state_value_inputs = super::state_values::unknown_inputs(program);
-    build.dirty_state_value_inputs.clear();
-    for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
-        for state in program.machine_states(machine) {
+    false
+}
+
+/// One pass over `machines`: every state when `complete`, otherwise only the
+/// states whose value inputs changed. Each visited machine writes its own page.
+fn sweep<'plans>(
+    inputs: &FlowInputs<'plans, '_>,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext<'plans>,
+    machines: &[usize],
+    complete: bool,
+) {
+    for &position in machines {
+        let machine = &inputs.program.machines()[position];
+        let mut paged = false;
+        for state in inputs.program.machine_states(machine) {
+            if !complete && !build.dirty_state_value_inputs.contains(&state.symbol) {
+                continue;
+            }
+            if !paged {
+                let page = MACHINE_PAGE_BASE
+                    + u32::try_from(position).expect("machine roster exceeds page identities");
+                build.begin_output_page(page);
+                semantic.begin_page(page);
+                paged = true;
+            }
+            phase_profile::count("05.d.3.b.flow.states_visited", 1);
+            // Clear before transfer: a self/back edge may dirty this state
+            // again. A later destination can still run in this same sweep.
+            build
+                .dirty_state_value_inputs
+                .retain(|symbol| *symbol != state.symbol);
             build_state_flow_fact(
-                program,
-                borrow,
-                proof,
+                inputs.program,
+                inputs.borrow,
+                inputs.proof,
                 semantic,
-                domains,
-                &mut build,
+                inputs.domains,
+                build,
                 machine,
                 state,
-                [global_contexts, *machine_contexts],
+                [inputs.global_contexts, inputs.machine_contexts[position]],
             );
         }
     }
-    let mut flow = { build.finish() };
-    attach_reach_summaries(program, &mut flow, service_reaches, operational);
-    flow
+}
+
+/// Roster positions grouped by invocations into another machine's non-entry
+/// state, the only value-input edge that leaves a machine. Groups keep roster
+/// order, inside and across groups, so adopted pages publish in that order.
+fn machine_groups(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &BorrowFacts,
+) -> Vec<Vec<usize>> {
+    fn root(owner: &mut [usize], mut position: usize) -> usize {
+        while owner[position] != position {
+            owner[position] = owner[owner[position]];
+            position = owner[position];
+        }
+        position
+    }
+    let machines = program.machines();
+    // The same symbol-to-position resolution `record_invocation` uses: a later
+    // duplicate state symbol replaces an earlier one.
+    let mut state_locations = symbols::SymbolKeyMap::default();
+    for (machine_position, machine) in machines.iter().enumerate() {
+        for (state_position, state) in program.machine_states(machine).iter().enumerate() {
+            state_locations.insert(state.symbol, (machine_position, state_position));
+        }
+    }
+    let mut owner = (0..machines.len()).collect::<Vec<_>>();
+    for (_, row) in borrow.states.iter() {
+        let Some(caller) = program.machine_position_by_symbol(row.machine_symbol) else {
+            continue;
+        };
+        for call in borrow.calls.span_or_empty(row.calls) {
+            let Some(&(callee, state)) = state_locations.get(&call.target_symbol) else {
+                continue;
+            };
+            let entry = super::state_values::entry_state_index(program, &machines[callee]);
+            if callee != caller && entry != Some(state) {
+                let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
+                owner[left.max(right)] = left.min(right);
+            }
+        }
+    }
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut group_of_root = vec![usize::MAX; machines.len()];
+    for position in 0..machines.len() {
+        let group_root = root(&mut owner, position);
+        if group_of_root[group_root] == usize::MAX {
+            group_of_root[group_root] = groups.len();
+            groups.push(Vec::new());
+        }
+        groups[group_of_root[group_root]].push(position);
+    }
+    groups
 }

@@ -6,7 +6,7 @@ pub(crate) use checked_trees::{
 };
 
 pub(crate) struct DirectMoveEventSink<'segments> {
-    segments: &'segments mut arena::Arena<facts::PlaceSegment>,
+    segments: &'segments mut arena::PagedArenaSet<facts::PlaceSegment>,
     pub(super) operators: &'segments checked_trees::CheckedOperatorFacts,
     pub(super) machine: &'segments typed_trees::machine::Machine,
     pub(super) state: &'segments typed_trees::state::State,
@@ -18,7 +18,7 @@ pub(crate) struct DirectMoveEventSink<'segments> {
 
 impl<'segments> DirectMoveEventSink<'segments> {
     pub(crate) fn new(
-        segments: &'segments mut arena::Arena<facts::PlaceSegment>,
+        segments: &'segments mut arena::PagedArenaSet<facts::PlaceSegment>,
         operators: &'segments checked_trees::CheckedOperatorFacts,
         machine: &'segments typed_trees::machine::Machine,
         state: &'segments typed_trees::state::State,

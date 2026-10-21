@@ -261,9 +261,10 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) boundaries: FlowBoundaryFacts,
     pub(super) control: FlowControlFacts,
     /// Current state's contiguous statement frontier while its flow is built.
-    pub(super) state_statements_start: usize,
+    pub(super) state_statements_start: arena::PagedArenaFrontier<checked_trees::FlowStatementFact>,
     /// Current state's contiguous outgoing frontier while its flow is built.
-    pub(super) state_outgoing_start: usize,
+    pub(super) state_outgoing_start:
+        arena::PagedArenaFrontier<checked_trees::FlowStateOutgoingFact>,
 }
 
 impl<'plans> FlowBuildContext<'plans> {
@@ -293,8 +294,8 @@ impl<'plans> FlowBuildContext<'plans> {
                 .push(row);
         }
         Self {
-            state_statements_start: 0,
-            state_outgoing_start: 0,
+            state_statements_start: Default::default(),
+            state_outgoing_start: Default::default(),
             scalar_expressions,
             operators,
             exact_integer_casts,
@@ -327,8 +328,8 @@ impl<'plans> FlowBuildContext<'plans> {
             state_mutation_summary_cache,
             assignment_observations: Default::default(),
             contexts: FlowContextFacts::with_roots(
-                arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),
-                arena::Arena::with_capacity(
+                arena::PagedArenaSet::with_capacity(semantic.contexts.len().saturating_mul(2)),
+                arena::PagedArenaSet::with_capacity(
                     semantic
                         .contexts
                         .len()
@@ -339,27 +340,27 @@ impl<'plans> FlowBuildContext<'plans> {
                 ),
             ),
             invalidations: FlowInvalidationFacts::with_roots(
-                arena::Arena::default(),
-                arena::Arena::default(),
+                arena::PagedArenaSet::default(),
+                arena::PagedArenaSet::default(),
             ),
             borrow_lifetimes: FlowBorrowLifetimeFacts::with_roots(
-                arena::Arena::default(),
-                arena::Arena::default(),
+                arena::PagedArenaSet::default(),
+                arena::PagedArenaSet::default(),
             ),
             ownership: FlowOwnershipFacts::with_roots(
-                arena::Arena::default(),
-                arena::Arena::default(),
-                arena::Arena::default(),
-                arena::Arena::default(),
+                arena::PagedArenaSet::default(),
+                arena::PagedArenaSet::default(),
+                arena::PagedArenaSet::default(),
+                arena::PagedArenaSet::default(),
             ),
-            boundaries: FlowBoundaryFacts::with_roots(arena::Arena::with_capacity(
+            boundaries: FlowBoundaryFacts::with_roots(arena::PagedArenaSet::with_capacity(
                 borrow.calls.len(),
             )),
             control: FlowControlFacts::with_roots(
-                arena::Arena::with_capacity(borrow.calls.len()),
-                arena::Arena::with_capacity(borrow.calls.len()),
-                arena::Arena::with_capacity(proof.contract_exits.len()),
-                arena::Arena::with_capacity(borrow.states.len()),
+                arena::PagedArenaSet::with_capacity(borrow.calls.len()),
+                arena::PagedArenaSet::with_capacity(borrow.calls.len()),
+                arena::PagedArenaSet::with_capacity(proof.contract_exits.len()),
+                arena::PagedArenaSet::with_capacity(borrow.states.len()),
             ),
         }
     }
@@ -715,41 +716,46 @@ impl<'plans> FlowBuildContext<'plans> {
     /// the context. Preserve these constraints when adding a context field.
     pub(super) fn discard_output(&mut self) {
         self.assignment_observations.clear();
-        discard_output_arena(&mut self.contexts.semantic_context_refs);
-        discard_output_arena(&mut self.contexts.constraint_refs);
-        discard_output_arena(&mut self.invalidations.segments);
-        discard_output_arena(&mut self.invalidations.events);
-        discard_output_arena(&mut self.borrow_lifetimes.activations);
-        discard_output_arena(&mut self.borrow_lifetimes.weakenings);
-        discard_output_arena(&mut self.ownership.segments);
-        discard_output_arena(&mut self.ownership.permissions);
-        discard_output_arena(&mut self.ownership.claim_outcome_entries);
-        discard_output_arena(&mut self.ownership.claim_outcome_maps);
-        discard_output_arena(&mut self.boundaries.edges);
-        discard_output_arena(&mut self.control.statements);
-        discard_output_arena(&mut self.control.operator_invocations);
-        discard_output_arena(&mut self.control.atomic_executions);
-        discard_output_arena(&mut self.control.operands);
-        discard_output_arena(&mut self.control.case_accesses);
-        discard_output_arena(&mut self.control.operand_children);
-        discard_output_arena(&mut self.control.operand_child_paths);
-        discard_output_arena(&mut self.control.operand_origin_writes);
-        discard_output_arena(&mut self.control.operand_referents);
-        discard_output_arena(&mut self.control.operand_referent_segments);
-        discard_output_arena(&mut self.control.calls);
-        discard_output_arena(&mut self.control.exits);
-        discard_output_arena(&mut self.control.outgoing);
-        discard_output_arena(&mut self.control.exit_parameter_origins);
-        discard_output_arena(&mut self.control.states);
+        // Every output arena, including ones only a few transfers write:
+        // rows a discarded sweep left behind are unreferenced and must not
+        // survive into published output.
+        self.contexts.reset_pages();
+        self.invalidations.reset_pages();
+        self.borrow_lifetimes.reset_pages();
+        self.ownership.reset_pages();
+        self.boundaries.reset_pages();
+        self.control.reset_pages();
         self.new_state_field_input_height = 0;
     }
-}
 
-fn discard_output_arena<T: Default>(arena: &mut arena::Arena<T>) {
-    arena.reset_retain_capacity();
-    // Reproduce fresh-context semantics even if an invalid mutable lookup had
-    // changed the arena's dummy; retaining capacity must not retain that value.
-    *arena.get_mut(arena::Handle::invalid()) = T::default();
+    /// Write the next machine's rows on page `generation` of every output.
+    pub(super) fn begin_output_page(&mut self, generation: u32) {
+        self.contexts.begin_page(generation);
+        self.invalidations.begin_page(generation);
+        self.borrow_lifetimes.begin_page(generation);
+        self.ownership.begin_page(generation);
+        self.boundaries.begin_page(generation);
+        self.control.begin_page(generation);
+    }
+
+    /// Hand back the pages one machine group produced, leaving empty outputs
+    /// and no carried value inputs, so the context can build another group.
+    /// Program-pure memos survive: they hold no output handles.
+    pub(super) fn take_output_pages(&mut self) -> FlowFacts {
+        let flow = FlowFacts::with_roots(
+            self.contexts.take_additional_pages(),
+            self.invalidations.take_additional_pages(),
+            self.borrow_lifetimes.take_additional_pages(),
+            self.ownership.take_additional_pages(),
+            self.boundaries.take_additional_pages(),
+            self.control.take_additional_pages(),
+        );
+        self.discard_output();
+        self.state_value_inputs.clear();
+        self.dirty_state_value_inputs.clear();
+        self.element_store_potentials.clear();
+        flow
+    }
 }
 
 /// The semantic context handles active at one program point, in span order.

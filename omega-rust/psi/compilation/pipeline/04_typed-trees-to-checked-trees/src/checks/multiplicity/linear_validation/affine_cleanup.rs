@@ -27,7 +27,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
     coordinate: FlowClaimJoinExit,
     tracked_places: &[LinearPlace],
     remaining: &super::super::cleanup_dispositions::RemainingCustody,
-    segments: &mut Arena<facts::PlaceSegment>,
+    segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     visit_owned_cleanup_events(
@@ -193,7 +193,7 @@ pub(crate) fn append_owned_region_cleanup_permission_events(
     tracked_places: &[LinearPlace],
     remaining: &super::super::cleanup_dispositions::RemainingCustody,
     template: FlowPermissionEventFact,
-    segments: &mut Arena<facts::PlaceSegment>,
+    segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     visit_owned_region_cleanup_events(
@@ -296,7 +296,7 @@ pub(crate) fn apply_recorded_cleanup_events(
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
     events: &[&FlowPermissionEventFact],
-    segments: &Arena<facts::PlaceSegment>,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     cleanup: &checked_trees::ContextualCleanupFacts,
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,

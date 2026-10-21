@@ -239,7 +239,7 @@ pub(crate) fn discover_state_move_events(
     operators: &checked_trees::CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    segments: &mut arena::Arena<facts::PlaceSegment>,
+    segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
 ) -> Vec<DiscoveredMoveEvent> {
     let mut sink = DirectMoveEventSink::new(segments, operators, machine, state);
     let borrow_calls = borrow_state_fact(borrow, machine.symbol, state.symbol)

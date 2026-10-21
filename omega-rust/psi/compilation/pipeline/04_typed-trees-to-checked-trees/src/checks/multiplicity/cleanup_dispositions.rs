@@ -238,7 +238,7 @@ impl RemainingCustody {
         &mut self,
         program: &dyn ::validation::CheckingInput,
         events: &[FlowPermissionEventFact],
-        segments: &Arena<PlaceSegment>,
+        segments: &arena::PagedArenaSet<PlaceSegment>,
     ) {
         for event in events
             .iter()
@@ -271,7 +271,7 @@ impl RemainingCustody {
         &mut self,
         program: &dyn ::validation::CheckingInput,
         events: &[FlowPermissionEventFact],
-        segments: &Arena<PlaceSegment>,
+        segments: &arena::PagedArenaSet<PlaceSegment>,
         output: &mut ContextualCleanupFacts,
         exit: FlowClaimJoinExit,
         establishments: &[StorageEstablishment],
@@ -298,7 +298,7 @@ impl RemainingCustody {
         routes: &super::selected_evaluation::ExpressionRoutes,
         calls: &[checked_trees::FlowCallFact],
         events: &[FlowPermissionEventFact],
-        segments: &Arena<PlaceSegment>,
+        segments: &arena::PagedArenaSet<PlaceSegment>,
         output: &mut ContextualCleanupFacts,
         establishments: &[StorageEstablishment],
     ) -> Result<(), diagnostics::Diagnostic> {
@@ -338,7 +338,7 @@ impl RemainingCustody {
         &mut self,
         program: &dyn ::validation::CheckingInput,
         events: &[FlowPermissionEventFact],
-        segments: &Arena<PlaceSegment>,
+        segments: &arena::PagedArenaSet<PlaceSegment>,
         output: &mut ContextualCleanupFacts,
         exit: FlowClaimJoinExit,
         establishments: &[StorageEstablishment],
