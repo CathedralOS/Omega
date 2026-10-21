@@ -634,15 +634,13 @@ impl Captures<'_> {
             && let Some((suffix, endpoint, extent)) = self.origin_path(selected, &segments)
         {
             let identity = self.program.normalized_type_identity(endpoint);
-            if identity.is_valid()
-                && (identity == leaf.source.type_identity
-                    || extent == ReferenceOriginExtent::WithinRegion
-                        && self.collection_region_presents_result(
-                            endpoint,
-                            state.return_type,
-                            &result_path,
-                        ))
-            {
+            if let Some(extent) = self.result_origin_extent(
+                endpoint,
+                state.return_type,
+                &result_path,
+                leaf.source.type_identity,
+                extent,
+            ) {
                 path.extend(suffix);
                 return Some(vec![CheckedReferenceOriginSourcePlan {
                     root: checked_trees::CheckedReferenceOriginRoot::Parameter {
@@ -700,16 +698,13 @@ impl Captures<'_> {
                     let (suffix, presented, extent) =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
                     let source_identity = self.program.normalized_type_identity(presented);
-                    if source_identity != leaf.source.type_identity
-                        && !(extent == ReferenceOriginExtent::WithinRegion
-                            && self.collection_region_presents_result(
-                                presented,
-                                state.return_type,
-                                &result_path,
-                            ))
-                    {
-                        return None;
-                    }
+                    let extent = self.result_origin_extent(
+                        presented,
+                        state.return_type,
+                        &result_path,
+                        leaf.source.type_identity,
+                        extent,
+                    )?;
                     let mut complete = path.clone();
                     complete.extend(suffix);
                     let source = CheckedReferenceOriginSourcePlan {
@@ -767,6 +762,31 @@ impl Captures<'_> {
             type_identity: self.program.normalized_type_identity(endpoint),
             access: leaf.source.access,
         }])
+    }
+
+    /// An exact collection projection may supply a slice without an authored
+    /// range. Its source remains the array/collection, not the slice type. The
+    /// checked formation owns the concrete descriptor; completion authenticates
+    /// containment in this region instead of asserting equal referent families.
+    fn result_origin_extent(
+        &self,
+        source: TypeReferenceHandle,
+        result: TypeReferenceHandle,
+        result_path: &[facts::PlaceSegment],
+        result_identity: typed_trees::type_identity::TypeIdentityId,
+        extent: ReferenceOriginExtent,
+    ) -> Option<ReferenceOriginExtent> {
+        let source_identity = self.program.normalized_type_identity(source);
+        if !source_identity.is_valid() {
+            return None;
+        }
+        if source_identity == result_identity {
+            return Some(extent);
+        }
+        // Different endpoint types require a checked slice presentation with
+        // the same complete element identity; unrelated regions do not fit.
+        self.collection_region_presents_result(source, result, result_path)
+            .then_some(ReferenceOriginExtent::WithinRegion)
     }
 
     /// A window retains its collection's storage identity while presenting a
