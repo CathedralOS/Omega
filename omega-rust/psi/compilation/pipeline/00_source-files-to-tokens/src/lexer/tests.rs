@@ -132,6 +132,26 @@ fn tokenizes_cooked_byte_strings() {
 }
 
 #[test]
+fn string_decoding_copies_text_runs_between_every_escape_form() {
+    let tokens = Lexer::new(r#""" "héllo \"q\" \\ \t\r\0\x4A\x4a ünd""#)
+        .tokenize()
+        .expect("tokenization should succeed");
+    let literals: Vec<_> = tokens
+        .iter()
+        .filter(|token| token.is_string_literal())
+        .map(|token| token.lexeme.as_bytes().to_vec())
+        .collect();
+
+    assert_eq!(
+        literals,
+        [
+            Vec::new(),
+            "héllo \"q\" \\ \t\r\0JJ ünd".as_bytes().to_vec()
+        ]
+    );
+}
+
+#[test]
 fn hex_escapes_decode_to_exact_bytes() {
     let mut source = String::from("\"");
     for byte in u8::MIN..=u8::MAX {

@@ -12,7 +12,6 @@ pub(in crate::lexer) use decode::decode_string_literal;
 impl<'source> super::Lexer<'source> {
     pub(super) fn lex_string_token(&mut self, start: usize) -> Result<LexedToken, LexError> {
         let end = self.lex_cooked_string_end(start)?;
-        decode_string_literal(&self.source[start..end], start)?;
         Ok(LexedToken {
             kind: TokenKind::StringLiteral,
             span: Span::new(start, end),

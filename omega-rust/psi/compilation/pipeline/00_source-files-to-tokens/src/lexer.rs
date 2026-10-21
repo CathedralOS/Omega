@@ -18,9 +18,10 @@
 //! punctuation are rejected with `LexError::outside_lexical_profile`. The
 //! first error stops lexing.
 //!
-//! Children: `numbers` scans numeric literals and `strings` scans and decodes
-//! string literals; both are rules of `lex_next_token`. `lex_error` defines
-//! `LexError`, the error every step returns.
+//! Children: `numbers` scans numeric literals and `strings` validates string
+//! literals; both are rules of `lex_next_token`. `strings::decode` turns an
+//! already validated literal into its bytes for `build_token`, so decoding
+//! cannot fail. `lex_error` defines `LexError`, the error every step returns.
 
 use std::iter::Peekable;
 use std::str::CharIndices;
@@ -58,7 +59,7 @@ impl<'source> Lexer<'source> {
         let mut tokens = Vec::with_capacity(estimated_token_count);
 
         while let Some(token) = self.lex_next_token()? {
-            tokens.push(self.build_token(token)?);
+            tokens.push(self.build_token(token));
         }
         Ok(TokenStream::new(tokens))
     }
@@ -104,21 +105,18 @@ impl<'source> Lexer<'source> {
         Ok(Some(token))
     }
 
-    fn build_token(&self, token: LexedToken) -> Result<Token<'source>, LexError> {
+    fn build_token(&self, token: LexedToken) -> Token<'source> {
+        let spelling = &self.source[token.span.start..token.span.end];
         let lexeme = match token.kind {
-            TokenKind::StringLiteral => {
-                let raw = &self.source[token.span.start..token.span.end];
-                let value = decode_string_literal(raw, token.span.start)?;
-                TokenText::owned_bytes(value)
-            }
-            _ => TokenText::source(&self.source[token.span.start..token.span.end]),
+            TokenKind::StringLiteral => TokenText::owned_bytes(decode_string_literal(spelling)),
+            _ => TokenText::source(spelling),
         };
 
-        Ok(Token {
+        Token {
             kind: token.kind,
             lexeme,
             span: token.span,
-        })
+        }
     }
 
     fn lex_whitespace(&mut self, start: usize, first: char) -> LexedToken {
