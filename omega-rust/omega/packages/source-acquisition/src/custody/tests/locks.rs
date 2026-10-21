@@ -29,11 +29,6 @@ fn git_cache_rejects_a_replaced_locked_path() {
     let _ = std::fs::remove_dir_all(&cache);
 }
 
-#[cfg(windows)]
-fn create_test_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
-    std::os::windows::fs::symlink_file(target, link)
-}
-
 #[test]
 #[cfg_attr(
     windows,

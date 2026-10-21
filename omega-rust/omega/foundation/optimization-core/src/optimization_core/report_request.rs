@@ -6,9 +6,3 @@ pub enum OptimizationReportRequest {
     Suppressed,
     EmitHumanText,
 }
-
-impl OptimizationReportRequest {
-    pub const fn emits_human_text(self) -> bool {
-        matches!(self, Self::EmitHumanText)
-    }
-}
