@@ -20,3 +20,6 @@ external Extent qualification, provider admission, or Cathedral CR3 switching.
 returning state whose backing has a different lifetime from the result.
 This fixture establishes single-backing transport, not selection among
 multiple backing roots for one result leaf.
+
+The sibling `runtime_placed_outcome_nested_array_read_exit` keeps the backing
+inside a larger record and requires the same value after the returned view.
