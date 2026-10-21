@@ -1,4 +1,4 @@
-//! Exact admitted calloc/free operations over instance-owned virtual storage.
+//! Exact admitted calloc/free operations over invocation-owned virtual storage.
 //! Addresses identify live allocations in this invocation only. Their bytes
 //! are zeroed and retained until free; no host pointer escapes. This adapter
 //! grants no domain, content account, backing receipt or issuance authority.
@@ -29,8 +29,9 @@ struct Allocation {
 }
 
 /// Addresses never recycle within an invocation, so a retired address cannot
-/// accidentally free a replacement allocation. Dropping the instance retires
-/// its private storage without creating guest completion receipts.
+/// accidentally free a replacement allocation. Dropping the invocation retires
+/// its private storage without creating guest completion receipts. The caller's
+/// host context shares this store across receiver and component instances.
 #[derive(Default)]
 pub(super) struct AllocationValues {
     allocations: Vec<Allocation>,

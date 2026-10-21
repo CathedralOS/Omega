@@ -203,7 +203,7 @@ pub(super) fn bind<'host>(
                     declaration,
                     binding,
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
-                    std::sync::Arc::clone(&allocations),
+                    std::sync::Arc::clone(allocations),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;
