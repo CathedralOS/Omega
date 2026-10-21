@@ -157,11 +157,15 @@ pub struct CheckedUnitStructuralCasePlan {
     pub fields: Vec<CheckedUnitStructuralFieldPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CheckedUnitStructuralFieldPlan {
     /// Exact authored receiving type; numeric storage restrictions do not
     /// replace its independent nominal scalar memberships.
     pub type_reference: crate::types::TypeReferenceHandle,
+    /// Complete receiving type under this owner's substitutions. Repeated
+    /// elaboration can allocate different source handles for the same type;
+    /// declaration equality uses this identity, never arena allocation order.
+    pub receiving_type_identity: TypeIdentityId,
     pub identity: CheckedMemberIdentity,
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
@@ -173,6 +177,19 @@ pub struct CheckedUnitStructuralFieldPlan {
     /// owner keeps these carriers and their domain theories with it.
     pub qualification_carriers: Vec<TypeIdentityId>,
 }
+
+impl PartialEq for CheckedUnitStructuralFieldPlan {
+    fn eq(&self, other: &Self) -> bool {
+        self.receiving_type_identity == other.receiving_type_identity
+            && self.identity == other.identity
+            && self.relevance == other.relevance
+            && self.field_type == other.field_type
+            && self.storage == other.storage
+            && self.qualification_carriers == other.qualification_carriers
+    }
+}
+
+impl Eq for CheckedUnitStructuralFieldPlan {}
 
 impl CheckedUnitStructuralFieldPlan {
     /// Every structural type a catalog must keep alongside this field's
@@ -602,4 +619,36 @@ pub fn checked_structural_type_by_identity<'plans>(
     identity: TypeIdentityId,
 ) -> Option<&'plans CheckedUnitStructuralTypePlan> {
     plans.iter().find(|plan| plan.identity == identity)
+}
+
+#[cfg(test)]
+mod field_identity_tests {
+    use super::*;
+
+    #[test]
+    fn receiving_type_identity_not_source_allocation_controls_field_equality() {
+        let mut identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let counter_reader = identities.intern("dyn Reader<Counter>");
+        let other_reader = identities.intern("dyn Reader<Other>");
+        let field = CheckedUnitStructuralFieldPlan {
+            type_reference: crate::types::TypeReferenceHandle::from_parts(1, 1),
+            receiving_type_identity: counter_reader,
+            identity: CheckedMemberIdentity::of_spelling("operations"),
+            relevance: BindingRelevance::Relevant,
+            field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Selector),
+            storage: None,
+            qualification_carriers: Vec::new(),
+        };
+        let mut reallocated = field.clone();
+        reallocated.type_reference = crate::types::TypeReferenceHandle::from_parts(2, 1);
+        assert_eq!(field, reallocated);
+
+        // Equal machine-word layout does not make distinct selector contracts
+        // interchangeable, nor erase a receiving qualification.
+        reallocated.receiving_type_identity = other_reader;
+        assert_ne!(field, reallocated);
+        reallocated.receiving_type_identity = counter_reader;
+        reallocated.qualification_carriers.push(other_reader);
+        assert_ne!(field, reallocated);
+    }
 }

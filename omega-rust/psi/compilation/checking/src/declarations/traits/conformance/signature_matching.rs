@@ -768,7 +768,22 @@ pub(crate) fn type_references_match_for_trait_bindings(
                 arguments: required_arguments,
                 ..
             },
+        )
+        | (
+            TypeReferenceNode::DynamicTrait {
+                symbol: actual_base_symbol,
+                arguments: actual_arguments,
+                ..
+            },
+            TypeReferenceNode::DynamicTrait {
+                symbol: required_base_symbol,
+                arguments: required_arguments,
+                ..
+            },
         ) => {
+            // A selector's arguments inhabit the same callable telescope as
+            // data arguments. Compare them under the conformance substitution,
+            // not by the unrelated declaration identities of their binders.
             actual_base_symbol.is_valid()
                 && actual_base_symbol == required_base_symbol
                 && actual_arguments.count() == required_arguments.count()

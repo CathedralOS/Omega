@@ -7775,7 +7775,14 @@ fail/traits/float_contract_refinement_strict_endpoint rejected 2906ms expected @
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result < 0.5`; callers of the requirement assume it
 fail/traits/float_contract_refinement_wrong_subject rejected 2319ms expected @963915e78283
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
+fail/traits/generic_dyn_contract_wrong_context rejected 345ms expected @4d18421af78b
+	argument `context` for state `read` expects `&Context`, got `named value`
+	argument `context` for conformance requirement `Reader::read` does not match the binder's trait arguments
+	argument `context` for state `read` expects `&Context`, got `named value`
+	argument `context` for conformance requirement `Reader::read` does not match the binder's trait arguments
 fail/traits/generic_map_captured_constant_unproved_bound rejected 10124ms expected @c48489ea6ad6
+fail/traits/generic_member_dyn_wrong_parameter rejected 561ms expected @4d18421af78b
+	machine `Forward::read` state `read` does not satisfy trait `Forwarder` machine `read` parameter `reader`: expected `dyn Reader<Value>`, got `dyn Reader<u64>`
 fail/traits/generic_reference_forwarding_carrier_mismatch rejected 875ms expected @a9ae30e1c334+wt
 fail/traits/implementation_argument_runtime_type rejected 820ms expected @a9ae30e1c334+wt
 fail/traits/implementation_argument_wrong_contract rejected 173ms expected @a9ae30e1c334+wt
@@ -13065,8 +13072,10 @@ pass/traits/equatable_string_field_equality_exit checked 11427ms check-target:ma
 pass/traits/equatable_synthesis checked 9465ms @5041ef1af684+wt
 pass/traits/exact_edge_application_and_invocation_parameters checked 11943ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/float_contract_refinement_boundaries_exit checked 27759ms check-target:macos_arm64 @963915e78283
+pass/traits/generic_dyn_contract_inventory_exit checked 1354ms check-target:macos_arm64 @4d18421af78b
 pass/traits/generic_map_applied_contract_exit checked 17273ms check-target:macos_arm64 @f3014db3f225+wt
 pass/traits/generic_map_captured_constant_local checked 8171ms @c48489ea6ad6
+pass/traits/generic_member_dyn_parameter checked 1352ms check-target:macos_arm64 @4d18421af78b
 pass/traits/generic_reference_forwarding_exit checked 11636ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/generic_trait_parent_binds_requirement checked 1614ms @a9ae30e1c334+wt
 pass/traits/implementation_argument_category_collision checked 7729ms check-target:macos_arm64 @a9ae30e1c334+wt

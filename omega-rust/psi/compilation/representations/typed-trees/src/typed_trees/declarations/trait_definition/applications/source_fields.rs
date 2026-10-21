@@ -9,14 +9,14 @@
 //! Reference projections explicitly present in source are separate live roots;
 //! this inventory never expands every possible future referent.
 
-use super::{AppliedTraitScope, enclosing, project_type_reference};
+use super::{AppliedTraitScope, TraitApplicationArguments, enclosing, project_type_reference};
 use crate::TypedTrees;
 use crate::data::DataMember;
 use crate::references::TypedReferences;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
-pub(super) fn service_application_roots(program: &TypedTrees) -> Vec<AppliedTraitScope<'_>> {
+pub(super) fn contract_application_roots(program: &TypedTrees) -> Vec<AppliedTraitScope<'_>> {
     let mut discovery = SourceFields {
         program,
         roots: Vec::new(),
@@ -98,6 +98,34 @@ impl SourceFields<'_> {
             insertion,
             (owner, reference, enclosing_applications.to_vec()),
         );
+
+        // A selector publishes its requirement contract even before a concrete
+        // implementation is selected. Generic callers need that symbolic view
+        // just as closed callers need the instantiated one. Reuse this source
+        // walk so selectors in record fields retain their enclosing telescopes.
+        if let TypeReferenceNode::DynamicTrait {
+            symbol, arguments, ..
+        } = self.program.type_reference_table.type_reference(reference)
+        {
+            if let Some(declaration) = self.program.trait_definition_by_symbol(*symbol)
+                && let Some(scope) = AppliedTraitScope::new(
+                    self.program,
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: owner,
+                        enclosing_data_applications: enclosing_applications,
+                        arguments: self
+                            .program
+                            .type_reference_table
+                            .type_reference_handles(*arguments),
+                        lifetimes: &[],
+                    },
+                )
+            {
+                self.roots.push(scope);
+            }
+            return;
+        }
 
         if let Ok(Some(contract)) =
             crate::service::inspect_service_carrier_contract(self.program, reference)

@@ -67,7 +67,7 @@ impl TypedTrees {
                     .into_iter()
                     .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
             )
-            .chain(source_fields::service_application_roots(self))
+            .chain(source_fields::contract_application_roots(self))
             .chain(
                 crate::references::collect_program_call_requirement_applications(self)
                     .into_iter()

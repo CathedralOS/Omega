@@ -53,8 +53,31 @@ pub(crate) fn dynamic_selector_call<'program>(
     let Some(selector_type) = selector_type(program, machine, state, selector) else {
         return Ok(None);
     };
+    let (source_selector, enclosing_applications) = if matches!(
+        program.expression_table.expression(selector),
+        ExpressionNode::Cast(_)
+    ) {
+        (selector_type, Vec::new())
+    } else if let Some(state) = state {
+        let place = crate::value_custody::places::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            usize::MAX,
+            selector,
+        )
+        .ok_or_else(|| "dynamic selector lost its source occurrence".to_owned())?;
+        crate::value_custody::places::canonical_place_source_type_application(
+            program,
+            state.symbol,
+            usize::MAX,
+            &place,
+        )
+        .ok_or_else(|| "dynamic selector lost its supplying type application".to_owned())?
+    } else {
+        (selector_type, Vec::new())
+    };
     let Some((selector_trait, selector_arguments)) =
-        crate::declarations::traits::dynamic_selector_application(program, selector_type)
+        crate::declarations::traits::dynamic_selector_application(program, source_selector)
     else {
         return Ok(None);
     };
@@ -76,7 +99,7 @@ pub(crate) fn dynamic_selector_call<'program>(
         selector_definition,
         typed_trees::trait_definition::TraitApplicationArguments {
             lexical_owner: machine.symbol,
-            enclosing_data_applications: &[],
+            enclosing_data_applications: &enclosing_applications,
             arguments: selector_arguments,
             lifetimes: &[],
         },

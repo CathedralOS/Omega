@@ -473,7 +473,23 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 }
                 pending.extend(arguments.iter().copied());
             }
-            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {
+            TypeReferenceNode::DynamicTrait {
+                symbol, arguments, ..
+            } => {
+                let Some(declaration) = program.trait_definition_by_symbol(*symbol) else {
+                    return false;
+                };
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(*arguments);
+                if program.trait_type_parameters(declaration).len() != arguments.len() {
+                    return false;
+                }
+                // The selector's implementation is chosen at runtime; its
+                // requirement telescope still describes a closed stored value.
+                pending.extend(arguments.iter().copied());
+            }
+            TypeReferenceNode::ConstExpression(_) => {
                 return false;
             }
             TypeReferenceNode::Unit => {}
@@ -565,6 +581,39 @@ fn instantiate_type(
                     .insert_type_reference_handles(arguments),
             }
         }
+        TypeReferenceNode::DynamicTrait {
+            symbol,
+            name,
+            arguments,
+        } => {
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(arguments)
+                .to_vec();
+            let arguments = arguments
+                .into_iter()
+                .map(|argument| instantiate_type(program, argument, substitutions, lifetimes))
+                .collect::<Vec<_>>();
+            if let Some((existing, _)) = program
+                .type_reference_table
+                .type_reference_rows()
+                .find(|(_, node)| {
+                    matches!(node, TypeReferenceNode::DynamicTrait {
+                        symbol: candidate, arguments: children, ..
+                    } if *candidate == symbol
+                        && program.type_reference_table.type_reference_handles(*children) == arguments)
+                })
+            {
+                return existing;
+            }
+            TypeReferenceNode::DynamicTrait {
+                symbol,
+                name,
+                arguments: program
+                    .type_reference_table
+                    .insert_type_reference_handles(arguments),
+            }
+        }
         TypeReferenceNode::Slice { element_type } => TypeReferenceNode::Slice {
             element_type: instantiate_type(program, element_type, substitutions, lifetimes),
         },
@@ -618,9 +667,7 @@ fn instantiate_type(
                 constraints: program.type_reference_table.insert_constraints(constraints),
             }
         }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => return reference,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => return reference,
     };
     if instantiated == original {
         return reference;
