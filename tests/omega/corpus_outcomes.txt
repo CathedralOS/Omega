@@ -2941,6 +2941,27 @@ fail/facts/field_where_index_through_target_body_rejected rejected 2711ms expect
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+fail/facts/five_variant_enum_payload_bound_through_call_result_rejected rejected 2559ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_call: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_const_name_rejected rejected 2559ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_const: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_field_rejected rejected 2558ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_field: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_local_rejected rejected 1675ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_local: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_match_join_rejected rejected 1834ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_join: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_other_machine_rejected rejected 1904ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_worker: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_other_state_rejected rejected 1494ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_state: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/five_variant_enum_payload_bound_through_parameter_rejected rejected 1630ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_param: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/five_variant_enum_payload_bound_through_target_body_rejected rejected 1516ms expected @a0de2759cfe0+wt
+	cannot prove requires contract for call verify_payload from payload_target: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from payload_target: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from payload_target: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from payload_target: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/fixed_array_layout_geometry_through_call_result_rejected rejected 16911ms expected @a6b4f5c6d966+wt
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_const_name_rejected rejected 16680ms expected @a6b4f5c6d966+wt
@@ -10089,6 +10110,15 @@ pass/facts/field_where_index_through_other_machine_compile checked 3560ms @a1b70
 pass/facts/field_where_index_through_other_state_compile checked 3540ms @a1b70f5ad427+wt
 pass/facts/field_where_index_through_parameter_compile checked 3703ms @a1b70f5ad427+wt
 pass/facts/field_where_index_through_target_body_compile checked 3658ms @a1b70f5ad427+wt
+pass/facts/five_variant_enum_payload_bound_through_call_result_exit checked 3414ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_const_name_exit checked 3377ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_field_exit checked 3292ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_local_exit checked 3436ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_match_join_exit checked 3286ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_other_machine_exit checked 3306ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_other_state_exit checked 3393ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_parameter_exit checked 3295ms check-target:macos_arm64 @a0de2759cfe0+wt
+pass/facts/five_variant_enum_payload_bound_through_target_body_exit checked 3392ms check-target:macos_arm64 @a0de2759cfe0+wt
 pass/facts/fixed_array_layout_geometry_through_call_result_exit checked 32372ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/fixed_array_layout_geometry_through_const_name_exit checked 32619ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/fixed_array_layout_geometry_through_field_exit checked 32322ms check-target:macos_arm64 @a6b4f5c6d966+wt
