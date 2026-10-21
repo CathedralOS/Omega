@@ -1152,6 +1152,16 @@ class MainVerdicts(unittest.TestCase):
         self.assertEqual(document["perf_context"]["golden"]["load1_end"],
                          10.0)
 
+    def test_a_posix_host_keeps_the_target_dir_it_was_given(self):
+        deep_path = Path("C:/Users/User/.gemini/antigravity/worktrees/"
+                         "7e53c01f-3659-477e-b9b2-87fd0023c27f/"
+                         "subagent-fact-builder-scalar-ext/target")
+        with patch.object(corpus_gate.os, "name", "posix"):
+            self.assertEqual(corpus_gate.windows_safe_target_dir(deep_path), deep_path)
+
+    @unittest.skipUnless(os.name == "nt",
+                         "pathlib refuses to build a WindowsPath off Windows, so "
+                         "the shortening branch is reachable only on a Windows host")
     def test_windows_safe_target_dir_shortens_deep_paths_while_preserving_short_ones(self):
         short_path = Path("C:/Omega/target")
         deep_path = Path("C:/Users/User/.gemini/antigravity/worktrees/"
@@ -1162,8 +1172,6 @@ class MainVerdicts(unittest.TestCase):
             shortened = corpus_gate.windows_safe_target_dir(deep_path)
             self.assertLessEqual(len(str(shortened)), 80)
             self.assertEqual(shortened, corpus_gate.windows_safe_target_dir(deep_path))
-        with patch.object(corpus_gate.os, "name", "posix"):
-            self.assertEqual(corpus_gate.windows_safe_target_dir(deep_path), deep_path)
 
 
 if __name__ == "__main__":
