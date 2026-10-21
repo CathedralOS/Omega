@@ -4619,6 +4619,33 @@ fail/facts/opaque_wrapped_carrier_cleanup rejected 6797ms expected @1b897a2de67b
 	opaque representation carrier graph at `AddressCarrier<AddressWrapper<AddressWord>>.payload.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_wrapped_growing_carrier_family rejected 7115ms expected @1b897a2de67b
 	opaque representation carrier graph at `AddressCarrier<AddressWrapper<AddressWord>>.payload.payload` contains a recursive by-value carrier family; v1 carriers must be inert storage
+fail/facts/open_const_implementation_bound_through_call_result rejected 509ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_const_name rejected 41ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_field rejected 537ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_local rejected 524ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_match_join rejected 503ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_other_machine rejected 615ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_other_state rejected 532ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_parameter rejected 544ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_bound_through_target_body rejected 517ms expected @863cf92cb2f3
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/ordinary_length_field_after_write_rejected rejected 608ms expected @cbdcc23565fb
 	cannot prove requires contract for call equal from main: counter.len == saved (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/outcome_structural_evidence_call_result rejected 2491ms expected @97fca7a18f74+wt
@@ -6831,6 +6858,41 @@ fail/generics/named_value_parameter_mismatch rejected 237ms expected @6ef08ceefe
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 752ms expected @a9ae30e1c334+wt
 fail/generics/omitted_data_binder_explicit_conflict rejected 36ms expected @a9ae30e1c334+wt
 fail/generics/omitted_data_binder_underdetermined rejected 41ms expected @a9ae30e1c334+wt
+fail/generics/open_const_completed_exit_divergent_branch rejected 1203ms expected @863cf92cb2f3
+	cannot prove ensures contract for exit from forward at statement 0: result >= Minimum
+	cannot prove ensures contract for exit from forward$specialized$47e512ce9109ab73$0 at statement 0: result >= 7
+fail/generics/open_const_completed_exit_incomplete_call rejected 544ms expected @863cf92cb2f3
+	machine `forward$specialized$47e512ce9109ab73$0` state `entry` value call to `Selected::read` violates required fact `value >= Value`: the instantiated fact is structurally false (`0 >= 7`)
+fail/generics/open_const_completed_exit_wrong_guarantee rejected 1190ms expected @863cf92cb2f3
+	cannot prove ensures contract for exit from forward at statement 0: result > Minimum
+	cannot prove ensures contract for exit from forward$specialized$47e512ce9109ab73$0 at statement 0: result > 7
+fail/generics/open_const_completed_exit_wrong_return rejected 1276ms expected @863cf92cb2f3
+	cannot prove ensures contract for exit from forward at statement 1: result >= Minimum
+	cannot prove ensures contract for exit from forward$specialized$47e512ce9109ab73$0 at statement 1: result >= 7
+fail/generics/open_const_overflow rejected 288ms expected @863cf92cb2f3
+	conformance `Selected` parameter `Value` has an invalid literal value: integer node `u64(18446744073709551619)` does not fit exact carrier `u64`
+fail/generics/open_const_runtime_binder rejected 448ms expected @863cf92cb2f3
+	conformance `Selected` parameter `Value` requires a const argument, but `<structural type>` has another static category
+fail/generics/open_const_selected_impure rejected 53ms expected @863cf92cb2f3
+	constant initializer: machine `construct$specialized$843219018123ab00$0` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/generics/open_const_selected_private_alias_sourcepoint_invalid rejected 772ms expected @863cf92cb2f3
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/open_const_selected_private_dependency_changed_helper rejected 73ms expected @863cf92cb2f3
+	exact arithmetic in machine `Selected::read` state `read` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/open_const_unguarded_template rejected 540ms expected @863cf92cb2f3
+	exact arithmetic in machine `construct` const argument `Minimum` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/open_const_unused_const_overflow rejected 48ms expected @863cf92cb2f3
+	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/generics/open_const_unused_const_zero_divisor rejected 50ms expected @863cf92cb2f3
+	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/generics/open_const_wrong_carrier rejected 521ms expected @863cf92cb2f3
+	conformance `Selected` parameter `Value` requires a const argument, but `<structural type>` has another static category
+fail/generics/open_const_wrong_evidence_binder rejected 66ms expected @863cf92cb2f3
+	cannot prove ensures contract for exit from selected at statement 0: result >= High
+	cannot prove ensures contract for exit from selected$specialized$b3053156a3750989$0 at statement 0: result >= 7
+fail/generics/open_const_wrong_literal_tuple rejected 1320ms expected @863cf92cb2f3
+	cannot prove ensures contract for exit from forwarded at statement 1: result >= N
+	cannot prove ensures contract for exit from forwarded$specialized$eabf790a7a6ad24f$0 at statement 1: result >= 7
 fail/generics/open_index_unlicensed_algebra rejected 179ms expected @a9ae30e1c334+wt
 fail/generics/open_value_case_constructor_false rejected 5667ms expected @c0ec033db8e0+wt
 	data `Tagged` case `At` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -11344,6 +11406,15 @@ pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 2877
 pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 2883ms check-target:macos_arm64 @b25d58842d0a
 pass/facts/opaque_nested_carrier_exchange_exit checked 144689ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @1b897a2de67b
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 65162ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @1b897a2de67b
+pass/facts/open_const_implementation_through_call_result_exit checked 1420ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_const_name_exit checked 5757ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_field_exit checked 1424ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_local_exit checked 1426ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_match_join_exit checked 1482ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_other_machine_exit checked 1463ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_other_state_exit checked 1423ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_parameter_exit checked 1407ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_target_body_exit checked 1476ms check-target:macos_arm64 @863cf92cb2f3
 pass/facts/outcome_structural_evidence_call_result checked 8017ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_const_name checked 8310ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_field checked 8021ms check-target:macos_arm64 @97fca7a18f74+wt
@@ -12337,6 +12408,17 @@ pass/generics/nominal_machine_parameter_satisfaction_compile checked 1943ms @a9a
 pass/generics/omitted_data_binder_range_equation checked 11488ms check-target:macos_arm64 @0ee813e8e9c7+wt
 pass/generics/omitted_fixed_domain_array_equation checked 3667ms @a9ae30e1c334+wt
 pass/generics/open_computed_quantity_result checked 24313ms check-target:macos_arm64 @f6326ba5a76f
+pass/generics/open_const_completed_exit_positive checked 1365ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_distinct_applications checked 7963ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_float_owned_dependency checked 9370ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_named_closed_equivalence checked 1428ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_selected_private_alias_sourcepoint checked 8470ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_selected_private_dependency checked 6094ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_selected_private_nested_dependency checked 8233ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_selected_unused_impure_member checked 6156ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_shadowed_binder_positive checked 1415ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_two_evidence_binders checked 3831ms check-target:macos_arm64 @863cf92cb2f3
+pass/generics/open_const_unrelated_namespace checked 5864ms check-target:macos_arm64 @863cf92cb2f3
 pass/generics/open_value_case_constructor_checked checked 19660ms check-target:macos_arm64 @c0ec033db8e0+wt
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_applied_implementation_qualifier_exit checked 4126ms check-target:macos_arm64 @097fbfdea595+wt
@@ -12689,6 +12771,7 @@ pass/modules/nested_constant_projections_compile checked 3771ms @a9ae30e1c334+wt
 pass/modules/nested_constant_projections_process_exit checked 6294ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/modules/nested_constant_projections_scoped_compile checked 3310ms @a9ae30e1c334+wt
 pass/modules/nominal_constant_bodies checked 1595ms @a9ae30e1c334+wt
+pass/modules/open_const_private_implementation_projection_exit checked 6322ms check-target:macos_arm64 @863cf92cb2f3
 pass/modules/package_bare_cases checked 10692ms @a9ae30e1c334+wt
 pass/modules/package_declaration checked 1747ms @a9ae30e1c334+wt
 pass/modules/package_sibling_declarations checked 1581ms @a9ae30e1c334+wt
