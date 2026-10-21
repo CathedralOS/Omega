@@ -1059,6 +1059,28 @@ fn parses_static_machine_symbol_call_argument() {
 }
 
 #[test]
+fn static_call_lookahead_keeps_delimiters_inside_argument_groups() {
+    let parsed = super::parse_source(
+        r#"machine caller() {
+            select<match value { 0 -> 1, _ -> 2 }>();
+            select<(Record { value: 3 }).value + 1>();
+            select<[u8; 3]>();
+        }"#,
+        "grouped match arms, record fields and array extents stay inside static arguments",
+    );
+    let calls = parsed
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "select" => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 3);
+    assert!(calls.iter().all(|call| call.machine_arguments.len() == 1));
+}
+
+#[test]
 fn parses_nested_static_conformance_application() {
     let source = r#"
         trait Encodes<T> {}

@@ -571,9 +571,12 @@ pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
         if token.is_non_semantic() {
             continue;
         }
-        let punctuation = token.punctuation();
+        let Some(punctuation) = token.punctuation() else {
+            previous = None;
+            continue;
+        };
         if group_depth == 0
-            && punctuation == Some(PunctuationKind::LeftParen)
+            && punctuation == PunctuationKind::LeftParen
             && matches!(
                 previous,
                 Some(PunctuationKind::Greater | PunctuationKind::GreaterGreater)
@@ -593,25 +596,32 @@ pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
             }
         }
         match punctuation {
-            Some(
-                PunctuationKind::LeftParen
-                | PunctuationKind::LeftBracket
-                | PunctuationKind::LeftBrace,
-            ) => group_depth += 1,
-            Some(
-                PunctuationKind::RightParen
-                | PunctuationKind::RightBracket
-                | PunctuationKind::RightBrace,
-            ) => {
+            PunctuationKind::LeftParen
+            | PunctuationKind::LeftBracket
+            | PunctuationKind::LeftBrace => group_depth += 1,
+            PunctuationKind::RightParen
+            | PunctuationKind::RightBracket
+            | PunctuationKind::RightBrace => {
                 let Some(depth) = group_depth.checked_sub(1) else {
                     break;
                 };
                 group_depth = depth;
             }
-            Some(PunctuationKind::Semicolon) if group_depth == 0 => break,
+            // These tokens belong to bindings, fields and signatures, never to
+            // an ungrouped static argument. Once one is reached, no later `>(`
+            // can complete this pack. Their uses inside calls, array extents,
+            // record literals and match arms remain inside the group boundary.
+            PunctuationKind::Semicolon
+            | PunctuationKind::Colon
+            | PunctuationKind::Equal
+            | PunctuationKind::Arrow
+                if group_depth == 0 =>
+            {
+                break;
+            }
             _ => {}
         }
-        previous = punctuation;
+        previous = Some(punctuation);
     }
     Ok(None)
 }
