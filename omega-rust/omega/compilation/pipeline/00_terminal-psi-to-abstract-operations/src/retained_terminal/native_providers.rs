@@ -148,6 +148,50 @@ impl TerminalNativeRealizationProposal {
             &self.occurrences().callbacks,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        self.finish_native_execution(artifact, input)
+    }
+
+    /// Prepare an exported callable with ordinary parameter/result transport,
+    /// independently of the component's application ProgramEntry. This chooses
+    /// demand only; it grants no externally callable address or resource supply.
+    pub fn prepare_native_callable_execution(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        entry: terminal_psi::TargetMachineCallable,
+    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
+    {
+        let input = crate::VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
+            artifact,
+            self.target_profile(),
+            entry,
+            &[],
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "component callable execution input: {error:?}",
+            ))]
+        })?
+        .select_target_execution(
+            artifact,
+            self.target_profile(),
+            &self.providers().checked_adapters,
+            &self.providers().selection,
+            &[],
+            &self.occurrences().callbacks,
+        )
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        self.finish_native_execution(artifact, input)
+    }
+
+    /// Retain the selected body's exact boundary demand and its original whole
+    /// plans. Program and callable entries share this operation; neither route
+    /// substitutes all catalog declarations for the executable demand closure.
+    fn finish_native_execution(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        input: crate::VerifiedNativeArtifactInput,
+    ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
+    {
         let module = artifact.semantic_module();
         let identity = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
             module

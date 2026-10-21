@@ -475,7 +475,7 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
             &replay.0,
             &private.body,
         )?;
-        crate::private_entry_transport::validate_entry_transport(private)?;
+        crate::callable_entry_transport::validate_entry_transport(private)?;
         inputs.push(PrivateFunctionObject {
             identity: private.identity,
             body: Arc::clone(&private.body),

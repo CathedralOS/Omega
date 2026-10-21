@@ -234,16 +234,17 @@ impl CompilationSession {
                     .map_err(CompileFailure::into_diagnostics)
             })
             .collect();
-        for (description, (request_position, component_position)) in
-            crate::compiler::package::publish_checked_components(checked)
+        for (product, (request_position, component_position)) in
+            crate::compiler::package::publish_checked_component_products(checked)
                 .into_iter()
                 .zip(destinations)
         {
             let occurrence = &mut pending[request_position];
-            match description {
-                Ok(description) => {
+            match product {
+                Ok(product) => {
                     occurrence.frontier.products[component_position].description =
-                        Some(description);
+                        Some(product.description().clone());
+                    self.retain_component_product(product);
                 }
                 Err(failure) => {
                     if occurrence.failure.is_none() {

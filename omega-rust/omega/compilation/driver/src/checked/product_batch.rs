@@ -104,12 +104,14 @@ impl CompilationSession {
         outcomes
             .into_iter()
             .map(|outcome| {
-                outcome.unwrap_or_else(|| SelectedCompileOutcome {
+                let mut outcome = outcome.unwrap_or_else(|| SelectedCompileOutcome {
                     result: Err(
                         vec![Diagnostic::error("source batch lost a requested target")].into(),
                     ),
                     independent_components: Default::default(),
-                })
+                });
+                self.attach_component_products(&mut outcome);
+                outcome
             })
             .collect()
     }

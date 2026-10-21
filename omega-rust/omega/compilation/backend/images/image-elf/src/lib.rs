@@ -1,5 +1,9 @@
-//! Two ELF emitters in one crate. About 800 lines of static emitter that ships,
-//! and 22,000 lines of dynamic-linking pipeline that a different caller drives.
+//! ELF process-image and shared-component container emission.
+//!
+//! `shared_component.rs` owns genuine ET_DYN callable exports, PIC relocation
+//! and dynamic import tables. It reuses the import-table producer below while
+//! keeping its own original image/export custody; it grants no installation.
+//! The static process emitter and staged dynamic-process pipeline follow.
 //!
 //! `emit_elf_aarch64_executable` and `emit_elf_x86_64_executable` are the whole
 //! static lane, and they are deliberately small. The output has a 64-byte ELF
@@ -94,6 +98,9 @@
 //! static lane, `dynamic_executable.rs` owns the 22-stage dynamic lane's
 //! entry and groups its stages by phase, and `bytes.rs`, `constants.rs`,
 //! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
+
+mod shared_component;
+pub use shared_component::{ElfComponentExport, ElfSharedComponentImage, ElfSharedComponentEmissionError, emit_elf_shared_component};
 
 mod bytes;
 mod constants;

@@ -30,6 +30,7 @@ pub struct CompilationSession {
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
     checks: RetainedCompilationChecks,
+    component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
     pub(crate) selections: psi_compiler::ProductSelections,
 }
 
@@ -40,6 +41,31 @@ struct PreparedSource {
 }
 
 impl CompilationSession {
+    /// Keep complete immutable component outputs in this invocation. Equal
+    /// descriptions alone cannot deduplicate products with different native
+    /// proposals; the whole product participates in this comparison.
+    pub(super) fn retain_component_product(
+        &mut self,
+        product: compilation_products::IndependentComponentProduct,
+    ) {
+        if !self
+            .component_products
+            .iter()
+            .any(|retained| retained.as_ref() == &product)
+        {
+            self.component_products.push(Arc::new(product));
+        }
+    }
+
+    pub(super) fn attach_component_products(&self, outcome: &mut SelectedCompileOutcome) {
+        if let Ok(selected) = &mut outcome.result
+            && let Err(diagnostics) =
+                selected.retain_independent_component_products(&self.component_products)
+        {
+            outcome.result = Err(diagnostics.into());
+        }
+    }
+
     /// Compile every requested target against this session's retained source,
     /// pure-Build and checked-judgment stores.
     pub fn compile(
@@ -86,7 +112,7 @@ impl CompilationSession {
         counters::record_checked_compilation();
         (|| {
             let source = self.prepare_source(&request)?;
-            let outcome = select_checked_worker(
+            let mut outcome = select_checked_worker(
                 request,
                 source,
                 self.reuse(),
@@ -96,6 +122,7 @@ impl CompilationSession {
             if let Ok(selected) = &outcome.result {
                 self.retain(&selected.retained_checks);
             }
+            self.attach_component_products(&mut outcome);
             Ok::<_, CompileFailure>(outcome)
         })()
         .unwrap_or_else(refusal)

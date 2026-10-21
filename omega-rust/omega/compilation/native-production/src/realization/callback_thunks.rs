@@ -85,37 +85,13 @@ fn lower_callback_thunk(
     request: &NativeRealizationRequest<'_>,
     settlement: &NativeCallbackThunkSettlement<'_>,
 ) -> Result<PrivateFunctionObject, Vec<Diagnostic>> {
-    let artifact = settlement.artifact;
-    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
-        private_entry_ram: &[],
-        entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
-        receiving_provider_roots: &[],
-        ..request.admission
-    };
-    let mut admitted =
-        terminal_psi_to_abstract_operations::admit_native_realization(artifact, &admission)?;
-    let selections = request.optimization_selections.selections();
-    let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
-        admitted.input.into_optimization_input(),
-        selections,
-        &selections.project_psi(),
+    let projection = super::callable_objects::emit_callable_object(
+        request.admission,
+        request.optimization_selections,
         request.optimization_budget(),
-    )
-    .map_err(|error| realization_error("callback thunk abstract optimization", error))?;
-    let optimized_target =
-        abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized,
-            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
-                target: request.admission.providers.target(),
-                settlements: &admitted.providers.settlements,
-                installation: admitted.providers.installation.take(),
-            },
-        )
-        .map_err(|error| realization_error("callback thunk target lowering", error))?;
-    let physical =
-        crate::physical_pipeline::stage_optimized_verified_physical_pipeline(optimized_target)
-            .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
-    let projection = native_artifact::emit_fragment_object(physical)?;
+        settlement.artifact,
+        terminal_psi::TargetMachineCallable::Machine(settlement.entry),
+    )?;
     let emitted = projection.entry_call_plan()?;
     let declared = &settlement.boundary_entry_plan.call;
     // Join independent Terminal lanes through their exact nominal origins.

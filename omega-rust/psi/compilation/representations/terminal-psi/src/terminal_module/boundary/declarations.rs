@@ -291,6 +291,27 @@ impl CheckedBoundaryExecution {
     }
 }
 
+impl CheckedBoundaryCallable {
+    /// Require the same checked contract and every closed method coordinate
+    /// when a requirement crosses between independently compiled artifacts.
+    /// Dense identity indices belong to their own tables, never to the link.
+    pub fn same_identity_as(
+        &self,
+        identities: &crate::TerminalIdentityTable,
+        other: &Self,
+        other_identities: &crate::TerminalIdentityTable,
+    ) -> bool {
+        self.source
+            .same_identity_as(identities, &other.source, other_identities)
+            && self.method_arguments.len() == other.method_arguments.len()
+            && self
+                .method_arguments
+                .iter()
+                .zip(&other.method_arguments)
+                .all(|(left, right)| left.same_identity_as(identities, right, other_identities))
+    }
+}
+
 impl BoundaryMachineDeclaration {
     /// Opaque supply cannot assert non-content provenance owned by another
     /// issuer. It needs an actual checked return; equal bits and a matching

@@ -30,7 +30,9 @@ enum AddressOperation {
 }
 
 struct OwnedAddress {
-    structural_type: StructuralTypeId,
+    // StructuralTypeId belongs to one artifact. Each adapter authenticates its
+    // own local formal above; only the exact target-closed opaque application
+    // can relate this owned payload across independently compiled components.
     application: [u8; 32],
     value: HostInternetAddress,
 }
@@ -152,7 +154,6 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     )
                 })?;
                 values.values.push(Some(OwnedAddress {
-                    structural_type: self.structural_type,
                     application: self.application,
                     value,
                 }));
@@ -177,9 +178,7 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     usize::try_from(u64::MAX - address.opaque_identity).map_err(|_| invalid())?;
                 let slot = values.values.get_mut(ordinal).ok_or_else(invalid)?;
                 let owned = slot.as_ref().ok_or_else(invalid)?;
-                if owned.structural_type != self.structural_type
-                    || owned.application != self.application
-                {
+                if owned.application != self.application {
                     return Err(invalid());
                 }
                 let owned = slot.take().ok_or_else(invalid)?;

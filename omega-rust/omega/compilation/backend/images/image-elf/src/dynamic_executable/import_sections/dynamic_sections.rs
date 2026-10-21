@@ -231,15 +231,35 @@ fn derive_contents(
     let mut interpreter = inputs.interpreter().interpreter_path().to_vec();
     interpreter.push(0);
 
-    let strings = canonical_strings(&ordered);
+    let mut contents = derive_import_contents(&ordered, interpreter)?;
+    contents.non_authoritative_content_compatibility_fingerprint =
+        non_authoritative_content_compatibility_fingerprint(inputs, &contents);
+    Ok(contents)
+}
+
+/// Reuse the import-table producer for a distinct shared-component container.
+/// These are unsealed construction contents; process-image validation and a
+/// component container's own export/layout admission remain separate.
+pub(crate) fn derive_shared_import_contents(
+    imports: &[crate::imports::ElfImportRequest],
+) -> Result<ElfDynamicSectionContents, Diagnostic> {
+    let ordered = ordered_import_requests(imports)?;
+    derive_import_contents(&ordered, Vec::new())
+}
+
+fn derive_import_contents(
+    ordered: &[OrderedImport<'_>],
+    interpreter: Vec<u8>,
+) -> Result<ElfDynamicSectionContents, Diagnostic> {
+    let strings = canonical_strings(ordered);
     let (dynstr, string_offsets) = build_dynstr(&strings)?;
-    let version_pairs = canonical_version_pairs(&ordered);
+    let version_pairs = canonical_version_pairs(ordered);
     let version_indexes = assign_version_indexes(&version_pairs)?;
 
     let mut dynsym = vec![ElfDynamicSymbol::default()];
     let mut versym = vec![0];
     let mut bindings = Vec::with_capacity(ordered.len());
-    for import in &ordered {
+    for import in ordered {
         let dynamic_symbol_index = checked_u32(dynsym.len(), "dynamic symbol index")?;
         let version_index = version_index(&version_indexes, import.object, import.version)?;
         dynsym.push(ElfDynamicSymbol {
@@ -265,14 +285,14 @@ fn derive_contents(
         .collect::<Vec<_>>();
     let sysv_hash = build_sysv_hash(&symbol_names)?;
     let gnu_hash = build_gnu_hash(&symbol_names)?;
-    let objects = canonical_objects(&ordered);
+    let objects = canonical_objects(ordered);
     let needed = objects
         .iter()
         .map(|object| string_offset(&string_offsets, object))
         .collect::<Result<Vec<_>, _>>()?;
     let verneed = build_version_needs(&objects, &version_pairs, &version_indexes, &string_offsets)?;
 
-    let mut contents = ElfDynamicSectionContents {
+    let contents = ElfDynamicSectionContents {
         interpreter,
         dynstr,
         dynsym,
@@ -284,16 +304,19 @@ fn derive_contents(
         bindings,
         non_authoritative_content_compatibility_fingerprint: 0,
     };
-    contents.non_authoritative_content_compatibility_fingerprint =
-        non_authoritative_content_compatibility_fingerprint(inputs, &contents);
     Ok(contents)
 }
 
 fn ordered_imports(
     inputs: &PlannedElfDynamicLinkInputs,
 ) -> Result<Vec<OrderedImport<'_>>, Diagnostic> {
-    let mut ordered = inputs
-        .imports()
+    ordered_import_requests(inputs.imports())
+}
+
+fn ordered_import_requests(
+    imports: &[crate::imports::ElfImportRequest],
+) -> Result<Vec<OrderedImport<'_>>, Diagnostic> {
+    let mut ordered = imports
         .iter()
         .enumerate()
         .map(|(request_index, request)| match &request.locator {
@@ -416,7 +439,7 @@ fn version_index(
         .map_err(|_| Diagnostic::error("ELF import lacks a canonical required-version index"))
 }
 
-fn build_sysv_hash(symbol_names: &[&[u8]]) -> Result<ElfSysvHash, Diagnostic> {
+pub(crate) fn build_sysv_hash(symbol_names: &[&[u8]]) -> Result<ElfSysvHash, Diagnostic> {
     let bucket_count = checked_u32(symbol_names.len().max(1), "System V hash bucket count")?;
     let chain_count = checked_u32(symbol_names.len() + 1, "System V hash chain count")?;
     let mut buckets = vec![0; bucket_count as usize];

@@ -34,8 +34,12 @@
 //!   installed code occurrence when the `installed-artifact` feature is on.
 
 mod codec_bytes;
-mod private_entry_transport;
-pub use private_entry_transport::create_private_function_object;
+mod component_object;
+mod component_shared_image;
+pub use component_shared_image::{ComponentSharedImage, ComponentSharedImageEmissionError, emit_component_shared_image};
+pub use component_object::{ComponentFunctionImage, prepare_component_function_image, component_export_symbol};
+mod callable_entry_transport;
+pub use callable_entry_transport::{create_callable_entry_transport, create_private_function_object};
 mod physical_entry;
 pub use physical_entry::{PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry};
 mod dynamic_elf;

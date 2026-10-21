@@ -87,4 +87,35 @@ pub enum ClosedReachArgument {
     },
 }
 
-impl ClosedReachArgument {}
+impl ClosedReachArgument {
+    /// Compare closed coordinates across artifact-local identity tables. The
+    /// argument kind and a machine argument's contract remain independent of
+    /// its readable identity; equal indices alone establish nothing.
+    pub fn same_identity_as(
+        &self,
+        identities: &crate::TerminalIdentityTable,
+        other: &Self,
+        other_identities: &crate::TerminalIdentityTable,
+    ) -> bool {
+        let (left, right) = match (self, other) {
+            (Self::Type(left), Self::Type(right))
+            | (Self::Const(left), Self::Const(right))
+            | (Self::Proposition(left), Self::Proposition(right)) => (*left, *right),
+            (
+                Self::Machine {
+                    identity: left,
+                    contract_commitment: left_contract,
+                },
+                Self::Machine {
+                    identity: right,
+                    contract_commitment: right_contract,
+                },
+            ) if left_contract == right_contract => (*left, *right),
+            _ => return false,
+        };
+        identities
+            .text(left)
+            .zip(other_identities.text(right))
+            .is_some_and(|(left, right)| !left.is_empty() && left == right)
+    }
+}

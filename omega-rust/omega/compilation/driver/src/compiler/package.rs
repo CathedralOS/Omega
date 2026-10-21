@@ -3,6 +3,7 @@
 mod component_publication;
 
 use crate::CheckedCompilation;
+use compilation_products::IndependentComponentProduct;
 use diagnostics::Diagnostic;
 use package_compilation::IndependentComponentDescription;
 
@@ -26,6 +27,18 @@ pub fn publish_checked_component(
 pub(crate) fn publish_checked_components(
     checked: Vec<Result<CheckedCompilation, Vec<Diagnostic>>>,
 ) -> Vec<Result<IndependentComponentDescription, Vec<Diagnostic>>> {
+    publish_checked_component_products(checked)
+        .into_iter()
+        .map(|product| product.map(|product| product.description().clone()))
+        .collect()
+}
+
+/// Executable composition retains the completed source-free product beside
+/// its review description. Review-only callers project the description above;
+/// package preparation keeps both before releasing the source continuation.
+pub(crate) fn publish_checked_component_products(
+    checked: Vec<Result<CheckedCompilation, Vec<Diagnostic>>>,
+) -> Vec<Result<IndependentComponentProduct, Vec<Diagnostic>>> {
     let mut outcomes: Vec<_> = (0..checked.len()).map(|_| None).collect();
     let mut applications = Vec::new();
     for (position, checked) in checked.into_iter().enumerate() {
@@ -64,7 +77,11 @@ pub(crate) fn publish_checked_components(
                 produced,
                 selections.effective(),
             )?;
-            component_publication::describe_component(&checked, &retained)
+            let description = component_publication::describe_component(&checked, &retained)?;
+            let accepted_permissions =
+                crate::native::accepted_terminal_authority_permission_policy(&checked)?;
+            IndependentComponentProduct::new(description, retained, accepted_permissions)
+                .map_err(|reason| vec![Diagnostic::error(reason)])
         }));
     }
     outcomes

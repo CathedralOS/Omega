@@ -15,6 +15,9 @@
 //! Same-requirement slots bind different host objects because dispatch keys
 //! on the slot's `BoundaryMachineId`, never on a trait or name.
 
+mod component_return;
+pub(crate) use component_return::ComponentOwnedReturn;
+
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::BoundaryMachineId;
@@ -190,6 +193,7 @@ pub enum TerminalInstanceCloseError {
 /// pauses. Programs loaded from external bytes own their code instead.
 pub struct TerminalInstance<'host, 'artifact> {
     program: TerminalProgram<'artifact>,
+    entry: semantic_vocabulary::MachineId,
     process_domain: std::sync::Arc<SimulatedProcessDomain>,
     /// The interpreter state while this instance owns it. `close` releases it
     /// early; `None` after close.
@@ -216,6 +220,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         execution.process_domain = Some(std::sync::Arc::clone(&process_domain));
         Self {
             program,
+            entry: execution.current_machine,
             process_domain,
             execution: Some(execution),
             required_imports,

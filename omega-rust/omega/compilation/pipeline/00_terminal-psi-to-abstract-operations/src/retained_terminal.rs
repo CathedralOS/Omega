@@ -236,7 +236,7 @@ impl TerminalNativeRealizationProposal {
 /// The proposal owns callback ABI and materialization rows; no checked-source
 /// placement survives this boundary. This carrier grants no registration,
 /// invocation, address, or lifetime authority.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RetainedTerminalArtifact {
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,

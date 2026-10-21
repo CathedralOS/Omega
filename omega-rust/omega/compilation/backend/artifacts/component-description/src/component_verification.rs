@@ -13,10 +13,14 @@
 //! deliberately neutral about which execution admission a caller will need.
 //!
 //! The result carrier is deliberately inert: it exposes checked evidence
-//! (subject, rosters, obligations, and the verified module) but grants no
+//! (subject, rosters, obligations, and the verified canonical artifact) but grants no
 //! callable authority, no installed custody, and no resource admission.
 //! Installation-dependent facts stay obligations on the description and must
 //! be discharged per occurrence under a fresh resource/profile admission.
+//! Keeping the original sealed artifact lets independent product consumers
+//! borrow its exact proof and semantic storage. Rebuilding an envelope from a
+//! decoded module would lose that custody, while interpreting the verdict as
+//! an installed entry would invent authority the verification never supplied.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -262,20 +266,19 @@ impl std::error::Error for ComponentVerificationRejection {}
 /// description's entries, outgoing authority, custody, retained providers,
 /// and installation obligations. It cannot be executed, installed, or used
 /// to discharge any obligation it describes.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct VerifiedComponent {
     description: ComponentDescription,
     description_identity: [u8; 32],
     closure: [u8; 32],
-    module: TerminalModule,
+    artifact: terminal_codec::CanonicalTerminalArtifact,
 }
 
 impl VerifiedComponent {
     /// The reconstructed component subject — always derived from the
     /// embedded artifact, never from a description field.
     pub fn subject(&self) -> TerminalPsiIdentity {
-        terminal_codec::terminal_psi_identity(&self.module)
-            .expect("a verified component always has a replayable subject")
+        self.artifact.view().identity()
     }
 
     /// Collision-resistant identity of the exact description bytes admitted.
@@ -299,8 +302,16 @@ impl VerifiedComponent {
     /// The decoded semantic module. Reading it grants no authority; proof
     /// consumers that need a purpose-specific verified carrier re-run the
     /// existing Terminal verifier under their own profile.
-    pub const fn module(&self) -> &TerminalModule {
-        &self.module
+    pub fn module(&self) -> &TerminalModule {
+        self.artifact.semantic_module()
+    }
+
+    /// The exact canonical product whose proof and semantic inventories were
+    /// verified together. Independent production must retain this custody,
+    /// rather than reconstructing a proof envelope from the decoded module.
+    /// Possession still establishes neither installation nor callable authority.
+    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
     }
 
     pub fn imports(&self) -> &[ImportSlot] {
@@ -376,6 +387,18 @@ impl VerifiedComponent {
         &self,
         plan: &ProviderPlan,
     ) -> Result<(), IndependentRealizationMismatch> {
+        self.selected_plan_exports(plan).map(|_| ())
+    }
+
+    /// Join the complete plan once and retain its exact artifact-local export
+    /// candidates. A caller must keep this component's subject beside those
+    /// handles; a dense machine identity alone never names another artifact.
+    /// These are verified export descriptions, not installed entry capabilities.
+    pub fn selected_plan_exports(
+        &self,
+        plan: &ProviderPlan,
+    ) -> Result<Vec<&terminal_psi::ProviderCandidateConformance>, IndependentRealizationMismatch>
+    {
         if plan.provider_type.is_empty() {
             return Err(IndependentRealizationMismatch::EmptyProviderType {
                 plan: plan.name.clone(),
@@ -392,6 +415,7 @@ impl VerifiedComponent {
                 detail: coverage.join("; "),
             });
         }
+        let mut exports = Vec::with_capacity(plan.rows.len());
         for row in &plan.rows {
             let ProviderBinding::CheckedAdapter {
                 machine_identity, ..
@@ -402,11 +426,13 @@ impl VerifiedComponent {
                 });
             };
             let for_requirement = self
-                .module
+                .module()
                 .provider_candidates
                 .iter()
                 .filter(|candidate| {
-                    self.module.identities.text(candidate.requirement_identity)
+                    self.module()
+                        .identities
+                        .text(candidate.requirement_identity)
                         == Some(plan.identities.text(row.requirement_identity))
                 })
                 .collect::<Vec<_>>();
@@ -417,8 +443,9 @@ impl VerifiedComponent {
             }
             let for_provider = for_requirement
                 .iter()
+                .copied()
                 .filter(|candidate| {
-                    self.module.identities.text(candidate.provider_identity)
+                    self.module().identities.text(candidate.provider_identity)
                         == Some(plan.provider_type.as_str())
                 })
                 .collect::<Vec<_>>();
@@ -431,8 +458,9 @@ impl VerifiedComponent {
             let machine_identity = plan.identity_text(*machine_identity);
             let exact = for_provider
                 .iter()
+                .copied()
                 .filter(|candidate| {
-                    self.module.identities.text(candidate.candidate_identity)
+                    self.module().identities.text(candidate.candidate_identity)
                         == Some(machine_identity)
                 })
                 .collect::<Vec<_>>();
@@ -446,7 +474,7 @@ impl VerifiedComponent {
                         selected_machine: machine_identity.to_owned(),
                     });
                 }
-                [_] => {}
+                [candidate] => exports.push(*candidate),
                 _ => {
                     return Err(IndependentRealizationMismatch::DuplicateRealization {
                         requirement_identity: plan
@@ -482,12 +510,12 @@ impl VerifiedComponent {
         // join must not treat the retained bound as the resolved reach the
         // selected row names.
         let unresolved: Vec<String> = self
-            .module
+            .module()
             .root_service_reach
             .installation_dependencies
             .iter()
             .map(|dependency| {
-                self.module
+                self.module()
                     .identities
                     .text(dependency.requirement_identity)
                     .unwrap_or_default()
@@ -499,7 +527,7 @@ impl VerifiedComponent {
                 requirement_identities: unresolved,
             });
         }
-        Ok(())
+        Ok(exports)
     }
 }
 
@@ -677,11 +705,10 @@ pub fn verify_component(
         description,
         description_identity,
         closure,
-        // The verdict outlives the borrowed artifact, so it keeps its own
-        // copy of the artifact's decoded module. Copying the decoded value
-        // is not the same cost as decoding the bytes again: no validation,
-        // canonical re-encode or byte comparison runs here.
-        module: module.clone(),
+        // Preserve the original sealed product, including its checked proof
+        // section. A decoded-module copy cannot carry that product to an
+        // independent execution consumer.
+        artifact,
     })
 }
 

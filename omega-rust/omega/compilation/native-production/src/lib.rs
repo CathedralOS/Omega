@@ -11,11 +11,13 @@
 //! crate cannot obtain typed or checked trees to repair a missing Terminal fact.
 //! The artifact owner retains runtime provisions before emission consumes them.
 
+mod component_inputs;
 mod native_compilation;
 mod physical_pipeline;
 mod realization;
 mod request;
 
+pub use component_inputs::{ComponentExportInput, ComponentNativeInputs};
 pub use native_compilation::compile;
-pub use realization::RealizedNativeProduct;
+pub use realization::{RealizedNativeProduct, ComponentExportImage, ComponentExportRequest, ComponentNativeExport, emit_component_exports};
 pub use request::NativeCompileRequest;

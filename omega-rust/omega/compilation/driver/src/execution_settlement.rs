@@ -54,6 +54,7 @@ pub(crate) struct SelectedProductTarget {
     pub(crate) retained_checks: RetainedCompilationChecks,
     package_inputs: Option<PackageCompilationInputs>,
     permit_unsettled_fused_service_fields: bool,
+    independent_component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
 }
 
 impl SelectedProductTarget {
@@ -98,13 +99,87 @@ impl SelectedProductTarget {
             retained_checks: source.retained_checks.clone(),
             package_inputs,
             permit_unsettled_fused_service_fields,
+            independent_component_products: Vec::new(),
         })
+    }
+
+    /// Attach only products whose whole descriptive publication and realized
+    /// target answer this selection. Different native proposals under the same
+    /// description remain competing inputs, never a first-match cache hit.
+    pub(crate) fn retain_independent_component_products(
+        &mut self,
+        products: &[Arc<compilation_products::IndependentComponentProduct>],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut retained = Vec::new();
+        let descriptions = &self.custody.settlement.independent_component_descriptions;
+        let verified = &self.custody.settlement.verified_independent_components;
+        if descriptions.len() != verified.len() {
+            return Err(vec![Diagnostic::error(
+                "independent component descriptions lost their consumer verdict roster",
+            )]);
+        }
+        let applications = self
+            .custody
+            .settlement
+            .calling_applications()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        for (description, component) in descriptions.iter().zip(verified) {
+            let mut matching = products.iter().filter(|product| {
+                product.description() == description
+                    && product
+                        .retained()
+                        .native_realization_proposal()
+                        .is_some_and(|proposal| {
+                            Some(proposal.target_profile()) == self.custody.selected_target_profile
+                        })
+            });
+            let Some(product) = matching.next() else {
+                // Descriptive checking may have no executable product. Actual
+                // production must separately require the complete product set.
+                continue;
+            };
+            if matching.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "independent component description has competing retained native products",
+                )]);
+            }
+            if component.subject() != description.expected_subject() {
+                return Err(vec![Diagnostic::error(
+                    "independent component verdict belongs to another description subject",
+                )]);
+            }
+            for selection in &self.custody.selected_provider_provenance {
+                if selection
+                    .selected_by
+                    .composition_mode()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    == provider_planning::CompositionMode::Independent
+                    && component.realizes_selected_plan(&selection.plan).is_ok()
+                {
+                    native_production::ComponentNativeInputs::join(
+                        component,
+                        product.retained(),
+                        &selection.plan,
+                        &applications,
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "independent component native inputs: {reason}",
+                        ))]
+                    })?;
+                }
+            }
+            retained.push(Arc::clone(product));
+        }
+        self.independent_component_products = retained;
+        Ok(())
     }
 
     pub(crate) fn install(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         install_selected_target(
             self.custody,
             self.retained_checks,
+            self.independent_component_products,
             self.package_inputs.as_ref(),
             self.permit_unsettled_fused_service_fields,
         )
@@ -303,6 +378,7 @@ pub(crate) fn select_product_providers(
 pub(crate) fn install_selected_target(
     selection: SelectedProviderCustody,
     retained_checks: RetainedCompilationChecks,
+    independent_components: Vec<Arc<compilation_products::IndependentComponentProduct>>,
     package_inputs: Option<&PackageCompilationInputs>,
     permit_unsettled_fused_service_fields: bool,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
@@ -347,6 +423,7 @@ pub(crate) fn install_selected_target(
                     build_admission,
                     provider_defaults,
                     providers: settlement,
+                    independent_components,
                     product_selection,
                 },
                 sources,

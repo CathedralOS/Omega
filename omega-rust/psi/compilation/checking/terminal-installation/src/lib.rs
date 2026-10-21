@@ -12,11 +12,13 @@
 //! native ABI policy. Authored layout closure retains a separate exact overlay.
 //! Each consumer establishes its own invocation from these facts.
 
+mod component_provider;
 mod entry_values;
 mod private_entry_ram;
 mod provider_installation;
 mod target_families;
 
+pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{TerminalPlacedViewEstablishment, TerminalStructuralValue};
 pub use private_entry_ram::{
     CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,

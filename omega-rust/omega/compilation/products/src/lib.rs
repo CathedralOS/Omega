@@ -32,6 +32,7 @@ mod compilation_products;
 mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
+mod independent_component;
 mod package_build;
 mod prepared_build;
 mod prepared_source;
@@ -54,6 +55,7 @@ pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
     IndependentComponentSelection,
 };
+pub use independent_component::IndependentComponentProduct;
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,

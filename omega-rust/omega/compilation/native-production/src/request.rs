@@ -29,30 +29,36 @@ impl NativeRealizationRequest<'_> {
     /// Product-owned per-pass ceilings, identical for the program and callbacks.
     /// Identity staging meters traversal as well as optimizer iterations.
     pub fn optimization_budget(&self) -> optimization_core::OptimizationWorkBudget {
-        // A spill charges the traversal of the function it rewrites, one step
-        // per plan function, and slot-liveness scans; a complete application
-        // exceeds 100,000 steps while recovering register pressure in one
-        // function. Callee-save derivation charges functions, blocks,
-        // instructions, operands and writes as both validation steps and
-        // iterations, and only its derived requirements as candidates. These
-        // ceilings are calibrated for one `OPTIMIZATION_REFERENCE_EXTENT` of
-        // input: the required recovery rewrites and the callee-save
-        // derivations scale them with the function or program they read, so
-        // linear work never caps the size of a program. The validation
-        // ceiling must hold the costliest linear audit at the reference
-        // extent: the fixed-occurrence audit charges each operand about its
-        // register depth plus 16 steps and each successor-edge transport
-        // about twice that depth plus 4, around 36 steps per unit at a 2^16
-        // extent, so 2^16 units need about 2.4 million steps. The product
-        // typing harness's largest function (14,703 operands, 33,342
-        // transports) needed 1,062,206 against the earlier 1,000,000. Give
-        // both traversal counters room without changing candidate/commit
-        // limits or bypassing independent replay.
-        optimization_core::OptimizationWorkBudget::new(
-            1_000_000, 100_000, 4_000_000, 100_000, 1_000_000,
-        )
-        .expect("compiler baseline optimizer ceilings are nonzero")
+        native_optimization_budget()
     }
+}
+
+/// The ordinary product budget also applies to separately emitted callable
+/// closures; selecting another entry does not widen optimizer authority.
+pub(crate) fn native_optimization_budget() -> optimization_core::OptimizationWorkBudget {
+    // A spill charges the traversal of the function it rewrites, one step
+    // per plan function, and slot-liveness scans; a complete application
+    // exceeds 100,000 steps while recovering register pressure in one
+    // function. Callee-save derivation charges functions, blocks,
+    // instructions, operands and writes as both validation steps and
+    // iterations, and only its derived requirements as candidates. These
+    // ceilings are calibrated for one `OPTIMIZATION_REFERENCE_EXTENT` of
+    // input: the required recovery rewrites and the callee-save
+    // derivations scale them with the function or program they read, so
+    // linear work never caps the size of a program. The validation
+    // ceiling must hold the costliest linear audit at the reference
+    // extent: the fixed-occurrence audit charges each operand about its
+    // register depth plus 16 steps and each successor-edge transport
+    // about twice that depth plus 4, around 36 steps per unit at a 2^16
+    // extent, so 2^16 units need about 2.4 million steps. The product
+    // typing harness's largest function (14,703 operands, 33,342
+    // transports) needed 1,062,206 against the earlier 1,000,000. Give
+    // both traversal counters room without changing candidate/commit
+    // limits or bypassing independent replay.
+    optimization_core::OptimizationWorkBudget::new(
+        1_000_000, 100_000, 4_000_000, 100_000, 1_000_000,
+    )
+    .expect("compiler baseline optimizer ceilings are nonzero")
 }
 
 /// Explicit policy, image custody and admitted imports for retained re-entry.

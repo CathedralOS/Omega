@@ -19,17 +19,30 @@ pub fn create_private_function_object(
     inbound: &CallPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PrivateFunctionObject, Error> {
-    let request = native_entry_request(&body, inbound, inbound_ordinals)?;
-    let entry_bridge = if identity_transport(&request) {
-        None
-    } else {
-        Some(emit_native_entry_bridge(request).map_err(Error::NativeEntryBridge)?)
-    };
+    let entry_bridge = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
     Ok(PrivateFunctionObject {
         identity,
         body,
         entry_bridge,
     })
+}
+
+/// Emit the native ABI bridge for an ordinary callable body. The returned
+/// code is a physical product, not a private callback identity or installed
+/// component entry. Both publication owners retain their own exact custody.
+pub fn create_callable_entry_transport(
+    body: &ObjectArtifact,
+    inbound: &CallPlan,
+    inbound_ordinals: &[u32],
+) -> Result<Option<machine_emission::native_entry_bridge::NativeEntryBridge>, Error> {
+    let request = native_entry_request(body, inbound, inbound_ordinals)?;
+    if identity_transport(&request) {
+        Ok(None)
+    } else {
+        emit_native_entry_bridge(request)
+            .map(Some)
+            .map_err(Error::NativeEntryBridge)
+    }
 }
 
 /// Resolve the native transport against the unchanged ordinary body. Image
@@ -43,7 +56,7 @@ pub(crate) fn native_entry_request(
     let replay = body
         .fragment_replay
         .as_ref()
-        .ok_or(Error::Mismatch("private entry lacks body custody"))?;
+        .ok_or(Error::Mismatch("callable entry lacks body custody"))?;
     let targeted = replay
         .0
         .source()
@@ -56,13 +69,13 @@ pub(crate) fn native_entry_request(
         .functions
         .iter()
         .find(|function| function.machine == body.entry)
-        .ok_or(Error::Mismatch("private body entry plan missing"))?
+        .ok_or(Error::Mismatch("callable body entry plan missing"))?
         .graph
         .call_plan;
     if inbound_ordinals.len() != internal.parameters.len()
         || inbound.parameters.len() != internal.parameters.len()
     {
-        return Err(Error::Mismatch("private entry formal count differs"));
+        return Err(Error::Mismatch("callable entry formal count differs"));
     }
     let mut used = Vec::with_capacity(inbound_ordinals.len());
     let mut parameters = arena::Arena::with_capacity(inbound_ordinals.len());
@@ -71,10 +84,10 @@ pub(crate) fn native_entry_request(
         .machines
         .iter()
         .find(|machine| machine.id == body.entry)
-        .ok_or(Error::Mismatch("private Terminal entry missing"))?;
+        .ok_or(Error::Mismatch("callable Terminal entry missing"))?;
     if entry.parameters.len() + entry.structural_parameters.len() != internal.parameters.len() {
         return Err(Error::Mismatch(
-            "private body lanes differ from Terminal signature",
+            "callable body lanes differ from Terminal signature",
         ));
     }
     for (internal_ordinal, (placement, ordinal)) in
@@ -83,7 +96,7 @@ pub(crate) fn native_entry_request(
         let ordinal_index = usize::try_from(*ordinal).map_err(|_| Error::Overflow)?;
         if used.contains(&ordinal_index) || inbound.parameters.get(ordinal_index).is_none() {
             return Err(Error::Mismatch(
-                "private entry ordinals are not a permutation",
+                "callable entry ordinals are not a permutation",
             ));
         }
         used.push(ordinal_index);
@@ -112,7 +125,7 @@ pub(crate) fn native_entry_request(
             runtime_abi::ScalarStorageCodec::from_scalar(scalar_type)
                 .and_then(|codec| codec.encode())
                 .ok_or(Error::Unsupported(
-                    "private scalar referent has no native codec",
+                    "callable scalar referent has no native codec",
                 ))?
         } else {
             0

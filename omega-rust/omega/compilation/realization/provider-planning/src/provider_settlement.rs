@@ -257,6 +257,11 @@ pub struct ProviderSettlement {
     /// instead of rediscovering unattached inputs.
     pub independent_component_descriptions:
         Vec<package_compilation::IndependentComponentDescription>,
+    /// Original consumer verdicts, in the same package order as descriptions.
+    /// Native composition borrows the verified artifact and export handles;
+    /// it must not rebuild a proof envelope or infer installation authority.
+    pub verified_independent_components:
+        Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
 impl ProviderSettlement {
@@ -645,6 +650,10 @@ pub fn settle_checked_providers(
             provider_plans,
             evaluated_via_bindings,
             external_binding_rows,
+            verified_independent_components: independent_components
+                .into_iter()
+                .map(std::sync::Arc::new)
+                .collect(),
             independent_component_descriptions: package_inputs
                 .map(|inputs| {
                     inputs

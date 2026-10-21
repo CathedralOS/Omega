@@ -134,7 +134,7 @@ pub fn bind_physical_entry(
             "explicit physical arrival currently requires x86-64 PE",
         ));
     }
-    let request = crate::private_entry_transport::native_entry_request(
+    let request = crate::callable_entry_transport::native_entry_request(
         artifact,
         &physical.call,
         inbound_ordinals,
@@ -178,7 +178,7 @@ pub(crate) fn validate_binding(artifact: &ObjectArtifact) -> Result<(), Diagnost
         .iter()
         .map(|(_, parameter)| parameter.inbound_ordinal)
         .collect::<Vec<_>>();
-    let request = crate::private_entry_transport::native_entry_request(
+    let request = crate::callable_entry_transport::native_entry_request(
         artifact,
         &binding.plan.call,
         &ordinals,

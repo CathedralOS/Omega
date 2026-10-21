@@ -41,7 +41,7 @@ pub(crate) fn produce_native_product(
 /// Project and validate the checked package's accepted Terminal permission
 /// rows before native proposal production. These are package evidence, not
 /// the independently supplied receiver-admission policy.
-fn accepted_terminal_authority_permission_policy(
+pub(crate) fn accepted_terminal_authority_permission_policy(
     checked: &CheckedCompilation,
 ) -> Result<
     terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,

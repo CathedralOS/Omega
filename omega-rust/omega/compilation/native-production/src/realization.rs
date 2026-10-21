@@ -5,6 +5,9 @@
 //! optimizations do not choose a different publication route.
 
 mod callback_thunks;
+mod callable_objects;
+mod component_exports;
+pub use component_exports::{ComponentExportImage, ComponentExportRequest, ComponentNativeExport, emit_component_exports};
 mod object_emission;
 pub(crate) mod realization_diagnostics;
 
