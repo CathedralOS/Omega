@@ -65,6 +65,7 @@ pub(crate) fn prepare_permission_events(
     facts.qualifications.content.body_available_inputs = Default::default();
     facts.qualifications.content.body_transformations = Default::default();
     facts.qualifications.content.body_derivations = Default::default();
+    facts.qualifications.content.claim_transformations = Default::default();
     facts.flow.ownership.instruction_dispositions = Default::default();
     facts.flow.ownership.instruction_effect_receipts = Default::default();
     facts.flow.ownership.storage_transfers = Default::default();

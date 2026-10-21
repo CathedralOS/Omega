@@ -9,6 +9,7 @@
 //! them.
 
 mod body_input_frontier;
+mod content_snapshots;
 mod content_transformations;
 pub(crate) use body_input_frontier::{
     observe_inputs as observe_body_inputs, publish as publish_body_inputs,

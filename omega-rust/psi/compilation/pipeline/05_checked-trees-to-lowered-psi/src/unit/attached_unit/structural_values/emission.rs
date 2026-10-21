@@ -1716,7 +1716,9 @@ impl Emission<'_, '_, '_> {
         if let Some(transaction) = transaction {
             // Formation owns the transaction, before any enclosing join can
             // publish this occurrence as a qualified source value.
+            let first_new_place = *self.environment.next_place;
             let raw = self.raw_value(identities, value, None)?;
+            self.bind_fresh_completion_claims(&raw, first_new_place)?;
             let transformed = self.transform_content(identities, raw, transaction)?;
             if let Some(continuation) = continuation {
                 self.complete_value(transformed.clone(), continuation)?;
@@ -2844,23 +2846,15 @@ impl Emission<'_, '_, '_> {
 
 /// The claims a completed place holds where it was established: on its
 /// producing operation's result, or on the binding a control join published
-/// for a value that completed there.
+/// for a value that completed there. A published binding can also retain its
+/// producing operation; those are two records of one roster, not two claims.
 fn completed_place_claims(
     operations: &OperationBuffer,
     place: PlaceId,
 ) -> impl Iterator<Item = terminal_psi::StructuralResultClaimBinding> + '_ {
     operations
-        .structural_values
-        .iter()
-        .map(|(_, root)| (root.place(), root.claims()))
-        .chain(
-            operations
-                .operations
-                .iter()
-                .filter_map(|operation| operation.result.structural())
-                .map(|produced| (produced.place, produced.claims.as_slice())),
-        )
-        .filter(move |(candidate, _)| *candidate == place)
-        .flat_map(|(_, claims)| claims)
+        .structural_result_contract(place)
+        .into_iter()
+        .flat_map(|result| &result.claims)
         .cloned()
 }

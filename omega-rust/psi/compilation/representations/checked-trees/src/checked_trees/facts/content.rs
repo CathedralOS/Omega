@@ -33,12 +33,41 @@ pub struct ContentProjectionFacts {
     /// anchor: the anchor alone is not qualification or backing evidence.
     pub body_transformations: arena::Arena<ContentBodyTransformation>,
     pub body_derivations: arena::Arena<ContentBodyDerivation>,
+    /// Causal ownership replacements, appended only at successful completions.
+    /// These retain exact claim occurrences, not inferred address relationships.
+    pub claim_transformations: arena::Arena<ContentClaimTransformation>,
     /// Exact lifetime-bound shared custody admitted for a retained foreign
     /// result. This checked-only row never grants ownership: it binds one
     /// whole direct parameter loan to one whole result and retains both exact
     /// content projections so later consumers need not reselect by spelling
     /// or trust compact report fingerprints.
     pub retained_borrow_custodies: Vec<RetainedBorrowCustodyFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentClaimTransformation {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub evaluation: crate::FlowPermissionEvaluation,
+    pub source: ContentClaimTransformationSource,
+    pub inputs: HandleSpan<ContentBodyClaimBinding>,
+    pub outputs: HandleSpan<ContentBodyClaimBinding>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ContentClaimTransformationSource {
+    #[default]
+    Unknown,
+    Call {
+        call_ordinal: usize,
+        /// Exact authored equation, still owed by the callee's checked body.
+        plan_index: usize,
+    },
+    Body {
+        conservation: arena::Handle<ContentBodyConservationFact>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -91,6 +120,9 @@ pub struct ContentBodyConservationFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContentBodyAvailableInput {
     pub binding: arena::Handle<ContentBodyClaimBinding>,
+    /// The entry account whose complete current frontier includes this claim.
+    /// Equality of content never substitutes for the causal replacement ledger.
+    pub entry_binding: arena::Handle<ContentBodyClaimBinding>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub provenance: language_semantics::PermissionProvenance,
@@ -108,6 +140,20 @@ pub struct ContentBodyClaimBinding {
     pub parameter_symbol: SymbolHandle,
     /// Resolved claim path in `FlowOwnershipFacts::segments`.
     pub segments: HandleSpan<facts::PlaceSegment>,
+    /// An actual argument's captured value when this binding belongs to a call
+    /// replacement input. Its path is relative to that value, not a later read.
+    pub observation: arena::Handle<crate::FlowOperandFact>,
+}
+
+pub struct ContentClaimFrontier {
+    pub bindings: Vec<arena::Handle<ContentBodyClaimBinding>>,
+    /// Exact expected snapshot and consumed input at every replacement. The
+    /// source checker must prove their projected content is unchanged.
+    pub replacements: Vec<(
+        arena::Handle<ContentClaimTransformation>,
+        arena::Handle<ContentBodyClaimBinding>,
+        arena::Handle<ContentBodyClaimBinding>,
+    )>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,6 +234,84 @@ pub struct ContentPartitionPlaceSubstitution {
 }
 
 impl ContentProjectionFacts {
+    /// Replay complete account replacements in completion order. Independent
+    /// inputs cannot be pulled into an account by an equation: every parent of
+    /// a replacement must already belong to this frontier. Empty-content claims
+    /// remain nominal owners and therefore stay in the roster too.
+    pub fn descendant_frontier(
+        &self,
+        entry: arena::Handle<ContentBodyClaimBinding>,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
+        evaluation: crate::FlowPermissionEvaluation,
+        before: arena::Handle<ContentBodyConservationFact>,
+    ) -> Result<ContentClaimFrontier, &'static str> {
+        let same = |left: arena::Handle<ContentBodyClaimBinding>,
+                    right: arena::Handle<ContentBodyClaimBinding>| {
+            let left = self.body_claim_bindings.get(left);
+            let right = self.body_claim_bindings.get(right);
+            left.claim_identity == right.claim_identity
+                && left.domain == right.domain
+                && left.semantic_domain == right.semantic_domain
+                && left.projection_machine == right.projection_machine
+        };
+        let mut frontier = vec![entry];
+        let mut replacements = Vec::new();
+        for (handle, transformation) in self.claim_transformations.iter() {
+            if before.is_valid()
+                && transformation.source
+                    == (ContentClaimTransformationSource::Body {
+                        conservation: before,
+                    })
+            {
+                break;
+            }
+            if transformation.machine_symbol != machine
+                || transformation.state_symbol != state
+                || transformation.statement_index > statement
+                || (transformation.statement_index == statement
+                    && transformation.evaluation != evaluation)
+                || transformation.source == ContentClaimTransformationSource::Unknown
+            {
+                continue;
+            }
+            let parents = transformation.inputs.handles().collect::<Vec<_>>();
+            if !parents
+                .iter()
+                .any(|parent| frontier.iter().any(|claim| same(*parent, *claim)))
+            {
+                continue;
+            }
+            if parents.is_empty()
+                || transformation.outputs.is_empty()
+                || !parents
+                    .iter()
+                    .all(|parent| frontier.iter().any(|claim| same(*parent, *claim)))
+            {
+                return Err("a completed transformation crosses independent entry accounts");
+            }
+            for parent in &parents {
+                let expected = frontier
+                    .iter()
+                    .find(|claim| same(*parent, **claim))
+                    .ok_or("replacement parent is absent")?;
+                replacements.push((handle, *expected, *parent));
+            }
+            frontier.retain(|claim| !parents.iter().any(|parent| same(*claim, *parent)));
+            for output in transformation.outputs.handles() {
+                if frontier.iter().any(|claim| same(*claim, output)) {
+                    return Err("a completed transformation duplicates a qualified claim");
+                }
+                frontier.push(output);
+            }
+        }
+        Ok(ContentClaimFrontier {
+            bindings: frontier,
+            replacements,
+        })
+    }
+
     /// Whether one exact construction occurrence receives this membership from
     /// its enclosing completed transaction. Follow only constructing child edges:
     /// retained children of a later alias must not backdate the judgment.

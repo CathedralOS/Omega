@@ -91,9 +91,9 @@ pub use ownership::{
 };
 pub use proof::{
     ClaimContentProjection, ContentClaimProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContentTransformationDerivation,
-    ContractClause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-    DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
+    ContentLineageStep, ContentPartitionComposition, ContentPlaceSubstitution,
+    ContentTransformationDerivation, ContractClause, CrashPredicateTerm, CrashRouteBucket,
+    CrashRouteGuard, DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
     DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,

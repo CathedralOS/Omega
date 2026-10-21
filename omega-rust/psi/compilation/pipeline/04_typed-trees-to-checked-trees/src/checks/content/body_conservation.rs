@@ -37,6 +37,10 @@ pub(crate) fn observe_body_completion(
     evaluation_events: &[checked_trees::FlowPermissionEventFact],
 ) -> Vec<arena::Handle<ContentBodyConservationFact>> {
     let mut observed = Vec::new();
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .map(|state| state.symbol);
     let plans = facts
         .qualifications
         .content
@@ -46,7 +50,7 @@ pub(crate) fn observe_body_completion(
         .filter(|(_, plan)| {
             plan.owner_kind == ContentConservationOwnerKind::Machine
                 && plan.owner == machine.symbol
-                && plan.callable == state.symbol
+                && (plan.callable == state.symbol || Some(plan.callable) == entry)
         })
         .map(|(position, plan)| (position, plan.clone()))
         .collect::<Vec<_>>();
@@ -54,6 +58,9 @@ pub(crate) fn observe_body_completion(
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
+        let Some(plan) = plan_at_state(program, facts, state, plan) else {
+            continue;
+        };
         let Some((inputs, outputs)) =
             owned_return_sides(plan.equation.left(), plan.equation.right())
         else {
@@ -191,6 +198,83 @@ pub(crate) fn observe_body_completion(
     observed
 }
 
+/// A machine guarantee may be consumed in another state only after the shared
+/// arrival analysis proves the exact parameter origin on every predecessor.
+/// Rebase its subjects, never import the guarantee as an entry assumption.
+fn plan_at_state(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    mut plan: language_semantics::content::ContentConservationPlan,
+) -> Option<language_semantics::content::ContentConservationPlan> {
+    if plan.callable == state.symbol {
+        return Some(plan);
+    }
+    let flow = facts.flow.control.state(plan.owner, state.symbol)?;
+    let origins = facts
+        .flow
+        .control
+        .exits
+        .span_or_empty(flow.exits)
+        .iter()
+        .flat_map(|exit| {
+            facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(exit.parameter_origins)
+        })
+        .collect::<Vec<_>>();
+    fn rebase(
+        term: &mut ContentConservationTerm,
+        origins: &[&checked_trees::FlowExitParameterOrigin],
+        parameters: &[typed_trees::signature::StateParameter],
+    ) -> Option<()> {
+        match term {
+            ContentConservationTerm::Separate(children) => {
+                for child in children {
+                    rebase(child, origins, parameters)?;
+                }
+            }
+            ContentConservationTerm::Projection { subject, .. } => {
+                if let ContentPlaceRoot::Parameter {
+                    position,
+                    symbol,
+                    name,
+                } = &mut subject.root
+                {
+                    let mut matching = origins
+                        .iter()
+                        .filter(|origin| origin.entry_parameter == *symbol);
+                    let target = matching.next()?.state_parameter;
+                    if !target.is_valid() || matching.any(|origin| origin.state_parameter != target)
+                    {
+                        return None;
+                    }
+                    let (ordinal, parameter) = parameters
+                        .iter()
+                        .enumerate()
+                        .find(|(_, parameter)| parameter.symbol == target)?;
+                    *position = u32::try_from(ordinal).ok()?;
+                    *symbol = target;
+                    *name = parameter.name.as_str().to_owned();
+                }
+            }
+        }
+        Some(())
+    }
+    let mut left = plan.equation.left().clone();
+    let mut right = plan.equation.right().clone();
+    let parameters = program.state_parameters(state);
+    rebase(&mut left, &origins, parameters)?;
+    rebase(&mut right, &origins, parameters)?;
+    plan.callable = state.symbol;
+    plan.equation = language_semantics::content::ContentConservationEquation::new(left, right);
+    plan.report_fingerprint =
+        language_semantics::content::conservation_report_fingerprint(&plan.algebra, &plan.equation);
+    Some(plan)
+}
+
 /// Follow exact produced values through unchanged resident storage. This
 /// discovers where a return demand may be proved; each candidate still needs
 /// its own completion-time theorem and live custody. Never use retention
@@ -244,7 +328,7 @@ fn finish_paths(
 /// Equation canonicalization may reverse the authored sides. Classify by
 /// exact root/revision, not spelling or serialized side order. Empty separate
 /// terms provide no owned input or returned occurrence.
-fn owned_return_sides<'term>(
+pub(super) fn owned_return_sides<'term>(
     left: &'term ContentConservationTerm,
     right: &'term ContentConservationTerm,
 ) -> Option<(
@@ -321,6 +405,7 @@ fn bindings(
                             ContentPlaceRoot::Result => Default::default(),
                         },
                         segments: Default::default(),
+                        observation: Default::default(),
                     },
                     path: content_segments_to_fact_path(&subject.segments)?,
                 });

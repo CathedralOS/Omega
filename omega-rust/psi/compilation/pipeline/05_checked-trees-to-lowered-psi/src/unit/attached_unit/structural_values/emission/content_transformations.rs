@@ -111,12 +111,10 @@ impl Emission<'_, '_, '_> {
         if source.access != StructuralAccess::Owned || !source.path.is_empty() {
             return unsupported("content formation requires its complete owned payload");
         }
-        Self::bind_completion_claims(
-            self.operations,
-            source.place,
-            &self.completion_claims,
-            &self.direct_establishments,
-        )?;
+        // Completion may consume existing local storage rather than establish
+        // a fresh carrier. Its actual producer owns the claim roster; the
+        // current expression's establishment list cannot replace that roster.
+        let claims = super::completed_place_claims(self.operations, source.place).collect();
         let (whole, projected) =
             self.completed_memberships(source.place)
                 .ok_or(LoweringError::Unsupported(
@@ -260,6 +258,7 @@ impl Emission<'_, '_, '_> {
                     self.calls.claims.bindings(),
                     derived.lineage_anchor,
                 )?,
+                ancestry: self.content_ancestry(derived.conservation)?,
                 inputs,
                 outputs,
             });
@@ -280,7 +279,7 @@ impl Emission<'_, '_, '_> {
                 qualifications,
                 projected_qualifications,
                 qualification_establishments: Vec::new(),
-                claims: self.completion_claims.clone(),
+                claims,
             }),
             kind: OperationKind::TransformContent {
                 source,
@@ -300,6 +299,109 @@ impl Emission<'_, '_, '_> {
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         Ok(StructuralArgument::whole(place, StructuralAccess::Owned))
+    }
+
+    fn content_ancestry(
+        &self,
+        conservation: arena::Handle<checked_trees::facts::ContentBodyConservationFact>,
+    ) -> Result<Vec<terminal_psi::ContentLineageStep>, LoweringError> {
+        use checked_trees::facts::ContentClaimTransformationSource;
+        let content = &self.checked.facts.qualifications.content;
+        let equation = content.body_conservations.get(conservation);
+        let completed = self
+            .checked
+            .facts
+            .flow
+            .control
+            .operands
+            .get(equation.completed_value);
+        let mut retained = Vec::new();
+        for entry in equation.inputs.handles() {
+            let frontier = content
+                .descendant_frontier(
+                    entry,
+                    equation.machine_symbol,
+                    equation.state_symbol,
+                    completed.statement_index,
+                    equation.evaluation,
+                    conservation,
+                )
+                .map_err(LoweringError::Unsupported)?;
+            for (handle, _, _) in frontier.replacements {
+                if !retained.contains(&handle) {
+                    retained.push(handle);
+                }
+            }
+        }
+        let mut ancestry = Vec::new();
+        for handle in retained {
+            let transformation = content.claim_transformations.get(handle);
+            let claims =
+                |bindings: arena::HandleSpan<checked_trees::facts::ContentBodyClaimBinding>| {
+                    let mut claims = content
+                        .body_claim_bindings
+                        .span_or_empty(bindings)
+                        .iter()
+                        .map(|binding| {
+                            crate::terminal_identities::lookup_claim_id(
+                                self.calls.claims.bindings(),
+                                binding.claim_identity,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    claims.sort();
+                    Ok::<_, LoweringError>(claims)
+                };
+            let inputs = claims(transformation.inputs)?;
+            let outputs = claims(transformation.outputs)?;
+            let producer_operation = match transformation.source {
+                ContentClaimTransformationSource::Call { call_ordinal, .. } => {
+                    let mut calls = self.operations.source_calls.iter().filter(|call| {
+                        call.source_state == transformation.state_symbol
+                            && call.statement_index == transformation.statement_index
+                            && call.call_ordinal == call_ordinal
+                    });
+                    let call = calls.next().ok_or(LoweringError::Unsupported(
+                        "content ancestry call was not emitted",
+                    ))?;
+                    if calls.next().is_some() {
+                        return unsupported("content ancestry call has ambiguous emission");
+                    }
+                    let lowered_psi::LoweredSourceCallSite::Operation(operation) =
+                        call.terminal_site
+                    else {
+                        return unsupported(
+                            "content ancestry cannot come from a nonreturning exit",
+                        );
+                    };
+                    operation
+                }
+                ContentClaimTransformationSource::Body { .. } => {
+                    let mut producers = self.operations.iter().filter(|operation| {
+                        matches!(&operation.kind, terminal_psi::OperationKind::TransformContent { derivations, .. }
+                            if derivations.iter().any(|derived| derived.outputs.iter().map(|output| output.claim).collect::<Vec<_>>() == outputs))
+                    });
+                    let producer = producers.next().ok_or(LoweringError::Unsupported(
+                        "content ancestry transformation was not emitted",
+                    ))?;
+                    if producers.next().is_some() {
+                        return unsupported(
+                            "content ancestry transformation has ambiguous emission",
+                        );
+                    }
+                    producer.id
+                }
+                ContentClaimTransformationSource::Unknown => {
+                    return unsupported("content ancestry has no producer");
+                }
+            };
+            ancestry.push(terminal_psi::ContentLineageStep {
+                producer_operation,
+                inputs,
+                outputs,
+            });
+        }
+        Ok(ancestry)
     }
 
     fn content_projection(

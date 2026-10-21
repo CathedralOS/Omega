@@ -7,7 +7,7 @@ use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle, ProgramPoint};
 
-pub(super) fn append_owned_qualification_transfer(
+pub(in crate::flow) fn append_owned_qualification_transfer(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &crate::flow::FlowBuildContext,

@@ -79,12 +79,21 @@ pub struct ContentClaimProjection {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentTransformationDerivation {
     pub conservation: ContentConservation,
-    /// The retained relation authenticates this current input identity only.
-    /// Equal geometry does not establish shared backing with another claim;
-    /// multi-parent reunion needs additional evidence not represented here.
+    /// The existing account from which every consumed claim descends.
     pub lineage_anchor: ClaimId,
+    /// Ordered completed replacements of the anchor's frontier. Each producer
+    /// must independently authenticate these exact input/result occurrences;
+    /// this roster alone is not authority, nor is numeric conservation.
+    pub ancestry: Vec<ContentLineageStep>,
     pub inputs: Vec<ContentClaimProjection>,
     pub outputs: Vec<ContentClaimProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentLineageStep {
+    pub producer_operation: OperationId,
+    pub inputs: Vec<ClaimId>,
+    pub outputs: Vec<ClaimId>,
 }
 
 impl ContentTransformationDerivation {

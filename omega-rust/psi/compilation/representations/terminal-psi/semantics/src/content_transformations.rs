@@ -26,12 +26,13 @@
 //! do not own their referents, and empty arrays have no element debt. A whole
 //! accounted parent does not authorize discarding its active obligated children.
 //!
-//! The current operation authenticates each derivation against its one current
-//! input claim identity. Several independently anchored derivations may commit
-//! together. Reunion of distinct input claims requires shared-backing evidence
-//! not yet represented by this operation; neither entry projection rows nor
-//! numeric conservation establish that relation. This implementation limit does
-//! not narrow the language's general content-conservation contract.
+//! Each derivation starts at one owned root and replaces consumed claims with
+//! the exact descendants of completed producers. Reunion consumes that entire
+//! live frontier. At external ingress, producer operations and callee returns
+//! authenticate each edge; equal geometry cannot substitute for this lineage.
+//! Several independently anchored derivations may commit together, but unrelated
+//! roots never become one account. Independent formal inputs still need an
+//! explicit shared-lineage contract before they can be reunited.
 //!
 //! The interpreter stages checks and result construction before retiring parents.
 //! Native lowering preserves parent consumption as an ownership effect while
@@ -50,6 +51,8 @@ use terminal_psi::{
     StructuralDomainDeclaration, StructuralOperationResult, StructuralPathQualification,
     StructuralPathSegment, StructuralTypeDeclaration, TerminalIdentityTable,
 };
+
+mod ancestry;
 
 /// Resolve a content term's static path in the same carrier namespace used by
 /// runtime ownership. Case spellings are local to their exact parent carrier.
@@ -191,6 +194,7 @@ pub fn validate_shape(
         derivations,
         result,
     )?;
+    ancestry::validate_producers(module, machine, operation, derivations)?;
     let position = machine
         .blocks
         .iter()
@@ -364,12 +368,8 @@ pub fn validate_contract(
             claim_term(&derived.inputs)?,
             claim_term(&derived.outputs)?,
         );
-        if equation != derived.conservation
-            || derived
-                .inputs
-                .iter()
-                .any(|input| input.claim != derived.lineage_anchor)
-        {
+        ancestry::validate_frontier(derived)?;
+        if equation != derived.conservation {
             return Err(
                 "content equation or authenticated lineage differs from its claim projections",
             );

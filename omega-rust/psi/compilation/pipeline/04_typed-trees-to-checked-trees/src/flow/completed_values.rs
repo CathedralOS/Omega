@@ -29,16 +29,16 @@ pub(crate) fn predecessors(
         );
     }
     if !projection.is_empty()
-        && let Some(selected) = super::captured_operand_handle_at_path(
+        && let Some((selected, _, consumed)) = super::operand_values::captured_operand_child_at_path(
             program,
             &facts.flow.control,
-            value,
+            capture,
             capture.type_reference,
             projection,
         )
         && selected != value
     {
-        return Some(vec![(selected, Vec::new())]);
+        return Some(vec![(selected, projection[consumed..].to_vec())]);
     }
     let state = program.state_by_symbol(capture.state_symbol)?;
     let state_flow = facts
@@ -47,6 +47,46 @@ pub(crate) fn predecessors(
         .states
         .iter()
         .find_map(|(_, flow)| (flow.state_symbol == capture.state_symbol).then_some(flow))?;
+    if let Some(member) = program.expression_table.member_node(capture.expression) {
+        let statement = facts
+            .flow
+            .state_statement(state_flow, capture.statement_index)?;
+        let mut observations = facts
+            .flow
+            .control
+            .value_observations
+            .span_or_empty(statement.value_observations)
+            .iter()
+            .filter(|observation| {
+                observation.expression == capture.expression
+                    && observation.constraints == capture.constraints
+            });
+        if let Some(observation) = observations.next() {
+            if observations.next().is_some()
+                || !facts.flow.control.operands.is_valid(observation.receiver)
+            {
+                return None;
+            }
+            let receiver = facts.flow.control.operands.get(observation.receiver);
+            // A member of an owned completed value selects that receiver's
+            // captured subtree, even when no source variable names it. A
+            // reference instead observes live storage and must keep the
+            // write-sensitive reaching-store route below.
+            if validation::reference_shell(program, receiver.type_reference).is_none() {
+                let symbol = validation::effective_member_symbol(program, member.receiver, member);
+                if !symbol.is_valid() || program.any_field_owner(symbol).is_none() {
+                    return None;
+                }
+                let mut path = Vec::new();
+                if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+                    path.push(PlaceSegment::Case { variant });
+                }
+                path.push(PlaceSegment::Field { symbol });
+                path.extend_from_slice(projection);
+                return Some(vec![(observation.receiver, path)]);
+            }
+        }
+    }
     let mut source = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,

@@ -58,6 +58,9 @@ pub(crate) struct WrittenLinearTarget {
     pub(crate) obligation_live: bool,
     pub(crate) claim_identity: Option<PermissionClaimIdentity>,
     pub(crate) provenance: Option<PermissionProvenance>,
+    /// A direct source coordinate is bound when its move occurs, after any
+    /// anonymous producer has completed, not while planning the statement.
+    pub(crate) source_place: Option<validation::CanonicalPlace>,
 }
 
 #[derive(Debug, Clone)]

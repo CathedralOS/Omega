@@ -38,6 +38,7 @@ mod constructed;
 mod context_transport;
 mod declared_domains;
 mod owned_qualifications;
+pub(super) use owned_qualifications::append_owned_qualification_transfer;
 mod projected;
 mod scalar_values;
 mod write_target;

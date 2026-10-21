@@ -12,9 +12,9 @@ use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::independent_application;
+use super::selected_contracts::{bound_term, independent_application};
 use super::value_predicates::boolean_term;
-use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
 use facts::NormalizedWriteFrame;
 use symbols::SymbolHandle;
@@ -1727,6 +1727,37 @@ impl<'program> StructuralJudge<'program> {
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let ProofFact::Membership(guarantee) = fact {
+                    // A result qualification stated in `ensures` carries the
+                    // same admission as one stated on the result type. Retain
+                    // its exact detached occurrence, never a live caller name
+                    // or the result's borrowed referent. Later writes change
+                    // the observed subject and cannot reuse this snapshot.
+                    if let Some(subject) = bound_term(
+                        program,
+                        guarantee.value,
+                        callable,
+                        parameters,
+                        callable,
+                        &bindings,
+                        Some(&captured),
+                        0,
+                    ) {
+                        let mut root = &subject;
+                        while let StructuralTerm::Projection { subject, .. } = root {
+                            root = subject;
+                        }
+                        if root == &captured && guarantee.semantic_domain.is_valid() {
+                            std::sync::Arc::make_mut(&mut self.normal_memberships).push(
+                                MembershipGuarantee {
+                                    subject,
+                                    domain: guarantee.domain_symbol,
+                                    semantic_domain: guarantee.semantic_domain,
+                                },
+                            );
+                        }
+                    }
+                }
                 let ProofFact::Expression(guarantee) = fact else {
                     continue;
                 };

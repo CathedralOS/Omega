@@ -11,7 +11,8 @@ mod values;
 
 pub use content::{
     ClaimContentProjection, ContentClaimProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution, ContentTransformationDerivation,
+    ContentLineageStep, ContentPartitionComposition, ContentPlaceSubstitution,
+    ContentTransformationDerivation,
 };
 pub use contracts::{
     ContractClause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,

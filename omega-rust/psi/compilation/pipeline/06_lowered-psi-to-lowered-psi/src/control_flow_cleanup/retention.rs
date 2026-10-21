@@ -172,6 +172,15 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         }
     }
     for machine in machines {
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            if let terminal_psi::OperationKind::TransformContent { derivations, .. } =
+                &operation.kind
+            {
+                for step in derivations.iter().flat_map(|derived| &derived.ancestry) {
+                    evidence.operations.insert(step.producer_operation);
+                }
+            }
+        }
         if let Some(application) = &machine.closed_reach_application {
             for call in &application.calls {
                 evidence.operations.insert(call.operation);

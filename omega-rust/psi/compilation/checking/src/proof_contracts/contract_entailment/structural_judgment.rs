@@ -45,6 +45,13 @@ pub(super) struct CaseGuarantee {
 }
 
 #[derive(Clone)]
+struct MembershipGuarantee {
+    subject: StructuralTerm,
+    domain: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+}
+
+#[derive(Clone)]
 pub(super) enum StructuralTerm {
     Variable(String),
     /// A frame-authenticated observation of an input referent. Scalar reads
@@ -285,6 +292,7 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    normal_memberships: Arc<Vec<MembershipGuarantee>>,
     invalidated_storage: Arc<Vec<SymbolHandle>>,
     // Typed storage observations retain live values and detached entry snapshots.
     stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
@@ -342,6 +350,7 @@ impl Clone for StructuralJudge<'_> {
             declaration_parameters: Arc::clone(&self.declaration_parameters),
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            normal_memberships: Arc::clone(&self.normal_memberships),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
             stored_values: Arc::clone(&self.stored_values),
             capture_sequence: self.capture_sequence,
@@ -498,6 +507,7 @@ impl<'program> StructuralJudge<'program> {
             declaration_parameters: Arc::new(parameters.to_vec()),
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            normal_memberships: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
             stored_values: Arc::new(Vec::new()),
             capture_sequence: 0,

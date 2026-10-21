@@ -450,11 +450,10 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        let entry = self
-            .program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == state.symbol)
+        // A state-local judgment starts at that state's independently checked
+        // arrival contract. An invocation-wide judgment keeps the machine
+        // entry anchor while traversing later states; never relabel its reads.
+        let entry = self.declaration_state == state.symbol
             && place.root.as_symbol().is_some_and(|root| {
                 self.program
                     .state_parameter_by_symbol(state, root)

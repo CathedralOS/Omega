@@ -30,6 +30,14 @@ impl IdentityMap {
                 for derived in derivations.iter_mut() {
                     derived.map_places(&mut |place| self.place(place));
                     derived.lineage_anchor = self.claim(derived.lineage_anchor);
+                    for step in &mut derived.ancestry {
+                        step.producer_operation = self.operation(step.producer_operation);
+                        for claim in step.inputs.iter_mut().chain(&mut step.outputs) {
+                            *claim = self.claim(*claim);
+                        }
+                        step.inputs.sort();
+                        step.outputs.sort();
+                    }
                     for binding in derived.inputs.iter_mut().chain(&mut derived.outputs) {
                         binding.claim = self.claim(binding.claim);
                     }

@@ -76,6 +76,7 @@ pub(crate) fn written_linear_targets(
                         obligation_live: false,
                         claim_identity: None,
                         provenance: None,
+                        source_place: None,
                     })
                     .collect();
             }
@@ -149,10 +150,26 @@ pub(crate) fn written_owner_targets(
                 return None;
             }
             let relative_path = &tracked.path[target.segments.len()..];
+            let source_place = validation::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                validation::ownership_source_expression(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    value,
+                ),
+            )
+            .map(|mut source| {
+                source.segments.extend_from_slice(relative_path);
+                source
+            });
             Some(WrittenLinearTarget {
                 root: target.root,
                 destination_path: target.segments.clone(),
                 place_index,
+                source_place,
                 obligation_live: tracked.multiplicity != Multiplicity::Affine
                     && expression_establishes_obligation(
                         program,

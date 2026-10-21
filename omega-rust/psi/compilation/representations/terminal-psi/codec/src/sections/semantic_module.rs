@@ -107,7 +107,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Boundary and dynamic scalar results retain their complete qualification set.
 // Closed proof-function applications retain exact invocation/block formal scopes.
 // Whole-value placement demands retain normalized geometry without requiring a view.
-pub(crate) const FORMAT_MARKER: u16 = 182;
+// Content reunion retains completed producer operations and exact claim frontiers.
+pub(crate) const FORMAT_MARKER: u16 = 183;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

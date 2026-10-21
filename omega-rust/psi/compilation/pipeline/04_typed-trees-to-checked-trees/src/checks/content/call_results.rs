@@ -20,17 +20,45 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::signature::StateParameter;
 
-struct Invocation<'program> {
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement: usize,
-    ordinal: usize,
-    expression: ExpressionHandle,
-    call: &'program TableCallExpression,
+pub(super) struct Invocation<'program> {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement: usize,
+    pub ordinal: usize,
+    pub expression: ExpressionHandle,
+    pub call: &'program TableCallExpression,
+    /// The selected ownership walk's completed prefix, or its published ledger.
+    /// A previous permission pass cannot supply evidence for this completion.
+    pub events: InvocationEvents<'program>,
+}
+
+pub(super) enum InvocationEvents<'events> {
+    Published(&'events CheckFacts),
+    Completed(&'events [checked_trees::FlowPermissionEventFact]),
+}
+
+impl InvocationEvents<'_> {
+    fn iter(&self) -> impl Iterator<Item = &checked_trees::FlowPermissionEventFact> {
+        let (published, completed) = match self {
+            Self::Published(facts) => (Some(*facts), None),
+            Self::Completed(events) => (None, Some(*events)),
+        };
+        published
+            .into_iter()
+            .flat_map(|facts| {
+                facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .iter()
+                    .map(|(_, event)| event)
+            })
+            .chain(completed.into_iter().flatten())
+    }
 }
 
 impl Invocation<'_> {
-    fn evaluation(
+    pub(super) fn evaluation(
         &self,
         program: &dyn ::validation::CheckingInput,
     ) -> Option<checked_trees::FlowPermissionEvaluation> {
@@ -130,6 +158,7 @@ pub(super) fn check_call_result_qualifications(
                 ordinal: call_ordinal,
                 expression,
                 call,
+                events: InvocationEvents::Published(facts),
             };
             let selected = program.requirement_call_signature(machine_symbol, call);
             let declared = crate::flow::call_result_qualification_identities(
@@ -942,7 +971,7 @@ fn qualified_leaf_carrier(
     Some(carrier)
 }
 
-fn projection_places<'term>(
+pub(super) fn projection_places<'term>(
     term: &'term ContentConservationTerm,
     projection: &ContentProjectionPlan,
     places: &mut Vec<&'term ContentStructuralPlace>,
@@ -1014,7 +1043,7 @@ fn consumes_qualified_input(
     })
 }
 
-fn input_claim(
+pub(super) fn input_claim(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
@@ -1108,12 +1137,10 @@ fn input_claim(
     // without an intermediate owner to move out of. Join its exact receiving
     // establishment to the captured producer and the call's current transfer.
     // A receiving type or an unrelated historical claim supplies neither join.
-    facts
-        .flow
-        .ownership
-        .permissions
+    invocation
+        .events
         .iter()
-        .any(|(_, event)| {
+        .any(|event| {
             event.machine_symbol == invocation.machine
                 && event.state_symbol == invocation.state
                 && event.kind == PermissionEventKind::Establish
@@ -1133,7 +1160,7 @@ fn input_claim(
         .then_some(transferred)
 }
 
-fn result_claim(
+pub(super) fn result_claim(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
@@ -1153,7 +1180,7 @@ fn result_claim(
         statement_index: invocation.statement,
     };
     let mut identity = None;
-    for (_, event) in facts.flow.ownership.permissions.iter() {
+    for event in invocation.events.iter() {
         if event.machine_symbol != invocation.machine
             || event.state_symbol != invocation.state
             || event.kind != PermissionEventKind::Establish
@@ -1192,7 +1219,7 @@ fn unique_claim(
         target_symbol: invocation.call.target_symbol,
     };
     let mut identity = None;
-    for (_, event) in facts.flow.ownership.permissions.iter() {
+    for event in invocation.events.iter() {
         if event.machine_symbol != invocation.machine
             || event.state_symbol != invocation.state
             || event.kind != kind

@@ -453,6 +453,13 @@ impl StructuralJudge<'_> {
                 return StructuralJudgment::Proven;
             }
         }
+        if self.normal_memberships.iter().any(|guarantee| {
+            guarantee.domain == required.domain_symbol
+                && guarantee.semantic_domain == required.semantic_domain
+                && guarantee.subject == subject
+        }) {
+            return StructuralJudgment::Proven;
+        }
         // Only a state-prefix judge authenticates entry admission and replays
         // subsequent writes. A prefix-free runtime judge has no invalidations,
         // but that absence is not evidence that entry membership survived.

@@ -436,18 +436,6 @@ pub(crate) fn captured_operand_at_path<'capture>(
     Some((operand, reference))
 }
 
-pub(crate) fn captured_operand_handle_at_path(
-    program: &dyn ::validation::CheckingInput,
-    control: &FlowControlFacts,
-    capture: arena::Handle<FlowOperandFact>,
-    reference: TypeReferenceHandle,
-    path: &[PlaceSegment],
-) -> Option<arena::Handle<FlowOperandFact>> {
-    let operand = control.operands.get(capture);
-    let (_, _, selected) = projected_capture(program, control, operand, reference, path)?;
-    Some(if path.is_empty() { capture } else { selected })
-}
-
 fn projected_capture<'capture>(
     program: &dyn ::validation::CheckingInput,
     control: &'capture FlowControlFacts,
@@ -461,35 +449,49 @@ fn projected_capture<'capture>(
 )> {
     let mut selected_handle = arena::Handle::invalid();
     while !path.is_empty() {
-        let mut selected = None;
-        for child in control.operand_children.span(operand.children)? {
-            let destination = control.operand_child_paths.span(child.path)?;
-            if destination.is_empty() {
-                return None;
-            }
-            if destination.len() <= path.len()
-                && destination.iter().zip(path).all(|(left, right)| {
-                    super::canonical_place_segments_equal(program, *left, *right)
-                })
-            {
-                if selected.is_some() || !control.operands.is_valid(child.value) {
-                    return None;
-                }
-                selected = Some((child, destination.len()));
-            }
-        }
-        let (child, length) = selected?;
-        selected_handle = child.value;
-        operand = control.operands.get(child.value);
-        type_reference = operand_child_type(
-            program,
-            type_reference,
-            control.operand_child_paths.span(child.path)?,
-            child.type_reference,
-        )?;
+        let (child, reference, length) =
+            captured_operand_child_at_path(program, control, operand, type_reference, path)?;
+        selected_handle = child;
+        operand = control.operands.get(child);
+        type_reference = reference;
         path = &path[length..];
     }
     type_reference
         .is_valid()
         .then_some((operand, type_reference, selected_handle))
+}
+
+/// Follow one captured assembly edge, retaining the unconsumed projection.
+/// A child may itself be an opaque call result: its remaining fields belong
+/// to that completed value, not to the containing constructor's namespace.
+pub(super) fn captured_operand_child_at_path(
+    program: &dyn ::validation::CheckingInput,
+    control: &FlowControlFacts,
+    operand: &FlowOperandFact,
+    reference: TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Option<(arena::Handle<FlowOperandFact>, TypeReferenceHandle, usize)> {
+    let mut selected = None;
+    for child in control.operand_children.span(operand.children)? {
+        let destination = control.operand_child_paths.span(child.path)?;
+        if destination.is_empty() {
+            return None;
+        }
+        if destination.len() <= path.len()
+            && destination
+                .iter()
+                .zip(path)
+                .all(|(left, right)| super::canonical_place_segments_equal(program, *left, *right))
+        {
+            if selected.is_some() || !control.operands.is_valid(child.value) {
+                return None;
+            }
+            selected = Some((
+                child.value,
+                operand_child_type(program, reference, destination, child.type_reference)?,
+                destination.len(),
+            ));
+        }
+    }
+    selected
 }

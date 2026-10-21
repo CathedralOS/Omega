@@ -15,13 +15,16 @@
 //! content.
 
 mod body_conservation;
+mod call_ancestry;
 mod call_results;
+mod call_transformations;
 mod content_paths;
 mod derived_memberships;
 mod partition_wrappers;
 mod retained_custody;
 
 pub(crate) use body_conservation::observe_body_completion;
+pub(crate) use call_transformations::observe_call_completion;
 pub(crate) use content_paths::projection_observations;
 pub(crate) use derived_memberships::completed_membership;
 
@@ -418,6 +421,7 @@ pub(crate) fn check_retained_content_custody(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    call_ancestry::check_used_calls(program, facts, &mut diagnostics);
     call_results::check_call_result_qualifications(program, facts, &mut diagnostics);
     if facts.qualifications.content.plans.is_empty() {
         facts

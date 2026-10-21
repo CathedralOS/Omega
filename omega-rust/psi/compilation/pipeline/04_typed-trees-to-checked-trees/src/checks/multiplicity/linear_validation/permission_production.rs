@@ -347,6 +347,18 @@ pub(crate) fn apply_statement_permission_production(
                     let segments = facts.flow.ownership.segments.insert_many(claim_path);
                     let place = &mut places[index];
                     let obligation_live = place.live && place.multiplicity == Multiplicity::Linear;
+                    // Bind the destination from the selected live transfer.
+                    // Planning happened before this statement's producers ran;
+                    // an anonymous source therefore had no identity then.
+                    for (target, _) in &mut written_targets {
+                        if target.source_place.as_ref().is_some_and(|source| {
+                            source.root == place.root && source.segments == place.path
+                        }) {
+                            target.claim_identity = place.claim_identity;
+                            target.provenance = place.provenance;
+                            target.obligation_live = obligation_live;
+                        }
+                    }
                     record_conditional_carrier_transfer(
                         place,
                         &event_path,
@@ -515,6 +527,16 @@ pub(crate) fn apply_statement_permission_production(
                     checked_trees::FlowClaimJoinExit::default(),
                     &establishments,
                     false,
+                );
+                crate::checks::content::observe_call_completion(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    expression,
+                    evaluation,
+                    permission_events,
                 );
                 let body_conservations = crate::checks::content::observe_body_completion(
                     program,
@@ -824,6 +846,21 @@ pub(crate) fn apply_statement_permission_production(
     }
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;
+    }
+    // A named destination receives its claim when the store completes, while
+    // anonymous storage receives it at expression completion above. Both join
+    // the same call receipt; neither may invent a claim before its receiver.
+    for call in &calls {
+        crate::checks::content::observe_call_completion(
+            program,
+            facts,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call.authored_expression,
+            evaluation,
+            permission_events,
+        );
     }
     selections.check_events(
         &permission_events[checked_through..],

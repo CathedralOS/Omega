@@ -92,6 +92,16 @@ pub(crate) fn encode_content_transformations(
     for derived in derivations {
         encode_content_conservation(writer, &derived.conservation)?;
         writer.id(derived.lineage_anchor);
+        writer.len("content ancestry", derived.ancestry.len())?;
+        for step in &derived.ancestry {
+            writer.id(step.producer_operation);
+            for claims in [&step.inputs, &step.outputs] {
+                writer.len("content ancestry claims", claims.len())?;
+                for claim in claims {
+                    writer.id(*claim);
+                }
+            }
+        }
         for bindings in [&derived.inputs, &derived.outputs] {
             writer.len("content transformation claim projections", bindings.len())?;
             for binding in bindings {
@@ -126,6 +136,13 @@ pub(crate) fn decode_content_transformations(
         Ok(terminal_psi::ContentTransformationDerivation {
             conservation: decode_content_conservation(reader)?,
             lineage_anchor: reader.id("ClaimId")?,
+            ancestry: super::wire::decode_counted(reader, |reader| {
+                Ok(terminal_psi::ContentLineageStep {
+                    producer_operation: reader.id("OperationId")?,
+                    inputs: super::wire::decode_counted(reader, |reader| reader.id("ClaimId"))?,
+                    outputs: super::wire::decode_counted(reader, |reader| reader.id("ClaimId"))?,
+                })
+            })?,
             inputs: bindings(reader)?,
             outputs: bindings(reader)?,
         })

@@ -359,6 +359,11 @@ pub(super) fn encode_content_transformation(
 ) {
     encode_content_conservation(bytes, &derived.conservation);
     bytes.id(derived.lineage_anchor);
+    bytes.slice(&derived.ancestry, |bytes, step| {
+        bytes.id(step.producer_operation);
+        bytes.slice(&step.inputs, |bytes, claim| bytes.id(*claim));
+        bytes.slice(&step.outputs, |bytes, claim| bytes.id(*claim));
+    });
     for bindings in [&derived.inputs, &derived.outputs] {
         bytes.slice(bindings, |bytes, binding| {
             bytes.id(binding.claim);

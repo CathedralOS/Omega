@@ -367,7 +367,8 @@ The conservation algebra and content-place grammar used by proposition 9.
 | content algebra | `u8` kind (1 IntervalSet, 2 CountedQuantity) + parameter string |
 | content structural place | `u8` version (1 entry, 2 current) + root place id + counted segments; each `u8`: 1 + field-name string, 2 + `u64` fixed index, 3 + case-name string |
 | content transformation claim projection | claim id + projection domain id + `u64` projection report fingerprint + content structural place |
-| content transformation derivation | content conservation (algebra + left term + right term) + lineage-anchor claim id + counted input claim projections + counted output claim projections |
+| content transformation derivation | content conservation (algebra + left term + right term) + lineage-anchor claim id + counted lineage steps + counted input claim projections + counted output claim projections |
+| content lineage step | producer operation id + counted input claim ids + counted output claim ids |
 
 Transformation derivations and their input/output rosters are unordered sets,
 strictly sorted by the representation's lexicographic field order; duplicates
@@ -375,6 +376,12 @@ and alternative ordering reject. Parent arguments retain positional operand
 order. Neither order supplies authority. The reconstructed obligations and
 execution behavior follow the [ownership contract](ownership.md); implementation
 notes live beside [the shared operation semantics](../../../omega-rust/psi/compilation/representations/terminal-psi/semantics/src/content_transformations.rs).
+
+Lineage steps retain causal order; each step's input and output claim rosters
+are strictly increasing sets. Marker 183 adds these completed producer links
+for local common-root reunion. A link must name an actual dominating producer
+with those exact claim transfers; the serialized roster supplies no authority
+by itself.
 
 <!-- content-term-tags -->
 | Tag | Content term | Fields after the tag |
@@ -631,7 +638,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 182 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 183 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.

@@ -84,7 +84,8 @@ pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLoca
 pub use collection::{CheckFacts, DecidedCallRequires, ProvenAssignmentIndex};
 pub use content::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
-    ContentBodyDerivation, ContentBodyTransformation, ContentIdentityReshuffleFact,
+    ContentBodyDerivation, ContentBodyTransformation, ContentClaimTransformation,
+    ContentClaimTransformationSource, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
     ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentProjectionFacts,
     RetainedBorrowCustodyFact,

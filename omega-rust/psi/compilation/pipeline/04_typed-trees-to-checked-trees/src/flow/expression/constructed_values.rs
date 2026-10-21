@@ -63,6 +63,58 @@ impl Execution<'_, '_, '_> {
             ));
         }
         self.publish_constructed_values(parent, values, contexts, constraints);
+        // Ownership predicates belong to the completed child just as scalar
+        // observations do. Publish them before any later sibling evaluates;
+        // waiting for a statement store loses anonymous constructor projections.
+        let Some(source) = self.context.canonical_place_at(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            evaluated.capture.expression,
+        ) else {
+            return;
+        };
+        let source =
+            crate::semantic::places::append_place(self.semantic, source.root, &source.segments);
+        let destination = crate::semantic::places::append_place(
+            self.semantic,
+            facts::PlaceRoot::Expression(parent),
+            destination,
+        );
+        let point = ProgramPoint::Statement {
+            machine_symbol: self.machine.symbol,
+            state_symbol: self.state.symbol,
+            statement_index: self.statement_index,
+        };
+        let mut references = HandleSpan::empty();
+        crate::flow::transfers::append_owned_qualification_transfer(
+            self.program,
+            self.semantic,
+            self.context,
+            *contexts,
+            source,
+            destination,
+            type_reference,
+            point,
+            &mut references,
+        );
+        for reference in references.handles() {
+            // Keep independent fields independently invalidatable.
+            let fact = self.semantic.refs.get(reference).fact;
+            let mut single = HandleSpan::empty();
+            self.semantic.append_ref(&mut single, fact);
+            let context = self.semantic.append_context(point, single);
+            crate::flow::reference_spans::append_flow_reference(
+                &mut self.context.contexts.semantic_context_refs,
+                contexts,
+                FlowSemanticContextRef { context },
+            );
+            crate::flow::append_constraint_ref(
+                &mut self.context.contexts.constraint_refs,
+                constraints,
+                FlowConstraintKind::SemanticContext { context },
+            );
+        }
     }
 
     /// Snapshot only the completed owned value's observations. Match joins

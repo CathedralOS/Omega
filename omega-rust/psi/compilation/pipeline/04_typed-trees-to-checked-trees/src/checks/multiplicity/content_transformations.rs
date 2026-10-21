@@ -10,7 +10,8 @@
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
-    ContentBodyDerivation, ContentBodyTransformation,
+    ContentBodyDerivation, ContentBodyTransformation, ContentClaimTransformation,
+    ContentClaimTransformationSource,
 };
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
@@ -53,6 +54,32 @@ pub(super) fn commit(
     let source = PermissionEventSource::Statement {
         statement_index: completed.statement_index,
     };
+    for derived in &transaction.equations {
+        let content = &mut facts.qualifications.content;
+        let equation = content.body_conservations.get(derived.conservation);
+        let outputs = equation.outputs;
+        let inputs = content
+            .body_available_inputs
+            .span_or_empty(equation.available_inputs)
+            .iter()
+            .map(|available| content.body_claim_bindings.get(available.binding).clone())
+            .collect::<Vec<_>>();
+        let inputs = content.body_claim_bindings.insert_many(inputs);
+        content
+            .claim_transformations
+            .insert(ContentClaimTransformation {
+                machine_symbol: transaction.machine,
+                state_symbol: transaction.state,
+                statement_index: completed.statement_index,
+                expression,
+                evaluation: transaction.evaluation,
+                source: ContentClaimTransformationSource::Body {
+                    conservation: derived.conservation,
+                },
+                inputs,
+                outputs,
+            });
+    }
     // All fallible checks precede this point. Recording the relation and the
     // consumed frontier is one successful completion, with no partial grant.
     let derivations = facts
@@ -139,7 +166,12 @@ fn prepare(
         let available = content
             .body_available_inputs
             .span_or_empty(equation.available_inputs);
-        if available.is_empty() || available.len() != equation.inputs.count() as usize {
+        if available.is_empty()
+            || equation
+                .inputs
+                .handles()
+                .any(|entry| !available.iter().any(|input| input.entry_binding == entry))
+        {
             return Err("derived transaction lacks every available parent");
         }
         let mut anchor = PermissionClaimIdentity::Unknown;
@@ -162,7 +194,8 @@ fn prepare(
                 return Err("two equations spend the same parent qualification");
             }
             inputs.push(binding);
-            let lineage = lineage_anchor(facts, binding)?;
+            let lineage =
+                lineage_anchor(facts, content.body_claim_bindings.get(input.entry_binding))?;
             if anchor != PermissionClaimIdentity::Unknown && anchor != lineage {
                 return Err("derived parents have no checked common backing lineage");
             }
