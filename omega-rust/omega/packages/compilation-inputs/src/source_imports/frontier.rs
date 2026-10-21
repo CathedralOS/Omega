@@ -202,10 +202,10 @@ impl SourceStorage {
 
     fn extend_in_stratum(
         &mut self,
-        parsed: ParsedSources,
+        mut parsed: ParsedSources,
         resolution_stratum: source::SourceResolutionStratum,
     ) -> Result<(), Vec<Diagnostic>> {
-        for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
+        for parsed_source in parsed.sources.span_mut_or_empty(parsed.batch) {
             let (package_root, package_identity, origin) =
                 self.source_metadata(&parsed_source.path, parsed_source.origin);
             let added = self.sources.add_checked_instance(
@@ -220,10 +220,12 @@ impl SourceStorage {
 
             debug_assert_eq!(added.source_id, parsed_source.source_id);
 
+            // Import discovery has finished with this consumed batch. Keep its
+            // per-source associations without copying their owned buffers.
             self.files.append(SourceFile {
                 source_id: parsed_source.source_id,
-                path: parsed_source.path.clone(),
-                root_items: parsed_source.root_items.clone(),
+                path: std::mem::take(&mut parsed_source.path),
+                root_items: std::mem::take(&mut parsed_source.root_items),
             });
         }
 

@@ -6,6 +6,8 @@ implementation change. Its original decision to stop because assembly was a
 small whole-program fraction was incorrect for the requested per-layer work.
 The [subsequent parser experiment](prefix_probe/README.md) removes measured
 work and reduces assembly time; `CHECKED-PACKAGE-REUSE` remains separate.
+The [import/forest assembly audit](import_assembly/README.md) transfers consumed
+source metadata buffers, removing allocations with no claimed timing speedup.
 
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;
