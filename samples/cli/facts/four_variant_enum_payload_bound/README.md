@@ -3,6 +3,7 @@
 Fact: matching a 4-variant tagged enum payload Packet { Alpha(u64), Beta(u64), Gamma(u64), Delta(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
 Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Obligation Class: Tagged case payload layout plans and variant discriminant tags (`wiki/spec/layouts/plans.md`) — 4-variant enum tagged case payload preserving payload interval bounds `40u64 <= payload <= 80u64` to discharge exact subtractions `80u64 - payload` and `payload - 40u64`.
 
 Every positive place and reject twin tests a 4-variant tagged enum (`data Packet [copy]`) with bounded 64-bit unsigned payloads across all variants (`Alpha(v: u64)`, `Beta(v: u64)`, `Gamma(v: u64)`, and `Delta(v: u64)` where `v >= 40u64 && v <= 80u64`).
 Matching or extracting the active variant payload yields an exact result `res: u64` statically guaranteed to lie in `[40, 80]`.
@@ -52,6 +53,37 @@ Because all four variant arms enforce `v >= 40u64 && v <= 80u64`, the exhaustive
 Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u64` and `margin = res - 40u64 = 20u64`) evaluate to `20u64 + 20u64 = 40u64`.
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+
+Measured discrimination: A 1-token perturbation altering the demanded value from `combined == 40u64` to `combined == 41u64` in `main.omg` was executed against `omega run --both`:
+- Native execution: trapped immediately with `native exit -1073741795` (STATUS_ILLEGAL_INSTRUCTION / Trap crash).
+- Terminal Psi interpreter: trapped with `interp crash: Trap (host presentation agrees)`.
+Both engines trapped consistently on the corrupted value, verifying bidirectional discrimination.
+
+## Pinned Corpus Fixtures
+
+All 18 corpus fixtures are pinned under `tests/omega/`:
+
+### Pass Fixtures (`tests/omega/pass/facts/`)
+- `four_variant_enum_payload_bound_through_local_exit`
+- `four_variant_enum_payload_bound_through_field_exit`
+- `four_variant_enum_payload_bound_through_parameter_exit`
+- `four_variant_enum_payload_bound_through_call_result_exit`
+- `four_variant_enum_payload_bound_through_match_join_exit`
+- `four_variant_enum_payload_bound_through_const_name_exit`
+- `four_variant_enum_payload_bound_through_other_state_exit`
+- `four_variant_enum_payload_bound_through_other_machine_exit`
+- `four_variant_enum_payload_bound_through_target_body_exit`
+
+### Fail Fixtures (`tests/omega/fail/facts/`)
+- `four_variant_enum_payload_bound_through_local_rejected`
+- `four_variant_enum_payload_bound_through_field_rejected`
+- `four_variant_enum_payload_bound_through_parameter_rejected`
+- `four_variant_enum_payload_bound_through_call_result_rejected`
+- `four_variant_enum_payload_bound_through_match_join_rejected`
+- `four_variant_enum_payload_bound_through_const_name_rejected`
+- `four_variant_enum_payload_bound_through_other_state_rejected`
+- `four_variant_enum_payload_bound_through_other_machine_rejected`
+- `four_variant_enum_payload_bound_through_target_body_rejected`
 
 ### Invalid controls and reject twins
 
