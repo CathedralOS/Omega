@@ -667,27 +667,6 @@ impl<'field> RangeFacts<'field> {
             .retain(|(result, _)| *result != expression);
     }
 
-    /// Capture when the measured argument finishes, before the next operand
-    /// executes. Subsequent argument/callee writes use ordinary invalidation.
-    pub(in crate::checks::ranges) fn capture_result_measurement(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-        machine: &Machine,
-        state: &State,
-        expression: ExpressionHandle,
-        argument: ExpressionHandle,
-    ) {
-        let Some(call) = program.expression_table.call_node(expression) else {
-            return;
-        };
-        let Some(collection) = validation::normal_return_length_collection(program, call) else {
-            return;
-        };
-        self.capture_result_measurement_for_collection(
-            program, machine, state, expression, collection, argument,
-        );
-    }
-
     pub(in crate::checks::ranges) fn capture_result_measurement_for_collection(
         &mut self,
         program: &dyn ::validation::CheckingInput,

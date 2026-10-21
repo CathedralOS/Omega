@@ -18,13 +18,6 @@ use typed_trees::expression::{
 };
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-/// Only already-inert value trees permit another observation of an argument.
-/// Unknown operator and indexing behavior is deliberately not called pure here;
-/// preparation has no checked effect judgment authorizing such a replay.
-pub fn inert_value_tree(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-    inert_value_tree_with_calls(program, expression, |_| false)
-}
-
 /// Permit a call only when its caller supplies an exact no-write judgment.
 /// Operators and atomic evaluation retain their conservative boundary; this
 /// callback does not authorize unknown executable node families.

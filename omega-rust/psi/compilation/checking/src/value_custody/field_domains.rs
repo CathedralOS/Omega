@@ -103,25 +103,6 @@ pub fn assignment_target_domain_constraints<'program>(
         .collect()
 }
 
-/// Resolve a state place to its exact declared leaf type through the shared
-/// field, reference and collection projection. This query describes declared
-/// storage and supplies no value-membership evidence.
-pub fn direct_state_place_type_reference(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    crate::expression_type_reference_in_state(
-        program,
-        state.symbol,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
-        expression,
-    )
-}
-
 /// Resolve a `self.field` target (`Member(Name(self), field)` or
 /// `Name ["self", field]`) to the field's DECLARED type reference (constraints
 /// intact) via the machine's attached data. Mirrors proof

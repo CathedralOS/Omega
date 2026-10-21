@@ -257,10 +257,6 @@ impl<'program> CheckingContext<'program> {
         self
     }
 
-    /// End checking without attaching scratch to the durable typed program.
-    pub fn into_program(self) -> &'program TypedTrees {
-        self.program
-    }
 }
 
 impl fmt::Debug for CheckingContext<'_> {
@@ -354,17 +350,6 @@ impl<'input> CheckingProjection<'input> {
         })
     }
 
-    /// Transfer private elaboration storage, retaining authoritative selections
-    /// even when an unchanged projection must become independently owned.
-    pub fn into_program(self) -> TypedTrees {
-        self.projected.unwrap_or_else(|| {
-            let mut projected = self.original.typed_program().clone();
-            projected.retain_authored_declaration_selections(
-                self.original.authored_declaration_selections().clone(),
-            );
-            projected
-        })
-    }
 }
 
 impl Deref for CheckingProjection<'_> {

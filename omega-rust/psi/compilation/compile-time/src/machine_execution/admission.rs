@@ -608,29 +608,6 @@ impl BuildTimeAdmissionPlan {
         .map_err(BuildTimeAdmissionRejection::from)
     }
 
-    pub fn evaluate_machine_for_invocation(
-        &self,
-        input: BuildTimeProgram<'_>,
-        machine_name: &str,
-        arguments: Vec<BuildTimeValue>,
-        custody: BuildTimeInvocationCustody,
-    ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
-        let program = input.typed();
-        let machine = program
-            .realized_machine_named(machine_name)
-            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_floor(input, machine, Some(custody), false)?;
-        checked_interpreter::evaluate_build_time_machine(
-            program,
-            BuildMachineEvaluationRequest {
-                machine_bodies: &self.selected_machine_bodies,
-                ..BuildMachineEvaluationRequest::named(machine_name, arguments)
-            },
-        )
-        .map(BuildTimeOperationEvaluation::into_value)
-        .map_err(BuildTimeAdmissionRejection::from)
-    }
-
     /// Admit and evaluate the exact result-bearing machine selected by a
     /// typed invocation. This is the source-boundary seam for positions such
     /// as `via`: the resolved symbol remains authoritative, and deterministic
