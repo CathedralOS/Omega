@@ -11,6 +11,33 @@ use terminal_semantics::descriptor_results::{
 };
 
 type Location = (PlaceId, Vec<StructuralPathSegment>);
+
+/// A restored sum's catalogue contains guarded slots, not simultaneous values.
+/// Only different cases at the same exact destination prefix are exclusive.
+/// This does not prove their overlaid bytes or their pointee roots disjoint;
+/// different homes, sibling sums and overlapping prefixes may still coexist.
+fn destinations_may_coexist(left: &Location, right: &Location) -> bool {
+    if left.0 != right.0 {
+        return true;
+    }
+    for (left_segment, right_segment) in left.1.iter().zip(&right.1) {
+        match (left_segment, right_segment) {
+            (StructuralPathSegment::Case(left), StructuralPathSegment::Case(right))
+                if left != right =>
+            {
+                return false;
+            }
+            (StructuralPathSegment::Case(_), StructuralPathSegment::Case(_))
+            | (StructuralPathSegment::Field(_), StructuralPathSegment::Field(_))
+            | (StructuralPathSegment::FixedIndex(_), StructuralPathSegment::FixedIndex(_))
+                if left_segment == right_segment => {}
+            // Families and views cannot identify one shared discriminator.
+            _ => return true,
+        }
+    }
+    true
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Source {
     IncomingSlot(StructuralArgument),
@@ -811,7 +838,7 @@ pub(super) fn commit(
         .leaves
         .iter()
         .filter(|((place, _), _)| Some(*place) == result)
-        .map(|(key, leaf)| Some((leaf.root.clone(), access_at(key)?)))
+        .map(|(key, leaf)| Some((key.clone(), leaf.root.clone(), access_at(key)?)))
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| invalid())?;
     for (destination, leaf) in &staged.replacements {
@@ -819,14 +846,18 @@ pub(super) fn commit(
             continue;
         };
         let access = access_at(destination).ok_or_else(|| invalid())?;
-        if published.iter().any(|(root, previous)| {
-            roots_overlap(root, &leaf.root)
-                && (access != StructuralAccess::SharedBorrow
-                    || *previous != StructuralAccess::SharedBorrow)
-        }) {
+        if published
+            .iter()
+            .any(|(previous_destination, root, previous)| {
+                destinations_may_coexist(previous_destination, destination)
+                    && roots_overlap(root, &leaf.root)
+                    && (access != StructuralAccess::SharedBorrow
+                        || *previous != StructuralAccess::SharedBorrow)
+            })
+        {
             return Err(invalid());
         }
-        published.push((leaf.root.clone(), access));
+        published.push((destination.clone(), leaf.root.clone(), access));
     }
     for (destination, _) in &staged.replacements {
         if let Some(old) = custody.leaves.remove(destination)
