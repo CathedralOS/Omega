@@ -8,6 +8,10 @@
 //! a runtime window remains a region of the input collection, whereas an index
 //! selects one element. Region provenance never establishes an exact descriptor
 //! extent or equality between independently captured windows.
+//! A placed formation retains that original backing region separately from
+//! its accessor presentation. It is not a codec projection: the source-checked
+//! formation and the returned live association own its placement authority.
+//! Forwarded descriptors still retain their exact existing interpretation.
 
 mod named_returns;
 
@@ -84,6 +88,16 @@ pub(super) fn call_result_paths(
 struct Captures<'capture> {
     program: &'capture dyn crate::CheckingInput,
     facts: &'capture CheckFacts,
+}
+
+/// A formed interpretation can present a different type without renaming its
+/// backing. The origin transports the original storage; the returned carrier
+/// transports the independently checked presentation and its live association.
+struct FrameOrigin {
+    path: Vec<CheckedReferenceOriginProjection>,
+    backing: TypeReferenceHandle,
+    presentation: TypeReferenceHandle,
+    extent: ReferenceOriginExtent,
 }
 
 impl Captures<'_> {
@@ -695,18 +709,18 @@ impl Captures<'_> {
             if !matching.is_empty() {
                 let mut output = Vec::new();
                 for origin in matching {
-                    let (suffix, presented, extent) =
+                    let captured =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
-                    let source_identity = self.program.normalized_type_identity(presented);
+                    let source_identity = self.program.normalized_type_identity(captured.backing);
                     let extent = self.result_origin_extent(
-                        presented,
+                        captured.presentation,
                         state.return_type,
                         &result_path,
                         leaf.source.type_identity,
-                        extent,
+                        captured.extent,
                     )?;
                     let mut complete = path.clone();
-                    complete.extend(suffix);
+                    complete.extend(captured.path);
                     let source = CheckedReferenceOriginSourcePlan {
                         root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                             index: parameter_index,
@@ -830,21 +844,25 @@ impl Captures<'_> {
         mut selected: TypeReferenceHandle,
         incoming: &[facts::PlaceSegment],
         origin: &crate::LocalWriteSource,
-    ) -> Option<(
-        Vec<CheckedReferenceOriginProjection>,
-        TypeReferenceHandle,
-        ReferenceOriginExtent,
-    )> {
+    ) -> Option<FrameOrigin> {
         if origin.recasts.is_empty() {
             if origin.representation.is_some() {
                 return None;
             }
-            return self.origin_path(selected, origin.segments.strip_prefix(incoming)?);
+            let (path, backing, extent) =
+                self.origin_path(selected, origin.segments.strip_prefix(incoming)?)?;
+            return Some(FrameOrigin {
+                path,
+                backing,
+                presentation: backing,
+                extent,
+            });
         }
         let mut path = Vec::new();
         let mut extent = ReferenceOriginExtent::Projected;
+        let mut placed_backing = TypeReferenceHandle::invalid();
         for (ordinal, recast) in origin.recasts.iter().enumerate() {
-            if recast.root != origin.root {
+            if recast.root != origin.root || placed_backing.is_valid() {
                 return None;
             }
             let selectors = if ordinal == 0 {
@@ -891,11 +909,28 @@ impl Captures<'_> {
                         Some((value, *storage, *backing_type))
                     });
             let (formation, storage, backing_type) = formations.next()?;
+            let authored =
+                crate::reference_formation_source(self.program, recast.formation_expression)?;
+            let expected_storage = if authored.interpretation.is_placed() {
+                let view = self.program.closed_data_definition(recast.target_type)?;
+                let mut plans = self
+                    .program
+                    .placed_view_plans
+                    .iter()
+                    .filter(|plan| plan.data_symbol == view.symbol);
+                let (Some(plan), None) = (plans.next(), plans.next()) else {
+                    return None;
+                };
+                authored
+                    .interpretation
+                    .placed_storage(self.program, selected, plan)?
+            } else {
+                crate::reference_view_storage(self.program, selected, recast.target_type)?
+            };
             if formations.next().is_some()
                 || self.program.normalized_type_identity(backing_type)
                     != self.program.normalized_type_identity(selected)
-                || storage
-                    != crate::reference_view_storage(self.program, selected, recast.target_type)?
+                || storage != expected_storage
                 || self.program.normalized_type_identity(
                     crate::reference_shell(self.program, formation.type_reference)?.referee,
                 ) != self.program.normalized_type_identity(recast.target_type)
@@ -905,6 +940,14 @@ impl Captures<'_> {
             // The arena occurrence remains in its original body after a call
             // substitution. Its source identity is not the rebased caller root.
             self.program.state_by_symbol(formation.state)?;
+            if authored.interpretation.is_placed() {
+                // Placed accessors are not an ordinary structural re-view of
+                // the backing declaration. Keep the exact original region;
+                // formation owns the placement and completion retains that
+                // association. A codec path would invent ordinary field access.
+                placed_backing = selected;
+                extent = ReferenceOriginExtent::WithinRegion;
+            }
             if matches!(storage, checked_trees::CheckedReferenceStorage::View { .. }) {
                 path.push(CheckedReferenceOriginProjection::Exact(
                     CheckedUnitStructuralPathSegment::RepresentationView {
@@ -929,12 +972,30 @@ impl Captures<'_> {
         {
             return None;
         }
+        if placed_backing.is_valid() {
+            // Accessor projections are capabilities with their own event
+            // contract, not typed subregions of the original schema.
+            if !selectors.is_empty() {
+                return None;
+            }
+            return Some(FrameOrigin {
+                path,
+                backing: placed_backing,
+                presentation: selected,
+                extent,
+            });
+        }
         let (suffix, endpoint, selection_extent) = self.origin_path(selected, selectors)?;
         if selection_extent == ReferenceOriginExtent::WithinRegion {
             extent = ReferenceOriginExtent::WithinRegion;
         }
         path.extend(suffix);
-        Some((path, endpoint, extent))
+        Some(FrameOrigin {
+            path,
+            backing: endpoint,
+            presentation: endpoint,
+            extent,
+        })
     }
 
     fn call_paths(

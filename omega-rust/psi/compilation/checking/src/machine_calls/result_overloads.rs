@@ -862,7 +862,12 @@ pub fn collect_expected_expression_calls(
                 }
             }
             ExpressionNode::Call(call) => {
-                collect_call_argument_expectations(program, call, &mut expected);
+                collect_call_argument_expectations(
+                    program,
+                    call.target_symbol,
+                    program.expression_table.expression_handles(call.arguments),
+                    &mut expected,
+                );
             }
             _ => {}
         }
@@ -898,43 +903,37 @@ pub fn collect_expected_expression_calls(
                         );
                     }
                     StatementNode::Call(call) => {
-                        let expression_call = TableCallExpression {
-                            authored_machine_application: call.authored_machine_application,
-                            requirement_application: Default::default(),
-                            exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(
-                            ),
-                            receiver: ExpressionHandle::invalid(),
-                            target_symbol: call.target_symbol,
-                            target: call.target.clone(),
-                            static_machine_parameter: call.static_machine_parameter,
-                            static_requirement_dispatch: call.static_requirement_dispatch.clone(),
-                            machine_arguments: call.machine_arguments.clone(),
-                            quotient_operation: None,
-                            private_layout_operation: None,
-                            layout_query: None,
-                            native_code_layout: None,
-                            arguments: call.arguments,
-                            evidence_arguments: call.evidence_arguments.clone(),
-                            operational_acknowledgement: call.operational_acknowledgement,
-                        };
                         collect_call_argument_expectations(
                             program,
-                            &expression_call,
+                            call.target_symbol,
+                            program.statement_table.expression_handles(call.arguments),
                             &mut expected,
                         );
                     }
                     StatementNode::Transition(transition) => {
                         for target in transition.targets() {
-                            if let typed_trees::statement::TransitionTargetNode::Value(value) =
-                                program.statement_table.transition_target(target)
-                                && state.return_type.is_valid()
-                            {
-                                push_expected_call(
+                            match program.statement_table.transition_target(target) {
+                                typed_trees::statement::TransitionTargetNode::Named {
+                                    path,
+                                    arguments,
+                                    ..
+                                } => collect_call_argument_expectations(
                                     program,
-                                    *value,
-                                    state.return_type,
+                                    path.symbol,
+                                    program.statement_table.expression_handles(*arguments),
                                     &mut expected,
-                                );
+                                ),
+                                typed_trees::statement::TransitionTargetNode::Value(value)
+                                    if state.return_type.is_valid() =>
+                                {
+                                    push_expected_call(
+                                        program,
+                                        *value,
+                                        state.return_type,
+                                        &mut expected,
+                                    );
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -957,35 +956,20 @@ pub fn collect_expected_expression_calls(
 
 fn collect_call_argument_expectations(
     program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
     expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
 ) {
-    let parameters = program
-        .machines()
-        .iter()
-        .find_map(|machine| {
-            program
-                .machine_states(machine)
-                .first()
-                .filter(|entry| entry.symbol == call.target_symbol)
-                .map(|entry| program.state_parameters(entry))
-        })
-        .or_else(|| {
-            program
-                .trait_machine_signature(call.target_symbol)
-                .map(|(_, requirement)| program.state_signature_parameters(requirement))
-        });
-    let Some(parameters) = parameters else {
+    // Receiving types belong to the selected declaration, whether execution
+    // reaches it through a value call, a statement, or a state transition.
+    // Entry-only lookup loses a nested call's result context at non-entry
+    // states. Share the ordinary target-parameter query; this neither inserts
+    // receiver arguments nor supplies call/transition admission.
+    let Some(parameters) = crate::call_target_parameters(program, target) else {
         return;
     };
-    let parameters = parameters.iter();
-    let arguments = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .iter()
-        .copied();
-    for (parameter, argument) in parameters.zip(arguments) {
-        push_expected_call(program, argument, parameter.type_reference, expected);
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        push_expected_call(program, *argument, parameter.type_reference, expected);
     }
 }
 
