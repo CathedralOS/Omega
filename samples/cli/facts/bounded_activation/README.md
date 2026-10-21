@@ -89,15 +89,15 @@ measurements. Perturbing a single token in the root oracle (`observed == 37u8` -
   - `tests/omega/fail/facts/bounded_activation_through_other_machine_rejected`
   - `tests/omega/fail/facts/bounded_activation_through_target_body_rejected`
 - Additional mechanism & control fixtures:
-  - `tests/omega/pass/facts/bounded_activation_{main,field_transport,parameter_committed,named_attempt,named_bound,computed_bound,generic_bound,zero_bound,unsigned_max_request,nested_lifo,multiple_bounds,cleanup_pure,page_bound}_exit`
-  - `tests/omega/fail/facts/bounded_activation_{escape,stale_loan,wrong_activation,release_order,cleanup_crossing}_rejected`
+  - `tests/omega/pass/facts/bounded_activation_{main,field_transport,parameter_committed,named_attempt,named_bound,computed_bound,generic_bound,zero_bound,unsigned_max_request,nested_lifo,multiple_bounds,cleanup_pure,cleanup_crossing,page_bound}_exit`
+  - `tests/omega/fail/facts/bounded_activation_{escape,stale_loan,wrong_activation,release_order}_rejected`
 
 | Obligation Class | How This Fact Row Establishes It |
 |---|---|
 | **Establishment** | `Activation::try_claim<8>(3)` checks `committed <= bound` (`3 <= 8`) and establishes a caller-scoped linear `ActivationClaim` whose borrowed `&mut [u8]` slice has runtime length `3`, while `Activation::try_claim<8>(9)` returns `ActivationClaimAttempt::Rejected` without trapping or clamping ([activation storage](../../../../wiki/spec/resources/activation_storage.md)). |
 | **Identity and lifetime** | `ActivationClaim::bytes(&mut live)` ties the mutable slice loan `&mut [u8]` to the linear `ActivationClaim` owner (`live` or `holder.claim`), requiring all slice accesses (`write_read(bytes)`) to complete before `ActivationClaim::release(live)` retires the claim. |
 | **Composition** | Across all nine standard transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), the linear `ActivationClaim` and its `&mut [u8]` view compose through record fields, state hops, cross-machine calls, and target bodies. |
-| **Soundness boundaries** | Each `<place>/invalid/main.omg` attempts `ActivationClaim::release(...)` while `bytes` is still borrowed and used afterward, failing closed in source checking with `local borrow \`bytes\` is still active`; `escape`, `wrong_activation`, `release_order`, and `cleanup_crossing` reject escaping claims, wrong activation release, non-LIFO release, and suspension crossings. |
+| **Soundness boundaries** | Each `<place>/invalid/main.omg` attempts `ActivationClaim::release(...)` while `bytes` is still borrowed and used afterward, failing closed in source checking with `local borrow \`bytes\` is still active`; `escape`, `wrong_activation`, and `release_order` reject escaping claims, wrong activation release, and non-LIFO release. An admitted claim keeps its caller home across a suspending nominal cleanup of a different carrier. An unselected admission still has no storage role and cannot cross. |
 | **Checked-to-Terminal Psi lowering (`Psi 05–07`)** | `Activation::try_claim`, `ActivationClaim::bytes`, and `ActivationClaim::release` lower into canonical `PSITERM\0` bounded-activation operations and execute in the Terminal Psi interpreter (`omega run --both`). |
 | **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** | `ProgramEntry` settles for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`; fixed-bound activation storage and slice descriptor calling plans validate without any external provider. |
 | **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | Backend lowering reserves the static bound in the activation frame, composes worst-case stack usage (WCSU) and page probes (`page_bound`), and zero-initializes committed bytes before exposing `&mut [u8]`. |
@@ -105,17 +105,20 @@ measurements. Perturbing a single token in the root oracle (`observed == 37u8` -
 
 The four original one-obligation negative controls under `tests/omega/fail/facts` reject
 escape and stale loans during source checking, and wrong activation and non-LIFO
-release during Terminal publication, before either engine executes. The additional cleanup control changes only the hook call from a pure leaf
-to a boundary-reaching machine and refuses a possible suspension. A later
-publication refusal is deliberately not described as a source-check refusal.
+release during Terminal publication, before either engine executes. The cleanup
+crossing keeps that same fact and changes only the hook from a pure leaf to a
+boundary-reaching machine. On `26348267c99` that crossing was refused during
+Terminal publication with `activation claim cannot remain live across a possible
+suspension in nominal cleanup`. The admitted caller claim now stays in that
+home across the parked hook. Both engines exit 0 and the two byte writes
+produce `AA`. An unselected admission still cannot cross.
 
 This establishes the bounded serial path through source checking, checked-to-
 Terminal lowering, current optimized semantics, ordinary calling plans, fixed
-frame realization, instruction selection and native image emission. No provider
-supplies the grant. Suspension retention, claim splitting/merging, partial
-mutable-owner windows and further target execution remain open. The serial
-realization rejects possible suspension crossings while a claim is live,
-including transitive calls, unknown targets and nominal cleanup calls.
+frame realization, instruction selection and native image emission, including
+retention of an admitted claim across that suspension. No provider supplies
+the grant. Extent splitting and merging, partial mutable-owner windows, and
+further target execution remain open.
 
 Invocation-local ignored `build/activation-slot4` retains producer identities,
 canonical passages with source revisions, raw observations, qualification and

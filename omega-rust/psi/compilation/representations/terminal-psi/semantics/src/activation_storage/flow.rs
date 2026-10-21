@@ -3,6 +3,12 @@
 //! A normal call can publish a fresh claim id for a home that is already the
 //! newest live claim. That rename is the same grant. Release order is the
 //! stack position of the home, after its admission case is selected.
+//!
+//! An admitted claim stays in its caller home across a parked call or a
+//! nominal cleanup of some other carrier. That home is its storage role:
+//! the place is not moved into the callee, and an unselected admission has
+//! no role to retain. Cleanup of the claim's own carrier still needs an
+//! explicit disposition.
 
 use semantic_vocabulary::{
     ClaimId, MachineId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
@@ -367,9 +373,9 @@ pub fn validate_machine(
             super::activation_claim_shape(module, operation).map(|shape| shape.claim_type)
         })
         .collect::<Result<BTreeSet<_>, _>>()?;
-    // This serial realization does not publish suspension live-claim rows.
-    // A closed leaf can borrow bytes, but a transitive crossing or unknown
-    // provider/dynamic target cannot silently acquire that preservation rule.
+    // Parking retains the caller's admitted homes. The callee, including an
+    // unknown or dynamic target, does not receive those homes. An admission
+    // that is still pending has no selected storage role, so it cannot cross.
     let known: BTreeSet<_> = module.machines.iter().map(|machine| machine.id).collect();
     let mut suspending = BTreeSet::new();
     let may_suspend = |operation: &terminal_psi::Operation, machines: &BTreeSet<_>| {
@@ -508,8 +514,10 @@ pub fn validate_flow(
             .find(|row| row.id == block)
             .ok_or("activation control target is absent")?;
         for operation in &block.operations {
+            // The caller's home stays put. Only an admission that has not
+            // selected its case lacks a storage role at this crossing.
             if (operation.suspension_crossing.is_some() || may_suspend(operation.id))
-                && !state.live.is_empty()
+                && state.live.iter().any(|live| live.pending.is_some())
             {
                 return Err("live activation claims at suspension exceed this serial realization");
             }
@@ -960,7 +968,12 @@ pub fn validate_flow(
                         path: discard.path.clone(),
                     },
                     C::InvokeNominal(cleanup) => {
-                        if !next.live.is_empty() && machine_may_suspend(cleanup.cleanup_machine) {
+                        // A parked hook keeps the caller's other admitted
+                        // homes. Their places are those homes' storage roles.
+                        // An unselected admission still cannot cross.
+                        if machine_may_suspend(cleanup.cleanup_machine)
+                            && next.live.iter().any(|live| live.pending.is_some())
+                        {
                             return Err(
                                 "activation claim cannot remain live across a possible suspension in nominal cleanup",
                             );

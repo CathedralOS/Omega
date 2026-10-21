@@ -6152,12 +6152,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     consumes the foundation ledger; native fixed frames cover complete bounds
     in their probe and unwind plans. Checked over-bound rejection and the
     escape, wrong-activation, stale-loan and non-LIFO controls are retained.
-  - Remaining: live-claim preservation and exact storage roles across
-    suspension, extent splitting/merging, and further target execution.
-    The current serial realization refuses possible suspension with live
-    claims, including transitive/dynamic/boundary and nominal-cleanup calls.
-    Co-live bounds sum (aligned); exclusive branches compose by maximum;
-    open demand still rejects before establishment. Backing does not move.
+  - An admitted claim keeps its caller home across suspension, including a
+    nominal cleanup of a different carrier. `bounded_activation_cleanup_crossing_exit`
+    exits 0 on both engines; the claim's place is that storage role. An
+    unselected admission still cannot cross. Remaining: extent
+    splitting/merging and further target execution. Co-live bounds sum
+    (aligned); exclusive branches compose by maximum; open demand still
+    rejects before establishment. Backing does not move.
   Acceptance: a run fixture where `committed > bound` returns checked failure
   (no trap or clamp) and a within-bound claim executes; escaping claims, wrong
   activation, stale loans and invalid release order reject. **FRAME-LAYOUT** in
