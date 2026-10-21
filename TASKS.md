@@ -4644,11 +4644,15 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     assignment receipts, independent snapshots, and live per-element domains.
     Missing range/bounds, invalidated or partially initialized domains, and
     shared-view writes must continue to reject.
-  - cyclic view forwarding compositions on the Unit-graph route remain
-    unverified. Preserve call-result descriptor retirement and exclusive
-    reborrowing when extending this route. Acyclic named-state subslice forwarding
-    retains caller backing for scalar and record writes (controls:
-    `slices/runtime_mutable_subslice_state_forwarding_exit`,
+  - A mutable element view forwarded through one Unit-graph cycle writes the
+    selected caller element and leaves its neighbor unchanged.
+    `slices/runtime_cyclic_element_view_forwarding_exit` exits 0 on both
+    engines (Windows x86-64). The overlapping-window twin
+    `fail/slices/cyclic_element_view_overlapping_write_rejected` rejects
+    `receives items as mutable more than once`. Call-result descriptor
+    retirement and exclusive reborrowing stay as they are. Acyclic named-state
+    subslice forwarding retains caller backing for scalar and record writes
+    (controls: `slices/runtime_mutable_subslice_state_forwarding_exit`,
     `slices/runtime_dynamic_record_subslice_state_forwarding_exit`), including
     record field writes through the Terminal interpreter's structural backing.
 
