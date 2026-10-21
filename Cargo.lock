@@ -610,7 +610,6 @@ name = "executable-installation"
 version = "0.1.0"
 dependencies = [
  "extents",
- "installation-evidence",
  "layout-plans",
  "optimization-core",
  "post-handoff-writer-plan",

@@ -15,7 +15,6 @@ optimization-core = { path = "../../../../foundation/optimization-core" }
 post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 target = { path = "../../target" }
-installation-evidence = { path = "../installation-evidence" }
 
 [dev-dependencies]
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
