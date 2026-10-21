@@ -2853,11 +2853,16 @@ crash and native exit behavior.
     with x86-64 and AArch64 selected forms and the host evaluator, so the
     pending canary clears its missing `Float::equal` boundary target and
     stops at the pre-existing program-entry acceptance wall that also
-    blocks every entry-bound fixture on this host. Without the import, the
-    unchanged `tests/omega/pending/arithmetic/float_computation_no_route`
-    stops in checking at "statement sequence: local data: mutable primitive
-    local: storage initializer". Preserve declared operator selection; no
-    spelling-based fallback.
+    blocks every entry-bound fixture on this host. That pending fixture
+    depends on std, so the wall is an unaccepted `WindowsX86_64Application`
+    binding and is not this operator defect. The std-free witness
+    `samples/cli/facts/float_comparison_route` keeps
+    `let mut equal: bool = left == right` for `f64` 212.0 and 2.0, imports
+    no `float_operations`, and binds `ProgramEntry` with no `Build::depend`.
+    On Windows at `30fbbc91026`, `omega run --both` reports native exit 0
+    and interpreter exit 0. The comparison already follows the declared
+    operator route. Preserve that selection; no spelling-based fallback.
+    The pending matrix still does not execute.
   - **Receiver-bearing requirements.** Complete a member-call witness through
     borrowed-field argument planning, provider signature refinement and native
     execution, keeping exact receiver/argument correspondence (no blanket
