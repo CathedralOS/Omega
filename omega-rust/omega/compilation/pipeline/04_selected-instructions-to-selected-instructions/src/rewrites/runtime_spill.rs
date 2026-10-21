@@ -445,16 +445,8 @@ pub(crate) fn control(
 pub(crate) fn next_instruction_id(function: &SelectedFunction) -> Option<u32> {
     function
         .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id.0)
-                .chain([control(&block.terminator).0.id.0])
-        })
-        .max()
-        .unwrap_or(0)
+        .maximum_instruction_id()
+        .map_or(0, |instruction| instruction.0)
         .checked_add(1)
 }
 

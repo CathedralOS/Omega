@@ -1228,7 +1228,7 @@ mod backing_tests {
             boundary_settlements: vec![],
             entry_block: selected_instructions::SelectedBlockId(0),
             virtual_registers: vec![],
-            blocks: vec![],
+            blocks: vec![].into(),
         };
         let forwarded = Forwarded {
             place: PlaceId::new(2).unwrap(),

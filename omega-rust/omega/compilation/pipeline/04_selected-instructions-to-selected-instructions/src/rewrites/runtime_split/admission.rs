@@ -63,6 +63,9 @@ pub(super) fn admit(
         return Err(RuntimeSplitError::UnsupportedValue);
     }
     let copy_row = copy_row(environment, victim)?;
+    if !function.blocks.has_fixed_definition(register) {
+        return Err(RuntimeSplitError::UnsupportedValue);
+    }
     // The definition is the one instruction writing the victim. The origin's
     // instruction ordinal is a selection-time position and can name a helper
     // selection emitted between registering the result and emitting its

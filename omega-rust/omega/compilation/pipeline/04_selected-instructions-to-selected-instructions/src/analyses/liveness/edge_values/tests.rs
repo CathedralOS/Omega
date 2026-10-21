@@ -82,7 +82,8 @@ fn function() -> SelectedFunction {
                     psi_return_edge: returned,
                 },
             },
-        ],
+        ]
+        .into(),
     }
 }
 

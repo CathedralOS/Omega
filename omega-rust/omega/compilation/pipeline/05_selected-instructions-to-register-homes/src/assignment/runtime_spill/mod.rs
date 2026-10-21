@@ -316,7 +316,7 @@ pub(crate) struct RuntimeSpillStep {
 /// realizes no storage, so it is chosen whenever an overlapping candidate
 /// admits it; rematerialization is chosen whenever its admission accepts the
 /// victim's pure immediate definition; private storage is the fallback.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum RuntimeSpillStepRewrite {
     FixedOccurrences(ValidatedFixedOccurrences),
     Split(ValidatedRuntimeSplit),

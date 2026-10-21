@@ -9,6 +9,7 @@ pub use identity::{liveness_function_digest, liveness_identity_from_digests};
 use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
+use arena::{Arena, HandleSpan};
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
 use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
@@ -47,7 +48,9 @@ pub struct LivenessPlan {
 pub struct FunctionLiveness {
     pub machine: MachineId,
     pub entry_definitions: Vec<EntryDefinition>,
-    pub operand_positions: Vec<OperandPosition>,
+    /// Instruction-owned operand spans retain the producer's grouping. Consumers
+    /// must not reconstruct it by searching every operand for each instruction.
+    pub operand_positions: Arena<OperandPosition>,
     pub blocks: Vec<BlockLiveness>,
 }
 
@@ -69,6 +72,22 @@ pub struct OperandPosition {
     pub fixed_view: Option<RegisterViewId>,
     pub tied_to: Option<u16>,
     pub early_clobber: bool,
+}
+
+impl Default for OperandPosition {
+    fn default() -> Self {
+        Self {
+            position: LivenessPosition(0),
+            instruction: SelectedInstructionId(0),
+            operand: 0,
+            virtual_register: VirtualRegisterId(0),
+            access: RegisterOperandAccess::Use,
+            class: RegisterClassId(0),
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        }
+    }
 }
 
 impl LivenessPlan {
@@ -108,6 +127,7 @@ impl FunctionLiveness {
 pub struct InstructionLiveness {
     pub position: LivenessPosition,
     pub instruction: SelectedInstructionId,
+    pub operands: HandleSpan<OperandPosition>,
     pub virtual_uses: Vec<VirtualRegisterId>,
     pub virtual_defs: Vec<VirtualRegisterId>,
     pub virtual_live_in: Vec<VirtualRegisterId>,

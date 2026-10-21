@@ -98,7 +98,7 @@ pub(super) fn selected_function() -> selected_instructions::SelectedFunction {
         boundary_settlements: Vec::new(),
         entry_block: selected_instructions::SelectedBlockId(0),
         virtual_registers: Vec::new(),
-        blocks: Vec::new(),
+        blocks: (Vec::new()).into(),
     }
 }
 

@@ -74,7 +74,7 @@ pub(super) fn decode_function(
         provenance: target_operations::TerminalPsiProvenance { operations, edges },
         entry_block,
         virtual_registers,
-        blocks,
+        blocks: blocks.into(),
         structural: None,
         outgoing_arguments: Vec::new(),
         local_storage_slots: Vec::new(),

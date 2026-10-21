@@ -151,7 +151,11 @@ fn is_admitted_canonical_shape(function: &selected_instructions::SelectedFunctio
 }
 
 fn is_single_entry(function: &selected_instructions::SelectedFunction) -> bool {
-    let [block] = function.blocks.as_slice() else {
+    let Some(block) = function
+        .blocks
+        .first()
+        .filter(|_| function.blocks.len() == 1)
+    else {
         return false;
     };
     function.entry_block == block.id

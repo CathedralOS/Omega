@@ -166,7 +166,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
                 entry_fixed_view: None,
             },
         ],
-        blocks: vec![SelectedBlock {
+        blocks: (vec![SelectedBlock {
             id: SelectedBlockId(0),
             origin: SelectedBlockOrigin::Source(function.entry),
             instructions: vec![
@@ -194,7 +194,8 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
                 instruction: instruction(2, SelectedInstructionKind::ReturnUnit, vec![]),
                 psi_return_edge: EdgeId::new(1).unwrap(),
             },
-        }],
+        }])
+        .into(),
     };
     (function, selected)
 }

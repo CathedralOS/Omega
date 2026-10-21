@@ -254,3 +254,20 @@ fn relief_counts_membership_alongside_covered_siblings() {
     assert_eq!(domain.relief(0, VirtualRegisterId(1)), 1);
     assert_eq!(domain.relief(0, VirtualRegisterId(2)), 1);
 }
+
+#[test]
+fn pressure_batch_defers_shared_and_interfering_regions_but_keeps_disjoint_ones() {
+    let ranges = split_ranges(&[(0, 1), (7, 8)], &[(8, 9)], &[(1, 7), (9, 12)]);
+    let domain = FailedDomain::in_function(2, &ranges, VirtualRegisterId(0));
+    let mut pending = vec![
+        pressure(2, 1),
+        pressure(2, 8),
+        pressure(2, 12),
+        pressure(2, 20),
+    ];
+    domain.retain_unrelieved(VirtualRegisterId(9), &mut pending);
+    assert_eq!(pending, vec![pressure(2, 20)]);
+    // Repeated candidates in an entirely disjoint region retain their order.
+    domain.retain_unrelieved(VirtualRegisterId(7), &mut pending);
+    assert_eq!(pending, vec![pressure(2, 20)]);
+}

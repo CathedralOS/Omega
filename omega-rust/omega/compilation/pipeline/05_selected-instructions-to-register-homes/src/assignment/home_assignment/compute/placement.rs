@@ -18,6 +18,7 @@ pub(crate) fn compute_function(
     legality: &FunctionAllocationLegality,
     ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
+    mut pressure: Option<&mut Vec<RegisterHomeError>>,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
         return Err(RegisterHomeError::FunctionMismatch { function });
@@ -59,11 +60,27 @@ pub(crate) fn compute_function(
             &homes,
             &affinities,
             &conflicts,
-        )
-        .ok_or(RegisterHomeError::NoCompatibleHome {
-            function,
-            register: domains[domain_index].leader().0,
-        })?;
+        );
+        let Some(view) = view else {
+            let failure = RegisterHomeError::NoCompatibleHome {
+                function,
+                register: domains[domain_index].leader().0,
+            };
+            let Some(pressure) = pressure.as_deref_mut() else {
+                return Err(failure);
+            };
+            pressure.push(failure);
+            // This domain receives no proposed home. Its neighbors retain all
+            // their candidates; continuing discovers other pressure regions.
+            for &remaining in conflicts.get_constrained_neighbors(domain_index) {
+                if active[remaining] {
+                    unassigned.remove(&selection_key(remaining, &viable, &degrees, &domains));
+                    degrees[remaining] -= 1;
+                    unassigned.insert(selection_key(remaining, &viable, &degrees, &domains));
+                }
+            }
+            continue;
+        };
         for member in &domains[domain_index].members {
             homes.insert(member.virtual_register, view);
         }
@@ -85,6 +102,9 @@ pub(crate) fn compute_function(
             candidates.truncate(retained);
             unassigned.insert(selection_key(remaining, &viable, &degrees, &domains));
         }
+    }
+    if let Some(first) = pressure.and_then(|pressure| pressure.first()).cloned() {
+        return Err(first);
     }
     Ok(FunctionRegisterHomes {
         machine: legality.machine,

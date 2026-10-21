@@ -132,7 +132,7 @@ fn shared_function() -> SelectedFunction {
                 entry_fixed_view: Some(from),
             },
         ],
-        blocks: vec![
+        blocks: (vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
                 origin: selected_instructions::SelectedBlockOrigin::Source(
@@ -183,7 +183,8 @@ fn shared_function() -> SelectedFunction {
                     psi_return_edge: EdgeId::new(4).unwrap(),
                 },
             },
-        ],
+        ])
+        .into(),
     }
 }
 
@@ -333,7 +334,7 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: Vec::new(),
-        blocks: vec![SelectedBlock {
+        blocks: (vec![SelectedBlock {
             id: SelectedBlockId(0),
             origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
             instructions: vec![instruction],
@@ -350,7 +351,8 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
                 },
                 psi_return_edge: EdgeId::new(1).unwrap(),
             },
-        }],
+        }])
+        .into(),
     }
 }
 

@@ -82,7 +82,7 @@ fn function(blocks: Vec<SelectedBlock>) -> SelectedFunction {
         boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: Vec::new(),
-        blocks,
+        blocks: blocks.into(),
     }
 }
 

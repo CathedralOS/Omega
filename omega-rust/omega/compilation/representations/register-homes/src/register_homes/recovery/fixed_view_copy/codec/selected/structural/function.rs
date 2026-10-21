@@ -526,7 +526,7 @@ mod local_slot_tests {
             boundary_settlements: Vec::new(),
             entry_block: SelectedBlockId(0),
             virtual_registers: Vec::new(),
-            blocks: Vec::new(),
+            blocks: (Vec::new()).into(),
         };
         let length = semantic_vocabulary::ValueId::new(7).unwrap();
         let obligation = semantic_vocabulary::ObligationId::new(8).unwrap();

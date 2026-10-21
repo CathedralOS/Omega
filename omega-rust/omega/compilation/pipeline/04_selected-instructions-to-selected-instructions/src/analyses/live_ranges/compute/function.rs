@@ -34,7 +34,7 @@ pub(super) fn compute_function(
         .collect::<BTreeSet<_>>();
     let mut fragment_rows = register_fragments(function_index, liveness, &registers)?;
     let mut operand_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
-    for row in &liveness.operand_positions {
+    for row in liveness.operand_positions.storage_slice() {
         operand_rows
             .entry(row.virtual_register)
             .or_default()
@@ -123,7 +123,7 @@ fn reject_unsupported(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<(), LiveRangeError> {
-    for operand in &liveness.operand_positions {
+    for operand in liveness.operand_positions.storage_slice() {
         if operand.access == RegisterOperandAccess::UseDef {
             return Err(LiveRangeError::UnsupportedUseDef {
                 function,

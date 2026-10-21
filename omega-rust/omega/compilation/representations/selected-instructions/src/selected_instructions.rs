@@ -28,8 +28,10 @@ pub use ieee_float_arithmetic::{
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
     float_bit_transfer_properties, ieee_float_arithmetic_is_trapping, is_float_bit_transfer,
 };
+mod blocks;
 pub mod constraints;
 pub mod control_flow;
+pub use blocks::SelectedBlocks;
 mod functions;
 pub use functions::SelectedFunctions;
 pub mod effects;

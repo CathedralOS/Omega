@@ -43,7 +43,7 @@ fn function(machine: u64) -> SelectedFunction {
         boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: Vec::new(),
-        blocks: vec![SelectedBlock {
+        blocks: (vec![SelectedBlock {
             id: SelectedBlockId(0),
             origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
             instructions: vec![instruction(0, SelectedInstructionKind::CopyI64)],
@@ -51,7 +51,8 @@ fn function(machine: u64) -> SelectedFunction {
                 instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
                 psi_return_edge: EdgeId::new(1).unwrap(),
             },
-        }],
+        }])
+        .into(),
     }
 }
 

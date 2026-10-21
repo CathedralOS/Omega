@@ -9,39 +9,46 @@ pub(crate) fn derive_early_clobbers(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<EarlyClobberConstraint>, LiveRangeError> {
-    let early_definitions = liveness
-        .operand_positions
-        .iter()
-        .filter(|operand| operand.early_clobber)
-        .collect::<Vec<_>>();
-    let tied_edges = liveness
-        .operand_positions
-        .iter()
-        .filter(|operand| operand.tied_to.is_some())
-        .filter_map(|tied_definition| {
-            liveness
-                .operand_positions
+    let instruction_operands = || {
+        liveness.blocks.iter().flat_map(|block| {
+            block.instructions.iter().map(move |instruction| {
+                (
+                    block,
+                    liveness
+                        .operand_positions
+                        .span_or_empty(instruction.operands),
+                )
+            })
+        })
+    };
+    let early_definitions = instruction_operands()
+        .flat_map(|(block, operands)| {
+            operands
                 .iter()
-                .find(|operand| {
-                    operand.instruction == tied_definition.instruction
-                        && Some(operand.operand) == tied_definition.tied_to
+                .filter(|operand| operand.early_clobber)
+                .map(move |definition| (block, operands, definition))
+        })
+        .collect::<Vec<_>>();
+    let tied_edges = instruction_operands()
+        .flat_map(|(_, operands)| {
+            operands
+                .iter()
+                .filter(|operand| operand.tied_to.is_some())
+                .filter_map(move |definition| {
+                    operands
+                        .iter()
+                        .find(|operand| Some(operand.operand) == definition.tied_to)
+                        .map(|source| (source.virtual_register, definition.virtual_register))
                 })
-                .map(|tied_use| (tied_use.virtual_register, tied_definition.virtual_register))
         })
         .collect::<Vec<_>>();
     let mut rows = Vec::with_capacity(early_definitions.len());
-    for definition in &early_definitions {
-        let operands = liveness
-            .operand_positions
-            .iter()
-            .filter(|operand| operand.instruction == definition.instruction)
-            .collect::<Vec<_>>();
+    for (block, operands, definition) in &early_definitions {
         let tied_source = match definition.tied_to {
             None => None,
             Some(source_operand) => Some(
                 operands
                     .iter()
-                    .copied()
                     .find(|operand| operand.operand == source_operand)
                     .ok_or(LiveRangeError::UnsupportedEarlyClobber {
                         function,
@@ -66,7 +73,6 @@ pub(crate) fn derive_early_clobbers(
         });
         let unrelated = operands
             .iter()
-            .copied()
             .filter(|operand| {
                 operand.operand != definition.operand
                     && tied_source.is_none_or(|source| source.operand != operand.operand)
@@ -80,7 +86,7 @@ pub(crate) fn derive_early_clobbers(
                 && component.contains(&definition.virtual_register)
                 && early_definitions
                     .iter()
-                    .filter(|candidate| {
+                    .filter(|(_, _, candidate)| {
                         candidate.tied_to.is_some()
                             && component.contains(&candidate.virtual_register)
                     })
@@ -129,13 +135,6 @@ pub(crate) fn derive_early_clobbers(
                 operand: definition.operand,
             });
         }
-        let block = defining_block(liveness, definition).ok_or(
-            LiveRangeError::UnsupportedEarlyClobber {
-                function,
-                instruction: definition.instruction.0,
-                operand: definition.operand,
-            },
-        )?;
         let uses = unrelated
             .into_iter()
             // Other definitions interfere at the ordinary after point, even
@@ -185,66 +184,53 @@ pub(crate) fn derive_tied_pairs(
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<DistinctUseDefTie>, LiveRangeError> {
     let mut pairs = Vec::new();
-    for definition in liveness
-        .operand_positions
-        .iter()
-        .filter(|operand| operand.tied_to.is_some())
-    {
-        let Some(use_operand) = liveness.operand_positions.iter().find(|candidate| {
-            candidate.instruction == definition.instruction
-                && Some(candidate.operand) == definition.tied_to
-        }) else {
-            return Err(LiveRangeError::UnsupportedTiedOperand {
-                function,
-                instruction: definition.instruction.0,
-                operand: definition.operand,
-            });
-        };
-        if definition.access != RegisterOperandAccess::Def
-            || use_operand.access != RegisterOperandAccess::Use
-            || definition.operand <= use_operand.operand
-            || definition.virtual_register == use_operand.virtual_register
-            || definition.class != use_operand.class
-            || use_operand.tied_to.is_some()
-        {
-            return Err(LiveRangeError::UnsupportedTiedOperand {
-                function,
-                instruction: definition.instruction.0,
-                operand: definition.operand,
-            });
+    for block in &liveness.blocks {
+        for instruction in &block.instructions {
+            let operands = liveness
+                .operand_positions
+                .span_or_empty(instruction.operands);
+            for definition in operands.iter().filter(|operand| operand.tied_to.is_some()) {
+                let Some(use_operand) = operands
+                    .iter()
+                    .find(|candidate| Some(candidate.operand) == definition.tied_to)
+                else {
+                    return Err(LiveRangeError::UnsupportedTiedOperand {
+                        function,
+                        instruction: definition.instruction.0,
+                        operand: definition.operand,
+                    });
+                };
+                if definition.access != RegisterOperandAccess::Def
+                    || use_operand.access != RegisterOperandAccess::Use
+                    || definition.operand <= use_operand.operand
+                    || definition.virtual_register == use_operand.virtual_register
+                    || definition.class != use_operand.class
+                    || use_operand.tied_to.is_some()
+                {
+                    return Err(LiveRangeError::UnsupportedTiedOperand {
+                        function,
+                        instruction: definition.instruction.0,
+                        operand: definition.operand,
+                    });
+                }
+                pairs.push(DistinctUseDefTie {
+                    block: block.block,
+                    position: definition.position,
+                    instruction: definition.instruction,
+                    use_operand: use_operand.operand,
+                    use_virtual_register: use_operand.virtual_register,
+                    use_point: before_point(function, definition.position)?,
+                    def_operand: definition.operand,
+                    def_virtual_register: definition.virtual_register,
+                    def_point: after_point(function, definition.position)?,
+                    class: definition.class,
+                });
+            }
         }
-        let block =
-            defining_block(liveness, definition).ok_or(LiveRangeError::UnsupportedTiedOperand {
-                function,
-                instruction: definition.instruction.0,
-                operand: definition.operand,
-            })?;
-        pairs.push(DistinctUseDefTie {
-            block: block.block,
-            position: definition.position,
-            instruction: definition.instruction,
-            use_operand: use_operand.operand,
-            use_virtual_register: use_operand.virtual_register,
-            use_point: before_point(function, definition.position)?,
-            def_operand: definition.operand,
-            def_virtual_register: definition.virtual_register,
-            def_point: after_point(function, definition.position)?,
-            class: definition.class,
-        });
     }
     pairs.sort_unstable();
     Ok(pairs)
 }
 
-/// The liveness block carrying `definition`'s instruction.
-fn defining_block<'liveness>(
-    liveness: &'liveness selected_instructions::FunctionLiveness,
-    definition: &selected_instructions::OperandPosition,
-) -> Option<&'liveness selected_instructions::BlockLiveness> {
-    liveness.blocks.iter().find(|block| {
-        block
-            .instructions
-            .iter()
-            .any(|instruction| instruction.instruction == definition.instruction)
-    })
-}
+#[cfg(test)]
+mod tests;

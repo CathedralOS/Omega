@@ -397,7 +397,7 @@ mod tests {
             boundary_settlements: vec![],
             entry_block: SelectedBlockId(0),
             virtual_registers: vec![],
-            blocks: vec![],
+            blocks: (vec![]).into(),
         };
         // The frontier's canonical schedule is reverse producer identity, not vector order.
         for number in [2, 1] {

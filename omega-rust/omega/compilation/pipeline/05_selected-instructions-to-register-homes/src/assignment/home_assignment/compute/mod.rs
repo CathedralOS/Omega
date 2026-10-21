@@ -38,6 +38,8 @@ pub(crate) use placement::compute_function;
 pub(crate) struct FunctionHomeReuse {
     register_environment: Option<TargetRegisterEnvironmentIdentity>,
     functions: Vec<Option<ReusableFunctionHomes>>,
+    /// Failed placement proposals from one function, never admitted homes.
+    pressure: Vec<RegisterHomeError>,
 }
 
 struct ReusableFunctionHomes {
@@ -47,6 +49,10 @@ struct ReusableFunctionHomes {
 }
 
 impl FunctionHomeReuse {
+    pub(crate) fn take_pressure(&mut self) -> Vec<RegisterHomeError> {
+        std::mem::take(&mut self.pressure)
+    }
+
     pub(crate) fn compute(
         &mut self,
         register_environment: TargetRegisterEnvironmentIdentity,
@@ -66,7 +72,7 @@ impl FunctionHomeReuse {
             let homes = prior.homes.clone();
             return Ok(homes);
         }
-        let homes = compute_function(index, legality, ranges, physical)?;
+        let homes = compute_function(index, legality, ranges, physical, Some(&mut self.pressure))?;
         if self.functions.len() <= index {
             self.functions.resize_with(index + 1, || None);
         }
@@ -104,6 +110,9 @@ pub(crate) fn compute_terminal_register_homes(
     {
         return Err(RegisterHomeError::RootMismatch);
     }
+    if let Some(reuse) = reuse.as_deref_mut() {
+        reuse.pressure.clear();
+    }
     let functions = legality
         .plan()
         .functions
@@ -118,7 +127,7 @@ pub(crate) fn compute_terminal_register_homes(
                 Some(reuse) => {
                     reuse.compute(register_environment, index, legality, ranges, physical)
                 }
-                None => compute_function(index, legality, ranges, physical),
+                None => compute_function(index, legality, ranges, physical, None),
             }
         })
         .collect::<Result<Vec<_>, _>>()?;

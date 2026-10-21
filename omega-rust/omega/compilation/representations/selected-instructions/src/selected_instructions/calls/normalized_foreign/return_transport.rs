@@ -605,7 +605,7 @@ mod tests {
             memory_accesses: Vec::new(),
             boundary_settlements: Vec::new(),
             entry_block: SelectedBlockId(0),
-            blocks: Vec::new(),
+            blocks: (Vec::new()).into(),
             virtual_registers: vec![VirtualRegister {
                 id: register,
                 scalar_type: ScalarType::Integer(

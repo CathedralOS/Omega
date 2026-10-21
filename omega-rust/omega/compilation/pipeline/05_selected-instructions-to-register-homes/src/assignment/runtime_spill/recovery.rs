@@ -18,8 +18,9 @@
 //! needs — the named register itself is typically the one with the fixed
 //! use and cannot give that home up.
 //!
-//! Each step's rewrite and analyses are checked by their own owners as they
-//! are produced; the completed recovery is not replayed afterwards
+//! Each rewrite is admitted by its owner. Disjoint pressure regions share one
+//! analysis batch bound to its exact source; final home assignment must succeed.
+//! The completed recovery is not replayed afterwards
 //! (verification placement in `omega-rust/pipeline.md`).
 
 use super::{
@@ -168,18 +169,23 @@ pub(super) fn candidates(
         .flat_map(|body| {
             body.virtual_registers
                 .iter()
-                .filter(|register| {
-                    matches!(
-                        register.origin,
-                        VirtualRegisterOrigin::InstructionResult { .. }
-                            | VirtualRegisterOrigin::BlockParameter { .. }
-                            | VirtualRegisterOrigin::StructuralObservation { .. }
-                            | VirtualRegisterOrigin::AbiTransport { .. }
-                    ) || body.is_entry_register(register)
-                })
+                .filter(|register| is_recovery_candidate(body, register))
                 .map(move |register| (function, register.id))
         })
         .collect()
+}
+
+fn is_recovery_candidate(
+    body: &selected_instructions::SelectedFunction,
+    register: &selected_instructions::VirtualRegister,
+) -> bool {
+    matches!(
+        register.origin,
+        VirtualRegisterOrigin::InstructionResult { .. }
+            | VirtualRegisterOrigin::BlockParameter { .. }
+            | VirtualRegisterOrigin::StructuralObservation { .. }
+            | VirtualRegisterOrigin::AbiTransport { .. }
+    ) || body.is_entry_register(register)
 }
 
 /// Retire every candidate a spill or rematerialization step minted. Their
@@ -195,6 +201,43 @@ pub(super) fn retire_minted(
     before: &SelectedInstructionPlan,
     after: &SelectedInstructionPlan,
 ) {
+    // These rewrites append fresh declarations. Verify that exact prefix and
+    // entry-role stability before reading only the new suffix. Unusual inputs
+    // retain the general set difference below; no ID-density assumption enters.
+    if let (Some(prior), Some(current)) = (
+        before.functions.get(function),
+        after.functions.get(function),
+    ) {
+        let result_place = |body: &selected_instructions::SelectedFunction| {
+            body.structural
+                .as_ref()
+                .and_then(|signature| signature.result.as_ref())
+                .map(|result| result.place)
+        };
+        let count = prior.virtual_registers.len();
+        if result_place(prior) == result_place(current)
+            && current.virtual_registers.get(..count) == Some(prior.virtual_registers.as_slice())
+        {
+            let maximum = prior
+                .virtual_registers
+                .iter()
+                .map(|register| register.id)
+                .max();
+            let appended = &current.virtual_registers[count..];
+            if appended
+                .iter()
+                .all(|register| maximum.is_none_or(|maximum| register.id > maximum))
+            {
+                retired.extend(
+                    appended
+                        .iter()
+                        .filter(|register| is_recovery_candidate(current, register))
+                        .map(|register| (function, register.id)),
+                );
+                return;
+            }
+        }
+    }
     let existing: std::collections::BTreeSet<_> =
         candidates(before, function).into_iter().collect();
     retired.extend(
@@ -314,6 +357,38 @@ impl<'ranges> FailedDomain<'ranges> {
                 *component
             })
             .map_or(0, |position| self.pressure[position].1)
+    }
+
+    /// Keep only other pressure regions after choosing a victim. Home-sharing
+    /// peers are one region even when their fragments live in different blocks.
+    fn retain_unrelieved(
+        &self,
+        victim: VirtualRegisterId,
+        pending: &mut Vec<crate::RegisterHomeError>,
+    ) {
+        let component = self.components.leader(victim);
+        let mut relieved = vec![component];
+        for pair in &self.ranges.interference {
+            let lower = self.components.leader(pair.lower);
+            let higher = self.components.leader(pair.higher);
+            if lower == component {
+                relieved.push(higher);
+            }
+            if higher == component {
+                relieved.push(lower);
+            }
+        }
+        relieved.sort_unstable();
+        relieved.dedup();
+        pending.retain(|failure| match failure {
+            crate::RegisterHomeError::NoCompatibleHome { function, register } => {
+                *function == self.function
+                    && relieved
+                        .binary_search(&self.components.leader(VirtualRegisterId(*register)))
+                        .is_err()
+            }
+            _ => false,
+        });
     }
 
     pub(super) fn function(&self) -> usize {
@@ -569,16 +644,20 @@ fn recover_over(
         ) => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
     };
-    let mut current = Some(rewrite);
+    let mut current = rewrite;
+    // Analysis facts remain bound to this exact batch source. Every intermediate
+    // rewrite is independently admitted, but only the completed batch is analyzed.
+    let mut analysis_source = current.clone();
+    let mut pending_pressure = home_reuse.take_pressure();
+    pending_pressure.reverse();
+    pending_pressure.pop();
     let mut tried: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
         std::collections::BTreeSet::new();
     let mut current_ranges = facts.ranges;
     let mut current_liveness = facts.liveness;
     let mut current_legality = facts.legality;
     loop {
-        let selected = current
-            .as_ref()
-            .map_or_else(|| source.base(), RuntimeSpillStepRewrite::selected);
+        let selected = current.selected();
         // Committed rewrites mint registers the original plan never had: a
         // split's fresh register inherits every later reference, fixed views
         // included, so it can hold the surviving pin the failed domain
@@ -640,9 +719,18 @@ fn recover_over(
         };
         let used_before_use = before_use.is_some();
         let mut failed_crossing = None;
+        let rewritten_candidate;
         let rewrite = if let Some(split) = before_use {
+            rewritten_candidate =
+                if let crate::RegisterHomeError::NoCommonCandidate { function, register } = failure
+                {
+                    (function, VirtualRegisterId(register))
+                } else {
+                    unreachable!("before-use split belongs to an intrinsic failure")
+                };
             RuntimeSpillStepRewrite::Split(split)
         } else if let Some((candidate, split)) = split {
+            rewritten_candidate = candidate;
             tried.insert(candidate);
             RuntimeSpillStepRewrite::Split(split)
         } else {
@@ -660,9 +748,65 @@ fn recover_over(
                         .map_or((0, 0), |domain| domain.spill_priority(*function, *register))
                 },
             ) else {
+                // A hint can become unrewritable after earlier batch edits.
+                // Flush the actual current program before concluding recovery
+                // failed; those admitted edits may already have solved it.
+                if selected.selected_identity() != analysis_source.selected().selected_identity() {
+                    let facts = analyze(
+                        environment,
+                        source.allocator_availability(),
+                        &analysis_source.selected(),
+                        &current_liveness,
+                        &current_ranges,
+                        &current_legality,
+                        &selected,
+                    )?;
+                    match assign_reusing(
+                        environment,
+                        &facts.ranges,
+                        &facts.legality,
+                        Some(&mut home_reuse),
+                    ) {
+                        Ok(homes) => {
+                            let manifest = project_recovery_manifest(
+                                &base,
+                                &recorded,
+                                &facts.ranges,
+                                &facts.legality,
+                                &homes,
+                            )?;
+                            return Ok(RuntimeSpillAllocation {
+                                source,
+                                last: RuntimeSpillStep { rewrite: current },
+                                facts,
+                                homes,
+                                manifest,
+                            });
+                        }
+                        Err(
+                            error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
+                            | crate::RegisterHomeError::NoCommonCandidate { .. }
+                            | crate::RegisterHomeError::UnresolvedEntryTransitions {
+                                ..
+                            }),
+                        ) => {
+                            failure = error;
+                            current_ranges = facts.ranges;
+                            current_liveness = facts.liveness;
+                            current_legality = facts.legality;
+                            analysis_source = current.clone();
+                            pending_pressure = home_reuse.take_pressure();
+                            pending_pressure.reverse();
+                            pending_pressure.pop();
+                            continue;
+                        }
+                        Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
+                    }
+                }
                 break;
             };
             let (function, register) = roster.remove(position);
+            rewritten_candidate = (function, register);
             tried.insert((function, register));
             // The cost decision: regenerating one pure immediate materialization
             // per use is strictly cheaper than private storage plus reload pairs,
@@ -688,18 +832,20 @@ fn recover_over(
                     // shape, so a committed step never strands an unhomeable
                     // interval. Each candidate's fresh analyses and final
                     // home assignment establish whether it can commit.
-                    if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
-                        &selected,
-                        function,
-                        register,
-                        environment,
-                        budget,
-                        RuntimeSpillSpanPolicy::UnitWriteCrossing,
-                    ) {
+                    if pending_pressure.is_empty()
+                        && let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
+                            &selected,
+                            function,
+                            register,
+                            environment,
+                            budget,
+                            RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                        )
+                    {
                         let probe = analyze(
                             environment,
                             source.allocator_availability(),
-                            &selected,
+                            &analysis_source.selected(),
                             &current_liveness,
                             &current_ranges,
                             &current_legality,
@@ -763,6 +909,29 @@ fn recover_over(
             };
             rewrite
         };
+        // A rewrite can relieve every overlapping failed domain; defer those
+        // until fresh placement. Retain only other pressure regions for this
+        // batch. Their old facts choose candidates, never authorize a rewrite
+        // or a final allocation: each rewrite owner checks the current program.
+        if let Some(domain) = &domain {
+            domain.retain_unrelieved(rewritten_candidate.1, &mut pending_pressure);
+        } else {
+            pending_pressure.clear();
+        }
+        if let Some(next_failure) = pending_pressure.pop() {
+            if used_before_use || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
+                retire_minted(
+                    &mut tried,
+                    pressured,
+                    selected.plan(),
+                    rewrite.selected().plan(),
+                );
+            }
+            recorded.push(rewrite.transformation());
+            current = rewrite;
+            failure = next_failure;
+            continue;
+        }
         let reused_pressure = match &rewrite {
             RuntimeSpillStepRewrite::Spill(bounded) => {
                 failed_crossing.and_then(|probe| probe.reuse_for(bounded))
@@ -775,7 +944,7 @@ fn recover_over(
             let facts = analyze(
                 environment,
                 source.allocator_availability(),
-                &selected,
+                &analysis_source.selected(),
                 &current_liveness,
                 &current_ranges,
                 &current_legality,
@@ -825,7 +994,11 @@ fn recover_over(
                 current_ranges = facts.ranges;
                 current_legality = facts.legality;
                 current_liveness = facts.liveness;
-                current = Some(rewrite);
+                current = rewrite;
+                analysis_source = current.clone();
+                pending_pressure = home_reuse.take_pressure();
+                pending_pressure.reverse();
+                pending_pressure.pop();
             }
             Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         }

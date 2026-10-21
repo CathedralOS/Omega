@@ -10,6 +10,7 @@ mod codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 pub use terminal_psi::{RegisterOperation, SystemRegister};
 pub mod selected_instructions;
+pub use selected_instructions::SelectedBlocks;
 pub use selected_instructions::{
     AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,
     ArchitecturalUnitLiveRange, BlockLiveness, BlockMachineEffects, BlockPointDomain,

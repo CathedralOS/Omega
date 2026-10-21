@@ -45,6 +45,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
 
 use super::{BitsConversion, RuntimeSpillError, StorageDefinition, StoragePosition};
+mod reaching;
 
 /// Admitted use positions for the victim, one entry per block in order. The
 /// sharing check needs positions, not just block membership: a proposed reload
@@ -208,8 +209,18 @@ pub(super) fn assign(
         .map(|_| std::collections::BTreeSet::new())
         .collect();
     for (block_index, block) in function.blocks.iter().enumerate() {
-        for index in 0..block.instructions.len() {
-            if loads_before(uses, shared_reload, span_closes, block_index, index) {
+        // Use positions already name every possible reload. Unrelated
+        // instructions cannot add an access to this victim's stream.
+        let positions = &uses[block_index];
+        for &index in positions
+            .unpinned
+            .iter()
+            .chain(&positions.pinned)
+            .chain(&positions.dedicated)
+        {
+            if index < block.instructions.len()
+                && loads_before(uses, shared_reload, span_closes, block_index, index)
+            {
                 emitted[block_index].insert(index);
             }
         }
@@ -282,35 +293,17 @@ pub(super) fn assign(
     // at a load position is the set of stores that could have written the
     // bytes that load must see — every member of it has to land in the same
     // slot, so the set merges into one window.
-    let mut entries: Vec<std::collections::BTreeSet<usize>> =
-        vec![std::collections::BTreeSet::new(); block_count];
-    loop {
-        let mut changed = false;
-        for (block_index, block) in function.blocks.iter().enumerate() {
-            let mut state = entries[block_index].clone();
-            for &definition in &boundary[block_index] {
-                state.clear();
-                state.insert(definition);
-            }
-            for index in 0..block.instructions.len() {
-                if let Some(definitions_here) = anchored[block_index].get(&index) {
-                    for &definition in definitions_here {
-                        state.clear();
-                        state.insert(definition);
-                    }
-                }
-            }
-            for &destination in &successors[block_index] {
-                if !state.is_subset(&entries[destination]) {
-                    entries[destination].extend(state.iter().copied());
-                    changed = true;
-                }
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
+    let last_definitions: Vec<_> = (0..block_count)
+        .map(|block| {
+            anchored[block]
+                .values()
+                .rev()
+                .find_map(|rows| rows.last().copied())
+                .or_else(|| boundary[block].last().copied())
+        })
+        .collect();
+    let entries =
+        reaching::DefinitionEntries::compute(definitions.len(), &last_definitions, &successors);
     // Every position that reads the victim merges the definitions that can
     // reach it into one window — the load can name only one slot. Each block
     // is replayed once and the reaching set merged where a use samples it;
@@ -325,11 +318,8 @@ pub(super) fn assign(
         let right = find(parent, right);
         parent[left] = right;
     }
-    fn merge(
-        parent: &mut Vec<usize>,
-        reaching: &std::collections::BTreeSet<usize>,
-    ) -> Option<usize> {
-        let mut members = reaching.iter().copied();
+    fn merge(parent: &mut Vec<usize>, state: &[u64]) -> Option<usize> {
+        let mut members = reaching::members(state);
         let first = members.next()?;
         for other in members {
             union(parent, first, other);
@@ -340,6 +330,7 @@ pub(super) fn assign(
     let mut window_of_position: std::collections::BTreeMap<(usize, usize), Option<usize>> =
         std::collections::BTreeMap::new();
     let mut window_of_end: Vec<Option<usize>> = vec![None; block_count];
+    let mut state = entries.scratch();
     for (block_index, block) in function.blocks.iter().enumerate() {
         let positions = &uses[block_index];
         let sampled = positions
@@ -349,19 +340,25 @@ pub(super) fn assign(
             .chain(&positions.dedicated)
             .copied()
             .collect::<std::collections::BTreeSet<usize>>();
-        let mut state = entries[block_index].clone();
+        entries.copy_into(block_index, &mut state);
         for &definition in &boundary[block_index] {
-            state.clear();
-            state.insert(definition);
+            reaching::replace(&mut state, definition);
         }
-        for index in 0..block.instructions.len() {
+        let mut event_positions: Vec<_> = sampled
+            .iter()
+            .chain(anchored[block_index].keys())
+            .copied()
+            .filter(|index| *index < block.instructions.len())
+            .collect();
+        event_positions.sort_unstable();
+        event_positions.dedup();
+        for index in event_positions {
             if sampled.contains(&index) {
                 window_of_position.insert((block_index, index), merge(&mut parent, &state));
             }
             if let Some(definitions_here) = anchored[block_index].get(&index) {
                 for &definition in definitions_here {
-                    state.clear();
-                    state.insert(definition);
+                    reaching::replace(&mut state, definition);
                 }
             }
         }
@@ -741,7 +738,18 @@ fn shareable(
             // A boundary definition's store opens the block: it is the first
             // writer event, ahead of every instruction-positioned access.
             events.extend(window_stores(&boundary[block_index], window_definitions));
-            for index in 0..block.instructions.len() {
+            // Merge the sparse access rosters. At a shared position the
+            // original order remains reload, existing access, then new stores.
+            let mut positions: Vec<_> = load_marks[block_index]
+                .iter()
+                .chain(candidate.accesses[block_index].keys())
+                .chain(anchored[block_index].keys())
+                .copied()
+                .filter(|index| *index < block.instructions.len())
+                .collect();
+            positions.sort_unstable();
+            positions.dedup();
+            for index in positions {
                 if load_marks[block_index].contains(&index) {
                     events.push(Event::NewLoad);
                 }
@@ -765,27 +773,38 @@ fn shareable(
         })
         .collect();
     // Fixpoint on last-writer sets, then verify every load at its position.
+    // Stores overwrite the entire last-writer state. Seed their fixed exits;
+    // only store-free successors need reprocessing when an incoming bit changes.
+    let exits: Vec<_> = events
+        .iter()
+        .map(|events| {
+            events.iter().rev().find_map(|event| match event {
+                Event::ExistingStore => Some(EXISTING),
+                Event::NewStore => Some(NEW),
+                _ => None,
+            })
+        })
+        .collect();
     let mut entries = vec![0u8; function.blocks.len()];
-    loop {
-        let mut changed = false;
-        for block_index in 0..function.blocks.len() {
-            let exit = events[block_index]
-                .iter()
-                .fold(entries[block_index], |state, event| match event {
-                    Event::ExistingStore => EXISTING,
-                    Event::NewStore => NEW,
-                    Event::ExistingLoad | Event::NewLoad => state,
-                });
-            for &destination in &successors[block_index] {
-                let merged = entries[destination] | exit;
-                if merged != entries[destination] {
-                    entries[destination] = merged;
-                    changed = true;
-                }
+    let mut pending: std::collections::VecDeque<_> = exits
+        .iter()
+        .enumerate()
+        .filter_map(|(block, value)| value.map(|_| block))
+        .collect();
+    let mut queued: Vec<_> = exits.iter().map(Option::is_some).collect();
+    while let Some(block) = pending.pop_front() {
+        queued[block] = false;
+        let exit = exits[block].unwrap_or(entries[block]);
+        for &destination in &successors[block] {
+            let merged = entries[destination] | exit;
+            if merged == entries[destination] {
+                continue;
             }
-        }
-        if !changed {
-            break;
+            entries[destination] = merged;
+            if exits[destination].is_none() && !queued[destination] {
+                queued[destination] = true;
+                pending.push_back(destination);
+            }
         }
     }
     events.iter_mut().enumerate().all(|(block_index, events)| {

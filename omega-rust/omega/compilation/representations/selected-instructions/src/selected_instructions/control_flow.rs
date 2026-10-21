@@ -21,7 +21,7 @@ pub struct SelectedFunction {
     pub boundary_settlements: Vec<super::SelectedBoundarySettlement>,
     pub entry_block: SelectedBlockId,
     pub virtual_registers: Vec<VirtualRegister>,
-    pub blocks: Vec<SelectedBlock>,
+    pub blocks: super::SelectedBlocks,
 }
 
 impl SelectedFunction {
@@ -67,7 +67,8 @@ impl SelectedFunction {
 
     /// The block keyed `block`, mutably, when the function declares it.
     pub fn block_mut(&mut self, block: SelectedBlockId) -> Option<&mut SelectedBlock> {
-        self.blocks.iter_mut().find(|row| row.id == block)
+        let index = self.block_index(block)?;
+        self.blocks.get_mut(index)
     }
 
     /// Physical entry liveness, after independent source/ABI replay. A hidden

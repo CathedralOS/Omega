@@ -82,7 +82,7 @@ fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctio
             boundary_settlements: Vec::new(),
             entry_block: block,
             virtual_registers: Vec::new(),
-            blocks: vec![SelectedBlock {
+            blocks: (vec![SelectedBlock {
                 id: block,
                 origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
                 instructions: selected,
@@ -90,7 +90,8 @@ fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctio
                     instruction: terminal,
                     psi_return_edge: EdgeId::new(1).unwrap(),
                 },
-            }],
+            }])
+            .into(),
         },
         ResolvedSelectedFunctionLayout {
             machine,

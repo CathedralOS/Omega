@@ -426,8 +426,8 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
         crate::register_homes::recovery::fixed_view_copy::codec::tests::function_with_operand(
             register_model::RegisterOperandAccess::Use,
         )
-        .blocks
-        .remove(0);
+        .blocks[0]
+        .clone();
     block.origin = SelectedBlockOrigin::EdgeTransfer {
         edge: EdgeId::new(71).unwrap(),
         target: BlockId::new(91).unwrap(),

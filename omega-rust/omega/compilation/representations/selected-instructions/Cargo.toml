@@ -9,6 +9,7 @@ name = "selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../../../psi/foundation/arena" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 optimization-unit = { path = "../abstract-operations/optimization-unit" }

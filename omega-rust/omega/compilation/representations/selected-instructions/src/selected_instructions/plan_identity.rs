@@ -3,14 +3,14 @@
 //! Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity`
 //! is derived; the pipeline only wraps it in the selection receipt.
 //!
-//! The identity is two-level: `Sha256` over the plan's roots and the ordered
-//! digests of its functions, each digest `Sha256` over one function's full
-//! encoding. Every field of every function still reaches the identity. The
+//! The identity is hierarchical: `Sha256` over the plan's roots and the ordered
+//! digests of its functions, each function digest retaining its metadata and the ordered block digests.
+//! Each block digest covers its full canonical encoding. Every field of every function still reaches the identity. The
 //! split exists for cost: a rewrite validator mints the identity of each plan
 //! it admits, and register-pressure recovery admits one plan per attempted
 //! step, each differing from its source in one function. The function
 //! storage memoizes each digest beside its content, so minting the identity
-//! of such a plan hashes the edited function and the digest roster only.
+//! of such a plan hashes changed metadata, edited blocks and digest rosters.
 
 use optimization_unit::{FuelSettlement, PsiProvenance};
 use register_model::RegisterOperandAccess;
@@ -40,7 +40,7 @@ use primitives::encode_constraint_key;
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v52\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v53\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -59,7 +59,7 @@ pub fn selected_instruction_plan_identity(
 /// over the function's complete canonical encoding.
 pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v2\0");
     crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(
         &mut bytes,
@@ -90,38 +90,46 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
         register::encode(&mut bytes, register);
     }
     crate::codec_bytes::encode_len(&mut bytes, function.blocks.len());
-    for block in &function.blocks {
-        crate::codec_bytes::push_encoded(&mut bytes, block.id.0.to_le_bytes());
-        match block.origin {
-            crate::SelectedBlockOrigin::Source(source) => {
-                bytes.push(0);
-                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
-            }
-            crate::SelectedBlockOrigin::Operation { source, operation } => {
-                bytes.push(3);
-                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
-            }
-            crate::SelectedBlockOrigin::CaseDispatch {
-                source,
-                case_ordinal,
-            } => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, case_ordinal.to_le_bytes());
-            }
-            crate::SelectedBlockOrigin::EdgeTransfer { edge, target } => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, target.get().to_le_bytes());
-            }
-        }
-        crate::codec_bytes::encode_len(&mut bytes, block.instructions.len());
-        for instruction in &block.instructions {
-            encode_instruction(&mut bytes, instruction);
-        }
-        ordinary::encode_terminator(&mut bytes, &block.terminator);
+    for digest in function.blocks.identity_digests() {
+        bytes.extend_from_slice(&digest);
     }
+    crate::digest_encoder::content_identity(&bytes).into()
+}
+
+/// Canonical block content only; the storage's memo is never an input.
+pub(crate) fn selected_block_digest(block: &crate::SelectedBlock) -> [u8; 32] {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-block.v1\0");
+    crate::codec_bytes::push_encoded(&mut bytes, block.id.0.to_le_bytes());
+    match block.origin {
+        crate::SelectedBlockOrigin::Source(source) => {
+            bytes.push(0);
+            crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
+        }
+        crate::SelectedBlockOrigin::Operation { source, operation } => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+        }
+        crate::SelectedBlockOrigin::CaseDispatch {
+            source,
+            case_ordinal,
+        } => {
+            bytes.push(2);
+            crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, case_ordinal.to_le_bytes());
+        }
+        crate::SelectedBlockOrigin::EdgeTransfer { edge, target } => {
+            bytes.push(1);
+            crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, target.get().to_le_bytes());
+        }
+    }
+    crate::codec_bytes::encode_len(&mut bytes, block.instructions.len());
+    for instruction in &block.instructions {
+        encode_instruction(&mut bytes, instruction);
+    }
+    ordinary::encode_terminator(&mut bytes, &block.terminator);
     crate::digest_encoder::content_identity(&bytes).into()
 }
 

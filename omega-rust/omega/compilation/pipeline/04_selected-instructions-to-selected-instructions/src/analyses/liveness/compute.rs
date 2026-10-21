@@ -177,16 +177,15 @@ pub(crate) fn compute_function(
             fixed_view: register.entry_fixed_view,
         })
         .collect();
-    let operand_positions = function
+    let mut operand_positions = arena::Arena::new();
+    let operand_spans = function
         .blocks
         .iter()
         .flat_map(block_instructions)
-        .flat_map(|instruction| {
+        .map(|instruction| {
             let instruction_position = positions[&instruction.id];
-            instruction
-                .operands
-                .iter()
-                .map(move |operand| OperandPosition {
+            operand_positions.insert_many(instruction.operands.iter().map(|operand| {
+                OperandPosition {
                     position: instruction_position,
                     instruction: instruction.id,
                     operand: operand.operand,
@@ -196,15 +195,23 @@ pub(crate) fn compute_function(
                     fixed_view: operand.fixed_view,
                     tied_to: operand.tied_to,
                     early_clobber: operand.early_clobber,
-                })
+                }
+            }))
         })
-        .collect();
+        .collect::<Vec<_>>();
     let blocks = function
         .blocks
         .iter()
         .enumerate()
         .map(|(block_index, block)| {
-            materialize_block(function_index, block, &positions, &flow, block_index)
+            materialize_block(
+                function_index,
+                block,
+                &positions,
+                &operand_spans,
+                &flow,
+                block_index,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(FunctionLiveness {
@@ -432,6 +439,7 @@ fn materialize_block(
     function_index: usize,
     block: &SelectedBlock,
     positions: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
+    operand_spans: &[arena::HandleSpan<OperandPosition>],
     flow: &flow::FunctionFlow,
     block_index: usize,
 ) -> Result<BlockLiveness, LivenessError> {
@@ -451,6 +459,7 @@ fn materialize_block(
         instructions.push(InstructionLiveness {
             position: positions[&instruction.id],
             instruction: instruction.id,
+            operands: operand_spans[positions[&instruction.id].0 as usize],
             virtual_uses: sorted(&uses),
             virtual_defs: sorted(&defs),
             virtual_live_in: sorted(&virtual_live),

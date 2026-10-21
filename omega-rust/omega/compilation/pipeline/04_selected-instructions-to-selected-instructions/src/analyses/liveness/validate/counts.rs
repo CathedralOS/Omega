@@ -27,11 +27,13 @@ impl FunctionCounts {
                 .sum(),
             tied_pair_count: function
                 .operand_positions
+                .storage_slice()
                 .iter()
                 .filter(|operand| operand.tied_to.is_some())
                 .count(),
             early_clobber_count: function
                 .operand_positions
+                .storage_slice()
                 .iter()
                 .filter(|operand| operand.early_clobber)
                 .count(),

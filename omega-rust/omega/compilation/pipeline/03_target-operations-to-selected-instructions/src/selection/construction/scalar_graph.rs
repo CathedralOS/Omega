@@ -621,7 +621,7 @@ fn select_function(
         boundary_settlements: builder.transport.settlements,
         entry_block: SelectedBlockId(0),
         virtual_registers: builder.registers,
-        blocks,
+        blocks: blocks.into(),
     };
     crate::selection::edge_transfers::prepare(
         function,
