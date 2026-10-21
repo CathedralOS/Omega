@@ -222,28 +222,60 @@ impl Execution<'_, '_, '_> {
         // Storage dependency comes from the actual receiver capture even when
         // its address join is unresolved. The selected value profile below is
         // independent: neither parent contents nor later stores replace it.
-        let storage_retention = if backing.is_valid() {
+        let backing_fact = if backing.is_valid() {
             if !self.context.control.operands.is_valid(backing) {
                 return Handle::invalid();
             }
-            self.context.control.operands.get(backing).retention
+            Some(*self.context.control.operands.get(backing))
         } else {
-            capture.retention
+            None
         };
-        let Some(roots) = self
+        let storage_retention = backing_fact
+            .map(|fact| fact.retention)
+            .unwrap_or(capture.retention);
+        let reference_free = validation::borrow_contracts::borrow_carrying_owner_paths(
+            self.program,
+            capture.type_reference,
+        )
+        .is_some_and(|paths| paths.is_empty());
+        // A projected view keeps its denoted storage on the lifetime walk.
+        // `retained_roots` stops at that projection, but a reference-free
+        // field of the referent still occupies the same caller storage.
+        // When the projection has no resolvable leaf, the view's captured
+        // referents are that storage.
+        let roots = if let Some(roots) = self
             .context
             .control
             .retained_roots(storage_retention)
             .map(<[_]>::to_vec)
-        else {
+        {
+            roots
+        } else if reference_free
+            && let Some(fact) = backing_fact
+            && self.is_view_type(fact.type_reference)
+        {
+            let mut roots = super::super::operand_values::captured_lifetime_roots(
+                self.program,
+                &self.context.control,
+                &fact,
+            )
+            .filter(|roots| !roots.is_empty())
+            .unwrap_or_default();
+            if roots.is_empty() {
+                for place in self.captured_referent_places(fact.referents) {
+                    if place.root.is_valid() && !roots.contains(&place.root) {
+                        roots.push(place.root);
+                    }
+                }
+            }
+            if roots.is_empty() {
+                return Handle::invalid();
+            }
+            roots
+        } else {
             return Handle::invalid();
         };
-        if validation::borrow_contracts::borrow_carrying_owner_paths(
-            self.program,
-            capture.type_reference,
-        )
-        .is_some_and(|paths| paths.is_empty())
-        {
+        if reference_free {
             // The parent supplies storage roots, never the contents of the
             // selected slot. A scalar place carries no reference leaves.
             return self.append_retention(&roots);

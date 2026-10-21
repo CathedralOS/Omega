@@ -4309,9 +4309,17 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `execution/terminal_unit/calls/computation_arguments/`; stage 02
   `validation/structural_call_arguments.rs`; image-emission `argument_custody`.
 
-  Remaining: current matching-host qualification of projected receiver custody
-  on Linux x86-64 and Windows x86-64. The bounded Linux AArch64 qualification
-  is in the [platform record](wiki/drafts/reference/rust_compiler_completion.md#linux_arm64--2026-10-08--structural-references-only-row-open).
+  Remaining: Linux x86-64 matching-host qualification of projected receiver
+  custody. Windows x86-64, opt-level 1, `omega run --both` with stdin closed,
+  records native exit 0 and interpreter exit 0 for
+  `borrows/runtime_indexed_stored_reference_call`,
+  `borrows/runtime_indexed_scalar_descriptor_call`, and
+  `borrows/runtime_indexed_reference_call_regions`. A reference-free field of
+  a projected stored reference keeps that view's captured referent roots, and
+  a fixed-array runtime index observes every in-range descriptor. Missing
+  bounds and writable access through a shared carrier still reject. The
+  bounded Linux AArch64 qualification is in the
+  [platform record](wiki/drafts/reference/rust_compiler_completion.md#linux_arm64--2026-10-08--structural-references-only-row-open).
   Retain the original owner's claims, live
   descriptor and ordered pointer crossings, never a guessed owner or referent copy.
   Reuse `Field`, `FixedIndex` and `RuntimeIndex { index, obligation }`; coordinate

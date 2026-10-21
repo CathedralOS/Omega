@@ -4,7 +4,9 @@
 //! into slot addresses would reload replacements and invent containment.
 
 use super::*;
-use terminal_semantics::descriptor_lifetimes::{descriptor_location, descriptor_path};
+use terminal_semantics::descriptor_lifetimes::{
+    descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
+};
 use terminal_semantics::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
 
 pub(super) fn observe(
@@ -19,79 +21,91 @@ pub(super) fn observe(
     let StructuralTypeShape::Reference { referent, .. } = types.get(&carrier_type)?.shape else {
         return None;
     };
-    let location = descriptor_location(types.catalog(), place, root, path, None)?;
-    let current = live
-        .stored_reference_effects
-        .observations
-        .get(&function.machine)?
-        .get(&live.reference_position)?
-        .get(&location)?
-        .origins
-        .as_ref()?;
-    let mut origins = Vec::new();
-    for source in current {
-        let origin = match source {
-            DescriptorSourceOrigin::Provider(provider) => {
-                let origin = live.stored_reference_effects.provider_origin(provider)?;
-                let target_operations::TargetReferenceOriginBase::Provider {
-                    referent: promised,
-                    access,
-                    ..
-                } = &origin.base
-                else {
-                    return None;
-                };
-                let StructuralTypeShape::Reference {
-                    access: required, ..
-                } = types.get(&carrier_type)?.shape
-                else {
-                    return None;
-                };
-                if leaf_type(types, *promised, &provider.projection.path) != Some(referent)
-                    || !access_covers(*access, required)
-                {
-                    return None;
-                }
-                origin
-            }
-            DescriptorSourceOrigin::IncomingSlot(slot) => {
-                let contract = function.structural_parameter(slot.root)?.structural_type;
-                let slot_path = descriptor_path(types.catalog(), contract, &slot.path)?;
-                if leaf_type(types, contract, &slot_path) != Some(carrier_type) {
-                    return None;
-                }
-                target_operations::TargetReferenceOrigin {
-                    base: target_operations::TargetReferenceOriginBase::IncomingContents {
-                        root: slot.root,
-                        slot: slot_path,
-                    },
-                    path: Vec::new(),
-                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                }
-            }
-            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
-                source,
-                projection,
-            }) if projection.exact
-                && !projection.indirect
-                && projection.window.is_none()
-                && projection.captured_at.is_none() =>
-            {
-                target_operations::TargetReferenceOrigin {
-                    base: target_operations::TargetReferenceOriginBase::Storage { root: *source },
-                    path: projection
-                        .path
-                        .iter()
-                        .cloned()
-                        .map(terminal_psi::ReferenceOriginProjection::Exact)
-                        .collect(),
-                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                }
-            }
-            // Unknown geometry remains unavailable, never an entry-type fallback.
-            _ => return None,
+    // One static slot is one location. A runtime index over a fixed array
+    // names every in-range element; each element keeps its own observed
+    // descriptor, and the pointer still selects among those origins.
+    let locations =
+        if let Some(location) = descriptor_location(types.catalog(), place, root, path, None) {
+            vec![location]
+        } else {
+            fixed_runtime_index_alternatives(types.catalog(), place, root, path)?
         };
-        origins.push(origin);
+    let mut origins = Vec::new();
+    for location in locations {
+        let current = live
+            .stored_reference_effects
+            .observations
+            .get(&function.machine)?
+            .get(&live.reference_position)?
+            .get(&location)?
+            .origins
+            .as_ref()?;
+        for source in current {
+            let origin = match source {
+                DescriptorSourceOrigin::Provider(provider) => {
+                    let origin = live.stored_reference_effects.provider_origin(provider)?;
+                    let target_operations::TargetReferenceOriginBase::Provider {
+                        referent: promised,
+                        access,
+                        ..
+                    } = &origin.base
+                    else {
+                        return None;
+                    };
+                    let StructuralTypeShape::Reference {
+                        access: required, ..
+                    } = types.get(&carrier_type)?.shape
+                    else {
+                        return None;
+                    };
+                    if leaf_type(types, *promised, &provider.projection.path) != Some(referent)
+                        || !access_covers(*access, required)
+                    {
+                        return None;
+                    }
+                    origin
+                }
+                DescriptorSourceOrigin::IncomingSlot(slot) => {
+                    let contract = function.structural_parameter(slot.root)?.structural_type;
+                    let slot_path = descriptor_path(types.catalog(), contract, &slot.path)?;
+                    if leaf_type(types, contract, &slot_path) != Some(carrier_type) {
+                        return None;
+                    }
+                    target_operations::TargetReferenceOrigin {
+                        base: target_operations::TargetReferenceOriginBase::IncomingContents {
+                            root: slot.root,
+                            slot: slot_path,
+                        },
+                        path: Vec::new(),
+                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                    }
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) if projection.exact
+                    && !projection.indirect
+                    && projection.window.is_none()
+                    && projection.captured_at.is_none() =>
+                {
+                    target_operations::TargetReferenceOrigin {
+                        base: target_operations::TargetReferenceOriginBase::Storage {
+                            root: *source,
+                        },
+                        path: projection
+                            .path
+                            .iter()
+                            .cloned()
+                            .map(terminal_psi::ReferenceOriginProjection::Exact)
+                            .collect(),
+                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                    }
+                }
+                // Unknown geometry remains unavailable, never an entry-type fallback.
+                _ => return None,
+            };
+            origins.push(origin);
+        }
     }
     if origins.is_empty() {
         return None;
