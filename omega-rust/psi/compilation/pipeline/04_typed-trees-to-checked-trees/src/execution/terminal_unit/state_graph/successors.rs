@@ -281,6 +281,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                 });
             }
             if let Some(range_expression) = validation::subslice_expression(program, expression)
@@ -303,6 +305,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source: subslice.transfer(),
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                 });
             }
             // An authored string literal supplied directly to a whole
@@ -342,6 +346,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source,
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                 });
             }
             // A whole view local forwards the view its `let` published: the
@@ -431,6 +437,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
                             target_parameter_index: u32::try_from(target_index).ok()?,
                             retained_loan_backing: None,
+                            retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                         });
                     }
                 }
@@ -456,6 +464,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         source,
                         target_parameter_index: u32::try_from(target_index).ok()?,
                         retained_loan_backing: None,
+                        retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                     });
                 }
             }
@@ -483,6 +493,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                 });
             }
             mark(SuccessorGuard::LoanTransfer);
@@ -660,6 +672,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                                 retained_loan_backing: None,
+                                retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                             });
                         }
                         // A mutable loan keeps the local's exact constrained
@@ -895,32 +909,37 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    retained_loan_parents: Vec::new(),
+                    retained_operand_parents: Vec::new(),
                 });
             }
             None
         })
         .collect::<Option<Vec<_>>>()?;
     for (transfer, parameter) in transfers.iter_mut().zip(target_structural) {
-        if parameter.access != CheckedStructuralAccess::Owned {
-            trace.phase("state loan: captured backing");
+        trace.phase("state loan: captured backing");
+        trace.statement(Some(ordinal));
+        let storage = super::loan_backing::retained_storage(
+            program,
+            facts,
+            machine.symbol,
+            source.symbol,
+            ordinal as usize,
+            path.symbol,
+            arguments,
+            parameter.position as usize,
+            operations,
+        )
+        .map_err(|reason| {
+            trace.phase(reason);
             trace.statement(Some(ordinal));
-            transfer.retained_loan_backing = super::loan_backing::retained_backing(
-                program,
-                facts,
-                machine.symbol,
-                source.symbol,
-                ordinal as usize,
-                path.symbol,
-                arguments,
-                parameter.position as usize,
-                operations,
-            )
-            .map_err(|reason| {
-                trace.phase(reason);
-                trace.statement(Some(ordinal));
-            })
-            .ok()?;
+        })
+        .ok()?;
+        if parameter.access != CheckedStructuralAccess::Owned {
+            transfer.retained_loan_backing = storage.backing;
         }
+        transfer.retained_loan_parents = storage.parents;
+        transfer.retained_operand_parents = storage.operand_parents;
     }
     mark(SuccessorGuard::ScalarArguments);
     let scalar_arguments = target_scalar
@@ -1325,6 +1344,8 @@ fn projected_loan_transfer(
         },
         target_parameter_index: u32::try_from(target_index).ok()?,
         retained_loan_backing: None,
+        retained_loan_parents: Vec::new(),
+        retained_operand_parents: Vec::new(),
     })
 }
 

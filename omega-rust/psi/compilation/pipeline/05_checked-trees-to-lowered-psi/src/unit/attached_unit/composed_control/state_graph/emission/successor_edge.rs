@@ -102,6 +102,22 @@ impl StateGraphEmission<'_, '_> {
         let mut capture_parameters = Vec::new();
         let mut captured_loans = Vec::new();
         let target_state = &plan.states[target];
+        // These edges were resolved against the selected call's complete
+        // stored-loan frontier. Bind them to the emitted current homes once;
+        // neither construction syntax nor the target's type supplies lifetime.
+        for transfer in &edge.transfers {
+            for (dependent, parent) in &transfer.retained_loan_parents {
+                let dependent = case_emission::result(state, *dependent, operations)?;
+                let parent = case_emission::result(state, *parent, operations)?;
+                if !dependent.path().is_empty() || !parent.path().is_empty() {
+                    return unsupported("state loan parent is not a complete owned home");
+                }
+                let relation = (dependent.place(), parent.place());
+                if !self.retained_loan_parents.contains(&relation) {
+                    self.retained_loan_parents.push(relation);
+                }
+            }
+        }
         // Signature rows carry authored parameter positions, which go sparse
         // the moment a slot contributes no runtime operand: a borrowed `self`
         // the graph erased, or a proof-only formal the erased lane emits
@@ -635,6 +651,23 @@ impl StateGraphEmission<'_, '_> {
                             }
                         }
                     };
+                for parent in &transfer.retained_operand_parents {
+                    let parent = case_emission::result(state, *parent, operations)?;
+                    if !parent.path().is_empty() {
+                        return unsupported("state operand parent is not a complete owned home");
+                    }
+                    let dependent = self.state_contract_rosters[target]
+                        .iter()
+                        .find(|(position, _)| *position == target_parameter.position)
+                        .map(|(_, parameter)| parameter.place)
+                        .ok_or(LoweringError::Unsupported(
+                            "state operand parent lost its target carrier",
+                        ))?;
+                    let relation = (dependent, parent.place());
+                    if !self.retained_loan_parents.contains(&relation) {
+                        self.retained_loan_parents.push(relation);
+                    }
+                }
                 if let Some(backing) = loan_backing
                     && loan_backing_home.is_none()
                 {

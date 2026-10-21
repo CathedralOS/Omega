@@ -79,7 +79,8 @@ reaches Console
 }
 machine scope(selected: bool) reaches Console {
  let room: Room = Room { count: 10 };
- transition selected { true -> observe(&mut room) false -> done() }
+ let loan: &mut Room = &mut room;
+ transition selected { true -> observe(loan) false -> done() }
  state observe(room: &mut Room) { Console::write_byte(79); }
  state done() {}
 }

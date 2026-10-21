@@ -53,8 +53,8 @@ mod operand_contexts;
 mod operand_values;
 pub(crate) use operand_values::{
     CapturedValue, captured_lifetime_roots, captured_observation_places, captured_operand_at_path,
-    captured_operand_values, captured_value_places, observe_captured_values,
-    project_captured_view_place,
+    captured_operand_child_at_path, captured_operand_values, captured_value_places,
+    observe_captured_values, project_captured_view_place,
 };
 mod operator_calls;
 pub(crate) use operand_contexts::{

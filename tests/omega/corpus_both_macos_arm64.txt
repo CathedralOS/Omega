@@ -523,6 +523,9 @@ pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1731ms exit:0 int
 pass/drops/runtime_nominal_array_replacement_exit built 1627ms exit:0 interpreter-exit:0 interpreter:agrees @11521b5d20fe+wt
 pass/drops/runtime_nominal_case_observation_exit built 12514ms exit:0 interpreter-exit:0 interpreter:agrees @f772dfc723fb+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1721ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
+pass/drops/runtime_nominal_state_loan_alias_exit built 1037ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @91cfec61d529+wt
+pass/drops/runtime_nominal_state_loan_cleanup_order_exit built 1127ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @91cfec61d529+wt
+pass/drops/runtime_nominal_state_loan_nonlending_branch_exit built 948ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @91cfec61d529+wt
 pass/drops/runtime_nominal_successor_argument_order_exit built 3588ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @093f0ff4e0f2
 pass/drops/runtime_nominal_temporary_helper_closure_exit built 1603ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_owned_nominal_replacement_exit built 1703ms exit:0 interpreter-exit:0 interpreter:agrees @04d0fbe9d97c
@@ -739,6 +742,15 @@ pass/facts/matched_field_windows_through_other_machine_exit built 11147ms exit:0
 pass/facts/matched_field_windows_through_other_state_exit built 11149ms exit:0 interpreter-exit:0 interpreter:agrees @6950e9f0e0c8
 pass/facts/matched_field_windows_through_parameter_exit built 11208ms exit:0 interpreter-exit:0 interpreter:agrees @6950e9f0e0c8
 pass/facts/matched_field_windows_through_target_body_exit built 11403ms exit:0 interpreter-exit:0 interpreter:agrees @6950e9f0e0c8
+pass/facts/nested_borrow_qualification_call_result built 913ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_const_name built 910ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_field built 903ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_local built 822ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_match_join built 827ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_other_machine built 834ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_other_state built 816ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_parameter built 817ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_target_body built 831ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
 pass/facts/nested_result_extent_after_disjoint_write_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @cbdcc23565fb
 pass/facts/nested_result_extent_captured_scalar_exit built 3640ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_call_result_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
@@ -1743,6 +1755,8 @@ run/providers/target_applicable_provider_closure built 12543ms exit:0 interprete
 run/slices/edge_window_owned_backing built 3967ms exit:0 interpreter-exit:0 interpreter:agrees @8d0af2d85467+wt
 run/slices/folded_window_endpoint_effects built 3470ms exit:0 interpreter-exit:0 interpreter:agrees @fa0a8b1267bb+wt
 run/slices/mutable_window_call_argument built 9074ms exit:0 interpreter-exit:0 interpreter:agrees @68bc166bb593
+run/state_owned_nested_borrow built 803ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
+run/state_shared_nested_backing built 787ms exit:0 interpreter-exit:0 interpreter:agrees @91cfec61d529+wt
 run/traits/static_implementation_method_arguments built 5625ms exit:0 interpreter-exit:0 interpreter:agrees @93ba1f664f65+wt
 run/traits/target_scoped_map_method_arguments built 11151ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @a68c584655e1+wt
 run/ownership/temporary_projected_value_residual built 8572ms exit:0 interpreter-exit:0 interpreter:agrees @93ba1f664f65+wt

@@ -464,7 +464,7 @@ fn projected_capture<'capture>(
 /// Follow one captured assembly edge, retaining the unconsumed projection.
 /// A child may itself be an opaque call result: its remaining fields belong
 /// to that completed value, not to the containing constructor's namespace.
-pub(super) fn captured_operand_child_at_path(
+pub(crate) fn captured_operand_child_at_path(
     program: &dyn ::validation::CheckingInput,
     control: &FlowControlFacts,
     operand: &FlowOperandFact,

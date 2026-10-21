@@ -80,6 +80,8 @@ use terminal_psi::{
     TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 
+mod retained_homes;
+
 /// The state loan chains backed by completed owned storage.
 #[derive(Debug, Default)]
 pub(super) struct LoanChains {
@@ -93,6 +95,10 @@ struct LoanChain {
     /// Member parameters: state position, dense structural index, and the
     /// place the state's block declares.
     members: Vec<(usize, u32, PlaceId)>,
+    /// Original owned occurrences lending into this family, including homes
+    /// whose contents later move to owned block parameters. Captured parents
+    /// keep their own storage even when the dependent carrier moves.
+    source_homes: Vec<PlaceId>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -585,6 +591,7 @@ impl LoanChains {
                     "Unit graph state loan chain has no lender",
                 ))?,
                 members,
+                source_homes: Vec::new(),
             });
         }
         Ok(chains)
@@ -616,6 +623,9 @@ impl LoanChains {
         else {
             return Ok(());
         };
+        if !chain.source_homes.contains(&home) {
+            chain.source_homes.push(home);
+        }
         if let ChainBacking::LenderHome { home: recorded, .. } = &mut chain.backing
             && *recorded.get_or_insert(home) != home
         {
@@ -663,9 +673,11 @@ impl LoanChains {
         live: &[bool],
         captured_loans: &super::captured_loans::CapturedLoans,
         types: &[terminal_psi::StructuralTypeDeclaration],
+        retained_entry_homes: &[PlaceId],
+        parents: &[(PlaceId, PlaceId)],
         next_obligation: &mut u64,
     ) -> Result<(), LoweringError> {
-        if self.chains.is_empty() {
+        if self.chains.is_empty() && parents.is_empty() {
             return Ok(());
         }
         let headers = state_ids
@@ -687,92 +699,27 @@ impl LoanChains {
             .iter()
             .map(|parameter| parameter.place)
             .collect::<Vec<_>>();
-        for (chain_index, chain) in self.chains.iter().enumerate() {
+        // Transferred carriers die first. Retained storage (including parents
+        // shared by several chains) is joined and disposed once afterward.
+        for chain in &self.chains {
+            if chain.backing != ChainBacking::Transferred {
+                continue;
+            }
             if chain.multiplicity != StructuralMultiplicity::Affine {
                 continue;
             }
-            let member_headers = chain
-                .members
-                .iter()
-                .map(|(position, _, _)| state_ids[*position])
-                .collect::<BTreeSet<_>>();
             let dependent_carriers = chain
                 .members
                 .iter()
                 .filter_map(|(position, dense, _)| captured_loans.parent_carrier(*position, *dense))
                 .map(|carrier| carrier.place)
                 .collect::<Vec<_>>();
-            let mut home_actions = Vec::new();
-            if let ChainBacking::LenderHome {
-                home: Some(home),
-                lender,
-            } = chain.backing
-            {
-                // Membership proves lifetime, not disposal permission. Retain
-                // the complete checked occurrence disposition. Implicit carriers
-                // need the existing claim-free, resource-free whole no-code
-                // authority used for intact structural value replacement.
-                // This is static authority only: independent custody replay
-                // still proves whole ownership and descendant closure.
-                let checked_actions = super::loaned_local_homes::whole_home_actions(machine, home)?;
-                if checked_actions.is_none()
-                    && !terminal_semantics::structural_store_value_admitted(
-                        machine,
-                        types.iter(),
-                        terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
-                        home,
-                    )
-                {
-                    return Err(LoweringError::Unsupported(
-                        "state loan home has no whole-home no-code disposition authority",
-                    ));
-                }
-                home_actions = checked_actions
-                    .unwrap_or_else(|| vec![TerminalAffineCleanupAction::DiscardRoot(home)]);
-                retain_lent_home(&mut machine.blocks, home, &member_headers);
-                end_on_lender_exits(
-                    machine,
-                    state_ids[lender],
-                    &headers,
-                    home,
-                    &producers,
-                    &member_headers,
-                    &dependent_carriers,
-                    &home_actions,
-                    next_obligation,
-                )?;
-            }
             // A lender home dies once per member state's exit; transferred
             // storage is each member's own parameter.
-            let mut visited = BTreeSet::new();
             for &(position, _, parameter) in &chain.members {
-                if matches!(chain.backing, ChainBacking::LenderHome { .. })
-                    && !visited.insert(position)
-                {
-                    continue;
-                }
                 let header = state_ids[position];
                 let exit = match chain.backing {
-                    ChainBacking::LenderHome { home, .. } => {
-                        let home = home.ok_or(LoweringError::Unsupported(
-                            "Unit graph state loan chain lost its lender's home",
-                        ))?;
-                        ChainExit {
-                            headers: &headers,
-                            storage: home,
-                            cleanup: &home_actions,
-                            forwarded: Forwarding::IntoMember(&member_headers),
-                            dependent_carriers: &dependent_carriers,
-                            position: DisposalPosition::RetainedHome {
-                                earlier_homes: self.earlier_homes(
-                                    chain_index,
-                                    &producers,
-                                    &machine_parameters,
-                                )?,
-                                machine_parameters: &machine_parameters,
-                            },
-                        }
-                    }
+                    ChainBacking::LenderHome { .. } => continue,
                     ChainBacking::Transferred => ChainExit {
                         headers: &headers,
                         storage: parameter,
@@ -796,127 +743,26 @@ impl LoanChains {
                 }
             }
         }
+        retained_homes::finish(
+            machine,
+            &self.chains,
+            state_ids,
+            &headers,
+            captured_loans,
+            types,
+            retained_entry_homes,
+            parents,
+            &producers,
+            &machine_parameters,
+            next_obligation,
+        )?;
         Ok(())
-    }
-
-    /// A home predates another when it already lives in the latter's lender
-    /// state. Producer order decides only births within the same state; state
-    /// declaration order cannot order different dynamic lifetimes.
-    fn earlier_homes(
-        &self,
-        current: usize,
-        producers: &BTreeMap<PlaceId, OperationId>,
-        parameters: &[PlaceId],
-    ) -> Result<Vec<PlaceId>, LoweringError> {
-        let mut pending = vec![current];
-        let mut visited = vec![current];
-        let mut earlier = Vec::new();
-        while let Some(younger) = pending.pop() {
-            let ChainBacking::LenderHome {
-                home: Some(younger_home),
-                lender,
-            } = self.chains[younger].backing
-            else {
-                continue;
-            };
-            for (candidate, chain) in self.chains.iter().enumerate() {
-                let ChainBacking::LenderHome {
-                    home: Some(home),
-                    lender: other_lender,
-                } = chain.backing
-                else {
-                    continue;
-                };
-                if candidate == younger {
-                    continue;
-                }
-                let precedes = if lender == other_lender {
-                    let birth = |place| {
-                        producers
-                            .get(&place)
-                            .map(|producer| (1, producer.get()))
-                            .or_else(|| {
-                                parameters
-                                    .iter()
-                                    .position(|parameter| *parameter == place)
-                                    .map(|position| (0, position as u64))
-                            })
-                            .ok_or(LoweringError::Unsupported(
-                                "retained loan home has no ordered birth",
-                            ))
-                    };
-                    birth(home)? < birth(younger_home)?
-                } else {
-                    chain.members.iter().any(|(state, _, _)| *state == lender)
-                };
-                if !precedes {
-                    continue;
-                }
-                if candidate == current {
-                    return Err(LoweringError::Unsupported(
-                        "retained state loan homes have cyclic lifetime dependencies",
-                    ));
-                }
-                if !visited.contains(&candidate) {
-                    visited.push(candidate);
-                    pending.push(candidate);
-                    earlier.push(home);
-                }
-            }
-        }
-        Ok(earlier)
-    }
-}
-
-/// Drop a lender home's disposal from every planned arrival into its chain.
-///
-/// The lender is not a chain member, so `finish` never reaches its exits:
-/// only the chain's ends own the home's disposal. Stage 04 still records the
-/// lender state's whole dying complement on that exit, because the authored
-/// local's last source use is the transition, so `cleanup::for_exit` lowers a
-/// `DiscardRoot` of the home onto the very edge that hands out the loan. An
-/// edge cannot both carry a borrow of a root and destroy it: the loan's
-/// referent would be gone on arrival, and terminal validation refuses that
-/// pairing (`block_views::mutable_records::validate_terminator`, "a loan
-/// carried on this edge still needs its home"). The plan authenticated every
-/// member arrival against its lender. A captured reference can name a separate
-/// descriptor rather than the home, so executable argument spelling cannot
-/// decide storage lifetime. Nonmember arms retain their selected disposal.
-fn retain_lent_home(
-    blocks: &mut [terminal_psi::Block],
-    home: PlaceId,
-    members: &BTreeSet<BlockId>,
-) {
-    for block in blocks {
-        match &mut block.terminator {
-            Terminator::Jump {
-                target,
-                cleanup_actions,
-                ..
-            } => retain_on_chain_arrival(*target, cleanup_actions, home, members),
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for arm in [when_true, when_false] {
-                    retain_on_chain_arrival(arm.target, &mut arm.cleanup_actions, home, members);
-                }
-            }
-            Terminator::StructuralCase { cases, .. } => {
-                for arm in cases {
-                    retain_on_chain_arrival(arm.target, &mut arm.cleanup_actions, home, members);
-                }
-            }
-            _ => {}
-        }
     }
 }
 
 /// End a lender home on each exit of its own state that does not lend it.
 ///
-/// `retain_lent_home` keeps whatever disposal stage 04 recorded on a sibling
-/// arm, but stage 04 records cleanup only for owners it tracks. A view or
+/// Stage 04 records cleanup only for owners it tracks. A view or
 /// reference carrier the lender forms has no checked cleanup row, and
 /// `affine_cleanup::complete` leaves it alone once the chain schedules its
 /// disposal at the members' exits. A lender that lends its view on one arm and
@@ -1021,17 +867,6 @@ fn end_on_lender_exits(
         exit.dispose(&mut block.terminator, next_obligation)?;
     }
     Ok(())
-}
-
-fn retain_on_chain_arrival(
-    target: BlockId,
-    actions: &mut Vec<TerminalAffineCleanupAction>,
-    home: PlaceId,
-    members: &BTreeSet<BlockId>,
-) {
-    if members.contains(&target) {
-        actions.retain(|action| action.place() != home);
-    }
 }
 
 /// The successor argument's relation to a retained whole home.

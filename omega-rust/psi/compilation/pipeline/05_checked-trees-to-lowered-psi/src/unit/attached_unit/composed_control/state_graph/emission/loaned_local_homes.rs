@@ -3,27 +3,24 @@
 //! Their original owned places stay live through every state edge. A checked
 //! no-code home dies once, after the normal return has materialized its fresh
 //! result; the mutable parameter never becomes its disposal owner.
-//! A retained reference also keeps every owned immediate carrier it crossed
-//! at formation. Those parents retain their checked no-code disposal authority
+//! A retained value also keeps the owned backing in its checked dependency
+//! inventory. Those parents retain their checked no-code disposal authority
 //! and die after their descendants, rather than on the lending state's edge.
 
 use crate::LoweringError;
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalMachine, Terminator,
-};
+use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction, TerminalMachine, Terminator};
 
 pub(super) fn finish(
     machine: &mut TerminalMachine,
     homes: &BTreeMap<u32, PlaceId>,
-    types: &[StructuralTypeDeclaration],
-) -> Result<(), LoweringError> {
+    dependencies: &[(PlaceId, PlaceId)],
+) -> Result<Vec<PlaceId>, LoweringError> {
     if homes.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
-    let (retained, parents) = retained_reference_parents(machine, homes, types)?;
+    let (retained, parents) = retained_reference_parents(machine, homes, dependencies)?;
     authenticate_home_dispositions(machine, &retained)?;
     for block in &mut machine.blocks {
         match &mut block.terminator {
@@ -70,7 +67,7 @@ pub(super) fn finish(
             _ => {}
         }
     }
-    Ok(())
+    Ok(retained)
 }
 
 /// Storage retention does not establish a new disposal capability. The checked
@@ -175,13 +172,12 @@ pub(super) fn whole_home_disposition(
         .is_some_and(|actions| actions == [TerminalAffineCleanupAction::DiscardRoot(home)]))
 }
 
-/// Follow the real emitted formation chain, not a source alias or a guessed
-/// backing root. A pointer crossing retains its owned carrier; ordinary ingress
-/// already lives for the activation and supplies no local disposal authority.
+/// Close the checked stored-loan dependency graph, not an emitted constructor
+/// recognizer. The same inventory also supplies state-chain lifetimes below.
 fn retained_reference_parents(
     machine: &mut TerminalMachine,
     homes: &BTreeMap<u32, PlaceId>,
-    types: &[StructuralTypeDeclaration],
+    dependencies: &[(PlaceId, PlaceId)],
 ) -> Result<(Vec<PlaceId>, Vec<(PlaceId, PlaceId)>), LoweringError> {
     let mut retained = homes.values().copied().collect::<Vec<_>>();
     let original_home_count = retained.len();
@@ -190,56 +186,17 @@ fn retained_reference_parents(
     while position < retained.len() {
         let home = retained[position];
         position += 1;
-        let Some((operation, _)) = machine.producing_operation(home) else {
-            continue;
-        };
-        let source = match &operation.kind {
-            OperationKind::EstablishReference { source, .. } => source.clone(),
-            _ => continue,
-        };
-        let root = if let Some((producer, root)) = machine.producing_operation(source.place) {
-            if !producer.result.structural().is_some_and(|result| {
-                result.place == source.place
-                    && result.structural_type == root
-                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            }) {
-                continue;
+        for &(dependent, parent) in dependencies
+            .iter()
+            .filter(|(dependent, _)| *dependent == home)
+        {
+            if !parents.contains(&(dependent, parent)) {
+                parents.push((dependent, parent));
             }
-            root
-        } else if let Some(parameter) = machine.structural_parameter(source.place) {
-            if parameter.access != StructuralAccess::Owned
-                || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-            {
-                continue;
+            if !retained.contains(&parent) {
+                retained.push(parent);
             }
-            parameter.structural_type
-        } else {
-            continue;
-        };
-        // Retaining a descriptor retains its immediate owned backing, whether
-        // the formation crossed another descriptor or borrowed plain storage.
-        // Both are real homes with independently checked disposal authority.
-        terminal_semantics::runtime_structural_path_tip(types.iter(), root, &source.path).ok_or(
-            LoweringError::Unsupported("retained reference lost its formation carrier type"),
-        )?;
-        if !parents.contains(&(home, source.place)) {
-            parents.push((home, source.place));
         }
-        if retained.contains(&source.place) {
-            continue;
-        }
-        // Extending storage lifetime cannot manufacture a cleanup contract.
-        // Only the owner's existing whole no-code disposition moves to exit.
-        if !machine.blocks.iter().any(|block| {
-            block.terminator.cleanup_rosters().any(|(_, actions)| {
-                actions.contains(&TerminalAffineCleanupAction::DiscardRoot(source.place))
-            })
-        }) {
-            return Err(LoweringError::Unsupported(
-                "retained reference parent has no checked whole-home disposition",
-            ));
-        }
-        retained.push(source.place);
     }
     // Ordinary retained storage introduces no new parent-lifetime obligation.
     // Prepare graph availability only when the formation closure adopts homes,
@@ -255,14 +212,14 @@ fn retained_reference_parents(
 
 /// Global retention is valid only for a home already available on every
 /// normal return. Dominance describes birth availability, not loan authority.
-struct HomeAvailability {
+pub(super) struct HomeAvailability {
     dominators: Vec<BTreeSet<usize>>,
     normal_returns: Vec<usize>,
     entry: usize,
 }
 
 impl HomeAvailability {
-    fn new(machine: &TerminalMachine) -> Result<Self, LoweringError> {
+    pub(super) fn new(machine: &TerminalMachine) -> Result<Self, LoweringError> {
         let entry = machine
             .blocks
             .iter()
@@ -320,6 +277,61 @@ impl HomeAvailability {
     }
 }
 
+impl HomeAvailability {
+    pub(super) fn birth(
+        &self,
+        machine: &TerminalMachine,
+        parent: PlaceId,
+    ) -> Result<usize, LoweringError> {
+        if machine.signature_structural_parameter(parent).is_some() {
+            Ok(self.entry)
+        } else {
+            machine
+                .blocks
+                .iter()
+                .position(|block| {
+                    block
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == parent)
+                        || block.operations.iter().any(|operation| {
+                            operation
+                                .result
+                                .structural()
+                                .is_some_and(|result| result.place == parent)
+                        })
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "retained parent lost its home birth",
+                ))
+        }
+    }
+
+    pub(super) fn require_in_regions(
+        &self,
+        machine: &TerminalMachine,
+        parent: PlaceId,
+        members: &BTreeSet<semantic_vocabulary::BlockId>,
+    ) -> Result<(), LoweringError> {
+        let birth = self.birth(machine, parent)?;
+        for member in members {
+            let position = machine
+                .blocks
+                .iter()
+                .position(|block| block.id == *member)
+                .ok_or(LoweringError::Unsupported(
+                    "retained parent lost a lifetime member",
+                ))?;
+            if !self.dominators[position].contains(&birth) {
+                return Err(LoweringError::Unsupported(
+                    "retained parent is not available on every lifetime arrival",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A no-code disposition on one edge is not proof that another edge retains
 /// the owner. The exhaustive demand inventory conservatively refuses moves,
 /// releases and mutations, including projected writes to contained carriers.
@@ -328,28 +340,7 @@ fn preserve_parent_home(
     parent: PlaceId,
     availability: &HomeAvailability,
 ) -> Result<(), LoweringError> {
-    let birth = if machine.signature_structural_parameter(parent).is_some() {
-        availability.entry
-    } else {
-        machine
-            .blocks
-            .iter()
-            .position(|block| {
-                block
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == parent)
-                    || block.operations.iter().any(|operation| {
-                        operation
-                            .result
-                            .structural()
-                            .is_some_and(|result| result.place == parent)
-                    })
-            })
-            .ok_or(LoweringError::Unsupported(
-                "retained parent lost its home birth",
-            ))?
-    };
+    let birth = availability.birth(machine, parent)?;
     if availability
         .normal_returns
         .iter()

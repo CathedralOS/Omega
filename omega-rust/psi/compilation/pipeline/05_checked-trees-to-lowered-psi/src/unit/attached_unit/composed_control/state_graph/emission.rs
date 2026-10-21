@@ -79,6 +79,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
+    retained_loan_parents: Vec<(semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId)>,
     /// Exclusive loan chains a later state's local backs.
     loan_chains: loan_chains::LoanChains,
     captured_loans: captured_loans::CapturedLoans,
@@ -673,6 +674,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         structural_places,
         blocks,
         loaned_local_homes: BTreeMap::new(),
+        retained_loan_parents: Vec::new(),
         loan_chains,
         captured_loans,
         occurrences,
@@ -710,6 +712,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         mut scalar_block_invariants,
         mut qualification_coercions,
         loaned_local_homes,
+        retained_loan_parents,
         loan_chains,
         captured_loans,
         mut occurrences,
@@ -952,17 +955,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         },
     };
     captured_loans.finish(&mut machine, &state_ids)?;
-    loaned_local_homes::finish(
-        &mut machine,
-        &loaned_local_homes,
-        &catalogs.structural_types,
-    )?;
+    let retained_entry_homes =
+        loaned_local_homes::finish(&mut machine, &loaned_local_homes, &retained_loan_parents)?;
     loan_chains.finish(
         &mut machine,
         &state_ids,
         &live_states,
         &captured_loans,
         &catalogs.structural_types,
+        &retained_entry_homes,
+        &retained_loan_parents,
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;
     let continuation_value_uses = machine

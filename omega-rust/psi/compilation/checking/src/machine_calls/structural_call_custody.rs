@@ -525,7 +525,17 @@ pub fn structural_result_projected_qualifications(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
-    structural_result_qualification_contract(program, type_reference).map(|(rows, _)| rows)
+    structural_result_qualification_contract(program, type_reference)
+        .map(|contract| contract.projected_qualifications)
+}
+
+/// One finite qualification inventory retains both its obligations and the
+/// concrete source declarations those paths cross. Pointer targets without a
+/// qualification demand remain identity-only; this is not graph expansion.
+pub struct StructuralQualificationContract {
+    pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
+    pub domains: Vec<(SemanticDomainId, TypeReferenceHandle)>,
+    pub projection_types: Vec<TypeReferenceHandle>,
 }
 
 /// A returned reference publishes its pointer carrier, unlike borrowed ingress
@@ -533,13 +543,7 @@ pub fn structural_result_projected_qualifications(
 pub fn structural_result_qualification_contract(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Result<
-    (
-        Vec<CheckedStructuralPathQualification>,
-        Vec<(SemanticDomainId, TypeReferenceHandle)>,
-    ),
-    &'static str,
-> {
+) -> Result<StructuralQualificationContract, &'static str> {
     structural_qualification_inventory(program, type_reference, false, true)
 }
 
@@ -549,13 +553,7 @@ pub fn structural_result_qualification_contract(
 pub fn structural_qualification_contract(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Result<
-    (
-        Vec<CheckedStructuralPathQualification>,
-        Vec<(SemanticDomainId, TypeReferenceHandle)>,
-    ),
-    &'static str,
-> {
+) -> Result<StructuralQualificationContract, &'static str> {
     structural_qualification_inventory(program, type_reference, false, false)
 }
 
@@ -565,7 +563,8 @@ pub fn zeroed_byte_projected_qualifications(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
-    structural_qualification_inventory(program, type_reference, true, false).map(|(rows, _)| rows)
+    structural_qualification_inventory(program, type_reference, true, false)
+        .map(|contract| contract.projected_qualifications)
 }
 
 fn structural_qualification_inventory(
@@ -573,13 +572,7 @@ fn structural_qualification_inventory(
     type_reference: TypeReferenceHandle,
     zero_only: bool,
     published_root: bool,
-) -> Result<
-    (
-        Vec<CheckedStructuralPathQualification>,
-        Vec<(SemanticDomainId, TypeReferenceHandle)>,
-    ),
-    &'static str,
-> {
+) -> Result<StructuralQualificationContract, &'static str> {
     fn collect(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
@@ -589,13 +582,15 @@ fn structural_qualification_inventory(
         path: &mut Vec<CheckedUnitStructuralPathSegment>,
         output: &mut Vec<CheckedStructuralPathQualification>,
         carriers: &mut Vec<(SemanticDomainId, TypeReferenceHandle)>,
+        projection_types: &mut Vec<TypeReferenceHandle>,
         active: &mut Vec<TypeReferenceHandle>,
     ) -> Result<(), &'static str> {
         // A zero image establishes its own inline cells, never a referent.
         if zero_only && crate::reference_shell(program, reference).is_some() {
             return Ok(());
         }
-        match program.type_reference_table.type_reference(reference) {
+        let initial_qualifications = output.len();
+        let result = match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => {
                 if zero_only {
                     Ok(())
@@ -614,6 +609,7 @@ fn structural_qualification_inventory(
                         path,
                         output,
                         carriers,
+                        projection_types,
                         active,
                     );
                     if pointer {
@@ -688,6 +684,7 @@ fn structural_qualification_inventory(
                     path,
                     output,
                     carriers,
+                    projection_types,
                     active,
                 )
             }
@@ -705,6 +702,7 @@ fn structural_qualification_inventory(
                     path,
                     output,
                     carriers,
+                    projection_types,
                     active,
                 );
                 path.pop();
@@ -728,6 +726,7 @@ fn structural_qualification_inventory(
                     _ => return Err("projected qualification array length is not literal"),
                 };
                 let mut element_rows = Vec::new();
+                let mut element_projection_types = Vec::new();
                 collect(
                     program,
                     *element_type,
@@ -737,6 +736,7 @@ fn structural_qualification_inventory(
                     &mut Vec::new(),
                     &mut element_rows,
                     carriers,
+                    &mut element_projection_types,
                     active,
                 )?;
                 if element_rows.is_empty() {
@@ -765,6 +765,15 @@ fn structural_qualification_inventory(
                             .insert(0, CheckedUnitStructuralPathSegment::FixedIndex(index));
                         qualified.path.splice(0..0, path.iter().cloned());
                         output.push(qualified);
+                    }
+                }
+                // An empty array still has its declared element shape, but
+                // no element qualification path crosses a pointer target.
+                if length != 0 {
+                    for reference in element_projection_types {
+                        if !projection_types.contains(&reference) {
+                            projection_types.push(reference);
+                        }
                     }
                 }
                 Ok(())
@@ -833,6 +842,7 @@ fn structural_qualification_inventory(
                         path,
                         output,
                         carriers,
+                        projection_types,
                         active,
                     )?;
                     path.pop();
@@ -844,10 +854,15 @@ fn structural_qualification_inventory(
                 Ok(())
             }
             _ => Ok(()),
+        };
+        if output.len() > initial_qualifications && !projection_types.contains(&reference) {
+            projection_types.push(reference);
         }
+        result
     }
     let mut output = Vec::new();
     let mut carriers = Vec::new();
+    let mut projection_types = Vec::new();
     collect(
         program,
         type_reference,
@@ -857,6 +872,7 @@ fn structural_qualification_inventory(
         &mut Vec::new(),
         &mut output,
         &mut carriers,
+        &mut projection_types,
         &mut Vec::new(),
     )?;
     output.sort_by(|left, right| {
@@ -865,7 +881,11 @@ fn structural_qualification_inventory(
             .then(left.domain.0.cmp(&right.domain.0))
     });
     output.dedup();
-    Ok((output, carriers))
+    Ok(StructuralQualificationContract {
+        projected_qualifications: output,
+        domains: carriers,
+        projection_types,
+    })
 }
 
 /// Replays a complete identity-preserving return of one whole owned parameter.

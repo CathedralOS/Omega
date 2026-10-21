@@ -78,7 +78,10 @@ machine scope() reaches Console crashes Trap {
  let older: Marker = Marker { byte: 65 };
  let room: Room = Room { count: 10 };
  let younger: Marker = Marker { byte: 66 };
- transition { _ -> observe(&mut room) }
+ // Capturing a stored alias introduces private descriptor completion scopes;
+ // they must not bring the retained Room's nominal cleanup forward.
+ let loan: &mut Room = &mut room;
+ transition { _ -> observe(loan) }
  state observe(room: &mut Room) {
   let newest: Marker = Marker { byte: 67 };
   Console::write_byte(79);

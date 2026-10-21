@@ -574,12 +574,14 @@ pub(in crate::execution::terminal_unit) fn projected_parameter_qualifications(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedStructuralPathQualification>> {
-    let (output, carriers) =
-        validation::structural_qualification_contract(program, type_reference).ok()?;
-    for (domain, carrier) in carriers {
+    let contract = validation::structural_qualification_contract(program, type_reference).ok()?;
+    for reference in contract.projection_types {
+        shapes.add_type(reference, binders, &[])?;
+    }
+    for (domain, carrier) in contract.domains {
         shapes.add_domain(domain, carrier, binders)?;
     }
-    Some(output)
+    Some(contract.projected_qualifications)
 }
 
 /// Returned values retain reference carriers; their projected memberships
@@ -590,12 +592,15 @@ pub(in crate::execution::terminal_unit) fn projected_result_qualifications(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedStructuralPathQualification>> {
-    let (output, carriers) =
+    let contract =
         validation::structural_result_qualification_contract(program, type_reference).ok()?;
-    for (domain, carrier) in carriers {
+    for reference in contract.projection_types {
+        shapes.add_type(reference, binders, &[])?;
+    }
+    for (domain, carrier) in contract.domains {
         shapes.add_domain(domain, carrier, binders)?;
     }
-    Some(output)
+    Some(contract.projected_qualifications)
 }
 
 pub(super) fn type_domain_semantic_id(

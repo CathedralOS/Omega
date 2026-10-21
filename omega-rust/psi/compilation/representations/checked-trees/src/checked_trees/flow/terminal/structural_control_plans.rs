@@ -176,6 +176,13 @@ pub struct CheckedStructuralControlTransferPlan {
     /// Reference construction syntax and intermediate descriptors do not name
     /// the ultimate home; operand-completion provenance does.
     pub retained_loan_backing: Option<u32>,
+    /// Local owned storage reached through the captured backing's contained
+    /// loans. Each pair is (dependent result binding, parent result binding).
+    /// These lifetime edges grant neither relocation nor disposal authority.
+    pub retained_loan_parents: Vec<(u32, u32)>,
+    /// Local parents of this completed by-value operand's stored reference
+    /// leaves. The target parameter, not a constructor spelling, owns them.
+    pub retained_operand_parents: Vec<u32>,
 }
 
 impl Default for CheckedStructuralControlTransferPlan {
@@ -184,6 +191,8 @@ impl Default for CheckedStructuralControlTransferPlan {
             source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
             target_parameter_index: 0,
             retained_loan_backing: None,
+            retained_loan_parents: Vec::new(),
+            retained_operand_parents: Vec::new(),
         }
     }
 }

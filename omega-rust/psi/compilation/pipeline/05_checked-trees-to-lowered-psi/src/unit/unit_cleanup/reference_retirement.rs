@@ -28,7 +28,6 @@ pub(crate) fn lower_reference_completion_regions(
             source,
             path,
             case_conditions,
-            select_evaluated_storage,
             defer_to_exit: true,
             ..
         } = operation
@@ -83,7 +82,10 @@ pub(crate) fn lower_reference_completion_regions(
         {
             carriers.push(CleanupRegion {
                 declaration_order: None,
-                selected_region: select_evaluated_storage.then(|| {
+                // Capture completion operands first, then retire only storage
+                // still resident on that selected exit. An owned state/return
+                // transfer continues the descriptor rather than destroying it.
+                selected_region: Some({
                     terminal_psi::StructuralArgument {
                         place,
                         path,

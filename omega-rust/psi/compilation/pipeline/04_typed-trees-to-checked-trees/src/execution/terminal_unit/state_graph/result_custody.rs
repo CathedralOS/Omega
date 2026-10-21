@@ -242,7 +242,8 @@ pub(super) fn account<'calls>(
         // reference retirement realizes that holder's selected exit disposal;
         // it cannot also receive a second lexical disposal below. Transfers
         // and distinct physical retirement rows remain independent owners.
-        let reference_releases = if result.multiplicity != Multiplicity::Unrestricted
+        let (reference_releases, deferred_reference_releases) = if result.multiplicity
+            != Multiplicity::Unrestricted
             && shapes.types.get(&result.type_identity)?.descriptor_cleanup
         {
             let captured = control::statement_sequence::captured_reference_result(
@@ -266,22 +267,44 @@ pub(super) fn account<'calls>(
                 .filter(|operation| {
                     control::statement_sequence::release_matches(operation, released, loans)
                 })
-                .count()
+                .fold((0, 0), |(immediate, deferred), operation| {
+                    if matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::ReleaseReference {
+                            defer_to_exit: true,
+                            ..
+                        }
+                    ) {
+                        (immediate, deferred + 1)
+                    } else {
+                        (immediate + 1, deferred)
+                    }
+                })
         } else {
-            0
+            (0, 0)
         };
+        // Deferred retirement is an action of the selected completion, not
+        // an earlier operation competing with that completion's owned move.
+        // The remaining-storage partition removes it on a transferring exit.
+        // Distinct deferred receipts are still duplicate dispositions.
+        if deferred_reference_releases > 1 {
+            trace.phase("state graph: duplicate deferred reference dispositions");
+            trace.statement(Some(result.statement_index));
+            return None;
+        }
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
             !retired_whole
                 && reference_releases == 0
-                && local_results::permits_disposal(
-                    program,
-                    facts,
-                    state,
-                    operation,
-                    operations,
-                    statement,
-                    continuation,
-                )
+                && (deferred_reference_releases == 1
+                    || local_results::permits_disposal(
+                        program,
+                        facts,
+                        state,
+                        operation,
+                        operations,
+                        statement,
+                        continuation,
+                    ))
         };
         // A selected source either moves whole on every arm, or retains an
         // exact residual with conditional normal disposal. Whole transfer

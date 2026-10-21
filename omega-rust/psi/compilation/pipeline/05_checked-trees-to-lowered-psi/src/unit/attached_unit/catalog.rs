@@ -28,6 +28,7 @@ use terminal_psi::StructuralReferentIdentity;
 
 mod operation_types;
 mod place_types;
+mod projection_types;
 mod scalar_fields;
 pub(super) use operation_types::collect_operation_type_roots;
 pub(super) use scalar_fields::scalar_field_types;
@@ -381,10 +382,27 @@ pub(super) fn lower_unit_structural_types_including(
                     }),
             );
         }
-        roots.extend(
-            body.structural_parameters()
-                .map(|parameter| parameter.type_identity),
-        );
+        for parameter in body.structural_parameters() {
+            projection_types::collect_parameter(plans, parameter, &mut roots)?;
+        }
+        if body.scalar_result_type().is_none()
+            && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
+        {
+            // Result plans may retain only shape/multiplicity. Use the exact
+            // authored/default-domain roster that result emission publishes.
+            let (_, state) = crate::declarations::state_declaration(checked, body.entry()?.state)?;
+            let qualifications = super::parameters::result_projected_qualifications(
+                checked,
+                *symbol,
+                state.return_type,
+            )?;
+            projection_types::collect_qualifications(
+                plans,
+                result.type_identity,
+                &qualifications,
+                &mut roots,
+            )?;
+        }
         roots.extend(
             body.parameter_storage()
                 .map(|storage| storage.type_identity),
@@ -446,21 +464,42 @@ pub(super) fn lower_unit_structural_types_including(
     }
     for slot in &checked.facts.flow.terminal_unit_effects.dynamic_slots {
         roots.extend(slot.result.structural_identity());
-        roots.extend(
-            slot.structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity),
-        );
+        for parameter in &slot.structural_parameters {
+            projection_types::collect_parameter(plans, parameter, &mut roots)?;
+        }
+        if let CheckedBoundaryMachineResultPlan::Structural {
+            type_identity,
+            projected_qualifications,
+            ..
+        } = &slot.result
+        {
+            projection_types::collect_qualifications(
+                plans,
+                *type_identity,
+                projected_qualifications,
+                &mut roots,
+            )?;
+        }
     }
     for (boundary, _) in boundaries {
         roots.extend(boundary.attachment_type_identity);
-        roots.extend(
-            boundary
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity),
-        );
+        for parameter in &boundary.structural_parameters {
+            projection_types::collect_parameter(plans, parameter, &mut roots)?;
+        }
         roots.extend(boundary.result.structural_identity());
+        if let CheckedBoundaryMachineResultPlan::Structural {
+            type_identity,
+            projected_qualifications,
+            ..
+        } = &boundary.result
+        {
+            projection_types::collect_qualifications(
+                plans,
+                *type_identity,
+                projected_qualifications,
+                &mut roots,
+            )?;
+        }
     }
     let (mut declarations, mut identity_ids, referents) =
         lower_unit_structural_type_roots(identities, checked, plans, &roots)?;
