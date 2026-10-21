@@ -118,7 +118,7 @@ pub(super) fn validate_target_ranges(
         source_primitive,
         source_bounds,
         &|expression| {
-            super::float_source_bounds(program, environment, expression, &|value| {
+            super::float_source_bounds(program, machine.symbol, environment, expression, &|value| {
                 state
                     .and_then(|state| {
                         crate::value_custody::expression_types::expression_result_type_reference(

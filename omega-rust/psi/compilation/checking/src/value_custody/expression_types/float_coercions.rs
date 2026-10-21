@@ -52,6 +52,7 @@ pub(crate) fn validate_exact_float_coercion(
         || {
             crate::proof_contracts::arithmetic_domains::float_source_bounds(
                 program,
+                machine.symbol,
                 environment,
                 operand,
                 &|value| {

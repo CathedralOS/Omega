@@ -179,7 +179,8 @@ pub(in crate::checks) fn expression_enforced_declared_range(
             dependent_range_substituted(program, machine, type_reference)
         }
     });
-    let Some((low, high)) = super::expressions::ensured_call_result_bounds(program, expression)
+    let Some((low, high)) =
+        super::expressions::ensured_call_result_bounds(program, machine.symbol, expression)
     else {
         return declared;
     };

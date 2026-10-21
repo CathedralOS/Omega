@@ -163,13 +163,26 @@ impl Execution<'_, '_, '_> {
             &mut predicates,
         );
         if let Some(call) = self.program.expression_table.call_node(expression) {
-            validation::normal_return_float_predicates(self.program, call, &mut predicates);
+            validation::normal_return_float_predicates(
+                self.program,
+                self.machine.symbol,
+                expression,
+                call,
+                &mut predicates,
+            );
         }
         let integer_bounds = self
             .program
             .expression_table
             .call_node(expression)
-            .and_then(|call| validation::normal_return_integer_bounds(self.program, call))
+            .and_then(|call| {
+                validation::normal_return_integer_bounds(
+                    self.program,
+                    self.machine.symbol,
+                    expression,
+                    call,
+                )
+            })
             .and_then(|(minimum, maximum)| {
                 Some(facts::IntegerRange {
                     minimum: numerics::bignum::BigInt::from_i64(minimum?),

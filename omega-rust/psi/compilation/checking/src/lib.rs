@@ -567,3 +567,6 @@ pub use proof_contracts::instruction_effects::{
 pub use proof_contracts::arithmetic_domains::{
     DeclaredFloatFieldBound, declared_float_field_bounds,
 };
+
+/// Exact selected-call dependency availability for ordinary result refinements.
+pub use machine_calls::contract_dependencies::independent_call_application;

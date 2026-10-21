@@ -96,7 +96,8 @@ pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
     label: &str,
     value: ExpressionHandle,
 ) {
-    seed_integer_bounds(facts, label, ensured_call_result_bounds(program, value));
+    let bounds = ensured_call_result_bounds(program, facts.caller, value);
+    seed_integer_bounds(facts, label, bounds);
 }
 
 fn seed_integer_bounds(

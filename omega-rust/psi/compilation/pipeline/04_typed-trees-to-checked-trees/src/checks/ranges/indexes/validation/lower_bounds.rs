@@ -54,7 +54,7 @@ pub(super) fn prove(
             // every callee exit, so a non-negative `K` supplies the lower half
             // a signed result still owes — the same contract the known-length
             // route reads for its call indexes.
-            || ensured_call_result_bounds(program, expression)
+            || ensured_call_result_bounds(program, facts.caller, expression)
                 .and_then(|(low, _)| low)
                 .is_some_and(|low| low >= 0)
             || facts.non_negative_is_proven(&label)

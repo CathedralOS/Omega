@@ -214,14 +214,19 @@ impl<'program> ScopedCalls<'program> {
             let independent = self
                 .independent(owner, &mut Vec::new(), &mut Vec::new())
                 .unwrap_or(false)
-                && super::super::structural_judgment::independent_call_application(
+                && crate::machine_calls::contract_dependencies::independent_call_application(
                     self.program,
                     self.context,
                     owner_symbol(&owner),
                     typed_trees::references::StaticArgumentCall::Expression(expression, call),
                 );
             let interval = if independent {
-                crate::proof_contracts::arithmetic_domains::call_result_interval(self.program, call)
+                crate::proof_contracts::arithmetic_domains::call_result_interval(
+                    self.program,
+                    self.context,
+                    expression,
+                    call,
+                )
             } else {
                 None
             }
@@ -327,7 +332,7 @@ impl<'program> ScopedCalls<'program> {
         let arguments = crate::call_site_argument_expressions(self.program, &site);
         if matches!(owner, SelectedCallContract::DynamicSlot { .. })
             || !self.independent(owner, &mut Vec::new(), &mut Vec::new())?
-            || !super::super::structural_judgment::independent_call_application(
+            || !crate::machine_calls::contract_dependencies::independent_call_application(
                 self.program,
                 self.context,
                 owner_symbol(&owner),

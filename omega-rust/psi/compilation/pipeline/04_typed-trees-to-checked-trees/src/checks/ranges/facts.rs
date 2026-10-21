@@ -31,6 +31,7 @@ pub(super) use dependencies::ReceiverLength;
 
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
+    pub(super) caller: SymbolHandle,
     pub(super) collection_bounds: Option<&'field validation::CollectionBoundsObservations<'field>>,
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
     /// Integer expression intervals from validation's arithmetic walk.
@@ -101,10 +102,12 @@ pub(super) struct RangeFacts<'field> {
 
 impl<'field> RangeFacts<'field> {
     pub(super) fn new(
+        caller: SymbolHandle,
         fields: &'field [(SymbolHandle, String, usize)],
         bound_lookup: &'field validation::ImmutableBoundLookup<'field>,
     ) -> Self {
         Self {
+            caller,
             collection_bounds: None,
             checked_operators: None,
             expression_intervals: &[],

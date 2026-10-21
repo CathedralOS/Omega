@@ -1143,7 +1143,9 @@ fail/contracts/slice_index_requirement_retires_mutated_contents rejected 344ms e
 	cannot prove requires contract for call need from stale: items[0] == before (needs fact `items[0] == before` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 2593ms expected @4a9ab33501da+wt
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
-fail/contracts/target_family_recursive_guarantee rejected 9778ms expected @46f9e865d179+wt
+fail/contracts/target_family_recursive_guarantee rejected 1029ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+	cannot prove ensures contract for exit from selected at statement 1: result == 7
 fail/contracts/target_family_unselected_write_retires_fact rejected 689ms expected @6756ba1b9853
 fail/contracts/target_family_unshared_result rejected 35723ms expected @46f9e865d179+wt
 fail/contracts/target_family_window_invalid_sibling rejected 1738ms expected @6756ba1b9853
@@ -3655,6 +3657,33 @@ fail/facts/ieee_guard_i32_from_f64_target_body_invalid rejected 3775ms expected 
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/independent_call_result_bound_through_call_result rejected 911ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_const_name rejected 1001ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_field rejected 1134ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_local rejected 1057ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_match_join rejected 1068ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_other_machine rejected 1068ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_other_state rejected 1073ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_parameter rejected 1068ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/facts/independent_call_result_bound_through_target_body rejected 1028ms expected @4a483c47c357+wt
+	cannot prove ensures contract for exit from source at statement 1: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
 fail/facts/independent_content_partition_through_call_result rejected 4134ms expected @61fab13095e7+wt
 	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
@@ -11123,6 +11152,15 @@ pass/facts/ieee_guard_i32_from_f64_other_machine checked 13508ms check-target:ma
 pass/facts/ieee_guard_i32_from_f64_other_state checked 13529ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_parameter checked 13491ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_target_body checked 13497ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/independent_call_result_bound_through_call_result_exit checked 1793ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_const_name_exit checked 1803ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_field_exit checked 1728ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_local_exit checked 1812ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_match_join_exit checked 1355ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_other_machine_exit checked 1802ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_other_state_exit checked 1844ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_parameter_exit checked 1839ms check-target:macos_arm64 @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_target_body_exit checked 1816ms check-target:macos_arm64 @4a483c47c357+wt
 pass/facts/independent_content_partition_through_call_result checked 9518ms check-target:macos_arm64 @61fab13095e7+wt
 pass/facts/independent_content_partition_through_const_name checked 9516ms check-target:macos_arm64 @61fab13095e7+wt
 pass/facts/independent_content_partition_through_field checked 9257ms check-target:macos_arm64 @61fab13095e7+wt

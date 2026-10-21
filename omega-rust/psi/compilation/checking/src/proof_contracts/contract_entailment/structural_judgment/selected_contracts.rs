@@ -9,6 +9,7 @@ use super::super::specification_calls::{
     owner_symbol, selected_call_contract_for_parameters, selected_contract_by_symbol,
 };
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use crate::machine_calls::contract_dependencies::independent_callee;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -668,74 +669,6 @@ fn collect_applications<'term>(
         }
         _ => {}
     }
-}
-
-/// Contract dependency cycles need the independent induction owner. These
-/// ordinary value imports cannot prove a callee by citing this caller again.
-pub(super) fn independent_callee(
-    program: &dyn crate::CheckingInput,
-    caller: SymbolHandle,
-    callee: SymbolHandle,
-) -> bool {
-    independent_application(program, caller, callee, &[])
-}
-
-/// Independence belongs to the selected application, including the exact
-/// callback machines supplied to its generic telescope. A helper's authored
-/// requirement alone does not identify the selected callback's proof sources.
-pub(in crate::proof_contracts::contract_entailment) fn independent_application(
-    program: &dyn crate::CheckingInput,
-    caller: SymbolHandle,
-    callee: SymbolHandle,
-    selections: &[typed_trees::expression::StaticMachineArgument],
-) -> bool {
-    let mut pending = vec![callee];
-    pending.extend(
-        crate::machine_calls::machine_parameters::machine_selection_dependency_symbols(
-            program, selections,
-        ),
-    );
-    independent_declarations(program, caller, pending)
-}
-
-/// Exact call-owned selection custody, including operands removed from the
-/// executable call by specialization. It shares the ordinary dependency walk;
-/// no selection or call formation is inferred by this proof-availability query.
-pub(in crate::proof_contracts::contract_entailment) fn independent_call_application(
-    program: &dyn crate::CheckingInput,
-    caller: SymbolHandle,
-    callee: SymbolHandle,
-    call: typed_trees::references::StaticArgumentCall<'_>,
-) -> bool {
-    let mut pending = vec![callee];
-    pending.extend(
-        crate::machine_calls::machine_parameters::call_selection_dependency_symbols(program, call),
-    );
-    independent_declarations(program, caller, pending)
-}
-
-fn independent_declarations(
-    program: &dyn crate::CheckingInput,
-    caller: SymbolHandle,
-    mut pending: Vec<SymbolHandle>,
-) -> bool {
-    let mut visited = Vec::new();
-    while let Some(declaration) = pending.pop() {
-        let Some((owner, dependencies)) =
-            crate::machine_calls::call_cycles::declaration_call_dependencies(program, declaration)
-        else {
-            return false;
-        };
-        if owner == caller {
-            return false;
-        }
-        if visited.contains(&owner) {
-            continue;
-        }
-        visited.push(owner);
-        pending.extend(dependencies);
-    }
-    true
 }
 
 #[allow(clippy::too_many_arguments)]

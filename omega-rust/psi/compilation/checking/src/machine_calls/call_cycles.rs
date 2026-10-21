@@ -315,9 +315,9 @@ fn collect_statement_dependency_symbols(
         StatementNode::Call(call) => {
             push_dependency_symbol(symbols, call.target_symbol);
             symbols.extend(
-                super::machine_parameters::machine_selection_dependency_symbols(
+                super::machine_parameters::call_selection_dependency_symbols(
                     program,
-                    &call.machine_arguments,
+                    typed_trees::references::StaticArgumentCall::Statement(call),
                 ),
             );
             for argument in program.statement_table.expression_handles(call.arguments) {
@@ -382,9 +382,9 @@ fn collect_expression_dependency_symbols(
         ExpressionNode::Call(call) => {
             push_dependency_symbol(symbols, call.target_symbol);
             symbols.extend(
-                super::machine_parameters::machine_selection_dependency_symbols(
+                super::machine_parameters::call_selection_dependency_symbols(
                     program,
-                    &call.machine_arguments,
+                    typed_trees::references::StaticArgumentCall::Expression(expression, call),
                 ),
             );
             collect_expression_dependency_symbols(program, call.receiver, symbols);

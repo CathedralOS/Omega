@@ -70,7 +70,7 @@ impl<'program> ScopedCalls<'program> {
             .expression_table
             .expression_handles(call.arguments);
         if parameters.len() != arguments.len()
-            || !super::super::super::structural_judgment::independent_call_application(
+            || !crate::machine_calls::contract_dependencies::independent_call_application(
                 self.program,
                 self.context,
                 owner_symbol(&owner),

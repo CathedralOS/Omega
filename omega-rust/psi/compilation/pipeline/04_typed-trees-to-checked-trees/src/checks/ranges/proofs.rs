@@ -46,7 +46,7 @@ fn index_is_within_unknown_length_proven(
     facts.index_is_proven(collection_label, &index_label)
         || expression_integer_value(program, facts, index)
             .is_some_and(|index| facts.index_value_is_proven(collection_label, index))
-        || ensured_call_result_bounds(program, index)
+        || ensured_call_result_bounds(program, facts.caller, index)
             .and_then(|(_, high)| high)
             .is_some_and(|high| facts.index_value_is_proven(collection_label, high))
         || facts.index_upper_bound_within_length_floor(&index_label, collection_label)
@@ -217,7 +217,7 @@ fn symbolic_extent_index_is_proven(
             .proven_index_upper_bound(&index_label)
             .zip(floor)
             .is_some_and(|(upper, floor)| upper <= floor)
-        || ensured_call_result_bounds(program, index)
+        || ensured_call_result_bounds(program, facts.caller, index)
             .and_then(|(_, high)| high)
             .zip(floor)
             .is_some_and(|(high, floor)| high < floor)
@@ -258,7 +258,7 @@ fn symbolic_extent_range_bound_is_proven(
         || super::types::expression_enforced_declared_range(program, machine, state, bound)
             .zip(floor)
             .is_some_and(|((_, high), floor)| high <= floor)
-        || ensured_call_result_bounds(program, bound)
+        || ensured_call_result_bounds(program, facts.caller, bound)
             .and_then(|(_, high)| high)
             .zip(floor)
             .is_some_and(|(high, floor)| high <= floor)
@@ -431,7 +431,7 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
             // every callee exit, so a non-negative `K` supplies the
             // non-negativity a signed result still owes — the same contract
             // the index and lower-bound lanes already read.
-            || ensured_call_result_bounds(program, binary.right)
+            || ensured_call_result_bounds(program, facts.caller, binary.right)
                 .and_then(|(low, _)| low)
                 .is_some_and(|low| low >= 0)
             || facts.non_negative_is_proven(&offset_label)
@@ -505,7 +505,7 @@ fn range_bound_is_proven(
         || facts
             .proven_index_upper_bound(&bound_label)
             .is_some_and(|upper| facts.range_bound_value_is_proven(collection_label, upper - 1))
-        || ensured_call_result_bounds(program, bound)
+        || ensured_call_result_bounds(program, facts.caller, bound)
             .and_then(|(_, high)| high)
             .is_some_and(|high| facts.range_bound_value_is_proven(collection_label, high))
 }

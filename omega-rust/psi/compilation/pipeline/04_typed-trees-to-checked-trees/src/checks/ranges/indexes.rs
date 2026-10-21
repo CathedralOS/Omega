@@ -130,6 +130,7 @@ impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
                 .or_else(|| {
                     let (low, high) = super::expressions::ensured_call_result_bounds(
                         self.transfer.program,
+                        self.transfer.machine.symbol,
                         indexed.index,
                     )?;
                     let low = low?;

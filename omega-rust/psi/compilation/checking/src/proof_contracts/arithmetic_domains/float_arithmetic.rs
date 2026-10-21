@@ -77,7 +77,7 @@ pub(crate) fn float_source_proves_integer_conversion(
     value: ExpressionHandle,
     target: PrimitiveType,
 ) -> bool {
-    float_source_bounds(program, environment, value, &|value| {
+    float_source_bounds(program, machine.symbol, environment, value, &|value| {
         state
             .and_then(|state| {
                 crate::value_custody::expression_types::expression_result_type_reference(
@@ -130,6 +130,7 @@ impl FloatSourceBounds {
 /// facts, literals and sealed format conversions keep their ordinary owner.
 pub(crate) fn float_source_bounds(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
     environment: &ValueEnvironment,
     value: ExpressionHandle,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
@@ -146,7 +147,7 @@ pub(crate) fn float_source_bounds(
             let mut all_bounded = true;
             for arm in arms {
                 let Some(bounds) =
-                    float_source_bounds(program, environment, arm.value, result_type)
+                    float_source_bounds(program, caller, environment, arm.value, result_type)
                         .filter(|bounds| bounds.primitive == primitive)
                 else {
                     all_bounded = false;
@@ -171,9 +172,8 @@ pub(crate) fn float_source_bounds(
         .call_node(value)
         .filter(|call| call.selects_only_nominal_route())
         .and_then(|call| {
-            crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)
-        })
-        .and_then(|callee| super::float_contracts::normal_return_interval(program, &callee));
+            super::float_contracts::normal_return_interval(program, caller, value, call)
+        });
     let declared = match (declared, guaranteed) {
         (Some(left), Some(right)) => Some(left.intersect(right)),
         (left, right) => left.or(right),
@@ -181,7 +181,7 @@ pub(crate) fn float_source_bounds(
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .unwrap_or((FloatInterval::UNBOUNDED, false));
-    let converted = numeric_conversion_bounds(program, environment, value, result_type);
+    let converted = numeric_conversion_bounds(program, caller, environment, value, result_type);
     // A still-anonymous literal receives its format from the authenticated
     // observation type. Round its decimal directly, especially for f32;
     // already-landed literals keep the ordinary closed-value query.
@@ -225,6 +225,7 @@ pub(crate) fn float_source_bounds(
 /// destination annotations nor receiving predicates supply source bounds.
 fn numeric_conversion_bounds(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
@@ -234,7 +235,7 @@ fn numeric_conversion_bounds(
             return None;
         }
         let target = program.primitive_type_reference(cast.target_type)?;
-        let bounds = float_source_bounds(program, environment, cast.value, result_type)?;
+        let bounds = float_source_bounds(program, caller, environment, cast.value, result_type)?;
         // This computes the output enclosure, not Exact admission. The
         // authored cast must separately prove unchanged source denotation;
         // a rounded output enclosure cannot discharge that obligation.
@@ -262,7 +263,7 @@ fn numeric_conversion_bounds(
             high: Some(maximum.to_f64()),
         });
     }
-    let bounds = float_source_bounds(program, environment, *operand, result_type)?;
+    let bounds = float_source_bounds(program, caller, environment, *operand, result_type)?;
     if bounds.primitive != source {
         return None;
     }

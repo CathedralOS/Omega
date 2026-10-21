@@ -33,7 +33,7 @@ pub(super) fn analyze(
     let analysis = named_operator_result(walk, call).unwrap_or_else(|| {
         [
             selected_const_call_result(walk, expression),
-            declared_return_range(walk, call),
+            declared_return_range(walk, expression, call),
             inferred_return_range(walk, call),
             returned_referent_range(walk, expression, call),
         ]
@@ -208,8 +208,12 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         let [operand] = program.expression_table.expression_handles(call.arguments) else {
             return None;
         };
-        let source =
-            super::super::float_source_bounds(program, walk.environment, *operand, &|value| {
+        let source = super::super::float_source_bounds(
+            program,
+            walk.machine.symbol,
+            walk.environment,
+            *operand,
+            &|value| {
                 walk.state
                     .and_then(|state| {
                         crate::value_custody::expression_types::expression_result_type_reference(
@@ -227,7 +231,8 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
                             value,
                         )
                     })
-            })?;
+            },
+        )?;
         let (minimum, maximum) = crate::float_integer_conversion_bounds(
             program,
             operator,
@@ -283,7 +288,11 @@ fn selected_const_call_result(
 /// domain. This owner supplies narrower declared/ensured bounds; the common
 /// result-carrier step retains the full type range when no tighter fact exists.
 /// A callee's `ensures result <= K` is the same enforced guarantee.
-fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
+fn declared_return_range(
+    walk: &ExpressionWalk,
+    expression: ExpressionHandle,
+    call: &TableCallExpression,
+) -> Option<Analysis> {
     let program = walk.program;
     let return_type = call_return_type(program, call)?;
     let primitive = program.primitive_type_reference(return_type);
@@ -295,11 +304,13 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         .collect();
     let lengths = argument_collection_lengths(walk, call);
     let concrete = super::super::call_result_bounds::ArgumentBounds { values, lengths };
-    let ensured = ensured_call_result_interval(program, call, &concrete).map(|ensured| {
-        primitive
-            .and_then(primitive_range)
-            .map_or(ensured, |carrier| ensured.intersect(carrier))
-    });
+    let ensured =
+        ensured_call_result_interval(program, walk.machine.symbol, expression, call, &concrete)
+            .map(|ensured| {
+                primitive
+                    .and_then(primitive_range)
+                    .map_or(ensured, |carrier| ensured.intersect(carrier))
+            });
     let interval = match (declared, ensured) {
         (Some(declared), Some(ensured)) => Some(declared.intersect(ensured)),
         (declared, ensured) => declared.or(ensured),

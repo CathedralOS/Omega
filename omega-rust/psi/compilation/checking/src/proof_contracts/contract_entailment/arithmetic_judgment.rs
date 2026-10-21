@@ -1461,6 +1461,8 @@ impl<'program> Engine<'program> {
                     && let Some(interval) =
                         crate::proof_contracts::arithmetic_domains::call_result_interval(
                             self.program,
+                            self.machine_symbol,
+                            expression,
                             &call,
                         )
                 {

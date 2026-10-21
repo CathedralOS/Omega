@@ -486,7 +486,12 @@ fn bounds(
         // return range and the `ensures` conjuncts bounding `result` are
         // proven at every exit, so the interval holds of the produced value
         // wherever the call appears as an operand.
-        ExpressionNode::Call(call) => Some(call_result_bounds(program, call)?),
+        ExpressionNode::Call(call) => Some(call_result_bounds(
+            program,
+            machine.symbol,
+            expression,
+            call,
+        )?),
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -732,22 +737,34 @@ fn unsigned_bitwise_bounds(
 /// return type is not an exact fixed integer.
 pub(crate) fn call_result_interval(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
 ) -> Option<Interval> {
-    Some(call_result_bounds(program, call)?.interval)
+    Some(call_result_bounds(program, caller, expression, call)?.interval)
 }
 
 fn call_result_bounds(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
 ) -> Option<Bounds> {
     let (callee, entry) =
         crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
     let declared = type_bounds(program, entry.return_type)?;
+    let ensured = if crate::machine_calls::contract_dependencies::independent_call_application(
+        program,
+        caller,
+        call.target_symbol,
+        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+    ) {
+        ensures_result_interval(program, callee, entry)
+    } else {
+        Interval::UNBOUNDED
+    };
     Some(Bounds {
-        interval: declared
-            .interval
-            .intersect(ensures_result_interval(program, callee, entry)),
+        interval: declared.interval.intersect(ensured),
         ..declared
     })
 }

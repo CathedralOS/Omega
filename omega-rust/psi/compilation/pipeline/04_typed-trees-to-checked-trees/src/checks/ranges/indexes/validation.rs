@@ -376,7 +376,7 @@ fn check_recipe_extent_index(
     let (standing_low, standing_high) =
         validation::standing_integer_bounds(program, machine, state, index).unwrap_or_default();
     let (ensured_low, ensured_high) =
-        ensured_call_result_bounds(program, index).unwrap_or_default();
+        ensured_call_result_bounds(program, facts.caller, index).unwrap_or_default();
     let carrier_maximum = expression_integer_carrier_maximum(program, machine, state, index)
         .and_then(|maximum| i64::try_from(maximum).ok());
     let upper_bound = [
@@ -602,7 +602,7 @@ fn check_known_length_index(
                 // return range does. Unproved spellings and shadowed `result`
                 // names contribute nothing and keep the ordinary rejection.
                 let (ensured_low, ensured_high) =
-                    ensured_call_result_bounds(program, index).unwrap_or_default();
+                    ensured_call_result_bounds(program, facts.caller, index).unwrap_or_default();
                 // A hoisted computed-index temp (`__hoist_N`, the
                 // compiler-reserved prefix) is assigned by its synthesized
                 // `let` IMMEDIATELY before the indexing statement -- no user

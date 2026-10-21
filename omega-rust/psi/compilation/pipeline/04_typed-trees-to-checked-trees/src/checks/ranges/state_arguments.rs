@@ -267,7 +267,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                 state,
                 call_frames,
             };
-            let mut facts = RangeFacts::new(field_lengths, bound_lookup);
+            let mut facts = RangeFacts::new(machine.symbol, field_lengths, bound_lookup);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_calls = Some(calls);
             facts.checked_operators = Some(operators);

@@ -696,7 +696,7 @@ impl<'program> CurrentScalarValues<'program> {
         // interval stays a term: `0 <= result < 26` does not select one end.
         if let Some(call) = program.expression_table.call_node(expression)
             && let Some((Some(low), Some(high))) =
-                validation::normal_return_integer_bounds(program, call)
+                validation::normal_return_integer_bounds(program, machine.symbol, expression, call)
             && low == high
         {
             return Some(ScopedArithmeticValue::Integer(

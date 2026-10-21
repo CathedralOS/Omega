@@ -59,6 +59,17 @@ pub(super) fn call_result_orderings(
     let Some((callee, entry)) = ordered_result_call(program, call) else {
         return Vec::new();
     };
+    // A copied result keeps only independently established guarantees.
+    // Delivery into a local must not turn a recursive promise into a body
+    // bound that later inference mistakes for independent return evidence.
+    if !crate::machine_calls::contract_dependencies::independent_call_application(
+        program,
+        machine.symbol,
+        call.target_symbol,
+        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+    ) {
+        return Vec::new();
+    }
     let Some(call_value) = ensured_call_operand(program, machine, state, expression) else {
         return Vec::new();
     };

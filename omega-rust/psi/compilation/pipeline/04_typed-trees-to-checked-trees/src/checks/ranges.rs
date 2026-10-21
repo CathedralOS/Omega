@@ -164,7 +164,7 @@ pub(crate) fn check_indexed_accesses(
             }
             let collection_bounds =
                 validation::CollectionBoundsObservations::new(program, machine, state);
-            let mut facts = RangeFacts::new(&field_lengths, &bound_lookup);
+            let mut facts = RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
             facts.collection_bounds = Some(&collection_bounds);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_operators = Some(operators);

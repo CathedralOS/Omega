@@ -76,7 +76,7 @@ pub(in crate::checks::ranges) fn expression_integer_value(
         // An exact ensured result is that integer. A proper interval is not:
         // `0 <= result < 26` does not pick one endpoint.
         ExpressionNode::Call(_) => {
-            let (low, high) = super::ensured_call_result_bounds(program, expression)?;
+            let (low, high) = super::ensured_call_result_bounds(program, facts.caller, expression)?;
             match (low, high) {
                 (Some(low), Some(high)) if low == high => Some(low),
                 _ => None,

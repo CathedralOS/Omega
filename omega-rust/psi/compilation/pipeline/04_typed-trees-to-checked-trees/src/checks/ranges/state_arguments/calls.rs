@@ -210,7 +210,7 @@ pub(super) fn collect_state_argument_facts_for_call(
         // discharged at every return (`result <= K` bounds this occurrence's
         // result at K+1) — the consumer consults the contract rather than
         // weakening the index admission downstream.
-        let ensured = ensured_call_result_bounds(program, argument);
+        let ensured = ensured_call_result_bounds(program, facts.caller, argument);
         let argument_bound = [
             integer_value.and_then(|value| (value >= 0).then(|| value.checked_add(1)).flatten()),
             facts.proven_index_upper_bound(argument_label),

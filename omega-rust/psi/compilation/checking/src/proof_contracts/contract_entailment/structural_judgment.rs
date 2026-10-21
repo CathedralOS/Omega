@@ -12,7 +12,6 @@ mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
 mod selected_contracts;
-pub(in crate::proof_contracts::contract_entailment) use selected_contracts::independent_call_application;
 mod storage_effects;
 mod value_predicates;
 
@@ -616,7 +615,7 @@ impl<'program> StructuralJudge<'program> {
         callee: SymbolHandle,
         selections: &[typed_trees::expression::StaticMachineArgument],
     ) -> bool {
-        selected_contracts::independent_application(
+        crate::machine_calls::contract_dependencies::independent_application(
             self.program,
             self.machine_symbol,
             callee,

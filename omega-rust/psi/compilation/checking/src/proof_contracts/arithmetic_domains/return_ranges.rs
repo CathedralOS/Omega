@@ -52,9 +52,19 @@ pub(crate) fn call_return_type(
 /// bound each value the call produces exactly as a declared return range does.
 pub(crate) fn ensured_call_result_interval(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
     actuals: &super::call_result_bounds::ArgumentBounds,
 ) -> Option<Interval> {
+    if !crate::machine_calls::contract_dependencies::independent_call_application(
+        program,
+        caller,
+        call.target_symbol,
+        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+    ) {
+        return None;
+    }
     if let Some((machine, state)) =
         crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
         && machine.target_family_interface
@@ -119,6 +129,8 @@ pub(crate) fn ensured_call_result_interval(
 /// exit checking still owe the declaration's prerequisites and guarantees.
 pub fn normal_return_integer_bounds(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
 ) -> Option<(Option<i64>, Option<i64>)> {
     if !call.selects_only_nominal_route()
@@ -130,6 +142,8 @@ pub fn normal_return_integer_bounds(
     }
     let interval = ensured_call_result_interval(
         program,
+        caller,
+        expression,
         call,
         &super::call_result_bounds::ArgumentBounds::default(),
     )?;

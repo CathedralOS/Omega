@@ -613,8 +613,15 @@ fn validate_abstract_numeric_coercion(
         source = primitive;
         source_interval = Some(interval);
     }
-    let float_bounds =
-        |expression| super::float_source_bounds(program, environment, expression, &result_type);
+    let float_bounds = |expression| {
+        super::float_source_bounds(
+            program,
+            bindings.owner_symbol,
+            environment,
+            expression,
+            &result_type,
+        )
+    };
     let integer_bounds = || {
         super::integer_ranges::integer_source_bounds_from_interval(
             program,

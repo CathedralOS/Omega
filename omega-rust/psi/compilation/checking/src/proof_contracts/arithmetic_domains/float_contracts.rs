@@ -20,6 +20,8 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// annotation or private callee-body inference contributes a predicate here.
 pub fn normal_return_float_predicates(
     program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     predicates: &mut Vec<facts::FloatPredicate>,
 ) {
@@ -31,7 +33,7 @@ pub fn normal_return_float_predicates(
     else {
         return;
     };
-    let Some(interval) = normal_return_interval(program, &callee) else {
+    let Some(interval) = normal_return_interval(program, caller, expression, call) else {
         return;
     };
     let format = match program.primitive_type_reference(callee.return_type) {
@@ -68,8 +70,21 @@ pub fn normal_return_float_predicates(
 
 pub(super) fn normal_return_interval(
     program: &dyn crate::CheckingInput,
-    callee: &CalleeContract<'_>,
+    caller: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
 ) -> Option<FloatInterval> {
+    if !call.selects_only_nominal_route()
+        || !crate::machine_calls::contract_dependencies::independent_call_application(
+            program,
+            caller,
+            call.target_symbol,
+            typed_trees::references::StaticArgumentCall::Expression(expression, call),
+        )
+    {
+        return None;
+    }
+    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
     let primitive = program.primitive_type_reference(callee.return_type)?;
     if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         return None;
@@ -77,7 +92,7 @@ pub(super) fn normal_return_interval(
     let interval = program
         .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
         .fold(FloatInterval::UNBOUNDED, |interval, expression| {
-            interval.intersect(project(program, callee, expression, primitive))
+            interval.intersect(project(program, &callee, expression, primitive))
         });
     (interval != FloatInterval::UNBOUNDED).then_some(interval)
 }
@@ -337,7 +352,13 @@ pub fn float_return_postcondition(
                 .then_some(reference)
             })
         };
-        float_source_bounds(program, &environment, actual(expression), &landed_type)
+        float_source_bounds(
+            program,
+            machine.symbol,
+            &environment,
+            actual(expression),
+            &landed_type,
+        )
     };
     predicate(
         program,

@@ -242,6 +242,19 @@ impl ExitScalars<'_, '_> {
         if actual != expression || selected.target_symbol != call.target_symbol {
             return None;
         }
+        // Authenticating a completed call does not make its declaration's
+        // guarantee independent. Every equality reader below (including an
+        // empty static roster) must withhold a conclusion that depends on this
+        // exit's own proof owner. Strict recursive induction remains with its
+        // separate exact-edge premise/descent judgment.
+        if !validation::independent_call_application(
+            self.program,
+            self.machine.symbol,
+            selected.target_symbol,
+            typed_trees::references::StaticArgumentCall::Expression(expression, selected),
+        ) {
+            return None;
+        }
         let (callee, entry) =
             validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
         let parameters = self.program.state_parameters(entry);

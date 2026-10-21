@@ -120,7 +120,7 @@ pub(crate) fn capture_float_assignment(
             })
         }
     } else {
-        super::float_source_bounds(program, environment, value, &|expression| {
+        super::float_source_bounds(program, machine.symbol, environment, value, &|expression| {
             state
                 .and_then(|state| {
                     crate::expression_result_type_reference(program, machine, state, expression)

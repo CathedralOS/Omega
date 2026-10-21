@@ -432,8 +432,12 @@ fn folded_coordinate(
                     matched.all(|value| value == first).then_some(first)?
                 } else {
                     let call = program.expression_table.call_node(operand)?;
-                    let (Some(low), Some(high)) =
-                        crate::normal_return_integer_bounds(program, call)?
+                    let (Some(low), Some(high)) = crate::normal_return_integer_bounds(
+                        program,
+                        machine_symbol,
+                        operand,
+                        call,
+                    )?
                     else {
                         return None;
                     };

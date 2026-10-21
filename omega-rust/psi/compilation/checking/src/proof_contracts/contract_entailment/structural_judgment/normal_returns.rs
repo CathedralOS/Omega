@@ -12,10 +12,11 @@ use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::{bound_term, independent_application};
+use super::selected_contracts::bound_term;
 use super::value_predicates::boolean_term;
 use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
+use crate::machine_calls::contract_dependencies::independent_application;
 use facts::NormalizedWriteFrame;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;

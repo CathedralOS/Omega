@@ -690,6 +690,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit built 40020ms exit:0 int
 pass/facts/guarded_line_loan_through_other_state_exit built 39739ms exit:0 interpreter-exit:0 interpreter:agrees @93551ee17f11
 pass/facts/guarded_line_loan_through_parameter_exit built 38335ms exit:0 interpreter-exit:0 interpreter:agrees @93551ee17f11
 pass/facts/guarded_line_loan_through_target_body_exit built 38455ms exit:0 interpreter-exit:0 interpreter:agrees @93551ee17f11
+pass/facts/independent_call_result_bound_through_call_result_exit built 1602ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_const_name_exit built 2065ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_field_exit built 1713ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_local_exit built 1524ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_match_join_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_other_machine_exit built 1884ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_other_state_exit built 2146ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_parameter_exit built 1796ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/facts/independent_call_result_bound_through_target_body_exit built 1989ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
 pass/facts/independent_content_partition_through_call_result built 9297ms exit:0 interpreter-exit:0 interpreter:agrees @61fab13095e7+wt
 pass/facts/independent_content_partition_through_const_name built 9297ms exit:0 interpreter-exit:0 interpreter:agrees @61fab13095e7+wt
 pass/facts/independent_content_partition_through_field built 9297ms exit:0 interpreter-exit:0 interpreter:agrees @61fab13095e7+wt
