@@ -237,12 +237,31 @@ def oracle_failure(record: dict, detail: str, recordable: bool = None) -> dict:
             "recordable": recordable}
 
 
-def native_rejection_failures(records: list[dict], corpus: Path, target: str) -> list[dict]:
+def publication_observed(record: dict, native_leg: bool) -> bool:
+    """Whether this record's leg published a native artifact for its fixture.
+
+    The authored refusal oracle is a statement about native publication, so it
+    is weighed only where publication happened. A native leg realizes every
+    pass fixture; the check leg realizes exactly the pass and run fixtures
+    whose own `build.omg` binds a program-entry root, and records that target
+    as `check-target:<target>`. A leg that only accepted the source published
+    nothing, so its `checked` row is not the refusal the oracle can expect, and
+    weighing it there would invent a failure the leg never measured.
+    """
+    return native_leg or "check-target" in record["facts"]
+
+
+def native_rejection_failures(records: list[dict], corpus: Path, target: str,
+                              native_leg: bool = True) -> list[dict]:
     """Check build-only publication refusals without counting them as execution.
 
     Source acceptance and native publication have separate contracts. The
     gate derives this fact from the authored diagnostic fragments; a runner
-    cannot assert it, and it cannot replace an execution promise.
+    cannot assert it, and it cannot replace an execution promise. Weighing it
+    wherever publication was observed is what lets one golden say a refusal was
+    the authored one: the check leg publishes for entry-binding fixtures too,
+    and a row there that names the target it realized but not the oracle it
+    satisfied reports an authored refusal as a capability no reader can check.
     """
     failures = []
     for record in records:
@@ -250,7 +269,7 @@ def native_rejection_failures(records: list[dict], corpus: Path, target: str) ->
         facts.pop("native-rejection", None)
         fixture = corpus / record["fixture"]
         path = fixture / "expected_native_rejection.txt"
-        if not path.exists():
+        if not path.exists() or not publication_observed(record, native_leg):
             continue
         try:
             fragments = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()
@@ -260,7 +279,8 @@ def native_rejection_failures(records: list[dict], corpus: Path, target: str) ->
             if (record["tier"] != "pass" or fixture.name.endswith("_exit")
                     or native_exit_oracle(fixture, target).exists()
                     or any((fixture / f"expected_{stream}.txt").exists()
-                           for stream in ("stdout", "stderr"))):
+                           for stream in ("stdout", "stderr"))
+                    or (fixture / "expected_terminal_targets.txt").exists()):
                 raise ValueError("native rejection requires a build-only pass fixture without execution oracles")
         except (OSError, UnicodeError, ValueError) as error:
             failures.append(oracle_failure(
@@ -1647,8 +1667,13 @@ def main() -> int:
               f"{facts['migration-capability']} ({facts['migration-task']}, "
               f"{facts['migration-route']})")
     failures = terminal_target_failures(records, ROOT / "tests" / "omega")
+    # A publication refusal is weighed on every leg that published, not on the
+    # native leg alone: the check leg realizes an entry-binding pass fixture
+    # itself, so its own row is the evidence the authored oracle speaks about.
+    failures.extend(native_rejection_failures(
+        records, ROOT / "tests" / "omega", target or host_target() or "unknown",
+        native_leg=options.native))
     if options.native:
-        failures.extend(native_rejection_failures(records, ROOT / "tests" / "omega", target))
         failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
         failures.extend(execution_output_failures(
             records, ROOT / "tests" / "omega", "native"))

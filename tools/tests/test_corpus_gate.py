@@ -327,6 +327,62 @@ class NativePublicationRejection(unittest.TestCase):
             self.assertFalse(self.check(observed)[0]["recordable"])
 
 
+class PublicationRefusalLegCoverage(unittest.TestCase):
+    """The authored refusal is weighed on the legs that actually published.
+
+    The check leg realizes an entry-binding pass fixture itself and names the
+    target it realized, so its row is a publication observation. A source-only
+    row is not, and weighing the oracle there would report a `checked` fixture
+    as a failed refusal it never attempted.
+    """
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.fixture = self.root / "pass" / "build" / "physical_adapter"
+        self.fixture.mkdir(parents=True)
+        (self.fixture / "expected_native_rejection.txt").write_text("requires physical adapter\n")
+
+    def weigh(self, observed, native_leg):
+        return corpus_gate.native_rejection_failures(
+            [observed], self.root, "uefi_x86_64", native_leg=native_leg)
+
+    def refusal(self, **facts):
+        return record("pass/build/physical_adapter", status="rejected",
+                      diagnostics=["native entry requires physical adapter"],
+                      facts=facts)
+
+    def test_check_leg_weighs_the_oracle_where_it_realized_a_target(self):
+        observed = self.refusal(**{"check-target": "uefi_x86_64"})
+        self.assertEqual(self.weigh(observed, native_leg=False), [])
+        self.assertTrue(corpus_records.native_rejection_satisfied(observed))
+        self.assertEqual(corpus_records.pinned_off_target([observed]), [])
+
+    def test_check_leg_leaves_a_source_only_row_to_its_own_tier(self):
+        observed = record("pass/build/physical_adapter", status="checked")
+        self.assertEqual(self.weigh(observed, native_leg=False), [])
+        self.assertIsNone(observed["expected_satisfied"])
+        self.assertNotIn("native-rejection", observed["facts"])
+
+    def test_native_leg_still_weighs_a_row_that_names_no_target(self):
+        observed = self.refusal()
+        self.assertEqual(self.weigh(observed, native_leg=True), [])
+        self.assertTrue(corpus_records.native_rejection_satisfied(observed))
+
+    def test_a_wrong_refusal_is_refused_on_the_check_leg_too(self):
+        observed = record("pass/build/physical_adapter", status="rejected",
+                          diagnostics=["unrelated compiler error"],
+                          facts={"check-target": "uefi_x86_64"})
+        self.assertFalse(self.weigh(observed, native_leg=False)[0]["recordable"])
+        self.assertEqual(observed["facts"]["native-rejection"], "mismatch")
+
+    def test_a_terminal_target_oracle_cannot_coexist_with_a_refusal(self):
+        (self.fixture / "expected_terminal_targets.txt").write_text("uefi_x86_64 0\n")
+        observed = self.refusal(**{"check-target": "uefi_x86_64"})
+        self.assertFalse(self.weigh(observed, native_leg=False)[0]["recordable"])
+
+
 class Classify(unittest.TestCase):
     def verdict(self, before, after):
         return corpus_gate.classify(before, after)
@@ -614,6 +670,33 @@ class MainVerdicts(unittest.TestCase):
             for patcher in patches:
                 stack.enter_context(patcher)
             return corpus_gate.main()
+
+    def test_check_leg_record_carries_the_refusal_oracle_it_satisfied(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "build" / "adapter"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_rejection.txt").write_text("requires physical adapter\n")
+        observed = record("pass/build/adapter", status="rejected",
+                          diagnostics=["native entry requires physical adapter"],
+                          facts={"check-target": "uefi_x86_64"})
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = self.run_gate([observed], "--record")
+        self.assertEqual(code, 0)
+        recorded = corpus_records.read(self.golden)[0]
+        self.assertTrue(corpus_records.native_rejection_satisfied(recorded))
+        self.assertNotIn("pinned without a success", output.getvalue())
+
+    def test_check_leg_source_only_row_is_still_reported_as_pinned(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "build" / "adapter"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_rejection.txt").write_text("requires physical adapter\n")
+        observed = record("pass/build/adapter", status="checked")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = self.run_gate([observed], "--record")
+        self.assertEqual(code, 0)
+        recorded = corpus_records.read(self.golden)[0]
+        self.assertFalse(corpus_records.native_rejection_satisfied(recorded))
 
     def test_clean_moves_and_regressed_exit_codes(self):
         rows = [record("pass/a/x")]
