@@ -3443,6 +3443,27 @@ fail/facts/exact_sub_guard_through_target_body_rejected rejected 944ms expected 
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exclusive_match_arm_through_call_result_rejected rejected 2446ms expected @bd3c83daeef4+wt
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/exclusive_match_arm_through_const_name_rejected rejected 2457ms expected @bd3c83daeef4+wt
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/exclusive_match_arm_through_field_rejected rejected 1670ms expected @bd3c83daeef4+wt
+	statement 3 mutates `pair.left` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/exclusive_match_arm_through_local_rejected rejected 1384ms expected @bd3c83daeef4+wt
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/exclusive_match_arm_through_match_join_rejected rejected 1444ms expected @bd3c83daeef4+wt
+	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/exclusive_match_arm_through_other_machine_rejected rejected 1458ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/exclusive_match_arm_through_other_state_rejected rejected 1669ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/exclusive_match_arm_through_parameter_rejected rejected 1511ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/exclusive_match_arm_through_target_body_rejected rejected 1646ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 fail/facts/exclusive_observation_exposure_through_call_result_rejected rejected 604ms expected @a3eadeb8a789+wt
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/exclusive_observation_exposure_through_const_name_rejected rejected 596ms expected @a3eadeb8a789+wt
@@ -4499,6 +4520,49 @@ fail/facts/loop_branch_relaxation_ranking_unproved_target_body rejected 7191ms e
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_loan_last_use_through_call_result_rejected rejected 1585ms expected @bd3c83daeef4+wt
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_const_name_rejected rejected 2050ms expected @bd3c83daeef4+wt
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_field_rejected rejected 1980ms expected @bd3c83daeef4+wt
+	statement 3 mutates `box` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+	statement 3 mutates `box` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/match_loan_last_use_through_local_rejected rejected 1400ms expected @bd3c83daeef4+wt
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/match_loan_last_use_through_match_join_rejected rejected 1764ms expected @bd3c83daeef4+wt
+	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/match_loan_last_use_through_other_machine_rejected rejected 1524ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/match_loan_last_use_through_other_state_rejected rejected 1478ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
+fail/facts/match_loan_last_use_through_parameter_rejected rejected 1808ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/match_loan_last_use_through_target_body_rejected rejected 1588ms expected @bd3c83daeef4+wt
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/match_primitive_local_origin_through_call_result_rejected rejected 1542ms expected @bd3c83daeef4+wt
+	cannot prove ensures contract for exit from select at statement 3: result == 17
+fail/facts/match_primitive_local_origin_through_const_name_rejected rejected 1578ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_primitive_local_origin_through_field_rejected rejected 1573ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_primitive_local_origin_through_local_rejected rejected 1508ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_primitive_local_origin_through_match_join_rejected rejected 1471ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_primitive_local_origin_through_other_machine_rejected rejected 1337ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_primitive_local_origin_through_other_state_rejected rejected 1345ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `pick`
+fail/facts/match_primitive_local_origin_through_parameter_rejected rejected 1326ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_primitive_local_origin_through_target_body_rejected rejected 869ms expected @bd3c83daeef4+wt
+	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/matched_field_windows_through_call_result_rejected rejected 2446ms expected @1b6a7414189c
 	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_const_name_rejected rejected 2480ms expected @1b6a7414189c
@@ -11767,6 +11831,15 @@ pass/facts/exact_sub_guard_through_other_machine_compile checked 3088ms @9115912
 pass/facts/exact_sub_guard_through_other_state_compile checked 3334ms @9115912f0074
 pass/facts/exact_sub_guard_through_parameter_compile checked 3329ms @9115912f0074
 pass/facts/exact_sub_guard_through_target_body_compile checked 3066ms @9115912f0074
+pass/facts/exclusive_match_arm_through_call_result_exit checked 2489ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_const_name_exit checked 2211ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_field_exit checked 2179ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_local_exit checked 2233ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_match_join_exit checked 2234ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_other_machine_exit checked 2177ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_other_state_exit checked 2176ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_parameter_exit checked 2230ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/exclusive_match_arm_through_target_body_exit checked 2178ms check-target:macos_arm64 @bd3c83daeef4+wt
 pass/facts/exclusive_observation_exposure_through_call_result_exit checked 862ms check-target:macos_arm64 @a3eadeb8a789+wt
 pass/facts/exclusive_observation_exposure_through_const_name_exit checked 836ms check-target:macos_arm64 @a3eadeb8a789+wt
 pass/facts/exclusive_observation_exposure_through_field_exit checked 837ms check-target:macos_arm64 @a3eadeb8a789+wt
@@ -12167,6 +12240,24 @@ pass/facts/loop_branch_relaxation_ranking_through_other_machine_exit checked 299
 pass/facts/loop_branch_relaxation_ranking_through_other_state_exit checked 30294ms check-target:macos_arm64 @69725a85bb43
 pass/facts/loop_branch_relaxation_ranking_through_parameter_exit checked 29656ms check-target:macos_arm64 @69725a85bb43
 pass/facts/loop_branch_relaxation_ranking_through_target_body_exit checked 31130ms check-target:macos_arm64 @69725a85bb43
+pass/facts/match_loan_last_use_through_call_result_exit checked 2173ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_const_name_exit checked 2575ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_field_exit checked 2666ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_local_exit checked 2696ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_match_join_exit checked 2699ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_other_machine_exit checked 2482ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_other_state_exit checked 2604ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_parameter_exit checked 2644ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_loan_last_use_through_target_body_exit checked 2550ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_call_result_exit checked 2668ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_const_name_exit checked 3132ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_field_exit checked 2153ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_local_exit checked 3275ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_match_join_exit checked 2225ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_other_machine_exit checked 2236ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_other_state_exit checked 2387ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_parameter_exit checked 2481ms check-target:macos_arm64 @bd3c83daeef4+wt
+pass/facts/match_primitive_local_origin_through_target_body_exit checked 2417ms check-target:macos_arm64 @bd3c83daeef4+wt
 pass/facts/matched_field_windows_through_call_result_exit checked 24028ms check-target:macos_arm64 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_const_name_exit checked 23308ms check-target:macos_arm64 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_field_exit checked 23825ms check-target:macos_arm64 @6950e9f0e0c8
