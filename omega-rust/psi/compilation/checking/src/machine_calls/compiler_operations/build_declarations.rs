@@ -110,39 +110,6 @@ pub fn resolve_build_static_operand(
     Ok(AuthoredSelectionResolutionTarget::Declaration(selected))
 }
 
-pub fn provider_selection_expressions(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<ExpressionHandle> {
-    let mut expressions = Vec::new();
-    for state in program.machine_states(machine) {
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            crate::expression_traversal::collect_statement_expression_trees(
-                program,
-                statement,
-                &mut expressions,
-            );
-        }
-    }
-    expressions.retain(|expression| {
-        matches!(program.expression_table.expression(*expression), ExpressionNode::Call(call)
-            if BuildOperation::from_call_target(call.target.as_str())
-                == Some(BuildOperation::ProviderSelection)
-                && !call.target_symbol.is_valid())
-    });
-    expressions
-}
-
-pub fn is_build_provider_selection(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
-        return false;
-    };
-    is_provider_selection_call(program, call)
-}
-
 pub fn is_provider_selection_call(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
