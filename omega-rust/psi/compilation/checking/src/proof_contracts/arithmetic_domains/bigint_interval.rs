@@ -172,35 +172,3 @@ pub fn bitwise_carrier_bounds(bits: u32, signed: bool) -> (BigInt, BigInt) {
         )
     }
 }
-
-/// `left & right` inside a `bits`-wide two's-complement carrier. Each
-/// operand reduces modulo `2^bits` -- every real operand is already
-/// in-carrier, so the reduction is identity there and only keeps a spelled
-/// out-of-range constant total -- then the u64 magnitudes AND and the
-/// result reinterprets under `signed`.
-pub fn bitwise_and_constants(
-    left: &BigInt,
-    right: &BigInt,
-    bits: u32,
-    signed: bool,
-) -> Option<BigInt> {
-    let modulus = BigInt::from_i64(1).shl_bits(bits as usize);
-    let reduce = |value: &BigInt| -> Option<u64> {
-        let (_, remainder) = value.div_rem(&modulus)?;
-        let reduced = if remainder.is_negative() {
-            remainder.add(&modulus)
-        } else {
-            remainder
-        };
-        reduced.to_u64()
-    };
-    let masked = reduce(left)? & reduce(right)?;
-    let value = BigInt::from_u64(masked);
-    // A signed carrier reinterprets the top bit; `bits <= 64` always, and
-    // for `bits == 64` that bit is position 63.
-    if signed && masked & (1u64 << (bits - 1).min(63)) != 0 {
-        Some(value.sub(&modulus))
-    } else {
-        Some(value)
-    }
-}

@@ -11,7 +11,6 @@ use super::{
 };
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) use crate::value_custody::places::binding_observations::{

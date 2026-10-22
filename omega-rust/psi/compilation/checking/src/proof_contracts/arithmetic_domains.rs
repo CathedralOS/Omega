@@ -74,7 +74,7 @@ mod return_ranges;
 mod selected_scalar_intervals;
 mod slice_lengths;
 pub use bigint_interval::{
-    BigIntInterval, bitwise_and_constants, bitwise_carrier_bounds, floor_shift_right,
+    BigIntInterval, bitwise_carrier_bounds, floor_shift_right,
 };
 pub use interval::{Interval, WideInterval};
 pub use return_ranges::normal_return_integer_bounds;
