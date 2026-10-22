@@ -665,7 +665,7 @@ defines the complete product bar.
     `samples/cli/facts/exclusive_observation_exposure`: an exclusive loan of
     the element retires the observation even when the loan does not store, and
     an exclusive loan of a different element leaves it provable, in all nine
-    places. Case, generic, reference, and float carriers remain open. Share capture with
+    places. Case payload and generic field already exit 0 on both engines, and each same-place twin rejects with cannot prove requires contract. Reference and float remain open. Share capture with
     **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
     ranges use ordinary view formation and call/state-edge evaluation:
     keep `python3 tools/corpus_gate.py --both --filter
