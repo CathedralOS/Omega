@@ -460,17 +460,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
             _ => Vec::new(),
         }
     }
-
-    /// Terminal invocations retained by the completion arms, in arm order.
-    pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
-        self.return_arms()
-            .into_iter()
-            .filter_map(|arm| match arm {
-                CheckedConditionalReturnArm::Call { operation, .. } => Some(operation),
-                _ => None,
-            })
-            .collect()
-    }
 }
 
 /// How a returning state of a scalar-result graph completes its value. These
@@ -512,13 +501,6 @@ impl CheckedComposedUnitControlStatePlan {
             .flat_map(|successor| successor.operand_operations());
 
         self.operations.iter().chain(selected).chain(established)
-    }
-
-    /// The terminal machine calls this state's conditional arms run
-    /// (`CheckedConditionalReturnArm::Call`). Each runs after the state's
-    /// whole operation sequence, on its selected arm only.
-    pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
-        self.terminator.arm_calls()
     }
 
     /// Control-flow successors of this state's terminator, in terminator
