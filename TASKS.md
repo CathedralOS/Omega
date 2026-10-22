@@ -190,9 +190,11 @@ helper that passes does not close an item.
   `ensures` guarantees and exhaustive match joins;
   `samples/cli/facts/checked_asm_flag_snapshot` covers all nine standard places
   plus mechanism probes and false-invariant/clobber/write-invalidation controls
-  with native/Terminal x86 agreement. Other
-  ISA/register views, unmodeled flag production, indexed memory/address
-  composition, hardware flag restoration,
+  with native/Terminal x86 agreement. An x86 mov through a typed view index
+  copies the indexed element by the place's ordinary assignment;
+  `samples/cli/facts/checked_asm_view_move` exits 0 on both Windows engines,
+  and bracketed `[address]` stays refused. Other
+  ISA/register views, unmodeled flag production, hardware flag restoration,
   ranking-witness transport for promised termination, and checked hardware-effect
   retirement of the exact linear obligation remain unfinished.
   Extend that control model rather than adding an opaque asm parser or verifier.
