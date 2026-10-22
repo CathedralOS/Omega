@@ -94,7 +94,6 @@ pub enum FactOrigin {
     CallRequires,
     CallEnsures,
     TransitionGuard,
-    ExitEnsures,
     OperatorRequires {
         operator_symbol: SymbolHandle,
     },
