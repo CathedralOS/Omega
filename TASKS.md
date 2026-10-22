@@ -5271,7 +5271,12 @@ wait for Cathedral's instruction coverage. The interpreter is
     obligation reads it. Each twin changes only that body from `false` to
     `true` and rejects `direct == false`. A domain on an `f64` constant keeps
     the carrier's float encoding. Bodyless `float_comparison_route` stays
-    on the comparison route (native exit 0, interpreter exit 0). Keep
+    on the comparison route (native exit 0, interpreter exit 0). A generic
+    comparison body that returns false is recorded on the call:
+    `samples/cli/facts/generic_comparison_body/local` exits 0 on both engines,
+    and the caller reads `direct == false`. Its twin changes only that body
+    to `true` and rejects. The other eight places of that sentence remain open.
+    Keep
     `body_bearing_comparison/returned_boolean`: a body-wide Boolean result
     joins every normal exit, named-state destination and selected target body;
     a first literal cannot erase a different or unknown return. Keep its
