@@ -456,3 +456,14 @@ byte-identical per subject across producers. All 1,090 source-check comparisons
 and 31 native/Terminal agreements are unchanged; known baseline failures remain.
 Retained as a small throughput improvement, with no universal/tail guarantee.
 [Mechanism, validation, raw observations and limits](trait_root_discovery_2026_10_22/README.md).
+
+### Stage 05 state-owner lookup comparison — 2026-10-22
+
+Rejected two replacements of `machine_holding_state`'s whole-roster fallback.
+The full-index variant produced Stage 05 medians of 544.274 -> 547.202 ms
+(12 alternating pairs); retaining the parent fast path produced
+556.246 -> 553.328 ms (20 pairs), with minima 532.410 -> 531.256 ms.
+Neither establishes a useful latency improvement. The compiler source was
+restored; no candidate corpus/native equivalence is claimed. The full-index
+candidate's 21 typed-tree tests passed. [Patches, raw observations, rationale
+and replay](stage_five_2026_10_22/state_lookup/README.md).
