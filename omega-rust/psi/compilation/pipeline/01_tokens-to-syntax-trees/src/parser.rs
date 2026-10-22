@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use rayon::prelude::*;
 use source::{SourceId, SourcePosition};
 use syntax_trees::{ParsedRootItems, ParsedSource, ParsedSources, SyntaxTrees, item::Item};
-use tokens::{LexedSources, Token};
+use tokens::{LexedSources, TokenStream};
 
 /// Parse an ordered token batch into the caller's syntax arena, retaining
 /// per-source roots, backing text and metadata. Consumed path buffers move into
@@ -263,7 +263,7 @@ fn parse_source_page(
 pub fn parse(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
-    tokens: &[Token<'_>],
+    tokens: &TokenStream<'_>,
 ) -> Result<ParsedRootItems, ParseError> {
     let mut input = Input::new(source_id, tokens);
     let mut roots = ParsedRootItems::default();
@@ -290,14 +290,14 @@ pub fn parse(
 }
 
 /// Creates a syntax arena for an anonymous source and parses its tokens.
-pub fn parse_syntax_trees(tokens: &[Token<'_>]) -> Result<SyntaxTrees, ParseError> {
+pub fn parse_syntax_trees(tokens: &TokenStream<'_>) -> Result<SyntaxTrees, ParseError> {
     parse_syntax_trees_with_id(SourceId::default(), tokens)
 }
 
 /// Creates a syntax arena for one identified source and parses its tokens.
 pub fn parse_syntax_trees_with_id(
     source_id: SourceId,
-    tokens: &[Token<'_>],
+    tokens: &TokenStream<'_>,
 ) -> Result<SyntaxTrees, ParseError> {
     let mut syntax_trees = SyntaxTrees::new(source_id);
     parse(&mut syntax_trees, source_id, tokens)?;

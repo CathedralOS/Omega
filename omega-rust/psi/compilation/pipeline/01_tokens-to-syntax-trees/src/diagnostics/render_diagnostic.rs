@@ -18,14 +18,14 @@ pub(crate) fn unexpected_eof<'tokens, 'source>(
 
 pub(crate) fn expected<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-    token: &Token<'source>,
+    token: &Token,
     expected: impl Into<String>,
 ) -> ParseError {
     ParseError::at_source_span(
         format!(
             "expected {}, found {}",
             expected.into(),
-            describe_token(token)
+            describe_token(input, token)
         ),
         input.source_span(token),
     )
@@ -43,17 +43,17 @@ pub(crate) fn expected_one_of_here<'tokens, 'source>(
 
     match input.tokens.first() {
         Some(token) => ParseError::at_source_span(
-            format!("{rendered}, found {}", describe_token(token)),
+            format!("{rendered}, found {}", describe_token(input, token)),
             input.source_span(token),
         ),
         None => ParseError::at_source_span(format!("{rendered}, found EOF"), Default::default()),
     }
 }
 
-fn describe_token(token: &Token<'_>) -> String {
+fn describe_token(input: Input<'_, '_>, token: &Token) -> String {
     match token.kind {
-        TokenKind::Identifier => format!("identifier `{}`", token.lexeme.as_str()),
-        TokenKind::NumericLiteral(_) => format!("numeric literal `{}`", token.lexeme.as_str()),
+        TokenKind::Identifier => format!("identifier `{}`", input.text(token).as_str()),
+        TokenKind::NumericLiteral(_) => format!("numeric literal `{}`", input.text(token).as_str()),
         TokenKind::StringLiteral => "string literal".to_owned(),
         TokenKind::Keyword(keyword) => format!("keyword `{}`", render_keyword(keyword)),
         TokenKind::Punctuation(punctuation) => {

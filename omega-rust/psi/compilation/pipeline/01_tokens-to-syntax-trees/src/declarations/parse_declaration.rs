@@ -33,7 +33,7 @@ pub(crate) enum ParsedDeclaration {
 /// alone is also a comparison and cannot terminate the current contract.
 pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
     if input.at_keyword(KeywordKind::Public) {
-        let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+        let after = input.restarted(input.tokens.get(1..).unwrap_or_default());
         return starts_following_item(after);
     }
     if input.at_keyword(KeywordKind::Machine)
@@ -83,7 +83,7 @@ pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
     if !input.at_contextual("boundary") {
         return false;
     }
-    let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+    let after = input.restarted(input.tokens.get(1..).unwrap_or_default());
     after.at_keyword(KeywordKind::Machine)
         || after.at_keyword(KeywordKind::Data)
         || after.at_keyword(KeywordKind::Let)
@@ -130,7 +130,7 @@ fn named_implementation_prefix<'tokens, 'source>(
             _ => continue,
         }
         if angle_depth == 0 && operand_depth == 0 {
-            let after = Input::new(input.source_id, &rest.tokens[token_index + 1..]);
+            let after = input.restarted(&rest.tokens[token_index + 1..]);
             return after.at_contextual("satisfies").then_some((name, rest));
         }
     }

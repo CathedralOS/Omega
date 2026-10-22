@@ -2,12 +2,12 @@
 /// with only `\"`, `\\`, `\n`, `\r`, `\t`, `\0` and `\xHH` escapes.
 ///
 /// Every escape spells more bytes than it decodes to, so the quoted contents
-/// bound the result and the buffer is allocated once. Escape introducers are
+/// bound the appended result. The stream owns the buffer across literals. Escape introducers are
 /// ASCII and never occur inside a multi-byte UTF-8 sequence, so the text
 /// between escapes is copied as whole byte runs.
-pub(in crate::lexer) fn decode_string_literal(raw: &str) -> Vec<u8> {
+pub(in crate::lexer) fn decode_string_literal(raw: &str, bytes: &mut Vec<u8>) {
     let contents = &raw.as_bytes()[1..raw.len() - 1];
-    let mut bytes = Vec::with_capacity(contents.len());
+    bytes.reserve(contents.len());
     let mut rest = contents;
 
     while let Some(escape) = rest.iter().position(|&byte| byte == b'\\') {
@@ -30,8 +30,6 @@ pub(in crate::lexer) fn decode_string_literal(raw: &str) -> Vec<u8> {
         rest = &rest[escape + spelled_length..];
     }
     bytes.extend_from_slice(rest);
-
-    bytes
 }
 
 fn hex_digit_value(digit: u8) -> u8 {

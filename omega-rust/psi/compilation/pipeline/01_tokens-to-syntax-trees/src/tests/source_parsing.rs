@@ -246,3 +246,20 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
         assert_eq!(actual, expected_ordinals);
     }
 }
+
+#[test]
+fn syntax_names_remain_valid_after_all_token_and_source_rows_are_released() {
+    let lexed = lexed_source(SourceId(55), "retained.omg", "data Retained {}");
+    let mut syntax = SyntaxTrees::default();
+    let parsed = parse_sources(lexed, &mut syntax).unwrap();
+    let root = parsed.sources.span_or_empty(parsed.batch)[0].root_items[0];
+    drop(parsed);
+    let Item::Data(data) = syntax.root_item(root) else {
+        panic!("data root")
+    };
+    assert_eq!(data.name.as_str(), "Retained");
+    assert_eq!(data.name.source_span().source_id, SourceId(55));
+    let retained_name = data.name.clone();
+    drop(syntax);
+    assert_eq!(retained_name.as_str(), "Retained");
+}

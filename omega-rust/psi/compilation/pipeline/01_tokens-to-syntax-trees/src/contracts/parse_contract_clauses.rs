@@ -494,7 +494,7 @@ fn reject_ambiguous_outcome_specific_ensures(
     if guard.tokens.iter().any(|token| {
         token.punctuation() == Some(PunctuationKind::Semicolon)
             || matches!(
-                token.lexeme.as_str(),
+                input.text(token).as_str(),
                 "requires"
                     | "ensures"
                     | "crashes"
@@ -658,10 +658,10 @@ fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
         return false;
     }
 
-    let rest = Input::new(input.source_id, &input.tokens[1..]);
+    let rest = input.restarted(&input.tokens[1..]);
     rest.tokens.first().is_some_and(|token| {
         matches!(token.punctuation(), Some(PunctuationKind::RightBrace))
-            || matches!(token.lexeme.as_str(), "decreases" | "increases")
+            || matches!(input.text(token).as_str(), "decreases" | "increases")
     })
 }
 

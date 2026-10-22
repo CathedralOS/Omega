@@ -117,7 +117,7 @@ fn starts_retired_invariant_member(input: Input<'_, '_>) -> bool {
         return false;
     }
 
-    let after_keyword = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+    let after_keyword = input.restarted(input.tokens.get(1..).unwrap_or_default());
     if !after_keyword
         .tokens
         .first()
@@ -126,11 +126,9 @@ fn starts_retired_invariant_member(input: Input<'_, '_>) -> bool {
         return false;
     }
 
-    Input::new(
-        input.source_id,
-        after_keyword.tokens.get(1..).unwrap_or_default(),
-    )
-    .at_punctuation(PunctuationKind::LeftBrace)
+    input
+        .restarted(after_keyword.tokens.get(1..).unwrap_or_default())
+        .at_punctuation(PunctuationKind::LeftBrace)
 }
 
 fn starts_state_member(input: Input<'_, '_>) -> bool {
@@ -138,7 +136,8 @@ fn starts_state_member(input: Input<'_, '_>) -> bool {
         return false;
     }
 
-    Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default())
+    input
+        .restarted(input.tokens.get(1..).unwrap_or_default())
         .tokens
         .first()
         .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)

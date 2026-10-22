@@ -57,7 +57,7 @@ fn preserves_line_comments_and_whitespace() {
     ));
     assert_eq!(tokens[3].kind, TokenKind::Whitespace);
     assert_eq!(tokens[4].kind, TokenKind::Identifier);
-    assert_eq!(tokens[4].lexeme.as_str(), "value");
+    assert_eq!(tokens.text(&tokens[4]).as_str(), "value");
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn accepts_only_the_closed_syntactic_whitespace_set() {
         .expect("space, tab, CR, and LF should tokenize");
     assert_eq!(tokens.len(), 3);
     assert_eq!(tokens[1].kind, TokenKind::Whitespace);
-    assert_eq!(tokens[1].lexeme.as_str(), " \t\r\n");
+    assert_eq!(tokens.text(&tokens[1]).as_str(), " \t\r\n");
 
     for source in [
         "a\u{000b}b",
@@ -96,7 +96,7 @@ fn preserves_nested_block_comments() {
     ));
     assert_eq!(tokens[3].kind, TokenKind::Whitespace);
     assert_eq!(tokens[4].kind, TokenKind::Identifier);
-    assert_eq!(tokens[4].lexeme.as_str(), "value");
+    assert_eq!(tokens.text(&tokens[4]).as_str(), "value");
 }
 
 #[test]
@@ -106,10 +106,13 @@ fn preserves_non_ascii_comment_and_literal_body_bytes() {
         .tokenize()
         .expect("non-ASCII payload bytes should remain legal");
 
-    assert_eq!(tokens[0].lexeme.as_bytes(), "// café 变量".as_bytes());
-    assert_eq!(tokens[1].lexeme.as_bytes(), "/* μέτρο */".as_bytes());
+    assert_eq!(
+        tokens.text(&tokens[0]).as_bytes(),
+        "// café 变量".as_bytes()
+    );
+    assert_eq!(tokens.text(&tokens[1]).as_bytes(), "/* μέτρο */".as_bytes());
     assert_eq!(tokens[3].kind, TokenKind::StringLiteral);
-    assert_eq!(tokens[3].lexeme.as_bytes(), "café😀".as_bytes());
+    assert_eq!(tokens.text(&tokens[3]).as_bytes(), "café😀".as_bytes());
 }
 
 #[test]
@@ -128,7 +131,7 @@ fn tokenizes_cooked_byte_strings() {
         .expect("tokenization should succeed");
 
     assert_eq!(cooked[0].kind, TokenKind::StringLiteral);
-    assert_eq!(cooked[0].lexeme.as_str(), "line\nvalue");
+    assert_eq!(cooked.text(&cooked[0]).as_str(), "line\nvalue");
 }
 
 #[test]
@@ -139,7 +142,7 @@ fn string_decoding_copies_text_runs_between_every_escape_form() {
     let literals: Vec<_> = tokens
         .iter()
         .filter(|token| token.is_string_literal())
-        .map(|token| token.lexeme.as_bytes().to_vec())
+        .map(|token| tokens.text(token).as_bytes().to_vec())
         .collect();
 
     assert_eq!(
@@ -165,8 +168,8 @@ fn hex_escapes_decode_to_exact_bytes() {
     let expected: Vec<_> = (u8::MIN..=u8::MAX).collect();
 
     assert_eq!(tokens[0].kind, TokenKind::StringLiteral);
-    assert_eq!(tokens[0].lexeme.as_bytes(), expected);
-    assert_eq!(tokens[0].lexeme.try_as_str(), None);
+    assert_eq!(tokens.text(&tokens[0]).as_bytes(), expected);
+    assert_eq!(tokens.text(&tokens[0]).try_as_str(), None);
 }
 
 #[test]
@@ -188,7 +191,7 @@ fn raw_prefix_fragments_remain_ordinary_ascii_tokens() {
         tokens
             .iter()
             .filter(|token| !token.is_non_semantic())
-            .map(|token| token.lexeme.as_str())
+            .map(|token| tokens.text(token).as_str())
             .collect::<Vec<_>>(),
         ["r", "#", "1", "r", "#", "#", "#", "candidate"]
     );

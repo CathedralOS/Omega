@@ -6,7 +6,7 @@ use arena::{Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
 use source::{SourceId, SourceSpan, SourceText, Span};
 use syntax_trees::identifier::Identifier;
-use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
+use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText};
 
 pub(crate) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
@@ -24,10 +24,11 @@ pub(crate) const MAX_NESTING_DEPTH: u16 = 1024;
 #[derive(Clone, Copy)]
 pub(crate) struct Input<'tokens, 'source> {
     pub(crate) source_id: SourceId,
-    pub(crate) tokens: &'tokens [Token<'source>],
+    pub(crate) tokens: &'tokens [Token],
+    stream: &'tokens TokenStream<'source>,
     /// Current `(`/`[` nesting depth, carried by value through the parse so the
     /// choke points can bound it. Reconstructions that merely ADVANCE the token
-    /// cursor (`advanced`) preserve it; a fresh `new` (top-level item / guard
+    /// cursor (`advanced`) preserve it; a fresh `new` or `restarted` (top-level item / guard
     /// boundary) resets it to 0, giving each independent construct its own budget.
     depth: u16,
     /// The second `>` from a lexed `>>` while parsing nested generic types.
@@ -37,10 +38,11 @@ pub(crate) struct Input<'tokens, 'source> {
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
-    pub(crate) fn new(source_id: SourceId, tokens: &'tokens [Token<'source>]) -> Self {
+    pub(crate) fn new(source_id: SourceId, stream: &'tokens TokenStream<'source>) -> Self {
         Self {
             source_id,
-            tokens: skip_non_semantic_tokens(tokens),
+            stream,
+            tokens: skip_non_semantic_tokens(stream.as_slice()),
             depth: 0,
             pending_greater: false,
         }
@@ -49,13 +51,28 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// Reconstruct the cursor over `tokens` while PRESERVING the nesting depth.
     /// Use for every reconstruction that only advances within the same construct
     /// (token consumption, splits) so accumulated depth is not lost.
-    fn advanced(&self, tokens: &'tokens [Token<'source>]) -> Self {
+    fn advanced(&self, tokens: &'tokens [Token]) -> Self {
         Self {
             source_id: self.source_id,
+            stream: self.stream,
             tokens: skip_non_semantic_tokens(tokens),
             depth: self.depth,
             pending_greater: self.pending_greater,
         }
+    }
+
+    /// Start an independent construct in the same stream, resetting its budget.
+    pub(crate) fn restarted(self, tokens: &'tokens [Token]) -> Self {
+        Self {
+            tokens: skip_non_semantic_tokens(tokens),
+            depth: 0,
+            pending_greater: false,
+            ..self
+        }
+    }
+
+    pub(crate) fn text(self, token: &Token) -> TokenText<'tokens> {
+        self.stream.text(token)
     }
 
     pub(crate) fn depth(&self) -> u16 {
@@ -82,7 +99,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self { depth, ..self }
     }
 
-    pub(crate) fn source_span(&self, token: &Token<'_>) -> SourceSpan {
+    pub(crate) fn source_span(&self, token: &Token) -> SourceSpan {
         SourceSpan::new(self.source_id, token.span)
     }
 
@@ -125,7 +142,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         ParseError::at_source_span(message, source_span)
     }
 
-    pub(crate) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
+    pub(crate) fn expect_token(self) -> Result<(&'tokens Token, Self), ParseError> {
         if self.pending_greater {
             return Err(self.error_here("expected `>` before the next token"));
         }
@@ -227,7 +244,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_contextual(self, name: &str) -> Result<Self, ParseError> {
         let (token, rest) = self.expect_token()?;
         if matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-            && token.lexeme.as_str() == name
+            && self.text(token).as_str() == name
         {
             Ok(rest)
         } else {
@@ -264,7 +281,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(token.lexeme.as_str(), kind)
+            let literal = parse_integer_literal(self.text(token).as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             Ok((literal, rest))
         } else {
@@ -280,7 +297,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_integer(self) -> Result<(i64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(token.lexeme.as_str(), kind)
+            let literal = parse_integer_literal(self.text(token).as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             let value = literal.value_i64().ok_or_else(|| {
                 ParseError::at_source_span(
@@ -300,7 +317,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_identity(self) -> Result<(u64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(token.lexeme.as_str(), kind)
+            let literal = parse_integer_literal(self.text(token).as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             let value = literal.value_u64().ok_or_else(|| {
                 ParseError::at_source_span(
@@ -317,7 +334,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_string(self) -> Result<(String, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
-            let bytes = token.lexeme.as_bytes();
+            let bytes = self.text(token).as_bytes();
             let value = std::str::from_utf8(bytes).map_err(|_| {
                 ParseError::at_source_span(
                     "raw byte string literal requires the terminal byte-sequence lowering path",
@@ -333,7 +350,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_string_bytes(self) -> Result<(std::sync::Arc<[u8]>, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
-            Ok((std::sync::Arc::from(token.lexeme.as_bytes()), rest))
+            Ok((std::sync::Arc::from(self.text(token).as_bytes()), rest))
         } else {
             Err(diagnostics::expected(self, token, "string literal"))
         }
@@ -342,7 +359,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {
-            validate_float_literal(token.lexeme.as_str(), kind)
+            validate_float_literal(self.text(token).as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             Ok((self.source_text_from_token(token), rest))
         } else {
@@ -371,7 +388,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn at_contextual(&self, name: &str) -> bool {
         self.tokens.first().is_some_and(|token| {
             matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && token.lexeme.as_str() == name
+                && self.text(token).as_str() == name
         })
     }
 
@@ -422,7 +439,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let Some((first, rest)) = self.tokens.split_first() else {
             return false;
         };
-        if !(matches!(first.kind, TokenKind::Identifier) && first.lexeme.as_str() == name) {
+        if !(matches!(first.kind, TokenKind::Identifier) && self.text(first).as_str() == name) {
             return false;
         }
         skip_non_semantic_tokens(rest)
@@ -442,7 +459,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
         skip_non_semantic_tokens(rest).first().is_some_and(|token| {
             matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && token.lexeme.as_str() == name
+                && self.text(token).as_str() == name
         })
     }
 
@@ -480,7 +497,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             return false;
         };
         if !(matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-            && first.lexeme.as_str() == "stack")
+            && self.text(first).as_str() == "stack")
         {
             return false;
         }
@@ -492,7 +509,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
         skip_non_semantic_tokens(rest).first().is_some_and(|token| {
             matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && token.lexeme.as_str() == "bytes"
+                && self.text(token).as_str() == "bytes"
         })
     }
 
@@ -504,7 +521,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             if !token.is_non_semantic() {
                 return false;
             }
-            if token.lexeme.as_str().contains('\n') {
+            if self.text(token).as_str().contains('\n') {
                 return true;
             }
             index -= 1;
@@ -513,23 +530,19 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         false
     }
 
-    fn identifier_from_token(&self, token: &Token<'_>) -> Identifier {
+    fn identifier_from_token(&self, token: &Token) -> Identifier {
         let source_span = self.source_span(token);
-        match &token.lexeme {
-            TokenText::Shared { source, .. } => {
-                Identifier::source_backed(source.clone(), source_span)
-            }
-            _ => Identifier::new(token.lexeme.as_str(), source_span),
+        match self.stream.source_owner() {
+            Some(source) => Identifier::source_backed(source.clone(), source_span),
+            None => Identifier::new(self.text(token).as_str(), source_span),
         }
     }
 
-    fn source_text_from_token(&self, token: &Token<'_>) -> SourceText {
+    fn source_text_from_token(&self, token: &Token) -> SourceText {
         let source_span = self.source_span(token);
-        match &token.lexeme {
-            TokenText::Shared { source, .. } => {
-                SourceText::source_backed(source.clone(), source_span)
-            }
-            _ => SourceText::new(token.lexeme.as_str(), source_span),
+        match self.stream.source_owner() {
+            Some(source) => SourceText::source_backed(source.clone(), source_span),
+            None => SourceText::new(self.text(token).as_str(), source_span),
         }
     }
 
@@ -545,7 +558,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 }
 
-pub(crate) fn is_identifier_token_for_parser(token: &Token<'_>) -> bool {
+pub(crate) fn is_identifier_token_for_parser(token: &Token) -> bool {
     match token.kind {
         TokenKind::Identifier => true,
         TokenKind::Keyword(keyword) => !keyword.is_strict_identifier_keyword(),
@@ -553,9 +566,7 @@ pub(crate) fn is_identifier_token_for_parser(token: &Token<'_>) -> bool {
     }
 }
 
-fn skip_non_semantic_tokens<'tokens, 'source>(
-    tokens: &'tokens [Token<'source>],
-) -> &'tokens [Token<'source>] {
+fn skip_non_semantic_tokens(tokens: &[Token]) -> &[Token] {
     let mut index = 0usize;
     while index < tokens.len() && tokens[index].is_non_semantic() {
         index += 1;
@@ -582,4 +593,31 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     }
 
     Ok((HandleSpan::from_parts(start, count), rest))
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+    use source_files_to_tokens::Lexer;
+    use std::sync::Arc;
+
+    #[test]
+    fn escaping_text_and_literal_bytes_outlive_token_storage() {
+        let source: Arc<str> = Arc::from(r#"name 1.5 "\xff""#);
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .unwrap()
+            .retain_source(source.clone());
+        let input = Input::new(SourceId(77), &tokens);
+        let (name, rest) = input.take_identifier().unwrap();
+        let (float, rest) = rest.take_float_text().unwrap();
+        let (bytes, rest) = rest.take_string_bytes().unwrap();
+        assert!(rest.tokens.is_empty());
+        drop(tokens);
+        drop(source);
+        assert_eq!(name.as_str(), "name");
+        assert_eq!(name.source_span().source_id, SourceId(77));
+        assert_eq!(float.as_str(), "1.5");
+        assert_eq!(bytes.as_ref(), &[255]);
+    }
 }

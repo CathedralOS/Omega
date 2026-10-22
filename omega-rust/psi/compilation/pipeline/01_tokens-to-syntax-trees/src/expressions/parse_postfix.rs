@@ -267,7 +267,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let consumed = target_start.tokens.len().saturating_sub(rest.tokens.len());
             let target_label_text = target_start.tokens[..consumed]
                 .iter()
-                .map(|token| token.lexeme.as_str())
+                .map(|token| target_start.text(token).as_str())
                 .collect::<String>();
             let mut target_label = HandleSpan::empty();
             syntax_trees

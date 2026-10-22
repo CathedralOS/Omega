@@ -80,8 +80,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             // clause carries signature-level proof facts: a finite generic
             // method family is authored here as explicit equality
             // disjunctions such as `where Width == 16 || Width == 32`.
-            let after_where =
-                Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+            let after_where = input.restarted(input.tokens.get(1..).unwrap_or_default());
             if after_where.at_keyword(KeywordKind::Machine)
                 || after_where.at_contextual("proposition")
             {

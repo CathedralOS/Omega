@@ -9,9 +9,9 @@
 //! whitespace, a `//` line comment, a nested `/* */` block comment, an
 //! identifier or keyword (`KeywordKind::from_lexeme`), a number, a string
 //! literal, or punctuation (the first match in
-//! `PunctuationKind::ordered_lexemes`). `build_token` then attaches the text:
-//! a string literal carries its decoded bytes, and every other token borrows
-//! its spelling from the source. Whitespace and comments stay in the stream.
+//! `PunctuationKind::ordered_lexemes`). `tokenize` writes the final compact
+//! record directly. String literals append decoded bytes to the stream buffer;
+//! all other spellings use source spans. Whitespace and comments stay in the stream.
 //!
 //! Raw string prefixes such as `r"` and `r#"`, non-ASCII characters outside
 //! comments and string literals, and ASCII characters that match no
@@ -20,7 +20,7 @@
 //!
 //! Children: `numbers` scans numeric literals and `strings` validates string
 //! literals; both are rules of `lex_next_token`. `strings::decode` turns an
-//! already validated literal into its bytes for `build_token`, so decoding
+//! already validated literal into its bytes for the stream buffer, so decoding
 //! cannot fail. `lex_error` defines `LexError`, the error every step returns.
 
 use std::iter::Peekable;
@@ -29,7 +29,7 @@ use std::str::CharIndices;
 use crate::LexError;
 use crate::lexer::strings::decode_string_literal;
 use source::Span;
-use tokens::{CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText};
+use tokens::{CommentKind, KeywordKind, PunctuationKind, TokenKind, TokenStream};
 
 pub mod lex_error;
 mod numbers;
@@ -56,12 +56,17 @@ impl<'source> Lexer<'source> {
 
     pub fn tokenize(mut self) -> Result<TokenStream<'source>, LexError> {
         let estimated_token_count = self.source.len().saturating_div(4).max(16);
-        let mut tokens = Vec::with_capacity(estimated_token_count);
+        let mut tokens = TokenStream::with_capacity(self.source, estimated_token_count);
 
         while let Some(token) = self.lex_next_token()? {
-            tokens.push(self.build_token(token));
+            if token.kind == TokenKind::StringLiteral {
+                let spelling = &self.source[token.span.start..token.span.end];
+                tokens.push_decoded(token.span, |bytes| decode_string_literal(spelling, bytes));
+            } else {
+                tokens.push_source(token.kind, token.span);
+            }
         }
-        Ok(TokenStream::new(tokens))
+        Ok(tokens)
     }
 
     fn lex_next_token(&mut self) -> Result<Option<LexedToken>, LexError> {
@@ -103,20 +108,6 @@ impl<'source> Lexer<'source> {
         };
 
         Ok(Some(token))
-    }
-
-    fn build_token(&self, token: LexedToken) -> Token<'source> {
-        let spelling = &self.source[token.span.start..token.span.end];
-        let lexeme = match token.kind {
-            TokenKind::StringLiteral => TokenText::owned_bytes(decode_string_literal(spelling)),
-            _ => TokenText::source(spelling),
-        };
-
-        Token {
-            kind: token.kind,
-            lexeme,
-            span: token.span,
-        }
     }
 
     fn lex_whitespace(&mut self, start: usize, first: char) -> LexedToken {

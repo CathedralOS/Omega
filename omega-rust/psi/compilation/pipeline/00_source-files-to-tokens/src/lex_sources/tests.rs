@@ -2,7 +2,7 @@ use super::lex_sources;
 use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokens::{TokenKind, TokenText};
+use tokens::TokenKind;
 
 #[test]
 fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
@@ -38,12 +38,7 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
         );
         assert_eq!(source.origin, Some(SourceOrigin::Toolchain));
         assert!(Arc::ptr_eq(&source.source, &text));
-        let TokenText::Shared {
-            source: backing, ..
-        } = &source.tokens[0].lexeme
-        else {
-            panic!("identifier must retain its source");
-        };
+        let backing = source.tokens.source_owner().unwrap();
         assert!(Arc::ptr_eq(backing, &text));
     }
     assert_eq!(batch[0].scope, DependencyScope::Build);
@@ -51,12 +46,12 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
     let retained_tokens = batch[0].tokens.clone();
     drop(lexed);
     drop(text);
-    assert_eq!(retained_tokens[0].lexeme.as_str(), "alpha");
+    assert_eq!(retained_tokens.text(&retained_tokens[0]).as_str(), "alpha");
     let literal = retained_tokens
         .iter()
         .find(|token| token.kind == TokenKind::StringLiteral)
         .unwrap();
-    assert_eq!(literal.lexeme.as_bytes(), &[0xff]);
+    assert_eq!(retained_tokens.text(literal).as_bytes(), &[0xff]);
 }
 
 #[test]

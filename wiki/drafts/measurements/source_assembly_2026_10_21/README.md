@@ -15,6 +15,12 @@ buffers into SourceMap and uses SourceId for root associations: 13,479 fewer
 allocations / 1,615,685 fewer requested bytes over 289 inputs, identical hashes,
 and inconclusive timing. This follows [published import bounds](import_index/README.md);
 it retains the ownership change without claiming the layer is saturated.
+The [compact token experiment](compact_tokens/README.md) writes 32-byte records
+directly with stream-owned source and decoded storage. Live requested token storage
+halves; all-worker assembly requests 380.7 MB fewer bytes over 289 inputs.
+Final assembly medians are 5.2095 to 4.8315 ms,
+faster in 10/10 pairs. The assembly comparison supports the reproduced storage/work reduction; whole-compile timing is reported separately.
+Exact outputs match; allocation counts and all prior timing batches are retained.
 
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;

@@ -1,17 +1,18 @@
-use crate::TokenText;
+use super::DecodedRange;
 use crate::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericLiteralKind,
     PunctuationKind, Span, TokenKind,
 };
+use arena::Handle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Token<'source> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Token {
     pub kind: TokenKind,
-    pub lexeme: TokenText<'source>,
+    pub(super) decoded: Handle<DecodedRange>,
     pub span: Span,
 }
 
-impl<'source> Token<'source> {
+impl Token {
     pub fn is_string_literal(&self) -> bool {
         matches!(self.kind, TokenKind::StringLiteral)
     }

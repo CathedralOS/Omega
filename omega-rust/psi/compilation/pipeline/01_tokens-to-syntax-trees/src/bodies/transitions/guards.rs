@@ -230,13 +230,14 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
         Some(if_index) => {
             let (tuple_tokens, guard_tokens_with_if) = input.tokens.split_at(if_index);
             (
-                Input::new(input.source_id, tuple_tokens),
-                Some(Input::new(
-                    input.source_id,
-                    guard_tokens_with_if
-                        .get(1..)
-                        .expect("if keyword split should include guard tokens"),
-                )),
+                input.restarted(tuple_tokens),
+                Some(
+                    input.restarted(
+                        guard_tokens_with_if
+                            .get(1..)
+                            .expect("if keyword split should include guard tokens"),
+                    ),
+                ),
             )
         }
         None => (input, None),
@@ -358,10 +359,11 @@ fn split_tuple_pattern_components<'tokens, 'source>(
                     .iter()
                     .any(|token| !token.is_non_semantic())
                 {
-                    return Err(Input::new(input.source_id, &tokens[index + 1..])
+                    return Err(input
+                        .restarted(&tokens[index + 1..])
                         .error_here("expected `if` or `->` after tuple transition pattern"));
                 }
-                components.push(Input::new(input.source_id, &tokens[component_start..index]));
+                components.push(input.restarted(&tokens[component_start..index]));
                 return Ok(components);
             }
             Some(PunctuationKind::LeftBracket) => bracket += 1,
@@ -369,7 +371,7 @@ fn split_tuple_pattern_components<'tokens, 'source>(
             Some(PunctuationKind::LeftBrace) => brace += 1,
             Some(PunctuationKind::RightBrace) => brace = brace.saturating_sub(1),
             Some(PunctuationKind::Comma) if paren == 0 && bracket == 0 && brace == 0 => {
-                components.push(Input::new(input.source_id, &tokens[component_start..index]));
+                components.push(input.restarted(&tokens[component_start..index]));
                 component_start = index + 1;
             }
             _ => {}
@@ -528,13 +530,14 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         Some(if_index) => {
             let (pattern_tokens, guard_tokens_with_if) = input.tokens.split_at(if_index);
             (
-                Input::new(input.source_id, pattern_tokens),
-                Some(Input::new(
-                    input.source_id,
-                    guard_tokens_with_if
-                        .get(1..)
-                        .expect("if keyword split should include guard tokens"),
-                )),
+                input.restarted(pattern_tokens),
+                Some(
+                    input.restarted(
+                        guard_tokens_with_if
+                            .get(1..)
+                            .expect("if keyword split should include guard tokens"),
+                    ),
+                ),
             )
         }
         None => (input, None),

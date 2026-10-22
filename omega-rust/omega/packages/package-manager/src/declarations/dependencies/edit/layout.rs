@@ -93,20 +93,20 @@ pub(super) fn discover_build_layout(
     let name_span = build.name.source_span().span;
     let Some(name_position) = semantic.iter().position(|index| {
         let token = &tokens[*index];
-        token.span == name_span && token.lexeme == BUILD_MACHINE_NAME
+        token.span == name_span && tokens.text(token) == BUILD_MACHINE_NAME
     }) else {
         return Ok(Some(None));
     };
     let expected_before = name_position
         .checked_sub(1)
         .and_then(|position| semantic.get(position))
-        .is_some_and(|index| tokens[*index].lexeme == "machine");
+        .is_some_and(|index| tokens.text(&tokens[*index]) == "machine");
     let expected_after = ["(", "builder", ":", "&", "mut", "Build", ")", "{"];
     if !expected_before
         || expected_after.iter().enumerate().any(|(offset, expected)| {
             semantic
                 .get(name_position + 1 + offset)
-                .is_none_or(|index| tokens[*index].lexeme != *expected)
+                .is_none_or(|index| tokens.text(&tokens[*index]) != *expected)
         })
     {
         return Ok(Some(None));
@@ -212,7 +212,7 @@ fn semantic_indices(tokens: &TokenStream<'_>) -> Vec<usize> {
 fn matching_brace(tokens: &TokenStream<'_>, open: usize) -> Option<usize> {
     let mut depth = 0usize;
     for (index, token) in tokens.iter().enumerate().skip(open) {
-        match token.lexeme.try_as_str() {
+        match tokens.text(token).try_as_str() {
             Some("{") => depth = depth.checked_add(1)?,
             Some("}") => {
                 depth = depth.checked_sub(1)?;
@@ -246,19 +246,19 @@ fn dependency_rows(
         if brace_depth == 0
             && paren_depth == 0
             && bracket_depth == 0
-            && token.lexeme == BUILDER_PARAMETER_NAME
+            && tokens.text(token) == BUILDER_PARAMETER_NAME
             && semantic
                 .get(position + 1)
-                .is_some_and(|next| tokens[*next].lexeme == ".")
+                .is_some_and(|next| tokens.text(&tokens[*next]) == ".")
             && semantic.get(position + 2).is_some_and(|next| {
-                tokens[*next]
-                    .lexeme
+                tokens
+                    .text(&tokens[*next])
                     .try_as_str()
                     .is_some_and(|name| DependencyOperation::classify(name).is_some())
             })
             && semantic
                 .get(position + 3)
-                .is_some_and(|next| tokens[*next].lexeme == "(")
+                .is_some_and(|next| tokens.text(&tokens[*next]) == "(")
             && let Some(end_position) = dependency_row_end(tokens, &semantic, position + 3)
         {
             let end_index = semantic[end_position];
@@ -272,7 +272,7 @@ fn dependency_rows(
             position = end_position + 1;
             continue;
         }
-        match token.lexeme.try_as_str() {
+        match tokens.text(token).try_as_str() {
             Some("{") => brace_depth += 1,
             Some("}") => brace_depth = brace_depth.saturating_sub(1),
             Some("(") => paren_depth += 1,
@@ -293,7 +293,7 @@ fn dependency_row_end(
 ) -> Option<usize> {
     let mut depth = 0usize;
     for position in open_position..semantic.len() {
-        match tokens[semantic[position]].lexeme.try_as_str() {
+        match tokens.text(&tokens[semantic[position]]).try_as_str() {
             Some("(") => depth = depth.checked_add(1)?,
             Some(")") => {
                 depth = depth.checked_sub(1)?;
@@ -301,7 +301,7 @@ fn dependency_row_end(
                     let semicolon = position + 1;
                     return semantic
                         .get(semicolon)
-                        .filter(|index| tokens[**index].lexeme == ";")
+                        .filter(|index| tokens.text(&tokens[**index]) == ";")
                         .map(|_| semicolon);
                 }
             }

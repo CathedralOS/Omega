@@ -2,8 +2,9 @@
 
 //! Spelling-level tokens for Omega source files, owned by Psi.
 //!
-//! `TokenStream` is the lexer's output: each `Token` pairs a `TokenKind` with the
-//! `Span` it was read from and, for literals and identifiers, its `TokenText`.
+//! `TokenStream` owns the source context and decoded byte storage. Each compact
+//! `Token` carries its kind, authored span and optional decoded payload handle;
+//! `TokenText` is a borrowed view resolved through the stream.
 //! Keywords, punctuation, comments, and numeric bases are classified here;
 //! nothing about grammar or meaning is decided at this level.
 

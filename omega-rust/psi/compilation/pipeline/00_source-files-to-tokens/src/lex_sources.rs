@@ -9,8 +9,7 @@ use arena::Arena;
 use diagnostics::Diagnostic;
 use rayon::prelude::*;
 use source::{LoadedSource, LoadedSources, SourcePosition};
-use std::sync::Arc;
-use tokens::{LexedSource, LexedSources, Token, TokenStream, TokenText};
+use tokens::{LexedSource, LexedSources};
 
 /// Tokenize every loaded source, retaining its backing text and exact metadata.
 /// Report the first lexical failure with its source path, line and column.
@@ -55,34 +54,9 @@ fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, Diagnosti
         path: std::mem::take(&mut loaded_source.path),
         source: loaded_source.source.clone(),
         origin: loaded_source.origin,
-        tokens: own_token_stream(tokens, &loaded_source.source),
+        tokens: tokens.retain_source(loaded_source.source.clone()),
         scope: loaded_source.scope,
     })
-}
-
-/// Retain this source's lexer output beyond its borrow, moving decoded literal
-/// buffers. Individual shared lexemes also supply source ownership to the
-/// parser's independently retained identifiers and source text.
-fn own_token_stream(tokens: TokenStream<'_>, source: &Arc<str>) -> TokenStream<'static> {
-    TokenStream::new(
-        tokens
-            .into_tokens()
-            .into_iter()
-            .map(|token| {
-                let lexeme = match token.lexeme {
-                    TokenText::Source(_) => TokenText::shared(source.clone(), token.span),
-                    TokenText::Shared { source, span } => TokenText::Shared { source, span },
-                    TokenText::Owned(value) => TokenText::Owned(value),
-                    TokenText::OwnedBytes(value) => TokenText::OwnedBytes(value),
-                };
-                Token {
-                    kind: token.kind,
-                    lexeme,
-                    span: token.span,
-                }
-            })
-            .collect(),
-    )
 }
 
 #[cfg(test)]
