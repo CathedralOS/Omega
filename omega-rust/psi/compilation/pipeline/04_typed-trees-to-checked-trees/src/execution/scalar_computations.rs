@@ -511,22 +511,16 @@ pub(crate) fn build_checked_value_computation_plans(
                             PrimitiveType::U64,
                         );
                     }
-                    // Every scalar replacement roots its RHS at the declared
-                    // receiving place, independently of whether that place is a
-                    // field, element, local or borrowed scalar. Expression-type
-                    // observations need not exist for an assignment target; its
-                    // declaration still supplies the exact payload carrier.
-                    // Store planning separately retains write authority, selector
-                    // bounds and the complete receiving restriction.
-                    if let Some(primitive_type) = validation::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        assignment.target,
+                    // The installed value is the reference descriptor for a rebind
+                    // and the referent for a write through it. A descriptor
+                    // replacement is not a scalar store of the peeled referee.
+                    if let Some(primitive_type) = validation::assignment_stored_value_type(
+                        program, machine, state, assignment,
                     )
-                    .and_then(|reference| {
+                    .filter(|installed| validation::reference_shell(program, *installed).is_none())
+                    .and_then(|installed| {
                         crate::values::scalar::expression_plans::assignment_target_primitive_type(
-                            program, reference,
+                            program, installed,
                         )
                     }) {
                         // An atomic assignment's model is not evaluated. Its

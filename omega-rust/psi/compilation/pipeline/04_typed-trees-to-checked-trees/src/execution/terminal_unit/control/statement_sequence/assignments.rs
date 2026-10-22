@@ -240,13 +240,18 @@ pub(super) fn plan(
             root.root,
         )?;
         assignment_phase("statement sequence: assignment: structural result type");
+        // The installed carrier is the destination's stored value: a rebind
+        // keeps the reference descriptor, and a write through it keeps the
+        // referent. The producer's own type can still name the callee's
+        // unsubstituted binders, which are not the caller's storage identity.
+        let installed = installed_carrier(program, machine, state, assignment, root.type_reference);
         let mut produced = if matches!(
             facts.values.structural_values.nodes.get(root.root).kind,
             checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
         ) {
-            checked_copied_result_type(program, shapes, root.type_reference, binders)?
+            checked_copied_result_type(program, shapes, installed, binders)?
         } else {
-            checked_structural_result_type(program, shapes, root.type_reference, binders)?
+            checked_structural_result_type(program, shapes, installed, binders)?
         };
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
@@ -342,8 +347,12 @@ pub(super) fn plan(
     } else {
         // A structural call result replaces the field through the
         // same store and optional displacement as any other owned value.
+        // Its carrier is the value this assignment installs, so a reference
+        // rebind records the destination descriptor rather than the callee's
+        // raw return type.
         assignment_phase("statement sequence: assignment: structural call result field store");
-        let mut result = checked_structural_result_type(program, shapes, result_type, binders)?;
+        let installed = installed_carrier(program, machine, state, assignment, result_type);
+        let mut result = checked_structural_result_type(program, shapes, installed, binders)?;
         result.statement_index = statement_index;
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
         Some(AssignmentPlan::StructuralCall { result })
@@ -370,8 +379,9 @@ pub(super) fn call_result_replacement(
     result: &CheckedUnitStructuralResultBindingPlan,
     trace: &LocalConstructionTrace,
 ) -> Option<ValueReplacement> {
-    let result_type =
+    let declared =
         validation::call_target_return_type(program, statement_call_target(program, assignment)?)?;
+    let result_type = installed_carrier(program, machine, state, assignment, declared);
     completed_value_replacement(
         program,
         facts,
@@ -387,6 +397,22 @@ pub(super) fn call_result_replacement(
         result_type,
         trace,
     )
+}
+
+/// The carrier an assignment installs. Rebinding a reference stores that
+/// descriptor; writing through it stores the referent. Callers that only
+/// know the producer's declared type use it when the destination has no
+/// stored-value classification.
+fn installed_carrier(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    assignment: &typed_trees::statement::TableAssignment,
+    produced: typed_trees::types::TypeReferenceHandle,
+) -> typed_trees::types::TypeReferenceHandle {
+    let installed = validation::assignment_stored_value_type(program, machine, state, assignment)
+        .unwrap_or(produced);
+    installed
 }
 
 /// Inline byte fields and byte owner slots use their byte-storage layout;

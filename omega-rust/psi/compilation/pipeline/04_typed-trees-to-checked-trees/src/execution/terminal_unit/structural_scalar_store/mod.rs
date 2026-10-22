@@ -400,6 +400,21 @@ fn plan_assignment(
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    // Rebinding a reference installs its descriptor. This sequence writes
+    // through a referent, so a whole-binding descriptor replacement belongs
+    // to ordinary value rebinding rather than a peeled scalar store.
+    if validation::assignment_stored_value_type(program, machine, state, assignment)
+        .is_some_and(|installed| validation::reference_shell(program, installed).is_some())
+        && validation::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            usize::try_from(statement_index).ok()?,
+            assignment.target,
+        )
+        .is_some_and(|place| place.segments.is_empty())
+    {
+        return None;
+    }
     let destination = destination::resolve(
         program,
         facts,
