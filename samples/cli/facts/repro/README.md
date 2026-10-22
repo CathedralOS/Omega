@@ -23,7 +23,6 @@ The operation is `I32::from_f64(...)` under the checked IEEE guard `value == val
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`.
-`omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
 omega run --both samples/cli/facts/repro/main.omg
@@ -39,6 +38,35 @@ omega run --both samples/cli/facts/repro/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
+
+### Run record
+
+Measured on 2026-10-21/22 with a fresh optimized producer built from this change's
+candidate (`python3 tools/build_slot.py -- mbx build -p omega`, reported
+`{"opt_level":"1"}`; the candidate was rebased onto
+`5f2beccab8304737319f32377d97240781855d4e` after the first measurements on
+`6cd22386cbb51240d17751e61d82b88632bbcd41`, and the row was re-measured on the rebased
+candidate). Host: Intel macOS x86_64. Executing target: `macos_x86_64`.
+
+The four authored targets do not include this host's catalogued target, so the bare
+`omega run --both <place>/main.omg` refuses here during entry settlement with
+`selected target macos_x86_64 has no bound required root slot macos_x86_64::ProgramEntry`.
+That is host pinning, not a compiler result, and no fifth binding is added to the authored
+sources. The same programs were executed from scratch copies whose `build.omg` additionally
+binds `macos_x86_64::ProgramEntry` (and, for `target_body`, whose per-target bodies
+additionally carry an identical `macos_x86_64 machine convert(...)`); the scratch copies are
+otherwise byte-identical to the authored files. All ten reported `native exit 0` and
+`interp exit: 0`. `omega run --target <name>` and `omega run --both --target <name>` are
+compile-publication only on this host and were not used as runtime evidence.
+
+The public acceptance command reports the same boundary:
+
+```sh
+python3 tools/sample_native_gate.py --cli <candidate> --facts --filter cli/facts/repro
+```
+
+It scores `0/0` runnable positives on `macos_x86_64` (10 unscored: not host-runnable)
+and `9/9 intended-invalid controls match their authored rejection`.
 
 ### The oracle discriminates
 
@@ -76,14 +104,25 @@ omega --check samples/cli/facts/repro/target_body/invalid/main.omg
 
 ## Requirements and Evidence
 
-- **Parent outcome:** IEEE float conversion and refinement / [numeric values](../../../../wiki/spec/language/numeric_values.md).
+- **Parent outcome:** [CANONICALIZE-SCALAR-RANGE-CONTRACTS](../../../../TASKS.md) — "locals the facts from initializers, guards and calls" (IEEE float conversions under [numeric values](../../../../wiki/spec/language/numeric_values.md#destination-owned-conversion)).
+- **Requirement this row establishes:** a checked IEEE guard proves the unqualified exact `I32::from_f64` operand is finite and truncates into `i32`, and that proof survives the local, field, parameter, call-result, match-join, const-name, another-state, another-machine and another-target-body transport places, with each place's omit-the-upper-bound twin still refusing.
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/ieee_guard_i32_from_f64_*`
-  - Negative controls: `tests/omega/fail/facts/ieee_guard_i32_from_f64_*`
+  - Positive passes: `tests/omega/pass/facts/repro_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_exit`
+  - Negative controls: `tests/omega/fail/facts/repro_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_rejected`
+  - Earlier-pinned copies of the same programs: `tests/omega/pass/facts/ieee_guard_i32_from_f64_*` and `tests/omega/fail/facts/ieee_guard_i32_from_f64_*_invalid`.
+- **Producer:** this change's candidate, optimized `opt_level=1`, based on
+  `6cd22386cbb51240d17751e61d82b88632bbcd41`; host `macos_x86_64`.
+- **Remaining open:** this row does not close its parent item. The same item's other
+  frontiers — field/case propositions through construction, nonliteral and indexed
+  writes, mutable recasts and returns, the ten-position recast inventory, and every
+  remaining range-suffix customer — are untouched. Only IEEE comparisons whose
+  Boolean subject is a captured transition guard were added to the carried
+  conditional evidence; a receiving predicate still never supplies an enclosure, and
+  qualified (`Trapping`/`Saturating`) overloads keep their own contracts.
 
 ### Specification and Lowering Layers
 
-1. **Establishment:** The compound guard `value == value && value >= 0.0 && value < 1000000000.0` establishes that the `f64` value is non-NaN (`value == value` proves non-unordered), non-negative (`value >= 0.0`), and strictly below `1000000000.0` (which is well within `i32::MAX = 2147483647`). This discharges the prerequisite contract for exact, non-trapping `I32::from_f64(value)` conversion directly without any post-hoc caller equality guard (`transition x == 100`).
+1. **Establishment:** The compound guard `value == value && value >= 0.0 && value < 1000000000.0` establishes that the `f64` value is non-NaN (`value == value` proves non-unordered), non-negative (`value >= 0.0`), and strictly below `1000000000.0` (which is well within `i32::MAX = 2147483647`). This discharges the prerequisite contract for exact, non-trapping `I32::from_f64(value)` conversion directly without any post-hoc caller equality guard (`transition x == 100`). A transition guard is evaluated once into a computed Boolean subject; the established IEEE enclosure and non-NaN identity ride that subject's recorded polarity into the flow-sensitive value environment, which is where the conversion's own finite/truncation obligation is decided. Before this repair the subject carried only integer order relations, so an IEEE comparison published no interval and no non-NaN fact and the conversion refused. The checked-flow observations of a saved guard are owned by the general saved-guard recovery in `flow/guard_predicates.rs`, landed separately with its own evidence.
 2. **Identity and lifetime:** The established IEEE proposition (`FloatPredicate`) and interval bounds stay attached to the exact `f64` scalar value across local variable copies, single-variant record field projections, parameter passing, contracted call postconditions (`ensures result == value`), match arm joins, named constant comparisons, state transitions, machine calls, and target bodies. No mutating write intervenes between guard evaluation and conversion.
 3. **Composition:** The guarded IEEE fact composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into `I32::from_f64(value)`. Each positive `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in omitting `< 1000000000.0` from the guard, isolating the upper-bound proof requirement under test.
 4. **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with compilation error `cannot prove unqualified \`I32::from_f64\` operand ... is finite and truncates into \`i32\`` when the upper bound is omitted. When NaN or negative values are supplied at runtime (`0.0 / 0.0`, `-1.0`), IEEE comparison rules correctly evaluate the guard to `false`, safely taking the `zero()` branch without invoking trapping conversion.

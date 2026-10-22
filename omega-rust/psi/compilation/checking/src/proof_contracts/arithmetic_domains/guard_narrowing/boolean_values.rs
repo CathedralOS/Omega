@@ -5,28 +5,68 @@
 //! without changing the Boolean's saved value.
 
 use super::super::ordered_values::{Operand, Relation, rebind_relations};
+use super::super::value_environment::IeeeConditionalFacts;
 use super::{ExpressionHandle, Machine, State, ValueEnvironment};
 use typed_trees::types::PrimitiveType;
+
+/// Everything one polarity of an evaluated condition established: the ordered
+/// relations that hold when it evaluates to that value, and the IEEE facts its
+/// evaluation proved under the same polarity. A Boolean snapshot carries both,
+/// so a guard narrowed through the Boolean subject keeps the interval and
+/// non-NaN evidence a direct comparison would have supplied.
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::proof_contracts::arithmetic_domains) struct ConditionalEvidence {
+    pub(in crate::proof_contracts::arithmetic_domains) relations: Vec<Relation>,
+    pub(in crate::proof_contracts::arithmetic_domains) ieee: IeeeConditionalFacts,
+}
+
+impl ConditionalEvidence {
+    fn is_empty(&self) -> bool {
+        self.relations.is_empty() && self.ieee.is_empty()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct BooleanValue {
     pub(in crate::proof_contracts::arithmetic_domains) binding: Operand,
-    pub(in crate::proof_contracts::arithmetic_domains) alternatives: [Vec<Relation>; 2],
+    pub(in crate::proof_contracts::arithmetic_domains) alternatives: [ConditionalEvidence; 2],
 }
 
 impl BooleanValue {
+    /// Transport the snapshot across a state edge. Integer relations rebind
+    /// through their exact operands; the IEEE facts rebind through the same
+    /// explicit place bindings the enclosing environment uses, so a subject
+    /// that becomes a parameter keeps its enclosure and loses everything else.
     pub(in crate::proof_contracts::arithmetic_domains) fn rebound(
         &self,
-        bindings: &[(Operand, Operand)],
+        bindings: &[(String, String)],
+        exact_bindings: &[(Operand, Operand)],
     ) -> Vec<Self> {
-        let targets = self.binding.rebound(bindings);
+        let targets = self.binding.rebound(exact_bindings);
         if targets.is_empty() {
             return Vec::new();
         }
-        let alternatives = self
-            .alternatives
-            .each_ref()
-            .map(|relations| rebind_relations(relations, bindings));
+        let paths = |path: &str| -> Vec<String> {
+            bindings
+                .iter()
+                .filter_map(|(source, target)| {
+                    if path == source {
+                        Some(target.clone())
+                    } else {
+                        path.strip_prefix(source)
+                            .filter(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+                            .map(|suffix| format!("{target}{suffix}"))
+                    }
+                })
+                .collect()
+        };
+        let alternatives = self.alternatives.each_ref().map(|evidence| {
+            let relations = rebind_relations(&evidence.relations, exact_bindings);
+            ConditionalEvidence {
+                relations,
+                ieee: evidence.ieee.rebound(&paths),
+            }
+        });
         targets
             .into_iter()
             .map(|binding| Self {
@@ -126,9 +166,12 @@ fn record_binding(
             expression,
             positive,
         );
-        selected.ordered_values
+        ConditionalEvidence {
+            relations: std::mem::take(&mut selected.ordered_values),
+            ieee: selected.ieee_conditional_facts(),
+        }
     });
-    if alternatives.iter().all(Vec::is_empty) {
+    if alternatives.iter().all(ConditionalEvidence::is_empty) {
         return;
     }
     environment
@@ -160,17 +203,19 @@ pub(super) fn select(
     }) else {
         return false;
     };
-    let Some(value) = environment
+    let Some(evidence) = environment
         .boolean_values
         .iter()
         .find(|value| value.binding == binding)
+        .map(|value| value.alternatives[usize::from(positive)].clone())
     else {
         return false;
     };
-    for relation in &value.alternatives[usize::from(positive)] {
+    for relation in &evidence.relations {
         if !environment.ordered_values.contains(relation) {
             environment.ordered_values.push(relation.clone());
         }
     }
+    evidence.ieee.apply_to(environment);
     true
 }

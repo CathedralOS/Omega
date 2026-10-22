@@ -842,7 +842,7 @@ impl ArrivalWalk<'_, '_> {
         for value in &environment.boolean_values {
             rebound
                 .boolean_values
-                .extend(value.rebound(&exact_bindings));
+                .extend(value.rebound(&bindings, &exact_bindings));
         }
         rebound.ordered_values =
             ordered_values::rebind_relations(&environment.ordered_values, &exact_bindings);

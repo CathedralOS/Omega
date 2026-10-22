@@ -78,6 +78,99 @@ pub(crate) struct ValueEnvironment {
     pub(super) signed_joint_multiply_negation_bounds: BTreeSet<String>,
 }
 
+/// The IEEE portion of one Boolean polarity: the ordered float enclosure,
+/// non-NaN identities and alias groups the evaluated condition established.
+/// A Boolean snapshot keeps these beside its integer relations, so narrowing a
+/// guard through a Boolean subject retains exactly the evidence the direct
+/// comparison would have supplied. Without them a checked IEEE guard reached
+/// through an evaluated Boolean subject lost its interval and non-NaN proof.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(in crate::proof_contracts::arithmetic_domains) struct IeeeConditionalFacts {
+    pub(in crate::proof_contracts::arithmetic_domains) intervals: BTreeMap<String, FloatInterval>,
+    pub(in crate::proof_contracts::arithmetic_domains) non_nan: BTreeSet<String>,
+    pub(in crate::proof_contracts::arithmetic_domains) aliases: BTreeSet<(String, String)>,
+}
+
+impl IeeeConditionalFacts {
+    pub(in crate::proof_contracts::arithmetic_domains) fn is_empty(&self) -> bool {
+        self.intervals.is_empty() && self.non_nan.is_empty() && self.aliases.is_empty()
+    }
+
+    /// Re-establish these facts on a consumer environment. Alias groups land
+    /// first so the interval narrowing below fans out through them, and the
+    /// non-NaN identities last because they carry no interval of their own.
+    pub(in crate::proof_contracts::arithmetic_domains) fn apply_to(
+        &self,
+        environment: &mut ValueEnvironment,
+    ) {
+        for (left, right) in &self.aliases {
+            environment.mark_float_alias(left.clone(), right.clone());
+        }
+        for (path, interval) in &self.intervals {
+            environment.narrow_float(path.clone(), *interval);
+        }
+        for path in &self.non_nan {
+            environment.mark_non_nan(path.clone());
+        }
+    }
+
+    /// Withdraw every fact about a path a later write may change: its
+    /// enclosure, its non-NaN identity and every alias pair through it.
+    pub(in crate::proof_contracts::arithmetic_domains) fn retain(
+        &mut self,
+        keep_path: impl Fn(&str) -> bool,
+    ) {
+        self.intervals.retain(|path, _| keep_path(path));
+        self.non_nan.retain(|path| keep_path(path));
+        self.aliases
+            .retain(|(left, right)| keep_path(left) && keep_path(right));
+    }
+
+    /// The facts two polarities share at a join: an enclosure survives only
+    /// where both sides hold one, at their union, and identities and alias
+    /// pairs survive only when both sides kept them.
+    fn intersect(&self, other: &Self) -> Self {
+        let mut joined = Self::default();
+        for (path, interval) in &self.intervals {
+            if let Some(other_interval) = other.intervals.get(path) {
+                joined
+                    .intervals
+                    .insert(path.clone(), interval.union(*other_interval));
+            }
+        }
+        joined.non_nan = self.non_nan.intersection(&other.non_nan).cloned().collect();
+        joined.aliases = self.aliases.intersection(&other.aliases).cloned().collect();
+        joined
+    }
+
+    /// Translate only explicitly bound paths, by the same rule the enclosing
+    /// environment's own IEEE facts use.
+    pub(in crate::proof_contracts::arithmetic_domains) fn rebound(
+        &self,
+        paths: &impl Fn(&str) -> Vec<String>,
+    ) -> Self {
+        let mut rebound = Self::default();
+        for (path, interval) in &self.intervals {
+            for path in paths(path) {
+                rebound.intervals.insert(path, *interval);
+            }
+        }
+        for path in &self.non_nan {
+            rebound.non_nan.extend(paths(path));
+        }
+        for (left, right) in &self.aliases {
+            for left in paths(left) {
+                for right in paths(right) {
+                    rebound
+                        .aliases
+                        .insert(canonical_path_pair(left.clone(), right));
+                }
+            }
+        }
+        rebound
+    }
+}
+
 impl ValueEnvironment {
     pub(super) fn range_recipe(
         &self,
@@ -267,11 +360,12 @@ impl ValueEnvironment {
             if !value.binding.is_immutable_snapshot(program, state) {
                 return false;
             }
-            for relations in &mut value.alternatives {
-                relations.retain(|relation| {
+            for alternative in &mut value.alternatives {
+                alternative.relations.retain(|relation| {
                     relation.left.is_immutable_snapshot(program, state)
                         && relation.right.is_immutable_snapshot(program, state)
                 });
+                alternative.ieee.retain(|path| retained(path));
             }
             true
         });
@@ -303,22 +397,25 @@ impl ValueEnvironment {
         written: &[String],
         survives: impl Fn(&ordered_values::Operand) -> bool,
     ) {
-        self.boolean_values.retain_mut(|value| {
-            if !survives(&value.binding) {
-                return false;
-            }
-            for relations in &mut value.alternatives {
-                relations.retain(|relation| survives(&relation.left) && survives(&relation.right));
-            }
-            true
-        });
-        self.ordered_values
-            .retain(|relation| survives(&relation.left) && survives(&relation.right));
         let overlaps = |path: &str| {
             written
                 .iter()
                 .any(|written| place_paths_overlap(path, written))
         };
+        self.boolean_values.retain_mut(|value| {
+            if !survives(&value.binding) {
+                return false;
+            }
+            for alternative in &mut value.alternatives {
+                alternative
+                    .relations
+                    .retain(|relation| survives(&relation.left) && survives(&relation.right));
+                alternative.ieee.retain(|path| !overlaps(path));
+            }
+            true
+        });
+        self.ordered_values
+            .retain(|relation| survives(&relation.left) && survives(&relation.right));
         let keep_pair = |(left, right): &(String, String)| !overlaps(left) && !overlaps(right);
         self.integer_ranges.retain(|value| !overlaps(&value.path));
         self.intervals.retain(|path, _| !overlaps(path));
@@ -584,6 +681,16 @@ impl ValueEnvironment {
         )
     }
 
+    /// Snapshot the IEEE facts this environment currently holds, for a Boolean
+    /// snapshot that must re-establish them under one polarity later.
+    pub(super) fn ieee_conditional_facts(&self) -> IeeeConditionalFacts {
+        IeeeConditionalFacts {
+            intervals: self.float_intervals.clone(),
+            non_nan: self.non_nan.clone(),
+            aliases: self.float_aliases.clone(),
+        }
+    }
+
     /// The JOIN of two envs at a control-flow merge: only places tracked in
     /// BOTH survive, each at the UNION of its intervals (the fact that holds
     /// regardless of which path was taken). Used to seed a multi-predecessor
@@ -610,8 +717,12 @@ impl ValueEnvironment {
                 .find(|other| other.binding == value.binding)
             {
                 let mut common = value.clone();
-                for (relations, other) in common.alternatives.iter_mut().zip(&other.alternatives) {
-                    relations.retain(|relation| other.contains(relation));
+                for (alternative, other) in common.alternatives.iter_mut().zip(&other.alternatives)
+                {
+                    alternative
+                        .relations
+                        .retain(|relation| other.relations.contains(relation));
+                    alternative.ieee = alternative.ieee.intersect(&other.ieee);
                 }
                 joined.boolean_values.push(common);
             }
