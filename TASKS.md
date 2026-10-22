@@ -5291,6 +5291,12 @@ wait for Cathedral's instruction coverage. The interpreter is
     through all nine places, and the caller reads `direct == true`. Each twin
     changes only that projected value from `true` to `false` and rejects the
     missing projection fact.
+    A call inside an abstract signature is the premise, and the signature
+    records that call's result:
+    `samples/cli/facts/abstract_signature_call/local` exits 0 on both engines,
+    and the caller reads `direct == true`. Its twin changes only that call's
+    result from `true` to `false` and rejects `premise(kept)`. The other eight
+    places of that sentence remain open.
     Keep
     `body_bearing_comparison/returned_boolean`: a body-wide Boolean result
     joins every normal exit, named-state destination and selected target body;
