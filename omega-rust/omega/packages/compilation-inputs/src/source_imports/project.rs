@@ -174,18 +174,16 @@ impl ProjectSourceSelection {
             .as_deref()
             .map(|selected| {
                 storage
-                    .files
-                    .iter()
-                    .find(|(_, file)| {
+                    .sources
+                    .files()
+                    .find(|file| {
                         storage
                             .filesystem
                             .canonicalize(&file.path)
                             .is_ok_and(|loaded| loaded == selected)
-                            && storage.sources.get(file.source_id).is_some_and(|source| {
-                                source.dependency_scope == source::DependencyScope::Build
-                            })
+                            && file.dependency_scope == source::DependencyScope::Build
                     })
-                    .map(|(_, file)| file.source_id)
+                    .map(|file| file.source_id)
                     .ok_or_else(|| {
                         vec![Diagnostic::error(format!(
                             "selected build source {} disappeared from the loaded frontier",

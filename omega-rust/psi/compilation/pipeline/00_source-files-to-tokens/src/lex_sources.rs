@@ -2,7 +2,8 @@
 //!
 //! The texts arrive already in memory, read from files by `load_sources` or
 //! supplied directly, so lexing never touches the filesystem or acquires
-//! package authority.
+//! package authority. Consumed rows transfer their path buffers to the next
+//! stage; only the source text needs shared ownership for retained lexemes.
 
 use arena::Arena;
 use diagnostics::Diagnostic;
@@ -13,14 +14,14 @@ use tokens::{LexedSource, LexedSources, Token, TokenStream, TokenText};
 
 /// Tokenize every loaded source, retaining its backing text and exact metadata.
 /// Report the first lexical failure with its source path, line and column.
-pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
-    let loaded_sources = sources.sources.span_or_empty(sources.batch);
+pub fn lex_sources(mut sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
+    let loaded_sources = sources.sources.span_mut_or_empty(sources.batch);
     let source_count = loaded_sources.len();
     let mut lexed_sources = Arena::with_capacity(source_count);
     let results: Vec<Result<LexedSource, Diagnostic>> = if source_count <= 1 {
-        loaded_sources.iter().map(lex_source).collect()
+        loaded_sources.iter_mut().map(lex_source).collect()
     } else {
-        loaded_sources.par_iter().map(lex_source).collect()
+        loaded_sources.par_iter_mut().map(lex_source).collect()
     };
     let lexed = results
         .into_iter()
@@ -35,7 +36,7 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
     })
 }
 
-fn lex_source(loaded_source: &LoadedSource) -> Result<LexedSource, Diagnostic> {
+fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, Diagnostic> {
     let tokens = crate::Lexer::new(loaded_source.source.as_ref())
         .tokenize()
         .map_err(|error| {
@@ -51,7 +52,7 @@ fn lex_source(loaded_source: &LoadedSource) -> Result<LexedSource, Diagnostic> {
 
     Ok(LexedSource {
         source_id: loaded_source.source_id,
-        path: loaded_source.path.clone(),
+        path: std::mem::take(&mut loaded_source.path),
         source: loaded_source.source.clone(),
         origin: loaded_source.origin,
         tokens: own_token_stream(tokens, &loaded_source.source),

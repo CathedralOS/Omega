@@ -13,7 +13,7 @@ use syntax_trees::SyntaxTrees;
 #[derive(Clone, Default)]
 pub(crate) struct SourceStorage {
     pub filesystem: source::SourceFileSystem,
-    pub files: Arena<SourceFile>,
+    pub source_roots: Arena<SourceRoots>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
     pub resolved_imports: Vec<super::ResolvedSourceImport>,
@@ -193,7 +193,7 @@ impl SourceStorage {
             let (package_root, package_identity, origin) =
                 self.source_metadata(&parsed_source.path, parsed_source.origin);
             let added = self.sources.add_checked_instance(
-                parsed_source.path.clone(),
+                std::mem::take(&mut parsed_source.path),
                 parsed_source.source.clone(),
                 package_root,
                 package_identity,
@@ -206,9 +206,8 @@ impl SourceStorage {
 
             // Import discovery has finished with this consumed batch. Keep its
             // per-source associations without copying their owned buffers.
-            self.files.append(SourceFile {
+            self.source_roots.append(SourceRoots {
                 source_id: parsed_source.source_id,
-                path: std::mem::take(&mut parsed_source.path),
                 root_items: std::mem::take(&mut parsed_source.root_items),
             });
         }
@@ -221,7 +220,7 @@ impl SourceStorage {
     }
 
     pub fn file_count(&self) -> usize {
-        self.files.len()
+        self.source_roots.len()
     }
 
     fn source_metadata(
@@ -302,9 +301,10 @@ impl ToolchainContractCustody {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct SourceFile {
+/// Root associations borrow path and custody through the existing source id.
+/// SourceMap owns the only retained path for each checked source instance.
+pub(crate) struct SourceRoots {
     pub source_id: source::SourceId,
-    pub path: PathBuf,
     pub root_items: Vec<syntax_trees::item::ItemHandle>,
 }
 
@@ -389,10 +389,28 @@ mod tests {
                     scope,
                 }),
         );
+        let path_buffers = parsed
+            .sources
+            .span_or_empty(parsed.batch)
+            .iter()
+            .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
+            .collect::<Vec<_>>();
         let mut storage = SourceStorage::default();
         storage.extend(parsed).expect("retained source batch");
         let build = storage.sources.get(SourceId(0)).expect("build instance");
         let product = storage.sources.get(SourceId(1)).expect("product instance");
+        assert_eq!(
+            build.path.as_os_str().as_encoded_bytes().as_ptr() as usize,
+            path_buffers[0]
+        );
+        assert_eq!(
+            product.path.as_os_str().as_encoded_bytes().as_ptr() as usize,
+            path_buffers[1]
+        );
+        assert_eq!(storage.source_roots.len(), 2);
+        for (_, roots) in storage.source_roots.iter() {
+            assert!(storage.sources.get(roots.source_id).is_some());
+        }
         assert!(Arc::ptr_eq(&build.source, &text));
         assert!(Arc::ptr_eq(&product.source, &text));
         assert_ne!(build.source_id, product.source_id);

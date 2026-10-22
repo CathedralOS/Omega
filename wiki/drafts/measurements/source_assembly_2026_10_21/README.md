@@ -10,6 +10,11 @@ The [import/forest assembly audit](import_assembly/README.md) transfers consumed
 source metadata buffers, removing allocations with no claimed timing speedup.
 The [custody and queue experiment](import_custody/README.md) removes repeated
 custody snapshots and duplicate queue path copies, preserving exact outputs.
+The [path ownership experiment](path_identity/README.md) moves existing path
+buffers into SourceMap and uses SourceId for root associations: 13,479 fewer
+allocations / 1,615,685 fewer requested bytes over 289 inputs, identical hashes,
+and inconclusive timing. This follows [published import bounds](import_index/README.md);
+it retains the ownership change without claiming the layer is saturated.
 
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;

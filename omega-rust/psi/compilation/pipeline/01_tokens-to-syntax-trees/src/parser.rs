@@ -11,13 +11,14 @@ use syntax_trees::{ParsedRootItems, ParsedSource, ParsedSources, SyntaxTrees, it
 use tokens::{LexedSources, Token};
 
 /// Parse an ordered token batch into the caller's syntax arena, retaining
-/// per-source roots, backing text and metadata. Failure leaves the already
+/// per-source roots, backing text and metadata. Consumed path buffers move into
+/// the result while text stays shared with syntax payloads. Failure leaves the already
 /// parsed prefix in that arena and reports the current source's exact location.
 pub fn parse_sources(
-    lexed: LexedSources,
+    mut lexed: LexedSources,
     syntax_trees: &mut SyntaxTrees,
 ) -> Result<ParsedSources, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
+    let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let source_count = lexed_sources.len();
     let mut parsed_sources = Arena::with_capacity(source_count);
     let mut parsed = Vec::with_capacity(source_count);
@@ -38,7 +39,7 @@ pub fn parse_sources(
 
         parsed.push(ParsedSource {
             source_id: lexed_source.source_id,
-            path: lexed_source.path.clone(),
+            path: std::mem::take(&mut lexed_source.path),
             source: lexed_source.source.clone(),
             origin: lexed_source.origin,
             root_items: root_items.items,
@@ -119,10 +120,10 @@ pub fn parse_source_pages(lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<
 }
 
 pub fn parse_source_pages_from(
-    lexed: LexedSources,
+    mut lexed: LexedSources,
     first_page_identity: u32,
 ) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
+    let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let source_count = lexed_sources.len();
     let desired_pages = source_count
         .min(rayon::current_num_threads().max(1).saturating_mul(4))
@@ -133,9 +134,10 @@ pub fn parse_source_pages_from(
 /// Parse each source into its own published syntax unit. Generated-source
 /// extension custody uses this route because normalization must not synthesize
 /// across generated-unit boundaries.
-pub fn parse_source_units(lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
-    parse_source_pages_with_count(lexed_sources, lexed_sources.len().max(1), 1)
+pub fn parse_source_units(mut lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
+    let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
+    let desired_pages = lexed_sources.len().max(1);
+    parse_source_pages_with_count(lexed_sources, desired_pages, 1)
 }
 
 /// Stack budget for the parallel parse workers. Expression and type parsing
@@ -158,7 +160,7 @@ fn parse_thread_pool() -> &'static rayon::ThreadPool {
 }
 
 fn parse_source_pages_with_count(
-    lexed_sources: &[tokens::LexedSource],
+    lexed_sources: &mut [tokens::LexedSource],
     desired_pages: usize,
     first_page_identity: u32,
 ) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
@@ -184,7 +186,7 @@ fn parse_source_pages_with_count(
         .install(|| {
             page_reservations
                 .into_par_iter()
-                .zip(lexed_sources.par_chunks(chunk_size))
+                .zip(lexed_sources.par_chunks_mut(chunk_size))
                 .map(|(page, sources)| parse_source_page(page, sources))
                 .collect::<Vec<_>>()
         })
@@ -214,7 +216,7 @@ fn parse_source_pages_with_count(
 
 fn parse_source_page(
     mut page: arena::ConcurrentArenaPage<'_, SyntaxTrees>,
-    sources: &[tokens::LexedSource],
+    sources: &mut [tokens::LexedSource],
 ) -> Result<(Handle<SyntaxTrees>, Vec<ParsedSource>), Vec<Diagnostic>> {
     let page_identity = page.page_identity();
     let first_source = sources
@@ -239,7 +241,7 @@ fn parse_source_page(
             })?;
         parsed.push(ParsedSource {
             source_id: lexed_source.source_id,
-            path: lexed_source.path.clone(),
+            path: std::mem::take(&mut lexed_source.path),
             source: lexed_source.source.clone(),
             origin: lexed_source.origin,
             root_items: root_items.items,

@@ -138,19 +138,18 @@ pub(crate) fn retain_module_import_bindings(
     // The sort keys scope so each path's at-most-two instances sit in a
     // deterministic order inside one contiguous run.
     let mut sources = storage
-        .files
+        .source_roots
         .iter()
-        .map(|(_, source)| {
-            let declares_module = source
+        .map(|(_, roots)| {
+            let declares_module = roots
                 .root_items
                 .iter()
                 .any(|item| matches!(storage.syntax_trees.root_item(*item), Item::Module(_)));
-            let scope = storage
+            let source = storage
                 .sources
-                .get(source.source_id)
-                .map(|file| file.dependency_scope)
-                .unwrap_or(DependencyScope::Product);
-            (source, declares_module, scope)
+                .get(roots.source_id)
+                .expect("parsed roots retain their source-map instance");
+            (source, declares_module, source.dependency_scope)
         })
         .collect::<Vec<_>>();
     sources.sort_by(|(left, _, left_scope), (right, _, right_scope)| {

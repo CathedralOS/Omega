@@ -20,12 +20,22 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
                 scope,
             }),
     );
+    let path_buffers = loaded
+        .sources
+        .span_or_empty(loaded.batch)
+        .iter()
+        .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
+        .collect::<Vec<_>>();
     let lexed = lex_sources(loaded).unwrap();
     let batch = lexed.sources.span_or_empty(lexed.batch);
     assert_eq!(batch.len(), 2);
     for (position, source) in batch.iter().enumerate() {
         assert_eq!(source.source_id, SourceId(11 + position));
         assert_eq!(source.path, PathBuf::from("shared.omg"));
+        assert_eq!(
+            source.path.as_os_str().as_encoded_bytes().as_ptr() as usize,
+            path_buffers[position]
+        );
         assert_eq!(source.origin, Some(SourceOrigin::Toolchain));
         assert!(Arc::ptr_eq(&source.source, &text));
         let TokenText::Shared {

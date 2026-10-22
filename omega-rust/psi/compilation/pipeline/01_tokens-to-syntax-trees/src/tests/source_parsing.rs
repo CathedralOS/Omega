@@ -29,6 +29,11 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
     let original = trees.root_item(first[0]).clone();
     let lexed = lexed_source(SourceId(22), "second.omg", "data Second {} data Third {}");
     let backing = lexed.sources.span_or_empty(lexed.batch)[0].source.clone();
+    let path_buffer = lexed.sources.span_or_empty(lexed.batch)[0]
+        .path
+        .as_os_str()
+        .as_encoded_bytes()
+        .as_ptr();
     let parsed = parse_sources(lexed, &mut trees).unwrap();
     let sources = parsed.sources.span_or_empty(parsed.batch);
     assert_eq!(sources.len(), 1);
@@ -38,6 +43,10 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
     assert_eq!(appended.origin, Some(SourceOrigin::User));
     assert_eq!(appended.scope, DependencyScope::Build);
     assert!(Arc::ptr_eq(&appended.source, &backing));
+    assert_eq!(
+        appended.path.as_os_str().as_encoded_bytes().as_ptr(),
+        path_buffer
+    );
     let second = &appended.root_items;
 
     assert_eq!(first.len(), 1);
@@ -131,6 +140,12 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
         }
     }));
     let lexed = lex_sources(loaded).unwrap();
+    let path_buffers = lexed
+        .sources
+        .span_or_empty(lexed.batch)
+        .iter()
+        .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
+        .collect::<Vec<_>>();
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(4)
         .build()
@@ -142,6 +157,10 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
     for (position, source) in parsed.sources().iter().enumerate() {
         assert_eq!(source.source().source_id, SourceId(100 + position));
         assert_eq!(source.source().root_items.len(), 1);
+        assert_eq!(
+            source.source().path.as_os_str().as_encoded_bytes().as_ptr() as usize,
+            path_buffers[position]
+        );
         let root = source.source().root_items[0];
         assert_eq!(root.generation(), source.syntax_handle().generation());
         let syntax = parsed.syntax_for(root).expect("root syntax page");

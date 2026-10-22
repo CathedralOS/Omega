@@ -143,13 +143,8 @@ impl ImmutableSourceParseCheckpoint {
         self.validate_child(package_inputs)?;
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
-        for (_, source) in source_storage.files.iter() {
-            let scope = source_storage
-                .sources
-                .get(source.source_id)
-                .map(|file| file.dependency_scope)
-                .unwrap_or(source::DependencyScope::Product);
-            imports.mark_loaded(&source.path, scope);
+        for source in source_storage.sources.files() {
+            imports.mark_loaded(&source.path, source.dependency_scope);
         }
         let mut generated_source_custody = match package_inputs {
             Some(package_inputs) => append_dependency_generated_sources_to_storage(

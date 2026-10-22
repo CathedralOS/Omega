@@ -20,7 +20,7 @@ pub(crate) fn prepare_build_prelude(
     let mut has_build_machine = false;
     let mut build_source_declares_build_data = false;
     let mut program_declares_build_data = false;
-    for (_, file) in source_storage.files.iter() {
+    for (_, file) in source_storage.source_roots.iter() {
         let is_build_file = Some(file.source_id) == build_source_id;
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
