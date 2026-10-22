@@ -117,25 +117,27 @@ reaches ExtentPartition
     Bump { tail: whole, remaining: restored_residual }
 }
 
-// Return the newest tail-adjacent allocation while older allocations stay
-// live. `returned` must still be `Vacant` — a region holding a live
-// resident does not satisfy the parameter. The recomposed tail's own
-// geometry restores the residual; the strategy's custody is conserved by
-// the same merge law `reset` composes.
-public machine release(strategy: Bump, returned: Extent in Granted & Vacant) -> Bump
+// Release performs ordinary value cleanup and transfers the exact extent back
+// as retired content. It does not rewind the cursor: the strategy keeps its
+// tail and residual, and the retired claim stays unavailable until `reset`
+// recomposes it. Merging the claim into the tail here would let a later request
+// spend storage the monotonic cursor already issued and would erase the
+// distinction between the allocatable tail and retired content
+// (wiki/spec/resources/allocation.md#monotonic-allocation-and-return).
+// `returned` must still be `Vacant` — a region holding a live resident does not
+// satisfy the parameter, so value cleanup precedes the transfer.
+public data Released {
+    strategy: Bump;
+    retired_storage: Extent in Granted & Vacant;
+}
+
+public machine release(strategy: Bump, returned: Extent in Granted & Vacant) -> Released
 ensures
-    embed(result.tail.length) == embed(returned.length) + embed(strategy.tail.length);
-    embed(result.remaining) == embed(returned.length) + embed(strategy.tail.length)
-reaches ExtentPartition
-    invokes ExtentPartition;
+    result.strategy.tail.length == strategy.tail.length;
+    result.strategy.remaining == strategy.remaining;
+    result.retired_storage.length == returned.length
 {
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let grown: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: returned,
-        rest: tail,
-    });
-    let restored_residual: u64 = grown.length;
-    Bump { tail: grown, remaining: restored_residual }
+    Released { strategy: strategy, retired_storage: returned }
 }
 
 // The reservation half of a `Vec<T>`-style owner over the bump chain: one

@@ -3,14 +3,16 @@
 //
 // The package owns only the allocation strategy: `bump.omg` carries the
 // qualified-extent partition contract (`ExtentPartition`), the bump policy
-// (`Bump`/`Attempt`), the tail-ward `release` and full-return
-// `reset`, and the `BumpVec` reservation container with its finite
-// `RetiredSlot`. The compiler owns no allocator semantics here: every
-// extent the strategy touches is `Extent in Granted & Vacant`, and custody
-// is conserved through the boundary's authored `separate`/`embed` laws.
-// Allocation borrows `Bump` briefly and returns only the owned extent. The
-// existing retirement/reset and reservation-container surfaces remain incomplete:
-// they do not yet implement monotonic retention or resident element lifecycle.
+// (`Bump`/`Attempt`), the monotonic `release` that retains its returned extent
+// as retired content, the full-return `reset`, and the `BumpVec` reservation
+// container with its finite `RetiredSlot`. The compiler owns no allocator
+// semantics here: every extent the strategy touches is
+// `Extent in Granted & Vacant`, and custody is conserved through the boundary's
+// authored `separate`/`embed` laws. Allocation borrows `Bump` briefly and
+// returns only the owned extent. The remaining frontier is the container's
+// truncate edge (`shrink` still folds its freed suffix into the allocatable
+// tail), a `reset` that recomposes every retired extent rather than the two a
+// caller can name, resident element lifecycle, and real backing.
 //
 // `vec.omg` adds the element-bearing customer: a growable `Vec<T>` over
 // caller-supplied backing under the same explicit-supply / explicit-return

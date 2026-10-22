@@ -4903,8 +4903,17 @@ wait for Cathedral's instruction coverage. The interpreter is
     `Vacant`/`Resident` transfer routes over actual backing; a route declaration
     alone supplies neither vacancy nor resident custody. Live residents cannot
     merge as vacant.
-  - Monotonic release cleans values and retains returned extents until reset;
-    current `release`/`shrink` restore the tail immediately.
+  - `release` is monotonic: it retains its returned extent as retired content
+    (`Released`) without moving the cursor or residual, pinned by
+    `fail/memory/bump_allocator_retired_extent_unavailable`. Still to do:
+    `BumpVec::shrink` folds its freed suffix into the allocatable tail, and
+    `reset` recomposes only the two claims a caller can name, so
+    every-retired-extent recomposition needs the container's retired roles
+    (below and above the live buffer) and a claim carrier the strategy lacks.
+  - Measured prerequisite for the acceptance below: a hosted program reaches
+    `Extent in Granted` through `ExtentRootProvider`, but no admitted provider
+    establishes `Vacant` outside the UEFI program-storage entry, so neither the
+    interpreter nor this host has real backing to allocate over yet.
 
   Acceptance: with real backing, coexisting allocations, unchanged state on
   failure, exact cleanup/return, and reset to original backing only after all

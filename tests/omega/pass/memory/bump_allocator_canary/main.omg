@@ -1,10 +1,13 @@
 // Package consumer for the borrowed bump allocation API. Infallible calls
 // capture the exact available count, prove capacity, and preserve the decrement
 // through two live owned results. Fallible calls keep the strategy in place.
+// `exercise_release` consumes a release whose retired extent stays unavailable
+// until `reset` recomposes it: the monotonic cursor never moves on release.
 //
 // This remains a compile-only integration fixture: its entry acquires no
-// backing. The legacy merge and resident declarations below do not establish
-// an executable allocator, physical storage or the unfinished reset contract.
+// backing. The merge and resident declarations below do not establish an
+// executable allocator, physical storage or the unfinished truncate/reset
+// contract.
 use omega::language::core::extent;
 use omega::language::core::content;
 use alloc::bump;
@@ -70,13 +73,13 @@ reaches ExtentPartition
 }
 
 // Two coexisting allocations, then a partial cleanup: the newest region
-// returns through `release` while the oldest stays live, a third
-// allocation comes out of the restored tail, and `reset` still waits for
-// the remaining pair — a live first allocation has no spelling here
-// because `Extent` is linear. The third request's bound follows from the
-// residual `release` restored, not a caller-invented floor — the same
-// rule `exercise`'s second request follows — and the closing reset
-// restores the full original capacity for one unguarded reuse.
+// returns through `release` as retired content while the oldest stays live.
+// The monotonic cursor does not move, so the strategy's residual stays at the
+// live issued total and the released bytes are unavailable until `reset` folds
+// them with the live allocation back into the original backing. That restored
+// capacity authorizes one unguarded reuse — the same residual law `allocate`
+// publishes, with the released claim carried as its own value instead of a
+// caller-invented floor.
 machine exercise_release(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
@@ -85,12 +88,16 @@ reaches ExtentPartition
 {
     let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
     let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    let second: Extent in Granted & Vacant = allocate(&mut strategy, 32, capacity - 16);
-    // The first allocation stays live while the second region returns.
-    let mut grown: Bump = release(strategy, second);
-    let available: u64 = grown.remaining;
-    let third: Extent in Granted & Vacant = allocate(&mut grown, 24, available);
-    let mut restored: Bump = reset(grown, first, third);
+    check_remaining(strategy.remaining, capacity, 16);
+    let available: u64 = strategy.remaining;
+    let second: Extent in Granted & Vacant = allocate(&mut strategy, 32, available);
+    check_remaining(strategy.remaining, available, 32);
+    let released: Released = release(strategy, second);
+    // The release did not rewind the cursor: the residual is still the
+    // post-allocation value, not the value the returned thirty-two bytes would
+    // restore.
+    check_remaining(released.strategy.remaining, available, 32);
+    let mut restored: Bump = reset(released.strategy, first, released.retired_storage);
     let restored_capacity: u64 = restored.remaining;
     let reused: Extent in Granted & Vacant = allocate(&mut restored, capacity, restored_capacity);
     let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {

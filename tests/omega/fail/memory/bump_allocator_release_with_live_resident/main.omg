@@ -1,10 +1,10 @@
-// Tail-ward return refuses a resident-bearing region: `release` merges the
-// newest allocation back into the tail through `merge`, whose `Split` parts
-// must be `Vacant`, so storage still holding `Resident<SlotPlacement, Slot>`
-// cannot even cross the `returned` parameter. The pass-side sibling
+// Release refuses a resident-bearing region: `returned` demands
+// `Extent in Granted & Vacant`, so storage still holding
+// `Resident<SlotPlacement, Slot>` cannot even cross that parameter, whichever
+// route the released claim later takes. The pass-side sibling
 // (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_release`) only
 // releases a still-vacant region; a resident must be retired to `Vacant`
-// before its extent can return tail-ward.
+// before its extent can be released.
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -96,7 +96,7 @@ reaches ExtentPartition
 }
 
 // Allocate twice, establish a resident in the newest region, then attempt its
-// tail-ward release without retiring it first.
+// release without retiring it first.
 machine exercise(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
