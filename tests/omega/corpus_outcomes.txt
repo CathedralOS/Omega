@@ -3048,25 +3048,25 @@ fail/facts/crash_entry_integer_view_incompatible_view rejected 6427ms expected @
 	machine `read_bits` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
 fail/facts/crash_entry_integer_view_stale_storage rejected 9125ms expected @457174b6ca03
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_call_result_one_rejected rejected 5522ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_call_result_rejected rejected 5522ms expected @1654d389500c+wt
 	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_const_name_one_rejected rejected 5575ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_const_name_rejected rejected 5575ms expected @1654d389500c+wt
 	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_field_one_rejected rejected 5623ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_field_rejected rejected 5623ms expected @1654d389500c+wt
 	call from `read_nan` to `maybe_ordered` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_local_one_rejected rejected 3927ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_local_rejected rejected 3927ms expected @1654d389500c+wt
 	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_local_written_rejected rejected 22704ms expected @94247f983231+wt
+fail/facts/crash_entry_nan_equality_through_local_written_rejected rejected 22704ms expected @94247f983231+wt
 	call from `read_nan` to `maybe_ordered` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_match_join_one_rejected rejected 3973ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_match_join_rejected rejected 3973ms expected @1654d389500c+wt
 	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_other_machine_one_rejected rejected 3920ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_other_machine_rejected rejected 3920ms expected @1654d389500c+wt
 	call from `read_nan` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_other_state_one_rejected rejected 3931ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_other_state_rejected rejected 3931ms expected @1654d389500c+wt
 	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_parameter_one_rejected rejected 3494ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_parameter_rejected rejected 3494ms expected @1654d389500c+wt
 	call from `main` to `read_nan` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_target_body_one_rejected rejected 3525ms expected @1654d389500c+wt
+fail/facts/crash_entry_nan_equality_through_target_body_rejected rejected 3525ms expected @1654d389500c+wt
 	call from `read_nan` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_nonempty_path_local_written_rejected rejected 14722ms expected @94247f983231+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -3106,25 +3106,25 @@ fail/facts/crash_entry_representation_view_through_parameter_rejected rejected 4
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_representation_view_through_target_body_rejected rejected 4484ms expected @7df3e6a600f1+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_call_result_one_rejected rejected 6430ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_call_result_rejected rejected 6430ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_const_name_one_rejected rejected 6424ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_const_name_rejected rejected 6424ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_field_one_rejected rejected 7925ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_field_rejected rejected 7925ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_local_one_rejected rejected 6775ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_local_rejected rejected 6775ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_local_written_rejected rejected 22812ms expected @94247f983231+wt
+fail/facts/crash_entry_signed_zero_through_local_written_rejected rejected 22812ms expected @94247f983231+wt
 	call from `read_zero` to `maybe_nonzero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_match_join_one_rejected rejected 6588ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_match_join_rejected rejected 6588ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_other_machine_one_rejected rejected 5231ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_other_machine_rejected rejected 5231ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_other_state_one_rejected rejected 5431ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_other_state_rejected rejected 5431ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_parameter_one_rejected rejected 5495ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_parameter_rejected rejected 5495ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `maybe_nonzero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_target_body_one_rejected rejected 5406ms expected @037fe3b9a8bf+wt
+fail/facts/crash_entry_signed_zero_through_target_body_rejected rejected 5406ms expected @037fe3b9a8bf+wt
 	call from `read_zero` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/data_where_standing_through_call_result_rejected rejected 2381ms expected @07f1c64be9c1
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -11738,16 +11738,16 @@ pass/facts/crash_entry_integer_view_reverse_signed_exit checked 21594ms check-ta
 pass/facts/crash_entry_integer_view_snapshot_after_write_exit checked 21890ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_surviving_guard_exit checked 21959ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_view_then_widen_exit checked 21373ms check-target:macos_arm64 @457174b6ca03
-pass/facts/crash_entry_nan_equality_call_result_exit checked 7073ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_const_name_exit checked 7099ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_field_exit checked 7077ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_local_exit checked 7416ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_local_writable_exit checked 26880ms check-target:macos_arm64 @94247f983231+wt
-pass/facts/crash_entry_nan_equality_match_join_exit checked 7024ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_other_machine_exit checked 6076ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_other_state_exit checked 7094ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_parameter_exit checked 6965ms check-target:macos_arm64 @1654d389500c+wt
-pass/facts/crash_entry_nan_equality_target_body_exit checked 7196ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_call_result_exit checked 7073ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_const_name_exit checked 7099ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_field_exit checked 7077ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_local_exit checked 7416ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_local_writable_exit checked 26880ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/crash_entry_nan_equality_through_match_join_exit checked 7024ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_other_machine_exit checked 6076ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_other_state_exit checked 7094ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_parameter_exit checked 6965ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_through_target_body_exit checked 7196ms check-target:macos_arm64 @1654d389500c+wt
 pass/facts/crash_entry_nonempty_path_local_writable_exit checked 16432ms check-target:macos_arm64 @94247f983231+wt
 pass/facts/crash_entry_nonempty_path_through_call_result_exit checked 16459ms check-target:macos_arm64 @94247f983231+wt
 pass/facts/crash_entry_nonempty_path_through_const_name_exit checked 16548ms check-target:macos_arm64 @94247f983231+wt
@@ -11767,16 +11767,16 @@ pass/facts/crash_entry_representation_view_through_other_machine_exit checked 11
 pass/facts/crash_entry_representation_view_through_other_state_exit checked 11677ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/crash_entry_representation_view_through_parameter_exit checked 11421ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/crash_entry_representation_view_through_target_body_exit checked 11200ms check-target:macos_arm64 @7df3e6a600f1+wt
-pass/facts/crash_entry_signed_zero_call_result_exit checked 8602ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_const_name_exit checked 7658ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_field_exit checked 9458ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_local_exit checked 9161ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_local_writable_exit checked 26899ms check-target:macos_arm64 @94247f983231+wt
-pass/facts/crash_entry_signed_zero_match_join_exit checked 9213ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_other_machine_exit checked 10465ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_other_state_exit checked 9359ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_parameter_exit checked 9067ms check-target:macos_arm64 @037fe3b9a8bf+wt
-pass/facts/crash_entry_signed_zero_target_body_exit checked 8581ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_call_result_exit checked 8602ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_const_name_exit checked 7658ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_field_exit checked 9458ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_local_exit checked 9161ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_local_writable_exit checked 26899ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/crash_entry_signed_zero_through_match_join_exit checked 9213ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_other_machine_exit checked 10465ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_other_state_exit checked 9359ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_parameter_exit checked 9067ms check-target:macos_arm64 @037fe3b9a8bf+wt
+pass/facts/crash_entry_signed_zero_through_target_body_exit checked 8581ms check-target:macos_arm64 @037fe3b9a8bf+wt
 pass/facts/data_where_standing_through_call_result_exit checked 8632ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_const_name_exit checked 8260ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_field_exit checked 8405ms check-target:macos_arm64 @07f1c64be9c1
