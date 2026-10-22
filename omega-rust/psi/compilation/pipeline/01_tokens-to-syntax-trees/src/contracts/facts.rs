@@ -316,8 +316,10 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
             // unconsumed for parse_machine's bodyless path. Only the
             // machine-contract call site opts in.
             if machine_final_semicolon
-                && (crate::declarations::parse_declaration::starts_following_item(after)
-                    || after.tokens.is_empty())
+                && (crate::declarations::parse_declaration::starts_following_item(
+                    syntax_trees,
+                    after,
+                ) || after.tokens.is_empty())
             {
                 break;
             }

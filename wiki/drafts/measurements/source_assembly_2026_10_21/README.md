@@ -97,3 +97,5 @@ covers one macOS ARM64 workload only and does not reproduce the previous
 session's timing comparison or establish performance on other hosts.
 
 - [Forest-owned float spelling](../source_assembly_2026_10_22/float_spelling/README.md): remove per-occurrence float source owners; exact parser and runtime comparisons.
+
+- [Declaration lookahead storage](../source_assembly_2026_10_22/declaration_lookahead/README.md): reuse caller arena capacity for 14 ambiguous probes across three real fixtures; remove the obsolete cursor source-owner reference. Full parser observations match; timing remains inconclusive.

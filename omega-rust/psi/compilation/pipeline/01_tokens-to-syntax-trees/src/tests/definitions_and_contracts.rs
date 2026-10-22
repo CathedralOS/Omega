@@ -1345,3 +1345,61 @@ fn proof_fact_carry_permission_rejects_index_arguments() {
         "compiler carry permissions do not take index arguments",
     );
 }
+
+#[test]
+fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
+    use crate::declarations::parse_declaration::starts_following_item;
+    use crate::input::token_cursor::Input;
+    use syntax_trees::SyntaxTrees;
+
+    for (source, expected) in [
+        ("operator < limit;", false),
+        ("domain[0] > 0;", false),
+        ("operator + invoke<Outer<Inner<i32>>>(limit) > 0;", false),
+        ("operator + add(left: i32, right: i32) -> i32;", true),
+        (
+            "public domain [u8; (1 + 2)]::Bytes(value) requires true;",
+            true,
+        ),
+        ("operator + add(left: ) -> i32;", false),
+        ("domain [u8; ]::Bytes;", false),
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("lookahead tokens");
+        let retained_source = Input::retain_source(&tokens);
+        let source_id = source::SourceId::default();
+        let mut trees = SyntaxTrees::new_with_generation(source_id, 7);
+        let input = Input::new(source_id, &tokens, &retained_source, &mut trees);
+        let established = trees.expressions.insert(ExpressionNode::Boolean(true));
+        trees.roots.constant_extent_probes.push((established, true));
+        let roots = trees.roots.clone();
+        let source_owners = std::sync::Arc::strong_count(&retained_source);
+        let mut untouched = trees.clone();
+        let expected_next = untouched.expressions.insert(ExpressionNode::Boolean(false));
+        drop(untouched);
+
+        // Nested parser attempts must keep their caller's frontier intact.
+        let outer = trees.append_checkpoint();
+        for _ in 0..2 {
+            assert_eq!(
+                starts_following_item(&mut trees, input),
+                expected,
+                "{source}"
+            );
+            assert_eq!(trees.roots, roots);
+            assert_eq!(trees.expressions.iter_expressions().count(), 1);
+            assert!(matches!(
+                trees.expressions.expression(established),
+                ExpressionNode::Boolean(true)
+            ));
+            assert_eq!(
+                std::sync::Arc::strong_count(&retained_source),
+                source_owners
+            );
+        }
+        let next = trees.expressions.insert(ExpressionNode::Boolean(false));
+        assert_eq!(next, expected_next, "private probe handles must not escape");
+        trees.rewind_appended(outer);
+        assert_eq!(trees.roots, roots);
+        assert_eq!(trees.expressions.iter_expressions().count(), 1);
+    }
+}

@@ -31,10 +31,10 @@ pub(crate) enum ParsedDeclaration {
 /// target-named values remain ordinary expressions in proof facts. A named
 /// implementation needs its complete telescope followed by `satisfies`; `<`
 /// alone is also a comparison and cannot terminate the current contract.
-pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
+pub(crate) fn starts_following_item(syntax_trees: &mut SyntaxTrees, input: Input<'_, '_>) -> bool {
     if input.at_keyword(KeywordKind::Public) {
         let after = input.restarted(input.tokens.get(1..).unwrap_or_default());
-        return starts_following_item(after);
+        return starts_following_item(syntax_trees, after);
     }
     if input.at_keyword(KeywordKind::Machine)
         || input.at_keyword(KeywordKind::Data)
@@ -62,25 +62,28 @@ pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
     if input.at_contextual("operator") || input.at_contextual("domain") {
         // These heads overlap expressions: `operator + offset > 0` and
         // `domain[0] > 0` are facts, while fixed-token operators and bracketed
-        // domain carriers are declarations. Use their actual bodyless grammar
-        // in a disposable arena instead of maintaining another type/expression
-        // parser. This probe never scans a following executable machine body,
-        // and never publishes speculative nodes into the caller's syntax.
-        let mut probe = SyntaxTrees::new(input.source_id);
-        let input = input.retained_by(&mut probe);
-        // A token-only operator signature can also be a whole fact:
-        // `operator < limit;`. Preserve the existing fact interpretation
-        // whenever the expression grammar consumes that complete fact. A
-        // declaration with typed parameters cannot be such an expression.
-        if crate::expressions::parse_expression::parse_proof_fact_expression_handle(
-            &mut probe, input,
-        )
-        .is_ok_and(|(_, rest)| rest.at_punctuation(PunctuationKind::Semicolon))
-        {
-            return false;
-        }
-        return parse_declared_item(&mut probe, input).is_ok();
+        // domain carriers are declarations. Keep the actual grammar and its
+        // expression-first decision, but borrow the caller's append storage.
+        // Both probes only edit newly created rows. No handle escapes, and
+        // rewind drops their payloads while keeping capacity for the real parse.
+        // Input already carries this forest's source owner; retain no new page.
+        let checkpoint = syntax_trees.append_checkpoint();
+        let complete_fact =
+            crate::expressions::parse_expression::parse_proof_fact_expression_handle(
+                syntax_trees,
+                input,
+            )
+            .is_ok_and(|(_, rest)| rest.at_punctuation(PunctuationKind::Semicolon));
+        let following_item = !complete_fact && parse_declared_item(syntax_trees, input).is_ok();
+        syntax_trees.rewind_appended(checkpoint);
+        return following_item;
     }
+    starts_boundary_item(input)
+}
+
+/// The operational-clause caller only needs the unambiguous boundary head.
+/// Keep this token-only decision independent of speculative grammar storage.
+pub(crate) fn starts_boundary_item(input: Input<'_, '_>) -> bool {
     if !input.at_contextual("boundary") {
         return false;
     }

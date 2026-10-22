@@ -27,7 +27,6 @@ pub(crate) struct Input<'tokens, 'source> {
     pub(crate) source_id: SourceId,
     pub(crate) tokens: &'tokens [Token],
     stream: &'tokens TokenStream<'source>,
-    retained_source: &'tokens std::sync::Arc<str>,
     source_owner: Handle<syntax_trees::RetainedSource>,
     /// Current `(`/`[` nesting depth, carried by value through the parse so the
     /// choke points can bound it. Reconstructions that merely ADVANCE the token
@@ -51,28 +50,17 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn new(
         source_id: SourceId,
         stream: &'tokens TokenStream<'source>,
-        retained_source: &'tokens std::sync::Arc<str>,
+        retained_source: &std::sync::Arc<str>,
         syntax_trees: &mut syntax_trees::SyntaxTrees,
     ) -> Self {
         let source_owner = syntax_trees.text.retain(retained_source.clone());
         Self {
             source_id,
             source_owner,
-            retained_source,
             stream,
             tokens: skip_non_semantic_tokens(stream.as_slice()),
             depth: 0,
             pending_greater: false,
-        }
-    }
-
-    /// A speculative grammar forest has its own lifetime. Register its source
-    /// once and preserve the cursor's token boundary and nesting budget.
-    pub(crate) fn retained_by(self, syntax: &mut syntax_trees::SyntaxTrees) -> Self {
-        let source_owner = syntax.text.retain(self.retained_source.clone());
-        Self {
-            source_owner,
-            ..self
         }
     }
 
@@ -83,7 +71,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self {
             source_id: self.source_id,
             stream: self.stream,
-            retained_source: self.retained_source,
             source_owner: self.source_owner,
             tokens: skip_non_semantic_tokens(tokens),
             depth: self.depth,

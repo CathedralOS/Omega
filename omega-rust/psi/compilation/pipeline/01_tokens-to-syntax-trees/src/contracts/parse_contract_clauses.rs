@@ -621,7 +621,7 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
         || input.at_contextual("stack")
         || input.at_contextual("crashes")
         || (input.at_contextual("boundary")
-            && !crate::declarations::parse_declaration::starts_following_item(input))
+            && !crate::declarations::parse_declaration::starts_boundary_item(input))
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
         || input.at_contextual("where")
