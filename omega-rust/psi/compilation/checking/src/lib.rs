@@ -79,7 +79,7 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
 pub use proof_contracts::arithmetic_domains::float_return_postcondition;
 pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
-pub use proof_contracts::arithmetic_domains::{BigIntInterval, Interval, WideInterval};
+pub use proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
 pub use proof_contracts::arithmetic_domains::{
     SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
     frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
@@ -407,14 +407,13 @@ pub use proof_contracts::contract_entailment::{
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
     rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
     ranking_range_premise_symbols, ranking_range_required_coordinates,
-    ranking_range_required_symbols, ranking_range_state_premise_coordinates,
-    ranking_slice_length_observation, select_rank_arrival_correspondence,
+    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
+    select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::{
-    ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
-    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
-    find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject,
+    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
+    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
 };
 pub use proof_contracts::contract_entailment::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,

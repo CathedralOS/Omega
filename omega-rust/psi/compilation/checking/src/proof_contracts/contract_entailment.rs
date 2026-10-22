@@ -160,14 +160,14 @@ pub use ranking_range::{
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
     rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
     ranking_range_premise_symbols, ranking_range_required_coordinates,
-    ranking_range_required_symbols, ranking_range_state_premise_coordinates,
-    ranking_slice_length_observation, select_rank_arrival_correspondence,
+    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
+    select_rank_arrival_correspondence,
 };
 pub use ranking_range::{
-    ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
-    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
-    find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, unique_literal_field,
+    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
+    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
+    unique_literal_field,
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,

@@ -74,7 +74,7 @@ mod return_ranges;
 mod selected_scalar_intervals;
 mod slice_lengths;
 pub use bigint_interval::{BigIntInterval, bitwise_carrier_bounds, floor_shift_right};
-pub use interval::{Interval, WideInterval};
+pub use interval::Interval;
 pub use return_ranges::normal_return_integer_bounds;
 pub(crate) use selected_scalar_intervals::binary as selected_integer_binary_interval;
 pub use selected_scalar_intervals::{

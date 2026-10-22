@@ -32,7 +32,7 @@ pub use provider_installation::{
 };
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
-    admit_target_machine_selections, resolve_target_machine_entry, resolve_target_machine_member,
+    admit_target_machine_selections, resolve_target_machine_member,
 };
 
 mod target_layouts;

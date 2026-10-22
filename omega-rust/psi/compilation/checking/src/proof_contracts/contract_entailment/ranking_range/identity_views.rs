@@ -50,14 +50,6 @@ pub struct ProjectionStep {
     pub owner: SymbolHandle,
 }
 
-/// A declared identity view applied to one exact subject: the measure whose
-/// body forwards its parameter, on the unsigned carrier the subject shares.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DeclaredIdentityView {
-    pub measure: SymbolHandle,
-    pub carrier: BuiltinTypeAtom,
-}
-
 /// A declared scalar view applied to one exact subject. The produced rank is
 /// the subject itself (`computation` is `None`) or the measure body with its
 /// parameter bound to the subject; either way the subject and the measure

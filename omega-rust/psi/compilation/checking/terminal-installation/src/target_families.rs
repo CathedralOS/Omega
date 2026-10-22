@@ -185,31 +185,6 @@ pub fn resolve_target_machine_member<'module>(
         })
 }
 
-/// Resolve a producer-owned composition's root before canonical publication.
-/// The association is borrowed from this exact module and does not leave as
-/// identity-bound admission evidence. No serialization or verification replay
-/// is needed to apply product policy to the composition being produced.
-pub fn resolve_target_machine_entry(
-    module: &terminal_psi::TerminalModule,
-    target: &str,
-) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
-    match module.entry {
-        TargetMachineCallable::Machine(machine) => Ok(machine),
-        head @ TargetMachineCallable::Boundary(_) => {
-            let member = module
-                .target_machine_families
-                .iter()
-                .find(|family| family.canonical == head)
-                .and_then(|family| selected_member(family, target))
-                .ok_or_else(|| TargetMachineSelectionError::MissingMember {
-                    head,
-                    target: target.to_owned(),
-                })?;
-            executable_entry(head, &member, target)
-        }
-    }
-}
-
 /// An execution demand without a member at its exact deployment tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetMachineSelectionError {

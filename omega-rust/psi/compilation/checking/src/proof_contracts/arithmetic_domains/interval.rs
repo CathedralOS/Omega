@@ -327,23 +327,3 @@ impl Interval {
 fn pair(left: Option<i64>, right: Option<i64>, op: fn(i64, i64) -> Option<i64>) -> Option<i64> {
     left.zip(right).and_then(|(left, right)| op(left, right))
 }
-
-/// A finite integer interval on the `i128` carrier — the domain's answer for
-/// clients that must retain endpoints outside `i64` (the unrestricted `u64`
-/// high end fits here, never in `Interval`). Both ends are always present;
-/// "unbounded" is expressed by a caller-visible fallback, not by `None`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WideInterval {
-    pub low: i128,
-    pub high: i128,
-}
-
-impl WideInterval {
-    /// Widen a checked `i64` pair — every `i64` is exact in `i128`.
-    pub fn from_i64(low: i64, high: i64) -> Self {
-        Self {
-            low: i128::from(low),
-            high: i128::from(high),
-        }
-    }
-}

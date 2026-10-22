@@ -49,10 +49,9 @@ pub use requirements::{
 };
 mod identity_views;
 pub use identity_views::{
-    ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
-    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
-    find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject,
+    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
+    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
+    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
 };
 
 pub(crate) use calls::{
@@ -488,22 +487,6 @@ pub struct RankingRangeEdgeProof {
     pub membership_and_pinning: bool,
     pub strictly_decreases: bool,
     pub non_increasing: bool,
-}
-
-/// The entry symbols whose current copies the edge judgment holds equal at
-/// every arrival: each integer root parameter named by the produced-rank
-/// expression, the pinned endpoints, or the active entry premises. Mapping
-/// discovery uses this set to decide whether several slots claiming one entry
-/// keep their duplicated equality obligation or resolve to a bare forward.
-pub fn ranking_range_required_symbols(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    range: ExpressionHandle,
-    measure: RankingRangeMeasure,
-    premises: RankingRangePremises,
-) -> Option<Vec<symbols::SymbolHandle>> {
-    let range = program.expression_table.range_node(range)?;
-    state_aliases::required_symbols(program, machine, Some(range), measure, premises)
 }
 
 /// The root formals, in every carrier, whose arrival value some range judgment
