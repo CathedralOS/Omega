@@ -323,11 +323,22 @@ fn target(
     identifier: &Identifier,
     bindings: &[Binding],
     mapping: &[(SymbolHandle, SymbolHandle)],
+    instructions: &[StatementNode],
 ) -> typed_trees::statement::TransitionTargetHandle {
     let arguments: Vec<_> = bindings
         .iter()
         .zip(mapping)
-        .map(|(_, (_, symbol))| name(program, *symbol))
+        .map(|(_, (_, symbol))| {
+            let recorded = instructions.iter().find_map(|statement| match statement {
+                StatementNode::LocalData(local)
+                    if local.symbol == *symbol && local.initial_value.is_valid() =>
+                {
+                    Some(local.initial_value)
+                }
+                _ => None,
+            });
+            recorded.unwrap_or_else(|| name(program, *symbol))
+        })
         .collect();
     let arguments = program.statement_table.insert_expression_handles(arguments);
     let mut members = HandleSpan::empty();
@@ -358,6 +369,7 @@ fn exit(
     states: &[(SymbolHandle, Identifier)],
     bindings: &[Binding],
     mapping: &[(SymbolHandle, SymbolHandle)],
+    instructions: &[StatementNode],
 ) -> Result<Vec<StatementNode>, Diagnostic> {
     let block = program.statement_table.assembly_blocks(graph.blocks)[index].clone();
     let terminal = |program: &mut TypedTrees| {
@@ -367,7 +379,14 @@ fn exit(
     };
     let next = |program: &mut TypedTrees| {
         if let Some((symbol, identifier)) = states.get(index + 1) {
-            target(program, *symbol, identifier, bindings, mapping)
+            target(
+                program,
+                *symbol,
+                identifier,
+                bindings,
+                mapping,
+                instructions,
+            )
         } else {
             terminal(program)
         }
@@ -385,6 +404,7 @@ fn exit(
                 &states[ordinal].1,
                 bindings,
                 mapping,
+                instructions,
             )
         }
         AssemblyExit::Fallthrough => next(program),
@@ -559,6 +579,69 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
         program.machine_states.get_mut(handle).statement_nodes = statements;
     }
     Ok(())
+}
+
+/// The extracted helper owns the loop. A ranking witness whose every subject
+/// is a scratch register carried into that helper moves with those registers:
+/// `sub` writes the decreased version, and the helper's backedge is the edge
+/// that must read it. The enclosing machine keeps a witness that still names
+/// some other subject.
+fn carry_ranking_witness(
+    program: &mut TypedTrees,
+    owner_symbol: SymbolHandle,
+    helper: &mut Machine,
+    entry_mapping: &[(SymbolHandle, SymbolHandle)],
+) {
+    let Some(mut witness) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner_symbol)
+        .and_then(|machine| machine.termination_plan.implementation_witness.clone())
+    else {
+        return;
+    };
+    let Some(custody) = program
+        .ranking_expression_custody_for(owner_symbol)
+        .cloned()
+    else {
+        return;
+    };
+    if custody.subjects.is_empty() {
+        return;
+    }
+    let mut subjects = Vec::new();
+    let mut rendered = Vec::new();
+    for subject in &custody.subjects {
+        let text = typed_trees::ranking::witness_expression_text(program, *subject);
+        let Some((_, parameter)) = entry_mapping.iter().find(|(source, _)| {
+            let hidden = program.symbols.name(*source);
+            hidden == text || hidden.rsplit('#').next() == Some(text.as_str())
+        }) else {
+            return;
+        };
+        subjects.push(name(program, *parameter));
+        rendered.push(program.symbols.name(*parameter).to_string());
+    }
+    witness.subjects = rendered;
+    helper.termination_plan.implementation_witness = Some(witness);
+    program
+        .ranking_expression_custody
+        .push(typed_trees::ranking::RankingExpressionCustody {
+            machine: helper.symbol,
+            subjects,
+            view_arguments: custody.view_arguments,
+            rank_range: custody.rank_range,
+        });
+    if let Some(owner) = program
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == owner_symbol)
+    {
+        owner.termination_plan.implementation_witness = None;
+    }
+    program
+        .ranking_expression_custody
+        .retain(|row| row.machine != owner_symbol);
 }
 
 fn normalize_graph(
@@ -743,7 +826,7 @@ fn normalize_graph(
         ..Default::default()
     };
     let entry_mapping = parameters(program, &mut entry, &bindings);
-    let dispatch = exit(program, graph, 0, &states, &bindings, &entry_mapping)?;
+    let dispatch = exit(program, graph, 0, &states, &bindings, &entry_mapping, &[])?;
     entry.statement_nodes = program.statement_table.insert_statements(dispatch);
     // Destination obligations become ordinary checked call preconditions. They
     // are not admissions: the caller proves them after its executed prefix.
@@ -904,10 +987,12 @@ fn normalize_graph(
             &states,
             &bindings,
             &edge_mapping,
+            &instructions,
         )?);
         label.statement_nodes = program.statement_table.insert_statements(instructions);
         program.push_machine_state(&mut helper, label);
     }
+    carry_ranking_witness(program, owner.symbol, &mut helper, &entry_mapping);
     program.push_machine(helper);
     let prefix = HandleSpan::from_parts(
         state

@@ -37,6 +37,7 @@ pub use fields::unique_literal_field;
 mod lengths;
 
 mod meanings;
+pub(super) use meanings::unselected_or_builtin_arithmetic;
 mod projections;
 mod requirements;
 mod saved_arguments;
@@ -1279,9 +1280,6 @@ fn prove_edge(
         comparisons.extend(slice.comparisons());
     }
     comparisons.extend(length_bound_comparisons(&length_bindings));
-    for &(guard, holds) in guards {
-        collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
-    }
     // Arrival `requires` facts hold inside this state: the caller discharged
     // them at every incoming edge, so the relational judgment reads them as
     // hypotheses the way it reads guards. The root state's arrival contract
@@ -1385,8 +1383,19 @@ fn prove_edge(
         &floor,
         &ceiling,
         &deferred_endpoints,
-        comparisons,
+        comparisons.clone(),
     )?;
+    saved_arguments::refresh_under_hypotheses(program, machine, state, &mut engine);
+    // Guards name saved booleans (`!zf`). Those booleans record comparisons
+    // (`decreased == 0`). Refresh the record under the state's requires before
+    // reading the guard, so the backedge sees the decreased register.
+    let mut guard_facts = Vec::new();
+    for &(guard, holds) in guards {
+        collect_guard(&mut engine, guard, holds, &mut guard_facts, 0)?;
+    }
+    if !engine.install_hypotheses(guard_facts) {
+        return None;
+    }
     // For distance views raw subtraction represents the produced natural rank
     // only on this proved branch. The caller retains the separate clamped
     // interval tier for entries where subject <= limit is not established.

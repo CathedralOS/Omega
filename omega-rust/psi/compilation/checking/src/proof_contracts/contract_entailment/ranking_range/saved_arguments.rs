@@ -133,6 +133,75 @@ pub(super) fn install(
     }
 }
 
+/// Read each saved initializer again after the edge's requires and guards are
+/// hypotheses. The first bind can only see the entry carrier, so a subtraction
+/// that the label has already bounded stays an opaque residue until this read.
+pub(super) fn refresh_under_hypotheses(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    engine: &mut Engine<'_>,
+) {
+    let locals = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| statement.as_local_data())
+        .filter(|local| saved(program, state, local.symbol).is_some())
+        .map(|local| {
+            (
+                local.symbol,
+                local.initial_value,
+                program
+                    .type_reference_table
+                    .primitive_type(local.type_reference)
+                    == Some(typed_trees::types::PrimitiveType::Bool),
+            )
+        })
+        .collect::<Vec<_>>();
+    for (symbol, initial_value, _) in locals.iter().filter(|local| !local.2) {
+        let _ = lengths::install(
+            program,
+            machine,
+            state,
+            state,
+            &[],
+            engine,
+            &[*initial_value],
+        );
+        let _ = meanings::install_nonpolynomial_terms(
+            program,
+            machine,
+            state,
+            engine,
+            *initial_value,
+            0,
+        );
+        let _ = engine.rebind_saved_expression(*symbol, *initial_value);
+    }
+    for (symbol, initial_value, _) in locals.into_iter().filter(|local| local.2) {
+        engine
+            .saved_conditions
+            .retain(|condition| condition.symbol != symbol);
+        for holds in [false, true] {
+            let mut comparisons = Vec::new();
+            let Some(fully_visible) =
+                super::collect_guard(engine, initial_value, holds, &mut comparisons, 0)
+            else {
+                continue;
+            };
+            engine
+                .saved_conditions
+                .push(super::super::arithmetic_judgment::SavedCondition {
+                    symbol,
+                    holds,
+                    comparisons,
+                    fully_visible,
+                });
+        }
+    }
+}
+
 /// A name admitted under exactly the bar `install` binds by: the symbol's
 /// one `let` in `state` is never written, never the root of an exclusive
 /// borrow, and reads only carriers that stay stable for the whole state.

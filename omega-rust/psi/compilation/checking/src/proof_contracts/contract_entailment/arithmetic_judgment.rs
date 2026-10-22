@@ -1296,6 +1296,52 @@ impl<'program> Engine<'program> {
                 self.selected_bitwise_value(expression, &binary)
             }
             ExpressionNode::Binary(binary)
+                if !self.selected_binary_meaning(expression, &binary)
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    )
+                    && super::ranking_range::unselected_or_builtin_arithmetic(
+                        self.program,
+                        expression,
+                    ) =>
+            {
+                // Catalog arithmetic records the mathematical operation on the
+                // destination register. An enclosing exact cast is the fit
+                // claim; hypotheses decide whether a wrapping calculation lands
+                // in that carrier. No authored overload is displaced.
+                let left = self.normalize(binary.left)?;
+                let right = self.normalize(binary.right)?;
+                let value = match binary.operator {
+                    BinaryOperator::Add => left.add(&right),
+                    BinaryOperator::Subtract => left.sub(&right),
+                    BinaryOperator::Multiply => left.checked_mul(&right)?,
+                    _ => return None,
+                };
+                if let Some(result) = self.selected_policy_result(expression, value.clone()) {
+                    return Some(result);
+                }
+                // The operation records its result on the operand carrier when
+                // no separate result declaration exists. Wrapping stays opaque
+                // until the hypotheses already installed prove the result lands
+                // in that carrier; the decreased register is that landed value.
+                let primitive = [binary.left, binary.right]
+                    .into_iter()
+                    .find_map(|operand| {
+                        crate::proof_contracts::proof_embeddings::integer_embedding(
+                            self.program,
+                            operand,
+                        )
+                        .map(|embedding| embedding.primitive)
+                        .filter(|primitive| primitive.is_fixed_integer())
+                    })?;
+                self.integer_policy_value(
+                    primitive,
+                    numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    value,
+                )
+            }
+            ExpressionNode::Binary(binary)
                 if !self.selected_binary_meaning(expression, &binary) =>
             {
                 None
@@ -1578,8 +1624,14 @@ impl<'program> Engine<'program> {
         self.program
             .primitive_type_reference(cast.target_type)
             .is_some_and(|target| target.is_fixed_integer())
-            && crate::proof_contracts::proof_embeddings::integer_embedding(self.program, cast.value)
-                .is_some_and(|source| source.primitive.is_fixed_integer())
+            && (matches!(
+                self.program.expression_table.expression(cast.value),
+                ExpressionNode::Integer(_)
+            ) || crate::proof_contracts::proof_embeddings::integer_embedding(
+                self.program,
+                cast.value,
+            )
+            .is_some_and(|source| source.primitive.is_fixed_integer()))
     }
 
     fn is_mathematical_application(&self, expression: ExpressionHandle) -> bool {

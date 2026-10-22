@@ -176,13 +176,24 @@ pub(super) fn admitted_carrier(
             // carrier is the authored target, not the source. Recasts,
             // non-integer targets and non-integer sources keep no builtin
             // meaning: their formation obligations stay with the cast owner.
-            admitted_carrier(program, machine, state, cast.value, depth + 1)?;
+            let value_carrier = admitted_carrier(program, machine, state, cast.value, depth + 1);
             let integer_target = program
                 .primitive_type_reference(cast.target_type)
                 .is_some_and(|target| target.is_fixed_integer());
-            let integer_source =
-                crate::proof_contracts::proof_embeddings::integer_embedding(program, cast.value)
+            // An unlanded integer literal has no carrier of its own. A value
+            // cast onto a fixed integer still records that integer: the
+            // literal is the operand, and the cast is the carrier.
+            let integer_literal = matches!(
+                program.expression_table.expression(cast.value),
+                ExpressionNode::Integer(_)
+            );
+            let integer_source = integer_literal
+                || crate::proof_contracts::proof_embeddings::integer_embedding(program, cast.value)
                     .is_some_and(|source| source.primitive.is_fixed_integer());
+            if integer_target && integer_literal {
+                return Some(Some(cast.target_type));
+            }
+            value_carrier?;
             (integer_target && integer_source).then(|| Some(cast.target_type))
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -234,6 +245,30 @@ pub(super) fn admitted_carrier(
             // Admit all three operations even when they only update an
             // unrelated accumulator. Carrier admission does not assert a
             // polynomial meaning or any decrease of that accumulator.
+            // A synthesized add, subtract, or multiply has no authored operator
+            // selection. Its carrier is still the shared integer of its
+            // operands, so a later edge can read the decreased register the
+            // operation recorded. This does not select an overload or prove
+            // the decrease; the arithmetic owner does that from the value.
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            ) && unselected_or_builtin_arithmetic(program, expression)
+            {
+                if left.zip(right).is_some_and(|(left, right)| {
+                    program.primitive_type_reference(left)
+                        != program.primitive_type_reference(right)
+                }) {
+                    return None;
+                }
+                if let Some(carrier) = left.or(right)
+                    && program
+                        .primitive_type_reference(carrier)
+                        .is_some_and(PrimitiveType::accepts_integer_literal)
+                {
+                    return Some(Some(carrier));
+                }
+            }
             if matches!(
                 binary.operator,
                 BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
@@ -328,6 +363,32 @@ pub(super) fn admitted_carrier(
 
 /// Two arm carriers name one integer when both are absent, one is an
 /// anonymous literal, or both are the same primitive.
+/// A synthesized arithmetic operation and the builtin integer operator record
+/// the operand carrier. An authored overload is a different operation.
+pub(in crate::proof_contracts::contract_entailment) fn unselected_or_builtin_arithmetic(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .all(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .is_some_and(|selection| {
+                    matches!(
+                        selection.target(),
+                        Target::Intrinsic(Intrinsic::BuiltinOperator)
+                    )
+                })
+        })
+}
+
 fn joined_integer_carrier(
     program: &dyn crate::CheckingInput,
     previous: Option<TypeReferenceHandle>,

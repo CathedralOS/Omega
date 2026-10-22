@@ -784,6 +784,43 @@ impl<'program> Engine<'program> {
         true
     }
 
+    /// Replace one saved binding with the initializer read under the hypotheses
+    /// installed since the first bind. A wrapping subtraction bound before
+    /// `eax > 0` is an opaque residue; the backedge reads the decreased
+    /// register only after those hypotheses prove the result lands.
+    pub(in crate::proof_contracts::contract_entailment) fn rebind_saved_expression(
+        &mut self,
+        symbol: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> bool {
+        if !self.strict_symbol_bindings_valid || self.strict_symbol_bindings.is_none() {
+            return false;
+        }
+        let previous = self.strict_symbol_bindings.as_mut().and_then(|bindings| {
+            bindings
+                .iter()
+                .position(|(candidate, _)| *candidate == symbol)
+                .map(|index| bindings.remove(index).1)
+        });
+        match self.normalize(expression) {
+            Some(polynomial) => {
+                let Some(bindings) = &mut self.strict_symbol_bindings else {
+                    return false;
+                };
+                bindings.push((symbol, polynomial));
+                true
+            }
+            None => {
+                if let Some(previous) = previous
+                    && let Some(bindings) = &mut self.strict_symbol_bindings
+                {
+                    bindings.push((symbol, previous));
+                }
+                false
+            }
+        }
+    }
+
     /// Record the term an opaque atom was minted from. One atom string names
     /// one canonical operand, so a repeated mint keeps the first entry.
     pub(in crate::proof_contracts::contract_entailment) fn register_opaque_term(
