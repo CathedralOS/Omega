@@ -36,11 +36,10 @@
 //! storage), [`frame_protocol`] (the frame's encoded prologue and epilogue
 //! bytes) and [`exit_contract`] (whole-function exit evidence).
 //!
-//! Outside the route, [`startup_trampoline`], [`entry_exit_stub`] and
-//! [`x86_fma`] emit target-owned x86-64 byte recipes with their own replay.
-//! [`native_entry_bridge`] snapshots admitted native inputs, transports them
-//! into an unchanged ordinary body's convention and retains its unresolved
-//! call plus exact frame demand. It owns no synthetic semantic machine.
+//! Outside the route, [`native_entry_bridge`] snapshots admitted native
+//! inputs, transports them into an unchanged ordinary body's convention and
+//! retains its unresolved call plus exact frame demand. It owns no synthetic
+//! semantic machine.
 //! The object join over placed text belongs to object-file and image-emission.
 
 // 1. Function-relative realization.
@@ -103,5 +102,3 @@ pub use text_placement::{
 };
 // `code_layout<Machine>()` descriptions projected from placed text.
 pub mod code_layout;
-
-// Target-owned x86-64 byte recipes outside the route.
