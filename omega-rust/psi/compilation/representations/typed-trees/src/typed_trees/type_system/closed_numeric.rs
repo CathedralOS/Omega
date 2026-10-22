@@ -572,12 +572,18 @@ pub fn has_builtin_anonymous_operands(
             program
                 .authored_declaration_selections()
                 .get(occurrence)
-                .is_some_and(|selection| {
-                    matches!(
-                        selection.target(),
-                        Target::Intrinsic(Intrinsic::BuiltinOperator)
-                            | Target::LateBound(LateBinding::CheckedOperator)
-                    )
+                .is_some_and(|selection| match selection.target() {
+                    Target::Intrinsic(Intrinsic::BuiltinOperator)
+                    | Target::LateBound(LateBinding::CheckedOperator) => true,
+                    // A compile-time value declaration retains only
+                    // authored-selection provenance after substitution: a
+                    // resolved `const` name confers no authored operator
+                    // meaning over the enclosing arithmetic.
+                    Target::Resolved(resolved) => {
+                        program.symbols.get(resolved.selected_symbol()).kind
+                            == symbols::SymbolKind::Const
+                    }
+                    _ => false,
                 })
         })
 }
