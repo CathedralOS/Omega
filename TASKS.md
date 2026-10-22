@@ -1934,7 +1934,7 @@ defines the complete product bar.
   Current: `pass/operators/crash_routes` runs with exit 0 natively and
   interpreted on macOS ARM64, Linux x86-64, and Windows x86-64
   ([oracle](tests/omega/pass/operators/crash_routes/README.md)).
-  Windows x86-64 was measured 2026-10-21 at `e93d31c786d7` with
+  Windows x86-64 was measured 2026-10-21 at `d3f12beefc6` with
   `omega run --both`, stdin closed, on an opt-level 1 producer: native
   exit 0 and interpreted exit 0. `fail/operators/selected_crash_invocation`
   still rejects on that host; `omega --check` reports an ambiguous `==`

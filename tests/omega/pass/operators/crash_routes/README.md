@@ -19,7 +19,7 @@ for that host; it does not claim that another host executed the program.
 
 On Windows x86-64 the same `omega run --both` command, with stdin closed,
 exits 0 natively and interpreted. Measured 2026-10-21 at
-`e93d31c786d7c61157b7157169baa8645b0a869b` with an opt-level 1 producer.
+`d3f12beefc632903b9c405a30668474d79b2675b` with an opt-level 1 producer.
 
 The package has no external dependencies or authority choices. Package update
 prepares its local acceptance baseline. Native and interpreted exits must both
