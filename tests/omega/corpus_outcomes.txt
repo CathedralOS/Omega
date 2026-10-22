@@ -2670,39 +2670,39 @@ fail/facts/checked_asm_countdown_through_target_body_rejected rejected 2733ms ex
 	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: asm#scratch#47#eax$version$1 == 1 (needs fact `asm#scratch#47#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: asm#scratch#87#eax$version$1 == 1 (needs fact `asm#scratch#87#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_flag_snapshot_call_result_false rejected 6963ms expected @7df3e6a600f1+wt
-	cannot prove ensures contract for exit from capture at statement 29: result & 64 == 64
-fail/facts/checked_asm_flag_snapshot_const_name_false rejected 4855ms expected @7df3e6a600f1+wt
-	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 1 == 1
 fail/facts/checked_asm_flag_snapshot_false_invariant rejected 5008ms expected @7df3e6a600f1+wt
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 64 == 0
 fail/facts/checked_asm_flag_snapshot_field_alias_write rejected 4664ms expected @7df3e6a600f1+wt
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 30): object.value & 64 == 64
-fail/facts/checked_asm_flag_snapshot_field_false_bit rejected 4823ms expected @7df3e6a600f1+wt
-	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 27): object.value & 64 == 0
 fail/facts/checked_asm_flag_snapshot_field_opaque_observation rejected 7007ms expected @7df3e6a600f1+wt
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 17): object.value & 64 == 64
 fail/facts/checked_asm_flag_snapshot_field_overwrite rejected 4891ms expected @7df3e6a600f1+wt
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 28): object.value & 64 == 64
-fail/facts/checked_asm_flag_snapshot_local_false rejected 5215ms expected @7df3e6a600f1+wt
-	cannot prove asm `requires` fact at block entry in main state `entry` (statement 32): local_snapshot & 64 == 64
-fail/facts/checked_asm_flag_snapshot_match_join_false rejected 5612ms expected @7df3e6a600f1+wt
-	cannot prove asm `requires` fact at block entry in observe_branch state `entry` (statement 47): joined & 64 == 64
 fail/facts/checked_asm_flag_snapshot_missing_clobber rejected 93ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/checked_asm_flag_snapshot_missing_clobber/main.omg:14:2: asm where `clobbers` must exactly match the realized instruction contract: missing `rflags`
 fail/facts/checked_asm_flag_snapshot_missing_r10 rejected 28ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/checked_asm_flag_snapshot_missing_r10/main.omg:14:2: asm where `clobbers` must exactly match the realized instruction contract: missing `r10`
-fail/facts/checked_asm_flag_snapshot_other_machine_false rejected 5501ms expected @7df3e6a600f1+wt
-	cannot prove requires contract for call consume from forward: snapshot ^ 64 & 64 == 64 (needs fact `snapshot & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/checked_asm_flag_snapshot_other_state_false rejected 5637ms expected @7df3e6a600f1+wt
-	cannot prove requires contract for call next from main: snapshot ^ 64 & 64 == 64 (needs fact `carried & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/checked_asm_flag_snapshot_parameter_false rejected 5279ms expected @7df3e6a600f1+wt
-	cannot prove requires contract for call consume from main: snapshot ^ 64 & 64 == 64 (needs fact `snapshot & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/checked_asm_flag_snapshot_record_reborrow rejected 5305ms expected @7df3e6a600f1+wt
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 30): object.value & 64 == 64
 fail/facts/checked_asm_flag_snapshot_stack_functions rejected 53ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/checked_asm_flag_snapshot_stack_functions/main.omg:14:5: asm where `clobbers` must exactly match the realized instruction contract: missing `r15`
-fail/facts/checked_asm_flag_snapshot_target_body_false rejected 6237ms expected @7df3e6a600f1+wt
+fail/facts/checked_asm_flag_snapshot_through_call_result_rejected rejected 6963ms expected @7df3e6a600f1+wt
+	cannot prove ensures contract for exit from capture at statement 29: result & 64 == 64
+fail/facts/checked_asm_flag_snapshot_through_const_name_rejected rejected 4855ms expected @7df3e6a600f1+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 1 == 1
+fail/facts/checked_asm_flag_snapshot_through_field_rejected rejected 4823ms expected @7df3e6a600f1+wt
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 27): object.value & 64 == 0
+fail/facts/checked_asm_flag_snapshot_through_local_rejected rejected 5215ms expected @7df3e6a600f1+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 32): local_snapshot & 64 == 64
+fail/facts/checked_asm_flag_snapshot_through_match_join_rejected rejected 5612ms expected @7df3e6a600f1+wt
+	cannot prove asm `requires` fact at block entry in observe_branch state `entry` (statement 47): joined & 64 == 64
+fail/facts/checked_asm_flag_snapshot_through_other_machine_rejected rejected 5501ms expected @7df3e6a600f1+wt
+	cannot prove requires contract for call consume from forward: snapshot ^ 64 & 64 == 64 (needs fact `snapshot & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_flag_snapshot_through_other_state_rejected rejected 5637ms expected @7df3e6a600f1+wt
+	cannot prove requires contract for call next from main: snapshot ^ 64 & 64 == 64 (needs fact `carried & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_flag_snapshot_through_parameter_rejected rejected 5279ms expected @7df3e6a600f1+wt
+	cannot prove requires contract for call consume from main: snapshot ^ 64 & 64 == 64 (needs fact `snapshot & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_flag_snapshot_through_target_body_rejected rejected 6237ms expected @7df3e6a600f1+wt
 	cannot prove asm `requires` fact at block entry in observe_target state `entry` (statement 28): snapshot & 64 == 0
 	cannot prove asm `requires` fact at block entry in observe_target state `entry` (statement 28): snapshot & 64 == 0
 fail/facts/checked_asm_register_contract_bound_through_call_result_rejected rejected 2216ms expected @b24be450e4c2+wt
@@ -11601,20 +11601,20 @@ pass/facts/checked_asm_countdown_through_target_body_exit checked 8244ms check-t
 pass/facts/checked_asm_flag_snapshot checked 13912ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_alias_exit checked 11575ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_backedge_exit checked 11852ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_call_result_exit checked 11792ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_const_name_exit checked 11943ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_dynamic_input_exit checked 14680ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_field_exit checked 11807ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_hardware_calls_exit checked 27716ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_local_exit checked 11884ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_match_join_exit checked 12099ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_other_machine_exit checked 11804ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_other_state_exit checked 11770ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_parameter_exit checked 12137ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_pre_sub_exit checked 11778ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_retained_exit checked 12132ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_stack_functions checked 38648ms check-target:linux_x86_64 @7df3e6a600f1+wt
-pass/facts/checked_asm_flag_snapshot_target_body_exit checked 11252ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_call_result_exit checked 11792ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_const_name_exit checked 11943ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_field_exit checked 11807ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_local_exit checked 11884ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_match_join_exit checked 12099ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_other_machine_exit checked 11804ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_other_state_exit checked 11770ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_parameter_exit checked 12137ms check-target:linux_x86_64 @7df3e6a600f1+wt
+pass/facts/checked_asm_flag_snapshot_through_target_body_exit checked 11252ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_unreachable_exit checked 11235ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_register_contract_bound_through_call_result_exit checked 6710ms check-target:macos_arm64 @b24be450e4c2+wt
 pass/facts/checked_asm_register_contract_bound_through_const_name_exit checked 6727ms check-target:macos_arm64 @b24be450e4c2+wt
