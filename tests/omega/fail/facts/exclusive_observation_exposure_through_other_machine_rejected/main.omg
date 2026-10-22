@@ -1,0 +1,28 @@
+// A saved observation that items[0] is 7 stays provable across an exclusive loan of a different element.
+// This twin exclusively borrows the observed element and does not write it, so the observation is no longer valid.
+machine read_kept(items: &mut [u64; 2]) -> u64
+requires items[0] == 7
+ensures result == items[0] && result == 7
+{
+    let saved: u64 = items[0];
+    let held: u64 = expose(&mut items[0]);
+    transition held == held { true -> saved _ -> saved }
+}
+
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+{
+    observed
+}
+
+machine expose(slot: &mut u64) -> u64 {
+    slot
+}
+
+machine main() crashes Trap {
+    let mut items: [u64; 2] = [7, 1];
+    let saved: u64 = read_kept(&mut items);
+    transition agree(saved, items[0]) == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

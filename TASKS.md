@@ -659,8 +659,11 @@ defines the complete product bar.
     engines in all nine places; each overlapping-write twin rejects the
     equality. Stable unwritten mutable carriers still contribute saved facts
     in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`.
-    Exclusive exposure and case, generic, reference, and float carriers remain
-    open. Share capture with
+    Exclusive exposure of that saved array element is
+    `samples/cli/facts/exclusive_observation_exposure`: an exclusive loan of
+    the element retires the observation even when the loan does not store, and
+    an exclusive loan of a different element leaves it provable, in all nine
+    places. Case, generic, reference, and float carriers remain open. Share capture with
     **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
     ranges use ordinary view formation and call/state-edge evaluation:
     keep `python3 tools/corpus_gate.py --both --filter

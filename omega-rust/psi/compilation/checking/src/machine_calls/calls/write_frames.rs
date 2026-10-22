@@ -110,7 +110,9 @@ use place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
     frame_place_path, split_place_root,
 };
-use reference_origins::receiver_frame_origins;
+use reference_origins::{
+    exclusive_reference_origins, exclusive_reference_referee, receiver_frame_origins,
+};
 use state_paths::normalize_state_relative_path;
 use stored_origins::StoredLocalOrigins;
 use transparent_effects::expression_is_effectful_for_transparent_result;
@@ -443,6 +445,33 @@ fn summarize_resolved_call(
                 if !written.contains(&instantiated) {
                     written.push(instantiated);
                 }
+            }
+        }
+    }
+
+    // A complete body summary lists stores. An exclusive loan still permits a
+    // store of the lent referent when that list does not overlap it, so the
+    // referent retires saved observations even though this body did not write.
+    // A summary write inside a wider loan keeps the narrower path: writing one
+    // array element does not become a write of the whole array.
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if exclusive_reference_referee(program, parameter.type_reference).is_none() {
+            continue;
+        }
+        let Some(origins) =
+            exclusive_reference_origins(program, caller_machine, *argument, symbols, inference)
+        else {
+            continue;
+        };
+        for origin in origins {
+            if written
+                .iter()
+                .any(|path| demand::frame_paths_overlap(path, &origin.path))
+            {
+                continue;
+            }
+            if !written.contains(&origin.path) {
+                written.push(origin.path);
             }
         }
     }

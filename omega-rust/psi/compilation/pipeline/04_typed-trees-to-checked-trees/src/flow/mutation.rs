@@ -302,69 +302,32 @@ fn call_write_places(
         .map(unattributed_writes);
     }
     if let Some(summarized_places) = summarized_places {
+        if matches!(namespace, WritePlaceNamespace::Storage) {
+            // A complete summary lists stores the body performs. An exclusive
+            // loan still permits a write when that list does not overlap the
+            // lent referent, so the referent retires saved observations of
+            // it. A loan the summary already overlaps keeps the summary's
+            // footprint: a write to one array element does not become a
+            // write of the whole array.
+            return union_unwritten_exclusive_loans(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow,
+                borrow_call,
+                call_frames,
+                summarized_places,
+            );
+        }
         return Some(summarized_places);
     }
-    let mut places = Vec::new();
-    {
-        for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
-            if access.kind.is_exclusive() && access.root.is_valid() {
-                let mut place = CanonicalPlace {
-                    root: access.root,
-                    segments: Vec::new(),
-                };
-                place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
-                if !places.contains(&place) {
-                    places.push(place);
-                }
-            }
-        }
-
-        if let Some(call_site) = find_call_site(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call.statement_index,
-            borrow_call.call_ordinal,
-        ) && let Some(target_state) = program.state_by_symbol(borrow_call.target_symbol)
-        {
-            let mut argument_index = 0usize;
-            for parameter in program.state_parameters(target_state) {
-                let argument = call_site_argument_expressions(program, &call_site)
-                    .get(argument_index)
-                    .copied();
-                argument_index = argument_index.saturating_add(1);
-
-                if !parameter.is_mutable {
-                    continue;
-                }
-
-                if let Some(argument) = argument
-                    && let Some(place) = canonical_place_from_expression_in_state(
-                        program,
-                        caller_state_symbol,
-                        borrow_call.statement_index,
-                        argument,
-                    )
-                    && !places.contains(&place)
-                {
-                    places.push(place);
-                }
-            }
-        }
-    }
-
-    if borrow_call.has_receiver
-        && call_receiver_is_mutable(program, borrow, borrow_call)
-        && let Some(place) = call_receiver_mutated_place(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-        )
-        && !places.contains(&place)
-    {
-        places.push(place);
-    }
+    let mut places = exclusive_loan_places(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+    );
 
     if matches!(namespace, WritePlaceNamespace::Storage) {
         let boundary_target = program.traits().iter().any(|definition| {
@@ -411,6 +374,135 @@ fn call_write_places(
             places.into_iter().map(StorageRegion::Declared).collect(),
         ))
     }
+}
+
+/// Exclusive argument, mutable-parameter, and mutable-receiver places the call
+/// lends. These are the referents an exclusive loan permits a later write
+/// through, whether or not this body stores.
+fn exclusive_loan_places(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+) -> Vec<CanonicalPlace> {
+    let mut places = Vec::new();
+    for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
+        if access.kind.is_exclusive() && access.root.is_valid() {
+            let mut place = CanonicalPlace {
+                root: access.root,
+                segments: Vec::new(),
+            };
+            place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
+            if !places.contains(&place) {
+                places.push(place);
+            }
+        }
+    }
+
+    if let Some(call_site) = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) && let Some(target_state) = program.state_by_symbol(borrow_call.target_symbol)
+    {
+        let mut argument_index = 0usize;
+        for parameter in program.state_parameters(target_state) {
+            let argument = call_site_argument_expressions(program, &call_site)
+                .get(argument_index)
+                .copied();
+            argument_index = argument_index.saturating_add(1);
+
+            if !parameter.is_mutable {
+                continue;
+            }
+
+            if let Some(argument) = argument
+                && let Some(place) = canonical_place_from_expression_in_state(
+                    program,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    argument,
+                )
+                && !places.contains(&place)
+            {
+                places.push(place);
+            }
+        }
+    }
+
+    if borrow_call.has_receiver
+        && call_receiver_is_mutable(program, borrow, borrow_call)
+        && let Some(place) = call_receiver_mutated_place(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+        )
+        && !places.contains(&place)
+    {
+        places.push(place);
+    }
+    places
+}
+
+/// Add exclusive loans the completed write summary does not already cover.
+/// An empty summary lists no stores, but the loan still permits a store of the
+/// lent referent, so that referent retires saved observations. A summary write
+/// inside a wider loan keeps the narrower footprint: writing one array element
+/// must not become a write of the whole array.
+fn union_unwritten_exclusive_loans(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    mut summarized_places: Vec<CallMutationWrite>,
+) -> Option<Vec<CallMutationWrite>> {
+    for place in exclusive_loan_places(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+    ) {
+        let regions = local_origins::rebase_local_write_regions(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            place,
+            call_frames,
+        )?;
+        for region in regions {
+            if summarized_places
+                .iter()
+                .any(|write| storage_regions_may_overlap(program, &write.region, &region))
+            {
+                continue;
+            }
+            summarized_places.push(CallMutationWrite {
+                region,
+                source: None,
+            });
+        }
+    }
+    Some(summarized_places)
+}
+
+fn storage_regions_may_overlap(
+    program: &dyn ::validation::CheckingInput,
+    left: &StorageRegion,
+    right: &StorageRegion,
+) -> bool {
+    left.anchor().root == right.anchor().root
+        && canonical_place_segments_may_overlap(
+            program,
+            &left.anchor().segments,
+            &right.anchor().segments,
+        )
 }
 
 fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {

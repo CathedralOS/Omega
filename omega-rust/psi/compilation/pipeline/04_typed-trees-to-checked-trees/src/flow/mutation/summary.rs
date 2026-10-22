@@ -330,6 +330,28 @@ fn propagate_state_mutation_summaries(
             };
             let mut complete = true;
             for (call, target_index, run) in &calls[caller_index] {
+                // An exclusive loan permits a later store of that referent even
+                // when the callee body does not store. Record the loan's own
+                // place so a caller summary stays on that element: lending
+                // `items[1]` does not become a write of `items`.
+                let loan_writes = super::exclusive_loan_places(
+                    program,
+                    caller_machine,
+                    caller_symbol,
+                    borrow,
+                    call,
+                )
+                .into_iter()
+                .map(|place| MutationWrite {
+                    region: StorageRegion::Declared(place),
+                    requires_exclusive_access: true,
+                })
+                .collect();
+                let held_loans = vec![Vec::new(); caller.held_writes.len()];
+                if expose(loan_writes, held_loans).is_none() {
+                    complete = false;
+                    break;
+                }
                 let Some(target_index) = target_index else {
                     // Signature-only calls are already admitted by the shared
                     // frame law. Import that frame in caller coordinates; an
