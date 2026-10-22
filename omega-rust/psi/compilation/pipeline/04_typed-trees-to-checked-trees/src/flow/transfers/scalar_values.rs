@@ -105,8 +105,7 @@ pub(super) fn capture_statement(
     if let Some((expression, symbols)) =
         selected_statement(program, context, state, statement_index, statement)
         && builtin
-    {
-        return crate::values::evaluate_checked_scalar(
+        && let Some(value) = crate::values::evaluate_checked_scalar(
             expression,
             &mut crate::values::PlaceScalarValues {
                 program,
@@ -126,7 +125,26 @@ pub(super) fn capture_statement(
                     )
                 },
             },
-        );
+        )
+    {
+        return Some(value);
+    }
+    // An indexed read keeps a structural plan that this evaluator does not
+    // fold, while the element already has a live scalar fact. Record that
+    // fact on the destination. A later write retires only overlapping
+    // storage, so a copy of one element stays equal to that element when a
+    // different element is stored, and stops matching it when the same
+    // element is stored.
+    let live = LiveValues {
+        program,
+        semantic,
+        context,
+        state,
+        active,
+    };
+    if let Some(value) = ScalarValue::value_at_expression(program, &live, statement_index, source)
+    {
+        return Some(value);
     }
     selected_live_capture(
         program,

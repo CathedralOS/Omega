@@ -560,9 +560,7 @@ defines the complete product bar.
     at 0 in both engines and reject
     `fail/calls/constructor_child_local_epochs_not_equal`: remaining composed
     calls must preserve completed child observations, not replay initializers.
-    The checked interpreter still declines explicit borrowing of an owned call
-    result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`
-    (`pass/calls/runtime_temporary_lending_order_exit`).
+    `pass/calls/runtime_temporary_lending_order_exit` exits 0 in both engines.
     Keep `runtime_constructed_borrowed_payload_arguments_exit`,
     `runtime_selected_trivial_local_cleanup_exit` and
     `runtime_selected_local_owner_exit` (exit 0): completed owners must outlive
@@ -655,11 +653,14 @@ defines the complete product bar.
     `pass/ownership/linear_call_result_claims_exit`; missing result membership
     and reuse of the transferred original must reject.
     `pass/effects/structural_callback_reach/projected.omg` is only a control.
-  - **Saved observations and arithmetic.** Stable unwritten mutable carriers
-    contribute saved facts in
-    `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`;
-    finish snapshots across writes and exclusive exposure, retaining
-    case/index/generic/reference/float identity. Share capture with
+  - **Saved observations and arithmetic.** A saved read of one array element
+    stays equal to that live element and to 7 across a write to a different
+    element. `samples/cli/facts/saved_observation_snapshot` exits 0 in both
+    engines in all nine places; each overlapping-write twin rejects the
+    equality. Stable unwritten mutable carriers still contribute saved facts
+    in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`.
+    Exclusive exposure and case, generic, reference, and float carriers remain
+    open. Share capture with
     **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
     ranges use ordinary view formation and call/state-edge evaluation:
     keep `python3 tools/corpus_gate.py --both --filter
