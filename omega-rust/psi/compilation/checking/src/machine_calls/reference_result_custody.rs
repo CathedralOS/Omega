@@ -28,8 +28,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-mod primitive_locals;
-pub use primitive_locals::primitive_local_source;
 mod stored_carrier_sources;
 pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;

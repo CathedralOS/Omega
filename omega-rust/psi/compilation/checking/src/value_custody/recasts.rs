@@ -75,7 +75,6 @@ pub use record_representation::{
 mod representation_types;
 mod scalar_representation;
 mod storage_interpretation;
-pub(crate) use scalar_representation::declaration_scalar_view_is_total;
 pub use storage_interpretation::reference_view_storage;
 
 pub use literal_indexed_footprints::{
