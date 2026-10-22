@@ -3,7 +3,9 @@
 //! Observing external contents creates no resident permission occurrence.
 
 use super::*;
-use terminal_semantics::descriptor_lifetimes::{descriptor_location, descriptor_path};
+use terminal_semantics::descriptor_lifetimes::{
+    descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
+};
 use terminal_semantics::descriptor_results::DescriptorSourceOrigin;
 
 pub(super) struct Observed {
@@ -13,6 +15,31 @@ pub(super) struct Observed {
     /// Exact current carrier for copies and permission checks. Copying this
     /// occurrence preserves its parents rather than reborrowing the carrier.
     pub(super) resident: Option<(PlaceId, Vec<StructuralPathSegment>)>,
+}
+
+/// Normalize every possible selected descriptor without merging its resident
+/// identity. Calls still check each resident's permissions independently.
+pub(super) fn observe_alternatives(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<Observed>> {
+    let contract = source_contract(function, custody, place)?;
+    if custody.leaf(place, path).is_some()
+        || descriptor_location(types, place, contract, path, None).is_some()
+    {
+        return observe(function, custody, types, place, path).map(|observed| vec![observed]);
+    }
+    let locations = fixed_runtime_index_alternatives(types, place, contract, path)?;
+    locations
+        .iter()
+        .map(|location| {
+            let path = descriptor_path(types, contract, &location.path)?;
+            observe(function, custody, types, place, &path)
+        })
+        .collect()
 }
 
 pub(super) fn observe(

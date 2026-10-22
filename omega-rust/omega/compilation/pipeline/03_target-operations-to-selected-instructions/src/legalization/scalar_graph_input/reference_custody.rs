@@ -930,19 +930,29 @@ fn normalized_direct_source(
         let suffix = &path[crossing + 1..];
         // A remaining crossing is a real descriptor, never a borrowed-leaf
         // marker. Missing live custody cannot become a direct-storage origin.
-        let observed = observations::observe(function, custody, types, source.place, carrier_path)
-            .ok_or_else(|| invalid())?;
-        if optimization_unit_semantics::structural_borrowed_storage_projection(
-            types.iter(),
-            observed.referent,
-            suffix,
-            source.access,
+        let observations = observations::observe_alternatives(
+            function,
+            custody,
+            types,
+            source.place,
+            carrier_path,
         )
-        .is_none()
-        {
-            return Err(invalid());
+        .ok_or_else(invalid)?;
+        let mut candidates = Vec::with_capacity(observations.len());
+        for observed in observations {
+            if optimization_unit_semantics::structural_borrowed_storage_projection(
+                types.iter(),
+                observed.referent,
+                suffix,
+                source.access,
+            )
+            .is_none()
+            {
+                return Err(invalid());
+            }
+            candidates.push((observed.root.projected(suffix), observed.parents));
         }
-        Ok((observed.root.projected(suffix), observed.parents))
+        combine_candidate_origins(candidates)
     } else if source.path.is_empty() {
         Ok((Root::Place(source.place), Vec::new()))
     } else if storage_projection(function, custody, types, source).is_some() {
