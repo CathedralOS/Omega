@@ -964,15 +964,33 @@ impl TerminalExecution<'_> {
             field,
             StructuralAccess::MutableBorrow,
         )?;
-        if selected.structural_type != result.structural_type
-            || result
-                .qualifications
+        if selected.structural_type != result.structural_type {
+            return Err(malformed());
+        }
+        // The result catalogue may describe mutually exclusive payloads.
+        // Authenticate both rosters against the source's stored tags before
+        // comparing membership, just as reference formation and calls do.
+        let required_projected =
+            crate::structural_inputs::case_membership::active_projected_qualifications(
+                &self.program.structural_types(),
+                &selected,
+                &self.structural_cases,
+                &result.projected_qualifications,
+            )?;
+        let available_projected =
+            crate::structural_inputs::case_membership::active_projected_qualifications(
+                &self.program.structural_types(),
+                &selected,
+                &self.structural_cases,
+                &selected.projected_qualifications,
+            )?;
+        if result
+            .qualifications
+            .iter()
+            .any(|domain| !selected.qualifications.contains(domain))
+            || required_projected
                 .iter()
-                .any(|domain| !selected.qualifications.contains(domain))
-            || result
-                .projected_qualifications
-                .iter()
-                .any(|row| !selected.projected_qualifications.contains(row))
+                .any(|row| !available_projected.contains(row))
         {
             return Err(malformed());
         }
@@ -1112,7 +1130,25 @@ impl TerminalExecution<'_> {
         // region receives the replacement's actual roster; retained siblings
         // and containing opaque memberships are never re-established here.
         let mut memberships = Vec::new();
-        for (place, owner) in &self.structural_values {
+        // A helper lends backing owned by an earlier activation. Its frame is
+        // suspended, not a snapshot: publish the same storage update there so
+        // a later caller borrow sees the replacement's actual memberships.
+        for (frame_index, place, owner) in self
+            .call_stack
+            .iter()
+            .enumerate()
+            .flat_map(|(frame_index, frame)| {
+                frame
+                    .structural_values
+                    .iter()
+                    .map(move |(place, owner)| (frame_index, place, owner))
+            })
+            .chain(
+                self.structural_values
+                    .iter()
+                    .map(|(place, owner)| (self.call_stack.len(), place, owner)),
+            )
+        {
             if owner.opaque_identity != hole.opaque_identity {
                 continue;
             }
@@ -1148,7 +1184,7 @@ impl TerminalExecution<'_> {
                 repaired.projected_qualifications.sort();
                 repaired.projected_qualifications.dedup();
             }
-            memberships.push((*place, repaired));
+            memberships.push((frame_index, *place, repaired));
         }
         // Resolve scalar writes relative to the authored loan before retiring
         // anything. Its payload may be pinned in a suspended caller, not in the
@@ -1179,7 +1215,17 @@ impl TerminalExecution<'_> {
             }
             storage.publish(self)?;
         }
-        self.structural_values.extend(memberships);
+        for (frame_index, place, repaired) in memberships {
+            if frame_index == self.call_stack.len() {
+                self.structural_values.insert(place, repaired);
+            } else {
+                self.call_stack
+                    .get_mut(frame_index)
+                    .ok_or_else(malformed)?
+                    .structural_values
+                    .insert(place, repaired);
+            }
+        }
         if !copies_storage {
             self.structural_values.remove(&value.place);
             self.scalar_array_values.remove(&value.place);

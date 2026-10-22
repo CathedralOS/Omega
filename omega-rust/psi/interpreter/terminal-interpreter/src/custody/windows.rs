@@ -303,7 +303,25 @@ impl TerminalExecution<'_> {
                     frontier,
                     containing,
                     &restored.path,
-                    &|_| None,
+                    &|current| {
+                        // The store replaces the whole selected value. Tags
+                        // below that boundary come from its completed source;
+                        // enclosing tags still belong to the destination. The
+                        // old case cannot describe newly installed payloads.
+                        let (root, path) = if let Some(relative) =
+                            current.path.strip_prefix(destination.path.as_slice())
+                        {
+                            (self.structural_values.get(&value)?, relative)
+                        } else {
+                            (storage, current.path.as_slice())
+                        };
+                        crate::structural_inputs::case_membership::stored_case_at_projection(
+                            &self.program.structural_types(),
+                            root,
+                            &self.structural_cases,
+                            path,
+                        )
+                    },
                 )?;
             }
             claims.insert(*identity, restored);

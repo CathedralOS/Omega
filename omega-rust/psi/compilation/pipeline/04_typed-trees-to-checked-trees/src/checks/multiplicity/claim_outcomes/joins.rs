@@ -389,19 +389,19 @@ fn expression_frontiers(
         maps,
         &[],
     );
+    let absence = ClaimAbsence {
+        program,
+        state,
+        ownership,
+        events,
+        maps,
+        writes: InactivePlaceWrites::prepare(program, borrow, state),
+    };
     let inactive_paths = linear_claim_frontier(program, state.return_type)
         .into_iter()
         .filter(|claim| {
             claim.conditional
-                && ClaimAbsence {
-                    program,
-                    borrow,
-                    state,
-                    ownership,
-                    events,
-                    maps,
-                }
-                .expression(statement, expression, &claim.path, state.return_type)
+                && absence.expression(statement, expression, &claim.path, state.return_type)
         })
         .map(|claim| claim.path)
         .collect::<Vec<_>>();
@@ -938,14 +938,119 @@ pub(super) fn preserved_inactive_place(
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
 ) -> Option<usize> {
-    if !place
-        .segments
-        .iter()
-        .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
-    {
-        return None;
+    InactivePlaceWrites::prepare(program, borrow, state)?.preserved(
+        program,
+        state,
+        statement_index,
+        place,
+        ownership,
+        events,
+    )
+}
+
+/// Statement effects belong to the immutable source/borrow inputs, not the
+/// individual conditional claim. Reconstruct them once for a frontier batch.
+/// Unknown effects stay unknown at their original statement; a query still
+/// checks exactly the interval after its own establishing occurrence.
+pub(super) struct InactivePlaceWrites {
+    state: SymbolHandle,
+    statements: Vec<Option<Vec<validation::CanonicalPlace>>>,
+}
+
+impl InactivePlaceWrites {
+    pub(super) fn prepare(
+        program: &dyn ::validation::CheckingInput,
+        borrow: &checked_trees::BorrowFacts,
+        state: &typed_trees::state::State,
+    ) -> Option<Self> {
+        let (machine, _) = validation::find_state(program, state.symbol)?;
+        let frames = validation::CallFrameResolver::new(program)?;
+        let borrowed_state = borrow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|candidate| {
+                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
+            })?;
+        let statements = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+            .map(|(index, statement)| {
+                let mut writes = crate::flow::statement_storage_writes(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    index,
+                    statement,
+                    Some(&frames),
+                )?;
+                writes.extend(crate::flow::frame_storage_writes(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    index,
+                    &frames.statement_value_write_frame(machine, statement),
+                    Some(&frames),
+                )?);
+                if let Some(call) = statement.as_call() {
+                    writes.extend(crate::flow::frame_storage_writes(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        index,
+                        &frames.may_write_frame(machine, call),
+                        Some(&frames),
+                    )?);
+                }
+                // A selected operator's body frame can be incomplete. Keep
+                // every independently checked signature ceiling as before.
+                for call in borrow
+                    .calls
+                    .span_or_empty(borrowed_state.calls)
+                    .iter()
+                    .filter(|call| call.statement_index == index)
+                {
+                    writes.extend(crate::flow::signature_ceiling_places(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        None,
+                        call,
+                        Some(&frames),
+                    )?);
+                }
+                Some(writes)
+            })
+            .collect();
+        Some(Self {
+            state: state.symbol,
+            statements,
+        })
     }
-    let establishment = events.iter().filter(|event| {
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn preserved(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        place: &validation::CanonicalPlace,
+        ownership: &FlowOwnershipFacts,
+        events: &[FlowPermissionEventFact],
+    ) -> Option<usize> {
+        if self.state != state.symbol {
+            return None;
+        }
+        if !place
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+        {
+            return None;
+        }
+        let establishment = events.iter().filter(|event| {
         event.state_symbol == state.symbol && event.kind == PermissionEventKind::Establish
             && event.access == PermissionAccess::Owned && !event.obligation_live
             && event.claim_identity == PermissionClaimIdentity::Unknown
@@ -957,83 +1062,27 @@ pub(super) fn preserved_inactive_place(
         PermissionEventSource::Statement { statement_index } => statement_index,
         _ => 0,
     })?;
-    let PermissionEventSource::Statement {
-        statement_index: established_at,
-    } = establishment.source
-    else {
-        return None;
-    };
-    let machine = program.machine_by_symbol(establishment.machine_symbol)?;
-    let frames = validation::CallFrameResolver::new(program)?;
-    let borrowed_state = borrow
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|candidate| {
-            candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-        })?;
-    let statements = program.statement_table.statements(state.statement_nodes);
-    for (index, statement) in statements
-        .iter()
-        .enumerate()
-        .take(statement_index + 1)
-        .skip(established_at + 1)
-    {
-        let mut writes = crate::flow::statement_storage_writes(
-            program,
-            machine.symbol,
-            state.symbol,
-            index,
-            statement,
-            Some(&frames),
-        )?;
-        writes.extend(crate::flow::frame_storage_writes(
-            program,
-            machine.symbol,
-            state.symbol,
-            index,
-            &frames.statement_value_write_frame(machine, statement),
-            Some(&frames),
-        )?);
-        if let Some(call) = statement.as_call() {
-            writes.extend(crate::flow::frame_storage_writes(
-                program,
-                machine.symbol,
-                state.symbol,
-                index,
-                &frames.may_write_frame(machine, call),
-                Some(&frames),
-            )?);
-        }
-        // Selected operators can have incomplete body frames. The independently
-        // checked signature ceiling also covers every call in this statement.
-        for call in borrow
-            .calls
-            .span_or_empty(borrowed_state.calls)
-            .iter()
-            .filter(|call| call.statement_index == index)
-        {
-            writes.extend(crate::flow::signature_ceiling_places(
-                program,
-                machine.symbol,
-                state.symbol,
-                None,
-                call,
-                Some(&frames),
-            )?);
-        }
-        if writes.iter().any(|write| {
-            (write.root) == (place.root)
-                && crate::flow::canonical_place_segments_may_overlap(
-                    program,
-                    &write.segments,
-                    &place.segments,
-                )
-        }) {
+        let PermissionEventSource::Statement {
+            statement_index: established_at,
+        } = establishment.source
+        else {
             return None;
+        };
+        for index in established_at + 1..=statement_index {
+            let writes = self.statements.get(index)?.as_ref()?;
+            if writes.iter().any(|write| {
+                (write.root) == (place.root)
+                    && crate::flow::canonical_place_segments_may_overlap(
+                        program,
+                        &write.segments,
+                        &place.segments,
+                    )
+            }) {
+                return None;
+            }
         }
+        Some(established_at)
     }
-    Some(established_at)
 }
 
 fn derive_receipts(
@@ -1044,6 +1093,11 @@ fn derive_receipts(
 ) -> Result<Vec<Receipt>, &'static str> {
     let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events)?;
     let mut receipts = Vec::new();
+    // This sweep borrows one immutable ownership/event/map revision. A callee's
+    // complete frontier depends on those inputs and its state, not on which
+    // receiving claim asks for it. Keep failures too; binding actuals and the
+    // newly established identity remains below, at each exact call occurrence.
+    let mut prepared_frontiers: Vec<(SymbolHandle, Option<Vec<ExitFrontier>>)> = Vec::new();
     for event in events {
         if event.kind != PermissionEventKind::Establish
             || event.access != PermissionAccess::Owned
@@ -1085,15 +1139,29 @@ fn derive_receipts(
         if !exact_call {
             continue;
         }
-        let Some(frontiers) = state_frontiers(
-            program,
-            borrow,
-            target,
-            ownership,
-            events,
-            &maps,
-            &mut Vec::new(),
-        ) else {
+        let frontier_index = match prepared_frontiers
+            .iter()
+            .position(|(symbol, _)| *symbol == target.symbol)
+        {
+            Some(index) => index,
+            None => {
+                let index = prepared_frontiers.len();
+                prepared_frontiers.push((
+                    target.symbol,
+                    state_frontiers(
+                        program,
+                        borrow,
+                        target,
+                        ownership,
+                        events,
+                        &maps,
+                        &mut Vec::new(),
+                    ),
+                ));
+                index
+            }
+        };
+        let Some(frontiers) = prepared_frontiers[frontier_index].1.as_deref() else {
             continue;
         };
         let path = ownership.segments.span_or_empty(event.segments);
@@ -1111,7 +1179,7 @@ fn derive_receipts(
                     .any(|inactive| inactive == received_path)
                 {
                     alternatives.push(Alternative {
-                        exits: frontier.exits,
+                        exits: frontier.exits.clone(),
                         source: None,
                         excluded_input: None,
                     });
@@ -1155,7 +1223,7 @@ fn derive_receipts(
                 break;
             }
             alternatives.push(Alternative {
-                exits: frontier.exits,
+                exits: frontier.exits.clone(),
                 source: bound_source.map(|bound| (entry.source.clone(), bound)),
                 excluded_input,
             });

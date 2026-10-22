@@ -56,41 +56,53 @@ pub(crate) fn operand_contexts(
     let mut captured = contexts
         .semantic_constraint_contexts(operand.constraints)
         .collect::<Vec<_>>();
-    if operand_binds_stable_copy(program, type_reference) {
+    if operand.constraints == invocation || operand_binds_stable_copy(program, type_reference) {
         return captured;
     }
     // Resolving a view's backing does not replace its own observation namespace.
     // A local descriptor can retain a predicate established at formation; keep
     // that captured evidence only while its exact context is still live. Facts
     // established later on the original referent remain independently usable.
-    captured.retain(|candidate| {
-        contexts
-            .semantic_constraint_contexts(invocation)
-            .any(|context| context == *candidate)
-    });
+    let invocation = contexts
+        .semantic_constraint_contexts(invocation)
+        .collect::<Vec<_>>();
+    let identity = |context: FactContextHandle| (context.arena_index(), context.generation());
+    let mut live = invocation.iter().copied().map(identity).collect::<Vec<_>>();
+    live.sort_unstable();
+    live.dedup();
+    captured.retain(|candidate| live.binary_search(&identity(*candidate)).is_ok());
     if !operand.referents.is_empty() {
-        for context in invocation_contexts_at_referents(
-            program, contexts, control, semantic, operand, invocation,
-        ) {
-            if !captured.contains(&context) {
-                captured.push(context);
-            }
-        }
+        let mut retained = captured.iter().copied().map(identity).collect::<Vec<_>>();
+        retained.sort_unstable();
+        retained.dedup();
+        // Membership search uses sorted identities, but evidence publication
+        // keeps the old order, including the first occurrence of a newly live
+        // context. No duplicate or later occurrence replaces its earlier one.
+        let mut additional =
+            invocation_contexts_at_referents(program, control, semantic, operand, &invocation)
+                .into_iter()
+                .enumerate()
+                .collect::<Vec<_>>();
+        additional.sort_unstable_by_key(|(ordinal, context)| (identity(*context), *ordinal));
+        additional.dedup_by_key(|(_, context)| *context);
+        additional.retain(|(_, context)| retained.binary_search(&identity(*context)).is_err());
+        additional.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+        captured.extend(additional.into_iter().map(|(_, context)| context));
     }
     captured
 }
 
 fn invocation_contexts_at_referents(
     program: &dyn ::validation::CheckingInput,
-    contexts: &FlowContextFacts,
     control: &FlowControlFacts,
     semantic: &FactPlan,
     operand: &FlowOperandFact,
-    invocation: HandleSpan<FlowConstraintRef>,
+    invocation: &[FactContextHandle],
 ) -> Vec<FactContextHandle> {
     let referents = control.operand_referents.span_or_empty(operand.referents);
-    contexts
-        .semantic_constraint_contexts(invocation)
+    invocation
+        .iter()
+        .copied()
         .filter(|context| {
             semantic
                 .refs

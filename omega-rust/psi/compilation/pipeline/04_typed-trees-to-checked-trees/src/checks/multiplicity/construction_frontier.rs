@@ -12,6 +12,38 @@ use language_semantics::Multiplicity;
 use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+/// The first case mismatch in a zero value's exact closed structural path.
+/// Both claim production and residual cleanup use this absence: a nonselected
+/// payload is not a moved child and cannot suppress its owner's nominal hook.
+/// Unresolved projections prove no absence, and an active linear payload is
+/// never established by the zero representation.
+pub(super) fn zero_image_inactive_case<'path>(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    path: &'path [PlaceSegment],
+) -> Option<&'path [PlaceSegment]> {
+    for (segment_index, segment) in path.iter().enumerate() {
+        let PlaceSegment::Case { variant } = segment else {
+            continue;
+        };
+        let projected = validation::project_type_reference_from_segments(
+            program,
+            reference,
+            &path[..segment_index],
+        )?;
+        let definition = program
+            .closed_data_definition(validation::peel_declared_constraints(program, projected))?;
+        let zero_case = program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| member.as_variant())?;
+        if zero_case.symbol != *variant {
+            return Some(&path[..=segment_index]);
+        }
+    }
+    None
+}
+
 #[derive(Clone)]
 pub(super) struct ConstructionFrontier {
     reference: TypeReferenceHandle,

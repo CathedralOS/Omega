@@ -215,6 +215,14 @@ fn derive_claim_outcome_hypothesis(
     if expected_paths.is_empty() {
         return None;
     }
+    let absence = ClaimAbsence {
+        program,
+        state,
+        ownership,
+        events: permission_events,
+        maps: known_maps,
+        writes: joins::InactivePlaceWrites::prepare(program, borrow, state),
+    };
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
@@ -276,14 +284,7 @@ fn derive_claim_outcome_hypothesis(
         if sources.len() != 1 {
             if sources.is_empty()
                 && claim_path_is_statically_inactive(
-                    &ClaimAbsence {
-                        program,
-                        borrow,
-                        state,
-                        ownership,
-                        events: permission_events,
-                        maps: known_maps,
-                    },
+                    &absence,
                     path,
                     &result_expressions,
                     &named_transitions,
@@ -342,14 +343,7 @@ fn derive_claim_outcome_hypothesis(
                     .filter(|path| {
                         !returned.iter().any(|entry| entry.output_path == **path)
                             && claim_path_is_statically_inactive(
-                                &ClaimAbsence {
-                                    program,
-                                    borrow,
-                                    state,
-                                    ownership,
-                                    events: permission_events,
-                                    maps: known_maps,
-                                },
+                                &absence,
                                 path,
                                 expressions,
                                 transitions,
@@ -433,11 +427,11 @@ fn claim_path_is_statically_inactive(
 /// preserved inactive storage are evidence; a failed identity lookup is not.
 struct ClaimAbsence<'a> {
     program: &'a dyn ::validation::CheckingInput,
-    borrow: &'a checked_trees::BorrowFacts,
     state: &'a typed_trees::state::State,
     ownership: &'a checked_trees::FlowOwnershipFacts,
     events: &'a [FlowPermissionEventFact],
     maps: &'a [CheckedClaimOutcomeMap],
+    writes: Option<joins::InactivePlaceWrites>,
 }
 
 impl ClaimAbsence<'_> {
@@ -455,16 +449,20 @@ impl ClaimAbsence<'_> {
             expression,
         ) {
             place.segments.extend_from_slice(path);
-            if joins::preserved_inactive_place(
-                self.program,
-                self.borrow,
-                self.state,
-                statement,
-                &place,
-                self.ownership,
-                self.events,
-            )
-            .is_some()
+            if self
+                .writes
+                .as_ref()
+                .and_then(|writes| {
+                    writes.preserved(
+                        self.program,
+                        self.state,
+                        statement,
+                        &place,
+                        self.ownership,
+                        self.events,
+                    )
+                })
+                .is_some()
             {
                 return true;
             }

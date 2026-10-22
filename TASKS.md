@@ -5063,9 +5063,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     installers also need returned-loan provenance and correct table-result
     ownership.
   - Multi-page loops need **TERMINATION-RANKING-CHECKS**; demand-grown tables
-    need **BUMP-ALLOCATOR-CANARY**; firmware-table traversal needs admitted
-    qualified extents and retention of the full reachable table closure beyond
-    the observed CR3 root page. External entry/retirement
+    need **BUMP-ALLOCATOR-CANARY**; live mapping activation must preserve the
+    retained firmware-table closure and establish hardware A/D-write-aware
+    table custody. External entry/retirement
     remains **PLAN-LAID-VIEWS**; range
     migration **CANONICALIZE-SCALAR-RANGE-CONTRACTS**; boot integration needs
     **UEFI-PHYSICAL-SEMANTIC-ENTRY** / **UEFI-OS-HANDOFF**.

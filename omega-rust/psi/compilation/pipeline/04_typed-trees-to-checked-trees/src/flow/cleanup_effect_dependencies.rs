@@ -243,9 +243,23 @@ pub(crate) fn derive_cleanup_effect_dependencies(
             continue;
         }
         let invalid = || {
+            let statement = event_statement_index(program, disposition.state, disposition.source);
+            let selector_hint = if facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(disposition.path)
+                .iter()
+                .any(|segment| matches!(segment, PlaceSegment::Index { .. }))
+            {
+                "; a runtime-indexed case observation names no reusable case fact: bind a borrow of the selected element before testing its case"
+            } else {
+                ""
+            };
             vec![Diagnostic::error(format!(
-                "cleanup effect dependency in `{}` has no exact structural residual disposition",
+                "cleanup effect dependency in `{}` has no exact structural residual disposition in state `{}` at statement {statement}{selector_hint}",
                 program.symbols.name(disposition.machine),
+                program.symbols.name(disposition.state),
             ))]
         };
         let leaves = selected_cleanup_leaves(program, facts, disposition).ok_or_else(invalid)?;

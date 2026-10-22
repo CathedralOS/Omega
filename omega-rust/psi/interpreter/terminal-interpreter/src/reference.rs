@@ -737,6 +737,35 @@ impl TerminalExecution<'_> {
         // Preserve actual backing membership beneath Referent. Shared views
         // may attenuate their declared roster; exclusive crossings retain the
         // incoming exact-roster check and cannot manufacture membership.
+        // The reference signature lists conditional alternatives just as an
+        // ordinary parameter does. An Empty value owes no Held qualification;
+        // the same authenticated tag filter must govern both formations.
+        let (required_whole, required_paths) = terminal_psi::StructuralPathQualification::select(
+            &[],
+            &result.projected_qualifications,
+            &[StructuralPathSegment::Referent],
+        );
+        let required_paths =
+            crate::structural_inputs::case_membership::active_projected_qualifications(
+                &self.program.structural_types(),
+                &referent,
+                &self.structural_cases,
+                &required_paths,
+            )?;
+        let mut required_projected = Vec::new();
+        terminal_psi::StructuralPathQualification::append_under(
+            &required_whole,
+            &required_paths,
+            &[StructuralPathSegment::Referent],
+            &mut required_projected,
+        );
+        referent.projected_qualifications =
+            crate::structural_inputs::case_membership::active_projected_qualifications(
+                &self.program.structural_types(),
+                &referent,
+                &self.structural_cases,
+                &referent.projected_qualifications,
+            )?;
         let mut projected = Vec::new();
         terminal_psi::StructuralPathQualification::append_under(
             &referent.qualifications,
@@ -749,9 +778,12 @@ impl TerminalExecution<'_> {
         if !access_covers(source.access, access)
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
-            || result.projected_qualifications.iter().any(|row| !projected.contains(row))
+            || result.projected_qualifications.iter().any(|row| {
+                !row.path.starts_with(&[StructuralPathSegment::Referent])
+            })
+            || required_projected.iter().any(|row| !projected.contains(row))
             || (access != StructuralAccess::SharedBorrow
-                && projected.iter().any(|row| !result.projected_qualifications.contains(row)))
+                && projected.iter().any(|row| !required_projected.contains(row)))
             || !result.claims.is_empty()
             // The storage judgment above admitted an aggregate re-view.
             || (aggregate_view.is_none() && !field_compatible

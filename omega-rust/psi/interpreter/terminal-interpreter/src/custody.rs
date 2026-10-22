@@ -488,15 +488,13 @@ fn active_structural_parameters(
     }
     let mut active_parameters = parameters.to_vec();
     for (parameter, argument) in active_parameters.iter_mut().zip(arguments) {
-        let mut active = Vec::new();
-        for row in &parameter.projected_qualifications {
-            if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                types, argument, cases, &row.path,
-            )? {
-                active.push(row.clone());
-            }
-        }
-        parameter.projected_qualifications = active;
+        parameter.projected_qualifications =
+            crate::structural_inputs::case_membership::active_projected_qualifications(
+                types,
+                argument,
+                cases,
+                &parameter.projected_qualifications,
+            )?;
     }
     Ok(active_parameters)
 }

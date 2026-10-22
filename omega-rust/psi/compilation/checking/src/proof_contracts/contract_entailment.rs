@@ -638,6 +638,18 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
                 bound.judge(program, fact)
             };
+            if struct_trace() {
+                eprintln!(
+                    "STRUCT normal-return machine={} value={value:?} fact={} verdict={}",
+                    machine.name,
+                    program.expression_table.display_name(fact),
+                    match judgment {
+                        StructuralJudgment::Proven => "proven",
+                        StructuralJudgment::Refuted => "refuted",
+                        StructuralJudgment::Unknown => "unknown",
+                    },
+                );
+            }
             match judgment {
                 StructuralJudgment::Refuted => return Some(StructuralJudgment::Refuted),
                 StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,

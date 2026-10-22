@@ -481,6 +481,23 @@ pub(crate) fn case_projection_in_value_is_active(
     })
 }
 
+/// A declaration roster includes absent payloads. Compare value membership
+/// only after authenticating its actual stored discriminator at each guard.
+pub(crate) fn active_projected_qualifications(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    rows: &[terminal_psi::StructuralPathQualification],
+) -> Result<Vec<terminal_psi::StructuralPathQualification>, TerminalInterpretError> {
+    let mut active = Vec::new();
+    for row in rows {
+        if case_projection_in_value_is_active(types, root, cases, &row.path)? {
+            active.push(row.clone());
+        }
+    }
+    Ok(active)
+}
+
 /// Established and uncommitted constructor storage authenticate the same
 /// typed guards. The caller supplies actual stored membership at each prefix;
 /// absence of a discriminator never counts as an inactive payload.

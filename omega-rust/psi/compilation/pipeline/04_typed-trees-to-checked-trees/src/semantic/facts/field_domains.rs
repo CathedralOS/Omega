@@ -792,6 +792,21 @@ pub(super) fn append_local_zii_field_domain_facts(
                     state.symbol,
                 );
 
+                // Default formation selects actual discriminators, not the
+                // union of every payload's field obligations. Keep one fact
+                // per exact owned sum so writing an array sibling retires
+                // only that sibling's tag. This establishes no domain or
+                // linear claim for an active payload.
+                append_zero_case_observations(
+                    program,
+                    facts,
+                    local_data.symbol,
+                    local_data.type_reference,
+                    point,
+                    evidence,
+                    &mut refs,
+                );
+
                 // Whole-value `let x: T in D;` rows: zero satisfies `D` only
                 // when the domain admits the empty byte sequence -- the same
                 // ZII gate the per-field rows below use.
@@ -858,6 +873,98 @@ pub(super) fn append_local_zii_field_domain_facts(
             );
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_zero_case_observations(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut FactPlan,
+    root: SymbolHandle,
+    reference: TypeReferenceHandle,
+    point: ProgramPoint,
+    evidence: QualificationEvidence,
+    refs: &mut arena::HandleSpan<facts::FactRef>,
+) {
+    for (path, variant) in zero_case_paths(program, reference, &mut Vec::new()) {
+        let place =
+            crate::semantic::places::append_place(facts, facts::PlaceRoot::Symbol(root), &path);
+        let fact = facts.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point,
+            origin: FactOrigin::StatementTransfer,
+            evidence,
+            payload: FactPayload::AssignedCase { variant },
+        });
+        facts.append_ref(refs, fact);
+    }
+}
+
+// Compute the element pattern once. A large array with no case-bearing
+// contents emits no observations and never walks every scalar element.
+fn zero_case_paths(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    visiting: &mut Vec<TypeReferenceHandle>,
+) -> Vec<(Vec<PlaceSegment>, SymbolHandle)> {
+    let reference = validation::peel_declared_constraints(program, reference);
+    if visiting.contains(&reference) {
+        return Vec::new();
+    }
+    visiting.push(reference);
+    let mut paths = Vec::new();
+    if let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(reference)
+    {
+        let children = zero_case_paths(program, *element_type, visiting);
+        if !children.is_empty() {
+            for index in 0..*length {
+                for (child, variant) in &children {
+                    let mut path = vec![PlaceSegment::FixedIndex { index }];
+                    path.extend_from_slice(child);
+                    paths.push((path, *variant));
+                }
+            }
+        }
+    } else if let Some(definition) = program.closed_data_definition(reference) {
+        let selected = program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| member.as_variant());
+        if let Some(variant) = selected {
+            paths.push((Vec::new(), variant.symbol));
+        }
+        for member in program.data_members(definition) {
+            if let Some(field) = member.as_field() {
+                for (child, variant) in zero_case_paths(program, field.type_reference, visiting) {
+                    let mut path = vec![PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }];
+                    path.extend(child);
+                    paths.push((path, variant));
+                }
+            }
+        }
+        if let Some(variant) = selected {
+            for field in program.data_payload_fields(variant) {
+                for (child, selected) in zero_case_paths(program, field.type_reference, visiting) {
+                    let mut path = vec![
+                        PlaceSegment::Case {
+                            variant: variant.symbol,
+                        },
+                        PlaceSegment::Field {
+                            symbol: field.symbol,
+                        },
+                    ];
+                    path.extend(child);
+                    paths.push((path, selected));
+                }
+            }
+        }
+    }
+    visiting.pop();
+    paths
 }
 
 /// Every normalized predicate-domain symbol on a field type, looking through a

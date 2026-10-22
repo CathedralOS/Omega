@@ -1786,9 +1786,7 @@ fn returned_constructor_case(
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<symbols::SymbolHandle> {
     let (callee, state) = validation::find_state(program, call.target_symbol)?;
-    if !callee.body_is_present
-        || program.machine_states(callee).first()?.symbol != state.symbol
-    {
+    if !callee.body_is_present || program.machine_states(callee).first()?.symbol != state.symbol {
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1818,10 +1816,7 @@ fn returned_constructor_case(
     if saw_transition {
         return agreed;
     }
-    constructor_case(
-        program,
-        *statements.iter().next_back()?.as_expression()?,
-    )
+    constructor_case(program, *statements.iter().next_back()?.as_expression()?)
 }
 
 fn constructor_case(

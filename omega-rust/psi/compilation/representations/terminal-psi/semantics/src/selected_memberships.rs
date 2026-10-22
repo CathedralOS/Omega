@@ -22,7 +22,6 @@ pub fn reference_source_memberships<'types>(
     path: &[StructuralPathSegment],
     access: StructuralAccess,
 ) -> Result<Vec<StructuralPathQualification>, &'static str> {
-    const MAX_CANDIDATES: usize = 4096;
     const MAX_PATH_DEPTH: usize = 128;
     const MAX_SELECTION_WORK: usize = 1_048_576;
     if path.len() > MAX_PATH_DEPTH {
@@ -52,134 +51,81 @@ pub fn reference_source_memberships<'types>(
         }
         return Ok(Vec::new());
     }
-    let base_work = path
-        .len()
-        .checked_add(whole.len())
-        .ok_or("reference membership selection work overflow")?;
-    // Selection copies descendant suffixes too; count their actual segment
-    // storage, not merely the number of qualification rows.
-    let work_per_candidate = projected
-        .iter()
-        .try_fold(base_work, |work, row| {
-            row.path
-                .len()
-                .checked_add(1)
-                .and_then(|count| work.checked_add(count))
-        })
-        .ok_or("reference membership selection work overflow")?;
-    if work_per_candidate > MAX_SELECTION_WORK {
-        return Err("reference membership selection exceeds the work budget");
+    // Carry only the qualification suffixes still reachable at each segment.
+    // Fixed-index exceptions partition an array; all unmentioned elements have
+    // the same universal-only roster and need one representative, not one scan
+    // of every root row per element. No candidate acquires a sibling's facts.
+    let mut work = SelectionWork(MAX_SELECTION_WORK);
+    work.charge(path.len())?;
+    work.charge(whole.len())?;
+    for row in projected {
+        work.charge(row.path.len().saturating_add(1))?;
     }
-    let mut candidates = vec![Vec::new()];
-    for segment in path {
-        let mut next = Vec::new();
-        for prefix in candidates {
-            if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-                let parent = crate::runtime_structural_path_tip(types.clone(), root, &prefix)
-                    .ok_or("reference membership selection has no runtime carrier")?;
-                match parent.shape {
-                    StructuralTypeShape::FixedArray { length, .. } => {
-                        if length == 0 {
-                            return Err("reference membership selection has an empty fixed array");
-                        }
-                        let count = usize::try_from(length)
-                            .map_err(|_| "reference membership extent overflow")?;
-                        let total = next
-                            .len()
-                            .checked_add(count)
-                            .filter(|count| *count <= MAX_CANDIDATES)
-                            .ok_or("reference membership selection exceeds the candidate budget")?;
-                        if total
-                            .checked_mul(work_per_candidate)
-                            .is_none_or(|work| work > MAX_SELECTION_WORK)
-                        {
-                            return Err("reference membership selection exceeds the work budget");
-                        }
-                        next.try_reserve(count)
-                            .map_err(|_| "reference membership selection allocation failed")?;
-                        for index in 0..length {
-                            let mut selected = prefix.clone();
-                            selected.push(StructuralPathSegment::FixedIndex(index));
-                            next.push(selected);
-                        }
-                    }
-                    StructuralTypeShape::ElementView { .. } => {
-                        // The symbolic candidate includes every unlisted live
-                        // element and can use universal rows only. Concrete
-                        // facts contribute debts, never proof of that remainder.
-                        let mut indexes = Vec::new();
-                        for row in projected {
-                            let Some(StructuralPathSegment::FixedIndex(index)) =
-                                StructuralPathQualification::selected_suffix(&row.path, &prefix)
-                                    .and_then(|suffix| suffix.first())
-                            else {
-                                continue;
-                            };
-                            if let Err(position) = indexes.binary_search(index) {
-                                if indexes.len() >= MAX_CANDIDATES {
-                                    return Err(
-                                        "reference membership selection exceeds the candidate budget",
-                                    );
-                                }
-                                indexes.try_reserve(1).map_err(
-                                    |_| "reference membership selection allocation failed",
-                                )?;
-                                indexes.insert(position, *index);
-                            }
-                        }
-                        let count = indexes
-                            .len()
-                            .checked_add(1)
-                            .ok_or("reference membership candidate count overflow")?;
-                        let total = next
-                            .len()
-                            .checked_add(count)
-                            .filter(|count| *count <= MAX_CANDIDATES)
-                            .ok_or("reference membership selection exceeds the candidate budget")?;
-                        if total
-                            .checked_mul(work_per_candidate)
-                            .is_none_or(|work| work > MAX_SELECTION_WORK)
-                        {
-                            return Err("reference membership selection exceeds the work budget");
-                        }
-                        next.try_reserve(count)
-                            .map_err(|_| "reference membership selection allocation failed")?;
-                        let mut symbolic = prefix.clone();
-                        symbolic.push(segment.clone());
-                        next.push(symbolic);
-                        for index in indexes {
-                            let mut selected = prefix.clone();
-                            selected.push(StructuralPathSegment::FixedIndex(index));
-                            next.push(selected);
-                        }
-                    }
-                    _ => return Err("reference membership selection has no collection carrier"),
+    let mut initial = Vec::new();
+    initial
+        .try_reserve(whole.len().saturating_add(projected.len()))
+        .map_err(|_| "reference membership selection allocation failed")?;
+    for domain in whole {
+        initial.push(MembershipSuffix {
+            path: &[],
+            domain: *domain,
+        });
+    }
+    for row in projected {
+        initial.push(MembershipSuffix {
+            path: &row.path,
+            domain: row.domain,
+        });
+    }
+    let mut candidates = vec![initial];
+    for (position, segment) in path.iter().enumerate() {
+        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            let parent = crate::runtime_structural_path_tip(types.clone(), root, &path[..position])
+                .ok_or("reference membership selection has no runtime carrier")?;
+            let extent = match parent.shape {
+                StructuralTypeShape::FixedArray { length: 0, .. } => {
+                    return Err("reference membership selection has an empty fixed array");
                 }
-            } else {
-                let mut selected = prefix;
-                selected.push(segment.clone());
-                next.push(selected);
+                StructuralTypeShape::FixedArray { length, .. } => Some(length),
+                StructuralTypeShape::ElementView { .. } => None,
+                _ => return Err("reference membership selection has no collection carrier"),
+            };
+            let mut next = Vec::new();
+            for rows in candidates {
+                partition_runtime_memberships(rows, segment, extent, &mut next, &mut work)?;
+            }
+            candidates = next;
+        } else {
+            for rows in &mut candidates {
+                work.charge(rows.len())?;
+                rows.retain_mut(|row| {
+                    let Some(suffix) = StructuralPathQualification::selected_suffix(
+                        row.path,
+                        std::slice::from_ref(segment),
+                    ) else {
+                        return false;
+                    };
+                    row.path = suffix;
+                    true
+                });
             }
         }
-        candidates = next;
-    }
-    if candidates
-        .len()
-        .checked_mul(work_per_candidate)
-        .is_none_or(|work| work > MAX_SELECTION_WORK)
-    {
-        return Err("reference membership selection exceeds the work budget");
     }
     let mut available: Option<Vec<StructuralPathQualification>> = None;
-    for candidate in candidates {
-        let (whole, projected) = StructuralPathQualification::select(whole, projected, &candidate);
+    for rows in candidates {
         let mut captured = Vec::new();
-        StructuralPathQualification::append_under(
-            &whole,
-            &projected,
-            &[StructuralPathSegment::Referent],
-            &mut captured,
-        );
+        for row in rows {
+            work.charge(row.path.len().saturating_add(2))?;
+            let mut path = Vec::new();
+            path.try_reserve(row.path.len().saturating_add(1))
+                .map_err(|_| "reference membership selection allocation failed")?;
+            path.push(StructuralPathSegment::Referent);
+            path.extend_from_slice(row.path);
+            captured.push(StructuralPathQualification {
+                path,
+                domain: row.domain,
+            });
+        }
         captured.sort();
         captured.dedup();
         if let Some(common) = &mut available {
@@ -194,4 +140,101 @@ pub fn reference_source_memberships<'types>(
         }
     }
     available.ok_or("reference membership selection has no candidate")
+}
+
+/// Invocation-local views into the immutable source roster. Empty suffixes
+/// denote whole-value membership; advancing a segment drops strict ancestors.
+#[derive(Clone, Copy)]
+struct MembershipSuffix<'source> {
+    path: &'source [StructuralPathSegment],
+    domain: StructuralDomainId,
+}
+
+struct SelectionWork(usize);
+
+impl SelectionWork {
+    fn charge(&mut self, count: usize) -> Result<(), &'static str> {
+        self.0 = self
+            .0
+            .checked_sub(count)
+            .ok_or("reference membership selection exceeds the work budget")?;
+        Ok(())
+    }
+}
+
+fn append_candidate<'source>(
+    candidates: &mut Vec<Vec<MembershipSuffix<'source>>>,
+    mut selected: Vec<MembershipSuffix<'source>>,
+    universal: &[MembershipSuffix<'source>],
+    work: &mut SelectionWork,
+) -> Result<(), &'static str> {
+    const MAX_CANDIDATES: usize = 4096;
+    if candidates.len() >= MAX_CANDIDATES {
+        return Err("reference membership selection exceeds the candidate budget");
+    }
+    work.charge(universal.len().saturating_add(1))?;
+    selected
+        .try_reserve(universal.len())
+        .map_err(|_| "reference membership selection allocation failed")?;
+    selected.extend_from_slice(universal);
+    candidates
+        .try_reserve(1)
+        .map_err(|_| "reference membership selection allocation failed")?;
+    candidates.push(selected);
+    Ok(())
+}
+
+fn partition_runtime_memberships<'source>(
+    rows: Vec<MembershipSuffix<'source>>,
+    selector: &StructuralPathSegment,
+    extent: Option<u64>,
+    candidates: &mut Vec<Vec<MembershipSuffix<'source>>>,
+    work: &mut SelectionWork,
+) -> Result<(), &'static str> {
+    work.charge(rows.len())?;
+    let mut universal = Vec::new();
+    let mut concrete = Vec::new();
+    let mut remainder = Vec::new();
+    for row in rows {
+        let Some((segment, suffix)) = row.path.split_first() else {
+            continue;
+        };
+        let selected = MembershipSuffix {
+            path: suffix,
+            domain: row.domain,
+        };
+        match segment {
+            StructuralPathSegment::AllElements => universal.push(selected),
+            StructuralPathSegment::FixedIndex(index)
+                if extent.is_none_or(|length| *index < length) =>
+            {
+                concrete.push((*index, selected));
+            }
+            // Element views retain the symbolic candidate representing all
+            // unlisted elements. A fixed array's candidates are always concrete,
+            // so a runtime occurrence row cannot qualify any of its elements.
+            _ if extent.is_none() && segment == selector => remainder.push(selected),
+            _ => {}
+        }
+    }
+    concrete.sort_unstable_by_key(|(index, _)| *index);
+    let mut distinct = 0u64;
+    let mut rows = concrete.into_iter().peekable();
+    while let Some((index, row)) = rows.next() {
+        distinct += 1;
+        let mut selected = vec![row];
+        while rows
+            .peek()
+            .is_some_and(|(following, _)| *following == index)
+        {
+            if let Some((_, row)) = rows.next() {
+                selected.push(row);
+            }
+        }
+        append_candidate(candidates, selected, &universal, work)?;
+    }
+    if extent.is_none_or(|length| distinct < length) {
+        append_candidate(candidates, remainder, &universal, work)?;
+    }
+    Ok(())
 }

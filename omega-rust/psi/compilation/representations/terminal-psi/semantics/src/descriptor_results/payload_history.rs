@@ -16,9 +16,92 @@ struct State {
     scalar_requirements: Vec<semantic_vocabulary::Proposition>,
 }
 
+// Every transfer works on complete premise rosters. Retained positions factor
+// their exact common intersection out of the payloads: copying the same growing
+// theory into every SSA payload at every position otherwise multiplies memory
+// by both the number of values and the length of the control-flow prefix.
+// Do not assume the state's ambient premises occur in every payload (notably at
+// entry). Compute the actual intersection, then restore it before any consumer.
+struct Snapshot {
+    state: State,
+    common_requirements: Vec<semantic_vocabulary::Proposition>,
+}
+
+impl Snapshot {
+    fn capture(mut state: State) -> Self {
+        let mut contracts = state.values.values();
+        let mut common_requirements = contracts
+            .next()
+            .map(|contract| contract.scalar_requirements.clone())
+            .unwrap_or_default();
+        for contract in contracts {
+            retain_common_premises(&mut common_requirements, &contract.scalar_requirements);
+        }
+        for contract in state.values.values_mut() {
+            let mut common = common_requirements.iter().peekable();
+            contract.scalar_requirements.retain(|premise| {
+                while common.peek().is_some_and(|candidate| *candidate < premise) {
+                    common.next();
+                }
+                !common.peek().is_some_and(|candidate| *candidate == premise)
+            });
+            contract.scalar_requirements.shrink_to_fit();
+        }
+        Self {
+            state,
+            common_requirements,
+        }
+    }
+
+    fn expand(&self) -> State {
+        let mut state = self.state.clone();
+        for contract in state.values.values_mut() {
+            self.restore(contract);
+        }
+        state
+    }
+
+    fn contract(&self, root: PlaceId) -> Option<PayloadMembershipContract> {
+        let mut contract = self.state.values.get(&root)?.clone();
+        self.restore(&mut contract);
+        Some(contract)
+    }
+
+    fn restore(&self, contract: &mut PayloadMembershipContract) {
+        if self.common_requirements.is_empty() {
+            return;
+        }
+        if contract.scalar_requirements.is_empty() {
+            contract
+                .scalar_requirements
+                .clone_from(&self.common_requirements);
+            return;
+        }
+        let mut restored =
+            Vec::with_capacity(contract.scalar_requirements.len() + self.common_requirements.len());
+        let mut local = std::mem::take(&mut contract.scalar_requirements)
+            .into_iter()
+            .peekable();
+        let mut common = self.common_requirements.iter().peekable();
+        while let (Some(left), Some(right)) = (local.peek(), common.peek()) {
+            match left.cmp(right) {
+                std::cmp::Ordering::Less => restored.extend(local.next()),
+                std::cmp::Ordering::Greater => restored.extend(common.next().cloned()),
+                std::cmp::Ordering::Equal => {
+                    restored.extend(local.next());
+                    common.next();
+                }
+            }
+        }
+        restored.extend(local);
+        restored.extend(common.cloned());
+        contract.scalar_requirements = restored;
+    }
+}
+
 struct CachedHistory {
     relevant: super::payload_reachability::Reachability,
-    snapshots: BTreeMap<DescriptorPosition, State>,
+    snapshots: BTreeMap<DescriptorPosition, Snapshot>,
 }
 
 /// Query-local reuse bound to one immutable Terminal machine and its exact
@@ -182,7 +265,7 @@ fn current_payload_contract_reusing(
                 }
             }
             (
-                BTreeMap::from([(machine.entry, initial)]),
+                BTreeMap::from([(machine.entry, Snapshot::capture(initial))]),
                 VecDeque::from([machine.entry]),
             )
         };
@@ -195,7 +278,7 @@ fn current_payload_contract_reusing(
                 continue;
             }
             failure = "payload history flow position is absent";
-            let mut before = snapshots.get(&current)?.clone();
+            let mut before = snapshots.get(&current)?.expand();
             if let Some(definitions) = machine.payload_scalar_definitions.get(&current) {
                 retire_scalar_instances(&mut before, definitions);
             }
@@ -532,7 +615,8 @@ fn current_payload_contract_reusing(
                     contract.scalar_requirements.dedup();
                     super::payload_predicates::close(types, domains, contract);
                 }
-                let changed = if let Some(existing) = snapshots.get_mut(&edge.target) {
+                let changed = if let Some(snapshot) = snapshots.get_mut(&edge.target) {
+                    let mut existing = snapshot.expand();
                     let mut changed = retain_common_premises(
                         &mut existing.scalar_requirements,
                         &arrival.scalar_requirements,
@@ -574,9 +658,11 @@ fn current_payload_contract_reusing(
                     // This meet never inserts or rewrites a surviving row.
                     // Cardinality changes therefore identify every change
                     // without cloning and comparing the complete snapshot.
-                    changed || existing.values.len() != previous_values
+                    let changed = changed || existing.values.len() != previous_values;
+                    *snapshot = Snapshot::capture(existing);
+                    changed
                 } else {
-                    snapshots.insert(edge.target, arrival);
+                    snapshots.insert(edge.target, Snapshot::capture(arrival));
                     true
                 };
                 if changed && !pending.contains(&edge.target) {
@@ -589,13 +675,7 @@ fn current_payload_contract_reusing(
             snapshots,
         });
         failure = "requested payload root has no reached incoming membership history";
-        let mut current = cached
-            .as_ref()?
-            .snapshots
-            .get(&position)?
-            .values
-            .get(&root)?
-            .clone();
+        let mut current = cached.as_ref()?.snapshots.get(&position)?.contract(root)?;
         failure = "requested source has no declared payload contract";
         let declared = source(root)?;
         failure = "current and declared source payload carriers differ";

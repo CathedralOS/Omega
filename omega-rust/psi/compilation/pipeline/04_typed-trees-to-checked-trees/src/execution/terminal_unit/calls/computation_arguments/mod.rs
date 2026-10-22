@@ -495,17 +495,13 @@ pub(crate) fn borrowed_storage_argument(
         presentation_identity,
         &[],
     )?;
-    // The evaluated path proves active cases and initialized storage; the
-    // exact loan below proves access. Qualification does not change backing.
-    if (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        && !validation::has_contents(
-            program,
-            reference,
-            &[],
-            validation::ContentsRequirement::RepresentedOwned,
-        ))
-        || !borrowed_referent
-    {
+    // BorrowedStorage already classifies the complete qualified endpoint.
+    // Requiring RepresentedOwned only when qualifications were present made
+    // an ordinary loan of a routed linear payload depend on owned-value
+    // eligibility. Lending it neither copies nor transfers that obligation.
+    // The evaluated path, receiving memberships and exact loan retain their
+    // independent active-case, qualification and access checks.
+    if !borrowed_referent {
         return None;
     }
     if exact_structural_borrow_access(

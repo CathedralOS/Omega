@@ -86,8 +86,43 @@ pub(crate) fn regions_for_calls(
                     } else {
                         continue;
                     };
-                    if !regions.iter().any(|existing| existing == region) {
-                        regions.push(region.clone());
+                    let Some(mut region) = region.clone().into_declared() else {
+                        continue;
+                    };
+                    // A write summary may retain an index expression even
+                    // when substitution closed it. Resolve only genuinely
+                    // closed coordinates, never a current caller guess.
+                    for segment in &mut region.segments {
+                        if let facts::PlaceSegment::Index { expression } = *segment
+                            && let Some(index) = program
+                                .closed_integer_expression_value_in(expression, machine)
+                                .and_then(|value| value.to_u64())
+                                .and_then(|value| usize::try_from(value).ok())
+                        {
+                            *segment = facts::PlaceSegment::FixedIndex { index };
+                        }
+                    }
+                    if let Some(unresolved) = region.segments.iter().position(|segment| {
+                        !matches!(segment, facts::PlaceSegment::Field { .. }
+                            | facts::PlaceSegment::Case { .. }
+                            | facts::PlaceSegment::FixedIndex { .. })
+                    }) {
+                        // Runtime selectors are may-write coordinates, not
+                        // claim identities. Rejoin their containing collection
+                        // only if this call lent that complete collection.
+                        // An ancestor outside the exclusive ceiling would
+                        // resurrect unrelated moved siblings and is forbidden.
+                        region.segments.truncate(unresolved);
+                        if authority.anchor().root != region.root
+                            || !region.segments.starts_with(&authority.anchor().segments)
+                        {
+                            return Err(diagnostics::Diagnostic::error(
+                                "loan completion has no static region within its exclusive authority",
+                            ));
+                        }
+                    }
+                    if !regions.iter().any(|existing| existing == &region) {
+                        regions.push(region);
                     }
                 }
             }
@@ -96,14 +131,15 @@ pub(crate) fn regions_for_calls(
             let candidates = regions.clone();
             regions.retain(|region| {
                 !candidates.iter().any(|other| {
-                    other != region && other.contains(region) && !region.contains(other)
+                    other != region && other.root == region.root
+                        && region.segments.starts_with(&other.segments)
                 })
             });
             // A content write returns the existing owner's loan, not a
             // replacement Extent value. Callee borrowed-content restoration
             // remains obligatory; it cannot mint the caller's owner claim.
             // Only declared storage replacement has a new payload roster.
-            Ok((source, regions.into_iter().filter_map(|region| region.into_declared()).collect()))
+            Ok((source, regions))
         })
         .collect()
 }

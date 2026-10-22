@@ -81,9 +81,28 @@ pub(super) fn proves(
                     call.statement_index,
                     source,
                 )
+                && !(source.segments.ends_with(&place.segments)
+                    && place
+                        .segments
+                        .iter()
+                        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                    && crate::flow::place_cases_are_selected(
+                        program,
+                        &facts.semantic,
+                        entry_contexts,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        call.statement_index,
+                        &place,
+                    ))
             {
                 return false;
             }
+            // A captured borrow keeps the selected element's identity even
+            // when its backing path contains an unresolved selector. Observe
+            // cases on that canonical carrier, not on the selector spelling.
+            // The exact typed suffix must agree; backing membership still
+            // comes from live facts below, never from the case observation.
             contexts_prove_domain(
                 program,
                 facts,

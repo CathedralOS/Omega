@@ -142,8 +142,7 @@ pub(super) fn capture_statement(
         state,
         active,
     };
-    if let Some(value) = ScalarValue::value_at_expression(program, &live, statement_index, source)
-    {
+    if let Some(value) = ScalarValue::value_at_expression(program, &live, statement_index, source) {
         return Some(value);
     }
     selected_live_capture(

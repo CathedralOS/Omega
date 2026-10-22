@@ -477,6 +477,31 @@ impl RemainingCustody {
     ) {
         match event.kind {
             PermissionEventKind::Establish | PermissionEventKind::Restore => {
+                // A declaration's zero-case receipt excludes an absent
+                // alternative; it does not partially move the containing
+                // value. Preserve its whole cleanup and nominal prerequisites.
+                if event.kind == PermissionEventKind::Establish
+                    && event.multiplicity == Multiplicity::Linear
+                    && !event.obligation_live
+                    && let PermissionEventSource::Statement { statement_index } = event.source
+                    && let Some(state) = program.state_by_symbol(event.state_symbol)
+                    && let Some(local) = program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .get(statement_index)
+                        .and_then(|statement| statement.as_local_data())
+                    && event.root == PlaceRoot::Symbol(local.symbol)
+                    && !local.initial_value.is_valid()
+                    && !validation::type_requires_establishment(program, local.type_reference)
+                    && let Some(inactive) = super::construction_frontier::zero_image_inactive_case(
+                        program,
+                        local.type_reference,
+                        path,
+                    )
+                {
+                    self.exclude_absent_case(event.root, inactive);
+                    return;
+                }
                 self.invalidate_case_observations(program, event.root, path);
                 // A strict child cannot revive its consumed containing owner.
                 self.excluded

@@ -58,16 +58,23 @@ pub(crate) fn written_linear_targets(
                 if validation::type_requires_establishment(program, local.type_reference) {
                     return Vec::new();
                 }
-                // An affine or linear local's zero image is a debt-free value
-                // its first assignment replaces; the write below records no
-                // obligation and, for a linear place, no establishment.
+                // Zero selects the first case at every structural position.
+                // Record absent payloads as established debt-free alternatives,
+                // just as an explicit case constructor does. Active linear
+                // payloads still need a real producer: zero bits mint no claim.
                 return places
                     .iter()
                     .enumerate()
                     .filter(|(_, tracked)| {
                         tracked.root == facts::PlaceRoot::Symbol(local.symbol)
                             && tracked.multiplicity != Multiplicity::Unrestricted
-                            && tracked.path.is_empty()
+                            && (tracked.path.is_empty()
+                                || super::super::construction_frontier::zero_image_inactive_case(
+                                    program,
+                                    local.type_reference,
+                                    &tracked.path,
+                                )
+                                .is_some())
                     })
                     .map(|(place_index, _)| WrittenLinearTarget {
                         root: facts::PlaceRoot::Symbol(local.symbol),

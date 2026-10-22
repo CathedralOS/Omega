@@ -472,9 +472,9 @@ impl StructuralJudge<'_> {
         }
         let program = self.program;
         for (predicate, truth) in self.rewrites.iter() {
-            if boolean_value(truth) != Some(true) {
+            let Some(truth) = boolean_value(truth) else {
                 continue;
-            }
+            };
             let StructuralTerm::ScalarBinary {
                 operator,
                 meaning,
@@ -496,7 +496,17 @@ impl StructuralJudge<'_> {
                 BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
                 _ => continue,
             };
-            if recorded != comparison {
+            let complementary = matches!(
+                (recorded, comparison),
+                (
+                    FloatSemanticComparison::Equal,
+                    FloatSemanticComparison::NotEqual
+                ) | (
+                    FloatSemanticComparison::NotEqual,
+                    FloatSemanticComparison::Equal
+                )
+            );
+            if recorded != comparison && !complementary {
                 continue;
             }
             let Some(recorded_left) =
@@ -514,7 +524,10 @@ impl StructuralJudge<'_> {
             let same_order = recorded_left == *left && recorded_right == *right;
             let swapped = recorded_left == *right && recorded_right == *left;
             if same_order || swapped {
-                return Some(true);
+                // Both truth values belong to this completed predicate.
+                // Equality/inequality are complements even for NaN; no
+                // corresponding ordered-comparison inversion is valid.
+                return Some(if complementary { !truth } else { truth });
             }
         }
         None
