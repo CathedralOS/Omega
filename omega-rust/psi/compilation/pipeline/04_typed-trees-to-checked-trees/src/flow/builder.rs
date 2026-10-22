@@ -266,9 +266,10 @@ fn sweep<'plans>(
     }
 }
 
-/// Roster positions grouped by invocations into another machine's non-entry
-/// state, the only value-input edge that leaves a machine. Groups keep roster
-/// order, inside and across groups, so adopted pages publish in that order.
+/// Roster positions grouped by a call into another machine. The callee's entry
+/// reads the caller's selected-case and scalar actuals, so the two machines
+/// share one value-input fixed point. Groups keep roster order, inside and
+/// across groups, so adopted pages publish in that order.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -295,13 +296,40 @@ fn machine_groups(
             continue;
         };
         for call in borrow.calls.span_or_empty(row.calls) {
-            let Some(&(callee, state)) = state_locations.get(&call.target_symbol) else {
+            let Some(callee) = state_locations
+                .get(&call.target_symbol)
+                .map(|(machine, _)| *machine)
+                .or_else(|| program.machine_position_by_symbol(call.target_symbol))
+            else {
                 continue;
             };
-            let entry = super::state_values::entry_state_index(program, &machines[callee]);
-            if callee != caller && entry != Some(state) {
-                let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
-                owner[left.max(right)] = left.min(right);
+            // Entry calls carry selected-case and scalar actuals. A target
+            // family schedules every authored body with the caller, because
+            // each body is checked against those actuals.
+            let mut callees = vec![callee];
+            let machine_symbol = machines[callee].symbol;
+            if let Some(family) = program.target_machine_families.iter().find(|family| {
+                family.canonical == machine_symbol
+                    || family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == machine_symbol)
+            }) {
+                for member in std::iter::once(family.canonical)
+                    .chain(family.members.iter().map(|member| member.machine))
+                {
+                    if let Some(position) = program.machine_position_by_symbol(member) {
+                        if !callees.contains(&position) {
+                            callees.push(position);
+                        }
+                    }
+                }
+            }
+            for callee in callees {
+                if callee != caller {
+                    let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
+                    owner[left.max(right)] = left.min(right);
+                }
             }
         }
     }

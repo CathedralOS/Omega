@@ -1228,6 +1228,18 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     contexts,
                     constraints,
                 );
+                // A callee that returns one constructor installs that case on
+                // this call expression. The binding transport then keeps the
+                // tag; the call is not replayed at the payload projection.
+                if let Some(variant) = returned_constructor_case(self.program, call) {
+                    self.append_constructed_observation(
+                        expression,
+                        &[],
+                        facts::FactPayload::AssignedCase { variant },
+                        contexts,
+                        constraints,
+                    );
+                }
                 // Named-use mutable-operand invalidation and `ensures`
                 // publication run here, at the exact point the call completes,
                 // including calls without an ordinary borrow-call row. A
@@ -1764,5 +1776,67 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             &self.context.contexts.semantic_context_refs,
         );
         self.publish_live_memberships(memberships, evaluated, evaluated_constraints);
+    }
+}
+
+/// The variant every ordinary return of the callee entry constructs directly.
+/// A parameter, a call, or disagreeing arms do not invent a tag.
+fn returned_constructor_case(
+    program: &dyn ::validation::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<symbols::SymbolHandle> {
+    let (callee, state) = validation::find_state(program, call.target_symbol)?;
+    if !callee.body_is_present
+        || program.machine_states(callee).first()?.symbol != state.symbol
+    {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut agreed = None;
+    let mut saw_transition = false;
+    for statement in statements {
+        let Some(transition) = statement.as_transition() else {
+            continue;
+        };
+        saw_transition = true;
+        if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
+            return None;
+        }
+        for target in transition.targets() {
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(target)
+            else {
+                return None;
+            };
+            let variant = constructor_case(program, *value)?;
+            if agreed.is_some_and(|existing| existing != variant) {
+                return None;
+            }
+            agreed = Some(variant);
+        }
+    }
+    if saw_transition {
+        return agreed;
+    }
+    constructor_case(
+        program,
+        *statements.iter().next_back()?.as_expression()?,
+    )
+}
+
+fn constructor_case(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let ExpressionNode::StructLiteral(value) = program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let variant = value.case_symbol.filter(|variant| variant.is_valid())?;
+    let symbol = program.symbols.get(variant);
+    if symbol.kind == symbols::SymbolKind::Variant && symbol.parent == value.type_symbol {
+        Some(variant)
+    } else {
+        None
     }
 }

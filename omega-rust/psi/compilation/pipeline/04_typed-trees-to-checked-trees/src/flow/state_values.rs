@@ -9,6 +9,7 @@ use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
 use facts::ScalarValue;
 use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
+use validation::CanonicalPlace;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
@@ -35,6 +36,23 @@ pub(super) struct StateValues {
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
     entry_paths: crate::facts::boolean_predicates::EntryPaths,
+    /// One predecessor's selected-case and, for an entry call, scalar
+    /// deliveries. Transitions leave `values` empty because `StateValues::values`
+    /// already joined those scalars.
+    argument_edges: Vec<ArgumentEdge>,
+    /// Cases every recorded edge agrees on, keyed by the destination parameter.
+    cases: Vec<(SymbolHandle, SymbolHandle)>,
+}
+
+/// One incoming call or transition edge's argument observations.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ArgumentEdge {
+    source: fields::BoundsSource,
+    cases: Vec<(SymbolHandle, SymbolHandle)>,
+    values: Vec<(SymbolHandle, ScalarValue)>,
+    /// Entry calls carry scalar actuals. Transition edges leave this false so
+    /// their scalar join stays on `StateValues::values`.
+    carries_values: bool,
 }
 
 /// The greatest predicate set this state's incoming edges have ever jointly
@@ -195,6 +213,8 @@ pub(super) fn unknown_inputs(
                         .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                         .collect(),
                     bounds: Vec::new(),
+                    argument_edges: Vec::new(),
+                    cases: Vec::new(),
                 })
         })
         .collect()
@@ -333,7 +353,28 @@ pub(super) fn record_transition(
             qualifications,
             predicates,
             entry_paths,
+            argument_edges: Vec::new(),
+            cases: Vec::new(),
         },
+    );
+    let cases = capture_argument_cases(
+        program,
+        semantic,
+        build,
+        state,
+        destination,
+        statement_index,
+        arguments,
+        contexts,
+    );
+    deliver_argument_edge(
+        program,
+        build,
+        destination,
+        fields::BoundsSource::transition(state.symbol, target),
+        cases,
+        Vec::new(),
+        false,
     );
 }
 
@@ -394,8 +435,357 @@ pub(super) fn record_invocation<'plans>(
                 .iter()
                 .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                 .collect(),
+            argument_edges: Vec::new(),
+            cases: Vec::new(),
         },
     );
+}
+
+/// Selected cases on the call's actuals, and scalar values when the callee
+/// state is its machine entry. Entry calls are not scalar-narrowed by the
+/// invocation join above; this edge records the actuals the callee body reads.
+pub(super) fn record_call_argument_facts<'plans>(
+    program: &'plans dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &mut FlowBuildContext<'plans>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &BorrowCallFact,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+) {
+    let Some(site) = super::calls::memoized_find_call_site(
+        program,
+        build,
+        machine.symbol,
+        state.symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return;
+    };
+    let destinations = call_destinations(program, build, call.target_symbol);
+    if destinations.is_empty() {
+        return;
+    }
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    let source =
+        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
+    for (owner_index, state_index) in destinations {
+        let owner = &program.machines()[owner_index];
+        let destination = &program.machine_states(owner)[state_index];
+        if program.state_parameters(destination).iter().count() != arguments.len() {
+            continue;
+        }
+        let entry =
+            entry_state(program, owner).is_some_and(|entry| entry.symbol == destination.symbol);
+        let cases = capture_argument_cases(
+            program,
+            semantic,
+            build,
+            state,
+            destination,
+            call.statement_index,
+            arguments,
+            contexts,
+        );
+        let values = if entry {
+            capture_entry_scalars(
+                program,
+                semantic,
+                build,
+                state,
+                destination,
+                call.statement_index,
+                arguments,
+                contexts,
+            )
+        } else {
+            Vec::new()
+        };
+        deliver_argument_edge(
+            program,
+            build,
+            destination,
+            source,
+            cases,
+            values,
+            entry,
+        );
+    }
+}
+
+/// The callee state, or every target-family member entry when the call names
+/// one member. Psi checks each authored body, so each body receives the actuals.
+fn call_destinations(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    target_symbol: SymbolHandle,
+) -> Vec<(usize, usize)> {
+    let mut seed = build.state_location(program, target_symbol);
+    if seed.is_none()
+        && let Some(machine) = program.machine_by_symbol(target_symbol)
+        && let Some(entry) = program.machine_states(machine).first()
+    {
+        seed = build.state_location(program, entry.symbol);
+    }
+    let Some((machine_index, state_index)) = seed else {
+        return Vec::new();
+    };
+    let machine_symbol = program.machines()[machine_index].symbol;
+    let Some(family) = program.target_machine_families.iter().find(|family| {
+        family.canonical == machine_symbol
+            || family
+                .members
+                .iter()
+                .any(|member| member.machine == machine_symbol)
+    }) else {
+        return vec![(machine_index, state_index)];
+    };
+    let mut symbols = vec![family.canonical];
+    for member in &family.members {
+        if !symbols.contains(&member.machine) {
+            symbols.push(member.machine);
+        }
+    }
+    let mut locations = Vec::new();
+    for machine_symbol in symbols {
+        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
+            continue;
+        };
+        let Some(entry) = program.machine_states(machine).first() else {
+            continue;
+        };
+        let Some(location) = build.state_location(program, entry.symbol) else {
+            continue;
+        };
+        if !locations.contains(&location) {
+            locations.push(location);
+        }
+    }
+    if locations.is_empty() {
+        vec![(machine_index, state_index)]
+    } else {
+        locations
+    }
+}
+
+fn capture_argument_cases(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &mut FlowBuildContext,
+    state: &typed_trees::state::State,
+    destination: &typed_trees::state::State,
+    statement_index: usize,
+    arguments: &[ExpressionHandle],
+    contexts: HandleSpan<FlowSemanticContextRef>,
+) -> Vec<(SymbolHandle, SymbolHandle)> {
+    let mut subjects = Vec::new();
+    for (parameter, argument) in program
+        .state_parameters(destination)
+        .iter()
+        .zip(arguments.iter().copied())
+    {
+        let place = build.canonical_place_at(program, state.symbol, statement_index, argument);
+        subjects.push((parameter.symbol, place));
+    }
+    let mut cases = Vec::new();
+    for (parameter, place) in subjects {
+        let Some(place) = place else {
+            continue;
+        };
+        let Some(variant) = assigned_case_at(program, semantic, build, contexts, &place) else {
+            continue;
+        };
+        cases.push((parameter, variant));
+    }
+    cases.sort_by_key(|(parameter, variant)| {
+        (
+            parameter.arena_index(),
+            parameter.generation(),
+            variant.arena_index(),
+            variant.generation(),
+        )
+    });
+    cases
+}
+
+fn capture_entry_scalars(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &mut FlowBuildContext,
+    state: &typed_trees::state::State,
+    destination: &typed_trees::state::State,
+    statement_index: usize,
+    arguments: &[ExpressionHandle],
+    contexts: HandleSpan<FlowSemanticContextRef>,
+) -> Vec<(SymbolHandle, ScalarValue)> {
+    let mut values = Vec::new();
+    for (parameter, argument) in program
+        .state_parameters(destination)
+        .iter()
+        .zip(arguments.iter().copied())
+    {
+        let value = build
+            .canonical_place_at(program, state.symbol, statement_index, argument)
+            .and_then(|place| build.scalar_value_at_place(program, semantic, contexts, &place))
+            .unwrap_or_default();
+        values.push((parameter.symbol, value));
+    }
+    values
+}
+
+fn assigned_case_at(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &FlowBuildContext,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+    place: &CanonicalPlace,
+) -> Option<SymbolHandle> {
+    let mut found = None;
+    for fact in crate::flow::active_context_facts(build, semantic, contexts) {
+        let FactPayload::AssignedCase { variant } = fact.payload else {
+            continue;
+        };
+        if !variant.is_valid()
+            || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
+        {
+            continue;
+        }
+        let Some(handle) = fact.place.as_place() else {
+            continue;
+        };
+        let Some(fact_place) = crate::flow::canonical_place_from_semantic_place(
+            program,
+            semantic,
+            semantic.places.get(handle),
+        ) else {
+            continue;
+        };
+        if fact_place != *place {
+            continue;
+        }
+        if found.is_some_and(|existing| existing != variant) {
+            return None;
+        }
+        found = Some(variant);
+    }
+    found
+}
+
+fn deliver_argument_edge(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    destination: &typed_trees::state::State,
+    source: fields::BoundsSource,
+    cases: Vec<(SymbolHandle, SymbolHandle)>,
+    values: Vec<(SymbolHandle, ScalarValue)>,
+    carries_values: bool,
+) {
+    let index = ensure_input_row(program, build, destination);
+    let row = &mut build.state_value_inputs[index];
+    let mut added = false;
+    if let Some(edge) = row
+        .argument_edges
+        .iter_mut()
+        .find(|edge| edge.source == source)
+    {
+        if edge.cases == cases && edge.values == values && edge.carries_values == carries_values {
+            return;
+        }
+        edge.cases = cases;
+        edge.values = values;
+        edge.carries_values = carries_values;
+    } else {
+        row.argument_edges.push(ArgumentEdge {
+            source,
+            cases,
+            values,
+            carries_values,
+        });
+        added = true;
+    }
+    if added {
+        build.new_state_field_input_height =
+            build.new_state_field_input_height.saturating_add(1);
+    }
+    let row = &mut build.state_value_inputs[index];
+    let cases = joined_cases(&row.argument_edges);
+    let mut changed = cases != row.cases;
+    row.cases = cases;
+    if carries_values {
+        if let Some(values) = joined_scalars(&row.argument_edges) {
+            if values != row.values {
+                changed = true;
+                row.values = values;
+            }
+        }
+    }
+    let state = destination.symbol;
+    if changed && !build.dirty_state_value_inputs.contains(&state) {
+        build.dirty_state_value_inputs.push(state);
+    }
+}
+
+fn ensure_input_row(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    destination: &typed_trees::state::State,
+) -> usize {
+    if let Some(index) = build
+        .state_value_inputs
+        .iter()
+        .position(|row| row.state == destination.symbol)
+    {
+        return index;
+    }
+    build.state_value_inputs.push(StateValues {
+        state: destination.symbol,
+        values: program
+            .state_parameters(destination)
+            .iter()
+            .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
+            .collect(),
+        bounds: Vec::new(),
+        fields: Vec::new(),
+        qualifications: Vec::new(),
+        predicates: Vec::new(),
+        entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
+        argument_edges: Vec::new(),
+        cases: Vec::new(),
+    });
+    build.state_value_inputs.len() - 1
+}
+
+fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
+    let Some(first) = edges.first() else {
+        return Vec::new();
+    };
+    first
+        .cases
+        .iter()
+        .copied()
+        .filter(|case| edges.iter().all(|edge| edge.cases.contains(case)))
+        .collect()
+}
+
+fn joined_scalars(edges: &[ArgumentEdge]) -> Option<Vec<(SymbolHandle, ScalarValue)>> {
+    let mut carriers = edges.iter().filter(|edge| edge.carries_values);
+    let first = carriers.next()?;
+    let mut values = first.values.clone();
+    for edge in carriers {
+        for (parameter, value) in &mut values {
+            let next = edge
+                .values
+                .iter()
+                .find(|row| row.0 == *parameter)
+                .map(|row| row.1.clone())
+                .unwrap_or_default();
+            if *value != next {
+                *value = ScalarValue::Unknown;
+            }
+        }
+    }
+    Some(values)
 }
 
 pub(super) fn append_entry_context(
@@ -456,6 +846,17 @@ pub(super) fn append_entry_context(
             FactPlace::Place(place),
             point,
             FactPayload::AssignedIntegerBounds { bounds },
+        );
+        semantic.append_ref(&mut refs, fact);
+        semantic.append_context(point, refs);
+    }
+    for (parameter, variant) in &input.cases {
+        let mut refs = HandleSpan::empty();
+        let place = semantic.append_symbol_place(*parameter);
+        let fact = semantic.append_transfer_at_point(
+            FactPlace::Place(place),
+            point,
+            FactPayload::AssignedCase { variant: *variant },
         );
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);

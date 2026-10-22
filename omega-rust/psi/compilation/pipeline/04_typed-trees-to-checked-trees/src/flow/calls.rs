@@ -46,6 +46,15 @@ pub(super) fn build_call_flow_fact<'plans>(
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
+    super::state_values::record_call_argument_facts(
+        program,
+        semantic,
+        build,
+        machine,
+        state,
+        borrow_call,
+        *active_contexts,
+    );
     let contract_call = proof_contract_call(
         proof,
         machine.symbol,
