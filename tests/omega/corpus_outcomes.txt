@@ -7861,9 +7861,6 @@ fail/memory/bump_allocator_stale_capacity rejected 1147ms expected @11842869af23
 	cannot prove requires contract for call allocate from invalid: 48 == strategy.remaining (needs fact `available == strategy.remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/bump_allocator_truncation_beyond_buffer rejected 10954ms expected @208d6107f46d+wt
 	cannot prove requires contract for call shrink from invalid: 17 <= vec.buffer.length (needs fact `kept <= vec.buffer.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/memory/indexed_resident_bodyless_handback rejected 1707ms expected @226fbdd49549+wt
-	cannot prove requires contract for call read from exercise: storage.resident in Resident<type:named(name(First))> (invalidated by prior mutation of storage; storage.resident is part of Resident) in state `entry`
-	cannot prove default-domain field requirement for return from exercise at statement 2: storage.resident requires Resident
 fail/memory/indexed_resident_corrupt_handback rejected 1677ms expected @226fbdd49549+wt
 	cannot prove default-domain field requirement for return from corrupt at statement 1: storage.resident requires Resident
 	construction value is not proven in domain `Resident` in corrupt state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance

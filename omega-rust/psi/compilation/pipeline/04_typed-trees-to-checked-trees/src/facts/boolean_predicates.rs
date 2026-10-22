@@ -468,13 +468,15 @@ pub(crate) fn retained(
     point: ProgramPoint,
 ) -> Vec<BoundPredicate> {
     let mut rows = Vec::new();
+    let mut availability =
+        availability::CasePremiseAvailability::new(program, semantic, contexts, point);
     for context in contexts {
         for fact in semantic
             .context_view(semantic.contexts.get(*context))
             .facts()
         {
             if let Some(predicate_rows) =
-                domain_predicates(program, operators, semantic, contexts, point, fact)
+                domain_predicates(program, operators, semantic, fact, &mut availability)
             {
                 for row in predicate_rows {
                     if !rows.contains(&row) {
@@ -540,9 +542,8 @@ fn domain_predicates(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
-    contexts: &[FactContextHandle],
-    point: ProgramPoint,
     fact: &facts::Fact,
+    availability: &mut availability::CasePremiseAvailability<'_>,
 ) -> Option<Vec<BoundPredicate>> {
     let (_, _, symbol, identity) = fact.payload.domain_membership()?;
     let domain = program.domain_definition(symbol)?;
@@ -555,10 +556,14 @@ fn domain_predicates(
         semantic,
         semantic.places.get(place),
     )?;
-    if !case_premise_is_available(program, semantic, contexts, point, &subject) {
+    // Preparing a candidate is not introducing it. Predicate-free custody tags
+    // and unsupported declaration shapes contribute nothing here; do not scan
+    // every live fact to prove a case merely to return an empty premise set.
+    let predicates = domain_predicates_for_subject(program, operators, domain, &subject)?;
+    if !predicates.is_empty() && !availability.proves(&subject) {
         return None;
     }
-    domain_predicates_for_subject(program, operators, domain, &subject)
+    Some(predicates)
 }
 
 /// Bind a domain's predicates to an independently selected live subject.

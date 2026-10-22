@@ -16,6 +16,59 @@ pub(crate) fn boolean_value_at_place(
     point: ProgramPoint,
     actual: &CanonicalPlace,
 ) -> Option<bool> {
+    // This query observes a Boolean value, not the truth of an arbitrary
+    // predicate about a place. Whole aggregate transfers visit many numeric
+    // and authority fields; rebuilding every retained Boolean predicate for
+    // each non-Boolean field makes that transport quadratic in its fact set.
+    // Unknown types retain the full judgment; a known different carrier cannot
+    // have a Boolean value, regardless of which facts mention its storage.
+    let scope = match point {
+        ProgramPoint::State { state_symbol, .. } => Some((state_symbol, 0)),
+        ProgramPoint::Statement {
+            state_symbol,
+            statement_index,
+            ..
+        }
+        | ProgramPoint::Call {
+            state_symbol,
+            statement_index,
+            ..
+        }
+        | ProgramPoint::CallRequires {
+            state_symbol,
+            statement_index,
+            ..
+        }
+        | ProgramPoint::CallEnsures {
+            state_symbol,
+            statement_index,
+            ..
+        }
+        | ProgramPoint::TransitionArm {
+            state_symbol,
+            statement_index,
+            ..
+        }
+        | ProgramPoint::Exit {
+            state_symbol,
+            statement_index,
+            ..
+        } => Some((state_symbol, statement_index)),
+        _ => None,
+    };
+    if let Some(reference) = scope
+        .and_then(|(state, statement)| {
+            validation::canonical_place_type_reference(program, state, statement, actual)
+        })
+        .and_then(|reference| {
+            validation::field_domains::readable_type_reference(program, reference)
+        })
+        && program
+            .primitive_type_reference(reference)
+            .is_some_and(|primitive| primitive != typed_trees::types::PrimitiveType::Bool)
+    {
+        return None;
+    }
     if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
         return Some(value);
     }

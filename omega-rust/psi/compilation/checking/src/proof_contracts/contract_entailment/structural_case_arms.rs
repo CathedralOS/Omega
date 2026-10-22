@@ -399,17 +399,40 @@ fn recognize_structural_state_leaves_from<'a>(
     let judge = &mut path_judge;
 
     let result = (|| {
+        // Assembly headers and labels carry control metadata; their ordinary
+        // lowered instructions own the effects. Follow the shared finite
+        // execution order, not lexical windows that may be skipped or reordered.
+        // Resume and observation coordinates remain original source ordinals.
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let execution = program
+            .statement_table
+            .finite_execution_order(state.statement_nodes)
+            .ok()??;
+        let position = |source| {
+            if source == statements.len() {
+                Some(execution.len())
+            } else {
+                execution.iter().position(|candidate| *candidate == source)
+            }
+        };
+        let start_position = position(start_index)?;
+        let observation_position = match requirement.as_deref() {
+            Some(requirement) if requirement.site().state == state.symbol => {
+                Some(position(requirement.site().statement_index)?)
+            }
+            _ => None,
+        };
         let mut transitions = Vec::new();
         let mut saw_transition = false;
-        for (statement_index, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-            .filter(|(statement_index, _)| *statement_index >= start_index)
+        for (execution_position, statement_index) in
+            execution.iter().copied().enumerate().skip(start_position)
         {
-            if requirement.as_deref().is_some_and(|requirement| {
-                requirement.site().state == state.symbol
-                    && statement_index > requirement.site().statement_index
-            }) {
+            let statement = &statements[statement_index];
+            let next_statement = execution
+                .get(execution_position + 1)
+                .copied()
+                .unwrap_or(statements.len());
+            if observation_position.is_some_and(|observation| execution_position > observation) {
                 break;
             }
             if is_arm_pattern_marker(statement) {
@@ -589,7 +612,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             fresh,
                             requirement,
                             established_guarantees.clone(),
-                            statement_index + 1,
+                            next_statement,
                         )?);
                     }
                     return Some(leaves);
@@ -624,17 +647,13 @@ fn recognize_structural_state_leaves_from<'a>(
                             fresh,
                             requirement,
                             established_guarantees.clone(),
-                            statement_index + 1,
+                            next_statement,
                         )?);
                     }
                     return Some(leaves);
                 }
                 StatementNode::Expression(expression) if !saw_transition => {
-                    let is_tail = statement_index + 1
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len();
+                    let is_tail = execution_position + 1 == execution.len();
                     let result_type = if is_tail {
                         state.return_type
                     } else {
@@ -692,7 +711,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 fresh,
                                 requirement,
                                 established_guarantees.clone(),
-                                statement_index + 1,
+                                next_statement,
                             )?);
                         }
                     }
@@ -739,6 +758,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     transitions.push((statement_index, transition));
                 }
+                // Assertions have their own checked obligations; ignoring an
+                // assertion here cannot introduce its conclusion as a premise.
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) if !saw_transition => {}
                 _ => return None,
             }
         }

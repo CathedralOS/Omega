@@ -323,6 +323,10 @@ pub(crate) fn resolved_call_result_type(
         return slot.return_type.is_valid().then_some(slot.return_type);
     }
     requirement_call_result_type(program, call.target_symbol)
+        // Catalog observations have no authored signature, but their result
+        // carrier is still exact. Every expression consumer shares the same
+        // declaration-authenticated instruction result as direct call queries.
+        .or_else(|| topology::asm_intrinsic_result_type(program, call.target_symbol))
 }
 
 /// The authored contract a call's operands answer to: a machine's entry

@@ -615,10 +615,10 @@ fn call_parameter_qualification_join(
         .iter()
         .enumerate()
         .find_map(|(position, parameter)| {
-            // Both authored ensures and declared exclusive-referent fields are
-            // normal-return obligations of a checked body. The latter must be
-            // proved from live membership at every exit; they are propagation,
-            // not permission for a bodyless boundary to introduce authority.
+            // Authored ensures and declared exclusive-referent fields both
+            // describe normal-return obligations. A checked body proves them
+            // at its exits. A bodyless handback must additionally join the
+            // exact pre-live membership below; its type alone cannot issue it.
             let mut promised_paths = Vec::new();
             if identities
                 .iter()
@@ -635,7 +635,7 @@ fn call_parameter_qualification_join(
                 program,
                 parameter.type_reference,
             );
-            if checked_body && referent.is_valid() {
+            if referent.is_valid() {
                 promised_paths.extend(
                     validation::field_domains::declared_result_field_domain_paths(
                         program, referent,

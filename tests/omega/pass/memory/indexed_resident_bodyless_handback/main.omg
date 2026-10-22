@@ -1,4 +1,5 @@
-// A bodyless boundary cannot reissue a routed field from its carrier declaration.
+// Normal exclusive handback restores this exact pre-live applied field domain.
+// This forwards existing membership; it does not issue a fresh resident.
 data First {}
 data Slot { value: u64; }
 domain<P> Slot::Resident<P> established by initialize;

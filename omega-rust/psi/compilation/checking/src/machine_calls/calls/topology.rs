@@ -349,7 +349,7 @@ pub fn call_target_return_type(
 /// which own no state, machine-parameter, or trait row to rejoin above. The
 /// atom lookup keeps this a read over seeded symbols — a package cannot supply
 /// a substitute signature for an unnameable intrinsic.
-fn asm_intrinsic_result_type(
+pub(super) fn asm_intrinsic_result_type(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {

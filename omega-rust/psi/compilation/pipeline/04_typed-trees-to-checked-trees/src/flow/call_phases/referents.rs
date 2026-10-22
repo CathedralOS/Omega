@@ -108,15 +108,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .clone()
             .unwrap_or_default();
         let mut paths = paths.as_ref().clone();
-        // A bodyless boundary still needs its admitted authored guarantee for
-        // routed output authority. A field declaration alone cannot grant it.
-        if !validation::find_state(program, borrow_call.target_symbol)
-            .is_some_and(|(machine, _)| machine.body_is_present)
-        {
-            paths.retain(|(_, domain, _)| {
-                crate::checks::contracts::value_provable_domain(program, *domain)
-            });
-        }
+        let body_is_present = validation::find_state(program, borrow_call.target_symbol)
+            .is_some_and(|(machine, _)| machine.body_is_present);
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
@@ -146,10 +139,74 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         // origins go through the shared all-writers preservation judgment.
         for storage in targets {
             for (path, domain_symbol, semantic_domain) in paths.iter() {
-                if let Some(place) = crate::flow::project_captured_view_place(storage.clone(), path)
+                let authored_guarantee = path.is_empty()
+                    && parameter_claims
+                        .iter()
+                        .flat_map(|claims| claims.iter())
+                        .any(|(position, domain, identity, declared)| {
+                            *position == argument_position
+                                && !declared
+                                && *domain == *domain_symbol
+                                && *identity == *semantic_domain
+                        });
+                // An additional input-domain constraint is not a boundary's
+                // output promise. Authored guarantees must still be published
+                // provisionally: the call-result authority check validates
+                // them, and omitting their row would omit that obligation.
+                if !body_is_present
+                    && path.is_empty()
+                    && !authored_guarantee
+                    && !crate::checks::contracts::value_provable_domain(program, *domain_symbol)
                 {
-                    guarantees.push((parameter.symbol, place, *domain_symbol, *semantic_domain));
+                    continue;
                 }
+                let Some(place) = crate::flow::project_captured_view_place(storage.clone(), path)
+                else {
+                    continue;
+                };
+                // A boundary's declared field contract restores an existing
+                // input qualification, but cannot mint routed output authority.
+                // Require that exact applied domain on this captured actual
+                // before invocation. A neighbor, another index, or a merely
+                // equal carrier supplies no provenance for this handback.
+                if !body_is_present
+                    && !authored_guarantee
+                    && !crate::checks::contracts::value_provable_domain(program, *domain_symbol)
+                    && !build
+                        .contexts
+                        .semantic_context_refs
+                        .span_or_empty(pre_contexts)
+                        .iter()
+                        .any(|reference| {
+                            semantic
+                                .context_view(semantic.contexts.get(reference.context))
+                                .facts()
+                                .any(|fact| {
+                                    let Some((_, _, domain, identity)) =
+                                        fact.payload.domain_membership()
+                                    else {
+                                        return false;
+                                    };
+                                    if domain != *domain_symbol || identity != *semantic_domain {
+                                        return false;
+                                    }
+                                    fact.place
+                                        .as_place()
+                                        .and_then(|source| {
+                                            crate::flow::canonical_place_from_semantic_place(
+                                                program,
+                                                semantic,
+                                                semantic.places.get(source),
+                                            )
+                                        })
+                                        .as_ref()
+                                        == Some(&place)
+                                })
+                        })
+                {
+                    continue;
+                }
+                guarantees.push((parameter.symbol, place, *domain_symbol, *semantic_domain));
                 if targets.len() > 1 {
                     // Alternative origins need the all-writers preservation
                     // judgment below, not independent unconditional facts.

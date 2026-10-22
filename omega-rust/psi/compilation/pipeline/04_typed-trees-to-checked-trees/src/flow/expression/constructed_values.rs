@@ -276,6 +276,14 @@ impl Execution<'_, '_, '_> {
                     {
                         continue;
                     }
+                    let mut path = destination.to_vec();
+                    path.extend_from_slice(relative);
+                    // The first established observation already won this exact
+                    // destination below. Re-querying duplicate source facts can
+                    // neither change that result nor contribute more evidence.
+                    if values.iter().any(|(existing, _)| *existing == path) {
+                        continue;
+                    }
                     if !crate::flow::place_cases_are_selected(
                         self.program,
                         self.semantic,
@@ -322,11 +330,7 @@ impl Execution<'_, '_, '_> {
                     let Some(value) = value else {
                         continue;
                     };
-                    let mut path = destination.to_vec();
-                    path.extend_from_slice(relative);
-                    if !values.iter().any(|(existing, _)| *existing == path) {
-                        values.push((path, value));
-                    }
+                    values.push((path, value));
                 }
             }
         }
