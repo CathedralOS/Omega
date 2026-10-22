@@ -317,6 +317,29 @@ fn parameters(
     mapping
 }
 
+/// A register version's recorded initializer preserves the exact premise that
+/// produced the value (`sub` records the decreased register). Passing that
+/// expression across an edge re-reads its operands at the edge: when one of
+/// them is a place the same edge also passes as a mutable capture, the edge
+/// would hold one place both mutably and read-only, and the register's snapshot
+/// would be re-read after the place's write instead of preserved. The immutable
+/// register version is the snapshot itself, so an initializer that reads a
+/// mutable capture yields that version.
+fn rereads_mutable_capture(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    mutable_captures: &[SymbolHandle],
+) -> bool {
+    let mut expressions = Vec::new();
+    validation::expression_traversal::collect_expression_tree(program, value, &mut expressions);
+    expressions.iter().any(|expression| {
+        matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Name(path) if mutable_captures.contains(&path.head_symbol)
+        )
+    })
+}
+
 fn target(
     program: &mut TypedTrees,
     symbol: SymbolHandle,
@@ -325,6 +348,12 @@ fn target(
     mapping: &[(SymbolHandle, SymbolHandle)],
     instructions: &[StatementNode],
 ) -> typed_trees::statement::TransitionTargetHandle {
+    let mutable_captures: Vec<_> = bindings
+        .iter()
+        .zip(mapping)
+        .filter(|(binding, _)| binding.access == Some(language_core::ReferenceAccess::Mutable))
+        .map(|(_, (_, symbol))| *symbol)
+        .collect();
     let arguments: Vec<_> = bindings
         .iter()
         .zip(mapping)
@@ -337,7 +366,9 @@ fn target(
                 }
                 _ => None,
             });
-            recorded.unwrap_or_else(|| name(program, *symbol))
+            recorded
+                .filter(|value| !rereads_mutable_capture(program, *value, &mutable_captures))
+                .unwrap_or_else(|| name(program, *symbol))
         })
         .collect();
     let arguments = program.statement_table.insert_expression_handles(arguments);
