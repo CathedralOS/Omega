@@ -22,6 +22,8 @@ pub(super) fn contract_application_roots(program: &TypedTrees) -> Vec<AppliedTra
         roots: Vec::new(),
         seen: Vec::new(),
         active: Vec::new(),
+        field_inventories: Vec::new(),
+        field_references: Vec::new(),
     };
     for occurrence in crate::references::collect_program_type_occurrences(program) {
         discovery.visit(
@@ -40,6 +42,12 @@ struct SourceFields<'program> {
     roots: Vec<AppliedTraitScope<'program>>,
     seen: Vec<Vec<(SymbolHandle, TypeReferenceHandle, Vec<TypeReferenceHandle>)>>,
     active: Vec<(SymbolHandle, usize)>,
+    // Query-local construction storage over one immutable program. A symbol
+    // resolves to the same original declaration throughout this discovery;
+    // its generation remains part of the key. Application-specific frames,
+    // substitutions and recursion checks never enter this inventory.
+    field_inventories: Vec<(SymbolHandle, std::ops::Range<usize>)>,
+    field_references: Vec<TypeReferenceHandle>,
 }
 
 impl SourceFields<'_> {
@@ -184,11 +192,34 @@ impl SourceFields<'_> {
                 .map(|(parameter, argument)| (parameter.symbol, *argument)),
         );
 
+        let fields = self.field_inventory(application.declaration);
+        self.active
+            .push((application.declaration.symbol, starts.len()));
+        for position in fields {
+            let field = self.field_references[position];
+            self.visit(owner, field, &frames, &substitutions, &starts);
+        }
+        self.active.pop();
+    }
+
+    fn field_inventory(
+        &mut self,
+        declaration: &crate::data::DataDefinition,
+    ) -> std::ops::Range<usize> {
+        let slot = declaration.symbol.arena_index() as usize;
+        if self.field_inventories.len() <= slot {
+            self.field_inventories
+                .resize_with(slot + 1, || (SymbolHandle::invalid(), 0..0));
+        }
+        let (symbol, fields) = &self.field_inventories[slot];
+        if *symbol == declaration.symbol {
+            return fields.clone();
+        }
         let mut fields = FieldTypes {
             program: self.program,
             references: Vec::new(),
         };
-        for member in self.program.data_members(application.declaration) {
+        for member in self.program.data_members(declaration) {
             match member {
                 DataMember::Field(field) => crate::references::visit_type_reference(
                     self.program,
@@ -206,12 +237,14 @@ impl SourceFields<'_> {
                 }
             }
         }
-        self.active
-            .push((application.declaration.symbol, starts.len()));
-        for field in fields.references {
-            self.visit(owner, field, &frames, &substitutions, &starts);
-        }
-        self.active.pop();
+        // Keep the collector's order and deduplication. Recursive visits may
+        // append other inventories, so callers copy handles by position rather
+        // than borrowing a slice across the next visit.
+        let start = self.field_references.len();
+        self.field_references.extend(fields.references);
+        let span = start..self.field_references.len();
+        self.field_inventories[slot] = (declaration.symbol, span.clone());
+        span
     }
 }
 

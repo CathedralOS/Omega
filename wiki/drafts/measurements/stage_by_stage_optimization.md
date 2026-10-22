@@ -430,3 +430,16 @@ these integrated observations separate from the original producer batch.
 - **Measured A/B (5 interleaved runs, medians, base `794b4cd9f7e`):** `build_flow_facts` **`175.8 -> 40.9 ms`**; flow states visited `976 -> 397`; `Stage 05` `677.6 -> 551.0 ms`; total `899.9 -> 768.5 ms`.
 - **Corpus Gate Verification:** `python tools/corpus_gate.py --compare 794b4cd9f7e --filter "calls/,host/,arithmetic/,ranges/,borrow/,borrows/,ownership/,drops/,contracts/,control_flow/,layouts/,length_through_,facts/length"`: `2,682` fixtures, `0 lost, 0 gained` after the two `layouts/` fixtures that timed out under `24` jobs re-ran alone (`0 lost`). The groups holding Iteration 15's `15` divergent fixtures (`calls/`, `host/`) keep identical outcomes.
 - **Decision:** Retained.
+
+## Query-local declaration field inventories — 2026-10-21
+
+At `1f5fd5361e1`, source-contract discovery rebuilt declaration field lists
+61,951 times on `facts/length/local`. Retaining each immutable declaration's
+ordered handles inside one discovery query reduces that to 1,253 lists and
+381,936→5,417 field-node visits, while retaining every contextual traversal.
+Two lower-variance paired batches show small median compile-time reductions;
+the final three-program batch measures 0.93–1.53%. The intervening noisier batch
+is retained as inconclusive. All emitted native images are byte-identical,
+1,053 source-check outcomes/diagnostics are unchanged, and 21 native/Terminal
+cases agree at exit 0. Existing failures and host/tail limitations remain explicit.
+[Mechanism, raw comparisons, measurements and replay](compiler_throughput_2026_10_21/README.md).
