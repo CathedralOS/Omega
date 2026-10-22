@@ -385,6 +385,7 @@ mod tests {
                     source: text.clone(),
                     origin: Some(SourceOrigin::Toolchain),
                     root_items: Vec::new(),
+                    import_root_range: 0..0,
                     scope,
                 }),
         );

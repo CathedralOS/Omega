@@ -66,7 +66,11 @@ pub(crate) fn discover_imports(
 
     for parsed_source in parsed_sources {
         let source_root = standalone_source_root(&root_dir, &parsed_source.path)?;
-        for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
+        for (offset, root_item) in parsed_source.root_items[parsed_source.import_root_range.clone()]
+            .iter()
+            .enumerate()
+        {
+            let ordinal = parsed_source.import_root_range.start + offset;
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
                 if is_bundled_omega_path(members)
@@ -183,7 +187,11 @@ pub(crate) fn discover_package_imports(
             generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
-        for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
+        for (offset, root_item) in parsed_source.root_items[parsed_source.import_root_range.clone()]
+            .iter()
+            .enumerate()
+        {
+            let ordinal = parsed_source.import_root_range.start + offset;
             let Item::Use(use_item) = syntax_trees.root_item(*root_item) else {
                 continue;
             };

@@ -7,7 +7,7 @@ use arena::{Arena, ConcurrentPagedArena, Handle, SealedPagedArena};
 use diagnostics::Diagnostic;
 use rayon::prelude::*;
 use source::{SourceId, SourcePosition};
-use syntax_trees::{ParsedSource, ParsedSources, SyntaxTrees, item::ItemHandle};
+use syntax_trees::{ParsedRootItems, ParsedSource, ParsedSources, SyntaxTrees, item::Item};
 use tokens::{LexedSources, Token};
 
 /// Parse an ordered token batch into the caller's syntax arena, retaining
@@ -41,7 +41,8 @@ pub fn parse_sources(
             path: lexed_source.path.clone(),
             source: lexed_source.source.clone(),
             origin: lexed_source.origin,
-            root_items,
+            root_items: root_items.items,
+            import_root_range: root_items.import_range,
             scope: lexed_source.scope,
         });
     }
@@ -241,7 +242,8 @@ fn parse_source_page(
             path: lexed_source.path.clone(),
             source: lexed_source.source.clone(),
             origin: lexed_source.origin,
-            root_items,
+            root_items: root_items.items,
+            import_root_range: root_items.import_range,
             scope: lexed_source.scope,
         });
     }
@@ -252,7 +254,7 @@ fn parse_source_page(
 }
 
 /// Parses one source into the caller's arena and returns that source's root
-/// item handles. Top-level `let`/`boundary let` declarations land on
+/// item handles and import bounds. Top-level `let`/`boundary let` declarations land on
 /// `SyntaxTreeRoots::mathematical_definitions` instead — they are not items —
 /// so they do not appear in the returned list. Existing roots retain their
 /// identities. On error, the arena retains the parsed prefix.
@@ -260,14 +262,20 @@ pub fn parse(
     syntax_trees: &mut SyntaxTrees,
     source_id: SourceId,
     tokens: &[Token<'_>],
-) -> Result<Vec<ItemHandle>, ParseError> {
+) -> Result<ParsedRootItems, ParseError> {
     let mut input = Input::new(source_id, tokens);
-    let mut root_items = Vec::new();
+    let mut roots = ParsedRootItems::default();
     while !input.tokens.is_empty() {
         let (declaration, rest) = parse_item(syntax_trees, input)?;
         match declaration {
             ParsedDeclaration::Item(item) => {
-                root_items.push(syntax_trees.push_root_item(item));
+                if matches!(item, Item::Use(_)) {
+                    if roots.import_range.is_empty() {
+                        roots.import_range.start = roots.items.len();
+                    }
+                    roots.import_range.end = roots.items.len() + 1;
+                }
+                roots.items.push(syntax_trees.push_root_item(item));
             }
             ParsedDeclaration::Mathematical(definition) => {
                 syntax_trees.push_root_mathematical_definition(definition);
@@ -276,7 +284,7 @@ pub fn parse(
         input = rest;
     }
 
-    Ok(root_items)
+    Ok(roots)
 }
 
 /// Creates a syntax arena for an anonymous source and parses its tokens.

@@ -18,5 +18,5 @@ pub use syntax_trees::values::expression;
 
 pub use language_core::operator_spelling;
 pub use snapshot::SyntaxTreesSnapshot;
-pub use syntax_trees::source_files::{ParsedSource, ParsedSources};
+pub use syntax_trees::source_files::{ParsedRootItems, ParsedSource, ParsedSources};
 pub use syntax_trees::{SyntaxTreeRoots, SyntaxTreeTables, SyntaxTrees};

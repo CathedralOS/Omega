@@ -23,7 +23,9 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
     let first_tokens = Lexer::new("data First {} /* trailing trivia */")
         .tokenize()
         .unwrap();
-    let first = parse(&mut trees, SourceId(11), &first_tokens).unwrap();
+    let first = parse(&mut trees, SourceId(11), &first_tokens)
+        .unwrap()
+        .items;
     let original = trees.root_item(first[0]).clone();
     let lexed = lexed_source(SourceId(22), "second.omg", "data Second {} data Third {}");
     let backing = lexed.sources.span_or_empty(lexed.batch)[0].source.clone();
@@ -49,7 +51,12 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
         assert_eq!(data.name.source_span().source_id, expected_source);
     }
     let trivia = Lexer::new(" // no declarations\n ").tokenize().unwrap();
-    assert!(parse(&mut trees, SourceId(33), &trivia).unwrap().is_empty());
+    assert!(
+        parse(&mut trees, SourceId(33), &trivia)
+            .unwrap()
+            .items
+            .is_empty()
+    );
     assert_eq!(trees.root_item_count(), 3);
     let empty = parse_sources(tokens::LexedSources::default(), &mut trees).unwrap();
     assert!(empty.sources.span_or_empty(empty.batch).is_empty());
@@ -65,7 +72,7 @@ fn parser_retains_one_worker_page_identity_through_nested_handles() {
             .tokenize()
             .unwrap();
     let mut trees = SyntaxTrees::new_with_generation(source_id, PAGE_IDENTITY);
-    let roots = parse(&mut trees, source_id, &tokens).unwrap();
+    let roots = parse(&mut trees, source_id, &tokens).unwrap().items;
 
     assert_eq!(roots.len(), 1);
     assert_eq!(roots[0].generation(), PAGE_IDENTITY);
@@ -171,4 +178,52 @@ fn rejection_preserves_the_parsed_prefix_and_reports_the_current_source() {
     };
     assert_eq!(data.name.as_str(), "Another");
     assert_eq!(data.name.source_span().source_id, SourceId(33));
+}
+
+#[test]
+fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
+    let cases = [
+        ("", 0..0, vec![]),
+        ("data Only {}", 0..0, vec![]),
+        ("use alpha; data Tail {}", 0..1, vec![0]),
+        ("data Head {} use alpha;", 1..2, vec![1]),
+        (
+            "data Head {} use alpha; let pi(): core::Real = term; data Middle {} use beta; data Tail {}",
+            1..4,
+            vec![1, 3],
+        ),
+    ];
+    for (text, expected_range, expected_ordinals) in cases {
+        let mut trees = SyntaxTrees::default();
+        let parsed =
+            parse_sources(lexed_source(SourceId(27), "imports.omg", text), &mut trees).unwrap();
+        let source = &parsed.sources.span_or_empty(parsed.batch)[0];
+        assert_eq!(source.import_root_range, expected_range);
+        let actual = source.root_items[source.import_root_range.clone()]
+            .iter()
+            .enumerate()
+            .filter_map(|(offset, root)| {
+                matches!(trees.root_item(*root), Item::Use(_))
+                    .then_some(source.import_root_range.start + offset)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected_ordinals);
+
+        let pages =
+            crate::parse_source_units(lexed_source(SourceId(27), "imports.omg", text)).unwrap();
+        let source = pages.sources()[0].source();
+        assert_eq!(source.import_root_range, expected_range);
+        let actual = source.root_items[source.import_root_range.clone()]
+            .iter()
+            .enumerate()
+            .filter_map(|(offset, root)| {
+                matches!(
+                    pages.syntax_for(*root).unwrap().root_item(*root),
+                    Item::Use(_)
+                )
+                .then_some(source.import_root_range.start + offset)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected_ordinals);
+    }
 }
