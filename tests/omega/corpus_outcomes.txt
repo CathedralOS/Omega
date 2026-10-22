@@ -2521,39 +2521,27 @@ fail/facts/call_result_bound_discharge_through_target_body_rejected rejected 100
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 	cannot prove requires contract for call take from Main::main: s <= 5 (needs fact `scale <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/facts/callee_saved_across_nested_calls_unproved_call_result rejected 4531ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_call_result rejected 4442ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_const_name rejected 4613ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_const_name rejected 2600ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_field rejected 4631ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_field rejected 3480ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_local rejected 4548ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_local rejected 2045ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_match_join rejected 4552ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_match_join rejected 1878ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_other_machine rejected 4658ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_other_machine rejected 2065ms expected @9ff26a870215+wt
 	exact arithmetic in machine `verify_target` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_other_state rejected 4576ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_other_state rejected 2136ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `execute` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `execute` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_parameter rejected 4600ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_parameter rejected 2238ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/callee_saved_across_nested_calls_unproved_target_body rejected 4603ms expected @f0f142c66984
+fail/facts/callee_saved_across_nested_calls_unproved_target_body rejected 2188ms expected @9ff26a870215+wt
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/captured_scalar_is_not_current_storage rejected 557ms expected @8a884ecc43d5+wt
 	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/case_const_unequal_literals_subtraction_rejected rejected 445ms expected @e0ddeec45d6b+wt
@@ -2581,6 +2569,24 @@ fail/facts/case_equality_through_target_body_compile rejected 2951ms expected @3
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_payload_layout_geometry_unproved_call_result rejected 6760ms expected @9ff26a870215+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_const_name rejected 7040ms expected @9ff26a870215+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_field rejected 7317ms expected @9ff26a870215+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_local rejected 7183ms expected @9ff26a870215+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_match_join rejected 7180ms expected @9ff26a870215+wt
+	machine `main` state `entry` local `geometry`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_other_machine rejected 7115ms expected @9ff26a870215+wt
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_other_state rejected 6967ms expected @9ff26a870215+wt
+	machine `main` state `step` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_parameter rejected 6817ms expected @9ff26a870215+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_layout_geometry_unproved_target_body rejected 7855ms expected @9ff26a870215+wt
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
 fail/facts/case_payload_transport_through_call_result_rejected rejected 3562ms expected @45cbafd80d9c
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
 fail/facts/case_payload_transport_through_const_name_rejected rejected 3518ms expected @45cbafd80d9c
@@ -11525,6 +11531,15 @@ pass/facts/call_result_bound_discharge_through_other_machine_exit checked 7669ms
 pass/facts/call_result_bound_discharge_through_other_state_exit checked 7506ms check-target:macos_arm64 @ca0e7bed5361
 pass/facts/call_result_bound_discharge_through_parameter_exit checked 7505ms check-target:macos_arm64 @ca0e7bed5361
 pass/facts/call_result_bound_discharge_through_target_body_exit checked 7690ms check-target:macos_arm64 @ca0e7bed5361
+pass/facts/callee_saved_across_nested_calls_through_call_result_exit checked 9202ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_const_name_exit checked 8467ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_field_exit checked 7693ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_local_exit checked 9032ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_match_join_exit checked 9999ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 9404ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 8970ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 9360ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 7819ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/case_const_equal_literals_with_predicate checked 1243ms @af17919d299f
 pass/facts/case_const_equal_literals_without_predicate checked 1506ms @e0ddeec45d6b+wt
 pass/facts/case_const_forwarded_binder_compile checked 1313ms @af17919d299f
@@ -11537,6 +11552,15 @@ pass/facts/case_equality_through_other_machine_compile checked 22067ms @39840d33
 pass/facts/case_equality_through_other_state_compile checked 20944ms @39840d33bf1c
 pass/facts/case_equality_through_parameter_compile checked 20918ms @39840d33bf1c
 pass/facts/case_equality_through_target_body_compile checked 16930ms @39840d33bf1c
+pass/facts/case_payload_layout_geometry_through_call_result_exit checked 9181ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_const_name_exit checked 8085ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_field_exit checked 8384ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_local_exit checked 7750ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_match_join_exit checked 7609ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_other_machine_exit checked 10343ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_other_state_exit checked 9668ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_parameter_exit checked 7492ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_layout_geometry_through_target_body_exit checked 10740ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/case_payload_transport_through_call_result_exit checked 8032ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/case_payload_transport_through_const_name_exit checked 8027ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/case_payload_transport_through_field_exit checked 8026ms check-target:macos_arm64 @45cbafd80d9c

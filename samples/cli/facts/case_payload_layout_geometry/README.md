@@ -75,6 +75,22 @@ carries its own `expected_native_exit.txt` (`0`); each twin authors both
 variant — `Payload(value: u64)` against payloadless `Other` — never in a caller
 guard.
 
+### Pin re-verification (`9ff26a870215`, 2026-10-22)
+
+Producer: `factsr1-producer` `target/debug/omega` built at `9ff26a870215`,
+macOS arm64. Commands and numbers:
+
+| Command | Result |
+| --- | --- |
+| `omega run --both` on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
+| `omega --check <place>/invalid/main.omg` (9 twins) | 9/9 reject, exit 1, `bounds [-4, -4] lie outside [0, 18446744073709551615]` |
+| `omega --check tests/omega/fail/facts/case_payload_layout_geometry_unproved_<place>/main.omg` (9 fixture twins) | 9/9 reject, exit 1, same fragment |
+
+Each of the nine pinned positives and nine pinned twins shares its program body
+with its sample-side source (`<place>/main.omg`) or invalid twin
+(`<place>/invalid/main.omg`); the fixture copies differ only in their
+fact-sentence header comments.
+
 Full 8-layer specification and lowering evidence:
 
 - **Establishment:** Compile-time layout queries `size_of<Packet>()` and `align_of<Packet>()` evaluate the layout geometry of the tagged sum type `data Packet { case Empty; case Payload(value: u64); }`. The type comprises a discriminant tag field followed by the alignment-padded variant payload `value: u64` (alignment 8 bytes, size 16 bytes). The compiler proves the exact invariant `size == 16u64` and `align == 8u64`, statically establishing that `size >= align * 2u64` and discharging exact subtraction `size - (align * 2u64)` without runtime trapping or defensive caller guards.
