@@ -11,13 +11,31 @@ data Main {
     pixels: [i32; 4];
     info: [i32; 11];
 }
-machine acquire(window: u64) -> u64 reaches WindowsGuiHost {
+machine acquire(window: u64) -> u64 reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit {
     WindowsGuiHost::get_dc(window)
 }
-machine draw(device: u64, pixels: &[i32; 4], info: &[i32; 11]) -> i32 reaches WindowsGuiHost {
+machine draw(device: u64, pixels: &[i32; 4], info: &[i32; 11]) -> i32 reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit {
     WindowsGuiHost::stretch_dibits(device, 0, 0, 173, 147, 0, 0, 2, 2, &pixels[0], &info[0], 0, 13369376)
 }
-machine Main::main(main: &mut Main) reaches Console + WindowsGuiHost {
+machine Main::main(main: &mut Main) reaches
+    Console + NativeCodeExecution + WindowManagement +
+    SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+    GlobalInputObservation + ClockObservation + ExecutionDelay +
+    FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery +
+    FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation +
+    ProcessInput + ProcessOutput + ProcessExit {
     main.window = WindowsGuiHost::window_create_client("STATIC\0", "bitmap control\0", 282001408, 10, 10, 173, 147);
     transition main.window != 0 { true -> inspect(main) _ -> bad(main) }
     state inspect(main: &mut Main) {

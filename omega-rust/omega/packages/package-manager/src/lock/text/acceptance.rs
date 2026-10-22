@@ -31,11 +31,10 @@ pub(in crate::lock) fn read(
 ) -> Result<(PackagePolicyAcceptance, usize), Error> {
     let mut reader = Reader::new(text);
     let schema_version = reader.count("acceptance_schema", usize::MAX)?;
-    // Schema 4 has the same opaque row framing, but predates authored target
-    // context. Retain it only as historical consent for an explicit review;
-    // never relabel its meanings or infer absent context. Ordinary recovery
-    // and compilation reject this historical schema at their own boundary.
-    if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) && schema_version != 4 {
+    // Earlier opaque rows remain historical consent, never current approval
+    // for target context or consumer audit policy they did not retain.
+    if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) && !matches!(schema_version, 4 | 5)
+    {
         return Err(Error::UnsupportedVersion);
     }
     let count = reader.count("rows", maximum_rows)?;
@@ -59,6 +58,7 @@ pub(in crate::lock) fn read(
             "dangerous_capability" => PackagePolicyRowKind::DangerousCapability,
             "restricted_build_request" => PackagePolicyRowKind::RestrictedBuildRequest,
             "assumed_binding_contract" => PackagePolicyRowKind::AssumedBindingContract,
+            "service_audit" => PackagePolicyRowKind::ServiceAudit,
             _ => return Err(Error::InvalidFraming),
         };
         let hex = reader.field("key")?;

@@ -29,3 +29,24 @@ their authored inputs, frozen results, negative coverage and host qualifications
 Do not leave competing permanent implementations or call an unchanged consumer
 validated against a new library without affected checks. A proposal to extract
 a kernel is not authorization for a broad migration or new package acceptance.
+
+## Hosted service reach
+
+GUI provider interfaces select operations, not their service effects. Shared
+core identities describe window management, presentation, event observation and
+dispatch, global input observation, clock observation, and execution delay.
+Core Graphics image-buffer construction does not by itself present a surface.
+The macOS physical-key poll is global observation, even when a caller first
+checks that its own window is focused.
+
+Unrestricted Objective-C messages, autorelease finalizers, and native window
+callbacks can execute native code. Their conservative published rows include
+filesystem and process effects rather than concealing those behind framework
+names. Narrow Win32 queries and image-buffer operations retain their distinct
+contracts. External bindings still require their own trust review; a service
+row neither proves opaque native behavior nor grants physical authority.
+
+The consuming root can make an exact boundary identity mandatory in review
+with `Build::audit_service<Trait>(builder)`. Only executed registrations through
+its original delegated Build count. Dependency registrations do not set the
+consumer's policy, and changes to that policy change accepted review meaning.

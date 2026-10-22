@@ -52,7 +52,7 @@ pub fn project_checked_package_policy<'a>(
         package,
         &provider_indices,
     )?;
-    let policy = PackagePolicyBaseline {
+    let mut policy = PackagePolicyBaseline {
         package,
         target,
         public_api,
@@ -67,7 +67,10 @@ pub fn project_checked_package_policy<'a>(
         boundary_applications,
         restricted_build_requests: restricted_build::project(compilation),
         assumed_bindings: assumed_bindings::project(compilation)?,
+        service_audits: authority::registrations(compilation)?,
     };
+    let services = policy.service_audits().to_vec();
+    policy.apply_service_audit_policy(&services);
     Ok(policy)
 }
 

@@ -782,6 +782,10 @@ fail/build/retired_service_exclusion_receiver rejected 0ms expected @a9ae30e1c33
 fail/build/retired_wire_compatibility_receiver rejected 0ms expected @a9ae30e1c334+wt
 fail/build/root_binding_foreign_helper_private_entry rejected 4181ms expected @a9ae30e1c334+wt
 fail/build/scoped_build_stops_before_unaccepted_effect rejected 11050ms expected @a9ae30e1c334+wt
+fail/build/service_audit_requires_boundary rejected 88ms expected @1654d389500c+wt
+	Build declaration operand does not resolve to one visible product declaration of the required kind
+fail/build/service_audit_requires_original_build rejected 93ms expected @1654d389500c+wt
+	the compiler-owned Build activation cannot be copied into local `other`
 fail/build/staging_byte_limit_exhausted rejected 8393ms expected @a9ae30e1c334+wt
 fail/build/staging_entry_limit_exhausted rejected 9558ms expected @a9ae30e1c334+wt
 fail/build/staging_extent_limit_exhausted rejected 10964ms expected @a9ae30e1c334+wt
@@ -1943,8 +1947,16 @@ fail/effects/directory_entry_query_requires_metadata_reach rejected 4722ms expec
 fail/effects/filesystem_readonly_requires_metadata_query rejected 15645ms expected @eaf5a1200c8e+wt
 	machine `mutate_without_query` publishes service reach `FilesystemMetadataMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/finite_requirement_block_required rejected 338ms expected @c5a7c1ce1957+wt
+fail/effects/global_key_polling_is_not_window_input rejected 1493ms expected @1654d389500c+wt
+	machine `Client::read` state `read` does not satisfy trait `WindowInputClient` machine `read`: service `GlobalInputObservation` is not allowed by the trait requirement
+fail/effects/graphics_provider_cannot_hide_filesystem_write rejected 376ms expected @1654d389500c+wt
+	machine `Renderer::present` state `present` does not satisfy trait `GraphicsPlatform` machine `present`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/invoked_family_block_marker_redundant rejected 1090ms expected @7e6c0ae564d2+wt
+fail/effects/macos_dispatch_cannot_hide_filesystem_write rejected 1518ms expected @1654d389500c+wt
+	machine `RuntimePresentation::send` state `send` does not satisfy trait `PresentationClient` machine `send`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/nominal_callback_console_const_reach rejected 105ms expected @a9ae30e1c334+wt
+fail/effects/pacing_poll_cannot_observe_descriptors rejected 3531ms expected @1654d389500c+wt
+	cannot prove requires contract for call poll from invalid_wait: 1 == 0 && 1 == 0 (needs fact `fds == 0 && nfds == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/effects/portable_filesystem_write_needs_write_reach rejected 7075ms expected @d81382f05a6c+wt
 	machine `read_only` publishes service reach `FilesystemContentRead` but its checked body reaches undeclared service `FilesystemContentWrite`
 fail/effects/provider_authored_reach_beyond_invocation rejected 920ms expected @7e6c0ae564d2+wt
@@ -7726,7 +7738,10 @@ fail/layouts/demanded_partial_target_layout rejected 5231ms expected @85e359099d
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 925ms expected @a9ae30e1c334+wt
 fail/layouts/encoded_foreign_view_requires_same_geometry rejected 906ms expected @a9ae30e1c334+wt
 fail/layouts/encoded_integer_requires_total_decode rejected 116ms expected @a9ae30e1c334+wt
-fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 1603ms expected @7becf2fe91a5+wt
+fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 451ms expected @1654d389500c+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
+	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 1620ms expected @a9ae30e1c334+wt
 fail/layouts/extent_view_exclusive_source_overlap rejected 568ms expected @f85524ac2a1b+wt
 	statement 1 reads `storage.length` while local borrow `outcome` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
@@ -8683,7 +8698,8 @@ fail/providers/transitive_provider_missing_raw rejected 11845ms expected @961ad2
 fail/providers/via_signature_mismatch_rejected rejected 1339ms expected @a9ae30e1c334+wt
 fail/providers/via_with_body_rejected rejected 801ms expected @a9ae30e1c334+wt
 fail/providers/windows_filesystem_host_unprovided_on_linux rejected 8682ms expected @91d9836f544f+wt
-fail/providers/windows_gui_host_unprovided_on_linux rejected 6085ms expected @6050c1c112ee+wt
+fail/providers/windows_gui_host_unprovided_on_linux rejected 1920ms expected @1654d389500c+wt
+	no provider is selected for boundary requirement `WindowsGuiHost::foreground_window`, which the program entry reaches on target `linux_x86_64`
 fail/range/element_view_field_domain_occurrence rejected 863ms expected @a9ae30e1c334+wt
 fail/range/funnel_guard_one_edge_unguarded rejected 5560ms expected @a9ae30e1c334+wt
 fail/range/guarded_copy_stale_after_write rejected 6258ms expected @7912abbc354e
@@ -8985,7 +9001,8 @@ fail/targets/single_target_internal_caller_rejected rejected 17647ms expected @a
 fail/targets/single_target_internal_package_caller_rejected rejected 18061ms expected @a9ae30e1c334+wt
 fail/targets/single_target_internal_package_statement_caller_rejected rejected 17872ms expected @a9ae30e1c334+wt
 fail/targets/single_target_internal_statement_caller_rejected rejected 17532ms expected @a9ae30e1c334+wt
-fail/targets/target_body_call_to_unimported_std_leaf_named rejected 26883ms expected @379893891e38
+fail/targets/target_body_call_to_unimported_std_leaf_named rejected 2679ms expected @1654d389500c+wt
+	cannot publish target-family crash envelope for `pace`: retained member `pace::macos_arm64` calls `darwin_poll`, which selects no declaration
 fail/targets/target_local_precondition_rejected rejected 658ms expected @dca1c7cd7e6f+wt
 fail/targets/target_machine_duplicate_rejected rejected 53ms expected @a9ae30e1c334+wt
 fail/targets/unrealized_conformance_rejected rejected 4375ms expected @a9ae30e1c334+wt
@@ -11091,14 +11108,18 @@ pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 11392ms check-
 pass/effects/boundary_explicit_capability_rows checked 1231ms @7c1edd43e7e4+wt
 pass/effects/checked_boundary_unused_callback checked 1238ms @c5a7c1ce1957+wt
 pass/effects/checked_callback_provider_ceiling checked 1237ms @c5a7c1ce1957+wt
+pass/effects/core_critical_service_catalog checked 642ms @1654d389500c+wt
 pass/effects/exact_synchronous_callback_rows checked 1237ms @c5a7c1ce1957+wt
 pass/effects/finite_requirement_block_acknowledged_exit checked 9603ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/generic_callback_schema_reach checked 1651ms @a9ae30e1c334+wt
+pass/effects/graphics_provider_declares_filesystem_write checked 642ms @1654d389500c+wt
+pass/effects/gui_semantic_services checked 4106ms @1654d389500c+wt
 pass/effects/nominal_callback_const_reach checked 654ms @cf5a1803718b+wt
 pass/effects/nominal_callback_dependency checked 1598ms @a9ae30e1c334+wt
 pass/effects/reach_inferred_wrapper checked 9161ms @5041ef1af684+wt
 pass/effects/reach_through_machine_param checked 9378ms @5041ef1af684+wt
 pass/effects/reviewed_service_rows_exit checked 13265ms check-target:macos_arm64 @088321186835+wt
+pass/effects/root_service_audit checked 639ms @1654d389500c+wt
 pass/effects/runtime_empty_boundary_reach_exit checked 8163ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/static_boundary_callback_reach checked 4794ms @3b18b32f7117+wt
 pass/effects/structural_callback_reach checked 1685ms @a9ae30e1c334+wt
@@ -13613,13 +13634,14 @@ pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:maco
 pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target:windows_x86_64 @d041496df109
-pass/host/runtime_foreign_zero_argument_import_exit checked 9606ms check-target:windows_x86_64 @c6b298470bf5
-pass/host/runtime_gui_foreground_window_exit checked 9158ms check-target:windows_x86_64 @c9eefa9130a0+wt
-pass/host/runtime_gui_window_lifecycle_exit checked 6952ms check-target:windows_x86_64 @c9eefa9130a0+wt
+pass/host/runtime_foreign_zero_argument_import_exit checked 2253ms check-target:windows_x86_64 @1654d389500c+wt
+pass/host/runtime_gui_foreground_window_exit checked 2256ms check-target:windows_x86_64 @1654d389500c+wt
+pass/host/runtime_gui_window_lifecycle_exit checked 2262ms check-target:windows_x86_64 @1654d389500c+wt
 pass/host/runtime_scalar_reference_backing_export_exit checked 9880ms check-target:linux_x86_64 @7becf2fe91a5+wt
+pass/host/runtime_semantic_gui_reach_exit checked 11262ms check-target:macos_arm64 @1654d389500c+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 8969ms check-target:macos_arm64 @7becf2fe91a5+wt
-pass/host/runtime_windows_bitmap_client_cleanup_exit checked 7932ms check-target:windows_x86_64 @0e7ef4cb2ac8+wt
-pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt
+pass/host/runtime_windows_bitmap_client_cleanup_exit checked 2431ms check-target:windows_x86_64 @1654d389500c+wt
+pass/host/runtime_windows_gui_argument_failures_exit checked 2267ms check-target:windows_x86_64 @1654d389500c+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/user32_window_procedure_registration checked 21540ms check-target:windows_x86_64 @e74967d11875
 pass/inline_asm/asm_aarch64_system_registers_compile checked 6667ms check-target:macos_arm64 @9f1c8cc89b93+wt
@@ -13875,10 +13897,10 @@ pass/modules/selected_constant_nominal_generic_match_literal checked 1861ms @a9a
 pass/modules/selected_constant_nominal_match checked 1665ms @a9ae30e1c334+wt
 pass/modules/selected_constant_nominal_record_match_field checked 1600ms @a9ae30e1c334+wt
 pass/modules/use_imports_sibling_trait checked 1579ms @a9ae30e1c334+wt
-pass/objc/gui_provider_substitution checked 11814ms @a9ae30e1c334+wt
-pass/objc/native_gui_loop checked 13013ms @9c4d1c444502
-pass/objc/objc_get_class checked 11443ms @a9ae30e1c334+wt
-pass/objc/objc_msgsend_scalar checked 11375ms @a9ae30e1c334+wt
+pass/objc/gui_provider_substitution checked 903ms @1654d389500c+wt
+pass/objc/native_gui_loop checked 2286ms @1654d389500c+wt
+pass/objc/objc_get_class checked 899ms @1654d389500c+wt
+pass/objc/objc_msgsend_scalar checked 895ms @1654d389500c+wt
 pass/operators/compound_assignment_exit checked 12986ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/core_operator_spelling_surface checked 10586ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/crash_routes checked 11263ms check-target:macos_arm64 @a9ae30e1c334+wt

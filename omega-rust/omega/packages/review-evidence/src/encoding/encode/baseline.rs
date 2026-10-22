@@ -96,6 +96,9 @@ pub(in crate::encoding) fn policy(
     })?;
     encoder.field("assumed_bindings", |encoder| {
         encoder.sequence(&value.assumed_bindings, |encoder, row| encoder.string(row))
+    })?;
+    encoder.field("service_audits", |encoder| {
+        encoder.sequence(&value.service_audits, values::identity::encode_nominal)
     })
 }
 

@@ -34,6 +34,7 @@ pub(crate) fn encode_dangerous_authority(
             }
             PackageReviewDangerousAuthorityClass::RootMemory => encoder.tag("root_memory", 5),
             PackageReviewDangerousAuthorityClass::Process => encoder.tag("process", 6),
+            PackageReviewDangerousAuthorityClass::ConsumerAudit => encoder.tag("consumer_audit", 7),
         };
         Ok(())
     })?;
@@ -61,6 +62,7 @@ pub(crate) fn encode_dangerous_authority_slack(
             }
             PackageReviewDangerousAuthorityClass::RootMemory => encoder.tag("root_memory", 5),
             PackageReviewDangerousAuthorityClass::Process => encoder.tag("process", 6),
+            PackageReviewDangerousAuthorityClass::ConsumerAudit => encoder.tag("consumer_audit", 7),
         };
         Ok(())
     })?;

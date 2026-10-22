@@ -22,7 +22,13 @@ where cursor <= FRAME_PIXELS, pumped <= EVENT_BUDGET, direction >= -1 && directi
     swing: bool;
 }
 
-machine Main::main(main: &mut Main) reaches AppKit + CoreGraphics + ObjectiveC + DarwinClock + Console {
+machine Main::main(main: &mut Main) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit + Console {
     let verified: bool = Game::verify(&mut main.game);
     transition verified { true -> start(main) _ -> failed() }
 
@@ -132,7 +138,7 @@ machine Main::main(main: &mut Main) reaches AppKit + CoreGraphics + ObjectiveC +
         transition { _ -> render(main, window) }
     }
     state draw(main: &mut Main, window: Window) {
-        let copied: u32 = macos_window_present(&window, FRAME_WIDTH, FRAME_HEIGHT, &main.pixels[..FRAME_PIXELS]);
+        let copied: u32 = macos_window_present(&window, FRAME_WIDTH, FRAME_HEIGHT, &mut main.pixels[..FRAME_PIXELS]);
         macos_sleep(FRAME_DELAY_MILLISECONDS);
         transition copied == FRAME_HEIGHT { true -> frame(main, window) _ -> close(main, window) }
     }

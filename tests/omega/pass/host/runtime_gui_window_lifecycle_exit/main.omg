@@ -16,7 +16,13 @@ data Main {
     alive_after: bool;
 }
 machine Main::main(main: &mut Main)
-reaches Console + WindowsGuiHost
+reaches
+    Console + NativeCodeExecution + WindowManagement +
+    SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+    GlobalInputObservation + ClockObservation + ExecutionDelay +
+    FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery +
+    FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation +
+    ProcessInput + ProcessOutput + ProcessExit
 {
     main.cls[0] = 83;
     main.cls[1] = 84;

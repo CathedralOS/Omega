@@ -36,6 +36,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         policy.boundary_applications.demands.len(),
         policy.restricted_build_requests.len(),
         policy.assumed_bindings.len(),
+        policy.service_audits.len(),
     ];
     counts
         .into_iter()
@@ -73,6 +74,7 @@ pub(super) fn acceptance_count(
         policy.dangerous_capabilities.len(),
         policy.restricted_build_requests.len(),
         policy.assumed_bindings.len(),
+        policy.service_audits.len(),
     ]
     .into_iter()
     .chain(
@@ -109,6 +111,7 @@ pub(super) fn project(
         boundary_applications,
         restricted_build_requests,
         assumed_bindings,
+        service_audits,
     } = policy;
     builder.push(
         PackagePolicyRowKind::Header,
@@ -138,6 +141,15 @@ pub(super) fn project(
         )?;
     }
     declarations::project(builder, public_api)?;
+    for service in service_audits {
+        builder.push(
+            PackagePolicyRowKind::ServiceAudit,
+            true,
+            true,
+            |encoder| encode_nominal(encoder, service),
+            |encoder| encode_nominal(encoder, service),
+        )?;
+    }
     let PackagePolicyCallables {
         package: _,
         target: _,

@@ -180,6 +180,7 @@ pub enum BuildOperation {
     RepresentationSelection,
     /// `Build::exclude_service<BoundaryTrait>(b)`.
     ServiceExclusion,
+    ServiceAudit,
     /// `Optimizations::enable`.
     OptimizationSelection,
     /// `Optimizations::emit_report`.
@@ -213,6 +214,7 @@ impl BuildOperation {
             self,
             Self::ProviderSelection
                 | Self::ServiceExclusion
+                | Self::ServiceAudit
                 | Self::BoundaryAcceptance
                 | Self::WireCompatibilityRequest
                 | Self::RepresentationSelection
@@ -223,11 +225,12 @@ impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::ProviderSelection,
         Self::AssumedBindingContract,
         Self::RepresentationSelection,
         Self::ServiceExclusion,
+        Self::ServiceAudit,
         Self::OptimizationSelection,
         Self::OptimizationReportRequest,
         Self::BoundaryAcceptance,
@@ -243,6 +246,7 @@ impl BuildOperation {
             Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
             Self::ServiceExclusion => "exclude_service",
+            Self::ServiceAudit => "audit_service",
             Self::OptimizationSelection => "enable",
             Self::OptimizationReportRequest => "emit_report",
             Self::BoundaryAcceptance => "accept_boundary",
@@ -273,6 +277,7 @@ impl BuildOperation {
                 AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection
             }
             Self::ServiceExclusion => AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion,
+            Self::ServiceAudit => AuthoredDeclarationSelectionIntrinsic::BuildServiceAudit,
             Self::OptimizationSelection => {
                 AuthoredDeclarationSelectionIntrinsic::BuildOptimizationSelection
             }
@@ -334,6 +339,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// requirement it selects is harvested and enforced by Omega's build
     /// evaluation and product admission.
     BuildServiceExclusion,
+    BuildServiceAudit,
     /// Exact toolchain `Optimizations::enable` selection from the root build
     /// vocabulary. This classifies declaration provenance only; optimization
     /// policy and execution remain Omega-owned.

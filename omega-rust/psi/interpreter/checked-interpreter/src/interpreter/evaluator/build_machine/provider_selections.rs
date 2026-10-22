@@ -17,8 +17,9 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let Some(
-            operation
-            @ (BuildOperation::ProviderSelection | BuildOperation::AssumedBindingContract),
+            operation @ (BuildOperation::ProviderSelection
+            | BuildOperation::AssumedBindingContract
+            | BuildOperation::ServiceAudit),
         ) = BuildOperation::from_call_target(call.target.as_str())
         else {
             return Ok(None);
@@ -34,11 +35,12 @@ impl<'program> Evaluator<'program> {
             BuildOperation::ProviderSelection => {
                 self.provider_composition_case(arguments, frame)?
             }
-            BuildOperation::AssumedBindingContract => {
+            BuildOperation::AssumedBindingContract | BuildOperation::ServiceAudit => {
                 let [builder] = arguments else {
-                    return trap(
-                        "assumed binding registration takes exactly the mutable Build argument",
-                    );
+                    return trap(format!(
+                        "{} registration takes exactly the mutable Build argument",
+                        operation.authored_spelling()
+                    ));
                 };
                 let builder = self.eval_read_cell(*builder, frame)?;
                 self.require_provider_selection_activation(self.deref_cell(builder))?;

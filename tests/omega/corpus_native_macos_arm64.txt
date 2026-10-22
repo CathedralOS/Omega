@@ -2254,6 +2254,7 @@ pass/host/runtime_gui_foreground_window_exit rejected 10703ms @6c75d91f0312
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 10534ms @6c75d91f0312
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
+pass/host/runtime_semantic_gui_reach_exit built 49837ms exit:0 @1654d389500c+wt
 pass/host/std_clock_sleep_exit built 1894ms exit:70 @27fbba584bed+wt
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 8632ms @6c75d91f0312
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)

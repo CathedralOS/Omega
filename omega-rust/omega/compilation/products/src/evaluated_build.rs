@@ -8,6 +8,12 @@ use provider_planning::program_entry::RootBinding;
 use representation_planning::OpaqueRepresentationSelection;
 use trust_model::AuthoredComponentAssumptionAcceptance;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceAuditRegistration {
+    pub identity: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildConfig {
     pub settings: EvaluatedBuildSettings,
@@ -39,6 +45,7 @@ pub struct BuildConfig {
     /// These rows declare what the selected executable composition must not
     /// reach; the admission join itself consumes them later.
     pub behavior_exclusions: Vec<AuthoredBehaviorExclusion>,
+    pub service_audits: Vec<ServiceAuditRegistration>,
     /// Accepted component-assumption digests
     /// (wiki/spec/build/component_publication.md): the authored
     /// `Build::accept_component_assumption(builder, ...)` declarations harvested

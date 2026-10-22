@@ -9,6 +9,12 @@
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_format;
 use omega::language::core::float_operations;
+use omega::language::core::presentation_authority;
+use omega::language::core::time_authority;
+use omega::language::core::native_execution_authority;
+use omega::language::core::filesystem_authority;
+use omega::language::core::process_authority;
+use omega::language::core::process_exit;
 use targets::macos_arm64::macos_gui_impl;
 
 public domain [u8]::CString(bytes)
@@ -18,43 +24,118 @@ requires
 // AppKit must be loaded before looking up Cocoa classes through libobjc.
 // The explicit import owns that dependency; class names do not select libraries.
 public boundary trait AppKit {
-    machine load() -> bool;
+    machine load() -> bool
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
 }
 
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
 // symbols live only in the darwin binding table.
 public boundary trait ObjectiveC {
-    machine get_class(name: &u8) -> u64;
+    machine get_class(name: &u8) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
     machine register_selector(name: &u8) -> u64;
-    machine send(recv: u64, sel: u64) -> u64;
-    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
-    machine send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64);
-    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
-    machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
-    machine send_string(recv: u64, sel: u64, text: &u8) -> u64;
+    machine send(recv: u64, sel: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64)
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_string(recv: u64, sel: u64, text: &u8) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
     // RUNTIME byte-buffer string arg (`initWithUTF8String:` over the samples'
     // title bytes). The callee reads to the first NUL, so the buffer must be
     // NUL-terminated by construction; tighten to a proven CString domain once
     // the reference-domain mint lands.
-    machine send_byte_string(recv: u64, sel: u64, text: &u8) -> u64;
-    machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64;
+    machine send_byte_string(recv: u64, sel: u64, text: &u8) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
     // Autorelease-pool scope (objc_autoreleasePoolPush/Pop). The event pump runs
     // outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
     // leak every frame without one. `pool_pop` is a void C call; the u64 result
     // is scratch.
     machine pool_push() -> u64;
-    machine pool_pop(pool: u64) -> u64;
+    machine pool_pop(pool: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
 }
 
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
 public boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
     machine color_space_release(space: u64);
-    // `data` is READ-ONLY here: the framebuffer is snapshotted into the CGImage
-    // (`bitmap_context_image`), never drawn into, so an immutable ref suffices —
-    // and a by-value `pixels` PARAM cannot be borrowed `&mut`. The ABI passes a
-    // plain pointer either way.
-    machine bitmap_context(data: &i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
+    // The native bitmap context takes writable backing. Keep its exclusive
+    // loan until the image snapshot is created and the context is released.
+    machine bitmap_context(data: &mut i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
     machine bitmap_context_image(ctx: u64) -> u64;
     // Create-rule drops for the per-frame context + CGImage snapshot (void C
     // calls; the u64 results are scratch). Without them every blit leaks both.
@@ -62,7 +143,8 @@ public boundary trait CoreGraphics {
     machine image_release(image: u64) -> u64;
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
-    machine event_source_key_state(state_id: u64, keycode: u64) -> u64;
+    machine event_source_key_state(state_id: u64, keycode: u64) -> u64
+    reaches GlobalInputObservation;
 }
 
 // Affine owned handle set. Close consumes it; loans do not transfer ownership.
@@ -86,7 +168,13 @@ public data Window {
 // ObjectiveC::send_byte_string. NSString copies it before this call returns;
 // Window retains no title loan. The buffer length is not a window API limit.
 public macos_arm64 machine macos_window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
-reaches CoreGraphics + ObjectiveC + AppKit
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     let loaded: bool = appkit_load();
     let rx: f64 = F64::from_i32(x);
@@ -209,7 +297,13 @@ reaches CoreGraphics + ObjectiveC + AppKit
     }
 }
 public macos_arm64 machine macos_window_destroy(window: Window)
-reaches CoreGraphics + ObjectiveC
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     let close_name: [u8; 6] = "close\0";
     let close_selector: u64 = objc_register_selector(&close_name[0]);
@@ -226,7 +320,13 @@ public macos_arm64 machine macos_window_get_dc(window_state: &Window, window: u6
     state ret(window: u64) -> u64 { window }
 }
 public macos_arm64 machine macos_window_msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32
-reaches ObjectiveC
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     // Cycle the rolling autorelease pool opened at window_create: the pop
     // drains the PREVIOUS peek's autoreleased NSEvent (already dispatched by
@@ -247,33 +347,57 @@ public macos_arm64 machine macos_window_msg_translate(window_state: &Window, mes
     r32
 }
 public macos_arm64 machine macos_window_msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64
-reaches ObjectiveC
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     let rc: u64 = objc_send_scalar(window_state.app, window_state.dsel, window_state.evt);
     rc
 }
 public macos_arm64 machine macos_window_is_window(window_state: &Window, window: u64) -> u32
-reaches ObjectiveC
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     let rc: u64 = objc_send(window, window_state.vsel);
     let r32: u32 = narrow_u64_to_u32_wrapping(rc);
     r32
 }
-public macos_arm64 machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
-reaches CoreGraphics + ObjectiveC
+public macos_arm64 machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
-    macos_window_present(window_state, source_width, source_height, &pixels[0..4096])
+    macos_window_present(window_state, source_width, source_height, &mut pixels[0..4096])
 }
 
-public macos_arm64 machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &[i32]) -> u32
-reaches CoreGraphics + ObjectiveC
+public macos_arm64 machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
     transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.len == count && pixels.len > 0 {
         true -> present(window_state, source_width, source_height, pixels)
         _ -> (0)
     }
-    state present(window_state: &Window, source_width: u32, source_height: u32, pixels: &[i32]) -> u32
+    state present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
     requires pixels.len > 0 {
     let source_width_wide: i64 = source_width as i64;
     let source_height_wide: i64 = source_height as i64;
@@ -282,7 +406,7 @@ reaches CoreGraphics + ObjectiveC
     let stride: i64 = source_width_wide << 2;
     let fbwf: f64 = F64::from_u32(source_width);
     let fbhf: f64 = F64::from_u32(source_height);
-    let ctx: u64 = cg_bitmap_context(&pixels[0], fbw, fbh, 8, stride, window_state.space, 8198);
+    let ctx: u64 = cg_bitmap_context(&mut pixels[0], fbw, fbh, 8, stride, window_state.space, 8198);
     let cgimg: u64 = cg_bitmap_context_image(ctx);
     let cbuf30: [u8; 8] = "NSImage\0";
     let cls: u64 = objc_get_class(&cbuf30[0]);
@@ -309,7 +433,13 @@ reaches CoreGraphics + ObjectiveC
 
 // Global key polling is meaningful only while this application's window is key.
 public macos_arm64 machine macos_window_foreground_window(window_state: &Window) -> u64
-reaches ObjectiveC
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
 {
     let current: u64 = objc_send(window_state.app, window_state.ksel);
     current
@@ -382,7 +512,7 @@ public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
 }
 
 public macos_arm64 machine macos_key_state(virtual_key: u32) -> u64
-reaches CoreGraphics
+reaches GlobalInputObservation
 {
     let keycode: u64 = macos_map_keycode(virtual_key);
     let result: u64 = cg_event_source_key_state(1, keycode);
@@ -392,15 +522,17 @@ reaches CoreGraphics
 }
 
 public boundary trait DarwinClock {
-    machine clock_ns(clock_id: u32) -> u64;
-    machine mach_absolute_time() -> u64;
-    machine poll(fds: u64, nfds: u64, timeout_ms: i32) -> i32;
+    machine clock_ns(clock_id: u32) -> u64 reaches ClockObservation;
+    machine mach_absolute_time() -> u64 reaches ClockObservation;
+    machine poll(fds: u64, nfds: u64, timeout_ms: i32) -> i32
+    reaches ExecutionDelay
+    requires fds == 0 && nfds == 0;
 }
 
 // Millisecond pacing through poll(NULL, 0, timeout). The conversion retains
 // the former u32-to-i32 wrapping contract.
 public macos_arm64 machine macos_sleep(milliseconds: u32)
-reaches DarwinClock
+reaches ExecutionDelay
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
     let result: i32 = darwin_poll(0, 0, timeout);
@@ -408,7 +540,7 @@ reaches DarwinClock
 
 // CLOCK_MONOTONIC milliseconds since boot, retaining the low 32 bits.
 public macos_arm64 machine macos_get_tick_count() -> u32
-reaches DarwinClock
+reaches ClockObservation
 {
     let nanoseconds: u64 = darwin_clock_ns(6);
     let milliseconds: u64 = nanoseconds / 1000000;
@@ -416,7 +548,7 @@ reaches DarwinClock
 }
 
 public macos_arm64 machine macos_perf_counter() -> u64
-reaches DarwinClock
+reaches ClockObservation
 {
     darwin_clock_ns(6)
 }

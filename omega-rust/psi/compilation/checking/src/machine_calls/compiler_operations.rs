@@ -32,6 +32,7 @@ pub fn static_argument_role(
             | Intrinsic::BuildWireCompatibilityRequest
             | Intrinsic::BuildRepresentationSelection
             | Intrinsic::BuildServiceExclusion
+            | Intrinsic::BuildServiceAudit
             | Intrinsic::BuildAssumedBindingContract,
         ) => StaticArgumentRole::DeclarationDescription,
         _ => StaticArgumentRole::ValueDependency,
@@ -142,6 +143,7 @@ pub fn classify_expression_call_intrinsic(
     }
     if let Some(
         operation @ (BuildOperation::ServiceExclusion
+        | BuildOperation::ServiceAudit
         | BuildOperation::RepresentationSelection
         | BuildOperation::BoundaryAcceptance
         | BuildOperation::WireCompatibilityRequest

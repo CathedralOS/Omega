@@ -63,5 +63,6 @@ pub(in crate::encoding::recovery) fn authority_class(
         4 => Class::InterruptEntry,
         5 => Class::RootMemory,
         6 => Class::Process,
+        7 => Class::ConsumerAudit,
     }))
 }

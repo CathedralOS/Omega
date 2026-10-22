@@ -4,7 +4,7 @@ mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
 /// Independent of legacy review rows and of the complete baseline grammar.
-pub const PACKAGE_POLICY_ROW_VERSION: u16 = 5;
+pub const PACKAGE_POLICY_ROW_VERSION: u16 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyRowKind {
@@ -32,6 +32,7 @@ pub enum PackagePolicyRowKind {
     SymbolicBoundaryDemand,
     RestrictedBuildRequest,
     AssumedBindingContract,
+    ServiceAudit,
 }
 
 impl PackagePolicyRowKind {
@@ -61,6 +62,7 @@ impl PackagePolicyRowKind {
             Self::SymbolicBoundaryDemand => 21,
             Self::RestrictedBuildRequest => 22,
             Self::AssumedBindingContract => 23,
+            Self::ServiceAudit => 24,
         }
     }
 
@@ -90,6 +92,7 @@ impl PackagePolicyRowKind {
             Self::SymbolicBoundaryDemand => "symbolic_boundary_demand",
             Self::RestrictedBuildRequest => "restricted_build_request",
             Self::AssumedBindingContract => "assumed_binding_contract",
+            Self::ServiceAudit => "service_audit",
         }
     }
 
@@ -103,7 +106,8 @@ impl PackagePolicyRowKind {
             | Self::ExternalSupply
             | Self::DangerousCapability
             | Self::RestrictedBuildRequest
-            | Self::AssumedBindingContract => true,
+            | Self::AssumedBindingContract
+            | Self::ServiceAudit => true,
             Self::Header
             | Self::RepresentationTarget
             | Self::PublicTrait

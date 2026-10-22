@@ -1,3 +1,9 @@
+use omega::language::core::presentation_authority;
+use omega::language::core::time_authority;
+use omega::language::core::native_execution_authority;
+use omega::language::core::filesystem_authority;
+use omega::language::core::process_authority;
+use omega::language::core::process_exit;
 use omega::language::core::float_operations;
 
 // PROVES the SAMPLES' whole behavior runs natively (render fire 16): a bounded
@@ -23,14 +29,70 @@ requires
 use omega_language_std::console;
 
 public boundary trait ObjectiveC {
-    machine get_class(name: &[u8] in CString) -> u64;
-    machine register_selector(name: &[u8] in CString) -> u64;
-    machine send(recv: u64, sel: u64) -> u64;
-    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
-    machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64;
-    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
-    machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
-    machine send_string(recv: u64, sel: u64, text: &[u8] in CString) -> u64;
+    machine get_class(name: &[u8] in CString) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine register_selector(name: &[u8] in CString) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send(recv: u64, sel: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine send_string(recv: u64, sel: u64, text: &[u8] in CString) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
 }
 
 public boundary trait CoreGraphics {
@@ -68,7 +130,13 @@ data Main where 0 <= frame, frame <= 8 {
     rc: u64;
 }
 
-machine Main::main(main: &mut Main) reaches Console + CoreGraphics + ObjectiveC {
+machine Main::main(main: &mut Main) reaches
+    Console + GlobalInputObservation + NativeCodeExecution +
+    WindowManagement + SurfacePresentation + WindowEventObservation +
+    WindowEventDispatch + ClockObservation + ExecutionDelay +
+    FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery +
+    FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation +
+    ProcessInput + ProcessOutput + ProcessExit {
     main.fx = 0.0;
     main.fy = 0.0;
     main.fw = 64.0;

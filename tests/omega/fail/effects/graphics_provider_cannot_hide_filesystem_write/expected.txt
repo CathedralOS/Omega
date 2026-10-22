@@ -1,0 +1,2 @@
+FilesystemContentWrite
+is not allowed by the trait requirement

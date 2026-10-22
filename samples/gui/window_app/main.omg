@@ -10,25 +10,67 @@ use omega_language_std::macos_gui;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
 public boundary trait Clock {
-    machine sleep(milliseconds: u32) reaches DarwinClock invokes DarwinClock;
+    machine sleep(milliseconds: u32) reaches ClockObservation + ExecutionDelay invokes DarwinClock;
 }
 public boundary trait Input {
-    machine key_state(virtual_key: u32) -> u64 reaches CoreGraphics invokes CoreGraphics;
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics;
 }
 public boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
-        reaches AppKit + CoreGraphics + ObjectiveC
+        reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
         invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
-    machine window_destroy(window: Window) reaches CoreGraphics + ObjectiveC invokes ObjectiveC; invokes CoreGraphics;
+    machine window_destroy(window: Window) reaches
+        GlobalInputObservation + NativeCodeExecution + WindowManagement +
+        SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC; invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
-        reaches CoreGraphics + ObjectiveC
+        reaches
+            GlobalInputObservation + NativeCodeExecution + WindowManagement +
+            SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
         invokes ObjectiveC; invokes CoreGraphics;
-    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches ObjectiveC invokes ObjectiveC;
+    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC;
     machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32;
-    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 reaches ObjectiveC invokes ObjectiveC;
-    machine is_window(window_state: &Window, window: u64) -> u32 reaches ObjectiveC invokes ObjectiveC;
-    machine foreground_window(window_state: &Window) -> u64 reaches ObjectiveC invokes ObjectiveC;
+    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC;
+    machine is_window(window_state: &Window, window: u64) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC;
+    machine foreground_window(window_state: &Window) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC;
 }
 WindowGuiProvider satisfies Gui {
     Gui::window_create = macos_window_create;
@@ -78,7 +120,14 @@ where
     c: i32;
     px: i32;
 }
-machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + Gui + Input + ObjectiveC {
+machine Main::main(main: &mut Main) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit + Clock +
+    Console + Gui + Input {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     main.cls[0] = 35;

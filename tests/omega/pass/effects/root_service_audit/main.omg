@@ -1,0 +1,5 @@
+use audit_driver::main;
+
+public boundary trait FilesystemContentWrite {}
+
+public machine unrelated_ceiling() reaches FilesystemContentWrite {}

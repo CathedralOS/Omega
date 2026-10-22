@@ -39,5 +39,69 @@ pub struct PackagePolicyBaseline {
     /// row so accepted meaning survives in `omega.lock` without host paths or
     /// live grant state.
     pub(crate) assumed_bindings: Vec<String>,
+    pub(crate) service_audits: Vec<crate::record::PackageReviewNominalIdentity>,
     pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
+}
+
+impl PackagePolicyBaseline {
+    pub fn service_audits(&self) -> &[crate::record::PackageReviewNominalIdentity] {
+        &self.service_audits
+    }
+
+    pub fn apply_service_audit_policy(
+        &mut self,
+        services: &[crate::record::PackageReviewNominalIdentity],
+    ) {
+        use crate::record::PackageReviewDangerousAuthorityClass;
+        self.service_audits = services.to_vec();
+        self.service_audits.sort();
+        self.service_audits.dedup();
+        self.dangerous_capabilities.retain(|authority| {
+            authority.class != PackageReviewDangerousAuthorityClass::ConsumerAudit
+        });
+        self.slack_uses
+            .retain(|slack| slack.class != PackageReviewDangerousAuthorityClass::ConsumerAudit);
+        for service in &self.service_audits {
+            if self
+                .dangerous_capabilities
+                .iter()
+                .any(|authority| &authority.service == service)
+            {
+                continue;
+            }
+            if !self
+                .callables
+                .callables
+                .iter()
+                .any(|callable| validation::exposes(callable, service))
+            {
+                continue;
+            }
+            self.dangerous_capabilities
+                .push(PackageReviewDangerousAuthority {
+                    class: PackageReviewDangerousAuthorityClass::ConsumerAudit,
+                    service: service.clone(),
+                });
+            for callable in &self.callables.callables {
+                if callable
+                    .declared_service_reach()
+                    .is_some_and(|ceiling| ceiling.contains(service))
+                    && callable
+                        .checked_service_reach()
+                        .realized()
+                        .is_some_and(|realized| !realized.contains(service))
+                {
+                    self.slack_uses.push(PackageReviewDangerousAuthoritySlack {
+                        class: PackageReviewDangerousAuthorityClass::ConsumerAudit,
+                        callable: callable.identity().clone(),
+                        service: service.clone(),
+                    });
+                }
+            }
+        }
+        self.dangerous_capabilities.sort();
+        self.dangerous_capabilities.dedup();
+        self.slack_uses.sort();
+        self.slack_uses.dedup();
+    }
 }

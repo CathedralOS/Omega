@@ -155,7 +155,7 @@ public macos_arm64 machine cg_color_space_rgb() -> u64
     satisfies CoreGraphics::color_space_rgb via cg_color_space_rgb_binding();
 public macos_arm64 machine cg_color_space_release(space: u64)
     satisfies CoreGraphics::color_space_release via cg_color_space_release_binding();
-public macos_arm64 machine cg_bitmap_context(data: &i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64
+public macos_arm64 machine cg_bitmap_context(data: &mut i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64
     satisfies CoreGraphics::bitmap_context via cg_bitmap_context_binding();
 public macos_arm64 machine cg_bitmap_context_image(ctx: u64) -> u64
     satisfies CoreGraphics::bitmap_context_image via cg_bitmap_context_image_binding();

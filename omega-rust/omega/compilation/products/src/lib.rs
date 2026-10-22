@@ -53,7 +53,7 @@ pub use compile_request::{
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
-    IndependentComponentSelection,
+    IndependentComponentSelection, ServiceAuditRegistration,
 };
 pub use independent_component::IndependentComponentProduct;
 pub use native_artifact::{

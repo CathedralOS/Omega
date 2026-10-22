@@ -13,16 +13,52 @@ use providers;
 // native handle and the Windows message buffer throughout the render loop.
 public boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
-        reaches AppKit + CoreGraphics + ObjectiveC + WindowsGuiHost
+        reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
         invokes AppKit; invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
     machine window_destroy(window: Window, device: u64) -> bool
-        reaches CoreGraphics + ObjectiveC + WindowsGuiHost
+        reaches
+            GlobalInputObservation + NativeCodeExecution + WindowManagement +
+            SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
         invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
-    machine get_dc(window_state: &Window, window: u64) -> u64 reaches WindowsGuiHost invokes WindowsGuiHost;
-    machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches ObjectiveC + WindowsGuiHost invokes ObjectiveC; invokes WindowsGuiHost;
-    machine is_window(window_state: &Window, window: u64) -> u32 reaches ObjectiveC + WindowsGuiHost invokes ObjectiveC; invokes WindowsGuiHost;
+    machine get_dc(window_state: &Window, window: u64) -> u64 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes WindowsGuiHost;
+    machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC; invokes WindowsGuiHost;
+    machine is_window(window_state: &Window, window: u64) -> u32 reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit invokes ObjectiveC; invokes WindowsGuiHost;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
-        reaches CoreGraphics + ObjectiveC + WindowsGuiHost
+        reaches
+            GlobalInputObservation + NativeCodeExecution + WindowManagement +
+            SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit
         invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
@@ -63,7 +99,14 @@ where
     c: i32;
     px: i32;
 }
-machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + Gui + ObjectiveC + WindowsGuiHost {
+machine Main::main(main: &mut Main) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit + Clock +
+    Console + Gui {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     main.cls[0] = 35;

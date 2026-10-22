@@ -12,7 +12,13 @@ data Main {
     killed: bool;
 }
 machine Main::main(main: &mut Main)
-reaches Console + WindowsGuiHost
+reaches
+    Console + NativeCodeExecution + WindowManagement +
+    SurfacePresentation + WindowEventObservation + WindowEventDispatch +
+    GlobalInputObservation + ClockObservation + ExecutionDelay +
+    FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery +
+    FilesystemMetadataMutation + DirectoryEnumeration + FilesystemNamespaceMutation +
+    ProcessInput + ProcessOutput + ProcessExit
 {
     // "#32770\0"
     main.cls[0] = 35; main.cls[1] = 51; main.cls[2] = 50; main.cls[3] = 55;

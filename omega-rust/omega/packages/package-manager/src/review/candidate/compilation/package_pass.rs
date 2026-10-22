@@ -1100,7 +1100,56 @@ impl ClosurePass<'_> {
 
     /// Hand the retained reviews, root compilation and occurrence compiles to
     /// the caller.
-    fn finish(self) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    fn finish(mut self) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+        let root = self.closure.graph().root();
+        let services = self
+            .reviews
+            .iter()
+            .find(|review| {
+                &review.key == root && review.generated_source_bundle.purpose().is_product()
+            })
+            .ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
+                package: root.clone(),
+            })?
+            .policy
+            .service_audits()
+            .to_vec();
+        let mut total = 0;
+        for occurrence in &mut self.occurrences {
+            let review = &mut self.reviews[occurrence.review];
+            let changed = review.policy.service_audits() != services;
+            let length = if changed {
+                review.policy.apply_service_audit_policy(&services);
+                review
+                    .policy
+                    .canonical_bytes()
+                    .map_err(|error| CompileResolvedPackageReviewsError::Encoding {
+                        package: review.key.clone(),
+                        error,
+                    })?
+                    .len()
+            } else {
+                occurrence.policy_canonical_bytes
+            };
+            total = super::policy::reserve(total, length).ok_or_else(|| {
+                CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                    package: review.key.clone(),
+                    maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                }
+            })?;
+            occurrence.policy_canonical_bytes = length;
+            if changed {
+                let (rows, commitment) = super::super::review_set::policy_rows_and_commitment(
+                    &review.policy,
+                )
+                .map_err(|error| CompileResolvedPackageReviewsError::Encoding {
+                    package: review.key.clone(),
+                    error,
+                })?;
+                review.policy_rows = rows;
+                review.policy_commitment = commitment;
+            }
+        }
         Ok(CompiledPackageReviews {
             reviews: CompilerIssuedPackageReviewSet {
                 reviews: self.reviews,

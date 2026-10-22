@@ -9,6 +9,39 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 
+pub(super) fn registrations(
+    compilation: &PackageReviewInput<'_>,
+) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+    let mut services = Vec::new();
+    for registration in &compilation.custody.build().config.service_audits {
+        let mut selected = None;
+        for definition in compilation.facts.service_reaches.services.definitions() {
+            let identity = compilation
+                .typed
+                .normalized_hermetic_symbol_identity(definition.symbol)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "service audit identity: {reason}"
+                    ))]
+                })?;
+            if identity == registration.identity {
+                selected = Some(definition);
+                break;
+            }
+        }
+        let definition = selected.ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "audited service `{}` has no checked boundary identity",
+                registration.name
+            ))]
+        })?;
+        services.push(nominal_identity(compilation, definition.symbol)?);
+    }
+    services.sort();
+    services.dedup();
+    Ok(services)
+}
+
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     callables: &PackagePolicyCallables,
@@ -22,7 +55,7 @@ pub(super) fn project(
     let mut dangerous = Vec::new();
     let mut slack = Vec::new();
     for definition in compilation.facts.service_reaches.services.definitions() {
-        let Some(class) = dangerous_authority_class(compilation, definition) else {
+        let Some(class) = dangerous_authority_class(compilation, definition)? else {
             continue;
         };
         let service = nominal_identity(compilation, definition.symbol)?;

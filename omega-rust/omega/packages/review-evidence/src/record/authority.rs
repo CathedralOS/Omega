@@ -7,12 +7,11 @@ pub(crate) use super::authority_expressions::{
 };
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
 
-/// A compiler-owned risk class for authority exposed by a reviewed package.
+/// Core critical-service or consuming-root audit policy for a reviewed package.
 ///
-/// The class is attached only after an exact service declaration rejoins its
-/// current compiler/toolchain provenance. Package-controlled declaration names
-/// never select a class. The containing review projection remains unsealed;
-/// admission must still retain the exact toolchain commitment.
+/// Core classes require exact toolchain provenance; custom classification
+/// requires an executed root registration for the exact boundary identity.
+/// Neither classifies exercised physical authority or grants permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDangerousAuthorityClass {
     Filesystem,
@@ -22,10 +21,11 @@ pub enum PackageReviewDangerousAuthorityClass {
     InterruptEntry,
     RootMemory,
     Process,
+    ConsumerAudit,
 }
 
-/// One exact reached/invoked service whose compiler-owned metadata marks it as
-/// intrinsically dangerous. This is review evidence, not an authority grant.
+/// One exact reached/invoked service requiring core or consuming-root audit.
+/// This is review evidence, not an authority grant.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDangerousAuthority {
     pub(crate) class: PackageReviewDangerousAuthorityClass,

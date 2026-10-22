@@ -10,3 +10,9 @@ boundary trait MachineControl {
 
 boundary trait PortIo {
 }
+
+public boundary trait InterruptControl {
+}
+
+public boundary trait RootMemoryAccess {
+}

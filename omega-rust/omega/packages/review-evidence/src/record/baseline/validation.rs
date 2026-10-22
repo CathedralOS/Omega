@@ -44,6 +44,10 @@ impl PackagePolicyBaseline {
         ordered(&self.dangerous_capabilities)?;
         ordered(&self.slack_uses)?;
         ordered(&self.semantic_dependencies)?;
+        ordered(&self.service_audits)?;
+        for service in &self.service_audits {
+            nominal(service)?;
+        }
         for supply in &self.external_supplies {
             nominal(supply.callable())?;
             if supply.callable().owner() != PackageReviewNominalOwner::Package(self.package) {
@@ -68,6 +72,11 @@ impl PackagePolicyBaseline {
         }
         for authority in &self.dangerous_capabilities {
             nominal(&authority.service)?;
+            if authority.class == crate::record::PackageReviewDangerousAuthorityClass::ConsumerAudit
+                && !self.service_audits.contains(&authority.service)
+            {
+                return Err("consumer audit finding has no retained root policy registration");
+            }
             if !self
                 .callables
                 .callables
@@ -180,7 +189,10 @@ impl PackagePolicyBaseline {
     }
 }
 
-fn exposes(callable: &PackagePolicyCallable, service: &PackageReviewNominalIdentity) -> bool {
+pub(super) fn exposes(
+    callable: &PackagePolicyCallable,
+    service: &PackageReviewNominalIdentity,
+) -> bool {
     callable
         .declared_service_reach()
         .is_some_and(|values| values.contains(service))

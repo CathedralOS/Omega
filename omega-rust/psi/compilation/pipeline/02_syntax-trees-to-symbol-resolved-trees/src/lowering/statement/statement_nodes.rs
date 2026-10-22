@@ -240,6 +240,7 @@ pub(crate) fn lower_statement_node(
                     BuildOperation::ProviderSelection
                         | BuildOperation::AssumedBindingContract
                         | BuildOperation::ServiceExclusion
+                        | BuildOperation::ServiceAudit
                         | BuildOperation::BoundaryAcceptance
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::RepresentationSelection

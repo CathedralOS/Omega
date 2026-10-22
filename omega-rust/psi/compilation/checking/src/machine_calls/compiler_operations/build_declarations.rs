@@ -70,9 +70,12 @@ pub fn resolve_build_static_operand(
     }
     let kind = match (operation, argument_index) {
         (BuildOperation::ProviderSelection, 0)
-        | (BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance, 0) => {
-            ProductOperandKind::BoundarySubject
-        }
+        | (
+            BuildOperation::ServiceExclusion
+            | BuildOperation::ServiceAudit
+            | BuildOperation::BoundaryAcceptance,
+            0,
+        ) => ProductOperandKind::BoundarySubject,
         (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
         (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
         (BuildOperation::WireCompatibilityRequest, 0..=3)
@@ -86,14 +89,23 @@ pub fn resolve_build_static_operand(
         occurrence,
         kind,
     ).ok_or("Build declaration operand does not resolve to one visible product declaration of the required kind")?;
-    if operation == BuildOperation::ServiceExclusion
-        && !program
-            .product_declarations()
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == selected && definition.is_boundary)
+    if matches!(
+        operation,
+        BuildOperation::ServiceExclusion | BuildOperation::ServiceAudit
+    ) && !program
+        .product_declarations()
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == selected && definition.is_boundary)
     {
-        return Err("Build service exclusion operand must name a boundary trait".into());
+        return Err(format!(
+            "Build service {} operand must name a boundary trait",
+            if operation == BuildOperation::ServiceAudit {
+                "audit"
+            } else {
+                "exclusion"
+            }
+        ));
     }
     Ok(AuthoredSelectionResolutionTarget::Declaration(selected))
 }
