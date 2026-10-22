@@ -1205,6 +1205,10 @@ fail/control_flow/linear_result_repeated_successor_arguments rejected 843ms expe
 fail/control_flow/projected_float_payload_after_guard_mutation rejected 5837ms expected @e03f48653b6a
 fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 6512ms expected @7c847bad15b6+wt
 fail/control_flow/projected_float_payload_without_case rejected 3076ms expected @e03f48653b6a
+fail/control_flow/saved_case_predicate_guard_write_retires rejected 416ms expected @3d64278a43eb
+	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access
+fail/control_flow/saved_case_predicate_local_write_retires rejected 441ms expected @3d64278a43eb
+	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access
 fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 39ms expected @a9ae30e1c334+wt
 fail/control_flow/state_result_differs_from_machine_result rejected 3529ms expected @a9ae30e1c334+wt
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 1821ms expected @a9ae30e1c334+wt
@@ -1538,6 +1542,8 @@ fail/domains/captured_guard_bound_replaced_by_call rejected 480ms expected @0d11
 fail/domains/captured_predicate_write_retires_membership rejected 587ms expected @cc9e4517d62d+wt
 	cannot prove requires contract for call checked from producer: value.number in u64::Small in state `entry`
 fail/domains/case_child_membership_requires_issuance rejected 876ms expected @2ef2ab353498+wt
+fail/domains/case_payload_guard_exclusion_cannot_read rejected 421ms expected @3d64278a43eb
+	machine `quotient` state `entry` statement 1: cannot prove selected case for payload access
 fail/domains/case_payload_predicate_invalid_literal rejected 768ms expected @2ef2ab353498+wt
 fail/domains/case_state_copy_missing_membership rejected 490ms expected @76e95b69b545+wt
 	cannot prove requires contract for call consume from inspect: outcome::Ready.range in Range::Nonempty in state `entry`
@@ -1609,6 +1615,10 @@ fail/domains/guard_predicate_wrong_bound_rejected rejected 1347ms expected @993f
 	cannot prove requires contract for call checked from producer: source in u64::Small in state `entry`
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
 fail/domains/imported_provider_unissued_result rejected 5578ms expected @e5140c7a7be2+wt
+fail/domains/inactive_payload_cannot_supply_false_contract rejected 418ms expected @3d64278a43eb
+	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/domains/inactive_payload_false_guard_cannot_supply_false_contract rejected 417ms expected @3d64278a43eb
+	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 332ms expected @dca1c7cd7e6f+wt
 fail/domains/indexed_membership_rejects_stale_entry rejected 2053ms expected @a80b1ee9811e+wt
 	construction of `Holder` field `scoped` is not proven in domain `Except` in invalid_record state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
@@ -7514,11 +7524,19 @@ fail/operators/declared_index_named_call_requires_explicit_borrow rejected 107ms
 fail/operators/declared_index_shared_collection_cannot_mutate rejected 898ms expected @a9ae30e1c334+wt
 fail/operators/declared_open_range_shared_collection_cannot_mutate rejected 830ms expected @a9ae30e1c334+wt
 fail/operators/domain_operator_return_only_overload rejected 794ms expected @a9ae30e1c334+wt
+fail/operators/inactive_payload_cannot_supply_false_requires rejected 415ms expected @3d64278a43eb
+	cannot prove `false` — the `requires` of `probe` (called `probe(0)`)
 fail/operators/named_boundary_transition_requires rejected 736ms expected @0755e2c06ec1
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 884ms expected @a9ae30e1c334+wt
 fail/operators/named_unit_result_argument_rejected rejected 310ms expected @c2bf148364f2+wt
 fail/operators/named_unit_result_local_rejected rejected 267ms expected @c2bf148364f2+wt
 fail/operators/operand_requires_invalidated rejected 1623ms expected @a9ae30e1c334+wt
+fail/operators/range_extent_false_conjunct_cannot_establish rejected 419ms expected @3d64278a43eb
+	cannot prove ensures contract for exit from window at statement 0: false && result.len == limit - offset
+fail/operators/range_extent_requires_builtin_equality rejected 434ms expected @3d64278a43eb
+	cannot prove requires contract for call requires_one from main: result.len == 1 (needs fact `items.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/operators/range_extent_requires_builtin_subtraction rejected 496ms expected @3d64278a43eb
+	cannot prove requires contract for call requires_one from main: result.len == 1 (needs fact `items.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/operators/result_domain_operator_family_wrong_signature rejected 8364ms expected @a9ae30e1c334+wt
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 797ms expected @a9ae30e1c334+wt
 fail/operators/selected_crash_invocation rejected 1861ms expected @a9ae30e1c334+wt
@@ -9198,7 +9216,7 @@ pass/borrows/runtime_indexed_carrier_reference_read_exit checked 11117ms check-t
 pass/borrows/runtime_indexed_carrier_repeated_exit checked 5732ms check-target:macos_arm64 @e02a3fd5278f+wt
 pass/borrows/runtime_indexed_primitive_loan_current_selector_exit checked 21679ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrows/runtime_indexed_reference_call_regions checked 10482ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_indexed_reference_call_regions checked 686ms check-target:macos_arm64 @3d64278a43eb
 pass/borrows/runtime_indexed_scalar_descriptor_call checked 10433ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_shared_primitive_loan_call_exit checked 20445ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_stored_reference_call checked 10457ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10012,6 +10030,7 @@ pass/control_flow/borrowed_single_case_dispatch_exit checked 11465ms check-targe
 pass/control_flow/borrowed_state_argument checked 11505ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/call_subject_wildcard_dispatch_compile checked 1561ms @a9ae30e1c334+wt
 pass/control_flow/call_then_transition_sequence_compile checked 1645ms @a9ae30e1c334+wt
+pass/control_flow/captured_nominal_result_region_identity_exit checked 659ms check-target:macos_arm64 @3d64278a43eb
 pass/control_flow/case_arm_payload_receiver_call checked 11387ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 11413ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 12794ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10153,6 +10172,7 @@ pass/control_flow/runtime_tuple_case_destructure_exit checked 14437ms check-targ
 pass/control_flow/runtime_tuple_transition_exit checked 11525ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_two_index_state_loans_exit checked 5705ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_wrapping_division_reused_inputs_exit checked 5286ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/control_flow/saved_case_predicate_disjoint_effects_exit checked 653ms check-target:macos_arm64 @3d64278a43eb
 pass/control_flow/scalar_loop_interior_header_exit checked 12238ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/self_case_payload_both_arms_exit checked 11936ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/self_loop_state_compile checked 1724ms @a9ae30e1c334+wt
@@ -10348,6 +10368,7 @@ pass/domains/call_requires_domain_intersection_preserved checked 1626ms @a9ae30e
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1687ms @a9ae30e1c334+wt
 pass/domains/captured_predicate_readonly_call_exit checked 647ms @cc9e4517d62d+wt
 pass/domains/case_payload_call_restore_exit checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/case_payload_guarded_domain_exit checked 668ms check-target:macos_arm64 @3d64278a43eb
 pass/domains/case_payload_predicate_domain_member_exit checked 11675ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/domains/copied_array_domain_survives_original_mutation_exit checked 689ms check-target:macos_arm64 @e34cad686b12
 pass/domains/dependent_coordinate_sum_rational_bound checked 1903ms @92056ecd9701
@@ -10368,6 +10389,7 @@ pass/domains/executable_domain_membership_expression_exit checked 12153ms check-
 pass/domains/executable_domain_membership_union_guard_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/explicit_domain_erasure checked 1802ms @a9ae30e1c334+wt
 pass/domains/guard_predicate_establishes_domain checked 1522ms @993f06e2d598+wt
+pass/domains/inactive_impossible_payload_exit checked 646ms check-target:macos_arm64 @3d64278a43eb
 pass/domains/indexed_domain_fact checked 9754ms @5041ef1af684+wt
 pass/domains/indexed_membership_follows_completed_values checked 11058ms check-target:macos_arm64 @a80b1ee9811e+wt
 pass/domains/intersected_qualifiers checked 9557ms @5041ef1af684+wt
@@ -10429,7 +10451,7 @@ pass/domains/slice_domain_validator checked 32151ms check-target:macos_arm64 @3b
 pass/domains/target_generic_issuer_forwarding_exit checked 1458ms check-target:macos_arm64 @8fdb0071edab
 pass/domains/threaded_subject_keeps_established_domains checked 15236ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/transparent_alias_expansion checked 1833ms @a9ae30e1c334+wt
-pass/domains/unit_membership_postcondition_exit checked 14120ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/unit_membership_postcondition_exit checked 1056ms check-target:macos_arm64 @3d64278a43eb
 pass/domains/user_authored_predicate_machine checked 1852ms @a9ae30e1c334+wt
 pass/domains/utf8_equals_literal_exit checked 13670ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/utf8_equals_literal_mismatch_exit checked 12608ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -13220,6 +13242,7 @@ pass/operators/float_operator_identities checked 15514ms check-target:macos_arm6
 pass/operators/integer_literal_suffix_exit checked 11462ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/operand_requires_after_effects checked 1751ms @a9ae30e1c334+wt
 pass/operators/parenthesized_precedence_value checked 1623ms @a9ae30e1c334+wt
+pass/operators/range_extent_preserves_numeric_contract_exit checked 646ms check-target:macos_arm64 @3d64278a43eb
 pass/operators/result_domain_operator_family_conversion_exit checked 149771ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_bitwise_operators_exit checked 11508ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/operators/runtime_constructed_operand_result_exit checked 16396ms check-target:macos_arm64 @9c4d1c444502
@@ -13962,7 +13985,7 @@ pass/slices/runtime_nested_subslice_fixed_index_exit checked 11923ms check-targe
 pass/slices/runtime_nested_view_candidate_backings_exit checked 5696ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5643ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nonzero_predicate_scalar_snapshot_exit checked 8046ms check-target:macos_arm64 @a0ebcac9edda+wt
-pass/slices/runtime_ordered_nested_length_observation_exit checked 8822ms check-target:macos_arm64 @f334a04a60a7+wt
+pass/slices/runtime_ordered_nested_length_observation_exit checked 671ms check-target:macos_arm64 @3d64278a43eb
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 12241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_predicate_qualified_scalar_copy_exit checked 10797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_published_view_length_bounds_cast_exit checked 11885ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -14585,7 +14608,7 @@ run/domains/completed_membership_after_earlier_guarantee checked 3952ms check-ta
 run/domains/current_record_predicate_captures checked 6540ms check-target:macos_arm64 @41a9c695da4e
 run/domains/fixed_byte_array_content_observations_exit checked 8106ms check-target:macos_arm64 @ef7962801508
 run/domains/fixed_byte_array_empty_observations_exit checked 5583ms check-target:macos_arm64 @ef7962801508
-run/domains/fixed_byte_array_runtime_predicate_exit checked 5750ms check-target:macos_arm64 @ef7962801508
+run/domains/fixed_byte_array_runtime_predicate_exit checked 661ms check-target:macos_arm64 @3d64278a43eb
 run/domains/fixed_byte_array_selector_once_exit checked 5629ms check-target:macos_arm64 @ef7962801508
 run/domains/fixed_byte_array_zero_geometry_exit checked 5559ms check-target:macos_arm64 @ef7962801508
 run/domains/issued_case_owner_observation checked 18615ms check-target:macos_arm64 @c48489ea6ad6
