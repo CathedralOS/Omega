@@ -1937,9 +1937,9 @@ defines the complete product bar.
   Windows x86-64 was measured 2026-10-21 at `d3f12beefc6` with
   `omega run --both`, stdin closed, on an opt-level 1 producer: native
   exit 0 and interpreted exit 0. `fail/operators/selected_crash_invocation`
-  still rejects on that host; `omega --check` reports an ambiguous `==`
-  candidate (`Float::equal` twice) rather than the pinned
-  `uncovered Trap crash route` fragment. Named uses join the
+  selects that witness's crashing `Float::equal` boundary and rejects with
+  the uncovered Trap crash route; core's separate `f32` `Float::equal` stays
+  a different declaration. Named uses join the
   emitted `BoundaryCall` through one source-occurrence relation.
   `pass/contracts/ensures_{fact_list,wrapping_field_arithmetic,borrowed_parameter_field,named_parameter_arithmetic,saturating_field_arithmetic}_exit`
   and `pass/collections/runtime_fixed_vec_round_trip_exit` execute.

@@ -23,8 +23,9 @@ exits 0 natively and interpreted. Measured 2026-10-21 at
 
 The package has no external dependencies or authority choices. Package update
 prepares its local acceptance baseline. Native and interpreted exits must both
-be 0. The negative fixture `fail/operators/selected_crash_invocation` leaves a
-float `==` Trap route uncovered and must reject.
+be 0. The negative fixture `fail/operators/selected_crash_invocation` selects its
+crashing `Float::equal` boundary and leaves that Trap route uncovered, so it
+must reject.
 
 The registered matching-host gate is:
 
