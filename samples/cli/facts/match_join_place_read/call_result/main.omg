@@ -1,5 +1,6 @@
 // A borrowed match join records the selected place, and a later projection read uses that recorded referent. The consumer reads the joined field.
 // Place: call_result.
+// Expected exit: 0
 
 data Pair { kept: i64; other: i64; }
 

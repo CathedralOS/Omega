@@ -22,7 +22,67 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | match join result evaluated and consumed inside intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | match join result evaluated across target-scoped machine bodies |
 
-Run each place with `omega run <place>/main.omg`.
+## Execution
+
+Every positive place (and root `main.omg`) binds `ProgramEntry` for all four
+hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`)
+and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi
+interpreter and native execution agreement (`native exit 0` and `interp exit: 0`):
+
+```sh
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/local/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/field/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/parameter/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/call_result/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/match_join/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/const_name/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/other_state/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/other_machine/main.omg
+target/debug/omega run --both samples/cli/facts/match_join_multi_variant_bound/target_body/main.omg
+python tools/sample_native_gate.py --facts --filter cli/facts/match_join_multi_variant_bound
+python3 tools/corpus_gate.py --filter facts/match_join_multi_variant_bound
+```
+
+### The oracle discriminates
+
+Exit `0` is strictly discriminative. The joined interval `[20u64, 60u64]` is
+what discharges `60u64 - joined`; widening any one variant gate (`High` to
+`val <= 61`) admits `joined == 61` and the exact subtraction refuses to compile
+(``exact arithmetic ... may overflow `u64` ``). Corrupting the observed
+transition instead of the bound (`diff1 == 20 && diff2 == 20` to
+`diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
+both engines abort non-zero (`native signal 5` with
+`interp crash: Trap (host presentation agrees)`).
+
+## Reject Twins
+
+Each place has an `invalid/` reject twin that widens only the `High` variant's
+payload gate (`val <= 60` to `val <= 61`); everything else is identical to its
+positive (verified with `git diff`). Proof checking fails closed during
+compile-time verification with the fragment named in the twin's `expected.txt`:
+
+| Place | Twin | Pinned Diagnostic Fragment |
+| --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+
+## Pinned Fixtures
+
+The row is pinned by
+`tests/omega/{pass,fail}/facts/match_join_multi_variant_bound_through_*`
+fixtures; every positive records native exit 0 and Terminal agreement, and
+every twin records its rejection with the expected fragment. The nine pass
+fixtures are byte-identical copies of their place programs, and the nine fail
+fixtures are byte-identical copies of their twins, so sample and fixture cannot
+drift apart.
 
 ## Requirements and Evidence
 
