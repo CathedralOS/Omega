@@ -36,9 +36,10 @@ impl Emission<'_, '_, '_> {
         self.establish_element_view(identities, source, region, expression, loan, multiplicity)
     }
 
-    /// Establish one element view inside a selection: the fresh `Unrestricted`
-    /// view result joins the selection's block parameter under the view's
-    /// loan, and that parameter carries the binding's custody.
+    /// Establish one element view inside a selection. A shared view joins the
+    /// selection parameter under its loan. An exclusive view transfers the
+    /// selected descriptor owned onto that parameter, which is the carrier
+    /// the successor reads.
     pub(super) fn joined_element_view(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -64,15 +65,22 @@ impl Emission<'_, '_, '_> {
             loan,
             StructuralMultiplicity::Unrestricted,
         )?;
-        self.complete_loan(
-            StructuralArgument {
-                place,
-                path: Vec::new(),
-                access: loan.structural_access(),
-            },
-            continuation,
-            loan,
-        )?;
+        let mut argument = StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: loan.structural_access(),
+        };
+        // The join parameter is the selected descriptor. Forward that same
+        // owned carrier; a loan of the arm-local view would die on this edge
+        // and leave the parameter without a disposal record.
+        if continuation
+            .structural_parameters
+            .first()
+            .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+        {
+            argument.access = terminal_psi::StructuralAccess::Owned;
+        }
+        self.complete_loan(argument, continuation, loan)?;
         Ok(continuation.place)
     }
 

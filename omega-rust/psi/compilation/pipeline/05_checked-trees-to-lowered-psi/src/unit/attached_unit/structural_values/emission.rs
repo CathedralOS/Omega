@@ -208,11 +208,11 @@ pub(crate) fn emit<'source>(
         }
         _ => None,
     };
-    // A borrowed view's join uses the loan the carrier declares. The local may
-    // already be that loan, or it may still record the descriptor as owned
-    // storage. Each match arm forwards the view under the loan either way.
-    // The array that owns the bytes can remain a selection source; it is not
-    // the result slot. An owned result slot would disagree with those arms.
+    // A shared view joins under its loan. An exclusive element view is the
+    // selected descriptor itself: each arm transfers that descriptor owned
+    // onto the join, and the successor reads that carrier. A loan parameter
+    // would leave the descriptor live after the callee returns. The array
+    // that owns the bytes can remain a selection source; it is not the result.
     let view_loan = structural_types
         .iter()
         .find_map(|declaration| {
@@ -685,11 +685,11 @@ pub(crate) fn emit<'source>(
 
 /// Loan access a borrowed-view join may publish for this carrier.
 ///
-/// Shared observation is unrestricted. An exclusive byte or element view is
-/// affine, the same pairing `descriptor_value_access` uses. A reference loan
-/// joins only while the binding stays unrestricted, so an affine reference
-/// descriptor keeps the owned arrival it already had. Any other pairing
-/// publishes no view loan.
+/// Shared observation is unrestricted. An exclusive element view does not
+/// publish a loan: the join receives the selected descriptor owned, the same
+/// arrival an affine reference already uses. A mutable byte view still joins
+/// under its loan. A reference loan joins only while the binding stays
+/// unrestricted. Any other pairing publishes no view loan.
 fn borrowed_view_join_access(
     shape: &StructuralTypeShape,
     multiplicity: Multiplicity,
@@ -698,11 +698,22 @@ fn borrowed_view_join_access(
         StructuralTypeShape::Reference { access, .. } => {
             return (multiplicity == Multiplicity::Unrestricted).then_some(*access);
         }
+        StructuralTypeShape::ElementView { access, .. } => {
+            let access = access.unwrap_or(match multiplicity {
+                Multiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+                Multiplicity::Affine => StructuralAccess::MutableBorrow,
+                Multiplicity::Linear => return None,
+            });
+            return match (access, multiplicity) {
+                (StructuralAccess::SharedBorrow, Multiplicity::Unrestricted) => Some(access),
+                (StructuralAccess::MutableBorrow, Multiplicity::Affine) => None,
+                _ => None,
+            };
+        }
         StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BorrowedView { access }
             | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
-        )
-        | StructuralTypeShape::ElementView { access, .. } => *access,
+        ) => *access,
         _ => return None,
     };
     let access = access.unwrap_or(match multiplicity {
