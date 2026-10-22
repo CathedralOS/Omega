@@ -40,7 +40,12 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .type_references
                 .insert(TypeReferenceNode::Named(target_name.clone()));
-            (handle, target_name.to_string(), Some(target_name), input)
+            (
+                handle,
+                target_name.as_str(syntax_trees).to_owned(),
+                Some(target_name),
+                input,
+            )
         };
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     // A refinement chain (`domain A::B::C`) declares the last segment as a
@@ -75,7 +80,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             .items
             .type_parameters(generic_parameters.type_parameters)
             .iter()
-            .any(|parameter| parameter.name.as_str() == subject.as_str())
+            .any(|parameter| parameter.name.as_str(syntax_trees) == subject.as_str(syntax_trees))
         {
             return Err(input.error_here("domain subject duplicates a generic parameter"));
         }
@@ -129,7 +134,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
                 "{target_label}::{}",
                 name_segments
                     .iter()
-                    .map(|(segment, _)| segment.as_str())
+                    .map(|(segment, _)| segment.as_str(syntax_trees))
                     .collect::<Vec<_>>()
                     .join("::")
             ),
@@ -139,7 +144,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         Identifier::new(
             name_segments
                 .iter()
-                .map(|(segment, _)| segment.as_str())
+                .map(|(segment, _)| segment.as_str(syntax_trees))
                 .collect::<Vec<_>>()
                 .join("::"),
             domain_name.source_span(),
@@ -233,7 +238,7 @@ fn parse_domain_classification<'tokens, 'source>(
     let start_tokens = input.tokens.len();
     let input = input.take_contextual("satisfies")?;
     let (name, input) = input.take_identifier()?;
-    let classification = match name.as_str() {
+    let classification = match name.as_str(&input) {
         "ProgressProfile" => language_core::DomainClassification::ProgressProfile,
         other => {
             return Err(input.error_here(format!(
@@ -356,7 +361,7 @@ fn type_reference_target_label(
                 type_reference_target_label(syntax_trees, *element_type)
             )
         }
-        TypeReferenceNode::Named(name) => name.to_string(),
+        TypeReferenceNode::Named(name) => name.as_str(syntax_trees).to_owned(),
         _ => "?".to_owned(),
     }
 }

@@ -21,10 +21,10 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::IntegerLiteral;
 use std::collections::{HashMap, HashSet};
-use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{
     ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameter, TypeParameterKind,
 };
@@ -218,7 +218,7 @@ fn collect_closed_const_arguments(
                             .type_references
                             .const_argument_normalization(*argument)
                             .is_none()
-                            && ConstScalarSpelling::from_bare_name(name.as_str()).is_none()
+                            && ConstScalarSpelling::from_bare_name(name.as_str(syntax)).is_none()
                     }
                     _ => false,
                 }
@@ -240,7 +240,9 @@ fn collect_closed_const_arguments(
                 ..
             } => {
                 let mut definitions = syntax.root_items().filter_map(|item| match item {
-                    Item::Data(definition) if definition.name.as_str() == base_name.as_str() => {
+                    Item::Data(definition)
+                        if definition.name.as_str(syntax) == base_name.as_str(syntax) =>
+                    {
                         Some(definition)
                     }
                     _ => None,
@@ -265,7 +267,7 @@ fn collect_closed_const_arguments(
                     let Some(parameters) = unique_domain_index_parameters(
                         syntax,
                         selection,
-                        domain.name.as_str(),
+                        domain.name.as_str(syntax),
                         domain.name.source_span(),
                     ) else {
                         continue;
@@ -310,7 +312,7 @@ fn collect_closed_const_arguments(
             for member in members.iter().skip(1) {
                 reference.span.end = member.source_span().span.end;
             }
-            let name = members.joined_path();
+            let name = members.joined_path_in(syntax);
             let Some(parameters) =
                 unique_domain_index_parameters(syntax, selection, &name, reference)
             else {

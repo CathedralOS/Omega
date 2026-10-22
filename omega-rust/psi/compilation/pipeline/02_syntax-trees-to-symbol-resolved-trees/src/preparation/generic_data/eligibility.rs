@@ -116,7 +116,7 @@ pub(in crate::preparation::generic_data) fn generic_data_is_recursive(
                 if current
                     .parameter_names
                     .iter()
-                    .any(|parameter| parameter == name.as_str())
+                    .any(|parameter| parameter == name.as_str(syntax))
                 {
                     return false;
                 }
@@ -247,9 +247,9 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
             ..
         } => {
             let head = base_name
-                .as_str()
+                .as_str(syntax)
                 .split_once("::")
-                .map_or(base_name.as_str(), |(head, _)| head);
+                .map_or(base_name.as_str(syntax), |(head, _)| head);
             // A template binder does not select a global constructor. The
             // declaration selector has no template roster, so preserve that
             // lexical boundary before recursing into an application.
@@ -293,9 +293,9 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                 | FixedArrayLength::Expression(_) => true,
                 FixedArrayLength::ConstParameter(name) => {
                     let head = name
-                        .as_str()
+                        .as_str(syntax)
                         .split_once("::")
-                        .map_or(name.as_str(), |(head, _)| head);
+                        .map_or(name.as_str(syntax), |(head, _)| head);
                     if let Some((parameter_name, parameter_type)) = base_info
                         .parameter_names
                         .iter()
@@ -305,7 +305,7 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                         // Only a bare const binder is an extent substitution.
                         // A type binder or binder-qualified path stays open;
                         // the top-level constant selector lacks this roster.
-                        parameter_name == name.as_str() && parameter_type.is_some()
+                        parameter_name == name.as_str(syntax) && parameter_type.is_some()
                     } else {
                         super::closed_fixed_array_length(
                             syntax,

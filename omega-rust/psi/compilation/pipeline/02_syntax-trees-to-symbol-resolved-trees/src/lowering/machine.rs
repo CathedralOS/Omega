@@ -6,6 +6,7 @@
 //! shared with trait definitions. `token_bindings` rejects duplicate direct
 //! operator-token bindings once every selection has settled.
 
+use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
 
 pub(crate) use token_bindings::{
@@ -26,18 +27,36 @@ use symbol_resolved_trees::machine::{
     GenericConformanceBound, Machine, MachineBodyStatus, MachineStorage, TraitConformance,
 };
 use symbol_resolved_trees::state::State;
-use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Prepared syntax bound to the one declaration roster that indexed it.
 /// Compiler-derived machines can rewrite a template's name/attachment; retain
 /// that normalized owner rather than rediscovering it by an authored spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct PendingMachineBody {
     pub(crate) machine_ordinal: usize,
     source: syntax::item::Machine,
     states: Vec<(Handle<State>, syntax::item::StateHandle)>,
+}
+
+impl PendingMachineBody {
+    pub(crate) fn same_syntax(
+        &self,
+        other: &Self,
+        left: &syntax::SyntaxTextOwner,
+        right: &syntax::SyntaxTextOwner,
+    ) -> bool {
+        use syntax::SyntaxEquivalent;
+        let Self {
+            machine_ordinal,
+            source,
+            states,
+        } = self;
+        *machine_ordinal == other.machine_ordinal
+            && *states == other.states
+            && source.same_syntax(&other.source, left, right)
+    }
 }
 
 /// Structural exposure is decided before supply classification erases whether
@@ -81,13 +100,13 @@ pub(crate) fn lower_machine_into(
     lowerer.current_compiler_selection_partition = compiler_selection_partition;
     lowerer.current_machine_is_boundary = machine.boundary;
     lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
-    lowerer.current_machine_name = Some(machine.name.as_str().to_owned());
+    lowerer.current_machine_name = Some(machine.name.as_str(syntax_trees).to_owned());
     lowerer.current_evidence_term_names = syntax_trees
         .items
         .capability_contracts(machine.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
-        .map(|binding| binding.as_str().to_owned())
+        .map(|binding| binding.as_str(syntax_trees).to_owned())
         .collect();
     let interface_exposure = machine_interface_exposure(machine);
     let states = lowerer.with_authored_expression_exposure(
@@ -129,7 +148,7 @@ pub(crate) fn lower_machine_into(
     let sibling_target = machine
         .target
         .as_ref()
-        .map(crate::lowering::name::lower_name);
+        .map(|name| crate::lowering::name::lower_name(syntax_trees, name));
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
@@ -152,13 +171,13 @@ pub(crate) fn lower_machine_into(
     let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
-    let machine_name = crate::lowering::name::lower_name(&machine.name);
+    let machine_name = crate::lowering::name::lower_name(syntax_trees, &machine.name);
     // A member keeps its authored family path and has a distinct
     // `<path>::<target>` symbol. The independent head occupies the portable
     // path; same-target calls bind exact member symbols during resolution.
     let target_symbol_name = match &sibling_target {
         Some(target) => symbol_resolved_trees::name::DiagnosticName::new(
-            format!("{}::{}", machine.name.as_str(), target.as_str()),
+            format!("{}::{}", machine.name.as_str(syntax_trees), target.as_str()),
             machine.name.source_span(),
         ),
         None => symbol_resolved_trees::name::DiagnosticName::default(),
@@ -166,7 +185,7 @@ pub(crate) fn lower_machine_into(
     let attached_data = machine
         .attached_data
         .as_ref()
-        .map(crate::lowering::name::lower_name);
+        .map(|name| crate::lowering::name::lower_name(syntax_trees, name));
     let termination_plan =
         build_termination_plan(lowerer, syntax_trees, machine, states, type_parameters);
 
@@ -185,7 +204,7 @@ pub(crate) fn lower_machine_into(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
-            .map(external_binding_identity);
+            .map(|value| external_binding_identity(syntax_trees, value));
         let has_via_expression = syntax_trees
             .items
             .satisfies_clauses(machine.satisfies)
@@ -253,11 +272,17 @@ pub(crate) fn lower_machine_into(
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
-            template_source: crate::lowering::name::lower_name(&machine.generic_data_template),
+            template_source: crate::lowering::name::lower_name(
+                syntax_trees,
+                &machine.generic_data_template,
+            ),
             ..Default::default()
         },
         trait_default_origin: symbol_resolved_trees::machine::TraitDefaultOrigin {
-            trait_source: crate::lowering::name::lower_name(&machine.default_body_trait),
+            trait_source: crate::lowering::name::lower_name(
+                syntax_trees,
+                &machine.default_body_trait,
+            ),
             ..Default::default()
         },
         attached_data,
@@ -272,7 +297,7 @@ pub(crate) fn lower_machine_into(
         authored_target: machine
             .authored_target
             .as_ref()
-            .map(crate::lowering::name::lower_name),
+            .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
         target_family: SymbolHandle::invalid(),
         target_family_interface: machine.target_family_interface,
         target_family_contracts_prepared: false,
@@ -294,7 +319,7 @@ pub(crate) fn lower_machine_into(
             lifetime_parameters: machine
                 .lifetime_parameters
                 .iter()
-                .map(crate::lowering::name::lower_name)
+                .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                 .collect(),
             type_parameters,
             owned_data: HandleSpan::empty(),
@@ -406,13 +431,13 @@ fn with_pending_machine_scope<T>(
         .replace(pending.machine_ordinal);
     let previous_name = lowerer
         .current_machine_name
-        .replace(pending.source.name.as_str().to_owned());
+        .replace(pending.source.name.as_str(syntax).to_owned());
     let evidence_names = syntax
         .items
         .capability_contracts(pending.source.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
-        .map(|binding| binding.as_str().to_owned())
+        .map(|binding| binding.as_str(syntax).to_owned())
         .collect();
     let previous_evidence =
         std::mem::replace(&mut lowerer.current_evidence_term_names, evidence_names);
@@ -477,9 +502,9 @@ pub(crate) fn lower_generic_conformance_bounds(
         .map(|bound| {
             Ok(GenericConformanceBound {
                 binder: SymbolHandle::invalid(),
-                binder_name: crate::lowering::name::lower_name(&bound.binder),
+                binder_name: crate::lowering::name::lower_name(syntax_trees, &bound.binder),
                 trait_symbol: SymbolHandle::invalid(),
-                trait_name: crate::lowering::name::lower_name(&bound.trait_name),
+                trait_name: crate::lowering::name::lower_name(syntax_trees, &bound.trait_name),
                 arguments: crate::lowering::type_reference::lower_child_type_references(
                     lowerer,
                     syntax_trees,
@@ -591,11 +616,11 @@ fn render_ranked_subject(
         syntax::expression::ExpressionNode::Name(path) => syntax_trees
             .expressions
             .identifier_path_members(*path)
-            .joined_path_with("."),
+            .joined_path_with_in(syntax_trees, "."),
         syntax::expression::ExpressionNode::Member(member) => format!(
             "{}.{}",
             render_ranked_subject(syntax_trees, member.receiver),
-            member.member.as_str()
+            member.member.as_str(syntax_trees)
         ),
         // A subtraction is not an admissible ranking subject under decision
         // 23, but retaining its exact normalized spelling lets the checked
@@ -635,7 +660,7 @@ fn elaborate_ranking_view(
         .items
         .identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
-        let path = order.joined_path();
+        let path = order.joined_path_in(syntax_trees);
         let id = RankingViewId::canonical(&path).unwrap_or(RankingViewId::NULL);
         return (id, path);
     }
@@ -681,7 +706,7 @@ fn elaborate_single_subject_default(
 
     if let syntax::expression::ExpressionNode::Member(member) =
         syntax_trees.expressions.expression(subject)
-        && CollectionMeasure::from_authored_spelling(member.member.as_str())
+        && CollectionMeasure::from_authored_spelling(member.member.as_str(syntax_trees))
             == Some(CollectionMeasure::Length)
     {
         return canonical_view(RankingViewId::NAT_DESCENDING);
@@ -708,13 +733,13 @@ fn elaborate_single_subject_default(
     let declared = trees
         .state_parameters(root_state.parameters)
         .iter()
-        .find(|parameter| parameter.name.as_str() == subject_name.as_str())
+        .find(|parameter| parameter.name.as_str() == subject_name.as_str(syntax_trees))
         .map(|parameter| &parameter.type_reference)
         .or_else(|| {
             let parameter = trees
                 .data_type_parameters(type_parameters)
                 .iter()
-                .find(|parameter| parameter.name.as_str() == subject_name.as_str())?;
+                .find(|parameter| parameter.name.as_str() == subject_name.as_str(syntax_trees))?;
             match &parameter.kind {
                 symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
                 | symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } => {
@@ -814,7 +839,7 @@ fn lower_machine_trait_conformances(
             lowerer
                 .symbol_resolved_trees
                 .external_bindings
-                .intern(external_binding_identity(binding))
+                .intern(external_binding_identity(syntax_trees, binding))
         });
         let via_expression = clause
             .via_expression
@@ -831,18 +856,21 @@ fn lower_machine_trait_conformances(
                 &mut span,
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(&clause.trait_name),
+                    name: crate::lowering::name::lower_name(syntax_trees, &clause.trait_name),
                     lifetime_arguments: clause
                         .lifetime_arguments
                         .iter()
-                        .map(crate::lowering::name::lower_name)
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                         .collect(),
                     arguments,
                     requirement: clause
                         .requirement
                         .as_ref()
-                        .map(crate::lowering::name::lower_name),
-                    alias: clause.alias.as_ref().map(crate::lowering::name::lower_name),
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+                    alias: clause
+                        .alias
+                        .as_ref()
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
                     external_binding,
                     via_expression,
                     external_binding_source_span: clause.via_keyword_source_span,
@@ -854,6 +882,7 @@ fn lower_machine_trait_conformances(
 }
 
 fn external_binding_identity(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     binding: &syntax::item::ExternalBinding,
 ) -> language_semantics::ExternalBindingIdentity {
     use language_semantics::ExternalBindingIdentity;
@@ -870,12 +899,12 @@ fn external_binding_identity(
         }
         syntax::item::ExternalBinding::VtableField { field } => {
             ExternalBindingIdentity::VtableField {
-                field: field.as_str().to_owned(),
+                field: field.as_str(syntax_trees).to_owned(),
             }
         }
         syntax::item::ExternalBinding::TableFunction { field } => {
             ExternalBindingIdentity::TableFunction {
-                field: field.as_str().to_owned(),
+                field: field.as_str(syntax_trees).to_owned(),
             }
         }
     }

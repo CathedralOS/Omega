@@ -23,7 +23,10 @@ fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
             };
             let span = program.expressions.source_span(expression);
             assert_eq!(span, call.target.source_span());
-            assert_eq!(&text[span.span.start..span.span.end], call.target.as_str());
+            assert_eq!(
+                &text[span.span.start..span.span.end],
+                call.target.as_str(program)
+            );
             assert!(
                 !spans.contains(&span),
                 "nested and sibling calls have distinct occurrences"
@@ -119,7 +122,7 @@ fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
             panic!("applied requirement call");
         };
         assert!(call.target_is_static);
-        assert_eq!(call.target.as_str(), member);
+        assert_eq!(call.target.as_str(&syntax), member);
         assert_eq!(call.machine_arguments.len(), static_arguments);
         let ExpressionNode::TypeExpression(application) =
             syntax.expressions.expression(call.receiver)
@@ -134,7 +137,7 @@ fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
         else {
             panic!("generic trait application");
         };
-        assert_eq!(base_name.as_str(), trait_name);
+        assert_eq!(base_name.as_str(&syntax), trait_name);
         assert_eq!(arguments.count(), arity);
     };
     applied(values[0], "Parent", 1, "read", 0);

@@ -274,7 +274,7 @@ fn machine_parameter_names(
         .items
         .type_parameters(machine.type_parameters)
         .iter()
-        .map(|parameter| parameter.name.as_str())
+        .map(|parameter| parameter.name.as_str(syntax))
         .collect();
     let Some(entry) = syntax.items.state_handles(machine.states).first() else {
         return Vec::new();
@@ -290,7 +290,7 @@ fn machine_parameter_names(
                 .type_references
                 .type_reference(parameter.type_reference)
                 .as_named()?;
-            (!binder_names.contains(&name.as_str())).then(|| name.as_str().to_string())
+            (!binder_names.contains(&name.as_str(syntax))).then(|| name.as_str(syntax).to_string())
         })
         .collect()
 }

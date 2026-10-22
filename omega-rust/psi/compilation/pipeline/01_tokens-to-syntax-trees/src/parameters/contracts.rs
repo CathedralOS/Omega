@@ -46,13 +46,13 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             .items
             .type_parameters(type_parameters)
             .iter()
-            .position(|parameter| parameter.name == name)
+            .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
         else {
             if reject_unknown_parameter {
                 return Err(after_name.error_here(format!(
                     "`where machine {}` has no matching `<machine {}>` parameter",
-                    name.as_str(),
-                    name.as_str()
+                    name.as_str(syntax_trees),
+                    name.as_str(syntax_trees)
                 )));
             }
             // A nested signature's requirements are written in the same
@@ -67,14 +67,14 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
                     "machine parameter `{}` already has a `where machine` contract",
-                    name.as_str()
+                    name.as_str(syntax_trees)
                 )));
             }
             _ => {
                 return Err(after_name.error_here(format!(
                     "`{}` is not a machine parameter; declare it as `<machine {}>` before writing a machine contract",
-                    name.as_str(),
-                    name.as_str()
+                    name.as_str(syntax_trees),
+                    name.as_str(syntax_trees)
                 )));
             }
         }
@@ -86,7 +86,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             if requirement.len() < 2 {
                 return Err(after_requirement.error_here(format!(
                     "nominal machine parameter `{}` must name an exact `Trait::requirement`; bare `satisfies Trait` is not a callable contract",
-                    name.as_str()
+                    name.as_str(syntax_trees)
                 )));
             }
             if after_requirement.at_contextual("as") {
@@ -195,9 +195,9 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
     {
         return Err(input.error_here(format!(
             "machine parameter `{}` requires an authored declaration-site contract: write `where machine {}(...) -> Result` or `where machine {} satisfies Trait::requirement;`",
-            missing.name.as_str(),
-            missing.name.as_str(),
-            missing.name.as_str(),
+            missing.name.as_str(syntax_trees),
+            missing.name.as_str(syntax_trees),
+            missing.name.as_str(syntax_trees),
         )));
     }
 

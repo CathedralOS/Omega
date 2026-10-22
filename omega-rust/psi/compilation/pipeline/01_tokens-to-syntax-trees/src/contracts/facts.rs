@@ -57,7 +57,7 @@ fn expand_carry_portable_item_paths(
             .items
             .identifier_path_members(domain)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(syntax_trees))
             .collect::<Vec<_>>()
             .join("::");
         if name != "Carry::Portable" {
@@ -391,7 +391,7 @@ fn parse_proof_fact_domain_arguments<'tokens, 'source>(
         .items
         .identifier_path_members(domain)
         .iter()
-        .map(|member| member.as_str())
+        .map(|member| member.as_str(syntax_trees))
         .collect::<Vec<_>>()
         .join("::");
     if name == "Carry::Portable" || language_core::CarryPermission::from_name(&name).is_some() {

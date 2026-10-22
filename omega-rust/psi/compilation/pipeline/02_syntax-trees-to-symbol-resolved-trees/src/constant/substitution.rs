@@ -236,14 +236,17 @@ pub(crate) fn substitute_resolved_constants(
     Ok(())
 }
 
-pub(crate) fn semantic_const_name(definition: &ConstDefinition) -> String {
-    if definition.scope.as_str().is_empty() {
-        definition.name.as_str().to_owned()
+pub(crate) fn semantic_const_name(
+    syntax_trees: &syntax_trees::SyntaxTrees,
+    definition: &ConstDefinition,
+) -> String {
+    if definition.scope.as_str(syntax_trees).is_empty() {
+        definition.name.as_str(syntax_trees).to_owned()
     } else {
         format!(
             "{}::{}",
-            definition.scope.as_str(),
-            definition.name.as_str()
+            definition.scope.as_str(syntax_trees),
+            definition.name.as_str(syntax_trees)
         )
     }
 }

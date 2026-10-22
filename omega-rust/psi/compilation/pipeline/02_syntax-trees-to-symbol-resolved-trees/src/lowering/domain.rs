@@ -10,8 +10,8 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees::domain::{
     DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
 };
-use symbols::JoinedPath;
 use symbols::SymbolHandle;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_domain_definition(
@@ -36,7 +36,12 @@ pub(crate) fn lower_domain_definition(
     let authored_routes = domain
         .authored_routes
         .iter()
-        .map(|route| route.iter().map(lower_name).collect())
+        .map(|route| {
+            route
+                .iter()
+                .map(|value| lower_name(syntax_trees, value))
+                .collect()
+        })
         .collect();
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
     let operators = lowerer.with_authored_expression_exposure(
@@ -50,8 +55,8 @@ pub(crate) fn lower_domain_definition(
     // package commitment and checked dependency scope distinguish equal paths.
     let mut semantic_identity =
         declared_module_path(syntax_trees, domain.name.source_span().source_id)
-            .map(|module| format!("{module}::{}", domain.name.as_str()))
-            .unwrap_or_else(|| domain.name.as_str().to_owned());
+            .map(|module| format!("{module}::{}", domain.name.as_str(syntax_trees)))
+            .unwrap_or_else(|| domain.name.as_str(syntax_trees).to_owned());
     let owner = lowerer
         .sources
         .as_deref()
@@ -115,10 +120,14 @@ pub(crate) fn lower_domain_definition(
 
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
-        name: lower_name(&domain.name),
-        subject_name: domain.subject.as_ref().map(lower_name).unwrap_or_else(|| {
-            symbol_resolved_trees::name::DiagnosticName::generated_static("$subject")
-        }),
+        name: lower_name(syntax_trees, &domain.name),
+        subject_name: domain
+            .subject
+            .as_ref()
+            .map(|value| lower_name(syntax_trees, value))
+            .unwrap_or_else(|| {
+                symbol_resolved_trees::name::DiagnosticName::generated_static("$subject")
+            }),
         subject_symbol: SymbolHandle::invalid(),
         type_parameters,
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
@@ -146,7 +155,8 @@ fn declared_module_path(syntax_trees: &SyntaxTrees, source: source::SourceId) ->
             return None;
         };
         let members = syntax_trees.items.identifier_path_members(module.path);
-        (members.first()?.source_span().source_id == source).then(|| members.joined_path())
+        (members.first()?.source_span().source_id == source)
+            .then(|| members.joined_path_in(syntax_trees))
     })
 }
 
@@ -166,7 +176,7 @@ fn lower_domain_alias(
                     .tables
                     .declarations
                     .domain_path_members
-                    .append_to_span(&mut domain, lower_name(member));
+                    .append_to_span(&mut domain, lower_name(syntax_trees, member));
             }
             DomainAliasConstituent {
                 domain,
@@ -273,7 +283,7 @@ pub(crate) fn lower_proof_facts_excluding(
                         .tables
                         .declarations
                         .domain_path_members
-                        .append_to_span(&mut domain, lower_name(member));
+                        .append_to_span(&mut domain, lower_name(syntax_trees, member));
                 }
                 let domain_arguments = lower_membership_domain_arguments(
                     lowerer,

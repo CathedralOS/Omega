@@ -82,7 +82,10 @@ pub(crate) fn prove_ready(
             super::const_generic_expressions::append_named_probe(
                 &mut probe,
                 syntax_trees::identifier::Identifier::new(
-                    format!("@const-qualification-{}-{ordinal}", definition.name),
+                    format!(
+                        "@const-qualification-{}-{ordinal}",
+                        definition.name.as_str(&syntax)
+                    ),
                     syntax.expressions.source_span(definition.value),
                 ),
                 definition.value,

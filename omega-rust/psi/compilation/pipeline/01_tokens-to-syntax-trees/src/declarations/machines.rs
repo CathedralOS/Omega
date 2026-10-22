@@ -205,8 +205,8 @@ fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) 
         };
     }
 
-    let name = join_path_identifier(members);
-    let attached_data = join_path_identifier(&members[..members.len() - 1]);
+    let name = join_path_identifier(syntax_trees, members);
+    let attached_data = join_path_identifier(syntax_trees, &members[..members.len() - 1]);
 
     MachinePath {
         name,

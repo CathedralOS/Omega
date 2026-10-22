@@ -13,9 +13,9 @@ use super::super::{
     TypeReferenceNode,
 };
 use arena::HandleSpan;
-use symbols::JoinedPath;
 use syntax_trees::expression::UnaryOperator;
 use syntax_trees::identifier::Identifier;
+use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::evaluate_const_fact_binary;
@@ -108,7 +108,7 @@ fn evaluate_const_fact_expression_at(
         ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
         ExpressionNode::Name(path) => {
             let members = syntax.expressions.identifier_path_members(*path);
-            let name = members.joined_path();
+            let name = members.joined_path_in(syntax);
             if let Some(subject) = subject.filter(|subject| subject.matches(syntax, expression)) {
                 return Ok(subject.scalar().map(ConstScalarValue::into_fact_value));
             }
@@ -164,7 +164,9 @@ fn evaluate_const_fact_expression_at(
             // its unique declaration before a fact can use the payload in an
             // operation or as a nested membership subject.
             let mut definitions = syntax.root_items().filter_map(|item| match item {
-                Item::Const(definition) if super::qualified_const_name(definition) == name => {
+                Item::Const(definition)
+                    if super::qualified_const_name(syntax, definition) == name =>
+                {
                     Some(definition)
                 }
                 _ => None,
@@ -201,7 +203,7 @@ fn evaluate_const_fact_expression_at(
             }
             Ok(fields
                 .iter()
-                .find(|(name, _)| name.as_str() == member.member.as_str())
+                .find(|(name, _)| name.as_str() == member.member.as_str(syntax))
                 .map(|(_, value)| value.into_fact_value()))
         }
         // An array carrier's subject answers only `subject[<index>]` reads against
@@ -331,14 +333,14 @@ pub(crate) fn evaluate_const_membership_fact(
     let [parameter_name] = syntax.expressions.identifier_path_members(*value_path) else {
         return Ok(None);
     };
-    let Some(value) = parameter_values.get(parameter_name.as_str()).copied() else {
+    let Some(value) = parameter_values.get(parameter_name.as_str(syntax)).copied() else {
         return Ok(None);
     };
-    let Some(parameter_type) = parameter_type_names.get(parameter_name.as_str()) else {
+    let Some(parameter_type) = parameter_type_names.get(parameter_name.as_str(syntax)) else {
         return Ok(None);
     };
     let members = syntax.items.identifier_path_members(membership.domain);
-    let domain_path = members.joined_path();
+    let domain_path = members.joined_path_in(syntax);
     evaluate_named_const_domain(
         syntax,
         &domain_path,
@@ -397,7 +399,7 @@ impl<'a> ConstFactSubject<'a> {
         let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
             return false;
         };
-        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str() == subject_name)
+        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str(syntax) == subject_name)
     }
 
     fn binding(self) -> Option<ConstSubjectBinding<'a>> {
@@ -458,7 +460,7 @@ fn const_field_projection<'value>(
             };
             Ok(fields
                 .iter()
-                .find(|(field, _)| *field == name.as_str())
+                .find(|(field, _)| *field == name.as_str(syntax))
                 .map(|(_, value)| Some(*value)))
         }
         ExpressionNode::Member(member) => {
@@ -473,7 +475,7 @@ fn const_field_projection<'value>(
                 {
                     fields
                         .iter()
-                        .find(|(name, _)| name == member.member.as_str())
+                        .find(|(name, _)| name == member.member.as_str(syntax))
                         .map(|(_, value)| value)
                 }
                 _ => None,
@@ -529,7 +531,7 @@ pub(super) fn prove_const_data_predicates(
             .iter()
             .find_map(|member| match member {
                 syntax_trees::item::DataMember::Variant(variant)
-                    if variant.name.as_str() == case_name =>
+                    if variant.name.as_str(syntax) == case_name =>
                 {
                     Some(variant)
                 }
@@ -552,12 +554,12 @@ pub(super) fn prove_const_data_predicates(
             continue;
         };
         let argument = substitution
-            .get(parameter.name.as_str())
+            .get(parameter.name.as_str(syntax))
             .ok_or_else(|| "data constant predicates require closed index bindings".to_owned())?;
         let bound = evaluate_domain_index_argument(
             syntax,
-            definition.name.as_str(),
-            parameter.name.as_str(),
+            definition.name.as_str(syntax),
+            parameter.name.as_str(syntax),
             type_reference,
             *argument,
             &const_values,
@@ -567,7 +569,7 @@ pub(super) fn prove_const_data_predicates(
             &mut warnings,
         )?
         .ok_or_else(|| "data constant predicates require decidable index bindings".to_owned())?;
-        parameter_values.insert(parameter.name.as_str().to_owned(), bound);
+        parameter_values.insert(parameter.name.as_str(syntax).to_owned(), bound);
     }
     // A type-wide predicate may read only common fields. The active case's
     // predicate additionally sees its payload; siblings never enter the binding.
@@ -581,7 +583,7 @@ pub(super) fn prove_const_data_predicates(
         .copied()
         .filter(|(name, _)| {
             members.iter().any(|member| match member {
-                syntax_trees::item::DataMember::Field(field) => field.name.as_str() == *name,
+                syntax_trees::item::DataMember::Field(field) => field.name.as_str(syntax) == *name,
                 _ => false,
             })
         })
@@ -607,7 +609,7 @@ pub(super) fn prove_const_data_predicates(
                 &parameter_values,
                 syntax.items.type_parameters(definition.type_parameters),
                 subject,
-                definition.name.as_str(),
+                definition.name.as_str(syntax),
                 &mut Vec::new(),
                 selection,
                 &mut warnings,
@@ -617,13 +619,13 @@ pub(super) fn prove_const_data_predicates(
                 Some(ConstFactValue::Boolean(false)) => {
                     return Err(format!(
                         "data constant `{}` violates its {label} predicate",
-                        definition.name
+                        definition.name.as_str(syntax)
                     ));
                 }
                 _ => {
                     return Err(format!(
                         "data constant `{}` requires declaration-site {label} proof checking",
-                        definition.name
+                        definition.name.as_str(syntax)
                     ));
                 }
             }
@@ -680,7 +682,7 @@ fn evaluate_selected_const_fact(
         return Ok(None);
     };
     let members = syntax.items.identifier_path_members(membership.domain);
-    let path = members.joined_path();
+    let path = members.joined_path_in(syntax);
     let reference = members
         .first()
         .map(|member| member.source_span())
@@ -749,7 +751,7 @@ fn evaluate_const_domain_constraint(
     if domain.arguments.is_empty() {
         evaluate_named_const_domain(
             syntax,
-            domain.name.as_str(),
+            domain.name.as_str(syntax),
             carrier,
             subject_binding,
             const_values,
@@ -761,7 +763,7 @@ fn evaluate_const_domain_constraint(
     } else {
         evaluate_indexed_const_domain(
             syntax,
-            domain.name.as_str(),
+            domain.name.as_str(syntax),
             domain.arguments,
             carrier,
             subject_binding,
@@ -799,7 +801,7 @@ fn evaluate_named_const_domain(
             let expanded = format!("{carrier}::{authored}");
             let mut matches = syntax.root_items().filter_map(|item| {
                 let domain = item.as_domain()?;
-                (domain.name.as_str() == authored || domain.name.as_str() == expanded)
+                (domain.name.as_str(syntax) == authored || domain.name.as_str(syntax) == expanded)
                     .then_some(domain)
             });
             matches.next().filter(|_| matches.next().is_none())
@@ -857,8 +859,8 @@ fn module_domain_key(
         syntax,
         domain.name.source_span().source_id,
     ) {
-        Some(module) => format!("{module}::{}", domain.name.as_str()),
-        None => domain.name.as_str().to_owned(),
+        Some(module) => format!("{module}::{}", domain.name.as_str(syntax)),
+        None => domain.name.as_str(syntax).to_owned(),
     }
 }
 
@@ -874,7 +876,7 @@ fn carrier_satisfies_declared_bounds(
 ) -> bool {
     let properties = primitive_scalar_properties(carrier).or_else(|| {
         syntax.root_items().find_map(|item| match item {
-            Item::Data(definition) if definition.name.as_str() == carrier => {
+            Item::Data(definition) if definition.name.as_str(syntax) == carrier => {
                 Some(definition.properties)
             }
             _ => None,
@@ -946,7 +948,7 @@ fn evaluate_selected_domain_facts(
         return Ok(None);
     }
     let domain_target_name = match syntax.type_references.type_reference(domain.target_type) {
-        TypeReferenceNode::Named(name) => Some(name.as_str()),
+        TypeReferenceNode::Named(name) => Some(name.as_str(syntax)),
         _ => None,
     };
     let carrier_parameter = syntax
@@ -955,7 +957,7 @@ fn evaluate_selected_domain_facts(
         .first()
         .filter(|parameter| {
             matches!(parameter.kind, TypeParameterKind::Type)
-                && domain_target_name == Some(parameter.name.as_str())
+                && domain_target_name == Some(parameter.name.as_str(syntax))
         });
     let binding = if let Some(parameter) = carrier_parameter {
         // An authored bound on the abstract carrier is application evidence:
@@ -972,7 +974,7 @@ fn evaluate_selected_domain_facts(
         None
     } else {
         let domain_carrier = match syntax.type_references.type_reference(domain.target_type) {
-            TypeReferenceNode::Named(name) => name.as_str().to_owned(),
+            TypeReferenceNode::Named(name) => name.as_str(syntax).to_owned(),
             // A fixed-array target's normalized identity matches the canonical
             // carrier label `[element; length]` byte for byte.
             TypeReferenceNode::FixedArray { .. } => {
@@ -994,7 +996,7 @@ fn evaluate_selected_domain_facts(
         Some(subject_binding)
     };
     let subject = domain.subject.as_ref().map(|name| ConstFactSubject::Value {
-        name: name.as_str(),
+        name: name.as_str(syntax),
         binding,
     });
     let warning_start = warnings.len();
@@ -1013,7 +1015,7 @@ fn evaluate_selected_domain_facts(
                 let Some(first) = members.first() else {
                     return Ok(None);
                 };
-                let path = members.joined_path();
+                let path = members.joined_path_in(syntax);
                 match evaluate_named_const_domain(
                     syntax,
                     &path,
@@ -1131,7 +1133,8 @@ fn evaluate_indexed_const_domain(
             let expanded = format!("{carrier}::{authored}");
             let mut matches = syntax.root_items().filter_map(|item| match item {
                 Item::Domain(domain)
-                    if domain.name.as_str() == authored || domain.name.as_str() == expanded =>
+                    if domain.name.as_str(syntax) == authored
+                        || domain.name.as_str(syntax) == expanded =>
                 {
                     Some(domain)
                 }
@@ -1181,7 +1184,7 @@ fn evaluate_indexed_const_domain(
         let Some(bound) = evaluate_domain_index_argument(
             syntax,
             authored,
-            parameter.name.as_str(),
+            parameter.name.as_str(syntax),
             parameter_type,
             *argument,
             const_values,
@@ -1200,7 +1203,7 @@ fn evaluate_indexed_const_domain(
                 if required == "bool" {
                     return Err(format!(
                         "index argument for `{authored}::{}` is an integer, expected `bool`",
-                        parameter.name.as_str(),
+                        parameter.name.as_str(syntax),
                     ));
                 }
                 crate::preparation::generic_data::validate_syntax_integer_range(&required, bound)?;
@@ -1219,7 +1222,7 @@ fn evaluate_indexed_const_domain(
                 if integer_type.name() != required {
                     return Err(format!(
                         "index argument for `{authored}::{}` has canonical type `{}`, expected `{required}`",
-                        parameter.name.as_str(),
+                        parameter.name.as_str(syntax),
                         integer_type.name(),
                     ));
                 }
@@ -1229,12 +1232,12 @@ fn evaluate_indexed_const_domain(
             ConstScalarValue::Boolean(_) if required != "bool" => {
                 return Err(format!(
                     "index argument for `{authored}::{}` has canonical type `bool`, expected `{required}`",
-                    parameter.name.as_str(),
+                    parameter.name.as_str(syntax),
                 ));
             }
             ConstScalarValue::Boolean(_) => bound,
         };
-        parameter_values.insert(parameter.name.as_str().to_owned(), bound);
+        parameter_values.insert(parameter.name.as_str(syntax).to_owned(), bound);
     }
     evaluate_selected_domain_facts(
         syntax,
@@ -1273,7 +1276,7 @@ fn evaluate_domain_index_argument(
     let integer_type = crate::preparation::generic_data::const_integer_type(syntax, parameter_type);
     let boolean_type = matches!(
         syntax.type_references.type_reference(parameter_type),
-        TypeReferenceNode::Named(name) if name.as_str() == "bool"
+        TypeReferenceNode::Named(name) if name.as_str(syntax) == "bool"
     );
     // A constrained binder cannot borrow its base carrier's eligibility:
     // its qualification still needs separate evidence.
@@ -1282,7 +1285,7 @@ fn evaluate_domain_index_argument(
     }
     match syntax.type_references.type_reference(argument) {
         TypeReferenceNode::Named(name) => {
-            match ConstScalarSpelling::from_bare_name(name.as_str()) {
+            match ConstScalarSpelling::from_bare_name(name.as_str(syntax)) {
                 Some(ConstScalarSpelling::Canonical(atom)) => {
                     let required = crate::preparation::generic_data::syntax_type_identity(
                         syntax,
@@ -1304,7 +1307,7 @@ fn evaluate_domain_index_argument(
                 }
                 None => {}
             }
-            if let Some(value) = argument_values.get(name.as_str()) {
+            if let Some(value) = argument_values.get(name.as_str(syntax)) {
                 // Forwarding binds a declared value, not an anonymous integer.
                 // Retain the caller telescope until its carrier is checked;
                 // reducing to i128 first would let `u64` silently become `u8`.
@@ -1313,7 +1316,7 @@ fn evaluate_domain_index_argument(
                     ..
                 }) = argument_parameters
                     .iter()
-                    .find(|parameter| parameter.name.as_str() == name.as_str())
+                    .find(|parameter| parameter.name.as_str(syntax) == name.as_str(syntax))
                 else {
                     return Ok(None);
                 };
@@ -1354,10 +1357,10 @@ fn evaluate_domain_index_argument(
                     return Ok(ConstScalarValue::from_canonical(&value));
                 }
             }
-            if let Some(value) = const_values.get(name.as_str()) {
+            if let Some(value) = const_values.get(name.as_str(syntax)) {
                 crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                     syntax,
-                    name.as_str(),
+                    name.as_str(syntax),
                     name.source_span(),
                 )?;
                 return Ok(Some(ConstScalarValue::Integer(*value)));
@@ -1371,7 +1374,8 @@ fn evaluate_domain_index_argument(
                 Item::Const(definition)
                     if !crate::preparation::generic_data::module_constants::is_module_constant(
                         syntax, definition,
-                    ) && super::qualified_const_name(definition) == name.as_str() =>
+                    ) && super::qualified_const_name(syntax, definition)
+                        == name.as_str(syntax) =>
                 {
                     Some(definition)
                 }
@@ -1385,7 +1389,7 @@ fn evaluate_domain_index_argument(
             }
             crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                 syntax,
-                name.as_str(),
+                name.as_str(syntax),
                 name.source_span(),
             )?;
             let value = crate::preparation::generic_data::canonicalize_const_definition(
@@ -1470,7 +1474,7 @@ fn prove_const_domain_constraint(
             domain: failed_domain,
         }) => Err(format!(
             "domain constraint `{}` for {subject_label} is false; failed domain `{failed_domain}`",
-            domain.name.as_str(),
+            domain.name.as_str(syntax),
         )),
         None => Err(CONSTRAINED_CONST_FENCE.to_owned()),
     }
@@ -1737,7 +1741,7 @@ fn evaluate_const_domain_expression(
             let members = syntax
                 .expressions
                 .identifier_path_members(membership.domain);
-            let path = members.joined_path();
+            let path = members.joined_path_in(syntax);
             evaluate_named_const_domain(
                 syntax,
                 &path,

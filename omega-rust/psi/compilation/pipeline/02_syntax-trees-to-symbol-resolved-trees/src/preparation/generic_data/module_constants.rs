@@ -2,9 +2,9 @@
 
 use source::{SourceId, SourceSpan};
 use std::collections::HashMap;
-use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ConstDefinition, Item};
 
 pub(super) fn is_module_constant(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
@@ -31,7 +31,7 @@ pub(crate) fn lexical_integer_const_values(syntax: &SyntaxTrees) -> HashMap<Stri
                 return None;
             };
             Some((
-                super::qualified_const_name(definition),
+                super::qualified_const_name(syntax, definition),
                 super::integer_literal_value(value)?,
             ))
         })
@@ -51,7 +51,7 @@ pub(crate) fn reject_module_constant_selection(
         let Some(module) = module_path(syntax, definition.name.source_span().source_id) else {
             continue;
         };
-        let local_name = super::qualified_const_name(definition);
+        let local_name = super::qualified_const_name(syntax, definition);
         let full_name = format!("{module}::{local_name}");
         let local = current_module.as_ref() == Some(&module) && spelling == local_name;
         // Package aliases are requester-local and unavailable at this stage.
@@ -69,10 +69,12 @@ pub(crate) fn reject_module_constant_selection(
             {
                 return false;
             }
-            let path = members.joined_path();
+            let path = members.joined_path_in(syntax);
             let imports_declaration =
                 path == full_name || path.ends_with(&format!("::{full_name}"));
-            if imports_declaration && (spelling == definition.name.as_str() || spelling == path) {
+            if imports_declaration
+                && (spelling == definition.name.as_str(syntax) || spelling == path)
+            {
                 return true;
             }
             let imports_module = path == module || path.ends_with(&format!("::{module}"));
@@ -102,6 +104,6 @@ pub(crate) fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<Stri
         members
             .first()
             .filter(|member| member.source_span().source_id == source)?;
-        Some(members.joined_path())
+        Some(members.joined_path_in(syntax))
     })
 }

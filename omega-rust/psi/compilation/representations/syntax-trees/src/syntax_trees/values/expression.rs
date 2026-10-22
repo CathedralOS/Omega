@@ -2,7 +2,6 @@ use crate::identifier::Identifier;
 use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
 use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, SourceText};
-use std::sync::Arc;
 
 mod display;
 #[cfg(test)]
@@ -11,7 +10,7 @@ mod tests;
 pub type ExpressionHandle = Handle<ExpressionNode>;
 pub type ExpressionFrontier = PagedArenaFrontier<ExpressionNode>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
     source_spans: Arena<SourceSpan>,
@@ -176,10 +175,6 @@ impl ExpressionTable {
     pub fn frontier(&self) -> ExpressionFrontier {
         self.expressions.frontier()
     }
-
-    pub fn display_name(&self, handle: ExpressionHandle) -> String {
-        self.expression(handle).display_name(self)
-    }
 }
 
 fn source_span_handle(handle: ExpressionHandle) -> Handle<SourceSpan> {
@@ -192,7 +187,7 @@ impl Default for ExpressionTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
@@ -214,7 +209,7 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     /// Exact decoded literal octets. A string literal is not required to be
     /// UTF-8 after `\xNN` escape decoding.
-    String(Arc<[u8]>),
+    String(source::SourceBytes),
     Unary(TableUnaryExpression),
     /// A static type operand retained for type-equation checking. This is not
     /// a runtime value and must be consumed or rejected before value lowering.
@@ -227,13 +222,13 @@ pub enum ExpressionNode {
 /// the expression rather than reconstructed from the callee's expected type:
 /// `&mut place` and its explicit `&write place` attenuation are distinct
 /// source operations even though both lower to an exclusive pointer ABI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableBorrowExpression {
     pub target: ExpressionHandle,
     pub access: language_core::ReferenceAccess,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     /// Scalar observed-prior destination. Invalid for loads, stores and whole
@@ -249,20 +244,20 @@ impl Default for ExpressionNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableBinaryExpression {
     pub left: ExpressionHandle,
     pub operator: BinaryOperator,
     pub right: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableUnaryExpression {
     pub operator: UnaryOperator,
     pub operand: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     pub target_type: crate::types::TypeReferenceHandle,
@@ -284,26 +279,26 @@ pub struct TableCastExpression {
     pub form: language_core::cast_form::CastForm,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableRangeExpression {
     pub start: ExpressionHandle,
     pub end: ExpressionHandle,
     pub end_inclusive: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct TableMembershipExpression {
     pub value: ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member: Identifier,
@@ -315,7 +310,7 @@ pub struct TableMemberExpression {
     pub case_variant: Option<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target: Identifier,
@@ -330,7 +325,7 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -350,7 +345,7 @@ pub struct StaticMachineArgument {
     pub evidence_projection: Option<EvidenceProjection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StaticSymbolApplication {
     /// Explicit erased lifetime arguments. An empty lane may be filled only
     /// by ordinary lifetime elision after the declaration is resolved.
@@ -359,13 +354,13 @@ pub struct StaticSymbolApplication {
     pub arguments: Box<[StaticMachineArgument]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct EvidenceProjection {
     pub term: Identifier,
     pub member: Identifier,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TableStructLiteral {
     /// Complete authored static name; resolution decides whether it selects
     /// a record or a case. Path length does not determine that distinction.
@@ -382,7 +377,7 @@ impl Default for TableStructLiteral {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TableStructLiteralField {
     pub name: Identifier,
     pub value: ExpressionHandle,
@@ -426,13 +421,17 @@ pub enum UnaryOperator {
 }
 
 /// Ordered value dispatch. The subject is evaluated once before testing arms.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+)]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
     pub arms: HandleSpan<TableMatchArm>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+)]
 pub struct TableMatchArm {
     pub pattern: MatchPattern,
     pub value: ExpressionHandle,

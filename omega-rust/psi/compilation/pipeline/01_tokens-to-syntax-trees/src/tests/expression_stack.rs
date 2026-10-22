@@ -15,11 +15,16 @@ fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
         .tokenize()
         .expect("tokenize nested values");
     let mut parsed = syntax_trees::SyntaxTrees::new(source::SourceId::default());
-    let (_, rest) = crate::expressions::parse_expression::parse_expression_handle(
+    let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
+    let input = crate::input::token_cursor::Input::new(
+        source::SourceId::default(),
+        &tokens,
+        &retained_source,
         &mut parsed,
-        crate::input::token_cursor::Input::new(source::SourceId::default(), &tokens),
-    )
-    .expect("parse nested values on the default stack");
+    );
+    let (_, rest) =
+        crate::expressions::parse_expression::parse_expression_handle(&mut parsed, input)
+            .expect("parse nested values on the default stack");
     assert!(rest.tokens.is_empty());
     let count = |predicate: fn(&ExpressionNode) -> bool| {
         parsed
@@ -50,11 +55,12 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
     let source_id = source::SourceId::default();
     let tokens = Lexer::new(source).tokenize().expect("tokenize expression");
     let mut parsed = SyntaxTrees::new(source_id);
-    let (expression, rest) = crate::expressions::parse_expression::parse_expression_handle(
-        &mut parsed,
-        crate::input::token_cursor::Input::new(source_id, &tokens),
-    )
-    .expect("parse expression");
+    let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
+    let input =
+        crate::input::token_cursor::Input::new(source_id, &tokens, &retained_source, &mut parsed);
+    let (expression, rest) =
+        crate::expressions::parse_expression::parse_expression_handle(&mut parsed, input)
+            .expect("parse expression");
     assert!(
         rest.tokens.is_empty(),
         "expression must consume all input: {source}"
@@ -104,7 +110,7 @@ fn operator_stack_retains_precedence_associativity_and_operator_spans() {
         parsed.expressions.expression(root.left),
         ExpressionNode::Binary(_)
     ));
-    assert_eq!(parsed.expressions.display_name(root.right), "c");
+    assert_eq!(parsed.display_expression_name(root.right), "c");
 }
 
 #[test]

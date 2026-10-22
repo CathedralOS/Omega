@@ -44,7 +44,7 @@ pub(super) fn lower(
             .collect::<Result<Vec<_>, _>>()?;
         let declarations = &mut lowerer.symbol_resolved_trees.tables.declarations;
         blocks.push(AssemblyBlock {
-            label: crate::lowering::name::lower_name(&block.label),
+            label: crate::lowering::name::lower_name(syntax_trees, &block.label),
             requires: declarations.assembly_expressions.insert_many(requires),
             ensures: declarations.assembly_expressions.insert_many(ensures),
             instructions: declarations.state_statements.insert_many(instructions),
@@ -80,11 +80,11 @@ pub(super) fn lower(
         {
             let Some(index) = source_blocks
                 .iter()
-                .position(|block| block.label.as_str() == label.as_str())
+                .position(|block| block.label.as_str(syntax_trees) == label.as_str(syntax_trees))
             else {
                 return Err(Diagnostic::error(format!(
                     "assembly jump has no local label `{}`",
-                    label.as_str()
+                    label.as_str(syntax_trees)
                 )));
             };
             declarations.assembly_blocks.get_mut(handle).exit =

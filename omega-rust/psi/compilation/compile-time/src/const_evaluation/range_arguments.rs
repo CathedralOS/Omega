@@ -107,7 +107,7 @@ pub(crate) fn evaluate(
             base = base_type;
         }
         if !matches!(syntax.type_references.type_reference(base), TypeReferenceNode::Named(name)
-            if matches!(name.as_str(), "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"))
+            if matches!(name.as_str(&syntax), "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"))
         {
             continue;
         }

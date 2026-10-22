@@ -46,13 +46,16 @@ pub(super) fn concrete_state_local_types(
         let mut local_types = super::HashMap::<String, super::TypeReferenceHandle>::new();
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
             let parameter = syntax.tables.items.state_parameter(*parameter);
-            local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
+            local_types.insert(
+                parameter.name.as_str(syntax).to_owned(),
+                parameter.type_reference,
+            );
         }
         let statements = syntax.tables.items.statements(state.statements).to_vec();
         for statement in &statements {
             if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
             {
-                local_types.insert(local.name.as_str().to_owned(), local.type_reference);
+                local_types.insert(local.name.as_str(syntax).to_owned(), local.type_reference);
             }
         }
         states.push((state, local_types, statements));

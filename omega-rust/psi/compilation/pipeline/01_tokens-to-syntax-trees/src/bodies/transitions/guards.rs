@@ -297,14 +297,13 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
     for (binding_index, bindings) in all_bindings.iter().enumerate() {
         for field in &bindings.fields {
             if all_bindings[..binding_index].iter().any(|earlier| {
-                earlier
-                    .fields
-                    .iter()
-                    .any(|other| other.binding.as_str() == field.binding.as_str())
+                earlier.fields.iter().any(|other| {
+                    other.binding.as_str(syntax_trees) == field.binding.as_str(syntax_trees)
+                })
             }) {
                 return Err(input.error_here(format!(
                     "tuple destructure binding `{}` is introduced by more than one subject; rename one binding with `as`",
-                    field.binding.as_str()
+                    field.binding.as_str(syntax_trees)
                 )));
             }
         }
@@ -777,7 +776,7 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
                     rest = after_as.take_contextual("_")?;
                 } else {
                     let (renamed, after_renamed) = after_as.take_identifier()?;
-                    if renamed.as_str() == "_" {
+                    if renamed.as_str(syntax_trees) == "_" {
                         binding = None;
                     } else {
                         binding = Some(renamed);
@@ -808,21 +807,21 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
             } else {
                 (output_field.clone(), rest)
             };
-            if !output_fields.insert(output_field.as_str().to_owned()) {
+            if !output_fields.insert(output_field.as_str(syntax_trees).to_owned()) {
                 return Err(input.error_here(format!(
                     "outcome proof selector `{}` is bound more than once in this arm",
-                    output_field.as_str()
+                    output_field.as_str(syntax_trees)
                 )));
             }
-            if binding.as_str() == "_" {
+            if binding.as_str(syntax_trees) == "_" {
                 return Err(
                     input.error_here("omit an outcome proof selector instead of binding it to `_`")
                 );
             }
-            if !local_names.insert(binding.as_str().to_owned()) {
+            if !local_names.insert(binding.as_str(syntax_trees).to_owned()) {
                 return Err(input.error_here(format!(
                     "outcome evidence term `{}` is bound more than once in this arm",
-                    binding.as_str()
+                    binding.as_str(syntax_trees)
                 )));
             }
             proof_selectors.push(TableOutcomeProofSelector {
@@ -1088,7 +1087,7 @@ fn single_destructured_field_name(
     };
     fields
         .iter()
-        .find(|field| &field.binding == member)
+        .find(|field| field.binding.as_str(syntax_trees) == member.as_str(syntax_trees))
         .map(|field| (field.member.clone(), field.case_variant.clone()))
 }
 

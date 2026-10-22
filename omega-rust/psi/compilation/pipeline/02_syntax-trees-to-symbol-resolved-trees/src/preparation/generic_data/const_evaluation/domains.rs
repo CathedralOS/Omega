@@ -3,6 +3,7 @@ use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier,
     IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
+use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::EvaluatedConst;
@@ -15,7 +16,6 @@ use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_const_index_type;
 use crate::preparation::generic_data::validate_syntax_integer_range;
 use crate::preparation::generic_data::work_domain::TypePositionPurpose;
-use symbols::JoinedPath;
 
 pub(in crate::preparation::generic_data) fn integer_literal_value(
     value: &IntegerLiteral,
@@ -27,9 +27,10 @@ pub(in crate::preparation::generic_data) fn integer_literal_value(
 }
 
 pub(in crate::preparation::generic_data) fn qualified_const_name(
+    syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> String {
-    crate::constant::semantic_const_name(definition)
+    crate::constant::semantic_const_name(syntax_trees, definition)
 }
 
 #[derive(Clone)]
@@ -62,13 +63,13 @@ pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
         .type_references
         .type_reference(definition.target_type)
     {
-        TypeReferenceNode::Named(target) => Some(target.as_str()),
+        TypeReferenceNode::Named(target) => Some(target.as_str(syntax)),
         _ => None,
     };
     let parameters = syntax.items.type_parameters(definition.type_parameters);
     let generic_carrier = parameters.first().is_some_and(|parameter| {
         matches!(parameter.kind, TypeParameterKind::Type)
-            && target_name == Some(parameter.name.as_str())
+            && target_name == Some(parameter.name.as_str(syntax))
     });
     Some(if generic_carrier {
         &parameters[1..]
@@ -108,7 +109,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             if !header_arguments.is_empty() {
                 return Err(Diagnostic::error(format!(
                     "domain `{}` supplies index arguments but declares no generic carrier/const telescope",
-                    definition.name
+                    definition.name.as_str(syntax)
                 )));
             }
             continue;
@@ -117,7 +118,8 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         let Some(index_parameters) = domain_index_parameters(syntax, definition) else {
             return Err(Diagnostic::error(format!(
                 "indexed domain `{}` must use its carrier binder directly before `::{}`",
-                definition.name, definition.name
+                definition.name.as_str(syntax),
+                definition.name.as_str(syntax)
             )));
         };
         if index_parameters.is_empty() {
@@ -130,25 +132,26 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         for parameter in index_parameters {
             match parameter.kind {
                 TypeParameterKind::Type => family_parameters.push(ClosedDomainParameter::Type {
-                    name: parameter.name.as_str().to_owned(),
+                    name: parameter.name.as_str(syntax).to_owned(),
                 }),
                 TypeParameterKind::Const { type_reference } => {
                     validate_const_index_type(syntax, type_reference, &mut HashSet::new())
                         .map_err(|reason| {
                             Diagnostic::error(format!(
                                 "indexed domain `{}::{}` has an ineligible index type: {reason}",
-                                definition.name, parameter.name
+                                definition.name.as_str(syntax),
+                                parameter.name.as_str(syntax)
                             ))
                         })?;
                     family_parameters.push(ClosedDomainParameter::Const {
-                        name: parameter.name.as_str().to_owned(),
+                        name: parameter.name.as_str(syntax).to_owned(),
                         type_reference,
                     });
                 }
                 _ => {
                     return Err(Diagnostic::error(format!(
                         "indexed domain `{}` indices must be type or proof-static const parameters",
-                        definition.name
+                        definition.name.as_str(syntax)
                     )));
                 }
             }
@@ -156,7 +159,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         if header_arguments.len() != family_parameters.len() {
             return Err(Diagnostic::error(format!(
                 "indexed domain `{}` declares {} index parameter(s) but selects {} index argument(s) in its family header",
-                definition.name,
+                definition.name.as_str(syntax),
                 family_parameters.len(),
                 header_arguments.len()
             )));
@@ -174,13 +177,14 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             else {
                 return Err(Diagnostic::error(format!(
                     "indexed domain `{}` must select each index binder directly in its family header",
-                    definition.name
+                    definition.name.as_str(syntax)
                 )));
             };
-            if argument_name.as_str() != parameter_name {
+            if argument_name.as_str(syntax) != parameter_name {
                 return Err(Diagnostic::error(format!(
                     "indexed domain `{}` must select index binder `{parameter_name}` in declaration order, not `{argument_name}`",
-                    definition.name
+                    definition.name.as_str(syntax),
+                    argument_name = argument_name.as_str(syntax)
                 )));
             }
         }
@@ -191,8 +195,8 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             syntax,
             definition.name.source_span().source_id,
         ) {
-            Some(module) => format!("{module}::{}", definition.name.as_str()),
-            None => definition.name.as_str().to_owned(),
+            Some(module) => format!("{module}::{}", definition.name.as_str(syntax)),
+            None => definition.name.as_str(syntax).to_owned(),
         };
         let declaration = definition.name.source_span();
         if families.iter().any(|family| {
@@ -203,7 +207,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         }) {
             return Err(Diagnostic::error(format!(
                 "indexed domain family `{}` is declared more than once",
-                definition.name
+                definition.name.as_str(syntax)
             )));
         }
         families.push(ClosedDomainFamily {
@@ -247,7 +251,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         .into_iter()
         .map(|constraint| {
             (
-                constraint.name.as_str().to_owned(),
+                constraint.name.as_str(syntax).to_owned(),
                 constraint.arguments,
                 constraint.name.source_span(),
             )
@@ -268,7 +272,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             let members = syntax
                 .expressions
                 .identifier_path_members(cast.semantic_domain);
-            let name = members.joined_path();
+            let name = members.joined_path_in(syntax);
             let mut reference = members.first()?.source_span();
             for member in members.iter().skip(1) {
                 if member.source_span().source_id != reference.source_id {
@@ -295,7 +299,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 .and_then(|(_, definition)| {
                     families.iter().find(|family| {
                         family.declaration.source_span() == definition.name.source_span()
-                            && family.declaration.as_str() == definition.name.as_str()
+                            && family.declaration.as_str(syntax) == definition.name.as_str(syntax)
                     })
                 }),
             None => families.iter().find(|family| family.path == name),
@@ -357,7 +361,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
             .clone();
         match node {
             TypeReferenceNode::Named(name) => {
-                match ConstScalarSpelling::from_bare_name(name.as_str()) {
+                match ConstScalarSpelling::from_bare_name(name.as_str(syntax)) {
                     Some(ConstScalarSpelling::Canonical(value)) => {
                         let required = syntax_type_identity(syntax, *parameter_type)
                             .map_err(Diagnostic::error)?;
@@ -439,14 +443,14 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                     const_values,
                     const_definitions,
                 )?;
-                if let Some(value) = const_values.get(name.as_str()) {
+                if let Some(value) = const_values.get(name.as_str(syntax)) {
                     syntax.tables.type_references.replace_type_reference(
                         argument,
                         TypeReferenceNode::Named(Identifier::generated(value.to_string())),
                     );
                     continue;
                 }
-                let Some(definition) = const_definitions.get(name.as_str()) else {
+                let Some(definition) = const_definitions.get(name.as_str(syntax)) else {
                     // A direct generic const binder is resolved and checked
                     // later in its declaration context. Unknown names fail
                     // there as well; never guess that a type is a value.

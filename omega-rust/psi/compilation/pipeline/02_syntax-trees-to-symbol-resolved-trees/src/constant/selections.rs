@@ -56,6 +56,7 @@ pub(crate) fn finalize_const_selections(
 /// pending declaration list. Value substitution is independent of this root:
 /// only source identity and visibility survive here.
 pub(crate) fn finalize_const_declarations(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     program: &mut SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) -> Result<(), Diagnostic> {
@@ -86,13 +87,13 @@ pub(crate) fn finalize_const_declarations(
     // specialized instance used for value checking and materialization.
     for (declaration, constant_symbol) in pending.iter().zip(&const_symbols) {
         let module = program.symbols.symbol_module(*constant_symbol);
-        if declaration.scope.as_str().is_empty() || !module.is_valid() {
+        if declaration.scope.as_str(syntax_trees).is_empty() || !module.is_valid() {
             continue;
         }
         let carrier = program
             .symbols
             .lookup_top_level_by_name_and_kinds_from_source_matching(
-                declaration.scope.as_str(),
+                declaration.scope.as_str(syntax_trees),
                 &[SymbolKind::Data],
                 declaration.scope.source_span(),
                 |_| true,

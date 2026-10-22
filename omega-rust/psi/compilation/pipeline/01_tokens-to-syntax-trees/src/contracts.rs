@@ -16,12 +16,12 @@ pub(crate) fn parse_crash_cause<'tokens, 'source>(
     after_cause: crate::input::token_cursor::Input<'tokens, 'source>,
 ) -> Result<syntax_trees::item::CrashCause, crate::diagnostics::parse_error::ParseError> {
     use syntax_trees::item::CrashCause;
-    match cause.as_str() {
+    match cause.as_str(&after_cause) {
         "Trap" => Ok(CrashCause::Trap),
         "Abort" => Ok(CrashCause::Abort),
         _ => Err(after_cause.error_here(format!(
             "unknown crash cause `{}`; expected `Trap` or `Abort`",
-            cause.as_str()
+            cause.as_str(&after_cause)
         ))),
     }
 }
@@ -30,7 +30,7 @@ pub(crate) fn reject_retired_operational_reach(
     service: &syntax_trees::identifier::Identifier,
     input: crate::input::token_cursor::Input<'_, '_>,
 ) -> Result<(), crate::diagnostics::parse_error::ParseError> {
-    let replacement = match service.as_str() {
+    let replacement = match service.as_str(&input) {
         "Suspend" => "suspends;",
         "Block" => "blocks;",
         "thread_block" => "blocks;",
@@ -39,7 +39,7 @@ pub(crate) fn reject_retired_operational_reach(
     };
     Err(input.error_here(format!(
         "`reaches {}` is invalid: `reaches` contains boundary-service identities only; write `{replacement}` as an independent operational clause",
-        service.as_str()
+        service.as_str(&input)
     )))
 }
 /// One `reaches` member plus its `,`/`+` separator, shared by the machine

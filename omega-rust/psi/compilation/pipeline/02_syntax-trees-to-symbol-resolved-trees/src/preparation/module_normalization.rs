@@ -113,7 +113,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                     vec![
                         Diagnostic::error(format!(
                             "module array constant `{}` is invalid: {reason}",
-                            constant.name.as_str()
+                            constant.name.as_str(syntax)
                         ))
                         .with_source_span(constant.name.source_span()),
                     ]
@@ -124,7 +124,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                         vec![
                             Diagnostic::error(format!(
                                 "module scalar constant `{}` is invalid: {reason}",
-                                constant.name.as_str()
+                                constant.name.as_str(syntax)
                             ))
                             .with_source_span(constant.name.source_span()),
                         ]
@@ -140,7 +140,8 @@ pub(crate) fn validate_with_const_resolution_mode(
             let selected = selection.data(syntax, base_name).and_then(|definition| {
                 if definition.type_parameters.is_empty() {
                     Err(format!(
-                        "`{base_name}` does not select a generic data template"
+                        "`{base_name}` does not select a generic data template",
+                        base_name = base_name.as_str(syntax)
                     ))
                 } else {
                     Ok(())
@@ -150,7 +151,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                 vec![
                     Diagnostic::error(format!(
                         "module-owned nominal constant `{}` is invalid: {reason}",
-                        constant.name
+                        constant.name.as_str(syntax)
                     ))
                     .with_source_span(constant.name.source_span()),
                 ]
@@ -165,7 +166,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                 vec![
                     Diagnostic::error(format!(
                         "module-owned nominal constant `{}` is invalid: {reason}",
-                        constant.name
+                        constant.name.as_str(syntax)
                     ))
                     .with_source_span(constant.name.source_span()),
                 ]
@@ -200,12 +201,12 @@ pub(crate) fn module_literal_constant(
     loop {
         match syntax.type_references.type_reference(type_reference) {
             TypeReferenceNode::Named(name) => {
-                return crate::constant::is_structural_scalar_carrier(name.as_str())
-                    || (!is_array && matches!(name.as_str(), "f32" | "f64"))
+                return crate::constant::is_structural_scalar_carrier(name.as_str(syntax))
+                    || (!is_array && matches!(name.as_str(syntax), "f32" | "f64"))
                     // The legacy free-constant profile includes this spelling,
                     // but `string` is not a builtin scalar. Do not extend that
                     // exception to newly admitted scoped nominal declarations.
-                    || (!is_array && constant.scope.as_str().is_empty() && name.as_str() == "string");
+                    || (!is_array && constant.scope.as_str(syntax).is_empty() && name.as_str(syntax) == "string");
             }
             TypeReferenceNode::FixedArray {
                 element_type,

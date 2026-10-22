@@ -97,7 +97,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             if block.instruction_count != 0 {
                 blocks.push(block);
                 block = ParsedAssemblyBlock::default();
-            } else if !blocks.is_empty() || block.label.as_str() != "asm#entry" {
+            } else if !blocks.is_empty() || block.label.as_str(syntax_trees) != "asm#entry" {
                 return Err(
                     input.error_here("an asm block must contain at least one known instruction")
                 );
@@ -163,7 +163,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             && let Some(register_index) = scratch::NAMES
                 [..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
                 .iter()
-                .position(|register| *register == name.as_str())
+                .position(|register| *register == name.as_str(syntax_trees))
         {
             realized_clobbers.insert(scratch::CLOBBERS[register_index]);
         }
@@ -254,22 +254,22 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
         if blocks[..index]
             .iter()
-            .any(|prior| prior.label.as_str() == block.label.as_str())
+            .any(|prior| prior.label.as_str(syntax_trees) == block.label.as_str(syntax_trees))
         {
             return Err(input.error_here(format!(
                 "assembly label `{}` is declared more than once",
-                block.label.as_str()
+                block.label.as_str(syntax_trees)
             )));
         }
         if let syntax_trees::statement::AssemblyExit::Jump(label)
         | syntax_trees::statement::AssemblyExit::NonZero(label) = &block.exit
             && !blocks
                 .iter()
-                .any(|target| target.label.as_str() == label.as_str())
+                .any(|target| target.label.as_str(syntax_trees) == label.as_str(syntax_trees))
         {
             return Err(input.error_here(format!(
                 "assembly jump names undeclared label `{}`",
-                label.as_str()
+                label.as_str(syntax_trees)
             )));
         }
     }
@@ -287,12 +287,14 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
             continue;
         };
-        if language_core::inline_assembly::is_unmodeled_x86_scratch_view(name.as_str()) {
+        if language_core::inline_assembly::is_unmodeled_x86_scratch_view(name.as_str(syntax_trees))
+        {
+            let name = name.as_str(syntax_trees);
             return Err(input.error_here(format!("unsupported x86 scratch register view `{name}`: register aliases require shared-bit state modeling")));
         }
     }
     let uses_scratch = syntax_trees.expressions.iter_expressions().skip(expression_start).any(|(_, node)| {
-        matches!(node, ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str())))
+        matches!(node, ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str(syntax_trees))))
     });
     if uses_scratch && restores_hardware_flags {
         return Err(input.error_here(
@@ -512,7 +514,7 @@ fn parse_asm_where_contract<'tokens, 'source>(
                 && !input.at_contextual("clobbers")
             {
                 let (register, rest) = input.take_identifier()?;
-                declared.insert(register.as_str().to_owned());
+                declared.insert(register.as_str(syntax_trees).to_owned());
                 input = rest;
                 if input.at_punctuation(PunctuationKind::Comma) {
                     input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -694,7 +696,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let mnemonic_site = input;
     let (mnemonic, input) = input.take_identifier()?;
 
-    let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
+    let Some(entry) = asm_catalog_entry(mnemonic.as_str(syntax_trees)) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
              (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
@@ -702,7 +704,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
              `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
              `ldr`, `str`, structured `read_crN`/`write_crN`/`read_<sysreg>`/`write_<sysreg>`); opaque \
              forms (`db`, raw bytes) are rejected",
-            mnemonic.as_str()
+            mnemonic.as_str(syntax_trees)
         )));
     };
     let contract = match entry {
@@ -711,7 +713,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             return Err(mnemonic_site.error_here(format!(
                 "asm instruction `{}` creates a hidden control exit: user assembly may not \
                  return, call, or branch indirectly; spell control flow as `jmp state(...)`",
-                mnemonic.as_str()
+                mnemonic.as_str(syntax_trees)
             )));
         }
         AsmCatalogEntry::Refused(AsmInstructionRefusal::UnmodeledMemoryAccess) => {
@@ -719,7 +721,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 "asm instruction `{}` may access memory, but no structured operand \
                  provenance/permission contract is modeled for it yet; use typed Omega \
                  place/view operations until that instruction contract lands",
-                mnemonic.as_str()
+                mnemonic.as_str(syntax_trees)
             )));
         }
     };
@@ -727,7 +729,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         return Err(mnemonic_site.error_here(format!(
             "asm instruction `{}` is deriver-only: user-authored assembly may not spell \
              entry/exit protocol operations or manufacture an unmodeled control exit",
-            mnemonic.as_str()
+            mnemonic.as_str(syntax_trees)
         )));
     }
 
@@ -742,11 +744,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             reject_bracketed_asm_operand(
                 syntax_trees,
                 mnemonic_site,
-                mnemonic.as_str(),
+                mnemonic.as_str(syntax_trees),
                 destination,
             )?;
-            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), source)?;
-            if matches!(syntax_trees.expressions.expression(destination), ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str() == "zf"))
+            reject_bracketed_asm_operand(
+                syntax_trees,
+                mnemonic_site,
+                mnemonic.as_str(syntax_trees),
+                source,
+            )?;
+            if matches!(syntax_trees.expressions.expression(destination), ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == "zf"))
             {
                 return Err(mnemonic_site.error_here("mov/sub cannot directly write ZF; its version is established by the catalog arithmetic result"));
             }
@@ -761,7 +768,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .error_here("sub requires a modeled 32-bit register destination"));
                 };
                 if !scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
-                    .contains(&name.as_str())
+                    .contains(&name.as_str(syntax_trees))
                 {
                     return Err(mnemonic_site
                         .error_here("sub requires a modeled 32-bit register destination"));
@@ -771,7 +778,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .value_u64()
                         .is_some_and(|value| value <= u32::MAX as u64),
                     ExpressionNode::Name(path) => {
-                        matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT].contains(&name.as_str()))
+                        matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT].contains(&name.as_str(syntax_trees)))
                     }
                     _ => false,
                 };
@@ -797,8 +804,18 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let (first, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (second, input) = parse_expression_handle(syntax_trees, input)?;
-            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), first)?;
-            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), second)?;
+            reject_bracketed_asm_operand(
+                syntax_trees,
+                mnemonic_site,
+                mnemonic.as_str(syntax_trees),
+                first,
+            )?;
+            reject_bracketed_asm_operand(
+                syntax_trees,
+                mnemonic_site,
+                mnemonic.as_str(syntax_trees),
+                second,
+            )?;
             // The place operand is the structured memory contract: a load
             // reads the place into the destination, a store writes the value
             // into the place — each the checked place access an ordinary

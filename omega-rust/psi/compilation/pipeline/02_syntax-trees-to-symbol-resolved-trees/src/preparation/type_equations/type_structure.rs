@@ -24,8 +24,8 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
-use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -45,13 +45,13 @@ pub(super) fn collect_binder_mentions(
         }
     };
     match syntax.type_references.type_reference(reference) {
-        TypeReferenceNode::Named(name) => name_mention(name.as_str()),
+        TypeReferenceNode::Named(name) => name_mention(name.as_str(syntax)),
         TypeReferenceNode::FixedArray {
             element_type,
             length,
         } => {
             if let FixedArrayLength::ConstParameter(name) = length {
-                name_mention(name.as_str());
+                name_mention(name.as_str(syntax));
             }
             collect_binder_mentions(syntax, *element_type, parameters, mentions);
         }
@@ -66,7 +66,7 @@ pub(super) fn collect_binder_mentions(
             arguments,
             ..
         } => {
-            name_mention(base_name.as_str());
+            name_mention(base_name.as_str(syntax));
             for argument in syntax.type_references.type_reference_handles(*arguments) {
                 collect_binder_mentions(syntax, *argument, parameters, mentions);
             }
@@ -103,7 +103,7 @@ pub(super) fn collect_binder_mentions(
             trait_name,
             trait_arguments,
         } => {
-            name_mention(trait_name.as_str());
+            name_mention(trait_name.as_str(syntax));
             for argument in syntax
                 .type_references
                 .type_reference_handles(*trait_arguments)
@@ -137,7 +137,7 @@ impl Solver<'_, '_> {
                 if let Some(last) = parts.last() {
                     name_span.span.end = last.source_span().span.end;
                 }
-                let name = Identifier::new(parts.joined_path(), name_span);
+                let name = Identifier::new(parts.joined_path_in(self.syntax), name_span);
                 Ok(self
                     .syntax
                     .type_references
@@ -175,7 +175,7 @@ impl Solver<'_, '_> {
             .type_parameters(self.base_info.parameters)
             .iter()
             .enumerate()
-            .find(|(_, parameter)| parameter.name.as_str() == name)
+            .find(|(_, parameter)| parameter.name.as_str(self.syntax) == name)
             .map(|(position, parameter)| {
                 (position, matches!(parameter.kind, TypeParameterKind::Type))
             })
@@ -226,7 +226,8 @@ impl Solver<'_, '_> {
                 self.match_type_structure(element_type, actual_element, span)
             }
             TypeReferenceNode::Named(name) => {
-                if let Some((position, is_type)) = self.parameter_position(name.as_str()) {
+                if let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+                {
                     if !is_type {
                         return Err(self.type_structure_error(
                             "mixes type and value kinds in an element position",
@@ -286,7 +287,8 @@ impl Solver<'_, '_> {
                 .map_err(|reason| self.type_structure_error(&reason, span))?;
                 self.match_type_structure(element_type, actual_element, span)?;
                 if let FixedArrayLength::ConstParameter(name) = &length
-                    && let Some((position, is_type)) = self.parameter_position(name.as_str())
+                    && let Some((position, is_type)) =
+                        self.parameter_position(name.as_str(self.syntax))
                 {
                     if is_type || self.base_info.const_parameter_types[position].is_none() {
                         return Err(self.type_structure_error(
@@ -422,7 +424,8 @@ impl Solver<'_, '_> {
                 ));
             }
             TypeReferenceNode::Named(name) => {
-                if let Some((position, is_type)) = self.parameter_position(name.as_str()) {
+                if let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+                {
                     if !is_type {
                         return Err(self.type_structure_error(
                             "mixes type and value kinds in an element position",
@@ -502,7 +505,8 @@ impl Solver<'_, '_> {
                 ));
             }
             FixedArrayLength::ConstParameter(name) => {
-                if let Some((position, is_type)) = self.parameter_position(name.as_str()) {
+                if let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+                {
                     if is_type || self.base_info.const_parameter_types[position].is_none() {
                         return Err(self.type_structure_error(
                             "mixes type and value kinds in an array length",
@@ -547,11 +551,14 @@ impl Solver<'_, '_> {
                     BigInt::from_i128(value)
                 } else {
                     crate::preparation::generic_data::module_constants::reject_module_constant_selection(
-                        self.syntax, name.as_str(), name.source_span(),
+                        self.syntax, name.as_str(self.syntax), name.source_span(),
                     ).map_err(|reason| self.type_structure_error(&reason, span))?;
-                    let value = self.const_values.get(name.as_str()).ok_or_else(|| {
-                        self.type_structure_error("requires a closed array length", span)
-                    })?;
+                    let value =
+                        self.const_values
+                            .get(name.as_str(self.syntax))
+                            .ok_or_else(|| {
+                                self.type_structure_error("requires a closed array length", span)
+                            })?;
                     BigInt::from_i128(*value)
                 }
             }

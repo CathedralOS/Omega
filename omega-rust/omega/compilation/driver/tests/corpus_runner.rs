@@ -1712,10 +1712,10 @@ fn declared_realization_targets(root_path: &Path) -> Vec<String> {
                 let [target, .., slot] = binding.slot.as_ref() else {
                     continue;
                 };
-                if slot.as_str() == "ProgramEntry"
-                    && !targets.iter().any(|seen| seen == target.as_str())
+                if slot.as_str(&syntax) == "ProgramEntry"
+                    && !targets.iter().any(|seen| seen == target.as_str(&syntax))
                 {
-                    targets.push(target.as_str().to_owned());
+                    targets.push(target.as_str(&syntax).to_owned());
                 }
             }
         }

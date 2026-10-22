@@ -64,7 +64,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 after_binding = after_as.take_contextual("_").ok()?;
             } else {
                 let (renamed, after_renamed) = after_as.take_identifier().ok()?;
-                if renamed.as_str() == "_" {
+                if renamed.as_str(syntax_trees) == "_" {
                     binding = None;
                 } else {
                     binding = Some(renamed);
@@ -114,7 +114,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     let mut marker_name = String::from("__destructure");
     for (field, _) in &fields {
         marker_name.push('#');
-        marker_name.push_str(field.as_str());
+        marker_name.push_str(field.as_str(syntax_trees));
     }
     let marker = syntax_trees
         .statements

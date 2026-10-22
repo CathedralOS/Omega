@@ -25,7 +25,7 @@ struct Member<'source> {
 }
 
 impl Member<'_> {
-    fn compare_family(&self, other: &Self) -> Ordering {
+    fn compare_family(&self, syntax_trees: &syntax_trees::SyntaxTrees, other: &Self) -> Ordering {
         let package = self.file.and_then(|file| file.package_identity);
         let other_package = other.file.and_then(|file| file.package_identity);
         package
@@ -47,10 +47,14 @@ impl Member<'_> {
             .then_with(|| {
                 self.module
                     .iter()
-                    .map(Identifier::as_str)
-                    .cmp(other.module.iter().map(Identifier::as_str))
+                    .map(|name| name.as_str(syntax_trees))
+                    .cmp(other.module.iter().map(|name| name.as_str(syntax_trees)))
             })
-            .then_with(|| self.name.as_str().cmp(other.name.as_str()))
+            .then_with(|| {
+                self.name
+                    .as_str(syntax_trees)
+                    .cmp(other.name.as_str(syntax_trees))
+            })
     }
 
     fn is_build(&self) -> bool {
@@ -107,19 +111,19 @@ pub(super) fn normalize(
         });
     }
     members.sort_by(|left, right| {
-        left.compare_family(right)
-            .then_with(|| left.target.as_str().cmp(right.target.as_str()))
+        left.compare_family(syntax, right)
+            .then_with(|| left.target.as_str(syntax).cmp(right.target.as_str(syntax)))
     });
     let mut declarations = Vec::with_capacity(members.len());
     let mut interfaces = Vec::new();
-    for family in members.chunk_by(|left, right| left.compare_family(right).is_eq()) {
+    for family in members.chunk_by(|left, right| left.compare_family(syntax, right).is_eq()) {
         for same_target in
-            family.chunk_by(|left, right| left.target.as_str() == right.target.as_str())
+            family.chunk_by(|left, right| left.target.as_str(syntax) == right.target.as_str(syntax))
         {
             if same_target.len() > 1 {
                 return Err(vec![Diagnostic::error(format!(
                     "machine `{}` is implemented twice for `{}` -- a target supplies exactly one implementation of a contract machine",
-                    same_target[0].name, same_target[0].target,
+                    same_target[0].name.as_str(syntax), same_target[0].target.as_str(syntax),
                 )).with_source_span(same_target[1].name.source_span())]);
             }
         }
@@ -149,7 +153,7 @@ pub(super) fn normalize(
             item.as_machine().is_some_and(|candidate| {
                 candidate.target_family_interface
                     && candidate.name.source_span() == machine.name.source_span()
-                    && candidate.name.as_str() == machine.name.as_str()
+                    && candidate.name.as_str(syntax) == machine.name.as_str(syntax)
             })
         }) {
             continue;
@@ -202,7 +206,10 @@ pub(super) fn normalize(
         let Some(machine) = syntax.root_item(handle).as_machine() else {
             continue;
         };
-        if machine.target == target && machine.authored_target.is_some() {
+        if machine.target.as_ref().map(|name| name.as_str(syntax))
+            == target.as_ref().map(|name| name.as_str(syntax))
+            && machine.authored_target.is_some()
+        {
             continue;
         }
         let mut machine = machine.clone();

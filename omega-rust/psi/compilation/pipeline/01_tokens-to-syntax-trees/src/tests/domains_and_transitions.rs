@@ -19,7 +19,7 @@ fn explicit_domain_subject_preserves_ordinary_name_operands() {
     );
     let domain = super::root_domain(&parsed, "domain");
     assert_eq!(
-        domain.subject.as_ref().map(|name| name.as_str()),
+        domain.subject.as_ref().map(|name| name.as_str(&parsed)),
         Some("player")
     );
     assert_eq!(
@@ -28,14 +28,14 @@ fn explicit_domain_subject_preserves_ordinary_name_operands() {
             .iter_expressions()
             .filter(|(_, node)| {
                 let ExpressionNode::Name(path) = node else { return false; };
-                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "player")
+                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "player")
             })
             .count(),
         2
     );
     assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
         let ExpressionNode::Name(path) = node else { return false; };
-        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "player")
+        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "player")
     }), "the machine's parameter reference must remain an ordinary name");
     let mut copied = syntax_trees::SyntaxTrees::default();
     copied.extend_from(&parsed);
@@ -46,7 +46,7 @@ fn explicit_domain_subject_preserves_ordinary_name_operands() {
             _ => None,
         })
         .expect("copied subject");
-    assert_eq!(copied_subject.as_str(), "player");
+    assert_eq!(copied_subject.as_str(&copied), "player");
 }
 
 #[test]
@@ -62,14 +62,14 @@ fn explicit_domain_subject_follows_indices_and_preserves_generic_references() {
             .iter_expressions()
             .filter(|(_, node)| {
                 let ExpressionNode::Name(path) = node else { return false; };
-                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "value")
+                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "value")
             })
             .count(),
         1
     );
     assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
         let ExpressionNode::Name(path) = node else { return false; };
-        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "Limit")
+        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "Limit")
     }));
 }
 
@@ -348,7 +348,7 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
             syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
                 numerics::arithmetic::ArithmeticDomain::Saturating
             )
-        ] if name.name.as_str() == "Finite"
+        ] if name.name.as_str(&parsed) == "Finite"
     ));
 }
 
@@ -366,7 +366,9 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     let rate = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) if data.name.as_str() == "Rate" => Some(data),
+            syntax_trees::item::Item::Data(data) if data.name.as_str(&parsed) == "Rate" => {
+                Some(data)
+            }
             _ => None,
         })
         .expect("Rate data");
@@ -407,8 +409,8 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
         binary.operator,
         syntax_trees::expression::BinaryOperator::Divide
     );
-    assert_eq!(parsed.expressions.display_name(binary.left), "A");
-    assert_eq!(parsed.expressions.display_name(binary.right), "B");
+    assert_eq!(parsed.display_expression_name(binary.left), "A");
+    assert_eq!(parsed.display_expression_name(binary.right), "B");
 }
 
 #[test]
@@ -444,7 +446,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
             .iter()
             .map(|constraint| match constraint {
                 syntax_trees::types::TypeConstraintNode::Domain(name) => {
-                    name.name.as_str().to_owned()
+                    name.name.as_str(&parsed).to_owned()
                 }
                 other => panic!("carry permission became {other:?}"),
             })
@@ -483,7 +485,7 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
                 .items
                 .identifier_path_members(membership.domain)
                 .iter()
-                .map(|member| member.as_str())
+                .map(|member| member.as_str(&parsed))
                 .collect::<Vec<_>>()
                 .join("::"),
             other => panic!("portable atom became {other:?}"),
@@ -530,7 +532,7 @@ fn parses_slice_range_indexing_into_range_expression() {
         panic!("expected range index expression");
     };
     assert_eq!(
-        parsed.expressions.display_name(indexed.index),
+        parsed.display_expression_name(indexed.index),
         "1..",
         "unexpected range display"
     );
@@ -586,7 +588,7 @@ fn parses_structural_recast_targets_as_type_references() {
     };
     assert!(matches!(
         parsed.type_references.type_reference(*element_type),
-        TypeReferenceNode::Named(name) if name.as_str() == "u8"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "u8"
     ));
 
     let ExpressionNode::Borrow(slice_borrow) =
@@ -605,7 +607,7 @@ fn parses_structural_recast_targets_as_type_references() {
     };
     assert!(matches!(
         parsed.type_references.type_reference(*element_type),
-        TypeReferenceNode::Named(name) if name.as_str() == "u8"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "u8"
     ));
 }
 
@@ -642,7 +644,7 @@ fn parses_trait_machine_contract_clauses() {
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(), "Filesystem");
+    assert_eq!(service_reaches[0].as_str(&parsed), "Filesystem");
 }
 
 #[test]
@@ -721,7 +723,9 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
     let transition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "inspect" => {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "inspect" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -744,10 +748,10 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
         .statements
         .outcome_proof_selectors(transition.proof_selectors);
     assert_eq!(selectors.len(), 2);
-    assert_eq!(selectors[0].output_field.as_str(), "selected");
-    assert_eq!(selectors[0].binding.as_str(), "local");
-    assert_eq!(selectors[1].output_field.as_str(), "shorthand");
-    assert_eq!(selectors[1].binding.as_str(), "shorthand");
+    assert_eq!(selectors[0].output_field.as_str(&parsed), "selected");
+    assert_eq!(selectors[0].binding.as_str(&parsed), "local");
+    assert_eq!(selectors[1].output_field.as_str(&parsed), "shorthand");
+    assert_eq!(selectors[1].binding.as_str(&parsed), "shorthand");
 }
 
 #[test]
@@ -782,7 +786,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
             .root_items()
             .find_map(|item| match item {
                 syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str() == "inspect" =>
+                    if machine.name.as_str(&parsed) == "inspect" =>
                 {
                     Some(machine)
                 }
@@ -807,7 +811,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
                 };
                 matches!(
                     parsed.expressions.expression(local.initial_value),
-                    ExpressionNode::Call(call) if call.target.as_str() == "produce"
+                    ExpressionNode::Call(call) if call.target.as_str(&parsed) == "produce"
                 )
             })
             .count();
@@ -826,7 +830,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
             .filter(|(_, expression)| {
                 matches!(
                     expression,
-                    ExpressionNode::Call(call) if call.target.as_str() == "produce"
+                    ExpressionNode::Call(call) if call.target.as_str(&parsed) == "produce"
                 )
             })
             .count();
@@ -969,14 +973,14 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     let StatementNode::Call(hlt) = parsed.statements.statement(statements[1]).clone() else {
         panic!("asm {{ hlt }} should desugar to a call statement");
     };
-    assert_eq!(hlt.target.as_str(), "asm#hlt");
+    assert_eq!(hlt.target.as_str(&parsed), "asm#hlt");
     assert!(hlt.receiver.is_empty());
     assert_eq!(hlt.arguments.count(), 0);
 
     let StatementNode::Call(out) = parsed.statements.statement(statements[2]).clone() else {
         panic!("asm {{ out .. }} should desugar to a call statement");
     };
-    assert_eq!(out.target.as_str(), "asm#port_out");
+    assert_eq!(out.target.as_str(&parsed), "asm#port_out");
     assert_eq!(out.arguments.count(), 2);
 
     let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone() else {
@@ -985,7 +989,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     let ExpressionNode::Call(port_in) = parsed.expressions.expression(read.value).clone() else {
         panic!("asm {{ in .. }} assignment value should be the intrinsic call");
     };
-    assert_eq!(port_in.target.as_str(), "asm#port_in");
+    assert_eq!(port_in.target.as_str(&parsed), "asm#port_in");
     assert_eq!(port_in.arguments.count(), 1);
     assert!(!port_in.receiver.is_valid());
 }

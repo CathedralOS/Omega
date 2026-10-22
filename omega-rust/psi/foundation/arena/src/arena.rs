@@ -33,6 +33,25 @@ pub struct Arena<T> {
     revision: u64,
 }
 
+impl<T> Arena<T> {
+    /// Compare allocation metadata and every stored row through a caller-owned
+    /// equality operation. This includes vacant rows and the absent-value row,
+    /// exactly like ordinary arena equality; revision caches remain excluded.
+    pub fn equal_by(&self, other: &Self, mut equal: impl FnMut(&T, &T) -> bool) -> bool {
+        equal(&self.dummy, &other.dummy)
+            && self.items.len() == other.items.len()
+            && self
+                .items
+                .iter()
+                .zip(&other.items)
+                .all(|(left, right)| equal(left, right))
+            && self.generations == other.generations
+            && self.occupied == other.occupied
+            && self.free_indices == other.free_indices
+            && self.active_count == other.active_count
+            && self.fresh_generation == other.fresh_generation
+    }
+}
 impl<T: PartialEq> PartialEq for Arena<T> {
     fn eq(&self, other: &Self) -> bool {
         self.dummy == other.dummy

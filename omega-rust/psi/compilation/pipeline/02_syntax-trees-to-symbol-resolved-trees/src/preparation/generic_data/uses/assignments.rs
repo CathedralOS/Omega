@@ -97,7 +97,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
                     let [name] = syntax.expressions.identifier_path_members(*path) else {
                         continue;
                     };
-                    local_types.get(name.as_str()).copied()
+                    local_types.get(name.as_str(syntax)).copied()
                 }
                 _ => None,
             };

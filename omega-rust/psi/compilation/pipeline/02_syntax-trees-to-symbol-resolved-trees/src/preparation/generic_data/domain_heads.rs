@@ -43,7 +43,7 @@ pub(in crate::preparation) fn normalize(
                 };
                 let Some(parameter) = parameters
                     .iter()
-                    .find(|parameter| parameter.name.as_str() == carrier.as_str())
+                    .find(|parameter| parameter.name.as_str(syntax) == carrier.as_str(syntax))
                 else {
                     continue;
                 };
@@ -52,21 +52,21 @@ pub(in crate::preparation) fn normalize(
                     // just because another path component follows it.
                     return Err(vec![Diagnostic::error(format!(
                         "domain alias carrier type binder `{}` must be followed by one domain name",
-                        carrier.as_str()
+                        carrier.as_str(syntax)
                     )).with_source_span(carrier.source_span())]);
                 };
                 if !matches!(parameter.kind, TypeParameterKind::Type)
-                    || named_carrier(syntax, domain.target_type) != Some(carrier.as_str())
+                    || named_carrier(syntax, domain.target_type) != Some(carrier.as_str(syntax))
                 {
                     return Err(vec![Diagnostic::error(format!(
                         "domain alias constituent `{}::{}` must name this alias's carrier type binder",
-                        carrier.as_str(), leaf.as_str()
+                        carrier.as_str(syntax), leaf.as_str(syntax)
                     )).with_source_span(carrier.source_span())]);
                 }
                 alias_heads.push((
                     declaration,
                     ordinal,
-                    leaf.as_str().to_owned(),
+                    leaf.as_str(syntax).to_owned(),
                     carrier.source_span(),
                 ));
             }
@@ -120,7 +120,8 @@ pub(in crate::preparation) fn normalize(
                                 .type_references
                                 .type_reference_handles(domain.arguments),
                         );
-                        let Some((carrier, leaf)) = domain.name.as_str().rsplit_once("::") else {
+                        let Some((carrier, leaf)) = domain.name.as_str(syntax).rsplit_once("::")
+                        else {
                             continue;
                         };
                         // The head must bind the same lexical type parameter as
@@ -128,7 +129,7 @@ pub(in crate::preparation) fn normalize(
                         // the same spelling supplies no substitute authority.
                         let Some(parameter) = parameters
                             .iter()
-                            .find(|parameter| parameter.name.as_str() == carrier)
+                            .find(|parameter| parameter.name.as_str(syntax) == carrier)
                         else {
                             continue;
                         };
@@ -137,7 +138,7 @@ pub(in crate::preparation) fn normalize(
                         {
                             return Err(vec![Diagnostic::error(format!(
                                 "domain qualification `{}` must name this field's carrier type binder",
-                                domain.name.as_str()
+                                domain.name.as_str(syntax)
                             )).with_source_span(domain.name.source_span())]);
                         }
                         pending.push((site, ordinal, leaf.to_owned(), domain.name.source_span()));
@@ -217,7 +218,7 @@ pub(in crate::preparation) fn normalize(
 fn named_carrier(syntax: &SyntaxTrees, mut carrier: TypeReferenceHandle) -> Option<&str> {
     loop {
         match syntax.type_references.type_reference(carrier) {
-            TypeReferenceNode::Named(name) => return Some(name.as_str()),
+            TypeReferenceNode::Named(name) => return Some(name.as_str(syntax)),
             TypeReferenceNode::Constrained { base_type, .. } => carrier = *base_type,
             _ => return None,
         }

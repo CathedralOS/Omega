@@ -9,8 +9,11 @@ pub(super) const SOURCE_TYPE_NAME: &str = "Source";
 pub(super) const PACKAGE_SELECTION_TYPE_NAME: &str = "PackageSelection";
 
 /// Hermetic dependency projection admits an exact toolchain constructor spelling.
-pub(super) fn constructor_parts(literal: &TableStructLiteral) -> (&str, Option<&str>) {
-    let name = literal.constructor_name.as_str();
+pub(super) fn constructor_parts<'syntax>(
+    syntax_trees: &'syntax SyntaxTrees,
+    literal: &'syntax TableStructLiteral,
+) -> (&'syntax str, Option<&'syntax str>) {
+    let name = literal.constructor_name.as_str(syntax_trees);
     name.rsplit_once("::")
         .map_or((name, None), |(owner, case)| (owner, Some(case)))
 }
@@ -24,7 +27,7 @@ pub(super) fn project_source_literal(
     else {
         return Err(DependencyProjectionError::SourceNotLiteral);
     };
-    let (type_name, case_name) = constructor_parts(literal);
+    let (type_name, case_name) = constructor_parts(syntax_trees, literal);
     if type_name != SOURCE_TYPE_NAME {
         return Err(DependencyProjectionError::WrongSourceType);
     }
@@ -39,7 +42,7 @@ pub(super) fn project_source_literal(
                     case_name: "Path".to_owned(),
                 });
             };
-            if field.name.as_str() != "location" {
+            if field.name.as_str(syntax_trees) != "location" {
                 return Err(DependencyProjectionError::WrongSourceFields {
                     case_name: "Path".to_owned(),
                 });
@@ -53,20 +56,23 @@ pub(super) fn project_source_literal(
             if !(2..=3).contains(&fields.len())
                 || fields
                     .iter()
-                    .filter(|field| field.name.as_str() == "repository")
+                    .filter(|field| field.name.as_str(syntax_trees) == "repository")
                     .count()
                     != 1
                 || fields
                     .iter()
-                    .filter(|field| field.name.as_str() == "selection")
+                    .filter(|field| field.name.as_str(syntax_trees) == "selection")
                     .count()
                     > 1
                 || fields.iter().any(|field| {
-                    !matches!(field.name.as_str(), "repository" | "revision" | "selection")
+                    !matches!(
+                        field.name.as_str(syntax_trees),
+                        "repository" | "revision" | "selection"
+                    )
                 })
                 || fields
                     .iter()
-                    .filter(|field| field.name.as_str() == "revision")
+                    .filter(|field| field.name.as_str(syntax_trees) == "revision")
                     .count()
                     != 1
             {
@@ -76,15 +82,15 @@ pub(super) fn project_source_literal(
             }
             let repository = fields
                 .iter()
-                .find(|field| field.name.as_str() == "repository")
+                .find(|field| field.name.as_str(syntax_trees) == "repository")
                 .expect("validated Git repository field");
             let revision = fields
                 .iter()
-                .find(|field| field.name.as_str() == "revision")
+                .find(|field| field.name.as_str(syntax_trees) == "revision")
                 .expect("validated Git revision field");
             let selection = fields
                 .iter()
-                .find(|field| field.name.as_str() == "selection")
+                .find(|field| field.name.as_str(syntax_trees) == "selection")
                 .map(|field| project_package_selection(syntax_trees, field.value))
                 .transpose()?
                 .unwrap_or(PackageSelection::Root);
@@ -110,7 +116,7 @@ fn project_package_selection(
     else {
         return Err(DependencyProjectionError::SelectionNotLiteral);
     };
-    let (type_name, case_name) = constructor_parts(literal);
+    let (type_name, case_name) = constructor_parts(syntax_trees, literal);
     if type_name != PACKAGE_SELECTION_TYPE_NAME {
         return Err(DependencyProjectionError::WrongSelectionType);
     }
@@ -123,7 +129,7 @@ fn project_package_selection(
         "Root" => Err(DependencyProjectionError::WrongSelectionFields {
             case_name: "Root".to_owned(),
         }),
-        "Named" if fields.len() == 1 && fields[0].name.as_str() == "package" => {
+        "Named" if fields.len() == 1 && fields[0].name.as_str(syntax_trees) == "package" => {
             let package = string_field(syntax_trees, "selection.package", fields[0].value)?;
             PackageName::parse(&package)
                 .map(PackageSelection::Named)

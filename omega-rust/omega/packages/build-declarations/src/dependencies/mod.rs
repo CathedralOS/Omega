@@ -213,17 +213,18 @@ pub fn project_dependency_rows(
         .items
         .state_parameter(build.builder_parameter())
         .name
-        .as_str();
+        .as_str(syntax_trees);
     let mut rows = Vec::new();
     for statement_handle in syntax_trees.items.statements(entry.statements) {
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        let Some(operation) = DependencyOperation::classify(call.target.as_str()) else {
+        let Some(operation) = DependencyOperation::classify(call.target.as_str(syntax_trees))
+        else {
             continue;
         };
         if !call.target_is_static
-            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str() == "Build")
+            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str(syntax_trees) == "Build")
         {
             return Err(DependencyRowError::WrongReceiver);
         }
@@ -239,7 +240,7 @@ pub fn project_dependency_rows(
             return Err(DependencyRowError::WrongArguments);
         };
         if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
-            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str() == builder_name))
+            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == builder_name))
         {
             return Err(DependencyRowError::WrongReceiver);
         }

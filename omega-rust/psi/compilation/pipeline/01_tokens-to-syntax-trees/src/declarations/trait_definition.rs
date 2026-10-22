@@ -61,7 +61,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         let after_where = input.take_contextual("where")?;
         let subject = after_where.take_identifier().map_or_else(
             |_| "T".to_owned(),
-            |(subject, _)| subject.as_str().to_owned(),
+            |(subject, _)| subject.as_str(syntax_trees).to_owned(),
         );
         return Err(after_where.error_here(
             crate::contracts::parse_contract_clauses::retired_where_conformance(&subject),
@@ -283,9 +283,11 @@ fn parse_refinement_clause<'tokens, 'source>(
                         _ => None,
                     },
                 );
-            let qualifies_base = qualifier
-                .iter()
-                .all(|segment| Some(segment.clone()) == base_name);
+            let qualifies_base = qualifier.iter().all(|segment| {
+                base_name
+                    .as_ref()
+                    .is_some_and(|name| segment.as_str(syntax_trees) == name.as_str(syntax_trees))
+            });
             if !qualifies_base || qualifier.len() > 1 {
                 return Err(input.error_here(
                     "a refinement clause qualifies its requirement with the base trait name",
@@ -445,12 +447,12 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
             .items
             .type_parameters(type_parameters)
             .iter()
-            .position(|parameter| parameter.name == name)
+            .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
         else {
             return Err(after_name.error_here(format!(
                 "`where proposition {}` has no matching `<proposition {}>` parameter",
-                name.as_str(),
-                name.as_str(),
+                name.as_str(syntax_trees),
+                name.as_str(syntax_trees),
             )));
         };
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
@@ -458,14 +460,14 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
             syntax_trees::item::TypeParameterKind::Proposition { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
                     "proposition parameter `{}` already has a declaration-site signature",
-                    name.as_str(),
+                    name.as_str(syntax_trees),
                 )));
             }
             _ => {
                 return Err(after_name.error_here(format!(
                     "`{}` is not a proposition parameter; declare it as `<proposition {}>` first",
-                    name.as_str(),
-                    name.as_str(),
+                    name.as_str(syntax_trees),
+                    name.as_str(syntax_trees),
                 )));
             }
         }
@@ -494,8 +496,8 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
     {
         return Err(input.error_here(format!(
             "proposition parameter `{}` requires an authored declaration-site signature: write `where proposition {}(...)`;",
-            missing.name.as_str(),
-            missing.name.as_str(),
+            missing.name.as_str(syntax_trees),
+            missing.name.as_str(syntax_trees),
         )));
     }
     Ok(((), input))
@@ -588,13 +590,14 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
             let (name, input_after_name) = input_after_callback.take_identifier()?;
             let input_after_from = input_after_name.take_contextual("from")?;
             let (binder, rest) = input_after_from.take_identifier()?;
-            if native_callback_parameters
-                .iter()
-                .any(|prior: &syntax_trees::item::NativeCallbackParameterNode| prior.name == name)
-            {
+            if native_callback_parameters.iter().any(
+                |prior: &syntax_trees::item::NativeCallbackParameterNode| {
+                    prior.name.as_str(syntax_trees) == name.as_str(syntax_trees)
+                },
+            ) {
                 return Err(rest.error_here(format!(
                     "native callback parameter `{}` is declared more than once",
-                    name.as_str(),
+                    name.as_str(syntax_trees),
                 )));
             }
             native_callback_parameters.push(syntax_trees::item::NativeCallbackParameterNode {

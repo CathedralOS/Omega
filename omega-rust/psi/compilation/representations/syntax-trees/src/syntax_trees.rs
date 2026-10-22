@@ -29,15 +29,16 @@ use crate::types::TypeReferenceTable;
 use source::SourceId;
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct SyntaxTrees {
     pub source_id: SourceId,
     pub roots: SyntaxTreeRoots,
     pub tables: SyntaxTreeTables,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct SyntaxTreeTables {
+    pub text: crate::SyntaxTextOwner,
     pub items: ItemTable,
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
@@ -71,6 +72,10 @@ impl SyntaxTrees {
             roots: SyntaxTreeRoots::new_with_generation(generation),
             tables: SyntaxTreeTables::new_with_generation(generation),
         }
+    }
+
+    pub fn display_expression_name(&self, handle: ExpressionHandle) -> String {
+        self.expressions.expression(handle).display_name(self)
     }
 
     pub fn push_root_item(&mut self, item: Item) -> ItemHandle {
@@ -239,6 +244,7 @@ impl SyntaxTreeTables {
 
     pub fn new_with_generation(generation: u32) -> Self {
         Self {
+            text: crate::SyntaxTextOwner::default(),
             items: ItemTable::new_with_generation(generation),
             expressions: ExpressionTable::new_with_generation(generation),
             statements: StatementTable::new_with_generation(generation),
@@ -247,6 +253,7 @@ impl SyntaxTreeTables {
     }
 
     fn adopt(&mut self, other: Self) {
+        self.text.adopt(other.text);
         self.items.adopt(other.items);
         self.expressions.adopt(other.expressions);
         self.statements.adopt(other.statements);
@@ -298,5 +305,11 @@ impl DerefMut for SyntaxTrees {
 impl Default for SyntaxTrees {
     fn default() -> Self {
         Self::new(SourceId::default())
+    }
+}
+
+impl crate::SyntaxTextContext for SyntaxTrees {
+    fn source_text(&self, source: arena::Handle<crate::RetainedSource>) -> &str {
+        self.text.source_text(source)
     }
 }

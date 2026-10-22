@@ -22,6 +22,8 @@ Final assembly medians are 5.2095 to 4.8315 ms,
 faster in 10/10 pairs. The assembly comparison supports the reproduced storage/work reduction; whole-compile timing is reported separately.
 Exact outputs match; allocation counts and all prior timing batches are retained.
 
+The [retained syntax ownership experiment](../source_assembly_2026_10_22/retained_syntax/README.md) moves authored-name ownership to source pages and shares decoded literal ranges. Identifier records shrink from 72 to 48 bytes; all-worker assembly allocation traffic falls about 15%, with 17% fewer requests. Exact logical outputs are preserved.
+
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;
 the diagnostic producer adds only the adjacent `instrumentation.patch`.

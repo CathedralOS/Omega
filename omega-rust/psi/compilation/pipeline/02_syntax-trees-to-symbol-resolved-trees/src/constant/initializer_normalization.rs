@@ -15,8 +15,8 @@ use language_semantics::declaration_selection::{
 };
 use source::SourceSpan;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
-use symbols::JoinedPath;
 use symbols::SymbolKind;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
 
 pub(crate) struct PendingInitializer {
@@ -110,7 +110,7 @@ pub(crate) fn retain(
                     first.source_span().source_id,
                     source::Span::new(first.source_span().span.start, last.source_span().span.end),
                 );
-                let name = members.joined_path();
+                let name = members.joined_path_in(syntax);
                 let identifier = syntax_trees::identifier::Identifier::new(name.clone(), reference);
                 if lowerer
                     .constant_selection

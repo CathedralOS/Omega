@@ -12,7 +12,7 @@ pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ExternalBinding> {
     let start = input;
     let (root, input) = input.take_identifier()?;
-    if root.as_str() != "ForeignBinding" {
+    if root.as_str(&input) != "ForeignBinding" {
         return Err(start.error_here(
             "an external realization must construct the compiler-known ForeignBinding sum; \
              write `via ForeignBinding::Syscall(n)` or another qualified `ForeignBinding::Case`",
@@ -26,7 +26,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExternalBinding> {
     let (case, input) = input.take_identifier()?;
-    match case.as_str() {
+    match case.as_str(&input) {
         "Syscall" => {
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let (number, input) = input.take_integer()?;

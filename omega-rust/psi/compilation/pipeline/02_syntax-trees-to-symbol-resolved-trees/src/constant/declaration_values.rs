@@ -121,7 +121,7 @@ pub(crate) fn evaluated_declaration_value(
                 "semantic NaN constant requires its exact declared floating carrier".into(),
             );
         };
-        let actual = match name.as_str() {
+        let actual = match name.as_str(syntax) {
             "f32" => numerics::literals::FloatFormat::F32,
             "f64" => numerics::literals::FloatFormat::F64,
             _ => {
@@ -169,20 +169,20 @@ pub(crate) fn validate_scalar_initializer(
     else {
         return Ok(());
     };
-    if !crate::constant::is_builtin_scalar_carrier(carrier.as_str()) {
+    if !crate::constant::is_builtin_scalar_carrier(carrier.as_str(syntax)) {
         return Ok(());
     }
     let initializer = syntax.expressions.expression(constant.value);
     // A deferred `size_of`/`align_of` leaf lands only after target selection;
     // Psi cannot literal-validate it, and Omega materializes the `u64` there.
     if let ExpressionNode::Call(call) = initializer
-        && crate::constant::initializer_leaves::deferred_layout_query(selection, call)
+        && crate::constant::initializer_leaves::deferred_layout_query(syntax, selection, call)
     {
         return Ok(());
     }
-    match carrier.as_str() {
+    match carrier.as_str(syntax) {
         "f32" | "f64" => {
-            let format = if carrier.as_str() == "f32" {
+            let format = if carrier.as_str(syntax) == "f32" {
                 FloatFormat::F32
             } else {
                 FloatFormat::F64
@@ -203,7 +203,8 @@ pub(crate) fn validate_scalar_initializer(
                 Ok(())
             } else {
                 Err(format!(
-                    "initializer conflicts with declared floating carrier `{carrier}`"
+                    "initializer conflicts with declared floating carrier `{carrier}`",
+                    carrier = carrier.as_str(syntax)
                 ))
             }
         }
@@ -245,7 +246,7 @@ pub(crate) fn validate_const_definition(
         .map_err(|reason| {
             Diagnostic::error(format!(
                 "constrained const `{}` is invalid: {reason}",
-                semantic_const_name(definition)
+                semantic_const_name(syntax, definition)
             ))
             .with_source_span(definition.name.source_span())
         })?;
@@ -258,7 +259,7 @@ pub(crate) fn validate_const_definition(
         .map_err(|reason| {
             Diagnostic::error(format!(
                 "constant `{}` is invalid: {reason}",
-                semantic_const_name(definition)
+                semantic_const_name(syntax, definition)
             ))
             .with_source_span(definition.name.source_span())
         })?;
@@ -266,7 +267,7 @@ pub(crate) fn validate_const_definition(
     validate_scalar_initializer(syntax, definition, selection).map_err(|reason| {
         Diagnostic::error(format!(
             "scalar constant `{}` is invalid: {reason}",
-            definition.name.as_str()
+            definition.name.as_str(syntax)
         ))
         .with_source_span(definition.name.source_span())
     })?;
@@ -275,7 +276,7 @@ pub(crate) fn validate_const_definition(
     if matches!(
         syntax.expressions.expression(definition.value),
         syntax_trees::expression::ExpressionNode::Call(call)
-            if crate::constant::initializer_leaves::deferred_layout_query(selection, call)
+            if crate::constant::initializer_leaves::deferred_layout_query(syntax, selection, call)
     ) {
         return Ok(());
     }
@@ -298,7 +299,7 @@ pub(crate) fn retain_const_initializer(
             .map_err(|reason| {
                 Diagnostic::error(format!(
                     "array constant `{}` is invalid: {reason}",
-                    semantic_const_name(definition)
+                    semantic_const_name(syntax, definition)
                 ))
                 .with_source_span(definition.name.source_span())
             })?;
@@ -308,7 +309,7 @@ pub(crate) fn retain_const_initializer(
             let deferred = matches!(
                 syntax.expressions.expression(definition.value),
                 syntax_trees::expression::ExpressionNode::Call(call)
-                    if crate::constant::initializer_leaves::deferred_layout_query(
+                    if crate::constant::initializer_leaves::deferred_layout_query(syntax,
                         lowerer.constant_selection.as_ref(),
                         call,
                     )
@@ -415,7 +416,7 @@ fn validate_literal_initializer(
                 let Some(data) = item.as_data() else {
                     return false;
                 };
-                data.name.as_str() == type_name.as_str()
+                data.name.as_str(syntax_trees) == type_name.as_str(syntax_trees)
                     && syntax_trees
                         .items
                         .data_members(data.members)
@@ -424,7 +425,7 @@ fn validate_literal_initializer(
                             matches!(
                                 member,
                                 DataMember::Variant(variant)
-                                    if variant.name.as_str() == case_name.as_str()
+                                    if variant.name.as_str(syntax_trees) == case_name.as_str(syntax_trees)
                                         && variant.payload.is_empty()
                             )
                         })
@@ -448,11 +449,11 @@ fn invalid_literal_initializer(
         "const `{}::{}` initializer must be a literal (a scalar, a payloadless \
          case, or a struct/array literal of literals) in const-v0; `{}` is not \
          -- richer const expressions arrive with build-time evaluation",
-        definition.scope.as_str(),
-        definition.name.as_str(),
+        definition.scope.as_str(syntax_trees),
+        definition.name.as_str(syntax_trees),
         syntax_trees
             .expressions
             .expression(value)
-            .display_name(&syntax_trees.expressions),
+            .display_name(syntax_trees),
     )))
 }

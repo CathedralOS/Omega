@@ -27,6 +27,7 @@ members = [
     "omega-rust/psi/foundation/semantic-vocabulary",
     "omega-rust/psi/compilation/representations/tokens",
     "omega-rust/psi/compilation/representations/syntax-trees",
+    "omega-rust/psi/compilation/representations/syntax-trees/derive",
     "omega-rust/psi/compilation/representations/symbol-resolved-trees",
     "omega-rust/psi/compilation/representations/typed-trees",
     "omega-rust/psi/compilation/representations/checked-trees/facts",

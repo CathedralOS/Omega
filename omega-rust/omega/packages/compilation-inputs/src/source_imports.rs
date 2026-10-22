@@ -72,20 +72,24 @@ pub(crate) fn discover_imports(
             let ordinal = parsed_source.import_root_range.start + offset;
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
-                if is_bundled_omega_path(members)
-                    && local_source_exists(&source_root, members, &filesystem)
+                if is_bundled_omega_path(syntax_trees, members)
+                    && local_source_exists(syntax_trees, &source_root, members, &filesystem)
                 {
                     return Err(vec![Diagnostic::error(format!(
                         "import `{}` in {} collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
-                        identifier_path_text(members),
+                        identifier_path_text(syntax_trees, members),
                         parsed_source.path.display(),
                     ))]);
                 }
                 let resolved = normalize_path(
-                    &resolve_source_path(&source_root, members, &filesystem)?,
+                    &resolve_source_path(syntax_trees, &source_root, members, &filesystem)?,
                     &filesystem,
                 )?;
-                let prefix = if is_bundled_omega_path(members) { 2 } else { 0 };
+                let prefix = if is_bundled_omega_path(syntax_trees, members) {
+                    2
+                } else {
+                    0
+                };
                 let owner = if prefix == 2 {
                     bundled_omega_root()?
                 } else {
@@ -93,12 +97,14 @@ pub(crate) fn discover_imports(
                 };
                 retained.push(ResolvedSourceImport {
                     occurrence: ImportOccurrence::new(
+                        syntax_trees,
                         parsed_source.source_id,
                         ordinal,
                         members,
                         prefix,
                     ),
                     requires_module: !direct_source_import(
+                        syntax_trees,
                         &owner,
                         &members[prefix..],
                         &resolved,
@@ -196,6 +202,7 @@ pub(crate) fn discover_package_imports(
             };
             let members = syntax_trees.items.identifier_path_members(use_item.path);
             match reconciled_package_import(
+                syntax_trees,
                 &parsed_source.path,
                 members,
                 requester,
@@ -206,12 +213,14 @@ pub(crate) fn discover_package_imports(
                 ReconciledPackageImport::Toolchain(path) => {
                     retained.push(ResolvedSourceImport {
                         occurrence: ImportOccurrence::new(
+                            syntax_trees,
                             parsed_source.source_id,
                             ordinal,
                             members,
                             2,
                         ),
                         requires_module: !direct_source_import(
+                            syntax_trees,
                             &bundled_omega_root()?,
                             &members[2..],
                             &path,
@@ -224,12 +233,19 @@ pub(crate) fn discover_package_imports(
                 ReconciledPackageImport::ToolchainContract { root, path } => {
                     retained.push(ResolvedSourceImport {
                         occurrence: ImportOccurrence::new(
+                            syntax_trees,
                             parsed_source.source_id,
                             ordinal,
                             members,
                             0,
                         ),
-                        requires_module: !direct_source_import(&root, members, &path, filesystem),
+                        requires_module: !direct_source_import(
+                            syntax_trees,
+                            &root,
+                            members,
+                            &path,
+                            filesystem,
+                        ),
                         path: path.clone(),
                     });
                     imports.push((path, parsed_source.scope));
@@ -238,6 +254,7 @@ pub(crate) fn discover_package_imports(
                     let prefix = members.len() - request.relative_path.components().count();
                     let pending = PendingPackageImport {
                         occurrence: ImportOccurrence::new(
+                            syntax_trees,
                             parsed_source.source_id,
                             ordinal,
                             members,

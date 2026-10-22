@@ -52,9 +52,9 @@ pub(crate) fn lower_expression_into_table(
             .expressions
             .identifier_path_members(*receiver)
             .iter()
-            .map(lower_name)
+            .map(|value| lower_name(syntax_trees, value))
             .collect::<Vec<_>>();
-        path.push(lower_name(&call.target));
+        path.push(lower_name(syntax_trees, &call.target));
         lowerer.pending_static_module_calls.push((lowered, path));
     }
     if let Some(exposure) = lowerer.current_authored_expression_exposure {
@@ -246,7 +246,7 @@ fn lower_nonbinary_expression_node_into_table(
                 .identifier_path_members(cast.target_label)
             {
                 expression_table(lowerer)
-                    .push_name_path_member(&mut target_label, lower_name(member));
+                    .push_name_path_member(&mut target_label, lower_name(syntax_trees, member));
             }
             let mut semantic_domain = HandleSpan::empty();
             for member in syntax_trees
@@ -254,7 +254,7 @@ fn lower_nonbinary_expression_node_into_table(
                 .identifier_path_members(cast.semantic_domain)
             {
                 expression_table(lowerer)
-                    .push_name_path_member(&mut semantic_domain, lower_name(member));
+                    .push_name_path_member(&mut semantic_domain, lower_name(syntax_trees, member));
             }
             let semantic_domain_arguments =
                 crate::lowering::type_reference::lower_child_type_references(
@@ -323,14 +323,14 @@ fn lower_nonbinary_expression_node_into_table(
                 expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
                     target_symbol: SymbolHandle::invalid(),
-                    target: lower_name(&call.target),
+                    target: lower_name(syntax_trees, &call.target),
                     requirement_application,
                     machine_arguments,
                     arguments,
                     evidence_arguments: call
                         .evidence_arguments
                         .iter()
-                        .map(lower_name)
+                        .map(|value| lower_name(syntax_trees, value))
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -370,7 +370,8 @@ fn lower_nonbinary_expression_node_into_table(
                 .expressions
                 .identifier_path_members(membership.domain)
             {
-                expression_table(lowerer).push_name_path_member(&mut domain, lower_name(member));
+                expression_table(lowerer)
+                    .push_name_path_member(&mut domain, lower_name(syntax_trees, member));
             }
             Ok(expression_table(lowerer).insert(ExpressionNode::Membership(
                 TableMembershipExpression {
@@ -388,8 +389,11 @@ fn lower_nonbinary_expression_node_into_table(
                 expression_table(lowerer).insert(ExpressionNode::Member(TableMemberExpression {
                     receiver,
                     member_symbol: SymbolHandle::invalid(),
-                    member: lower_name(&member.member),
-                    case_variant: member.case_variant.as_ref().map(lower_name),
+                    member: lower_name(syntax_trees, &member.member),
+                    case_variant: member
+                        .case_variant
+                        .as_ref()
+                        .map(|value| lower_name(syntax_trees, value)),
                 })),
             )
         }
@@ -407,7 +411,8 @@ fn lower_nonbinary_expression_node_into_table(
             // selected initializer is copied only after exact symbols exist.
             let mut members = HandleSpan::empty();
             for member in syntax_trees.expressions.identifier_path_members(*path) {
-                expression_table(lowerer).push_name_path_member(&mut members, lower_name(member));
+                expression_table(lowerer)
+                    .push_name_path_member(&mut members, lower_name(syntax_trees, member));
             }
             let member_symbols =
                 expression_table(lowerer).reserve_name_path_member_symbols(members.count());
@@ -483,7 +488,7 @@ fn lower_nonbinary_expression_node_into_table(
                         .try_into()
                         .expect("struct literal field span count overflow"),
                     TableStructLiteralField {
-                        name: lower_name(&field.name),
+                        name: lower_name(syntax_trees, &field.name),
                         field_symbol: SymbolHandle::invalid(),
                         value,
                     },
@@ -494,7 +499,7 @@ fn lower_nonbinary_expression_node_into_table(
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::StructLiteral(
                     TableStructLiteral {
-                        type_name: lower_name(&struct_literal.constructor_name),
+                        type_name: lower_name(syntax_trees, &struct_literal.constructor_name),
                         type_symbol: SymbolHandle::invalid(),
                         case_name: None,
                         case_symbol: None,
@@ -528,7 +533,7 @@ fn lower_applied_requirement_qualifier(
         ));
     };
     let mut path = Default::default();
-    for member in base_name.as_str().split("::") {
+    for member in base_name.as_str(syntax_trees).split("::") {
         expression_table(lowerer).push_name_path_member(
             &mut path,
             symbol_resolved_trees::name::DiagnosticName::from_str(member, base_name.source_span()),
@@ -580,7 +585,7 @@ pub(crate) fn lower_static_machine_argument(
         path: argument
             .path
             .iter()
-            .map(lower_name)
+            .map(|value| lower_name(syntax_trees, value))
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         application: argument
@@ -592,7 +597,7 @@ pub(crate) fn lower_static_machine_argument(
                         lifetime_arguments: application
                             .lifetime_arguments
                             .iter()
-                            .map(lower_name)
+                            .map(|value| lower_name(syntax_trees, value))
                             .collect::<Vec<_>>()
                             .into_boxed_slice(),
                         arguments: application
@@ -610,8 +615,8 @@ pub(crate) fn lower_static_machine_argument(
         const_literal: argument.const_literal.clone(),
         evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
             symbol_resolved_trees::expression::EvidenceProjection {
-                term: lower_name(&projection.term),
-                member: lower_name(&projection.member),
+                term: lower_name(syntax_trees, &projection.term),
+                member: lower_name(syntax_trees, &projection.member),
             }
         }),
         symbol: SymbolHandle::invalid(),

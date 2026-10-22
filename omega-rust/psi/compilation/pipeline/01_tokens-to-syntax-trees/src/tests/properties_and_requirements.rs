@@ -54,7 +54,7 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
     else {
         panic!("expected ordinary field followed by current state member");
     };
-    assert_eq!(field.name.as_str(), "entry");
+    assert_eq!(field.name.as_str(&syntax), "entry");
 }
 
 #[test]
@@ -292,10 +292,10 @@ fn parses_plain_and_boundary_traits() {
         .collect();
 
     assert_eq!(traits.len(), 2);
-    assert_eq!(traits[0].name.as_str(), "Drawable");
+    assert_eq!(traits[0].name.as_str(&parsed), "Drawable");
     assert!(!traits[0].is_boundary);
     assert_eq!(traits[0].machines.len(), 1);
-    assert_eq!(traits[1].name.as_str(), "Console");
+    assert_eq!(traits[1].name.as_str(&parsed), "Console");
     assert!(traits[1].is_boundary);
     assert_eq!(traits[1].machines.len(), 1);
     let signature_handle = parsed.items.state_signatures(traits[1].machines)[0];
@@ -304,7 +304,7 @@ fn parses_plain_and_boundary_traits() {
         .items
         .identifier_path_members(signature.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(), "Console");
+    assert_eq!(service_reaches[0].as_str(&parsed), "Console");
 }
 
 #[test]
@@ -353,7 +353,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         .items
         .identifier_path_members(machine.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(), "Console");
+    assert_eq!(service_reaches[0].as_str(&parsed), "Console");
 
     let trait_definition = super::root_trait(&parsed, "trait item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
@@ -366,12 +366,14 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         .items
         .identifier_path_members(signature.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(), "Clock");
+    assert_eq!(service_reaches[0].as_str(&parsed), "Clock");
 
     let structural_machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "schedule" => {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "schedule" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -453,7 +455,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
         .items
         .identifier_path_members(machine.service_reaches);
     assert_eq!(service_reaches.len(), 1);
-    assert_eq!(service_reaches[0].as_str(), "Console");
+    assert_eq!(service_reaches[0].as_str(&parsed), "Console");
 
     let [contract] = parsed.items.capability_contracts(machine.contracts) else {
         panic!("machine should carry exactly one requires contract");
@@ -498,7 +500,9 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == name => {
+                syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str(&parsed) == name =>
+                {
                     Some(machine)
                 }
                 _ => None,
@@ -751,7 +755,7 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
     );
     assert!(machines[0].is_public);
     assert!(!machines[0].bodyless);
-    assert_eq!(machines[0].name.as_str(), "Vec2::add");
+    assert_eq!(machines[0].name.as_str(&parsed), "Vec2::add");
     assert_eq!(
         machines[1].spelling,
         Some(language_core::OperatorSpelling::Index)
@@ -770,7 +774,10 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
         Some(language_core::OperatorSpelling::Subtract)
     );
     assert_eq!(
-        machines[4].target.as_ref().map(|target| target.as_str()),
+        machines[4]
+            .target
+            .as_ref()
+            .map(|target| target.as_str(&parsed)),
         Some("linux_x86_64")
     );
     assert_eq!(machines[5].spelling, None);
@@ -1002,7 +1009,7 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
 
     let requirement = machines[0];
     assert_eq!(
-        requirement.name.as_str(),
+        requirement.name.as_str(&parsed),
         "InterruptAcknowledgement::complete"
     );
     assert_eq!(
@@ -1010,7 +1017,7 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
             .attached_data
             .as_ref()
             .expect("qualified requirement owner")
-            .as_str(),
+            .as_str(&parsed),
         "InterruptAcknowledgement"
     );
     assert!(requirement.is_public);
@@ -1072,12 +1079,15 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
         })
         .collect::<Vec<_>>();
     assert_eq!(requirements.len(), 2);
-    assert_eq!(requirements[0].name.as_str(), "InterruptMaskGuard::restore");
+    assert_eq!(
+        requirements[0].name.as_str(&parsed),
+        "InterruptMaskGuard::restore"
+    );
     assert_eq!(requirements[0].contracts.len(), 1);
     assert!(requirements[0].bodyless);
     assert!(requirements[0].is_top_level_boundary_requirement);
     assert_eq!(
-        requirements[1].name.as_str(),
+        requirements[1].name.as_str(&parsed),
         "InterruptAcknowledgement::complete"
     );
     assert!(requirements[1].bodyless);
@@ -1104,7 +1114,7 @@ fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
             _ => None,
         })
         .expect("top-level requirement");
-    assert_eq!(requirement.name.as_str(), "Task::finish");
+    assert_eq!(requirement.name.as_str(&parsed), "Task::finish");
     assert!(requirement.bodyless);
     assert!(requirement.is_top_level_boundary_requirement);
     assert!(requirement.suspends);
@@ -1112,7 +1122,7 @@ fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     assert!(parsed.root_items().any(|item| matches!(
         item,
         syntax_trees::item::Item::Trait(definition)
-            if definition.name.as_str() == "TaskRuntime"
+            if definition.name.as_str(&parsed) == "TaskRuntime"
     )));
 }
 
@@ -1263,11 +1273,17 @@ fn parses_named_machine_contract_evidence_bindings() {
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     assert_eq!(
-        contracts[0].binding.as_ref().map(|name| name.as_str()),
+        contracts[0]
+            .binding
+            .as_ref()
+            .map(|name| name.as_str(&parsed)),
         Some("input_proof")
     );
     assert_eq!(
-        contracts[1].binding.as_ref().map(|name| name.as_str()),
+        contracts[1]
+            .binding
+            .as_ref()
+            .map(|name| name.as_str(&parsed)),
         Some("output_proof")
     );
     assert!(
@@ -1299,13 +1315,16 @@ fn parses_outcome_specific_ensures_as_rows_without_group_identity() {
             panic!("guarded guarantee row")
         };
         let names = parsed.items.identifier_path_members(*result_case);
-        assert_eq!(names[0].as_str(), "Outcome");
-        assert_eq!(names[1].as_str(), "Success");
+        assert_eq!(names[0].as_str(&parsed), "Outcome");
+        assert_eq!(names[1].as_str(&parsed), "Success");
         assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
     }
     assert!(contracts[0].binding.is_none());
     assert_eq!(
-        contracts[1].binding.as_ref().map(|name| name.as_str()),
+        contracts[1]
+            .binding
+            .as_ref()
+            .map(|name| name.as_str(&parsed)),
         Some("selected")
     );
 }
@@ -1374,7 +1393,7 @@ fn parses_named_bodyless_signature_contract_bindings() {
             syntax_trees::item::Item::Trait(definition) => Some(definition),
             _ => None,
         })
-        .find(|definition| definition.name.as_str() == "Worker")
+        .find(|definition| definition.name.as_str(&parsed) == "Worker")
         .expect("worker trait");
     let [requirement] = parsed.items.state_signatures(worker.machines) else {
         panic!("one worker requirement")
@@ -1387,14 +1406,14 @@ fn parses_named_bodyless_signature_contract_bindings() {
         contracts[0]
             .binding
             .as_ref()
-            .map(|binding| binding.as_str()),
+            .map(|binding| binding.as_str(&parsed)),
         Some("input_proof")
     );
     assert_eq!(
         contracts[1]
             .binding
             .as_ref()
-            .map(|binding| binding.as_str()),
+            .map(|binding| binding.as_str(&parsed)),
         Some("output_proof")
     );
 }
@@ -1426,7 +1445,7 @@ fn parses_explicit_state_arrival_requires() {
         .state_handles(machine.states)
         .iter()
         .map(|handle| parsed.items.state(*handle))
-        .find(|state| state.name.as_str() == "positive")
+        .find(|state| state.name.as_str(&parsed) == "positive")
         .expect("positive state");
     let contracts = parsed.items.capability_contracts(positive.contracts);
     assert_eq!(contracts.len(), 1);
@@ -1485,7 +1504,7 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
     let parsed = parse_syntax_trees(&tokens).expect("bare bodyless signature should parse");
     let machine = super::root_machine(&parsed, "machine item");
     assert!(machine.bodyless && !machine.boundary && machine.spelling.is_none());
-    assert_eq!(machine.name.as_str(), "Float::meaning32");
+    assert_eq!(machine.name.as_str(&parsed), "Float::meaning32");
 
     let tokens = Lexer::new("machine realize(value: f32) -> f32 satisfies Math::identity;")
         .tokenize()

@@ -273,13 +273,14 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     if let Some(binding) = contract.binding.as_ref() {
                         if public_selectors
                             .iter()
-                            .any(|existing| existing == binding.as_str())
+                            .any(|existing| existing == binding.as_str(syntax_trees))
                         {
                             return Err(input.error_here(format!(
-                                "duplicate machine-wide public ensures selector `{binding}`"
+                                "duplicate machine-wide public ensures selector `{}`",
+                                binding.as_str(syntax_trees)
                             )));
                         }
-                        public_selectors.push(binding.as_str().to_owned());
+                        public_selectors.push(binding.as_str(syntax_trees).to_owned());
                     }
                     super::record_capability_contract(
                         syntax_trees,
@@ -316,13 +317,14 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             {
                 if public_selectors
                     .iter()
-                    .any(|existing| existing == binding.as_str())
+                    .any(|existing| existing == binding.as_str(syntax_trees))
                 {
                     return Err(fact_input.error_here(format!(
-                        "duplicate machine-wide public ensures selector `{binding}`"
+                        "duplicate machine-wide public ensures selector `{}`",
+                        binding.as_str(syntax_trees)
                     )));
                 }
-                public_selectors.push(binding.as_str().to_owned());
+                public_selectors.push(binding.as_str(syntax_trees).to_owned());
             }
             super::record_capability_contract(
                 syntax_trees,
@@ -370,7 +372,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 if let Ok((subject, rest)) = input.take_identifier()
                     && rest.at_contextual("satisfies")
                 {
-                    return Err(input.error_here(retired_where_conformance(subject.as_str())));
+                    return Err(
+                        input.error_here(retired_where_conformance(subject.as_str(syntax_trees)))
+                    );
                 }
                 let (expression, rest) =
                     crate::expressions::parse_expression::parse_proof_fact_expression_handle(
@@ -548,7 +552,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
         .items
         .identifier_path_members(result_case)
         .iter()
-        .map(|member| member.as_str())
+        .map(|member| member.as_str(syntax_trees))
         .collect::<Vec<_>>()
         .join("::");
     let mut input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
@@ -640,13 +644,13 @@ fn parse_crash_header<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, (CrashCause, usize)> {
     let input = input.take_contextual("crashes")?;
     let (cause, input) = input.take_identifier()?;
-    let cause = match cause.as_str() {
+    let cause = match cause.as_str(&input) {
         "Trap" => CrashCause::Trap,
         "Abort" => CrashCause::Abort,
         _ => {
             return Err(input.error_here(format!(
                 "unknown crash cause `{}`; expected `Trap` or `Abort`",
-                cause.as_str()
+                cause.as_str(&input)
             )));
         }
     };

@@ -71,7 +71,7 @@ pub(super) fn complete_initializer_receipt_dependencies(
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct DeferredResolvedFrontier {
     pub(super) syntax: Arc<SyntaxTrees>,
     pub(super) trees: Arc<SymbolResolvedTrees>,
@@ -94,6 +94,50 @@ pub struct DeferredResolvedFrontier {
     /// rows and are recorded afresh for each demanded implementation batch.
     pub(super) equation_sources: Option<SourceLinks>,
 }
+
+impl PartialEq for DeferredResolvedFrontier {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            syntax,
+            trees,
+            pending,
+            pending_type_inputs,
+            supplied_operand_owners,
+            conformance_inputs,
+            selection,
+            sources,
+            bindings,
+            hoist_counter,
+            const_resolution_mode,
+            structural_type_equations_pending,
+            equation_sources,
+        } = self;
+        syntax == &other.syntax
+            && trees == &other.trees
+            && pending.len() == other.pending.len()
+            && pending
+                .iter()
+                .zip(&other.pending)
+                .all(|(left, right)| left.same_syntax(right, &syntax.text, &other.syntax.text))
+            && pending_type_inputs == &other.pending_type_inputs
+            && supplied_operand_owners == &other.supplied_operand_owners
+            && conformance_inputs == &other.conformance_inputs
+            && selection == &other.selection
+            && sources == &other.sources
+            && bindings == &other.bindings
+            && hoist_counter == &other.hoist_counter
+            && const_resolution_mode == &other.const_resolution_mode
+            && structural_type_equations_pending == &other.structural_type_equations_pending
+            && match (equation_sources, &other.equation_sources) {
+                (Some(left), Some(right)) => {
+                    left.same_syntax(right, &syntax.text, &other.syntax.text)
+                }
+                (None, None) => true,
+                _ => false,
+            }
+    }
+}
+impl Eq for DeferredResolvedFrontier {}
 
 impl DeferredResolvedFrontier {
     /// Transfer probe-only input custody on this exact completed declaration
@@ -315,7 +359,7 @@ fn lower_selected_bodies(
 
 /// Private predecessor/successor pairing. Only the resolver can construct a
 /// completion; later typing rejoins it to its own retained predecessor.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct ResolvedBodyCompletion {
     successor: DeferredResolvedFrontier,
     predecessor: Arc<SymbolResolvedTrees>,
@@ -323,7 +367,7 @@ pub struct ResolvedBodyCompletion {
     selected: Vec<SymbolHandle>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct RebasedResolvedBodyCompletion {
     successor: DeferredResolvedFrontier,
     predecessor: Arc<SymbolResolvedTrees>,

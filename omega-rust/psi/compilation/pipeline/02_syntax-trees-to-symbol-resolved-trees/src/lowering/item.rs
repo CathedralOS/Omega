@@ -16,7 +16,7 @@ use crate::lowering::trait_definition::lower_trait_definition;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
-use symbols::JoinedPath;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_item(
@@ -97,7 +97,7 @@ fn lower_item_with_exposure(
                 .alias
                 .as_ref()
                 .unwrap_or(&conformance.trait_name)
-                .as_str();
+                .as_str(syntax_trees);
             let mut rows = Vec::new();
             for member in syntax_trees.items.conformance_members(conformance.members) {
                 match member {
@@ -146,7 +146,7 @@ fn lower_item_with_exposure(
                         let realization_name = syntax_trees
                             .items
                             .identifier_path_members(*target)
-                            .joined_path();
+                            .joined_path_in(syntax_trees);
                         let target_members = syntax_trees.items.identifier_path_members(*target);
                         let authored_realization_source_span = target_members
                             .first()
@@ -166,11 +166,11 @@ fn lower_item_with_exposure(
                         rows.push(
                             symbol_resolved_trees::trait_definition::ConformanceRow {
                                 declaring_trait: symbols::SymbolHandle::invalid(),
-                                declaring_trait_name: crate::lowering::name::lower_name(
+                                declaring_trait_name: crate::lowering::name::lower_name(syntax_trees,
                                     declaring_trait,
                                 ),
                                 requirement: symbols::SymbolHandle::invalid(),
-                                requirement_name: crate::lowering::name::lower_name(requirement),
+                                requirement_name: crate::lowering::name::lower_name(syntax_trees, requirement),
                                 provisional_requirement_ordinal: None,
                                 realization_machine: symbols::SymbolHandle::invalid(),
                                 realization_state: symbols::SymbolHandle::invalid(),
@@ -193,21 +193,24 @@ fn lower_item_with_exposure(
                     lifetime_parameters: conformance
                         .lifetime_parameters
                         .iter()
-                        .map(crate::lowering::name::lower_name)
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                         .collect(),
                     type_parameters,
-                    trait_name: crate::lowering::name::lower_name(&conformance.trait_name),
+                    trait_name: crate::lowering::name::lower_name(
+                        syntax_trees,
+                        &conformance.trait_name,
+                    ),
                     trait_symbol: symbols::SymbolHandle::invalid(),
                     trait_lifetime_arguments: conformance
                         .trait_lifetime_arguments
                         .iter()
-                        .map(crate::lowering::name::lower_name)
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                         .collect(),
                     arguments,
                     alias: conformance
                         .alias
                         .as_ref()
-                        .map(crate::lowering::name::lower_name),
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
                     rows,
                 },
             );
@@ -277,7 +280,7 @@ fn lower_item_with_exposure(
                     .map_err(|reason| {
                         diagnostics::Diagnostic::error(format!(
                             "public const `{}` has no canonical declaration identity: {reason}",
-                            crate::constant::semantic_const_name(definition),
+                            crate::constant::semantic_const_name(syntax_trees, definition),
                         ))
                         .with_source_span(definition.name.source_span())
                     })?,
@@ -327,27 +330,21 @@ fn lower_item_with_exposure(
             lowerer.pending_const_declarations.push(
                 crate::resolution::lowerer::PendingConstDeclaration {
                     scope: definition.scope.clone(),
-                    semantic_name: crate::constant::semantic_const_name(definition),
+                    semantic_name: crate::constant::semantic_const_name(syntax_trees, definition),
                     source_span: definition.name.source_span(),
                     is_public: definition.is_public,
                 },
             );
         }
         syntax::item::Item::Module(module) => {
-            lowerer.namespace_declarations.modules.push(
-                syntax_trees
-                    .items
-                    .identifier_path_members(module.path)
-                    .to_vec(),
-            );
+            lowerer
+                .namespace_declarations
+                .record_module(syntax_trees, module.path);
         }
         syntax::item::Item::Use(import) => {
-            lowerer.namespace_declarations.imports.push(
-                syntax_trees
-                    .items
-                    .identifier_path_members(import.path)
-                    .to_vec(),
-            );
+            lowerer
+                .namespace_declarations
+                .record_import(syntax_trees, import.path);
         }
         syntax::item::Item::Capability(_) | syntax::item::Item::Package(_) => {}
     }
@@ -389,12 +386,17 @@ fn lower_closed_machine_row(
 ) -> Result<symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
     let requirement_name = machine.name.clone();
     let realization_name = declaring_trait.map_or_else(
-        || format!("{conformance_name}::{}", requirement_name.as_str()),
+        || {
+            format!(
+                "{conformance_name}::{}",
+                requirement_name.as_str(syntax_trees)
+            )
+        },
         |declaring_trait| {
             format!(
                 "{conformance_name}::{}::{}",
-                declaring_trait.as_str(),
-                requirement_name.as_str(),
+                declaring_trait.as_str(syntax_trees),
+                requirement_name.as_str(syntax_trees),
             )
         },
     );
@@ -413,10 +415,10 @@ fn lower_closed_machine_row(
     Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
         declaring_trait: symbols::SymbolHandle::invalid(),
         declaring_trait_name: declaring_trait
-            .map(crate::lowering::name::lower_name)
+            .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
             .unwrap_or_default(),
         requirement: symbols::SymbolHandle::invalid(),
-        requirement_name: crate::lowering::name::lower_name(&requirement_name),
+        requirement_name: crate::lowering::name::lower_name(syntax_trees, &requirement_name),
         provisional_requirement_ordinal: requirement_ordinal,
         realization_machine: symbols::SymbolHandle::invalid(),
         realization_state: symbols::SymbolHandle::invalid(),

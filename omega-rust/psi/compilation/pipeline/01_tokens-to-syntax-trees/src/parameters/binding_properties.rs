@@ -24,7 +24,7 @@ pub(crate) fn parse_binding_relevance_brackets<'tokens, 'source>(
     let mut declared_erased = false;
     while !input.at_punctuation(PunctuationKind::RightBracket) {
         let (name, next) = input.take_identifier()?;
-        match name.as_str() {
+        match name.as_str(&input) {
             "erased" => {
                 if declared_erased {
                     return Err(next.error_here("duplicate binding property `erased`"));

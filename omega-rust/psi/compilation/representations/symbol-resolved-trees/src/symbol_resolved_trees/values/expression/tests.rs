@@ -9,7 +9,6 @@ use crate::{
 };
 use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
 use source::{SourceId, SourceSpan, Span};
-use std::sync::Arc;
 use symbols::SymbolHandle;
 
 fn authored_selection_occurrences() -> [AuthoredDeclarationSelectionOccurrenceId; 2] {
@@ -125,7 +124,7 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
         symbol: field_symbol,
     }));
 
-    let hall = source.insert(ExpressionNode::String(Arc::from(&b"Hall"[..])));
+    let hall = source.insert(ExpressionNode::String((&b"Hall"[..]).into()));
     let open = source.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: room,
         operator: BinaryOperator::Equal,
@@ -517,7 +516,7 @@ fn insert_every_node_kind(table: &mut ExpressionTable) -> super::ExpressionHandl
         end: super::ExpressionHandle::invalid(),
         end_inclusive: false,
     }));
-    let hall = table.insert(ExpressionNode::String(Arc::from(&b"Hall"[..])));
+    let hall = table.insert(ExpressionNode::String((&b"Hall"[..]).into()));
     let eleven = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(11)));
     let thirteen = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(13)));
     let proof = table.insert(ExpressionNode::Binary(TableBinaryExpression {

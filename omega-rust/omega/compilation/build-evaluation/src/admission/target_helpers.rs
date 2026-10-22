@@ -24,7 +24,7 @@ pub fn select_build_helpers(
         let Some(target) = machine.authored_target.as_ref().or(machine.target.as_ref()) else {
             continue;
         };
-        let selected = TargetProfile::from_canonical_target_name(target.as_str())
+        let selected = TargetProfile::from_canonical_target_name(target.as_str(syntax))
             .is_ok_and(|target| target == execution);
         let mut declaration = machine.clone();
         declaration.authored_target = Some(target.clone());

@@ -41,7 +41,7 @@ pub struct TokenStream<'source> {
     source: SourceBacking<'source>,
     tokens: Vec<Token>,
     decoded_ranges: Arena<DecodedRange>,
-    decoded_bytes: Vec<u8>,
+    decoded_bytes: Option<Arc<Vec<u8>>>,
 }
 
 impl Default for TokenStream<'_> {
@@ -56,7 +56,7 @@ impl<'source> TokenStream<'source> {
             source: SourceBacking::Borrowed(source),
             tokens: Vec::with_capacity(token_capacity),
             decoded_ranges: Arena::default(),
-            decoded_bytes: Vec::new(),
+            decoded_bytes: None,
         }
     }
 
@@ -72,11 +72,15 @@ impl<'source> TokenStream<'source> {
     /// Decode directly into the stream's shared byte buffer. The callback must
     /// append exactly this literal's bytes; the lexer owns validation/decoding.
     pub fn push_decoded(&mut self, span: Span, decode: impl FnOnce(&mut Vec<u8>)) {
-        let start = self.decoded_bytes.len();
-        decode(&mut self.decoded_bytes);
+        let bytes = Arc::make_mut(
+            self.decoded_bytes
+                .get_or_insert_with(|| Arc::new(Vec::new())),
+        );
+        let start = bytes.len();
+        decode(bytes);
         let decoded = self.decoded_ranges.append(DecodedRange {
             start,
-            end: self.decoded_bytes.len(),
+            end: bytes.len(),
         });
         self.tokens.push(Token {
             kind: TokenKind::StringLiteral,
@@ -101,6 +105,10 @@ impl<'source> TokenStream<'source> {
         }
     }
 
+    pub fn source_text(&self) -> &str {
+        self.source.text()
+    }
+
     pub fn source_owner(&self) -> Option<&Arc<str>> {
         match &self.source {
             SourceBacking::Borrowed(_) => None,
@@ -112,10 +120,31 @@ impl<'source> TokenStream<'source> {
     pub fn text(&self, token: &Token) -> TokenText<'_> {
         if token.decoded.is_valid() {
             let range = self.decoded_ranges.get(token.decoded);
-            TokenText::Bytes(&self.decoded_bytes[range.start..range.end])
+            TokenText::Bytes(
+                &self
+                    .decoded_bytes
+                    .as_ref()
+                    .expect("decoded payload has backing bytes")[range.start..range.end],
+            )
         } else {
             TokenText::Source(&self.source.text()[token.span.start..token.span.end])
         }
+    }
+
+    /// Retain the decoded range without copying its bytes. The stream and all
+    /// syntax/semantic consumers share one immutable source-local buffer.
+    pub fn literal_bytes(&self, token: &Token) -> source::SourceBytes {
+        if !token.decoded.is_valid() {
+            return source::SourceBytes::from(self.text(token).as_bytes());
+        }
+        let range = self.decoded_ranges.get(token.decoded);
+        source::SourceBytes::from_shared(
+            self.decoded_bytes
+                .as_ref()
+                .expect("decoded payload has backing bytes")
+                .clone(),
+            range.start..range.end,
+        )
     }
 
     #[inline]
@@ -147,6 +176,23 @@ impl Deref for TokenStream<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_literals_share_storage_and_survive_token_mutation() {
+        let mut stream = TokenStream::default();
+        stream.push_decoded(Span::default(), |bytes| bytes.extend_from_slice(&[0, 255]));
+        stream.push_decoded(Span::default(), |_| {});
+        let first = stream.literal_bytes(&stream[0]);
+        let empty = stream.literal_bytes(&stream[1]);
+        assert_eq!(first.as_ptr(), stream.text(&stream[0]).as_bytes().as_ptr());
+        let original = first.as_ptr();
+        stream.push_decoded(Span::default(), |bytes| bytes.extend_from_slice(b"more"));
+        assert_eq!(first.as_ptr(), original);
+        assert_eq!(first.as_ref(), &[0, 255]);
+        drop(stream);
+        assert_eq!(first.as_ref(), &[0, 255]);
+        assert!(empty.is_empty());
+    }
 
     #[test]
     fn retained_stream_moves_records_and_owns_one_source_reference() {

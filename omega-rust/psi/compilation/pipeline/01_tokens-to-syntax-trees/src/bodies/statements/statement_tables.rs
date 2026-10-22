@@ -60,24 +60,27 @@ pub(crate) fn root_binding_declaration(
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
         return Ok(None);
     };
-    if call.target.as_str() == "bind"
+    if call.target.as_str(syntax_trees) == "bind"
         && !call.target_is_static
         && call.receiver.is_valid()
         && matches!(syntax_trees.expressions.expression(call.receiver),
-            ExpressionNode::Member(member) if member.member.as_str() == "roots")
+            ExpressionNode::Member(member) if member.member.as_str(syntax_trees) == "roots")
     {
         return Err(ParseError::new(
             "receiver-style root binding is retired; use Build::bind(builder, slot, entry)",
         ));
     }
-    if call.target.as_str() != "bind" || !call.target_is_static || !call.receiver.is_valid() {
+    if call.target.as_str(syntax_trees) != "bind"
+        || !call.target_is_static
+        || !call.receiver.is_valid()
+    {
         return Ok(None);
     }
     let ExpressionNode::Name(owner) = syntax_trees.expressions.expression(call.receiver) else {
         return Ok(None);
     };
     let owner = syntax_trees.expressions.identifier_path_members(*owner);
-    if !matches!(owner, [name] if name.as_str() == "Build") {
+    if !matches!(owner, [name] if name.as_str(syntax_trees) == "Build") {
         return Ok(None);
     }
     let invalid = || {
@@ -113,7 +116,7 @@ pub(crate) fn root_binding_declaration(
             return handle;
         };
         let members = syntax_trees.expressions.identifier_path_members(*path);
-        if members.len() == 1 && !members[0].is_self_receiver() {
+        if members.len() == 1 && !members[0].is_self_receiver(syntax_trees) {
             handle
         } else {
             ExpressionHandle::invalid()

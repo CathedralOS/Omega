@@ -24,7 +24,6 @@ use language_semantics::declaration_selection::{
 };
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
-use std::sync::Arc;
 use symbols::SymbolHandle;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
@@ -469,7 +468,7 @@ impl ExpressionTable {
     }
 
     /// The typed `String` node, or `None` for every other kind.
-    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&Arc<[u8]>> {
+    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&source::SourceBytes> {
         match self.expression(handle) {
             ExpressionNode::String(node) => Some(node),
             _ => None,
@@ -658,7 +657,7 @@ pub enum ExpressionNode {
     Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
     /// Exact decoded literal octets, including non-UTF-8 `\xNN` values.
-    String(Arc<[u8]>),
+    String(source::SourceBytes),
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(arena::Handle<crate::types::TypeReference>),

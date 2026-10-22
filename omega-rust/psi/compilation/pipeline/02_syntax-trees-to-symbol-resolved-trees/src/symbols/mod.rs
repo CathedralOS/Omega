@@ -7,10 +7,10 @@
 //! normalize here once module namespaces exist.
 
 use std::sync::Arc;
+use syntax_trees::identifier::JoinedSyntaxPath;
 
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::JoinedPath;
 
 mod symbol_table;
 
@@ -220,11 +220,46 @@ pub(crate) fn normalize_static_module_calls(
 
 #[derive(Default)]
 pub(crate) struct NamespaceDeclarations {
-    pub(crate) modules: Vec<Vec<syntax_trees::identifier::Identifier>>,
-    pub(crate) imports: Vec<Vec<syntax_trees::identifier::Identifier>>,
+    text: syntax_trees::SyntaxTextOwner,
+    modules: Vec<Vec<syntax_trees::identifier::Identifier>>,
+    imports: Vec<Vec<syntax_trees::identifier::Identifier>>,
+}
+
+impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
+    fn source_text(&self, source: arena::Handle<syntax_trees::RetainedSource>) -> &str {
+        self.text.source_text(source)
+    }
 }
 
 impl NamespaceDeclarations {
+    pub(crate) fn module_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
+        &self.modules
+    }
+
+    pub(crate) fn import_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
+        &self.imports
+    }
+
+    pub(crate) fn record_module(
+        &mut self,
+        syntax: &syntax_trees::SyntaxTrees,
+        path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+    ) {
+        self.text.retain_from(&syntax.text);
+        self.modules
+            .push(syntax.items.identifier_path_members(path).to_vec());
+    }
+
+    pub(crate) fn record_import(
+        &mut self,
+        syntax: &syntax_trees::SyntaxTrees,
+        path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+    ) {
+        self.text.retain_from(&syntax.text);
+        self.imports
+            .push(syntax.items.identifier_path_members(path).to_vec());
+    }
+
     fn record_import_selections(
         &self,
         program: &mut SymbolResolvedTrees,
@@ -236,7 +271,7 @@ impl NamespaceDeclarations {
             let (Some(first), Some(last)) = (path.first(), path.last()) else {
                 continue;
             };
-            let name = path.joined_path();
+            let name = path.joined_path_in(&self.text);
             let Some(target) = program
                 .symbols
                 .source_module_import_target(first.source_span().source_id, &name)
@@ -280,7 +315,7 @@ impl NamespaceDeclarations {
                 .register_source_module(
                     first.source_span().source_id,
                     path.iter()
-                        .map(|member| (member.as_str(), member.source_span())),
+                        .map(|member| (member.as_str(&self.text), member.source_span())),
                 )
                 .map_err(|message| {
                     vec![
@@ -293,7 +328,7 @@ impl NamespaceDeclarations {
             let Some(first) = path.first() else {
                 continue;
             };
-            let name = path.joined_path();
+            let name = path.joined_path_in(&self.text);
             symbols.register_source_import(first.source_span().source_id, &name);
         }
         Ok(())
@@ -308,7 +343,7 @@ impl NamespaceDeclarations {
             let Some(first) = path.first() else {
                 continue;
             };
-            let name = path.joined_path();
+            let name = path.joined_path_in(&self.text);
             symbols
                 .validate_source_module_import(first.source_span().source_id, &name)
                 .map_err(|message| {

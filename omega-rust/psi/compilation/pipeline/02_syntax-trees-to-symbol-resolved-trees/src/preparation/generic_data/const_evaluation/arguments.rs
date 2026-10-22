@@ -5,7 +5,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
-use symbols::JoinedPath;
+use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
@@ -47,7 +47,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
             } => (base_name.clone(), lifetime_arguments.clone(), *arguments),
             _ => return Ok(None),
         };
-    let base = base_name.as_str().to_string();
+    let base = base_name.as_str(syntax).to_string();
     let Some(base_info) = selected_generic_data(syntax, generic_data, selection, &base_name) else {
         return Ok(None); // non-generic base: plan-laid / existing error paths
     };
@@ -113,7 +113,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
             .clone()
         {
             TypeReferenceNode::Named(name) => {
-                match ConstScalarSpelling::from_bare_name(name.as_str()) {
+                match ConstScalarSpelling::from_bare_name(name.as_str(syntax)) {
                     Some(ConstScalarSpelling::Canonical(_) | ConstScalarSpelling::Integer(_)) => {
                         continue;
                     }
@@ -123,9 +123,9 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                                 .tables
                                 .type_references
                                 .type_reference(syntax.type_references.type_reference(parameter_type).as_named()
-                                    .and_then(|name| application_scope.get(name.as_str()).copied())
+                                    .and_then(|name| application_scope.get(name.as_str(syntax)).copied())
                                     .unwrap_or(parameter_type)),
-                            TypeReferenceNode::Named(type_name) if type_name.as_str() == "bool"
+                            TypeReferenceNode::Named(type_name) if type_name.as_str(syntax) == "bool"
                         ) =>
                     {
                         let value = CanonicalConstValue::boolean(value);
@@ -188,14 +188,14 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     const_values,
                     const_definitions,
                 )?;
-                if let Some(value) = const_values.get(name.as_str()) {
+                if let Some(value) = const_values.get(name.as_str(syntax)) {
                     syntax.tables.type_references.replace_type_reference(
                         *argument,
                         TypeReferenceNode::Named(Identifier::generated(value.to_string())),
                     );
                     continue;
                 }
-                let Some(definition) = const_definitions.get(name.as_str()) else {
+                let Some(definition) = const_definitions.get(name.as_str(syntax)) else {
                     continue;
                 };
                 let value = super::values::canonicalize_selected_const_definition_in_application(syntax, definition, parameter_type, None, &application_scope)
@@ -389,14 +389,14 @@ pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(
             else {
                 return false;
             };
-            let value = match ConstScalarSpelling::from_bare_name(value.as_str()) {
+            let value = match ConstScalarSpelling::from_bare_name(value.as_str(syntax)) {
                 Some(ConstScalarSpelling::Canonical(value)) => {
-                    return value.type_name == type_name.as_str();
+                    return value.type_name == type_name.as_str(syntax);
                 }
                 Some(ConstScalarSpelling::Integer(value)) => value,
                 Some(ConstScalarSpelling::Boolean(_)) | None => return false,
             };
-            let Some(integer_type) = LandedIntegerType::from_name(type_name.as_str()) else {
+            let Some(integer_type) = LandedIntegerType::from_name(type_name.as_str(syntax)) else {
                 return false;
             };
             let (minimum, maximum) = integer_type.bounds();
@@ -432,7 +432,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
             }),
         ExpressionNode::Name(path) => {
             let members = syntax.expressions.identifier_path_members(*path);
-            let name = members.joined_path();
+            let name = members.joined_path_in(syntax);
             if let Some(value) = parameter_values.get(&name) {
                 Ok(EvaluatedConst::Concrete(*value))
             } else if symbolic_parameters.contains(&name) {
@@ -559,7 +559,7 @@ pub(in crate::preparation::generic_data) fn const_integer_type(
         .type_references
         .type_reference(type_reference)
         .as_named()?;
-    LandedIntegerType::from_name(name.as_str())
+    LandedIntegerType::from_name(name.as_str(syntax))
 }
 
 /// Reject a value outside its declared integer carrier's range.
@@ -585,7 +585,7 @@ pub(in crate::preparation::generic_data) fn generic_const_integer_types(
         .root_items()
         .find_map(|item| {
             let definition = item.as_data()?;
-            (definition.name.as_str() == generic_name).then(|| {
+            (definition.name.as_str(syntax) == generic_name).then(|| {
                 syntax
                     .tables
                     .items

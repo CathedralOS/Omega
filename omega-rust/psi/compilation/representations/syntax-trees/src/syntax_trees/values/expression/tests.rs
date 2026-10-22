@@ -1,9 +1,10 @@
-use super::{ExpressionNode, ExpressionTable};
+use super::ExpressionNode;
 
 #[test]
 fn match_arms_preserve_order_source_and_nonnumeric_values() {
     use super::{MatchPattern, TableMatchArm, TableMatchExpression};
-    let mut table = ExpressionTable::new();
+    let mut syntax = crate::SyntaxTrees::default();
+    let table = &mut syntax.tables.expressions;
     let subject = table.insert(ExpressionNode::Boolean(true));
     let pattern = table.insert(ExpressionNode::Boolean(false));
     let first = table.insert(ExpressionNode::String("first".as_bytes().into()));
@@ -33,7 +34,7 @@ fn match_arms_preserve_order_source_and_nonnumeric_values() {
     assert_eq!(table.match_arms(arms)[1].pattern, MatchPattern::Wildcard);
     assert_eq!(table.match_arms(arms)[0].source_span, source_span);
     assert_eq!(
-        table.display_name(expression),
+        syntax.display_expression_name(expression),
         "match true { false => \"first\", _ => \"fallback\" }"
     );
 }

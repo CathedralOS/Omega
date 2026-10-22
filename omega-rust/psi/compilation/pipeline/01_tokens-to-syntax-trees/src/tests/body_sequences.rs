@@ -31,7 +31,7 @@ fn entry_and_state_bodies_preserve_expanded_statement_order_and_boundaries() {
         ));
         for (handle, expected) in [(statements[1], "asm#lfence"), (statements[2], "asm#sfence")] {
             assert!(
-                matches!(trees.statements.statement(handle), StatementNode::Call(call) if call.target.as_str() == expected)
+                matches!(trees.statements.statement(handle), StatementNode::Call(call) if call.target.as_str(&trees) == expected)
             );
         }
         assert!(matches!(

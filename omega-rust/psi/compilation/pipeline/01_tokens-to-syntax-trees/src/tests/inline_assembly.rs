@@ -58,7 +58,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
         let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
             panic!("fence should desugar to a call statement");
         };
-        assert_eq!(call.target.as_str(), target);
+        assert_eq!(call.target.as_str(&parsed), target);
         assert!(call.receiver.is_empty());
         assert_eq!(call.arguments.count(), 0);
     }
@@ -89,7 +89,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
         let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
             panic!("interrupt control should desugar to a call statement");
         };
-        assert_eq!(call.target.as_str(), target);
+        assert_eq!(call.target.as_str(&parsed), target);
         assert!(call.receiver.is_empty());
         assert_eq!(call.arguments.count(), 0);
     }
@@ -122,13 +122,13 @@ fn parses_x86_flags_as_explicit_value_operations() {
     let ExpressionNode::Call(call) = parsed.expressions.expression(snapshot.value) else {
         panic!("pushfq assignment should contain the snapshot intrinsic");
     };
-    assert_eq!(call.target.as_str(), "asm#pushfq");
+    assert_eq!(call.target.as_str(&parsed), "asm#pushfq");
     assert_eq!(call.arguments.count(), 0);
 
     let StatementNode::Call(restore) = parsed.statements.statement(statements[1]) else {
         panic!("popfq should desugar to a call statement");
     };
-    assert_eq!(restore.target.as_str(), "asm#popfq");
+    assert_eq!(restore.target.as_str(&parsed), "asm#popfq");
     assert_eq!(restore.arguments.count(), 1);
 }
 
@@ -159,13 +159,13 @@ fn parses_x86_msr_as_structured_value_operations() {
     let ExpressionNode::Call(read_call) = parsed.expressions.expression(read.value) else {
         panic!("rdmsr assignment should contain the read intrinsic");
     };
-    assert_eq!(read_call.target.as_str(), "asm#rdmsr");
+    assert_eq!(read_call.target.as_str(&parsed), "asm#rdmsr");
     assert_eq!(read_call.arguments.count(), 1);
 
     let StatementNode::Call(write) = parsed.statements.statement(statements[1]) else {
         panic!("wrmsr should desugar to a call statement");
     };
-    assert_eq!(write.target.as_str(), "asm#wrmsr");
+    assert_eq!(write.target.as_str(&parsed), "asm#wrmsr");
     assert_eq!(write.arguments.count(), 2);
 }
 
@@ -209,7 +209,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         let ExpressionNode::Call(call) = parsed.expressions.expression(read.value) else {
             panic!("control-register assignment should contain read intrinsic");
         };
-        assert_eq!(call.target.as_str(), target);
+        assert_eq!(call.target.as_str(&parsed), target);
         assert_eq!(call.arguments.count(), 0);
     }
 
@@ -222,7 +222,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         else {
             panic!("control-register write should desugar to call");
         };
-        assert_eq!(write.target.as_str(), target);
+        assert_eq!(write.target.as_str(&parsed), target);
         assert_eq!(write.arguments.count(), 1);
     }
 }
@@ -573,7 +573,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
     let instructions = parsed.statements.assembly_instructions(block.instructions);
     assert_eq!(instructions.len(), 1);
     assert!(matches!(parsed.statements.statement(instructions[0]),
-        StatementNode::Call(call) if call.target.as_str() == "asm#port_out"));
+        StatementNode::Call(call) if call.target.as_str(&parsed) == "asm#port_out"));
 }
 
 #[test]

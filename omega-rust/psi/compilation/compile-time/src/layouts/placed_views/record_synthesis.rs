@@ -40,7 +40,7 @@ pub(super) fn synthesize_probe_records(
         .root_items()
         .filter_map(|item| item.as_data())
         .filter(|data| {
-            data.name.as_str().rsplit("::").next() == Some("PlacedField")
+            data.name.as_str(syntax).rsplit("::").next() == Some("PlacedField")
                 && sources.is_none_or(|sources| {
                     sources
                         .file_at(data.name.source_span())
@@ -112,7 +112,7 @@ pub(super) fn synthesize_exact_records(
         .root_items()
         .filter_map(|item| {
             let machine = item.as_machine()?;
-            sealed_accessor_template(machine, sources).then_some(machine.clone())
+            sealed_accessor_template(syntax, machine, sources).then_some(machine.clone())
         })
         .collect::<Vec<_>>();
 
@@ -126,7 +126,7 @@ pub(super) fn synthesize_exact_records(
                 .plan()
                 .entries()
                 .iter()
-                .find(|entry| entry.field() == field.name.as_str());
+                .find(|entry| entry.field() == field.name.as_str(syntax));
             if field.relevance.is_erased() && entry.is_none() {
                 // Schema reflection deliberately omits erased semantic fields.
                 // They remain available to the custody-agreement checker but
@@ -137,7 +137,7 @@ pub(super) fn synthesize_exact_records(
                 return Err(vec![Diagnostic::error(format!(
                     "placed view `{}` lost canonical schema field `{}`",
                     application.synthetic_name,
-                    field.name.as_str()
+                    field.name.as_str(syntax)
                 ))]);
             };
             if matches!(entry.access(), FieldAccess::Inaccessible) {
@@ -168,7 +168,7 @@ pub(super) fn synthesize_exact_records(
                 let Some(machine) = template_machines.iter().find(|machine| {
                     machine
                         .name
-                        .as_str()
+                        .as_str(syntax)
                         .rsplit("::")
                         .next()
                         .is_some_and(|name| name == operation)
@@ -267,14 +267,14 @@ fn accessor_name(
             .type_references
             .type_reference(field.type_reference)
         {
-            TypeReferenceNode::Named(name) => match name.as_str() {
+            TypeReferenceNode::Named(name) => match name.as_str(syntax) {
                 "bool" => "AtomicBool#PlacedField",
                 "u32" => "AtomicU32#PlacedField",
                 "u64" => "AtomicU64#PlacedField",
                 _ => {
                     return Err(vec![Diagnostic::error(format!(
                         "placed atomic field `{}` in `{}` requires schema type `bool`, `u32`, or `u64`",
-                        field.name.as_str(),
+                        field.name.as_str(syntax),
                         application.synthetic_name
                     ))]);
                 }
@@ -282,7 +282,7 @@ fn accessor_name(
             _ => {
                 return Err(vec![Diagnostic::error(format!(
                     "placed atomic field `{}` in `{}` requires a plain schema type `bool`, `u32`, or `u64`",
-                    field.name.as_str(),
+                    field.name.as_str(syntax),
                     application.synthetic_name
                 ))]);
             }
@@ -293,15 +293,19 @@ fn accessor_name(
     Ok(format!(
         "{base}<{},{}>",
         application.synthetic_name,
-        field.name.as_str()
+        field.name.as_str(syntax)
     ))
 }
 
-fn sealed_accessor_template(machine: &Machine, sources: Option<&source::SourceMap>) -> bool {
+fn sealed_accessor_template(
+    syntax: &SyntaxTrees,
+    machine: &Machine,
+    sources: Option<&source::SourceMap>,
+) -> bool {
     machine
         .attached_data
         .as_ref()
-        .is_some_and(|attached| attached.as_str() == "PlacedField")
+        .is_some_and(|attached| attached.as_str(syntax) == "PlacedField")
         && sources.is_none_or(|sources| {
             sources
                 .file_at(machine.name.source_span())
@@ -325,7 +329,7 @@ pub(super) fn retire_accessor_templates(
     let mut retained_roots = Vec::with_capacity(syntax.root_item_count());
     for handle in syntax.root_item_handles() {
         let is_template = matches!(syntax.root_item(*handle), Item::Machine(machine)
-            if sealed_accessor_template(machine, sources));
+            if sealed_accessor_template(syntax, machine, sources));
         if !is_template {
             retained_roots.push(*handle);
         }
@@ -353,7 +357,7 @@ fn clone_accessor_machine(
     };
     let operation = machine
         .name
-        .as_str()
+        .as_str(syntax)
         .rsplit("::")
         .next()
         .expect("accessor template operation");
@@ -369,7 +373,11 @@ fn clone_accessor_machine(
     // explicit parameter role: its trait requirement substitutes `Self`
     // with this exact accessor type, without introducing a receiver.
     let subject = TypeReferenceNode::Named(generated_identifier(accessor_name, provenance));
-    for (handle, base_name) in syntax.tables.type_references.generic_nodes_from(watermark) {
+    for (handle, base_name) in syntax
+        .tables
+        .type_references
+        .generic_nodes_from(watermark, &syntax.text)
+    {
         if base_name == "PlacedField" {
             syntax
                 .tables
@@ -382,7 +390,11 @@ fn clone_accessor_machine(
         .type_references
         .type_reference(field_type)
         .clone();
-    for (handle, name) in syntax.tables.type_references.named_nodes_from(watermark) {
+    for (handle, name) in syntax
+        .tables
+        .type_references
+        .named_nodes_from(watermark, &syntax.text)
+    {
         if name == "T" {
             syntax
                 .tables

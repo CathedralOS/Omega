@@ -30,13 +30,13 @@ pub(crate) fn parse_static_name<'tokens, 'source>(
     if !input.at_punctuation(PunctuationKind::ColonColon) {
         return Ok((first, input));
     }
-    let mut name = first.as_str().to_owned();
+    let mut name = first.as_str(&input).to_owned();
     let mut source_span = first.source_span();
     while input.at_punctuation(PunctuationKind::ColonColon) {
         input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (member, rest) = input.take_identifier()?;
         name.push_str("::");
-        name.push_str(member.as_str());
+        name.push_str(member.as_str(&input));
         source_span.span.end = member.source_span().span.end;
         input = rest;
     }
@@ -121,7 +121,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     let name = Identifier::new(
                         members
                             .iter()
-                            .map(Identifier::as_str)
+                            .map(|name| name.as_str(syntax_trees))
                             .collect::<Vec<_>>()
                             .join("::"),
                         syntax_trees.expressions.source_span(expression),
@@ -254,12 +254,12 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         // `Task<T>` becomes a real linear core type in TR2; silently folding a
         // lifecycle claim into its result would recreate the bug this pass
         // removes.
-        if base_name.as_str() == "Join" {
+        if base_name.as_str(syntax_trees) == "Join" {
             return Err(input.error_here(
                 "`Join<T>` is retired: task activation returns a linear `Task<T>`; \
                  settle it with `finish()` or transfer it to another owner",
             ));
-        } else if base_name.as_str() == "Slice"
+        } else if base_name.as_str(syntax_trees) == "Slice"
             && lifetime_arguments.is_empty()
             && argument_count == 1
         {
@@ -340,7 +340,7 @@ fn parse_static_argument_reference<'tokens, 'source>(
             // a computed index. Retain the same leaf as its unparenthesized
             // spelling, independently of which application owns the pack.
             let name = Identifier::new(
-                syntax_trees.expressions.display_name(expression),
+                syntax_trees.display_expression_name(expression),
                 syntax_trees.expressions.source_span(expression),
             );
             return Ok((syntax_trees.type_references.insert_named(name), rest));
@@ -556,7 +556,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     loop {
         let (domain_name, rest) = parse_static_name(cursor)?;
         let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
-        if domain_name.as_str() == "Carry::Portable" {
+        if domain_name.as_str(syntax_trees) == "Carry::Portable" {
             if !arguments.is_empty() {
                 return Err(rest.error_here("compiler carry domains do not take index arguments"));
             }
@@ -568,7 +568,9 @@ fn apply_in_domain_suffix<'tokens, 'source>(
             }));
         } else {
             constraints.push(
-                match numerics::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                match numerics::arithmetic::ArithmeticDomain::from_name(
+                    domain_name.as_str(syntax_trees),
+                ) {
                     Some(domain) if arguments.is_empty() => {
                         TypeConstraintNode::ArithmeticDomain(domain)
                     }

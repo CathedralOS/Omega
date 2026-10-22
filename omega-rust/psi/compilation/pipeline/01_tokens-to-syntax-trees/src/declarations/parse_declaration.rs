@@ -67,6 +67,7 @@ pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
         // parser. This probe never scans a following executable machine body,
         // and never publishes speculative nodes into the caller's syntax.
         let mut probe = SyntaxTrees::new(input.source_id);
+        let input = input.retained_by(&mut probe);
         // A token-only operator signature can also be a whole fact:
         // `operator < limit;`. Preserve the existing fact interpretation
         // whenever the expression grammar consumes that complete fact. A

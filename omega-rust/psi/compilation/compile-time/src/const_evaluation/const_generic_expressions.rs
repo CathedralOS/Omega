@@ -80,7 +80,7 @@ pub(crate) fn evaluate(
         let scalar = matches!(
             syntax.type_references.type_reference(destination),
             TypeReferenceNode::Named(destination_name)
-                if matches!(destination_name.as_str(),
+                if matches!(destination_name.as_str(&syntax),
                     "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool")
         );
         let original = syntax.type_references.type_reference(argument).clone();
@@ -91,11 +91,14 @@ pub(crate) fn evaluate(
             // Named type arguments retain one complete authored path span.
             // Restore its lexical segments without inventing member offsets
             // across source trivia; selection custody belongs to the whole use.
-            for member in name.as_str().split("::") {
-                syntax.expressions.append_identifier_path_member_to_span(
-                    &mut members,
-                    Identifier::new(member, reference),
-                );
+            for member in name.as_str(&syntax.tables.text).split("::") {
+                syntax
+                    .tables
+                    .expressions
+                    .append_identifier_path_member_to_span(
+                        &mut members,
+                        Identifier::new(member, reference),
+                    );
             }
             let expression = syntax.expressions.insert(ExpressionNode::Name(members));
             syntax.expressions.set_source_span(expression, reference);
@@ -153,7 +156,7 @@ pub(crate) fn evaluate(
             }
             let boolean_destination = matches!(
                 syntax.type_references.type_reference(*destination),
-                TypeReferenceNode::Named(name) if name.as_str() == "bool"
+                TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool"
             );
             (lexical_arguments.contains(argument)
                 || boolean_destination
@@ -207,7 +210,7 @@ pub(crate) fn evaluate(
     );
     for (argument, destination, _) in &arguments {
         let placeholder = match syntax.type_references.type_reference(*destination) {
-            TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",
+            TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool" => "false",
             _ => "0",
         };
         probe.type_references.replace_type_reference(
@@ -497,13 +500,17 @@ pub(super) fn append_named_probe(
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));
-    ProbeOwner { name }
+    ProbeOwner {
+        source_span: name.source_span(),
+        spelling: name.into_string(syntax),
+    }
 }
 
 /// An unspellable private declaration name is allocated with its syntax owner;
 /// resolution selects that declaration and thereafter jobs use its symbol.
 pub(super) struct ProbeOwner {
-    name: Identifier,
+    spelling: String,
+    source_span: SourceSpan,
 }
 
 impl ProbeOwner {
@@ -512,15 +519,14 @@ impl ProbeOwner {
         resolved: &symbol_resolved_trees::SymbolResolvedTrees,
     ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
         let mut owners = resolved.machines.iter().filter(|machine| {
-            resolved.symbols.name(machine.symbol) == self.name.as_str()
-                && resolved.symbols.symbol_source_span(machine.symbol)
-                    == Some(self.name.source_span())
+            resolved.symbols.name(machine.symbol) == self.spelling
+                && resolved.symbols.symbol_source_span(machine.symbol) == Some(self.source_span)
         });
         match (owners.next(), owners.next()) {
             (Some(owner), None) => Ok(owner.symbol),
             _ => Err(vec![
                 Diagnostic::error("evaluation probe lost its exact private declaration")
-                    .with_source_span(self.name.source_span()),
+                    .with_source_span(self.source_span),
             ]),
         }
     }

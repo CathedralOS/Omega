@@ -12,7 +12,7 @@ pub(super) fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
 ) -> Result<(), DependencyProjectionError> {
     for item in syntax_trees.root_items() {
-        match package_authored_type_name(item) {
+        match package_authored_type_name(syntax_trees, item) {
             Some(name)
                 if matches!(
                     machine_leaf_name(name),
@@ -30,11 +30,13 @@ pub(super) fn reject_authored_toolchain_vocabulary(
                 if machine
                     .attached_data
                     .as_ref()
-                    .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
-                    && is_dependency_call_name(machine_leaf_name(machine.name.as_str())) =>
+                    .is_some_and(|owner| owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
+                    && is_dependency_call_name(machine_leaf_name(
+                        machine.name.as_str(syntax_trees),
+                    )) =>
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
-                    name: format!("Build::{}", machine.name.as_str()),
+                    name: format!("Build::{}", machine.name.as_str(syntax_trees)),
                 });
             }
             _ => {}
@@ -77,7 +79,7 @@ pub(super) fn reject_unprojected_dependency_syntax(
             continue;
         };
         for field in syntax_trees.expressions.struct_fields(literal.fields) {
-            if field.name.as_str() == "selection" {
+            if field.name.as_str(syntax_trees) == "selection" {
                 accepted_selections.push(field.value);
             }
         }
@@ -132,22 +134,24 @@ pub(super) fn reject_unprojected_dependency_syntax(
     for (expression_handle, expression) in syntax_trees.expressions.iter_expressions() {
         match expression {
             ExpressionNode::StructLiteral(literal)
-                if constructor_parts(literal).0 == SOURCE_TYPE_NAME =>
+                if constructor_parts(syntax_trees, literal).0 == SOURCE_TYPE_NAME =>
             {
                 if !accepted_sources.contains(&expression_handle) {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
             }
             ExpressionNode::StructLiteral(literal)
-                if constructor_parts(literal).0 == PACKAGE_SELECTION_TYPE_NAME =>
+                if constructor_parts(syntax_trees, literal).0 == PACKAGE_SELECTION_TYPE_NAME =>
             {
                 if !accepted_selections.contains(&expression_handle) {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
             }
-            ExpressionNode::Call(call) if is_dependency_call_name(call.target.as_str()) => {
+            ExpressionNode::Call(call)
+                if is_dependency_call_name(call.target.as_str(syntax_trees)) =>
+            {
                 match (
-                    DependencyOperation::classify(call.target.as_str()),
+                    DependencyOperation::classify(call.target.as_str(syntax_trees)),
                     syntax_trees.expressions.expression_handles(call.arguments),
                 ) {
                     (Some(operation), [_builder, source])
@@ -190,7 +194,7 @@ fn reject_dependency_statements(
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        if is_dependency_call_name(call.target.as_str())
+        if is_dependency_call_name(call.target.as_str(syntax_trees))
             && !accepted_statements.contains(statement_handle)
         {
             return Err(DependencyProjectionError::UnsupportedDependencyShape);

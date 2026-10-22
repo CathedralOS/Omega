@@ -562,7 +562,7 @@ fn discover_applications(
                     })
                     .collect::<Vec<_>>();
                 data.push(DataCandidate {
-                    name: definition.name.as_str().to_owned(),
+                    name: definition.name.as_str(syntax).to_owned(),
                     source: definition.name.source_span(),
                     is_public: definition.is_public,
                     plain: definition.type_parameters.is_empty(),
@@ -573,7 +573,7 @@ fn discover_applications(
             }
             Item::Machine(machine)
                 if machine.attached_data.as_ref().is_some_and(|attached| {
-                    machine.name.as_str() == format!("{}::plan", attached.as_str())
+                    machine.name.as_str(syntax) == format!("{}::plan", attached.as_str(syntax))
                 }) =>
             {
                 placement_policies.push(PolicyMachineCandidate {
@@ -618,7 +618,7 @@ fn discover_applications(
                         && candidate.name.rsplit("::").next() == Some("Placed")
                 })
             });
-        if !canonical && (sources.is_some() || base_name.as_str() != "Placed") {
+        if !canonical && (sources.is_some() || base_name.as_str(syntax) != "Placed") {
             continue;
         }
         if !lifetime_arguments.is_empty() {
@@ -980,7 +980,9 @@ fn named_argument(
     handle: TypeReferenceHandle,
 ) -> Option<(String, source::SourceSpan)> {
     match syntax.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => Some((name.as_str().to_owned(), name.source_span())),
+        TypeReferenceNode::Named(name) => {
+            Some((name.as_str(syntax).to_owned(), name.source_span()))
+        }
         _ => None,
     }
 }

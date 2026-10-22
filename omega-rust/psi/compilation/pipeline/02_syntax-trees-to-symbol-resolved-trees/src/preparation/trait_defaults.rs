@@ -117,12 +117,14 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             // A trait's own name selects itself in its declaring source; an
             // absent or ambiguous selection cannot safely back defaults and
             // belongs to ordinary resolution's diagnostic instead.
-            let symbol = selection.trait_lookup(&trait_definition.name).unique()?;
+            let symbol = selection
+                .trait_lookup(syntax, &trait_definition.name)
+                .unique()?;
             let parameter_names = syntax
                 .items
                 .type_parameters(trait_definition.type_parameters)
                 .iter()
-                .map(|parameter| parameter.name.as_str().to_string())
+                .map(|parameter| parameter.name.as_str(syntax).to_string())
                 .collect();
             let signatures = syntax
                 .items
@@ -137,7 +139,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             let mut requirements = Vec::new();
             let requirement_symbol = |name: &Identifier| {
                 selection
-                    .trait_lookup(name)
+                    .trait_lookup(syntax, name)
                     .unique()
                     .unwrap_or_else(SymbolHandle::invalid)
             };
@@ -202,7 +204,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
     let mut diagnostics = Vec::new();
     for conformance in conformances {
         let Some(trait_symbol) = selection
-            .trait_lookup(&conformance.declaration.trait_name)
+            .trait_lookup(syntax, &conformance.declaration.trait_name)
             .unique()
         else {
             // Absent and ambiguous trait selections are ordinary resolution
@@ -210,7 +212,11 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             // namespace's defaults.
             continue;
         };
-        let trait_name = conformance.declaration.trait_name.as_str().to_string();
+        let trait_name = conformance
+            .declaration
+            .trait_name
+            .as_str(syntax)
+            .to_string();
         let arguments = syntax
             .type_references
             .type_reference_handles(conformance.declaration.trait_arguments)
@@ -223,7 +229,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             .alias
             .as_ref()
             .expect("parsed named implementations carry their name")
-            .as_str()
+            .as_str(syntax)
             .to_string();
         if arguments.len() != conformed_trait.parameter_names.len() {
             diagnostics.push(Diagnostic::error(format!(
@@ -262,8 +268,10 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 ..
             } = member
             {
-                existing_defaults
-                    .insert((declaring_trait.as_str().to_string(), *requirement_ordinal));
+                existing_defaults.insert((
+                    declaring_trait.as_str(syntax).to_string(),
+                    *requirement_ordinal,
+                ));
             }
         }
 
@@ -285,7 +293,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             );
             let machine = machine_from_signature(
                 syntax,
-                implementation_member_name(&conformance.declaration, signature.name.as_str()),
+                implementation_member_name(&conformance.declaration, signature.name.as_str(syntax)),
                 &signature,
                 exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
                 Identifier::generated(declaring_path.as_str()),
@@ -439,8 +447,10 @@ fn synthesized_equality_member(
     const EQUALS: &str = "equals";
     if equatable.parameter_names.len() != 1
         || members.iter().any(|member| match member {
-            ConformanceMember::Machine(machine) => machine.name.as_str() == EQUALS,
-            ConformanceMember::Reference { requirement, .. } => requirement.as_str() == EQUALS,
+            ConformanceMember::Machine(machine) => machine.name.as_str(syntax) == EQUALS,
+            ConformanceMember::Reference { requirement, .. } => {
+                requirement.as_str(syntax) == EQUALS
+            }
             ConformanceMember::Synthesized(_) => true,
             ConformanceMember::TraitDefault { .. } => false,
         })
@@ -451,7 +461,7 @@ fn synthesized_equality_member(
         .signatures
         .iter()
         .map(|declaration| &declaration.signature)
-        .find(|signature| signature.name.as_str() == EQUALS && !signature.is_default)?;
+        .find(|signature| signature.name.as_str(syntax) == EQUALS && !signature.is_default)?;
     if syntax.items.state_parameters(requirement.parameters).len() != 2 {
         return None;
     }
@@ -461,7 +471,8 @@ fn synthesized_equality_member(
         return None;
     };
     let [left, right] = [*left, *right].map(|parameter| {
-        let name = Identifier::generated(syntax.items.state_parameter(parameter).name.as_str());
+        let name =
+            Identifier::generated(syntax.items.state_parameter(parameter).name.as_str(syntax));
         let member = syntax.expressions.append_identifier_path_member(name);
         syntax
             .expressions
@@ -507,9 +518,10 @@ fn substitute_type_reference(
 ) -> TypeReferenceHandle {
     let node = syntax.type_references.type_reference(handle).clone();
     match node {
-        TypeReferenceNode::Named(name) => {
-            substitution.get(name.as_str()).copied().unwrap_or(handle)
-        }
+        TypeReferenceNode::Named(name) => substitution
+            .get(name.as_str(syntax))
+            .copied()
+            .unwrap_or(handle),
         TypeReferenceNode::Reference {
             referee,
             access,
@@ -544,10 +556,10 @@ fn substitute_type_reference(
             let substituted_element = substitute_type_reference(syntax, element_type, substitution);
             let substituted_length = match &length {
                 FixedArrayLength::ConstParameter(name) => substitution
-                    .get(name.as_str())
+                    .get(name.as_str(syntax))
                     .and_then(
                         |argument| match syntax.type_references.type_reference(*argument) {
-                            TypeReferenceNode::Named(value) => value.as_str().parse().ok(),
+                            TypeReferenceNode::Named(value) => value.as_str(syntax).parse().ok(),
                             _ => None,
                         },
                     )
@@ -555,7 +567,8 @@ fn substitute_type_reference(
                     .unwrap_or_else(|| length.clone()),
                 _ => length.clone(),
             };
-            if substituted_element == element_type && substituted_length == length {
+            if substituted_element == element_type && substituted_length.same_value(&length, syntax)
+            {
                 handle
             } else {
                 syntax
@@ -646,7 +659,10 @@ fn instantiate_default_signature(
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
     let copied = syntax.copy_state_signature_node_from(&snapshot, signature);
-    for (handle, name) in syntax.type_references.named_nodes_from(type_watermark) {
+    for (handle, name) in syntax
+        .type_references
+        .named_nodes_from(type_watermark, syntax)
+    {
         let Some(argument) = substitution.get(&name) else {
             continue;
         };
@@ -710,7 +726,7 @@ fn machine_from_signature(
         // the machine's conformance-site package provenance. Keep the body
         // and signature operands authored: their names still resolve with
         // the default author's lexical imports and private access.
-        name: Identifier::generated(signature.name.as_str()),
+        name: Identifier::generated(signature.name.as_str(syntax)),
         parameters: signature.parameters,
         return_type: signature.return_type,
         contracts: HandleSpan::empty(),
@@ -719,11 +735,12 @@ fn machine_from_signature(
     let state = syntax.items.insert_state(&state);
     let state = syntax.items.append_state_handle(state);
     let satisfies = requirement_owner.map_or_else(HandleSpan::empty, |trait_path| {
+        let requirement = Identifier::generated(signature.name.as_str(syntax));
         let clause = syntax.items.append_satisfies_clause(SatisfiesClause {
             trait_name: Identifier::generated(trait_path),
             lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
-            requirement: Some(Identifier::generated(signature.name.as_str())),
+            requirement: Some(requirement),
             alias: None,
             via: None,
             via_expression: ExpressionHandle::invalid(),

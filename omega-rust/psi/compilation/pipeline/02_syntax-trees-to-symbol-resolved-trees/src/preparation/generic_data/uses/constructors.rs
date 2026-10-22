@@ -5,13 +5,13 @@ use super::super::{
 };
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::uses::{ConstructorFrontier, closed_sum_path};
+use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::closed_argument_identity;
 
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_data_item;
-use symbols::JoinedPath;
 
 /// Copied type references retain their original application. Reuse that exact
 /// template/argument identity rather than indexing generated display spellings.
@@ -51,11 +51,11 @@ pub(in crate::preparation::generic_data) fn selected_constructor(
     if let Some(owner) = selected_data_item(syntax, None, name) {
         return Some((owner, None));
     }
-    let (carrier, case) = name.as_str().rsplit_once("::")?;
+    let (carrier, case) = name.as_str(syntax).rsplit_once("::")?;
     let owner = selected_data_item(syntax, None, &Identifier::new(carrier, name.source_span()))?;
     let data = syntax.root_item(owner).as_data()?;
     syntax.items.data_members(data.members).iter().any(|member|
-        matches!(member, DataMember::Variant(variant) if variant.name.as_str() == case))
+        matches!(member, DataMember::Variant(variant) if variant.name.as_str(syntax) == case))
         .then(|| {
             // The syntax-only entry selects the same declaration as the header
             // route, but the case receipt still names only the final token.
@@ -76,8 +76,8 @@ pub(in crate::preparation::generic_data) fn selected_case_value(
     }
     // The syntax-only root entry has no namespace header. Keep any root value
     // prefix authored for ordinary resolution, just as the header route does.
-    let (prefix, _) = name.as_str().split_once("::")?;
-    if syntax.root_items().any(|item| matches!(item, Item::Const(constant) if crate::constant::semantic_const_name(constant) == prefix)) {
+    let (prefix, _) = name.as_str(syntax).split_once("::")?;
+    if syntax.root_items().any(|item| matches!(item, Item::Const(constant) if crate::constant::semantic_const_name(syntax, constant) == prefix)) {
         return None;
     }
     selected_constructor(syntax, None, name)
@@ -92,7 +92,7 @@ pub(in crate::preparation::generic_data) fn constructor_path_name(
     let last = members.last()?;
     let mut span = first.source_span();
     span.span.end = last.source_span().span.end;
-    Some(Identifier::new(members.joined_path(), span))
+    Some(Identifier::new(members.joined_path_in(syntax), span))
 }
 
 /// Keep the authored carrier occurrence separate from the generated lookup
@@ -118,9 +118,9 @@ pub(in crate::preparation::generic_data) fn closed_constructor_carrier(
     has_case: bool,
 ) -> Option<Identifier> {
     let carrier = if has_case {
-        constructor.as_str().rsplit_once("::")?.0
+        constructor.as_str(syntax).rsplit_once("::")?.0
     } else {
-        constructor.as_str()
+        constructor.as_str(syntax)
     };
     let carrier = Identifier::new(carrier, constructor.source_span());
     let lookup = if let Some(selection) = selection {
@@ -237,7 +237,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
         };
         closed
     } else {
-        Identifier::new(definition.name.as_str(), authored_name.source_span())
+        Identifier::new(definition.name.as_str(syntax), authored_name.source_span())
     };
     if let ExpressionNode::Name(path) = syntax.expressions.expression(expression) {
         if instance.is_some()
@@ -256,11 +256,11 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     else {
         return;
     };
-    let case_name = case.as_ref().map(|case| case.as_str().to_owned());
+    let case_name = case.as_ref().map(|case| case.as_str(syntax).to_owned());
     if instance.is_some() {
         let name = case_name.as_ref().map_or_else(
-            || closed.as_str().to_owned(),
-            |case| format!("{closed}::{case}"),
+            || closed.as_str(syntax).to_owned(),
+            |case| format!("{closed}::{case}", closed = closed.as_str(syntax)),
         );
         literal.constructor_name = Identifier::new(name, authored_name.source_span());
         syntax
@@ -275,7 +275,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
         .iter()
         .filter_map(|member| match member {
             DataMember::Field(field) => {
-                Some((field.name.as_str().to_owned(), field.type_reference))
+                Some((field.name.as_str(syntax).to_owned(), field.type_reference))
             }
             DataMember::Variant(_) | DataMember::Retired(_) => None,
         })
@@ -287,7 +287,9 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
             .data_members(definition.members)
             .iter()
             .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.name.as_str() == case_name.as_str() => {
+                DataMember::Variant(variant)
+                    if variant.name.as_str(syntax) == case_name.as_str() =>
+                {
                     Some(variant)
                 }
                 _ => None,
@@ -299,14 +301,14 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
                 .items
                 .data_payload_fields(variant.payload)
                 .iter()
-                .map(|field| (field.name.as_str().to_owned(), field.type_reference)),
+                .map(|field| (field.name.as_str(syntax).to_owned(), field.type_reference)),
         );
     }
     let authored = syntax.expressions.struct_fields(literal.fields).to_vec();
     for field in authored {
         let Some((_, field_type)) = declared_fields
             .iter()
-            .find(|(name, _)| name == field.name.as_str())
+            .find(|(name, _)| name == field.name.as_str(syntax))
         else {
             continue;
         };

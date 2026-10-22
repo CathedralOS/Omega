@@ -52,7 +52,12 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
     assert_eq!(first.len(), 1);
     assert_eq!(second.len(), 2);
     assert_eq!(trees.root_item_handles(), [first[0], second[0], second[1]]);
-    assert_eq!(trees.root_item(first[0]), &original);
+    assert!(syntax_trees::SyntaxEquivalent::same_syntax(
+        trees.root_item(first[0]),
+        &original,
+        &trees.text,
+        &trees.text
+    ));
     for (handle, expected_source) in [(first[0], SourceId(11)), (second[0], SourceId(22))] {
         let Item::Data(data) = trees.root_item(handle) else {
             panic!("data root")
@@ -167,7 +172,7 @@ fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
         let Item::Data(data) = syntax.root_item(root) else {
             panic!("data root")
         };
-        assert_eq!(data.name.as_str(), format!("Item{position}"));
+        assert_eq!(data.name.as_str(syntax), format!("Item{position}"));
     }
 }
 
@@ -182,7 +187,7 @@ fn rejection_preserves_the_parsed_prefix_and_reports_the_current_source() {
     let Item::Data(data) = trees.root_items().next().unwrap() else {
         panic!("data root")
     };
-    assert_eq!(data.name.as_str(), "Retained");
+    assert_eq!(data.name.as_str(&trees), "Retained");
 
     let errors = parse_sources(
         lexed_source(SourceId(33), "appended.omg", "data Another {}\n  ;"),
@@ -195,7 +200,7 @@ fn rejection_preserves_the_parsed_prefix_and_reports_the_current_source() {
     let Item::Data(data) = trees.root_items().nth(1).unwrap() else {
         panic!("batch prefix must remain parsed");
     };
-    assert_eq!(data.name.as_str(), "Another");
+    assert_eq!(data.name.as_str(&trees), "Another");
     assert_eq!(data.name.source_span().source_id, SourceId(33));
 }
 
@@ -257,9 +262,10 @@ fn syntax_names_remain_valid_after_all_token_and_source_rows_are_released() {
     let Item::Data(data) = syntax.root_item(root) else {
         panic!("data root")
     };
-    assert_eq!(data.name.as_str(), "Retained");
+    assert_eq!(data.name.as_str(&syntax), "Retained");
     assert_eq!(data.name.source_span().source_id, SourceId(55));
     let retained_name = data.name.clone();
+    let retained_text = syntax.text.clone();
     drop(syntax);
-    assert_eq!(retained_name.as_str(), "Retained");
+    assert_eq!(retained_name.as_str(&retained_text), "Retained");
 }

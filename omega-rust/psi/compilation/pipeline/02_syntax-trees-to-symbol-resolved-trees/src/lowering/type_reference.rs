@@ -40,6 +40,7 @@ pub(crate) fn lower_type_reference_handle(
         .const_argument_normalization(type_reference)
     {
         crate::constant::validate_normalized_const_argument(
+            syntax_trees,
             syntax_trees.type_references.type_reference(type_reference),
             normalization,
         )?;
@@ -204,7 +205,9 @@ fn lower_type_reference_node(
                 supplied_operand_owner: Default::default(),
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 access: *access,
-                lifetime: lifetime.as_ref().map(crate::lowering::name::lower_name),
+                lifetime: lifetime
+                    .as_ref()
+                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
             },
         })),
         syntax::types::TypeReferenceNode::Constrained {
@@ -259,10 +262,10 @@ fn lower_type_reference_node(
                 storage: GenericTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
                     base_symbol: SymbolHandle::invalid(),
-                    base_name: crate::lowering::name::lower_name(base_name),
+                    base_name: crate::lowering::name::lower_name(syntax_trees, base_name),
                     lifetime_arguments: lifetime_arguments
                         .iter()
-                        .map(crate::lowering::name::lower_name)
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                         .collect(),
                     arguments: lowered_arguments,
                 },
@@ -278,13 +281,13 @@ fn lower_type_reference_node(
         } => Ok(TypeReference::DynamicTrait {
             supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(trait_name),
+            name: crate::lowering::name::lower_name(syntax_trees, trait_name),
             arguments: lower_child_type_references(lowerer, syntax_trees, *trait_arguments)?,
         }),
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
             supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(name),
+            name: crate::lowering::name::lower_name(syntax_trees, name),
         }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }?;
@@ -316,10 +319,12 @@ pub(crate) fn lower_fixed_array_length(
                     .type_reference(*value)
                     .as_named()
             {
-                FixedArrayLength::Literal(name.as_str().parse::<usize>().map_err(|_| {
-                    Diagnostic::error("array extent must be a nonnegative host-sized integer")
-                        .with_source_span(name.source_span())
-                })?)
+                FixedArrayLength::Literal(name.as_str(syntax_trees).parse::<usize>().map_err(
+                    |_| {
+                        Diagnostic::error("array extent must be a nonnegative host-sized integer")
+                            .with_source_span(name.source_span())
+                    },
+                )?)
             } else {
                 FixedArrayLength::Expression(child)
             }
@@ -327,11 +332,11 @@ pub(crate) fn lower_fixed_array_length(
         syntax::types::FixedArrayLength::Literal(value) => FixedArrayLength::Literal(*value),
         syntax::types::FixedArrayLength::ConstParameter(name) => FixedArrayLength::ConstParameter {
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(name),
+            name: crate::lowering::name::lower_name(syntax_trees, name),
         },
         syntax::types::FixedArrayLength::ConstCall(name) => FixedArrayLength::ConstCall {
             machine: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(name),
+            name: crate::lowering::name::lower_name(syntax_trees, name),
         },
     })
 }
@@ -415,7 +420,7 @@ fn lower_type_constraint_handle(
 ) -> Result<TypeConstraint, Diagnostic> {
     match constraint {
         syntax::types::TypeConstraintNode::Named(name) => Ok(TypeConstraint::Named(
-            crate::lowering::name::lower_name(name),
+            crate::lowering::name::lower_name(syntax_trees, name),
         )),
         syntax::types::TypeConstraintNode::Domain(domain) => {
             let selection_start = lowerer.pending_const_argument_selections.len();
@@ -429,7 +434,7 @@ fn lower_type_constraint_handle(
             );
             Ok(TypeConstraint::Domain(
                 symbol_resolved_trees::types::DomainConstraint {
-                    name: crate::lowering::name::lower_name(&domain.name),
+                    name: crate::lowering::name::lower_name(syntax_trees, &domain.name),
                     arguments,
                 },
             ))

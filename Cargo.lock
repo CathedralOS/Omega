@@ -2136,6 +2136,16 @@ dependencies = [
  "serde",
  "serde_json",
  "source",
+ "syntax-trees-derive",
+]
+
+[[package]]
+name = "syntax-trees-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

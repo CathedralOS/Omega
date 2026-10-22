@@ -207,6 +207,7 @@ pub(crate) fn source_import_scope(
 }
 
 pub(crate) fn reconciled_package_import(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     requesting_source: &Path,
     members: &[Identifier],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -221,19 +222,20 @@ pub(crate) fn reconciled_package_import(
             requesting_source.display()
         ))]);
     };
-    if is_bundled_core_path(members) {
+    if is_bundled_core_path(syntax_trees, members) {
         if let Some(root) = requester
             .and_then(|requester| packages.package_root(requester))
-            .filter(|root| local_source_exists(root, members, filesystem))
+            .filter(|root| local_source_exists(syntax_trees, root, members, filesystem))
         {
             return Err(vec![Diagnostic::error(format!(
                 "import `{}` in {} collides with a requester-local source below {}; `omega::language::core` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
-                identifier_path_text(members),
+                identifier_path_text(syntax_trees, members),
                 requesting_source.display(),
                 root.display(),
             ))]);
         }
         return resolve_reconciled_import(
+            syntax_trees,
             bundled_omega_root()?,
             &members[2..],
             "toolchain",
@@ -241,10 +243,10 @@ pub(crate) fn reconciled_package_import(
         )
         .map(ReconciledPackageImport::Toolchain);
     }
-    if is_bundled_omega_path(members) {
+    if is_bundled_omega_path(syntax_trees, members) {
         return Err(vec![Diagnostic::error(format!(
             "package-aware import `{}` in {} cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias",
-            identifier_path_text(members),
+            identifier_path_text(syntax_trees, members),
             requesting_source.display(),
         ))]);
     }
@@ -254,6 +256,7 @@ pub(crate) fn reconciled_package_import(
         // custody rather than selecting reconciled package content.
         if let Some(contract_root) = contract_root {
             return resolve_reconciled_import(
+                syntax_trees,
                 contract_root.to_path_buf(),
                 members,
                 "toolchain contract",
@@ -270,7 +273,7 @@ pub(crate) fn reconciled_package_import(
         ))]);
     };
     let (package, source_root, path_members, missing_edge) = match packages
-        .dependency_target_for_purpose(requester, purpose, first.as_str())
+        .dependency_target_for_purpose(requester, purpose, first.as_str(syntax_trees))
     {
         Some(package) => (
             package,
@@ -280,7 +283,7 @@ pub(crate) fn reconciled_package_import(
             &members[1..],
             None,
         ),
-        None if packages.package_name(requester) == Some(first.as_str()) => (
+        None if packages.package_name(requester) == Some(first.as_str(syntax_trees)) => (
             requester,
             packages
                 .package_root(requester)
@@ -295,7 +298,7 @@ pub(crate) fn reconciled_package_import(
             // spellings never fall back to local paths.
             let other = other_purpose(purpose);
             if let Some(target) =
-                packages.dependency_target_for_purpose(requester, other, first.as_str())
+                packages.dependency_target_for_purpose(requester, other, first.as_str(syntax_trees))
             {
                 let declaration = match purpose {
                     DependencyPurpose::Product => "depend_as",
@@ -303,15 +306,15 @@ pub(crate) fn reconciled_package_import(
                 };
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` in {} names {} dependency `{}` (package {}); a {} import may only select {} dependencies -- declare `builder.{}(\"{}\", ...)` in the root build.omg to select that package for the {} scope",
-                    identifier_path_text(members),
+                    identifier_path_text(syntax_trees, members),
                     requesting_source.display(),
                     other.name(),
-                    first.as_str(),
+                    first.as_str(syntax_trees),
                     packages.package_label(target),
                     purpose.name(),
                     purpose.name(),
                     declaration,
-                    first.as_str(),
+                    first.as_str(syntax_trees),
                     purpose.name(),
                 ))]);
             }
@@ -321,23 +324,26 @@ pub(crate) fn reconciled_package_import(
             // A requester-local module keeps precedence. Only an import that
             // has no local source and spells a known package name records
             // the edge it would need, so the eventual failure names it.
-            let missing_edge = (!local_source_exists(requester_root, members, filesystem))
-                .then(|| known_package_spelling(packages, requester, first.as_str()))
-                .flatten()
-                .map(|package| MissingDependencyEdge {
-                    authored_path: identifier_path_text(members),
-                    alias: first.as_str().to_owned(),
-                    package,
-                    requester: packages.package_label(requester),
-                    purpose,
-                });
+            let missing_edge =
+                (!local_source_exists(syntax_trees, requester_root, members, filesystem))
+                    .then(|| {
+                        known_package_spelling(packages, requester, first.as_str(syntax_trees))
+                    })
+                    .flatten()
+                    .map(|package| MissingDependencyEdge {
+                        authored_path: identifier_path_text(syntax_trees, members),
+                        alias: first.as_str(syntax_trees).to_owned(),
+                        package,
+                        requester: packages.package_label(requester),
+                        purpose,
+                    });
             (requester, requester_root, members, missing_edge)
         }
     };
     let relative_path = path_members
         .iter()
         .fold(PathBuf::new(), |mut path, member| {
-            path.push(member.as_str());
+            path.push(member.as_str(syntax_trees));
             path
         });
     Ok(ReconciledPackageImport::Package(
@@ -355,12 +361,13 @@ pub(crate) fn reconciled_package_import(
 /// Whether `members`, read as a requester-local path below `root`, reaches an
 /// existing source through any direct or prefix candidate.
 pub(super) fn local_source_exists(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     root: &Path,
     members: &[Identifier],
     filesystem: &source::SourceFileSystem,
 ) -> bool {
     let relative = members.iter().fold(PathBuf::new(), |mut path, member| {
-        path.push(member.as_str());
+        path.push(member.as_str(syntax_trees));
         path
     });
     source_import_candidates(&relative)

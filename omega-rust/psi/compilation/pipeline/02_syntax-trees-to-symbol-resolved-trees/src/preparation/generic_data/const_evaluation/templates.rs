@@ -71,7 +71,10 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
             captured.expressions.insert(handle);
         }
     }
-    for (handle, _) in syntax.type_references.named_nodes_from(type_watermark) {
+    for (handle, _) in syntax
+        .type_references
+        .named_nodes_from(type_watermark, syntax)
+    {
         if let Some(name) = syntax.type_references.type_reference(handle).as_named()
             && header_frontier.captures_name(syntax, name)
         {
@@ -342,7 +345,7 @@ fn replace_uncaptured_const_names(
                 return None;
             };
             const_expressions
-                .get(name.as_str())
+                .get(name.as_str(syntax))
                 .cloned()
                 .map(|value| (handle, value))
         })
@@ -379,7 +382,7 @@ pub(in crate::preparation::generic_data) fn normalize_generic_template_const_exp
                 .type_parameters(definition.type_parameters)
                 .iter()
                 .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
-                .map(|parameter| parameter.name.as_str().to_string())
+                .map(|parameter| parameter.name.as_str(syntax).to_string())
                 .collect();
             let fields = syntax
                 .tables
@@ -393,7 +396,7 @@ pub(in crate::preparation::generic_data) fn normalize_generic_template_const_exp
                 })
                 .collect();
             Some((
-                definition.name.as_str().to_string(),
+                definition.name.as_str(syntax).to_string(),
                 symbolic_parameters,
                 fields,
             ))
@@ -464,7 +467,7 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
                 .type_references
                 .type_reference_handles(arguments)
                 .to_vec();
-            let integer_types = generic_const_integer_types(syntax, base_name.as_str());
+            let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
             for (index, argument) in arguments.into_iter().enumerate() {
                 let node = syntax
                     .tables

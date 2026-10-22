@@ -77,7 +77,7 @@ pub(crate) fn selected_data_item(
         });
     }
     let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
-        matches!(syntax.root_item(*handle), Item::Data(data) if data.name.as_str() == name.as_str())
+        matches!(syntax.root_item(*handle), Item::Data(data) if data.name.as_str(syntax) == name.as_str(syntax))
     });
     let first = candidates.next()?;
     candidates.next().is_none().then_some(first)

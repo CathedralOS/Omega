@@ -408,6 +408,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     // the join inside constant finalization makes a bound name point at an
     // unbound declaration while its receipt-required helper is being prepared.
     constant::finalize_const_declarations(
+        syntax,
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_const_declarations,
     )

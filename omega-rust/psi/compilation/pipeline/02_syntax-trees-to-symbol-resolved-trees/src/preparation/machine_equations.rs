@@ -22,7 +22,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::JoinedPath;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{
     SyntaxTrees,
     expression::StaticMachineArgument,
@@ -33,7 +33,7 @@ use syntax_trees::{
 mod argument_types;
 pub(crate) use argument_types::DeclaredTypeOrigin;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct SourceLinks {
     pub(crate) declared_types: Vec<(DeclaredTypeOrigin, TypeReferenceHandle)>,
     pub(crate) declarations: Vec<(usize, Machine)>,
@@ -45,6 +45,27 @@ pub(crate) struct SourceLinks {
         syntax_trees::statement::StatementHandle,
         Handle<symbol_resolved_trees::statement::Statement>,
     )>,
+}
+
+impl SourceLinks {
+    pub(crate) fn same_syntax(
+        &self,
+        other: &Self,
+        left: &syntax_trees::SyntaxTextOwner,
+        right: &syntax_trees::SyntaxTextOwner,
+    ) -> bool {
+        use syntax_trees::SyntaxEquivalent;
+        let Self {
+            declared_types,
+            declarations,
+            expressions,
+            statements,
+        } = self;
+        *declared_types == other.declared_types
+            && *expressions == other.expressions
+            && *statements == other.statements
+            && declarations.same_syntax(&other.declarations, left, right)
+    }
 }
 
 pub(crate) fn required(syntax: &SyntaxTrees, base: Option<&SymbolResolvedTrees>) -> bool {
@@ -439,7 +460,7 @@ fn complete_arguments(
     }
     let parameter_names = parameters
         .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
+        .map(|parameter| parameter.name.as_str(syntax).to_owned())
         .collect::<Vec<_>>();
     let mut const_parameter_types = Vec::new();
     for parameter in &parameters {
@@ -462,7 +483,7 @@ fn complete_arguments(
                 application_argument_reference(syntax, argument, &parameter.kind, selection)?
             }
             TypeParameterKind::Type if argument.const_literal.is_none() && argument.application.is_none() && argument.evidence_projection.is_none() && !argument.path.is_empty() => {
-                let name = argument.path.joined_path();
+                let name = argument.path.joined_path_in(syntax);
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::new(name, argument.path[0].source_span())))
             }
             // Supplied literals retain ordinary static-argument carrier checking;
@@ -494,11 +515,12 @@ fn complete_arguments(
     }
     let const_values = module_constants::lexical_integer_const_values(syntax);
     let mut warnings = Vec::new();
+    let declaration_name = declaration.name.as_str(syntax).to_owned();
     let tuple = type_equations::complete_equation_arguments_with_types(
         syntax,
         EquationTemplate {
             kind: "machine",
-            name: declaration.name.as_str(),
+            name: &declaration_name,
             parameters: declaration.type_parameters,
             parameter_names: &parameter_names,
             const_parameter_types: &const_parameter_types,
@@ -539,7 +561,7 @@ fn complete_arguments(
                         "machine equation did not produce a closed const argument",
                     ));
                 };
-                let text = value.as_str();
+                let text = value.as_str(syntax);
                 if let Some(value) = type_equations::normalized_boolean_argument(text) {
                     argument.path = vec![syntax_trees::identifier::Identifier::generated(
                         CanonicalConstValue::boolean(value).atom(),
@@ -598,9 +620,11 @@ fn scalar_const_argument(
     let Some(first) = argument.path.first() else {
         return Err(reject("requires a selected scalar const argument"));
     };
-    let name =
-        syntax_trees::identifier::Identifier::new(argument.path.joined_path(), first.source_span());
-    if let Some(value) = type_equations::normalized_boolean_argument(name.as_str()) {
+    let name = syntax_trees::identifier::Identifier::new(
+        argument.path.joined_path_in(syntax),
+        first.source_span(),
+    );
+    if let Some(value) = type_equations::normalized_boolean_argument(name.as_str(syntax)) {
         return Ok((
             CanonicalConstValue::boolean(value),
             TypeReferenceHandle::default(),
@@ -688,7 +712,7 @@ fn application_argument_reference(
                     Some(DecodedCanonicalConstValue::Boolean(_)) if boolean => {}
                     Some(DecodedCanonicalConstValue::Integer { .. })
                         if !boolean
-                            && type_equations::const_binder_envelope(carrier.as_str())
+                            && type_equations::const_binder_envelope(carrier.as_str(syntax))
                                 .is_some() => {}
                     _ => {
                         return Err(reject(
@@ -706,14 +730,14 @@ fn application_argument_reference(
                 .as_ref()
                 .ok_or_else(|| reject("requires a closed integer constructor argument"))?;
             if literal.landing().is_some_and(|landing| {
-                landing.landed_type.name() != carrier.as_str()
+                landing.landed_type.name() != carrier.as_str(syntax)
                     || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
             }) {
                 return Err(reject(
                     "has a constructor argument with a different integer meaning",
                 ));
             }
-            let (minimum, maximum) = type_equations::const_binder_envelope(carrier.as_str())
+            let (minimum, maximum) = type_equations::const_binder_envelope(carrier.as_str(syntax))
                 .ok_or_else(|| reject("requires a builtin integer constructor parameter"))?;
             let value = literal
                 .value_bignum()
@@ -738,7 +762,7 @@ fn application_argument_reference(
                 return Err(reject("requires a selected type name"));
             };
             let name = syntax_trees::identifier::Identifier::new(
-                argument.path.joined_path(),
+                argument.path.joined_path_in(syntax),
                 first.source_span(),
             );
             let Some(application) = &argument.application else {

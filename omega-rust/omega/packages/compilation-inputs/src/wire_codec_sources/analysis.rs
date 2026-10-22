@@ -196,7 +196,7 @@ pub(super) fn collect_domains(
             };
             let span = syntax_trees.tables.expressions.source_span(handle);
             (product_sources.contains(&span.source_id.0) && span.span.start < span.span.end)
-                .then_some((name.as_str(), span))
+                .then_some((name.as_str(syntax_trees), span))
         })
         .collect::<Vec<_>>();
     names.sort_unstable_by_key(|(_, span)| (span.source_id.0, span.span.start, span.span.end));
@@ -218,14 +218,14 @@ pub(super) fn collect_domains(
                 domain
                     .subject
                     .as_ref()
-                    .is_some_and(|subject| subject.as_str() == *name)
+                    .is_some_and(|subject| subject.as_str(syntax_trees) == *name)
                     .then_some(*span)
             })
             .collect::<Vec<_>>();
         for fact in domain.facts.handles() {
             if let Some(span) = syntax_trees.tables.items.proof_fact_source_span(fact) {
                 domains
-                    .entry(domain.name.as_str().to_owned())
+                    .entry(domain.name.as_str(syntax_trees).to_owned())
                     .or_default()
                     .push(DomainPredicate {
                         carrier: carrier.clone(),
@@ -263,8 +263,8 @@ pub(super) fn constraint_facts(
                 // last segment. Try the authored spelling first, then its
                 // carrier-qualified form.
                 let mut matched = false;
-                let qualified = format!("{base_name}::{}", domain.name.as_str());
-                for key in [domain.name.as_str(), qualified.as_str()] {
+                let qualified = format!("{base_name}::{}", domain.name.as_str(syntax_trees));
+                for key in [domain.name.as_str(syntax_trees), qualified.as_str()] {
                     if let Some(carriers) = domains.get(key) {
                         for predicate in carriers {
                             if predicate.carrier == base_name {
@@ -333,7 +333,7 @@ pub(super) fn value_field_facts(
     }
     let (handle, facts) = store_type_facts(syntax_trees, sources, domains, handle, expected.name());
     match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) if name.as_str() == expected.name() => {
+        TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == expected.name() => {
             Some(facts.and_then(|facts| {
                 // Boolean decoding stores `raw != 0`, not the integer operand
                 // used by scalar guards. Do not substitute the wrong carrier.
@@ -395,7 +395,10 @@ pub(super) fn collect_plain_fields(
         let DataMember::Field(field) = member else {
             return None;
         };
-        fields.insert(field.name.as_str().to_string(), field.type_reference);
+        fields.insert(
+            field.name.as_str(syntax_trees).to_string(),
+            field.type_reference,
+        );
     }
     Some(fields)
 }
@@ -429,7 +432,7 @@ pub(super) fn wire_schema_members(
         let number = field.identity?;
         let shape = member_shape(syntax_trees, data_fields, field.type_reference)?;
         members.push(WireMemberShape {
-            name: field.name.as_str().to_string(),
+            name: field.name.as_str(syntax_trees).to_string(),
             number,
             shape,
         });
@@ -469,11 +472,11 @@ pub(super) fn member_shape(
 ) -> Option<MemberShape> {
     match syntax_trees.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => {
-            if let Some(kind) = scalar_kind(name.as_str()) {
+            if let Some(kind) = scalar_kind(name.as_str(syntax_trees)) {
                 Some(MemberShape::Scalar(kind))
-            } else if data_fields.contains_key(name.as_str()) {
+            } else if data_fields.contains_key(name.as_str(syntax_trees)) {
                 Some(MemberShape::NestedMessage {
-                    schema: name.as_str().to_string(),
+                    schema: name.as_str(syntax_trees).to_string(),
                 })
             } else {
                 None
@@ -483,7 +486,7 @@ pub(super) fn member_shape(
             base_name,
             arguments,
             ..
-        } if base_name.as_str() == "FixedVec" => {
+        } if base_name.as_str(syntax_trees) == "FixedVec" => {
             let arguments = syntax_trees
                 .tables
                 .type_references
@@ -547,8 +550,12 @@ pub(super) fn slice_element_of_type(
     handle: TypeReferenceHandle,
 ) -> Option<SliceElement> {
     match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) if name.as_str() == "u8" => Some(SliceElement::Byte),
-        TypeReferenceNode::Named(name) => scalar_kind(name.as_str()).map(SliceElement::Scalar),
+        TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == "u8" => {
+            Some(SliceElement::Byte)
+        }
+        TypeReferenceNode::Named(name) => {
+            scalar_kind(name.as_str(syntax_trees)).map(SliceElement::Scalar)
+        }
         _ => None,
     }
 }
@@ -558,7 +565,7 @@ pub(super) fn scalar_kind_of_type(
     handle: TypeReferenceHandle,
 ) -> Option<ScalarKind> {
     match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => scalar_kind(name.as_str()),
+        TypeReferenceNode::Named(name) => scalar_kind(name.as_str(syntax_trees)),
         _ => None,
     }
 }
@@ -574,7 +581,9 @@ pub(super) fn const_literal_capacity(
     handle: TypeReferenceHandle,
 ) -> Option<usize> {
     match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(identifier) => identifier.as_str().parse::<usize>().ok(),
+        TypeReferenceNode::Named(identifier) => {
+            identifier.as_str(syntax_trees).parse::<usize>().ok()
+        }
         TypeReferenceNode::ConstExpression(expression) => {
             let ExpressionNode::Integer(literal) =
                 syntax_trees.tables.expressions.expression(*expression)
@@ -623,11 +632,11 @@ pub(super) fn collect_call_sites(
             if receiver.len() != 1 || !call.target_is_static {
                 continue;
             }
-            let schema_name = receiver[0].as_str();
+            let schema_name = receiver[0].as_str(syntax_trees);
             if !schema_names.contains(schema_name) {
                 continue;
             }
-            let operation = match call.target.as_str() {
+            let operation = match call.target.as_str(syntax_trees) {
                 "encode" => "encode",
                 "decode" => "decode",
                 _ => continue,
@@ -696,7 +705,7 @@ pub(super) fn render_argument_types(
                     _ => return None,
                 };
                 let fields = data_fields.get(data_name.as_str())?;
-                *fields.get(member.member.as_str())?
+                *fields.get(member.member.as_str(syntax_trees))?
             }
             _ => return None,
         };
@@ -734,7 +743,7 @@ pub(super) fn sole_member_name<'a>(
         .tables
         .expressions
         .identifier_path_members(path);
-    (members.len() == 1).then(|| members[0].as_str())
+    (members.len() == 1).then(|| members[0].as_str(syntax_trees))
 }
 
 pub(super) fn parameter_data_name(
@@ -746,7 +755,7 @@ pub(super) fn parameter_data_name(
         let state = syntax_trees.tables.items.state(*state_handle);
         for parameter_handle in syntax_trees.tables.items.state_parameters(state.parameters) {
             let parameter = syntax_trees.tables.items.state_parameter(*parameter_handle);
-            if parameter.name.as_str() != name {
+            if parameter.name.as_str(syntax_trees) != name {
                 continue;
             }
             let mut type_reference = parameter.type_reference;
@@ -762,7 +771,7 @@ pub(super) fn parameter_data_name(
                 .type_references
                 .type_reference(type_reference)
                 .as_named()?;
-            return Some(named.as_str().to_string());
+            return Some(named.as_str(syntax_trees).to_string());
         }
     }
     None
@@ -783,7 +792,7 @@ pub(super) fn local_type(
             else {
                 continue;
             };
-            if local.name.as_str() == name {
+            if local.name.as_str(syntax_trees) == name {
                 return Some(local.type_reference);
             }
         }
@@ -793,7 +802,7 @@ pub(super) fn local_type(
 
 pub(super) fn type_text(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<String> {
     match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
+        TypeReferenceNode::Named(name) => Some(name.as_str(syntax_trees).to_string()),
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(length),

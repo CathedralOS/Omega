@@ -39,7 +39,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
             let Some(name) = syntax.type_references.type_reference(*argument).as_named() else {
                 panic!("boolean literal retains the canonical named-atom syntax");
             };
-            assert_eq!(name.as_str(), spelling);
+            assert_eq!(name.as_str(&syntax), spelling);
             let expected_start = text.find(spelling).expect("authored boolean literal");
             assert_eq!(name.source_span().source_id, source_id);
             assert_eq!(name.source_span().span.start, expected_start);

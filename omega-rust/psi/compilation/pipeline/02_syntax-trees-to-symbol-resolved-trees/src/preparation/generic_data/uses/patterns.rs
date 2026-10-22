@@ -46,7 +46,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                         else {
                             return None;
                         };
-                        local_types.get(subject.as_str())?
+                        local_types.get(subject.as_str(syntax))?
                     }
                     _ => return None,
                 };
@@ -123,7 +123,7 @@ pub(in crate::preparation::generic_data) fn named_type_name(
         _ => return None,
     };
     match syntax.tables.type_references.type_reference(type_reference) {
-        TypeReferenceNode::Named(name) => Some(name.as_str().to_owned()),
+        TypeReferenceNode::Named(name) => Some(name.as_str(syntax).to_owned()),
         _ => None,
     }
 }
@@ -201,7 +201,11 @@ pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
                     }
                     SumPathExpressionKind::StructLiteral(mut literal) => {
                         literal.constructor_name = Identifier::new(
-                            format!("{closed}::{case}"),
+                            format!(
+                                "{closed}::{case}",
+                                closed = closed.as_str(syntax),
+                                case = case.as_str(syntax)
+                            ),
                             literal.constructor_name.source_span(),
                         );
                         ExpressionNode::StructLiteral(literal)
@@ -222,10 +226,10 @@ pub(in crate::preparation::generic_data) fn closed_sum_path(
     let mut path = HandleSpan::empty();
     // Specialization changes the selected carrier, not its authored occurrence.
     // Membership checking rejoins this carrier receipt with the case receipt.
-    syntax.expressions.append_identifier_path_member_to_span(
-        &mut path,
-        Identifier::new(closed.as_str(), carrier_span),
-    );
+    let closed = Identifier::new(closed.as_str(syntax), carrier_span);
+    syntax
+        .expressions
+        .append_identifier_path_member_to_span(&mut path, closed);
     syntax
         .expressions
         .append_identifier_path_member_to_span(&mut path, case);

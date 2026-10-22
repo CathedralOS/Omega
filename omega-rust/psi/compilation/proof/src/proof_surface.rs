@@ -2,8 +2,8 @@
 //! and bounded type site a program declares, collected from its syntax trees.
 
 use arena::Arena;
-use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, ProofFact,
 };
@@ -83,14 +83,18 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                             &mut report,
                             syntax_trees,
                             field.type_reference,
-                            &format!("data `{}` field `{}`", data_definition.name, field.name),
+                            &format!(
+                                "data `{}` field `{}`",
+                                data_definition.name.as_str(syntax_trees),
+                                field.name.as_str(syntax_trees)
+                            ),
                         );
                     }
                 }
             }
             Item::Domain(domain) => {
                 report.domains.insert(DomainSurface {
-                    name: domain.name.to_string(),
+                    name: domain.name.as_str(syntax_trees).to_owned(),
                     target_type: type_reference_name(syntax_trees, domain.target_type),
                     predicate_body: domain.predicate_body,
                     fact_count: syntax_trees.items.proof_facts(domain.facts).len(),
@@ -106,7 +110,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     &mut report,
                     syntax_trees,
                     domain.target_type,
-                    &format!("domain `{}` target type", domain.name),
+                    &format!("domain `{}` target type", domain.name.as_str(syntax_trees)),
                 );
                 for operator in syntax_trees.items.operators(domain.operators) {
                     collect_operator(
@@ -115,7 +119,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         operator,
                         &format!(
                             "domain `{}` operator `{}`",
-                            domain.name,
+                            domain.name.as_str(syntax_trees),
                             operator_name(syntax_trees, operator.name)
                         ),
                     );
@@ -144,7 +148,10 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                             &mut report,
                             syntax_trees,
                             evidence,
-                            &format!("proposition `{}` evidence", proposition.name),
+                            &format!(
+                                "proposition `{}` evidence",
+                                proposition.name.as_str(syntax_trees)
+                            ),
                         );
                         PropositionBodySurface::Witness
                     }
@@ -160,12 +167,13 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         parameter.type_reference,
                         &format!(
                             "proposition `{}` parameter `{}`",
-                            proposition.name, parameter.name
+                            proposition.name.as_str(syntax_trees),
+                            parameter.name.as_str(syntax_trees)
                         ),
                     );
                 }
                 report.propositions.insert(PropositionSurface {
-                    name: proposition.name.to_string(),
+                    name: proposition.name.as_str(syntax_trees).to_owned(),
                     binder_count: proposition.type_parameters.len(),
                     parameter_count: proposition.parameters.len(),
                     body,
@@ -186,7 +194,7 @@ fn collect_machine(report: &mut ProofSurfaceReport, syntax_trees: &SyntaxTrees, 
         report,
         syntax_trees,
         machine.contracts,
-        &format!("machine `{}`", machine.name),
+        &format!("machine `{}`", machine.name.as_str(syntax_trees)),
     );
 
     for state in syntax_trees.items.state_handles(machine.states) {
@@ -221,14 +229,22 @@ fn collect_state_node(
         report,
         syntax_trees,
         state.contracts,
-        &format!("machine `{}` state `{}`", machine.name, state.name),
+        &format!(
+            "machine `{}` state `{}`",
+            machine.name.as_str(syntax_trees),
+            state.name.as_str(syntax_trees)
+        ),
     );
     collect_signature_parts(
         report,
         syntax_trees,
         state.parameters,
         state.return_type,
-        &format!("machine `{}` state `{}`", machine.name, state.name),
+        &format!(
+            "machine `{}` state `{}`",
+            machine.name.as_str(syntax_trees),
+            state.name.as_str(syntax_trees)
+        ),
     );
 
     for statement in syntax_trees.items.statements(state.statements) {
@@ -244,7 +260,9 @@ fn collect_state_node(
             local_data.type_reference,
             &format!(
                 "machine `{}` state `{}` local `{}`",
-                machine.name, state.name, local_data.name
+                machine.name.as_str(syntax_trees),
+                state.name.as_str(syntax_trees),
+                local_data.name.as_str(syntax_trees)
             ),
         );
     }
@@ -266,7 +284,8 @@ fn collect_trait_definition(
             machine,
             &format!(
                 "trait `{}` machine `{}`",
-                trait_definition.name, machine.name
+                trait_definition.name.as_str(syntax_trees),
+                machine.name.as_str(syntax_trees)
             ),
         );
     }
@@ -301,7 +320,10 @@ fn collect_signature_parts(
             report,
             syntax_trees,
             parameter.type_reference,
-            &format!("{owner} parameter `{}`", parameter.name),
+            &format!(
+                "{owner} parameter `{}`",
+                parameter.name.as_str(syntax_trees)
+            ),
         );
     }
 
@@ -398,8 +420,9 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
             length,
         } => {
             format!(
-                "[{}; {length}]",
-                type_reference_name(syntax_trees, *element_type)
+                "[{}; {}]",
+                type_reference_name(syntax_trees, *element_type),
+                length.display_name(syntax_trees)
             )
         }
         TypeReferenceNode::Slice { element_type } => {
@@ -417,12 +440,15 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
                 .map(|argument| type_reference_name(syntax_trees, *argument))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{base_name}<{arguments}>")
+            format!(
+                "{base_name}<{arguments}>",
+                base_name = base_name.as_str(syntax_trees)
+            )
         }
         TypeReferenceNode::ConstExpression(expression) => {
             format!(
                 "const {}",
-                syntax_trees.expressions.display_name(*expression)
+                syntax_trees.display_expression_name(*expression)
             )
         }
         TypeReferenceNode::DynamicTrait {
@@ -436,9 +462,12 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
                 .map(|argument| type_reference_name(syntax_trees, *argument))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("dyn {trait_name}<{arguments}>")
+            format!(
+                "dyn {trait_name}<{arguments}>",
+                trait_name = trait_name.as_str(syntax_trees)
+            )
         }
-        TypeReferenceNode::Named(name) => name.to_string(),
+        TypeReferenceNode::Named(name) => name.as_str(syntax_trees).to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),
     }
 }
@@ -461,8 +490,8 @@ fn constraint_handle_name(
         }
 
         output.push_str(&match constraint {
-            TypeConstraintNode::Named(name) => name.to_string(),
-            TypeConstraintNode::Domain(name) => format!("in {name}"),
+            TypeConstraintNode::Named(name) => name.as_str(syntax_trees).to_owned(),
+            TypeConstraintNode::Domain(name) => format!("in {}", name.name.as_str(syntax_trees)),
             TypeConstraintNode::Range {
                 minimum,
                 maximum,
@@ -472,12 +501,12 @@ fn constraint_handle_name(
                 syntax_trees
                     .expressions
                     .expression(*minimum)
-                    .display_name(&syntax_trees.expressions),
+                    .display_name(syntax_trees),
                 if *end_inclusive { "=" } else { "" },
                 syntax_trees
                     .expressions
                     .expression(*maximum)
-                    .display_name(&syntax_trees.expressions)
+                    .display_name(syntax_trees)
             ),
             TypeConstraintNode::ArithmeticDomain(domain) => domain.name().to_owned(),
         });
@@ -494,5 +523,5 @@ fn operator_name(
     syntax_trees
         .items
         .identifier_path_members(name)
-        .joined_path()
+        .joined_path_in(syntax_trees)
 }

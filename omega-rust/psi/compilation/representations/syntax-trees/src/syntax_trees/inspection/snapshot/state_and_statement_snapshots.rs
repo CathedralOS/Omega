@@ -175,7 +175,7 @@ pub(crate) fn snapshot_state_node(
     state: &crate::item::StateNode,
 ) -> StateSnapshot {
     StateSnapshot {
-        name: snapshot_identifier(&state.name),
+        name: snapshot_identifier(syntax_trees, &state.name),
         parameters: syntax_trees
             .items
             .state_parameters(state.parameters)
@@ -205,12 +205,12 @@ pub(crate) fn snapshot_state_node(
 macro_rules! state_signature_snapshot {
     ($syntax_trees:ident, $signature:ident) => {
         StateSignatureSnapshot {
-            name: snapshot_identifier(&$signature.name),
+            name: snapshot_identifier($syntax_trees, &$signature.name),
             spelling: $signature.spelling.map(|spelling| spelling.symbol()),
             lifetime_parameters: $signature
                 .lifetime_parameters
                 .iter()
-                .map(snapshot_identifier)
+                .map(|value| snapshot_identifier($syntax_trees, value))
                 .collect(),
             type_parameters: $syntax_trees
                 .items
@@ -234,19 +234,21 @@ macro_rules! state_signature_snapshot {
                 .native_callback_parameters
                 .iter()
                 .map(|parameter| NativeCallbackParameterSnapshot {
-                    name: snapshot_identifier(&parameter.name),
-                    binder: snapshot_identifier(&parameter.binder),
+                    name: snapshot_identifier($syntax_trees, &parameter.name),
+                    binder: snapshot_identifier($syntax_trees, &parameter.binder),
                     native_ordinal: parameter.native_ordinal,
                 })
                 .collect(),
             return_type: snapshot_type_reference_handle($syntax_trees, $signature.return_type),
             service_reach_is_installation_bound: $signature.service_reach_is_installation_bound,
             service_reaches: snapshot_identifier_slice(
+                $syntax_trees,
                 $syntax_trees
                     .items
                     .identifier_path_members($signature.service_reaches),
             ),
             invokes: snapshot_identifier_slice(
+                $syntax_trees,
                 $syntax_trees
                     .items
                     .identifier_path_members($signature.invokes),
@@ -286,7 +288,7 @@ pub(crate) fn snapshot_state_parameter(
     parameter: &StateParameterNode,
 ) -> StateParameterSnapshot {
     StateParameterSnapshot {
-        name: snapshot_identifier(&parameter.name),
+        name: snapshot_identifier(syntax_trees, &parameter.name),
         type_reference: snapshot_type_reference_handle(syntax_trees, parameter.type_reference),
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
@@ -317,7 +319,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                     .assembly_blocks(graph.blocks)
                     .iter()
                     .map(|block| AssemblyBlockSnapshot {
-                        label: snapshot_identifier(&block.label),
+                        label: snapshot_identifier(syntax_trees, &block.label),
                         requires: syntax_trees
                             .statements
                             .assembly_expressions(block.requires)
@@ -346,10 +348,13 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                                 AssemblyExitSnapshot::Fallthrough
                             }
                             crate::statement::AssemblyExit::NonZero(label) => {
-                                AssemblyExitSnapshot::NonZero(snapshot_identifier(label))
+                                AssemblyExitSnapshot::NonZero(snapshot_identifier(
+                                    syntax_trees,
+                                    label,
+                                ))
                             }
                             crate::statement::AssemblyExit::Jump(label) => {
-                                AssemblyExitSnapshot::Jump(snapshot_identifier(label))
+                                AssemblyExitSnapshot::Jump(snapshot_identifier(syntax_trees, label))
                             }
                             crate::statement::AssemblyExit::EnclosingTransition => {
                                 AssemblyExitSnapshot::EnclosingTransition
@@ -361,11 +366,15 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
         }
         StatementNode::RootBinding(binding) => StatementSnapshot::RootBinding {
             receiver: snapshot_expression_handle(syntax_trees, binding.receiver),
-            slot: binding.slot.iter().map(ToString::to_string).collect(),
+            slot: binding
+                .slot
+                .iter()
+                .map(|name| name.as_str(syntax_trees).to_owned())
+                .collect(),
             implementation: binding
                 .implementation
                 .iter()
-                .map(ToString::to_string)
+                .map(|name| name.as_str(syntax_trees).to_owned())
                 .collect(),
             implementation_operand: binding
                 .implementation_operand
@@ -385,11 +394,12 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
             receiver: snapshot_identifier_slice(
+                syntax_trees,
                 syntax_trees
                     .statements
                     .identifier_path_members(call.receiver),
             ),
-            target: snapshot_identifier(&call.target),
+            target: snapshot_identifier(syntax_trees, &call.target),
             machine_arguments: call
                 .machine_arguments
                 .iter()
@@ -401,7 +411,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
-            evidence_arguments: snapshot_identifier_slice(&call.evidence_arguments),
+            evidence_arguments: snapshot_identifier_slice(syntax_trees, &call.evidence_arguments),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -415,8 +425,8 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                     .iter()
                     .map(|binding| {
                         (
-                            snapshot_identifier(&binding.output_field),
-                            snapshot_identifier(&binding.binding),
+                            snapshot_identifier(syntax_trees, &binding.output_field),
+                            snapshot_identifier(syntax_trees, &binding.binding),
                         )
                     })
                     .collect(),
@@ -428,7 +438,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
         },
         StatementNode::LocalData(value) => StatementSnapshot::LocalData {
             role: format!("{:?}", value.role),
-            name: snapshot_identifier(&value.name),
+            name: snapshot_identifier(syntax_trees, &value.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
             is_mutable: value.is_mutable,
@@ -477,14 +487,17 @@ fn snapshot_transition_target(
             evidence_arguments,
             ..
         } => TransitionTargetSnapshot::Named {
-            path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
+            path: snapshot_identifier_slice(
+                syntax_trees,
+                syntax_trees.statements.identifier_path_members(*path),
+            ),
             arguments: syntax_trees
                 .statements
                 .expression_handles(*arguments)
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
-            evidence_arguments: snapshot_identifier_slice(evidence_arguments),
+            evidence_arguments: snapshot_identifier_slice(syntax_trees, evidence_arguments),
         },
         TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
             expression: snapshot_expression_handle(syntax_trees, *expression),

@@ -133,7 +133,7 @@ pub fn project_build_entry_syntax(
         .root_items()
         .filter_map(|item| match item {
             Item::Machine(machine)
-                if machine_leaf_name(machine.name.as_str()) == BUILD_MACHINE_NAME =>
+                if machine_leaf_name(machine.name.as_str(syntax_trees)) == BUILD_MACHINE_NAME =>
             {
                 Some(machine)
             }
@@ -150,7 +150,7 @@ pub fn project_build_entry_syntax(
                 .attached_data
                 .as_ref()
                 .expect("scoped build has an owner")
-                .as_str()
+                .as_str(syntax_trees)
                 .to_owned(),
         });
     }
@@ -184,7 +184,7 @@ pub fn project_build_entry_syntax(
     };
     let builder_parameter = *builder_parameter;
     let builder = syntax_trees.items.state_parameter(builder_parameter);
-    if builder.name.as_str() != BUILDER_PARAMETER_NAME || builder.is_const {
+    if builder.name.as_str(syntax_trees) != BUILDER_PARAMETER_NAME || builder.is_const {
         return Err(BuildDeclarationError::InvalidBuildParameter);
     }
     let TypeReferenceNode::Reference {
@@ -202,7 +202,7 @@ pub fn project_build_entry_syntax(
     }
     if !matches!(
         syntax_trees.type_references.type_reference(*referee),
-        TypeReferenceNode::Named(name) if name.as_str() == BUILD_TYPE_NAME
+        TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == BUILD_TYPE_NAME
     ) {
         return Err(BuildDeclarationError::InvalidBuildParameter);
     }
@@ -241,7 +241,7 @@ pub fn project_build_declaration_in_entry(
         .items
         .state_parameter(build.builder_parameter());
 
-    let builder_name = builder.name.as_str();
+    let builder_name = builder.name.as_str(syntax_trees);
     let mut packages = Vec::new();
     let mut applications = Vec::new();
     let mut members = Vec::new();
@@ -252,7 +252,7 @@ pub fn project_build_declaration_in_entry(
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        let operation = call.target.as_str();
+        let operation = call.target.as_str(syntax_trees);
         if !matches!(
             operation,
             PACKAGE_MACHINE_NAME
@@ -263,7 +263,7 @@ pub fn project_build_declaration_in_entry(
             continue;
         }
         if !call.target_is_static
-            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str() == BUILD_TYPE_NAME)
+            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
         {
             return Err(wrong_receiver_error(operation));
         }
@@ -279,7 +279,7 @@ pub fn project_build_declaration_in_entry(
             return Err(wrong_arguments_error(operation));
         };
         if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
-            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str() == builder_name))
+            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == builder_name))
         {
             return Err(wrong_receiver_error(operation));
         }
@@ -398,7 +398,7 @@ fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
 ) -> Result<(), BuildDeclarationError> {
     for item in syntax_trees.root_items() {
-        match package_authored_type_name(item) {
+        match package_authored_type_name(syntax_trees, item) {
             Some(name) if machine_leaf_name(name) == BUILD_TYPE_NAME => {
                 return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
                     name: BUILD_TYPE_NAME.to_owned(),
@@ -411,17 +411,19 @@ fn reject_authored_toolchain_vocabulary(
                 if machine
                     .attached_data
                     .as_ref()
-                    .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
+                    .is_some_and(|owner| owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
                     && (matches!(
-                        machine_leaf_name(machine.name.as_str()),
+                        machine_leaf_name(machine.name.as_str(syntax_trees)),
                         PACKAGE_MACHINE_NAME
                             | APPLICATION_MACHINE_NAME
                             | MEMBER_MACHINE_NAME
                             | ARTIFACT_ONLY_MACHINE_NAME
-                    ) || is_dependency_call_name(machine_leaf_name(machine.name.as_str()))) =>
+                    ) || is_dependency_call_name(machine_leaf_name(
+                        machine.name.as_str(syntax_trees),
+                    ))) =>
             {
                 return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
-                    name: machine.name.as_str().to_owned(),
+                    name: machine.name.as_str(syntax_trees).to_owned(),
                 });
             }
             _ => {}
@@ -430,11 +432,14 @@ fn reject_authored_toolchain_vocabulary(
     Ok(())
 }
 
-pub fn package_authored_type_name(item: &Item) -> Option<&str> {
+pub fn package_authored_type_name<'syntax>(
+    syntax_trees: &'syntax SyntaxTrees,
+    item: &'syntax Item,
+) -> Option<&'syntax str> {
     match item {
-        Item::Data(data) => Some(data.name.as_str()),
-        Item::Domain(domain) => Some(domain.name.as_str()),
-        Item::Trait(definition) => Some(definition.name.as_str()),
+        Item::Data(data) => Some(data.name.as_str(syntax_trees)),
+        Item::Domain(domain) => Some(domain.name.as_str(syntax_trees)),
+        Item::Trait(definition) => Some(definition.name.as_str(syntax_trees)),
         _ => None,
     }
 }
@@ -488,7 +493,7 @@ fn reject_unprojected_build_declaration_syntax(
                     continue;
                 };
                 if matches!(
-                    machine_leaf_name(call.target.as_str()),
+                    machine_leaf_name(call.target.as_str(syntax_trees)),
                     PACKAGE_MACHINE_NAME
                         | APPLICATION_MACHINE_NAME
                         | MEMBER_MACHINE_NAME
@@ -496,7 +501,7 @@ fn reject_unprojected_build_declaration_syntax(
                 ) && !accepted_statements.contains(statement_handle)
                 {
                     return Err(unsupported_shape_error(machine_leaf_name(
-                        call.target.as_str(),
+                        call.target.as_str(syntax_trees),
                     )));
                 }
             }
@@ -515,7 +520,7 @@ fn reject_unprojected_build_declaration_syntax(
     for (_, expression) in syntax_trees.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression
             && matches!(
-                machine_leaf_name(call.target.as_str()),
+                machine_leaf_name(call.target.as_str(syntax_trees)),
                 PACKAGE_MACHINE_NAME
                     | APPLICATION_MACHINE_NAME
                     | MEMBER_MACHINE_NAME
@@ -523,7 +528,7 @@ fn reject_unprojected_build_declaration_syntax(
             )
         {
             let arguments = syntax_trees.expressions.expression_handles(call.arguments);
-            let operation = machine_leaf_name(call.target.as_str());
+            let operation = machine_leaf_name(call.target.as_str(syntax_trees));
             if operation == ARTIFACT_ONLY_MACHINE_NAME {
                 if matches!(arguments, [_builder]) {
                     artifact_only_leftovers += 1;

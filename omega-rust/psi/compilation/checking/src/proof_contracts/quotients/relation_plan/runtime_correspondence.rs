@@ -89,11 +89,11 @@ pub(super) enum ClosedLiftLiteral {
         landing: FloatFormat,
     },
     ByteString {
-        bytes: std::sync::Arc<[u8]>,
+        bytes: source::SourceBytes,
         target_type: typed_trees::type_identity::NormalizedTypeIdentity,
     },
     FixedByteArray {
-        bytes: std::sync::Arc<[u8]>,
+        bytes: source::SourceBytes,
         target_type: typed_trees::type_identity::NormalizedTypeIdentity,
     },
     BooleanArray {
@@ -105,7 +105,7 @@ pub(super) enum ClosedLiftLiteral {
         target_type: typed_trees::type_identity::NormalizedTypeIdentity,
     },
     NestedFixedByteArray {
-        rows: std::sync::Arc<[std::sync::Arc<[u8]>]>,
+        rows: std::sync::Arc<[source::SourceBytes]>,
         target_type: typed_trees::type_identity::NormalizedTypeIdentity,
     },
     NestedIntegerArray {
@@ -461,7 +461,7 @@ pub(super) fn closed_lift_literal_for_representative(
                 let rows = nested_literal_rows(program, elements, *row_width, position)?
                     .into_iter()
                     .map(|row_elements| {
-                        canonical_fixed_bytes(program, row_elements).map(std::sync::Arc::from)
+                        canonical_fixed_bytes(program, row_elements).map(source::SourceBytes::from)
                     })
                     .collect::<Option<Vec<_>>>()
                     .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;

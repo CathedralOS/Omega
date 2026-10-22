@@ -26,6 +26,8 @@ pub(crate) struct Input<'tokens, 'source> {
     pub(crate) source_id: SourceId,
     pub(crate) tokens: &'tokens [Token],
     stream: &'tokens TokenStream<'source>,
+    retained_source: &'tokens std::sync::Arc<str>,
+    source_owner: Handle<syntax_trees::RetainedSource>,
     /// Current `(`/`[` nesting depth, carried by value through the parse so the
     /// choke points can bound it. Reconstructions that merely ADVANCE the token
     /// cursor (`advanced`) preserve it; a fresh `new` or `restarted` (top-level item / guard
@@ -38,13 +40,38 @@ pub(crate) struct Input<'tokens, 'source> {
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
-    pub(crate) fn new(source_id: SourceId, stream: &'tokens TokenStream<'source>) -> Self {
+    pub(crate) fn retain_source(stream: &TokenStream<'_>) -> std::sync::Arc<str> {
+        stream
+            .source_owner()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::from(stream.source_text()))
+    }
+
+    pub(crate) fn new(
+        source_id: SourceId,
+        stream: &'tokens TokenStream<'source>,
+        retained_source: &'tokens std::sync::Arc<str>,
+        syntax_trees: &mut syntax_trees::SyntaxTrees,
+    ) -> Self {
+        let source_owner = syntax_trees.text.retain(retained_source.clone());
         Self {
             source_id,
+            source_owner,
+            retained_source,
             stream,
             tokens: skip_non_semantic_tokens(stream.as_slice()),
             depth: 0,
             pending_greater: false,
+        }
+    }
+
+    /// A speculative grammar forest has its own lifetime. Register its source
+    /// once and preserve the cursor's token boundary and nesting budget.
+    pub(crate) fn retained_by(self, syntax: &mut syntax_trees::SyntaxTrees) -> Self {
+        let source_owner = syntax.text.retain(self.retained_source.clone());
+        Self {
+            source_owner,
+            ..self
         }
     }
 
@@ -55,6 +82,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self {
             source_id: self.source_id,
             stream: self.stream,
+            retained_source: self.retained_source,
+            source_owner: self.source_owner,
             tokens: skip_non_semantic_tokens(tokens),
             depth: self.depth,
             pending_greater: self.pending_greater,
@@ -347,10 +376,10 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(crate) fn take_string_bytes(self) -> Result<(std::sync::Arc<[u8]>, Self), ParseError> {
+    pub(crate) fn take_string_bytes(self) -> Result<(source::SourceBytes, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
-            Ok((std::sync::Arc::from(self.text(token).as_bytes()), rest))
+            Ok((self.stream.literal_bytes(token), rest))
         } else {
             Err(diagnostics::expected(self, token, "string literal"))
         }
@@ -532,18 +561,12 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     fn identifier_from_token(&self, token: &Token) -> Identifier {
         let source_span = self.source_span(token);
-        match self.stream.source_owner() {
-            Some(source) => Identifier::source_backed(source.clone(), source_span),
-            None => Identifier::new(self.text(token).as_str(), source_span),
-        }
+        Identifier::source_backed(self.source_owner, source_span)
     }
 
     fn source_text_from_token(&self, token: &Token) -> SourceText {
         let source_span = self.source_span(token);
-        match self.stream.source_owner() {
-            Some(source) => SourceText::source_backed(source.clone(), source_span),
-            None => SourceText::new(self.text(token).as_str(), source_span),
-        }
+        SourceText::source_backed(self.retained_source.clone(), source_span)
     }
 
     pub(crate) fn split_at_top_level_punctuation(
@@ -595,6 +618,16 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     Ok((HandleSpan::from_parts(start, count), rest))
 }
 
+impl syntax_trees::SyntaxTextContext for Input<'_, '_> {
+    fn source_text(&self, source: Handle<syntax_trees::RetainedSource>) -> &str {
+        assert_eq!(
+            source, self.source_owner,
+            "identifier belongs to a different parser source"
+        );
+        self.stream.source_text()
+    }
+}
+
 #[cfg(test)]
 mod storage_tests {
     use super::*;
@@ -608,14 +641,17 @@ mod storage_tests {
             .tokenize()
             .unwrap()
             .retain_source(source.clone());
-        let input = Input::new(SourceId(77), &tokens);
+        let mut syntax = syntax_trees::SyntaxTrees::new(SourceId(77));
+        let input = Input::new(SourceId(77), &tokens, &source, &mut syntax);
         let (name, rest) = input.take_identifier().unwrap();
         let (float, rest) = rest.take_float_text().unwrap();
+        let decoded_pointer = tokens.text(tokens.last().unwrap()).as_bytes().as_ptr();
         let (bytes, rest) = rest.take_string_bytes().unwrap();
+        assert_eq!(bytes.as_ptr(), decoded_pointer);
         assert!(rest.tokens.is_empty());
         drop(tokens);
         drop(source);
-        assert_eq!(name.as_str(), "name");
+        assert_eq!(name.as_str(&syntax), "name");
         assert_eq!(name.source_span().source_id, SourceId(77));
         assert_eq!(float.as_str(), "1.5");
         assert_eq!(bytes.as_ref(), &[255]);

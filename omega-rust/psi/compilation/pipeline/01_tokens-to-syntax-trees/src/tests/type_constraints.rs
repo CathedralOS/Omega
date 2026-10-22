@@ -99,13 +99,13 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
             else {
                 panic!("expected nested fixed array");
             };
-            assert_eq!(count.as_str(), "Count");
+            assert_eq!(count.as_str(trees), "Count");
             let TypeReferenceNode::Named(element) =
                 trees.type_references.type_reference(*element_type)
             else {
                 panic!("expected element binder");
             };
-            assert_eq!(element.as_str(), "Element");
+            assert_eq!(element.as_str(trees), "Element");
         }
     }
 }
@@ -249,7 +249,7 @@ fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
     else {
         panic!("expected generic element");
     };
-    assert_eq!(base_name.as_str(), "Pair");
+    assert_eq!(base_name.as_str(&parsed), "Pair");
     assert_eq!(
         parsed
             .type_references
@@ -325,7 +325,7 @@ fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
                     panic!("expected range");
                 };
                 assert_eq!(*end_inclusive, inclusive);
-                assert_eq!(trees.expressions.display_name(*minimum), "0");
+                assert_eq!(trees.display_expression_name(*minimum), "0");
                 let ExpressionNode::Integer(literal) = trees.expressions.expression(*maximum)
                 else {
                     panic!("authored literal must not become generated arithmetic");

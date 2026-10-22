@@ -16,6 +16,24 @@ pub struct PagedArena<T> {
     dummy: T,
 }
 
+impl<T> PagedArena<T> {
+    /// Contextual row equality preserving the complete ordinary storage shape.
+    pub fn equal_by(&self, other: &Self, mut equal: impl FnMut(&T, &T) -> bool) -> bool {
+        self.page_size == other.page_size
+            && self.page_shift == other.page_shift
+            && self.len == other.len
+            && equal(&self.dummy, &other.dummy)
+            && self.pages.len() == other.pages.len()
+            && self.pages.iter().zip(&other.pages).all(|(left, right)| {
+                left.len() == right.len()
+                    && left
+                        .iter()
+                        .zip(right)
+                        .all(|(left_value, right_value)| equal(left_value, right_value))
+            })
+    }
+}
+
 impl<T: Default> PagedArena<T> {
     pub fn new() -> Self {
         Self::with_page_size(DEFAULT_PAGE_SIZE)

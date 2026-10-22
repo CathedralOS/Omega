@@ -7,6 +7,7 @@
 //! exposing import.
 
 use std::collections::HashMap;
+use syntax_trees::identifier::JoinedSyntaxPath;
 
 use arena::{Arena, HandleSpan, OrderedRootArena};
 use diagnostics::Diagnostic;
@@ -30,21 +31,24 @@ struct NamespaceScope {
 impl NamespaceScope {
     fn collect(namespaces: &NamespaceDeclarations) -> Self {
         let mut source_modules = HashMap::new();
-        for path in &namespaces.modules {
+        for path in namespaces.module_paths() {
             let Some(first) = path.first() else {
                 continue;
             };
-            source_modules.insert(first.source_span().source_id, path.joined_path());
+            source_modules.insert(
+                first.source_span().source_id,
+                path.joined_path_in(namespaces),
+            );
         }
         let mut source_imports: HashMap<SourceId, Vec<String>> = HashMap::new();
-        for path in &namespaces.imports {
+        for path in namespaces.import_paths() {
             let Some(first) = path.first() else {
                 continue;
             };
             source_imports
                 .entry(first.source_span().source_id)
                 .or_default()
-                .push(path.joined_path());
+                .push(path.joined_path_in(namespaces));
         }
         Self {
             source_modules,

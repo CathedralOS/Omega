@@ -134,9 +134,9 @@ fn normalize_conformance_machine_entry(
     let requirement_name = machine.name.clone();
     let state_handles = syntax_trees.items.state_handles(machine.states).to_vec();
     if let Some(first) = state_handles.first().copied() {
-        let state = syntax_trees.items.state_mut(first);
-        if state.name.as_str() == "entry" && !state.name.is_source_backed() {
-            state.name = requirement_name;
+        let state = syntax_trees.items.state(first);
+        if state.name.as_str(syntax_trees) == "entry" && !state.name.is_source_backed() {
+            syntax_trees.items.state_mut(first).name = requirement_name;
         }
         return;
     }

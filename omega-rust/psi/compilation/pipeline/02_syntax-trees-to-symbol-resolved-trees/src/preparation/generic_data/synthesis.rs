@@ -132,9 +132,14 @@ pub(crate) fn desugar_generic_data_instances_in(
         // select; a module-owned declaration with the same leaf is ordinary
         // user data reachable through its qualified or imported path, and it
         // normalizes as a template like any other module record.
-        if matches!(definition.name.as_str(), "IntervalSet" | "CountedQuantity")
-            && super::module_constants::module_path(syntax, definition.name.source_span().source_id)
-                .is_none()
+        if matches!(
+            definition.name.as_str(syntax),
+            "IntervalSet" | "CountedQuantity"
+        ) && super::module_constants::module_path(
+            syntax,
+            definition.name.source_span().source_id,
+        )
+        .is_none()
         {
             continue;
         }
@@ -173,7 +178,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 .iter()
                 .map(|parameter| {
                     (
-                        parameter.name.as_str().to_string(),
+                        parameter.name.as_str(syntax).to_string(),
                         matches!(parameter.kind, TypeParameterKind::Const { .. }),
                     )
                 })
@@ -198,7 +203,8 @@ pub(crate) fn desugar_generic_data_instances_in(
                         // never with a data type binder.
                         let method_is_const = parameter.kind.is_const_or_value();
                         data_parameters.iter().any(|(name, data_is_const)| {
-                            name == parameter.name.as_str() && *data_is_const == method_is_const
+                            name == parameter.name.as_str(syntax)
+                                && *data_is_const == method_is_const
                         })
                     })
             });
@@ -208,7 +214,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         }
         let parameter_names = definition_parameters
             .iter()
-            .map(|parameter| parameter.name.as_str().to_string())
+            .map(|parameter| parameter.name.as_str(syntax).to_string())
             .collect::<Vec<_>>();
         let const_parameter_types = definition_parameters
             .iter()
@@ -221,7 +227,7 @@ pub(crate) fn desugar_generic_data_instances_in(
             declaration,
             GenericData {
                 declaration,
-                name: definition.name.as_str().to_owned(),
+                name: definition.name.as_str(syntax).to_owned(),
                 origin_name: definition.name.clone(),
                 is_public: definition.is_public,
                 lifetime_parameters: definition.lifetime_parameters.clone(),
@@ -252,7 +258,7 @@ pub(crate) fn desugar_generic_data_instances_in(
             if super::module_constants::is_module_constant(syntax, definition) {
                 return None;
             }
-            Some((qualified_const_name(definition), definition.clone()))
+            Some((qualified_const_name(syntax, definition), definition.clone()))
         })
         .collect();
     let const_values = super::module_constants::lexical_integer_const_values(syntax);
@@ -348,7 +354,7 @@ pub(crate) fn desugar_generic_data_instances_in(
             )]);
         };
         synthesized.push(Instantiation {
-            synthetic_name: definition.name.as_str().to_owned(),
+            synthetic_name: definition.name.as_str(syntax).to_owned(),
             declaration,
             template,
             argument_handles: syntax
@@ -566,7 +572,7 @@ fn synthesize_instance(
                 .type_references
                 .type_reference(*argument)
                 .as_named()?;
-            Some((name.clone(), value.as_str().parse().ok()?))
+            Some((name.clone(), value.as_str(syntax).parse().ok()?))
         })
         .collect();
     let const_parameter_type_names: HashMap<String, String> = base_info
@@ -580,7 +586,7 @@ fn synthesize_instance(
                 .type_references
                 .type_reference(*parameter_type)
                 .as_named()?;
-            Some((name.clone(), type_name.as_str().to_string()))
+            Some((name.clone(), type_name.as_str(syntax).to_string()))
         })
         .collect();
     let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
@@ -635,7 +641,7 @@ fn synthesize_instance(
             continue;
         };
         if let Some(value) =
-            crate::preparation::type_equations::normalized_boolean_argument(value.as_str())
+            crate::preparation::type_equations::normalized_boolean_argument(value.as_str(syntax))
         {
             const_parameter_scalars.insert(name.clone(), ConstScalarValue::Boolean(value));
             const_expressions.insert(name.clone(), ExpressionNode::Boolean(value));
@@ -753,7 +759,9 @@ fn synthesize_instance(
             .iter()
             .zip(instance.argument_identity.iter())
             .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
-            .map(|(parameter, identity)| (parameter.name.as_str().to_owned(), identity.clone()))
+            .map(|(parameter, identity)| {
+                (parameter.name.as_str(syntax).to_owned(), identity.clone())
+            })
             .collect()
     };
     let mut first: Handle<DataMember> = Handle::invalid();
@@ -778,7 +786,9 @@ fn synthesize_instance(
         }
         count += 1;
     }
-    let copied_types = syntax.type_references.named_nodes_from(type_watermark);
+    let copied_types = syntax
+        .type_references
+        .named_nodes_from(type_watermark, syntax);
     substitute_copied_type_names(syntax, copied_types, &substitution);
     // Run the const-binder literal rewrite only after member
     // substitution: a carried case `where` fact is copied inside the
@@ -837,10 +847,10 @@ fn synthesize_instance(
         // machine identity keys on the composed name.
         let method_tail = machine
             .name
-            .as_str()
+            .as_str(syntax)
             .rsplit("::")
             .next()
-            .unwrap_or(machine.name.as_str())
+            .unwrap_or(machine.name.as_str(syntax))
             .to_string();
         clone.name = Identifier::new(
             format!("{}::{}", instance.synthetic_name, method_tail),
@@ -877,7 +887,7 @@ fn synthesize_instance(
         let copied_types = syntax
             .tables
             .type_references
-            .named_nodes_from(type_watermark)
+            .named_nodes_from(type_watermark, syntax)
             .into_iter()
             // Runtime subjects must reach ordinary admission, not acquire a
             // template const value. The same type-copy law still applies.
@@ -889,11 +899,11 @@ fn synthesize_instance(
         for (handle, element_type, name) in syntax
             .tables
             .type_references
-            .const_parameter_array_nodes_from(type_watermark)
+            .const_parameter_array_nodes_from(type_watermark, syntax)
         {
             let Some(length) = substitution.get(&name).and_then(|argument| {
                 match syntax.tables.type_references.type_reference(*argument) {
-                    TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
+                    TypeReferenceNode::Named(value) => value.as_str(syntax).parse::<usize>().ok(),
                     _ => None,
                 }
             }) else {

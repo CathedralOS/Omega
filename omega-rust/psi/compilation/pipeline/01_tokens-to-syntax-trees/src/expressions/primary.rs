@@ -324,10 +324,10 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             let last = members.last().expect("constructor path has a tail");
             let mut source_span = first.source_span();
             source_span.span.end = last.source_span().span.end;
-            let mut name = first.as_str().to_owned();
+            let mut name = first.as_str(syntax_trees).to_owned();
             for member in &members[1..] {
                 name.push_str("::");
-                name.push_str(member.as_str());
+                name.push_str(member.as_str(syntax_trees));
             }
             let constructor_name = Identifier::new(name, source_span);
             return parse_struct_literal_handle(syntax_trees, constructor_name, input);
@@ -369,6 +369,7 @@ fn starts_applied_requirement_call(input: Input<'_, '_>) -> bool {
 #[inline(never)]
 fn probe_applied_requirement_call(input: Input<'_, '_>) -> bool {
     let mut scratch = SyntaxTrees::new(input.source_id);
+    let input = input.retained_by(&mut scratch);
     let Ok((reference, rest)) = parse_type_reference_handle(&mut scratch, input) else {
         return false;
     };
@@ -440,6 +441,7 @@ fn parse_applied_requirement_call<'tokens, 'source>(
 /// publish phantom generic applications into later normalization.
 fn starts_generic_type_operand(input: Input<'_, '_>) -> bool {
     let mut scratch = SyntaxTrees::new(input.source_id);
+    let input = input.retained_by(&mut scratch);
     let Ok((reference, rest)) = parse_type_reference_handle(&mut scratch, input) else {
         return false;
     };

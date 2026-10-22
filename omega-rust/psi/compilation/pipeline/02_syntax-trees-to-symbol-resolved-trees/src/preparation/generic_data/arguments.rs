@@ -161,7 +161,7 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
                 .is_empty()
             && exact_synthesized_lifetime_instance(
                 syntax,
-                base_name.as_str(),
+                base_name.as_str(syntax),
                 lifetime_arguments.len(),
             ) =>
         {
@@ -170,7 +170,7 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
                 || !lifetime_arguments
                     .iter()
                     .zip(outer_lifetime_arguments)
-                    .all(|(nested, outer)| nested.as_str() == outer.as_str())
+                    .all(|(nested, outer)| nested.as_str(syntax) == outer.as_str(syntax))
             {
                 return None;
             }
@@ -219,7 +219,7 @@ pub(crate) fn exact_synthesized_lifetime_instance(
             matches!(
                 item,
                 Item::Data(definition)
-                    if definition.name.as_str() == name
+                    if definition.name.as_str(syntax) == name
                         && definition.generic_instance.is_some()
                         && definition.type_parameters.is_empty()
                         && definition.lifetime_parameters.len() == lifetime_arity
@@ -250,7 +250,7 @@ pub(crate) fn type_reference_slug(
             "[{}]",
             type_reference_slug(syntax, *element_type, selection)?
         )),
-        TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
+        TypeReferenceNode::Named(name) => Some(name.as_str(syntax).to_string()),
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -262,11 +262,11 @@ pub(crate) fn type_reference_slug(
             .is_empty()
             && exact_synthesized_lifetime_instance(
                 syntax,
-                base_name.as_str(),
+                base_name.as_str(syntax),
                 lifetime_arguments.len(),
             ) =>
         {
-            Some(base_name.as_str().to_owned())
+            Some(base_name.as_str(syntax).to_owned())
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -327,19 +327,23 @@ pub(crate) fn constraint_slug(
     selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Option<String> {
     match constraint {
-        TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
+        TypeConstraintNode::Named(name) => Some(name.as_str(syntax).to_string()),
         TypeConstraintNode::Domain(domain) => {
             let arguments = syntax
                 .type_references
                 .type_reference_handles(domain.arguments);
             if arguments.is_empty() {
-                return Some(domain.name.as_str().to_string());
+                return Some(domain.name.as_str(syntax).to_string());
             }
             let indices = arguments
                 .iter()
                 .map(|argument| type_reference_slug(syntax, *argument, selection))
                 .collect::<Option<Vec<_>>>()?;
-            Some(format!("{}<{}>", domain.name.as_str(), indices.join(",")))
+            Some(format!(
+                "{}<{}>",
+                domain.name.as_str(syntax),
+                indices.join(",")
+            ))
         }
         TypeConstraintNode::ArithmeticDomain(domain) => Some(domain.name().to_string()),
         TypeConstraintNode::Range { .. } => None,
@@ -423,7 +427,7 @@ pub(crate) fn closed_argument_identity(
             if arguments.is_empty() {
                 let mut candidates = syntax.root_items().filter_map(|item| match item {
                     Item::Data(data)
-                        if data.name.as_str() == base_name.as_str()
+                        if data.name.as_str(syntax) == base_name.as_str(syntax)
                             && data.lifetime_parameters.len() == lifetime_arguments.len()
                             && data.generic_instance.is_some() =>
                     {
@@ -451,13 +455,13 @@ pub(crate) fn closed_argument_identity(
                 closed_argument_identities(syntax, selection, parameters, arguments)?,
             ))
         }
-        TypeReferenceNode::Named(name) if is_constant => {
-            Some(ClosedArgumentIdentity::Constant(name.as_str().to_owned()))
-        }
+        TypeReferenceNode::Named(name) if is_constant => Some(ClosedArgumentIdentity::Constant(
+            name.as_str(syntax).to_owned(),
+        )),
         TypeReferenceNode::Named(name) => {
             if let Some(atom) = symbols::BuiltinTypeAtom::ALL
                 .into_iter()
-                .find(|atom| atom.symbol_name() == name.as_str())
+                .find(|atom| atom.symbol_name() == name.as_str(syntax))
             {
                 return Some(ClosedArgumentIdentity::Builtin(atom));
             }
@@ -465,7 +469,7 @@ pub(crate) fn closed_argument_identity(
                 Some(ClosedArgumentIdentity::Nominal(declaration))
             } else {
                 Some(ClosedArgumentIdentity::RetainedNominal(
-                    selection?.retained_identity(name, symbols::SymbolKind::Data)?,
+                    selection?.retained_identity(syntax, name, symbols::SymbolKind::Data)?,
                 ))
             }
         }
@@ -526,7 +530,7 @@ pub(crate) fn closed_argument_identity(
                             // declaration. Competing owners or an unreachable
                             // same-spelled declaration decline rather than
                             // equating rendered text.
-                            match selection.domain(syntax, name.as_str(), name.source_span(), None) {
+                            match selection.domain(syntax, name.as_str(syntax), name.source_span(), None) {
                                 Some(domain) => {
                                     if closed_argument_identity(
                                         syntax,
@@ -560,7 +564,7 @@ pub(crate) fn closed_argument_identity(
                                     // domain remains a lawful identity.
                                     if selection.contested_domain(
                                         syntax,
-                                        name.as_str(),
+                                        name.as_str(syntax),
                                         name.source_span(),
                                     ) {
                                         return None;
@@ -569,7 +573,7 @@ pub(crate) fn closed_argument_identity(
                                         .type_references
                                         .type_reference(*base_type).as_named()?;
                                     ClosedConstraintIdentity::RetainedDeclaration(
-                                        selection.retained_domain_identity(carrier, name)?,
+                                        selection.retained_domain_identity(syntax, carrier, name)?,
                                     )
                                 }
                             }
@@ -583,10 +587,10 @@ pub(crate) fn closed_argument_identity(
                                     let Some(domain) = syntax.root_item(*handle).as_domain() else {
                                         return false;
                                     };
-                                    let matching_name = domain.name.as_str() == name.as_str()
-                                        || (!name.as_str().contains("::")
-                                            && domain.name.as_str().rsplit("::").next()
-                                                == Some(name.as_str()));
+                                    let matching_name = domain.name.as_str(syntax) == name.as_str(syntax)
+                                        || (!name.as_str(syntax).contains("::")
+                                            && domain.name.as_str(syntax).rsplit("::").next()
+                                                == Some(name.as_str(syntax)));
                                     matching_name
                                         && closed_argument_identity(
                                             syntax,
@@ -636,12 +640,12 @@ pub(crate) fn domain_index_telescope(
         .type_references
         .type_reference(definition.target_type)
     {
-        TypeReferenceNode::Named(target) => Some(target.as_str()),
+        TypeReferenceNode::Named(target) => Some(target.as_str(syntax)),
         _ => None,
     };
     let generic_carrier = parameters.first().is_some_and(|parameter| {
         matches!(parameter.kind, TypeParameterKind::Type)
-            && target_name == Some(parameter.name.as_str())
+            && target_name == Some(parameter.name.as_str(syntax))
     });
     (
         parameters[usize::from(generic_carrier)..].to_vec(),
@@ -672,9 +676,9 @@ pub(crate) fn selected_domain_family(
     // ownership; the non-generic reader must not be replaced by a leaf scan or
     // omitted merely because this caller also handles indexed families.
     let definition = selection
-        .domain_family(syntax, name.as_str(), name.source_span(), carrier)
+        .domain_family(syntax, name.as_str(syntax), name.source_span(), carrier)
         .map(|(_, definition)| definition)
-        .or_else(|| selection.domain(syntax, name.as_str(), name.source_span(), carrier))?;
+        .or_else(|| selection.domain(syntax, name.as_str(syntax), name.source_span(), carrier))?;
     syntax.root_item_handles().iter().copied().find(|handle| {
         syntax
             .root_item(*handle)
@@ -772,7 +776,7 @@ pub(crate) fn domain_application_head(
     selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<DomainHead> {
-    let spelled = name.as_str();
+    let spelled = name.as_str(syntax);
     let (carrier, leaf) = match spelled.rsplit_once("::") {
         Some((carrier, leaf)) => (Some(carrier), leaf),
         None => (None, spelled),
@@ -845,14 +849,13 @@ fn normalize_domain_head_node(
                 && selected_data_item(syntax, selection, &base_name).is_none()
                 && let Some(head) = domain_application_head(syntax, selection, &base_name)
             {
+                let name =
+                    Identifier::new(head.declared_name.as_str(syntax), base_name.source_span());
                 let constraints =
                     syntax
                         .type_references
                         .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
-                            name: Identifier::new(
-                                head.declared_name.as_str(),
-                                base_name.source_span(),
-                            ),
+                            name,
                             arguments,
                         })]);
                 let base_type = head.carrier.materialize(syntax);

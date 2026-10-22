@@ -1184,7 +1184,7 @@ fn member_facts(
                 .tables
                 .type_references
                 .type_reference_handles(*arguments);
-            if base_name.as_str() != "FixedVec"
+            if base_name.as_str(syntax_trees) != "FixedVec"
                 || arguments.len() != 2
                 || scalar_kind_of_type(syntax_trees, arguments[0]) != Some(*element)
                 || const_literal_capacity(syntax_trees, arguments[1]) != Some(*capacity)
@@ -1214,7 +1214,7 @@ fn member_facts(
                 .type_references
                 .type_reference(field_handle)
                 .as_named()?;
-            let nested_fields = data_fields.get(value_name.as_str())?;
+            let nested_fields = data_fields.get(value_name.as_str(syntax_trees))?;
             let (_, sub_members) = schemas
                 .iter()
                 .find(|(name, _)| name.as_str() == schema.as_str())?;
@@ -1279,7 +1279,7 @@ fn nested_sub_facts(
         .type_references
         .type_reference(field_handle)
         .as_named()?;
-    let nested_fields = data_fields.get(value_name.as_str())?;
+    let nested_fields = data_fields.get(value_name.as_str(syntax_trees))?;
     let (_, sub_members) = schemas.iter().find(|(name, _)| name.as_str() == schema)?;
     let mut all = Vec::with_capacity(sub_members.len());
     for sub in sub_members {

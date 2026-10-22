@@ -38,7 +38,7 @@ pub(crate) fn lower_proposition_definition(
 
     Ok(PropositionDefinition {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(&proposition.name),
+        name: crate::lowering::name::lower_name(syntax_trees, &proposition.name),
         is_public: proposition.is_public,
         binders,
         parameters,
@@ -68,26 +68,26 @@ fn lower_proposition_binders(
             syntax::item::TypeParameterKind::Value { .. } => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot be a runtime-capable value binder; value binders are legal only on machine signature generics",
-                    binder.name.as_str()
+                    binder.name.as_str(syntax_trees)
                 )));
             }
             syntax::item::TypeParameterKind::Machine { .. } => PropositionBinderKind::Machine,
             syntax::item::TypeParameterKind::Implementation => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot select an implementation; implementation slots belong to trait telescopes",
-                    binder.name.as_str()
+                    binder.name.as_str(syntax_trees)
                 )));
             }
             syntax::item::TypeParameterKind::Proposition { .. } => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot itself be a generic proposition parameter; generic proposition signatures belong to trait abstraction surfaces",
-                    binder.name.as_str()
+                    binder.name.as_str(syntax_trees)
                 )));
             }
         };
         lowered.push(PropositionBinder {
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(&binder.name),
+            name: crate::lowering::name::lower_name(syntax_trees, &binder.name),
             kind,
             bounds: DataProperties {
                 carry: binder.bounds.carry,

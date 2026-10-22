@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct Machine {
     pub name: Identifier,
     /// Exact authored template token for a method cloned onto closed generic
@@ -94,7 +94,7 @@ pub struct Machine {
     pub states: HandleSpan<StateHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct State {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -105,7 +105,7 @@ pub struct State {
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TraitDefinition {
     pub is_boundary: bool,
     /// Source visibility for the trait declaration. This does not participate
@@ -138,7 +138,7 @@ pub struct TraitDefinition {
 
 /// One `machine *` or `machine Base::requirement` narrowing clause inside a
 /// transparent trait refinement.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TraitRefinementClause {
     /// The authored base requirement name (`None` for the `machine *`
     /// wildcard). The qualifier, when present, must name the base trait.
@@ -147,7 +147,7 @@ pub struct TraitRefinementClause {
     pub signature: StateSignature,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateSignature {
     pub name: Identifier,
     /// Fixed token owned by this trait requirement, when any. Implementing

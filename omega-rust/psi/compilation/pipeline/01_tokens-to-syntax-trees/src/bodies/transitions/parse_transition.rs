@@ -139,11 +139,11 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             }
             let mut marker_name = String::from("__arm_destructure#V=");
             if let Some(variant) = spelling.variant.as_ref() {
-                marker_name.push_str(variant.as_str());
+                marker_name.push_str(variant.as_str(syntax_trees));
             }
             for member in &spelling.members {
                 marker_name.push('#');
-                marker_name.push_str(member.as_str());
+                marker_name.push_str(member.as_str(syntax_trees));
             }
             // Two tuple axes may spell the same pattern. Keep validation
             // carriers keyed by subject without exposing the generated id as

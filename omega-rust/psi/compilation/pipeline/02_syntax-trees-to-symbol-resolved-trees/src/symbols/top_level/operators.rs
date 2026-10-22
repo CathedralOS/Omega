@@ -40,8 +40,12 @@ pub(super) fn assign_operator_symbols(
         operator.symbol = declaration;
     }
     assign_operator_children(
-        symbols, data_type_parameters, state_parameters, child_type_references,
-        type_constraints, operator,
+        symbols,
+        data_type_parameters,
+        state_parameters,
+        child_type_references,
+        type_constraints,
+        operator,
     );
 }
 

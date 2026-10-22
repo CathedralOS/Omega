@@ -22,11 +22,13 @@
 mod captured_source_tree;
 mod loaded_sources;
 pub mod read_accounting;
+mod source_bytes;
 mod source_file;
 mod source_file_system;
 mod source_map;
 mod source_snapshot;
 mod source_text;
+pub use source_bytes::SourceBytes;
 
 pub use captured_source_tree::{CapturedSourceNode, CapturedSourceTree};
 pub use loaded_sources::{LoadedSource, LoadedSources};

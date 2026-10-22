@@ -102,7 +102,7 @@ pub(super) fn bind(
             };
             NAMES
                 .iter()
-                .position(|name| !name.is_empty() && *name == identifier.as_str())
+                .position(|name| !name.is_empty() && *name == identifier.as_str(trees))
                 .map(|index| (handle, index))
         })
         .collect();

@@ -25,11 +25,14 @@ pub(crate) fn prepare_build_prelude(
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
                 syntax_trees::item::Item::Machine(machine)
-                    if is_build_file && machine.name.as_str() == "build" =>
+                    if is_build_file
+                        && machine.name.as_str(&source_storage.syntax_trees) == "build" =>
                 {
                     has_build_machine = true;
                 }
-                syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
+                syntax_trees::item::Item::Data(data)
+                    if data.name.as_str(&source_storage.syntax_trees) == "Build" =>
+                {
                     if is_build_file {
                         build_source_declares_build_data = true;
                     } else {

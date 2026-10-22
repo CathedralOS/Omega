@@ -37,7 +37,7 @@ fn source_and_syntax_apis_project_the_same_authoritative_role() {
             .items
             .state_parameter(syntax.builder_parameter())
             .name
-            .as_str(),
+            .as_str(&trees),
         "builder"
     );
     assert_eq!(

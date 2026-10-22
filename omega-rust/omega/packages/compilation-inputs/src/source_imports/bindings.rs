@@ -20,6 +20,7 @@ pub(super) struct ImportOccurrence {
 
 impl ImportOccurrence {
     pub(super) fn new(
+        syntax_trees: &syntax_trees::SyntaxTrees,
         source: SourceId,
         ordinal: usize,
         members: &[Identifier],
@@ -28,7 +29,7 @@ impl ImportOccurrence {
         Self {
             source,
             ordinal,
-            authored_path: identifier_path_text(members),
+            authored_path: identifier_path_text(syntax_trees, members),
             package_prefix_members: prefix,
         }
     }
@@ -102,13 +103,14 @@ impl PendingPackageImport {
 }
 
 pub(super) fn direct_source_import(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     root: &Path,
     members: &[Identifier],
     resolved: &Path,
     filesystem: &source::SourceFileSystem,
 ) -> bool {
     let relative = members.iter().fold(PathBuf::new(), |mut path, member| {
-        path.push(member.as_str());
+        path.push(member.as_str(syntax_trees));
         path
     });
     source_path_candidates(&relative)

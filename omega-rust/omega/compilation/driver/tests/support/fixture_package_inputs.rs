@@ -167,11 +167,11 @@ pub fn fixture_path_dependencies(project_root: &Path) -> Vec<FixturePathDependen
             continue;
         };
         assert!(
-            !is_dependency_call_name(call.target.as_str())
+            !is_dependency_call_name(call.target.as_str(&trees))
                 || rows.iter().any(|row| row.statement() == *statement_handle),
             "fixture {} authors `{}`, conditional dependency vocabulary that projects no row the harness could wire",
             project_root.display(),
-            call.target.as_str()
+            call.target.as_str(&trees)
         );
     }
     rows.into_iter()
@@ -211,7 +211,7 @@ fn fixture_dependency_location(
             project_root.display()
         )
     };
-    let constructor = literal.constructor_name.as_str();
+    let constructor = literal.constructor_name.as_str(trees);
     let (type_name, case_name) = constructor
         .rsplit_once("::")
         .map_or((constructor, None), |(owner, case)| (owner, Some(case)));
@@ -227,7 +227,7 @@ fn fixture_dependency_location(
         )
     };
     assert_eq!(
-        field.name.as_str(),
+        field.name.as_str(trees),
         "location",
         "fixture {}: `Source::Path` takes exactly a `location` field",
         project_root.display()

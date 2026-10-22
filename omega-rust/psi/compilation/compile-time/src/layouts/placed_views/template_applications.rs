@@ -24,6 +24,7 @@ pub(super) fn scoped_template_applications(
             }
             Item::Proposition(definition) => {
                 let binders = telescope(
+                    syntax,
                     syntax.items.type_parameters(definition.type_parameters),
                     &[],
                 );
@@ -52,7 +53,11 @@ pub(super) fn scoped_template_applications(
                 }
             }
             Item::Data(data) => {
-                let binders = telescope(syntax.items.type_parameters(data.type_parameters), &[]);
+                let binders = telescope(
+                    syntax,
+                    syntax.items.type_parameters(data.type_parameters),
+                    &[],
+                );
                 visit_parameters(
                     syntax,
                     syntax.items.type_parameters(data.type_parameters),
@@ -84,6 +89,7 @@ pub(super) fn scoped_template_applications(
             }
             Item::Trait(definition) => {
                 let binders = telescope(
+                    syntax,
                     syntax.items.type_parameters(definition.type_parameters),
                     &[],
                 );
@@ -113,6 +119,7 @@ pub(super) fn scoped_template_applications(
                 for signature in syntax.items.state_signatures(definition.machines) {
                     let signature = syntax.items.state_signature(*signature);
                     let binders = telescope(
+                        syntax,
                         syntax.items.type_parameters(signature.type_parameters),
                         &binders,
                     );
@@ -150,6 +157,7 @@ pub(super) fn scoped_template_applications(
             }
             Item::Conformance(definition) => {
                 let binders = telescope(
+                    syntax,
                     syntax.items.type_parameters(definition.type_parameters),
                     &[],
                 );
@@ -182,9 +190,17 @@ pub(super) fn scoped_template_applications(
     deferred
 }
 
-fn telescope<'a>(parameters: &'a [TypeParameter], outer: &[&'a str]) -> Vec<&'a str> {
+fn telescope<'a>(
+    syntax: &'a SyntaxTrees,
+    parameters: &'a [TypeParameter],
+    outer: &[&'a str],
+) -> Vec<&'a str> {
     let mut binders = outer.to_vec();
-    binders.extend(parameters.iter().map(|parameter| parameter.name.as_str()));
+    binders.extend(
+        parameters
+            .iter()
+            .map(|parameter| parameter.name.as_str(syntax)),
+    );
     binders
 }
 
@@ -204,6 +220,7 @@ fn visit_parameters(
                 contract: Some(syntax_trees::item::MachineParameterContract::Structural(signature)),
             } => {
                 let binders = telescope(
+                    syntax,
                     syntax.items.type_parameters(signature.type_parameters),
                     binders,
                 );
@@ -245,11 +262,12 @@ fn visit_machine(
                     .items
                     .type_parameters(owner.type_parameters)
                     .iter()
-                    .map(|parameter| parameter.name.as_str()),
+                    .map(|parameter| parameter.name.as_str(syntax)),
             );
         }
     }
     let binders = telescope(
+        syntax,
         syntax.items.type_parameters(machine.type_parameters),
         &ambient,
     );
@@ -337,7 +355,7 @@ fn visit_type(
         return false;
     }
     match syntax.type_references.type_reference(reference) {
-        TypeReferenceNode::Named(name) => binders.contains(&name.as_str()),
+        TypeReferenceNode::Named(name) => binders.contains(&name.as_str(syntax)),
         TypeReferenceNode::Reference { referee, .. } => {
             visit_type(syntax, *referee, binders, deferred)
         }

@@ -176,7 +176,7 @@ fn evaluate_application_group(
     // expression survives whole inside the appended probe machine.
     for (type_reference, _, destination, _) in &application_destinations {
         let placeholder = match syntax.type_references.type_reference(*destination) {
-            TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",
+            TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool" => "false",
             _ => "0",
         };
         probe.type_references.replace_type_reference(

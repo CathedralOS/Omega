@@ -84,7 +84,9 @@ pub(super) fn discover_build_layout(
             })
         })?;
     let Some(build) = syntax.root_items().find_map(|item| match item {
-        Item::Machine(machine) if machine.name.as_str() == BUILD_MACHINE_NAME => Some(machine),
+        Item::Machine(machine) if machine.name.as_str(&syntax) == BUILD_MACHINE_NAME => {
+            Some(machine)
+        }
         _ => None,
     }) else {
         return Ok(None);

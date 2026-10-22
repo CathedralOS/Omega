@@ -19,7 +19,7 @@ fn numbered_declarations_share_ordinary_data_and_source_identity() {
             panic!("ordinary first field");
         };
         assert_eq!(field.identity, Some(7));
-        assert_eq!(field.name.as_str(), "value");
+        assert_eq!(field.name.as_str(&parsed), "value");
         let span = field.name.source_span().span;
         assert_eq!(&declaration[span.start..span.end], "value");
     }

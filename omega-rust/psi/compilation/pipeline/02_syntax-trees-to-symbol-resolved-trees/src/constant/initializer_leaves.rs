@@ -10,8 +10,8 @@ use crate::preparation::declaration_selection::{
     type_mentions_parameters,
 };
 use source::{SourceSpan, Span};
-use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -51,8 +51,8 @@ fn effective_member_type(
     substitution: &GenericApplicationSubstitution,
 ) -> Result<TypeReferenceHandle, String> {
     match syntax.type_references.type_reference(member_type) {
-        TypeReferenceNode::Named(name) if substitution.contains_key(name.as_str()) => {
-            Ok(substitution[name.as_str()])
+        TypeReferenceNode::Named(name) if substitution.contains_key(name.as_str(syntax)) => {
+            Ok(substitution[name.as_str(syntax)])
         }
         TypeReferenceNode::Generic { .. } | TypeReferenceNode::FixedArray { .. } => Ok(member_type),
         _ if type_mentions_parameters(syntax, member_type, substitution) => {
@@ -83,7 +83,7 @@ pub(crate) fn pending_const_initializer_leaves(
             .type_references
             .type_reference(type_reference)
             .as_named()
-            && let Some(argument) = substitution.get(name.as_str())
+            && let Some(argument) = substitution.get(name.as_str(syntax))
         {
             return collect(
                 syntax,
@@ -155,7 +155,7 @@ pub(crate) fn pending_const_initializer_leaves(
             },
             TypeReferenceNode::Named(name)
                 if matches!(
-                    selection.builtin_type(name),
+                    selection.builtin_type(syntax, name),
                     Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16
                         | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64
                         | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16
@@ -168,7 +168,7 @@ pub(crate) fn pending_const_initializer_leaves(
                     ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
                     // Decimal-to-integer landing still needs evaluation; a
                     // floating declaration's literal validation owns its suffix.
-                    ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => matches!(selection.builtin_type(name),
+                    ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => matches!(selection.builtin_type(syntax, name),
                         Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)),
                     // `size_of<T>()`/`align_of<T>()` are answered from the
                     // selected target's validated layout after settlement, not
@@ -177,7 +177,7 @@ pub(crate) fn pending_const_initializer_leaves(
                     // authored declaration bearing the same name keeps the
                     // ordinary call leaf.
                     ExpressionNode::Call(call)
-                        if deferred_layout_query(Some(selection), call) =>
+                        if deferred_layout_query(syntax, Some(selection), call) =>
                     {
                         return Ok(());
                     }
@@ -194,7 +194,7 @@ pub(crate) fn pending_const_initializer_leaves(
             }
             TypeReferenceNode::Named(name) => {
                 let ExpressionNode::StructLiteral(literal) = syntax.expressions.expression(expression) else {
-                    if selection.builtin_type(name).is_none() {
+                    if selection.builtin_type(syntax, name).is_none() {
                         match syntax.expressions.expression(expression) {
                             // A call or match whose result is the selected
                             // nominal carrier evaluates through the checked
@@ -358,7 +358,9 @@ pub(crate) fn pending_const_initializer_leaves(
             let variant = members
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case.as_str() => {
+                    DataMember::Variant(variant)
+                        if variant.name.as_str(syntax) == case.as_str(syntax) =>
+                    {
                         Some(variant)
                     }
                     _ => None,
@@ -394,19 +396,24 @@ pub(crate) fn pending_const_initializer_leaves(
         for field in authored {
             if authored
                 .iter()
-                .filter(|candidate| candidate.name.as_str() == field.name.as_str())
+                .filter(|candidate| candidate.name.as_str(syntax) == field.name.as_str(syntax))
                 .count()
                 != 1
             {
                 return Err(format!(
                     "duplicate computed constant field `{}`",
-                    field.name
+                    field.name.as_str(syntax)
                 ));
             }
             let declaration = fields
                 .iter()
-                .find(|candidate| candidate.name.as_str() == field.name.as_str())
-                .ok_or_else(|| format!("unknown computed constant field `{}`", field.name))?;
+                .find(|candidate| candidate.name.as_str(syntax) == field.name.as_str(syntax))
+                .ok_or_else(|| {
+                    format!(
+                        "unknown computed constant field `{}`",
+                        field.name.as_str(syntax)
+                    )
+                })?;
             let member_type =
                 effective_member_type(syntax, declaration.type_reference, substitution)?;
             collect(
@@ -466,23 +473,27 @@ fn name_selects_const(
         first.source_span().source_id,
         Span::new(first.source_span().span.start, last.source_span().span.end),
     );
-    let name = members.joined_path();
-    selection.selects_const(&syntax_trees::identifier::Identifier::new(name, reference))
+    let name = members.joined_path_in(syntax);
+    selection.selects_const(
+        syntax,
+        &syntax_trees::identifier::Identifier::new(name, reference),
+    )
 }
 
 /// Layout queries remain deferred until target layout settlement. An authored
 /// declaration with the same spelling retains its ordinary call evaluation.
 pub(crate) fn deferred_layout_query(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     call: &syntax_trees::expression::TableCallExpression,
 ) -> bool {
     if call.receiver.is_valid()
         || language_core::data_layout_queries::DataLayoutQueryKind::from_target_name(
-            call.target.as_str(),
+            call.target.as_str(syntax_trees),
         )
         .is_none()
     {
         return false;
     }
-    selection.is_none_or(|selection| !selection.names_declaration(&call.target))
+    selection.is_none_or(|selection| !selection.names_declaration(syntax_trees, &call.target))
 }

@@ -52,10 +52,12 @@ fn module_constant_selection_gate(
     const_values: &HashMap<String, i128>,
     const_definitions: &HashMap<String, ConstDefinition>,
 ) -> Result<(), Diagnostic> {
-    if const_values.contains_key(name.as_str()) || const_definitions.contains_key(name.as_str()) {
+    if const_values.contains_key(name.as_str(syntax))
+        || const_definitions.contains_key(name.as_str(syntax))
+    {
         crate::preparation::generic_data::module_constants::reject_module_constant_selection(
             syntax,
-            name.as_str(),
+            name.as_str(syntax),
             name.source_span(),
         )
         .map_err(|reason| Diagnostic::error(reason).with_source_span(name.source_span()))?;

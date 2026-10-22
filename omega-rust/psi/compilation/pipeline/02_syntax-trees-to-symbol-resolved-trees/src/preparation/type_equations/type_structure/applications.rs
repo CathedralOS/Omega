@@ -68,7 +68,11 @@ impl Solver<'_, '_> {
                 lifetime_arguments,
                 arguments,
             } => {
-                if pattern && self.parameter_position(base_name.as_str()).is_some() {
+                if pattern
+                    && self
+                        .parameter_position(base_name.as_str(self.syntax))
+                        .is_some()
+                {
                     return Err(self.type_structure_error(
                         "cannot use a binder as a nominal constructor",
                         span,
@@ -170,7 +174,8 @@ impl Solver<'_, '_> {
             else {
                 continue;
             };
-            let Some((position, is_type)) = self.parameter_position(name.as_str()) else {
+            let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+            else {
                 continue;
             };
             let binder_carrier = self.base_info.const_parameter_types[position];
@@ -337,7 +342,8 @@ impl Solver<'_, '_> {
                         .type_references
                         .type_reference(pattern)
                         .as_named()
-                        && let Some((position, is_type)) = self.parameter_position(name.as_str())
+                        && let Some((position, is_type)) =
+                            self.parameter_position(name.as_str(self.syntax))
                     {
                         if is_type || self.base_info.const_parameter_types[position].is_none() {
                             return Err(self.type_structure_error(
@@ -463,7 +469,9 @@ impl Solver<'_, '_> {
             return Err(self
                 .type_structure_error("requires a normalized integer constructor argument", span));
         };
-        if binders && let Some((position, is_type)) = self.parameter_position(name.as_str()) {
+        if binders
+            && let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+        {
             if is_type || self.base_info.const_parameter_types[position].is_none() {
                 return Err(self.type_structure_error(
                     "mixes type and value kinds in a constructor argument",
@@ -476,7 +484,7 @@ impl Solver<'_, '_> {
                 _ => Err(self.type_structure_error("requires an integer const binding", span)),
             };
         }
-        if let Ok(value) = name.as_str().parse::<i128>() {
+        if let Ok(value) = name.as_str(self.syntax).parse::<i128>() {
             return Ok(Some(BigInt::from_i128(value)));
         }
         match self
@@ -550,7 +558,9 @@ impl Solver<'_, '_> {
             return Err(self
                 .type_structure_error("requires a normalized Boolean constructor argument", span));
         };
-        if binders && let Some((position, is_type)) = self.parameter_position(name.as_str()) {
+        if binders
+            && let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+        {
             if is_type
                 || self.base_info.const_parameter_types[position]
                     .is_none_or(|reference| !self.boolean_constructor_parameter(reference))
@@ -566,7 +576,7 @@ impl Solver<'_, '_> {
                 _ => Err(self.type_structure_error("requires a Boolean const binding", span)),
             };
         }
-        if let Some(value) = normalized_boolean_argument(name.as_str()) {
+        if let Some(value) = normalized_boolean_argument(name.as_str(self.syntax)) {
             return Ok(Some(value));
         }
         match self
@@ -604,7 +614,7 @@ impl Solver<'_, '_> {
             .type_references
             .type_reference(pattern)
             .as_named()
-            && let Some((position, false)) = self.parameter_position(name.as_str())
+            && let Some((position, false)) = self.parameter_position(name.as_str(self.syntax))
         {
             self.bindings[position] = Some(Binding::Boolean(value));
         } else {
@@ -688,7 +698,7 @@ impl Solver<'_, '_> {
                 self.type_structure_error("requires a builtin integer constructor parameter", span)
             );
         };
-        let Some((minimum, maximum)) = const_binder_envelope(name.as_str()) else {
+        let Some((minimum, maximum)) = const_binder_envelope(name.as_str(self.syntax)) else {
             return Err(
                 self.type_structure_error("requires a builtin integer constructor parameter", span)
             );

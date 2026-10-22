@@ -1,11 +1,10 @@
 use crate::identifier::Identifier;
 use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
-use std::fmt;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 pub type TypeReferenceFrontier = PagedArenaFrontier<TypeReferenceNode>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
@@ -21,7 +20,7 @@ pub struct TypeReferenceTable {
 
 /// The exact declaration supplying a substituted operand. This is syntax
 /// custody, not a resolved symbol or portable lifetime identity.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 struct SuppliedOperandOwner {
     operand: TypeReferenceHandle,
     declaration: crate::item::ItemHandle,
@@ -30,7 +29,7 @@ struct SuppliedOperandOwner {
 /// Private probe custody, never a canonical value or checking receipt. Copies
 /// inside one retained syntax lineage keep the original argument handle even
 /// when provisional applications share a synthesized carrier.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 struct PendingConstArgument {
     position: TypeReferenceHandle,
     original: TypeReferenceHandle,
@@ -44,7 +43,7 @@ pub struct IntegerRangeNormalization {
     pub maximum: numerics::bignum::BigInt,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 struct RetainedIntegerRangeNormalization {
     owner: TypeReferenceHandle,
     constraints: HandleSpan<TypeConstraintNode>,
@@ -55,7 +54,7 @@ struct RetainedIntegerRangeNormalization {
 /// Exact source custody captured before a selected constant index operand
 /// becomes a canonical value. These coordinates join to the retained declaration;
 /// they are not exported semantic identity.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct ConstArgumentOrigin {
     pub reference: source::SourceSpan,
     pub declaration: source::SourceSpan,
@@ -64,7 +63,7 @@ pub struct ConstArgumentOrigin {
     pub evaluated_value: language_core::constant_value::EvaluatedConstant,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 struct RetainedConstArgumentNormalization {
     argument: TypeReferenceHandle,
     normalization: ConstArgumentNormalization,
@@ -83,7 +82,7 @@ pub struct ConstArgumentNormalization {
     pub builtin_operators: HandleSpan<source::SourceSpan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 struct GenericApplicationOrigin {
     instance: TypeReferenceHandle,
     application: TypeReferenceHandle,
@@ -453,12 +452,13 @@ impl TypeReferenceTable {
     pub fn named_nodes_from(
         &self,
         watermark: TypeReferenceFrontier,
+        context: &impl crate::SyntaxTextContext,
     ) -> Vec<(TypeReferenceHandle, String)> {
         self.type_references
             .iter()
             .filter(|(handle, _)| watermark.contains(*handle))
             .filter_map(|(handle, node)| match node {
-                TypeReferenceNode::Named(name) => Some((handle, name.as_str().to_string())),
+                TypeReferenceNode::Named(name) => Some((handle, name.as_str(context).to_string())),
                 _ => None,
             })
             .collect()
@@ -471,13 +471,14 @@ impl TypeReferenceTable {
     pub fn generic_nodes_from(
         &self,
         watermark: TypeReferenceFrontier,
+        context: &impl crate::SyntaxTextContext,
     ) -> Vec<(TypeReferenceHandle, String)> {
         self.type_references
             .iter()
             .filter(|(handle, _)| watermark.contains(*handle))
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::Generic { base_name, .. } => {
-                    Some((handle, base_name.as_str().to_string()))
+                    Some((handle, base_name.as_str(context).to_string()))
                 }
                 _ => None,
             })
@@ -524,6 +525,7 @@ impl TypeReferenceTable {
     pub fn const_parameter_array_nodes_from(
         &self,
         watermark: TypeReferenceFrontier,
+        context: &impl crate::SyntaxTextContext,
     ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, String)> {
         self.type_references
             .iter()
@@ -532,7 +534,7 @@ impl TypeReferenceTable {
                 TypeReferenceNode::FixedArray {
                     element_type,
                     length: FixedArrayLength::ConstParameter(name),
-                } => Some((handle, *element_type, name.as_str().to_string())),
+                } => Some((handle, *element_type, name.as_str(context).to_string())),
                 _ => None,
             })
             .collect()
@@ -691,7 +693,7 @@ impl Default for TypeReferenceTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
@@ -749,7 +751,7 @@ impl TypeReferenceNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub enum FixedArrayLength {
     Literal(usize),
     ConstParameter(Identifier),
@@ -773,18 +775,30 @@ impl From<usize> for FixedArrayLength {
     }
 }
 
-impl fmt::Display for FixedArrayLength {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl FixedArrayLength {
+    pub fn same_value(&self, other: &Self, context: &impl crate::SyntaxTextContext) -> bool {
+        match (self, other) {
+            (Self::Literal(left), Self::Literal(right)) => left == right,
+            (Self::ConstParameter(left), Self::ConstParameter(right))
+            | (Self::ConstCall(left), Self::ConstCall(right)) => {
+                left.as_str(context) == right.as_str(context)
+            }
+            (Self::Expression(left), Self::Expression(right)) => left == right,
+            _ => false,
+        }
+    }
+
+    pub fn display_name(&self, context: &impl crate::SyntaxTextContext) -> String {
         match self {
-            Self::Literal(value) => write!(formatter, "{value}"),
-            Self::ConstParameter(name) => write!(formatter, "{name}"),
-            Self::ConstCall(name) => write!(formatter, "{name}()"),
-            Self::Expression(_) => formatter.write_str("<constant expression>"),
+            Self::Literal(value) => value.to_string(),
+            Self::ConstParameter(name) => name.as_str(context).to_owned(),
+            Self::ConstCall(name) => format!("{}()", name.as_str(context)),
+            Self::Expression(_) => "<constant expression>".to_owned(),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
@@ -802,18 +816,12 @@ pub enum TypeConstraintNode {
     Domain(DomainConstraint),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct DomainConstraint {
     pub name: Identifier,
     /// Proof-static arguments remain ordinary type-reference leaves until the
     /// pre-resolution const pass replaces closed values with canonical atoms.
     pub arguments: HandleSpan<TypeReferenceHandle>,
-}
-
-impl fmt::Display for DomainConstraint {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(formatter)
-    }
 }
 
 impl Default for TypeConstraintNode {
@@ -834,7 +842,7 @@ mod tests {
         let watermark = types.node_count();
         let copied = types.insert_named(Identifier::generated("T"));
 
-        let nodes = types.named_nodes_from(watermark);
+        let nodes = types.named_nodes_from(watermark, &crate::SyntaxTextOwner::default());
         assert_eq!(nodes, vec![(copied, "T".to_string())]);
         assert_ne!(nodes[0].0, existing);
     }

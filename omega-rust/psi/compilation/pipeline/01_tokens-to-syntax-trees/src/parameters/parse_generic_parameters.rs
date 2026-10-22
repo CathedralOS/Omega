@@ -122,14 +122,14 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             let (lifetime_name, next) = after_tick.take_identifier()?;
             if declared_names
                 .iter()
-                .any(|declared| declared == lifetime_name.as_str())
+                .any(|declared| declared == lifetime_name.as_str(syntax_trees))
             {
                 return Err(next.error_here(format!(
                     "duplicate generic parameter `{}`",
-                    lifetime_name.as_str()
+                    lifetime_name.as_str(syntax_trees)
                 )));
             }
-            declared_names.push(lifetime_name.as_str().to_owned());
+            declared_names.push(lifetime_name.as_str(syntax_trees).to_owned());
             lifetime_parameters.push(lifetime_name);
             input = next;
 
@@ -185,13 +185,14 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         input = next;
         if declared_names
             .iter()
-            .any(|declared| declared == name.as_str())
+            .any(|declared| declared == name.as_str(syntax_trees))
         {
-            return Err(
-                input.error_here(format!("duplicate generic parameter `{}`", name.as_str()))
-            );
+            return Err(input.error_here(format!(
+                "duplicate generic parameter `{}`",
+                name.as_str(syntax_trees)
+            )));
         }
-        declared_names.push(name.as_str().to_owned());
+        declared_names.push(name.as_str(syntax_trees).to_owned());
 
         // `Order satisfies Ranked<Element>` is an evidence binder: an
         // implementation parameter, not a type. Its trait application carries
@@ -200,7 +201,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             if !allow_conformance_binders {
                 return Err(input.error_here(format!(
                     "an evidence binder `{} satisfies Trait<...>` is not admitted in this parameter list",
-                    name.as_str()
+                    name.as_str(syntax_trees)
                 )));
             }
             let rest = input.take_contextual("satisfies")?;
@@ -256,7 +257,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         {
             return Err(input.error_here(format!(
                 "a conformance has no data subject; write the evidence binder as `{} satisfies Trait<Data>`",
-                name.as_str()
+                name.as_str(syntax_trees)
             )));
         }
 
@@ -284,7 +285,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         {
             return Err(input.error_here(format!(
                 "a `satisfies` conformance binder is not admitted in this parameter list; `{}: <type>` already declares a runtime value binder",
-                name.as_str()
+                name.as_str(syntax_trees)
             )));
         }
 
@@ -292,10 +293,10 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         // suggested: a colon bound would split the property spelling system.
         if matches!(kind, TypeParameterKind::Type) && input.at_punctuation(PunctuationKind::Colon) {
             let after_colon = input.take_punctuation(PunctuationKind::Colon, ":")?;
-            let parameter = name.as_str();
+            let parameter = name.as_str(syntax_trees);
             let bound = after_colon
                 .take_identifier()
-                .map(|(bound, _)| bound.as_str().to_owned())
+                .map(|(bound, _)| bound.as_str(syntax_trees).to_owned())
                 .unwrap_or_else(|_| "copy".to_owned());
             return Err(input.error_here(format!(
                 "type parameter `{parameter}` takes property bounds in brackets after its name: write `{parameter} [{bound}]`, not `{parameter}: {bound}`"

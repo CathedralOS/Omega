@@ -36,7 +36,7 @@ pub fn desugar_plan_laid_value_types(
         match item {
             Item::Data(definition) => {
                 data_index.insert(
-                    definition.name.as_str().to_string(),
+                    definition.name.as_str(syntax).to_string(),
                     IndexedData {
                         is_public: definition.is_public,
                         has_type_parameters: !definition.type_parameters.is_empty()
@@ -50,9 +50,9 @@ pub fn desugar_plan_laid_value_types(
             }
             Item::Machine(machine) => {
                 if let Some(attached) = &machine.attached_data
-                    && machine.name.as_str() == format!("{}::plan", attached.as_str())
+                    && machine.name.as_str(syntax) == format!("{}::plan", attached.as_str(syntax))
                 {
-                    plan_policies.insert(attached.as_str().to_string());
+                    plan_policies.insert(attached.as_str(syntax).to_string());
                 }
             }
             _ => {}
@@ -79,7 +79,7 @@ pub fn desugar_plan_laid_value_types(
         if !lifetime_arguments.is_empty() {
             continue;
         }
-        let base = base_name.as_str();
+        let base = base_name.as_str(syntax);
         let Some(base_info) = data_index.get(base) else {
             continue; // unknown base: existing generic-type paths diagnose
         };
@@ -101,7 +101,7 @@ pub fn desugar_plan_laid_value_types(
             .type_reference_handles(*arguments);
         let schema_name = match argument_handles {
             [only] => match syntax.tables.type_references.type_reference(*only) {
-                TypeReferenceNode::Named(name) => name.as_str().to_string(),
+                TypeReferenceNode::Named(name) => name.as_str(syntax).to_string(),
                 _ => {
                     diagnostics.push(Diagnostic::error(format!(
                         "layout policy `{base}` must be applied to a plain data name \

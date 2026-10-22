@@ -39,7 +39,7 @@ pub(crate) fn lower_local_declaration(
     };
     Ok(LocalData {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(&local.name),
+        name: crate::lowering::name::lower_name(syntax, &local.name),
         storage: LocalDataStorage {
             role: local.role,
             type_reference,

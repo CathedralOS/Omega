@@ -151,7 +151,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let (member, rest) = after_dot.take_identifier()?;
 
             if rest.at_punctuation(PunctuationKind::Less) {
-                let retired = match member.as_str() {
+                let retired = match member.as_str(syntax_trees) {
                     "accept_boundary" => Some(
                         "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
                     ),
@@ -185,7 +185,9 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             // remains a downstream lowering obligation. `load` is not reserved at data/machine
             // definition sites so this rewrite only fires for the exact
             // one-argument call form; `x.load` stays an ordinary member read.
-            if member.as_str() == "load" && rest.at_punctuation(PunctuationKind::LeftParen) {
+            if member.as_str(syntax_trees) == "load"
+                && rest.at_punctuation(PunctuationKind::LeftParen)
+            {
                 let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 if !after_open.at_punctuation(PunctuationKind::RightParen) {
                     let (ordering_expression, after_ord) =
@@ -291,7 +293,9 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 // `in units::u64::Km`.
                 let (domain_name, rest) =
                     crate::type_syntax::parse_type::parse_static_name(after_in)?;
-                match numerics::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                match numerics::arithmetic::ArithmeticDomain::from_name(
+                    domain_name.as_str(syntax_trees),
+                ) {
                     Some(_) if form.is_recast() => {
                         return Err(input.error_here(
                             "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
@@ -448,7 +452,7 @@ fn build_call_expression_handle(
         ExpressionNode::Member(member) => {
             validate_atomic_call_orderings(
                 syntax_trees,
-                member.member.as_str(),
+                member.member.as_str(syntax_trees),
                 member.receiver,
                 arguments,
             )?;
@@ -491,10 +495,10 @@ pub(crate) fn memory_ordering_from_expression(
                 .to_owned(),
         );
     }
-    language_core::atomic::MemoryOrdering::from_name(members[0].as_str()).ok_or_else(|| {
+    language_core::atomic::MemoryOrdering::from_name(members[0].as_str(syntax_trees)).ok_or_else(|| {
         format!(
             "unknown atomic ordering `{}`; expected `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`",
-            members[0].as_str()
+            members[0].as_str(syntax_trees)
         )
     })
 }
@@ -585,6 +589,7 @@ pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
             let mut prefix = input;
             prefix.tokens = &input.tokens[..offset];
             let mut scratch = SyntaxTrees::new(input.source_id);
+            let prefix = prefix.retained_by(&mut scratch);
             if let Ok(Some((arguments, end))) = parse_static_call_arguments(&mut scratch, prefix)
                 && end.tokens.is_empty()
                 && !end.at_punctuation(PunctuationKind::Greater)

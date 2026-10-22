@@ -1,7 +1,10 @@
 use source::{SourceSpan, Span};
 use syntax_trees::identifier::Identifier;
 
-pub(crate) fn join_path_identifier(members: &[Identifier]) -> Identifier {
+pub(crate) fn join_path_identifier(
+    syntax_trees: &syntax_trees::SyntaxTrees,
+    members: &[Identifier],
+) -> Identifier {
     let mut name = String::new();
 
     for (index, member) in members.iter().enumerate() {
@@ -9,7 +12,7 @@ pub(crate) fn join_path_identifier(members: &[Identifier]) -> Identifier {
             name.push_str("::");
         }
 
-        name.push_str(member.as_str());
+        name.push_str(member.as_str(syntax_trees));
     }
 
     let first = members

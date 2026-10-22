@@ -17,7 +17,7 @@ fn machine_first_call_argument(
             syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
-        .find(|machine| machine.name.as_str() == machine_name)
+        .find(|machine| machine.name.as_str(parsed) == machine_name)
         .expect("caller machine");
     let state = parsed.items.state(
         *parsed
@@ -54,7 +54,7 @@ fn parses_domain_definition_surface() {
         .collect::<Vec<_>>();
 
     assert_eq!(domains.len(), 1);
-    assert_eq!(domains[0].name.as_str(), "Player::Alive");
+    assert_eq!(domains[0].name.as_str(&parsed), "Player::Alive");
     assert!(domains[0].target_type.is_valid());
     assert_eq!(
         domains[0].predicate_body,
@@ -115,7 +115,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
             .map(|route| {
                 route
                     .iter()
-                    .map(|member| member.as_str())
+                    .map(|member| member.as_str(&parsed))
                     .collect::<Vec<_>>()
                     .join("::")
             })
@@ -136,7 +136,7 @@ fn parses_unqualified_machine_establishment_routes() {
         .map(|route| {
             route
                 .iter()
-                .map(|member| member.as_str())
+                .map(|member| member.as_str(&parsed))
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
@@ -322,7 +322,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
                 .items
                 .identifier_path_members(*path)
                 .iter()
-                .map(|member| member.as_str())
+                .map(|member| member.as_str(&parsed))
                 .collect::<Vec<_>>()
                 .join("::")
         })
@@ -368,7 +368,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
     assert_eq!(*access, ReferenceAccess::Mutable);
     assert!(matches!(
         parsed.type_references.type_reference(*referee),
-        TypeReferenceNode::Named(name) if name.as_str() == "Main"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Main"
     ));
 }
 
@@ -391,7 +391,7 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
     };
     assert_eq!(borrow.access, ReferenceAccess::WriteOnly);
     assert_eq!(
-        parsed.expressions.display_name(argument),
+        parsed.display_expression_name(argument),
         "&write destination"
     );
 }
@@ -412,7 +412,7 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
         panic!("argument should retain one closed shared-borrow expression node");
     };
     assert_eq!(borrow.access, ReferenceAccess::Shared);
-    assert_eq!(parsed.expressions.display_name(argument), "&source");
+    assert_eq!(parsed.display_expression_name(argument), "&source");
 }
 
 #[test]
@@ -445,7 +445,7 @@ fn parses_explicit_parameter_use_as_ordinary_name() {
         panic!("explicit parameter must remain an ordinary name");
     };
     assert_eq!(
-        parsed.expressions.identifier_path_members(*path)[0].as_str(),
+        parsed.expressions.identifier_path_members(*path)[0].as_str(&parsed),
         "main"
     );
 }
@@ -487,7 +487,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
     };
 
     assert_eq!(
-        parsed.expressions.display_name(assignment.value),
+        parsed.display_expression_name(assignment.value),
         "max(0, player.xp - xp_required(player.level))"
     );
 }
@@ -518,7 +518,7 @@ fn parses_positional_erased_evidence_call_lane_after_semicolon() {
     assert_eq!(
         call.evidence_arguments
             .iter()
-            .map(|name| name.as_str())
+            .map(|name| name.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["first_proof", "second_proof"]
     );
@@ -548,7 +548,7 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
             .expression_handles(call.arguments)
             .is_empty()
     );
-    assert_eq!(call.evidence_arguments[0].as_str(), "proof");
+    assert_eq!(call.evidence_arguments[0].as_str(&parsed), "proof");
 }
 
 #[test]
@@ -583,7 +583,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     assert_eq!(
         evidence_arguments
             .iter()
-            .map(|name| name.as_str())
+            .map(|name| name.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["proof"]
     );
@@ -652,14 +652,14 @@ fn parses_machine_parameter_with_mandatory_contract() {
     let machine = super::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1);
-    assert_eq!(parameters[0].name.as_str(), "Key");
+    assert_eq!(parameters[0].name.as_str(&parsed), "Key");
     let syntax_trees::item::TypeParameterKind::Machine {
         contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[0].kind
     else {
         panic!("Key should carry its authored machine contract");
     };
-    assert_eq!(contract.name.as_str(), "Key");
+    assert_eq!(contract.name.as_str(&parsed), "Key");
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
     assert!(contract.return_type.is_valid());
     assert_eq!(
@@ -701,7 +701,7 @@ fn parses_nominal_machine_parameter_requirement() {
             .items
             .identifier_path_members(*requirement)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["platform", "WindowProcedure", "call"]
     );
@@ -746,12 +746,12 @@ fn parses_target_scoped_bodyless_boundary_machine() {
             syntax_trees::item::Item::Machine(machine) => Some(machine),
             _ => None,
         })
-        .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::exit_process")
+        .find(|machine| machine.name.as_str(&parsed) == "ConsoleNativeProvider::exit_process")
         .expect("target-scoped catalog leaf");
     assert!(machine.boundary);
     assert!(machine.bodyless);
     assert_eq!(
-        machine.target.as_ref().map(|target| target.as_str()),
+        machine.target.as_ref().map(|target| target.as_str(&parsed)),
         Some("linux_x86_64"),
     );
     let [conformance] = parsed.items.satisfies_clauses(machine.satisfies) else {
@@ -804,7 +804,9 @@ fn retains_nominal_machine_parameter_trait_application() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "walk" => {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "walk" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -814,7 +816,7 @@ fn retains_nominal_machine_parameter_trait_application() {
         .items
         .type_parameters(machine.type_parameters)
         .iter()
-        .find(|parameter| parameter.name.as_str() == "Step")
+        .find(|parameter| parameter.name.as_str(&parsed) == "Step")
         .expect("machine parameter");
     let syntax_trees::item::TypeParameterKind::Machine {
         contract:
@@ -831,7 +833,7 @@ fn retains_nominal_machine_parameter_trait_application() {
             .items
             .identifier_path_members(*requirement)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         vec!["Visitor", "visit"]
     );
@@ -919,7 +921,7 @@ fn parses_higher_order_machine_parameter_contract() {
     };
     let nested = parsed.items.type_parameters(schema.type_parameters);
     assert_eq!(nested.len(), 1);
-    assert_eq!(nested[0].name.as_str(), "Inner");
+    assert_eq!(nested[0].name.as_str(&parsed), "Inner");
     let syntax_trees::item::TypeParameterKind::Machine {
         contract: Some(syntax_trees::item::MachineParameterContract::Structural(inner)),
     } = &nested[0].kind
@@ -999,7 +1001,7 @@ fn parses_proof_quotient_data_declaration() {
     let quotient = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) if data.name.as_str() == "Quotient" => {
+            syntax_trees::item::Item::Data(data) if data.name.as_str(&parsed) == "Quotient" => {
                 data.quotient.as_ref()
             }
             _ => None,
@@ -1007,14 +1009,14 @@ fn parses_proof_quotient_data_declaration() {
         .expect("Quotient metadata");
     assert!(matches!(
         parsed.type_references.type_reference(quotient.carrier),
-        TypeReferenceNode::Named(name) if name.as_str() == "Carrier"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Carrier"
     ));
     assert_eq!(
         parsed
             .items
             .identifier_path_members(quotient.relation)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         vec!["Laws", "equivalent"]
     );
@@ -1052,7 +1054,7 @@ fn parses_static_machine_symbol_call_argument() {
         call.machine_arguments[0]
             .path
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         vec!["Card", "power"]
     );
@@ -1072,7 +1074,7 @@ fn static_call_lookahead_keeps_delimiters_inside_argument_groups() {
         .expressions
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "select" => Some(call),
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "select" => Some(call),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1100,7 +1102,7 @@ fn parses_nested_static_conformance_application() {
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
             syntax_trees::expression::ExpressionNode::Call(call)
-                if call.target.as_str() == "send" =>
+                if call.target.as_str(&parsed) == "send" =>
             {
                 Some(call)
             }
@@ -1112,15 +1114,15 @@ fn parses_nested_static_conformance_application() {
         .as_ref()
         .expect("nested conformance application");
     assert_eq!(
-        call.machine_arguments[1].path[0].as_str(),
+        call.machine_arguments[1].path[0].as_str(&parsed),
         "SequenceEncoding"
     );
-    assert_eq!(application.lifetime_arguments[0].as_str(), "scope");
+    assert_eq!(application.lifetime_arguments[0].as_str(&parsed), "scope");
     assert_eq!(application.arguments.len(), 2);
-    assert_eq!(application.arguments[0].path[0].as_str(), "Bytes");
-    assert_eq!(application.arguments[1].path[0].as_str(), "Message");
+    assert_eq!(application.arguments[0].path[0].as_str(&parsed), "Bytes");
+    assert_eq!(application.arguments[1].path[0].as_str(&parsed), "Message");
     assert_eq!(
-        call.display_name(&parsed.expressions),
+        call.display_name(&parsed),
         "send<Message, SequenceEncoding<'scope, Bytes, Message>>()"
     );
 }
@@ -1142,7 +1144,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
             syntax_trees::expression::ExpressionNode::Call(call)
-                if call.target.as_str() == "consume" =>
+                if call.target.as_str(&parsed) == "consume" =>
             {
                 Some(call)
             }
@@ -1158,12 +1160,9 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
         .evidence_projection
         .as_ref()
         .expect("term.member projection");
-    assert_eq!(projection.term.as_str(), "proof");
-    assert_eq!(projection.member.as_str(), "modulus");
-    assert_eq!(
-        call.display_name(&parsed.expressions),
-        "consume<proof.modulus>()"
-    );
+    assert_eq!(projection.term.as_str(&parsed), "proof");
+    assert_eq!(projection.member.as_str(&parsed), "modulus");
+    assert_eq!(call.display_name(&parsed), "consume<proof.modulus>()");
 }
 
 #[test]
@@ -1183,7 +1182,7 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
         .iter()
         .find_map(|handle| match parsed.statements.statement(*handle) {
             StatementNode::LocalData(local)
-                if local.name.as_str().starts_with("__destructure#") =>
+                if local.name.as_str(&parsed).starts_with("__destructure#") =>
             {
                 Some(local)
             }
@@ -1192,7 +1191,7 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
         .expect("destructure marker local");
 
     assert_eq!(
-        marker.name.as_str(),
+        marker.name.as_str(&parsed),
         "__destructure#left__value#right",
         "the internal delimiter must not split repeated underscores"
     );
@@ -1214,7 +1213,9 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "consume" => {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "consume" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -1231,10 +1232,10 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
         })
         .expect("one internal proof-output binding carrier");
     assert_eq!(package.bindings.len(), 2);
-    assert_eq!(package.bindings[0].output_field.as_str(), "value");
-    assert_eq!(package.bindings[0].binding.as_str(), "value");
-    assert_eq!(package.bindings[1].output_field.as_str(), "proof");
-    assert_eq!(package.bindings[1].binding.as_str(), "local_proof");
+    assert_eq!(package.bindings[0].output_field.as_str(&parsed), "value");
+    assert_eq!(package.bindings[0].binding.as_str(&parsed), "value");
+    assert_eq!(package.bindings[1].output_field.as_str(&parsed), "proof");
+    assert_eq!(package.bindings[1].binding.as_str(&parsed), "local_proof");
 }
 
 #[test]
@@ -1287,12 +1288,12 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
         panic!("an `&` chain lowers to one membership fact per domain, got {facts:?}");
     };
     assert_eq!(
-        parsed.items.identifier_path_members(granted.domain)[0].as_str(),
+        parsed.items.identifier_path_members(granted.domain)[0].as_str(&parsed),
         "Granted"
     );
     assert!(granted.domain_arguments.is_empty());
     assert_eq!(
-        parsed.items.identifier_path_members(resident.domain)[0].as_str(),
+        parsed.items.identifier_path_members(resident.domain)[0].as_str(&parsed),
         "Resident"
     );
     let arguments = parsed
@@ -1301,7 +1302,7 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
         .iter()
         .map(
             |argument| match parsed.type_references.type_reference(*argument) {
-                TypeReferenceNode::Named(name) => name.as_str().to_owned(),
+                TypeReferenceNode::Named(name) => name.as_str(&parsed).to_owned(),
                 other => panic!("index argument should be a named leaf, got {other:?}"),
             },
         )

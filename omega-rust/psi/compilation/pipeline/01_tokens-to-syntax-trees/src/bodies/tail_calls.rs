@@ -35,7 +35,7 @@ pub(crate) fn rewrite_terminal_tail_calls(
         let ExpressionNode::Call(call) = syntax_trees.expressions.expression(*expression) else {
             continue;
         };
-        if call.target.as_str() != entry_callable.as_str() {
+        if call.target.as_str(syntax_trees) != entry_callable.as_str(syntax_trees) {
             continue;
         }
         if call.receiver.is_valid() {

@@ -46,6 +46,7 @@ pub(crate) fn validate_normalized_expression(
 /// Check the rewritten payload against its captured canonical value before
 /// binding the selected declaration to a final symbol.
 pub(crate) fn validate_normalized_const_argument(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     argument: &syntax_trees::types::TypeReferenceNode,
     normalization: &syntax_trees::types::ConstArgumentNormalization,
 ) -> Result<(), Diagnostic> {
@@ -55,9 +56,9 @@ pub(crate) fn validate_normalized_const_argument(
         (
             syntax_trees::types::TypeReferenceNode::Named(name),
             Some(DecodedCanonicalConstValue::Integer { value, .. }),
-        ) => name.as_str() == value.to_string(),
+        ) => name.as_str(syntax_trees) == value.to_string(),
         (syntax_trees::types::TypeReferenceNode::Named(name), Some(decoded)) => {
-            CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
+            CanonicalConstValue::from_atom(name.as_str(syntax_trees)).is_some_and(|value| {
                 let carrier = match &decoded {
                     DecodedCanonicalConstValue::Float { .. } => return false,
                     DecodedCanonicalConstValue::Boolean(_) => "bool",

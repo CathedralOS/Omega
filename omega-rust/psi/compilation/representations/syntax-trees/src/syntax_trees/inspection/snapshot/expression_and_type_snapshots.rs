@@ -242,7 +242,9 @@ pub(crate) fn snapshot_type_reference_handle(
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
             access: access.name(),
-            lifetime: lifetime.as_ref().map(snapshot_identifier),
+            lifetime: lifetime
+                .as_ref()
+                .map(|value| snapshot_identifier(syntax_trees, value)),
         },
         TypeReferenceNode::Constrained {
             base_type,
@@ -271,8 +273,11 @@ pub(crate) fn snapshot_type_reference_handle(
             lifetime_arguments,
             arguments,
         } => TypeReferenceSnapshot::Generic {
-            base_name: snapshot_identifier(base_name),
-            lifetime_arguments: lifetime_arguments.iter().map(snapshot_identifier).collect(),
+            base_name: snapshot_identifier(syntax_trees, base_name),
+            lifetime_arguments: lifetime_arguments
+                .iter()
+                .map(|value| snapshot_identifier(syntax_trees, value))
+                .collect(),
             arguments: syntax_trees
                 .type_references
                 .type_reference_handles(*arguments)
@@ -287,7 +292,7 @@ pub(crate) fn snapshot_type_reference_handle(
             trait_name,
             trait_arguments,
         } => TypeReferenceSnapshot::DynamicTrait {
-            trait_name: snapshot_identifier(trait_name),
+            trait_name: snapshot_identifier(syntax_trees, trait_name),
             trait_arguments: syntax_trees
                 .type_references
                 .type_reference_handles(*trait_arguments)
@@ -296,7 +301,7 @@ pub(crate) fn snapshot_type_reference_handle(
                 .collect(),
         },
         TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
-            name: snapshot_identifier(name),
+            name: snapshot_identifier(syntax_trees, name),
         },
         TypeReferenceNode::Unit => TypeReferenceSnapshot::Unit,
     }
@@ -309,10 +314,10 @@ fn snapshot_fixed_array_length(
     match length {
         FixedArrayLength::Literal(value) => FixedArrayLengthSnapshot::Literal { value: *value },
         FixedArrayLength::ConstParameter(name) => FixedArrayLengthSnapshot::ConstParameter {
-            name: snapshot_identifier(name),
+            name: snapshot_identifier(syntax_trees, name),
         },
         FixedArrayLength::ConstCall(name) => FixedArrayLengthSnapshot::ConstCall {
-            name: snapshot_identifier(name),
+            name: snapshot_identifier(syntax_trees, name),
         },
         FixedArrayLength::Expression(value) => FixedArrayLengthSnapshot::Expression {
             value: Box::new(snapshot_type_reference_handle(syntax_trees, *value)),
@@ -326,10 +331,10 @@ fn snapshot_type_constraint(
 ) -> TypeConstraintSnapshot {
     match constraint {
         TypeConstraintNode::Named(name) => TypeConstraintSnapshot::Named {
-            name: snapshot_identifier(name),
+            name: snapshot_identifier(syntax_trees, name),
         },
         TypeConstraintNode::Domain(domain) => TypeConstraintSnapshot::Domain {
-            name: snapshot_identifier(&domain.name),
+            name: snapshot_identifier(syntax_trees, &domain.name),
             arguments: syntax_trees
                 .type_references
                 .type_reference_handles(domain.arguments)
@@ -418,6 +423,7 @@ pub(crate) fn snapshot_expression_handle(
                 language_core::cast_form::CastForm::RecastMutable => "recast_mutable",
             },
             semantic_domain: snapshot_identifier_slice(
+                syntax_trees,
                 syntax_trees
                     .expressions
                     .identifier_path_members(cast.semantic_domain),
@@ -446,6 +452,7 @@ pub(crate) fn snapshot_expression_handle(
         ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
             value: Box::new(snapshot_expression_handle(syntax_trees, membership.value)),
             domain: snapshot_identifier_slice(
+                syntax_trees,
                 syntax_trees
                     .expressions
                     .identifier_path_members(membership.domain),
@@ -453,8 +460,11 @@ pub(crate) fn snapshot_expression_handle(
         },
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(snapshot_expression_handle(syntax_trees, member.receiver)),
-            member: snapshot_identifier(&member.member),
-            case_variant: member.case_variant.as_ref().map(snapshot_identifier),
+            member: snapshot_identifier(syntax_trees, &member.member),
+            case_variant: member
+                .case_variant
+                .as_ref()
+                .map(|value| snapshot_identifier(syntax_trees, value)),
         },
         ExpressionNode::Borrow(value) => ExpressionSnapshot::Borrow {
             access: value.access.name(),
@@ -462,6 +472,7 @@ pub(crate) fn snapshot_expression_handle(
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
             path: snapshot_identifier_slice(
+                syntax_trees,
                 syntax_trees.expressions.identifier_path_members(*path),
             ),
         },
@@ -477,7 +488,7 @@ pub(crate) fn snapshot_expression_handle(
             end_inclusive: range.end_inclusive,
         },
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
-            constructor_name: snapshot_identifier(&value.constructor_name),
+            constructor_name: snapshot_identifier(syntax_trees, &value.constructor_name),
             fields: syntax_trees
                 .expressions
                 .struct_fields(value.fields)
@@ -516,7 +527,7 @@ fn snapshot_call_expression(
             .receiver
             .is_valid()
             .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.receiver))),
-        target: snapshot_identifier(&call.target),
+        target: snapshot_identifier(syntax_trees, &call.target),
         machine_arguments: call
             .machine_arguments
             .iter()
@@ -528,7 +539,7 @@ fn snapshot_call_expression(
             .iter()
             .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
             .collect(),
-        evidence_arguments: snapshot_identifier_slice(&call.evidence_arguments),
+        evidence_arguments: snapshot_identifier_slice(syntax_trees, &call.evidence_arguments),
         acknowledgement_synthesized: call.operational_acknowledgement.origin
             == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
         acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -551,13 +562,16 @@ pub(crate) fn snapshot_static_argument(
         StaticArgumentSnapshot::Const(literal.text().to_owned())
     } else if let Some(projection) = &argument.evidence_projection {
         StaticArgumentSnapshot::EvidenceProjection {
-            term: snapshot_identifier(&projection.term),
-            member: snapshot_identifier(&projection.member),
+            term: snapshot_identifier(syntax_trees, &projection.term),
+            member: snapshot_identifier(syntax_trees, &projection.member),
         }
     } else if let Some(application) = &argument.application {
         StaticArgumentSnapshot::Application {
-            path: snapshot_identifier_slice(&argument.path),
-            lifetime_arguments: snapshot_identifier_slice(&application.lifetime_arguments),
+            path: snapshot_identifier_slice(syntax_trees, &argument.path),
+            lifetime_arguments: snapshot_identifier_slice(
+                syntax_trees,
+                &application.lifetime_arguments,
+            ),
             arguments: application
                 .arguments
                 .iter()
@@ -565,7 +579,7 @@ pub(crate) fn snapshot_static_argument(
                 .collect(),
         }
     } else {
-        StaticArgumentSnapshot::Path(snapshot_identifier_slice(&argument.path))
+        StaticArgumentSnapshot::Path(snapshot_identifier_slice(syntax_trees, &argument.path))
     }
 }
 
@@ -574,7 +588,7 @@ fn snapshot_struct_field(
     field: &TableStructLiteralField,
 ) -> StructLiteralFieldSnapshot {
     StructLiteralFieldSnapshot {
-        name: snapshot_identifier(&field.name),
+        name: snapshot_identifier(syntax_trees, &field.name),
         value: snapshot_expression_handle(syntax_trees, field.value),
     }
 }
@@ -602,10 +616,13 @@ fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {
     }
 }
 
-pub(crate) fn snapshot_identifier(identifier: &Identifier) -> IdentifierSnapshot {
+pub(crate) fn snapshot_identifier(
+    syntax_trees: &SyntaxTrees,
+    identifier: &Identifier,
+) -> IdentifierSnapshot {
     let source_span = identifier.source_span();
     IdentifierSnapshot {
-        text: identifier.as_str().to_owned(),
+        text: identifier.as_str(syntax_trees).to_owned(),
         source_id: source_span.source_id.0,
         start: source_span.span.start,
         end: source_span.span.end,
@@ -613,6 +630,11 @@ pub(crate) fn snapshot_identifier(identifier: &Identifier) -> IdentifierSnapshot
     }
 }
 
-pub(crate) fn snapshot_identifier_slice(path: &[Identifier]) -> Vec<IdentifierSnapshot> {
-    path.iter().map(snapshot_identifier).collect()
+pub(crate) fn snapshot_identifier_slice(
+    syntax_trees: &SyntaxTrees,
+    path: &[Identifier],
+) -> Vec<IdentifierSnapshot> {
+    path.iter()
+        .map(|value| snapshot_identifier(syntax_trees, value))
+        .collect()
 }

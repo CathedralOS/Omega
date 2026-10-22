@@ -20,7 +20,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         .root_items()
         .find_map(|item| match item {
             syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str() == "console_write_byte" =>
+                if machine.name.as_str(&parsed) == "console_write_byte" =>
             {
                 Some(machine)
             }
@@ -62,7 +62,9 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "read" => {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "read" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -75,7 +77,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
         clause
             .lifetime_arguments
             .iter()
-            .map(|argument| argument.as_str())
+            .map(|argument| argument.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["view"],
     );
@@ -121,7 +123,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
         .root_items()
         .find_map(|item| match item {
             syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str() == "kernel32_write_file" =>
+                if machine.name.as_str(&parsed) == "kernel32_write_file" =>
             {
                 Some(machine)
             }
@@ -412,7 +414,9 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name == "zero_is_none" => {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "zero_is_none" =>
+            {
                 Some(machine)
             }
             _ => None,
@@ -469,12 +473,12 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
 
     let data = super::root_data(&parsed, "data declaration");
     assert_eq!(data.lifetime_parameters.len(), 1);
-    assert_eq!(data.lifetime_parameters[0].as_str(), "buf");
+    assert_eq!(data.lifetime_parameters[0].as_str(&parsed), "buf");
     assert_eq!(data.type_parameters.count(), 1);
 
     let machine = super::root_machine(&parsed, "machine declaration");
     assert_eq!(machine.lifetime_parameters.len(), 1);
-    assert_eq!(machine.lifetime_parameters[0].as_str(), "call");
+    assert_eq!(machine.lifetime_parameters[0].as_str(&parsed), "call");
     assert!(machine.type_parameters.is_empty());
 }
 
@@ -504,7 +508,7 @@ fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments
     assert_eq!(
         lifetime_arguments
             .iter()
-            .map(|argument| argument.as_str())
+            .map(|argument| argument.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["call"]
     );
@@ -590,14 +594,17 @@ fn parses_generic_standalone_conformance_arguments() {
     assert_eq!(arguments.len(), 2);
     assert!(matches!(
         parsed.type_references.type_reference(arguments[0]),
-        TypeReferenceNode::Named(name) if name.as_str() == "i32"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "i32"
     ));
     assert!(matches!(
         parsed.type_references.type_reference(arguments[1]),
-        TypeReferenceNode::Named(name) if name.as_str() == "bool"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "bool"
     ));
     assert_eq!(
-        conformance.alias.as_ref().map(|alias| alias.as_str()),
+        conformance
+            .alias
+            .as_ref()
+            .map(|alias| alias.as_str(&parsed)),
         Some("ScalarConversion")
     );
 }
@@ -617,17 +624,20 @@ fn parses_name_owned_generic_conformance_telescope() {
     let conformance = super::root_conformance(&parsed, "conformance root item");
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
-    assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
+    assert_eq!(conformance.lifetime_parameters[0].as_str(&parsed), "scope");
     assert_eq!(conformance.trait_lifetime_arguments.len(), 1);
-    assert_eq!(conformance.trait_lifetime_arguments[0].as_str(), "scope");
+    assert_eq!(
+        conformance.trait_lifetime_arguments[0].as_str(&parsed),
+        "scope"
+    );
     let parameters = parsed.items.type_parameters(conformance.type_parameters);
     assert_eq!(parameters.len(), 3);
-    assert_eq!(parameters[0].name.as_str(), "Source");
+    assert_eq!(parameters[0].name.as_str(&parsed), "Source");
     assert!(matches!(
         parameters[0].kind,
         syntax_trees::item::TypeParameterKind::Type
     ));
-    assert_eq!(parameters[1].name.as_str(), "Width");
+    assert_eq!(parameters[1].name.as_str(&parsed), "Width");
     assert!(matches!(
         parameters[1].kind,
         syntax_trees::item::TypeParameterKind::Const { .. }
@@ -638,7 +648,7 @@ fn parses_name_owned_generic_conformance_telescope() {
     else {
         panic!("Convert should retain its authored machine contract");
     };
-    assert_eq!(contract.name.as_str(), "Convert");
+    assert_eq!(contract.name.as_str(&parsed), "Convert");
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
 }
 
@@ -657,7 +667,10 @@ fn parses_named_implementation_block() {
     let parsed = super::parse_source(source, "named implementation should parse");
     let conformance = super::root_conformance(&parsed, "conformance root item");
     assert_eq!(
-        conformance.alias.as_ref().map(|alias| alias.as_str()),
+        conformance
+            .alias
+            .as_ref()
+            .map(|alias| alias.as_str(&parsed)),
         Some("ConcreteEvidence")
     );
     assert_eq!(
@@ -748,7 +761,7 @@ fn parses_closed_conformance_block_members() {
     assert!(matches!(
         inline,
         syntax_trees::item::ConformanceMember::Machine(machine)
-            if machine.name.as_str() == "before"
+            if machine.name.as_str(&parsed) == "before"
     ));
     let syntax_trees::item::ConformanceMember::Reference {
         declaring_trait,
@@ -758,14 +771,14 @@ fn parses_closed_conformance_block_members() {
     else {
         panic!("second row is an explicit machine reference");
     };
-    assert_eq!(declaring_trait.as_str(), "Ranked");
-    assert_eq!(requirement.as_str(), "rank_value");
+    assert_eq!(declaring_trait.as_str(&parsed), "Ranked");
+    assert_eq!(requirement.as_str(&parsed), "rank_value");
     assert_eq!(
         parsed
             .items
             .identifier_path_members(*target)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["Card", "stable_rank_value"]
     );
@@ -829,12 +842,12 @@ fn parses_evidence_binder_in_machine_telescope() {
 
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1, "Order is not a runtime type parameter");
-    assert_eq!(parameters[0].name.as_str(), "Element");
+    assert_eq!(parameters[0].name.as_str(&parsed), "Element");
     let [bound] = machine.conformance_bounds.as_slice() else {
         panic!("one evidence binder");
     };
-    assert_eq!(bound.binder.as_str(), "Order");
-    assert_eq!(bound.trait_name.as_str(), "Ranked");
+    assert_eq!(bound.binder.as_str(&parsed), "Order");
+    assert_eq!(bound.trait_name.as_str(&parsed), "Ranked");
     assert_eq!(bound.arguments.len(), 1);
 }
 
@@ -877,14 +890,14 @@ fn parses_dynamic_selector_trait_application() {
     else {
         panic!("parameter should be a dynamic selector");
     };
-    assert_eq!(trait_name.as_str(), "Ranked");
+    assert_eq!(trait_name.as_str(&parsed), "Ranked");
     let arguments = parsed
         .type_references
         .type_reference_handles(*trait_arguments);
     assert_eq!(arguments.len(), 1);
     assert!(matches!(
         parsed.type_references.type_reference(arguments[0]),
-        TypeReferenceNode::Named(name) if name.as_str() == "Card"
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Card"
     ));
 }
 
@@ -948,7 +961,7 @@ fn parses_trait_header_evidence_binder() {
         .root_items()
         .find_map(|item| match item {
             syntax_trees::item::Item::Trait(trait_definition)
-                if trait_definition.name.as_str() == "Calling" =>
+                if trait_definition.name.as_str(&parsed) == "Calling" =>
             {
                 Some(trait_definition)
             }
@@ -958,8 +971,8 @@ fn parses_trait_header_evidence_binder() {
     let [bound] = trait_definition.conformance_bounds.as_slice() else {
         panic!("one evidence binder");
     };
-    assert_eq!(bound.binder.as_str(), "Policy");
-    assert_eq!(bound.trait_name.as_str(), "CallingPolicy");
+    assert_eq!(bound.binder.as_str(&parsed), "Policy");
+    assert_eq!(bound.trait_name.as_str(&parsed), "CallingPolicy");
 }
 
 #[test]
@@ -974,7 +987,7 @@ fn parses_attached_main_state_name_as_main() {
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
     let state = super::entry_state(&parsed, machine);
-    assert_eq!(state.name.as_str(), "main");
+    assert_eq!(state.name.as_str(&parsed), "main");
 }
 
 #[test]

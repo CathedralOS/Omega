@@ -7,7 +7,7 @@ use crate::identifier::Identifier;
 use crate::statement::StatementHandle;
 use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct AssemblyControlFlow {
     /// Catalog-generated arithmetic and ZF operations: their selected meaning
     /// must remain builtin, independently of authored token overloads.
@@ -18,7 +18,7 @@ pub struct AssemblyControlFlow {
     pub blocks: HandleSpan<AssemblyBlock>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct AssemblyBlock {
     pub label: Identifier,
     pub requires: HandleSpan<ExpressionHandle>,
@@ -27,7 +27,7 @@ pub struct AssemblyBlock {
     pub exit: AssemblyExit,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub enum AssemblyExit {
     #[default]
     Fallthrough,
@@ -38,7 +38,7 @@ pub enum AssemblyExit {
     EnclosingTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub(crate) struct AssemblyTable {
     graphs: Arena<AssemblyControlFlow>,
     blocks: Arena<AssemblyBlock>,

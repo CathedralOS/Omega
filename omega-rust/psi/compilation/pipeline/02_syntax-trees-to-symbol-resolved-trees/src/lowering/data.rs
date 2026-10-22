@@ -131,7 +131,7 @@ fn lower_data_definition_with_argument_origins(
         let field = DataMember::Field(DataField {
             identity: None,
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(&parameter.name),
+            name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
             relevance: language_core::BindingRelevance::default(),
             type_reference: lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?,
         });
@@ -185,7 +185,7 @@ fn lower_data_definition_with_argument_origins(
                     .items
                     .identifier_path_members(quotient.relation)
                     .iter()
-                    .map(crate::lowering::name::lower_name)
+                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                     .collect(),
                 relation_symbol: SymbolHandle::invalid(),
                 equivalence: quotient
@@ -198,10 +198,13 @@ fn lower_data_definition_with_argument_origins(
                                     .items
                                     .identifier_path_members(selection.relation)
                                     .iter()
-                                    .map(crate::lowering::name::lower_name)
+                                    .map(|name| {
+                                        crate::lowering::name::lower_name(syntax_trees, name)
+                                    })
                                     .collect(),
                                 relation_symbol: SymbolHandle::invalid(),
                                 trait_name: crate::lowering::name::lower_name(
+                                    syntax_trees,
                                     &selection.trait_name,
                                 ),
                                 trait_symbol: SymbolHandle::invalid(),
@@ -211,6 +214,7 @@ fn lower_data_definition_with_argument_origins(
                                     selection.trait_arguments,
                                 )?,
                                 conformance_name: crate::lowering::name::lower_name(
+                                    syntax_trees,
                                     &selection.conformance_name,
                                 ),
                                 conformance_symbol: SymbolHandle::invalid(),
@@ -245,14 +249,14 @@ fn lower_data_definition_with_argument_origins(
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(&data_definition.name),
+        name: crate::lowering::name::lower_name(syntax_trees, &data_definition.name),
         is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
             supply_mode: data_definition.supply_mode,
             lifetime_parameters: data_definition
                 .lifetime_parameters
                 .iter()
-                .map(crate::lowering::name::lower_name)
+                .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                 .collect(),
             type_parameters,
             generic_instance: data_definition
@@ -317,7 +321,7 @@ pub(crate) fn lower_type_parameters(
                 let contract = contract.as_ref().ok_or_else(|| {
                     Diagnostic::error(format!(
                         "machine parameter `{}` reached symbol resolution without its mandatory `where machine` contract",
-                        parameter.name.as_str()
+                        parameter.name.as_str(syntax_trees)
                     ))
                 })?;
                 match contract {
@@ -369,7 +373,7 @@ where_facts: contract.where_facts })?;
                                     .items
                                     .identifier_path_members(*requirement)
                                     .iter()
-                                    .map(crate::lowering::name::lower_name)
+                                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                                     .collect(),
                                 trait_arguments: crate::lowering::type_reference::lower_child_type_references(
                                     lowerer,
@@ -386,13 +390,13 @@ where_facts: contract.where_facts })?;
                 let contract = contract.as_ref().ok_or_else(|| {
                     Diagnostic::error(format!(
                         "proposition parameter `{}` reached symbol resolution without its mandatory authored signature",
-                        parameter.name.as_str()
+                        parameter.name.as_str(syntax_trees)
                     ))
                 })?;
                 (
                     TypeParameterKind::Proposition {
                         contract: symbol_resolved_trees::data::PropositionParameterSignature {
-                            name: crate::lowering::name::lower_name(&contract.name),
+                            name: crate::lowering::name::lower_name(syntax_trees, &contract.name),
                             parameters: crate::lowering::state::lower_state_parameters(
                                 lowerer,
                                 syntax_trees,
@@ -407,7 +411,7 @@ where_facts: contract.where_facts })?;
         lowered.push((
             TypeParameter {
                 symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(&parameter.name),
+                name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
                 kind,
                 bounds: DataProperties {
                     carry: parameter.bounds.carry,
@@ -467,7 +471,7 @@ fn lower_data_member(
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             identity: field.identity,
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(&field.name),
+            name: crate::lowering::name::lower_name(syntax_trees, &field.name),
             relevance: field.relevance,
             type_reference: lower_type_reference_handle(
                 lowerer,
@@ -481,7 +485,7 @@ fn lower_data_member(
                 let lowered = DataField {
                     identity: field.identity,
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(&field.name),
+                    name: crate::lowering::name::lower_name(syntax_trees, &field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_handle(
                         lowerer,
@@ -529,7 +533,7 @@ fn lower_data_member(
             Ok(DataMember::Variant(DataVariant {
                 identity: variant.identity,
                 symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(&variant.name),
+                name: crate::lowering::name::lower_name(syntax_trees, &variant.name),
                 payload,
                 where_facts,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
@@ -572,7 +576,7 @@ impl GenericCaseFactGate {
     ) -> Self {
         let mut gate = Self::default();
         for parameter in syntax_trees.items.type_parameters(parameters) {
-            let name = parameter.name.as_str().to_owned();
+            let name = parameter.name.as_str(syntax_trees).to_owned();
             match parameter.kind {
                 syntax::item::TypeParameterKind::Const { .. } => {
                     gate.consts.insert(name);
@@ -645,7 +649,7 @@ fn generic_case_facts_unsupported(
                         .items
                         .identifier_path_members(membership.domain)
                         .iter()
-                        .any(|member| gate.mentions(member.as_str()))
+                        .any(|member| gate.mentions(member.as_str(syntax_trees)))
                     || syntax_trees
                         .type_references
                         .type_reference_handles(membership.domain_arguments)
@@ -667,7 +671,8 @@ fn membership_argument_mentions(
 ) -> bool {
     match syntax_trees.type_references.type_reference(argument) {
         syntax::types::TypeReferenceNode::Named(name) => {
-            gate.unsubstituted.contains(name.as_str()) && !gate.types.contains(name.as_str())
+            gate.unsubstituted.contains(name.as_str(syntax_trees))
+                && !gate.types.contains(name.as_str(syntax_trees))
         }
         syntax::types::TypeReferenceNode::ConstExpression(expression) => {
             case_fact_expression_mentions(syntax_trees, *expression, gate, true)
@@ -724,9 +729,9 @@ fn case_fact_type_equality(
         let [member] = members else {
             return None;
         };
-        if gate.types.contains(member.as_str()) {
+        if gate.types.contains(member.as_str(syntax_trees)) {
             Some(true)
-        } else if !gate.mentions(member.as_str()) {
+        } else if !gate.mentions(member.as_str(syntax_trees)) {
             Some(false)
         } else {
             None
@@ -750,7 +755,9 @@ fn case_fact_expression_mentions(
             .expressions
             .identifier_path_members(*path)
             .iter()
-            .any(|member| gate.expression_mentions(member.as_str(), const_mentions_allowed)),
+            .any(|member| {
+                gate.expression_mentions(member.as_str(syntax_trees), const_mentions_allowed)
+            }),
         ExpressionNode::Binary(binary) => {
             case_fact_expression_mentions(syntax_trees, binary.left, gate, const_mentions_allowed)
                 || case_fact_expression_mentions(
@@ -807,7 +814,7 @@ fn case_fact_expression_mentions(
                     .expressions
                     .identifier_path_members(membership.domain)
                     .iter()
-                    .any(|member| gate.mentions(member.as_str()))
+                    .any(|member| gate.mentions(member.as_str(syntax_trees)))
         }
         ExpressionNode::Cast(cast) => {
             case_fact_expression_mentions(syntax_trees, cast.value, gate, const_mentions_allowed)
@@ -816,7 +823,7 @@ fn case_fact_expression_mentions(
                     .expressions
                     .identifier_path_members(cast.semantic_domain)
                     .iter()
-                    .any(|member| gate.mentions(member.as_str()))
+                    .any(|member| gate.mentions(member.as_str(syntax_trees)))
                 || syntax_trees
                     .type_references
                     .type_reference_handles(cast.semantic_domain_arguments)
@@ -833,7 +840,7 @@ fn case_fact_expression_mentions(
             // rejecting all calls, including total mathematical embeddings.
             // Declaration/static paths are not expression-name rewrite sites.
             call.target
-                .as_str()
+                .as_str(syntax_trees)
                 .split("::")
                 .any(|name| gate.mentions(name))
                 || (call.receiver.is_valid()
@@ -861,7 +868,7 @@ fn case_fact_expression_mentions(
                 || call
                     .evidence_arguments
                     .iter()
-                    .any(|name| gate.mentions(name.as_str()))
+                    .any(|name| gate.mentions(name.as_str(syntax_trees)))
         }
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
@@ -887,12 +894,13 @@ fn case_fact_static_argument_mentions(
         || argument
             .path
             .iter()
-            .any(|name| gate.mentions(name.as_str()))
+            .any(|name| gate.mentions(name.as_str(syntax_trees)))
         || argument
             .evidence_projection
             .as_ref()
             .is_some_and(|projection| {
-                gate.mentions(projection.term.as_str()) || gate.mentions(projection.member.as_str())
+                gate.mentions(projection.term.as_str(syntax_trees))
+                    || gate.mentions(projection.member.as_str(syntax_trees))
             })
         || argument.application.as_ref().is_some_and(|application| {
             application
@@ -913,7 +921,7 @@ fn case_fact_type_mentions(
 ) -> bool {
     use syntax::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
     match syntax_trees.type_references.type_reference(reference) {
-        TypeReferenceNode::Named(name) => gate.mentions(name.as_str()),
+        TypeReferenceNode::Named(name) => gate.mentions(name.as_str(syntax_trees)),
         TypeReferenceNode::Reference { referee, .. } => {
             case_fact_type_mentions(syntax_trees, *referee, gate)
         }
@@ -931,7 +939,7 @@ fn case_fact_type_mentions(
                         case_fact_type_mentions(syntax_trees, *value, gate)
                     }
                     FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
-                        gate.mentions(name.as_str())
+                        gate.mentions(name.as_str(syntax_trees))
                     }
                 }
         }
@@ -940,7 +948,7 @@ fn case_fact_type_mentions(
             arguments,
             ..
         } => {
-            gate.mentions(base_name.as_str())
+            gate.mentions(base_name.as_str(syntax_trees))
                 || syntax_trees
                     .type_references
                     .type_reference_handles(*arguments)
@@ -957,7 +965,7 @@ fn case_fact_type_mentions(
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Named(name) => gate.mentions(name.as_str()),
+                        TypeConstraintNode::Named(name) => gate.mentions(name.as_str(syntax_trees)),
                         TypeConstraintNode::Range {
                             minimum, maximum, ..
                         } => {
@@ -966,7 +974,7 @@ fn case_fact_type_mentions(
                         }
                         TypeConstraintNode::ArithmeticDomain(_) => false,
                         TypeConstraintNode::Domain(domain) => {
-                            gate.mentions(domain.name.as_str())
+                            gate.mentions(domain.name.as_str(syntax_trees))
                                 || syntax_trees
                                     .type_references
                                     .type_reference_handles(domain.arguments)
@@ -984,7 +992,7 @@ fn case_fact_type_mentions(
             trait_name,
             trait_arguments,
         } => {
-            gate.mentions(trait_name.as_str())
+            gate.mentions(trait_name.as_str(syntax_trees))
                 || syntax_trees
                     .type_references
                     .type_reference_handles(*trait_arguments)

@@ -68,7 +68,7 @@ pub enum Expression {
     Name(NamePath),
     Range(Box<RangeExpression>),
     StructLiteral(StructLiteral),
-    String(Arc<[u8]>),
+    String(source::SourceBytes),
     Unary(Box<UnaryExpression>),
     ZeroValue(crate::types::TypeReferenceHandle),
 }
@@ -959,7 +959,7 @@ impl ExpressionTable {
     }
 
     /// The typed `String` node, or `None` for every other kind.
-    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&Arc<[u8]>> {
+    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&source::SourceBytes> {
         match self.expression(handle) {
             ExpressionNode::String(node) => Some(node),
             _ => None,
@@ -1371,7 +1371,7 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     /// Exact decoded literal octets. Text interpretation, when required by a
     /// particular language construct, is an explicit checked operation.
-    String(Arc<[u8]>),
+    String(source::SourceBytes),
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(crate::types::TypeReferenceHandle),

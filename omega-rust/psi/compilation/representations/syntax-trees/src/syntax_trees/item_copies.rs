@@ -26,7 +26,8 @@ pub(super) struct SyntaxCopy<'destination> {
 }
 
 impl<'destination> SyntaxCopy<'destination> {
-    fn new(destination: &'destination mut SyntaxTrees) -> Self {
+    fn new(destination: &'destination mut SyntaxTrees, other: &SyntaxTrees) -> Self {
+        destination.text.retain_from(&other.text);
         Self {
             destination,
             expression_copies: Vec::new(),
@@ -54,7 +55,7 @@ impl SyntaxTrees {
     /// the tree being extended). Returns the copied item; the caller pushes
     /// it as a root item after any post-copy rewrites.
     pub fn copy_item_from(&mut self, other: &SyntaxTrees, item: &Item) -> Item {
-        SyntaxCopy::new(self).copy_item(other, item)
+        SyntaxCopy::new(self, other).copy_item(other, item)
     }
 
     /// Deep-copy one expression from a snapshot of this tree. Generic-instance
@@ -67,7 +68,7 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         handle: crate::expression::ExpressionHandle,
     ) -> crate::expression::ExpressionHandle {
-        SyntaxCopy::new(self).copy_expression_handle(other, handle)
+        SyntaxCopy::new(self, other).copy_expression_handle(other, handle)
     }
 
     /// Copy a proof fact and its expression graph in one independent transaction.
@@ -76,7 +77,7 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         source: Handle<ProofFact>,
     ) -> Handle<ProofFact> {
-        SyntaxCopy::new(self).copy_proof_fact(other, source)
+        SyntaxCopy::new(self, other).copy_proof_fact(other, source)
     }
 
     /// Copy a signature and default body without splitting shared occurrences.
@@ -85,7 +86,7 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         signature: &crate::item::StateSignatureNode,
     ) -> crate::item::StateSignatureNode {
-        SyntaxCopy::new(self).copy_state_signature_node_from(other, signature)
+        SyntaxCopy::new(self, other).copy_state_signature_node_from(other, signature)
     }
 
     /// Copy an application and all nested arguments in one independent transaction.
@@ -94,7 +95,7 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         argument: &crate::expression::StaticMachineArgument,
     ) -> crate::expression::StaticMachineArgument {
-        SyntaxCopy::new(self).copy_static_machine_argument(other, argument)
+        SyntaxCopy::new(self, other).copy_static_machine_argument(other, argument)
     }
 
     /// Transfer owned argument buffers and remap only their arena-backed
@@ -106,7 +107,7 @@ impl SyntaxTrees {
         mut arguments: Box<[crate::expression::StaticMachineArgument]>,
     ) -> Box<[crate::expression::StaticMachineArgument]> {
         for argument in arguments.iter_mut() {
-            SyntaxCopy::new(self).remap_static_machine_argument(other, argument);
+            SyntaxCopy::new(self, other).remap_static_machine_argument(other, argument);
         }
         arguments
     }
@@ -116,7 +117,7 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         definition: &MathematicalDefinition,
     ) -> MathematicalDefinition {
-        SyntaxCopy::new(self).copy_mathematical_definition(other, definition)
+        SyntaxCopy::new(self, other).copy_mathematical_definition(other, definition)
     }
 
     /// Copy an operand from a retained snapshot of this syntax lineage.
@@ -126,7 +127,7 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         handle: crate::types::TypeReferenceHandle,
     ) -> crate::types::TypeReferenceHandle {
-        SyntaxCopy::new(self).copy_type_reference_handle(other, handle)
+        SyntaxCopy::new(self, other).copy_type_reference_handle(other, handle)
     }
 }
 

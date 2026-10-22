@@ -59,7 +59,7 @@ fn lower_mathematical_definition(
         let parameter = syntax.items.mathematical_parameter(*handle);
         parameters.push(MathematicalParameter {
             symbol: SymbolHandle::invalid(),
-            name: lower_name(&parameter.name),
+            name: lower_name(syntax, &parameter.name),
             relevance: parameter.relevance,
             ty: lower_mathematical_type(lowerer, syntax, parameter.ty)?,
         });
@@ -82,7 +82,7 @@ fn lower_mathematical_definition(
 
     Ok(MathematicalDefinition {
         symbol: SymbolHandle::invalid(),
-        name: lower_name(&definition.name),
+        name: lower_name(syntax, &definition.name),
         is_public: definition.is_public,
         binders,
         parameters,
@@ -108,7 +108,7 @@ fn lower_mathematical_type(
             domain,
             codomain,
         } => MathematicalType::Arrow {
-            binder: binder.as_ref().map(lower_name),
+            binder: binder.as_ref().map(|value| lower_name(syntax, value)),
             domain: lower_mathematical_type(lowerer, syntax, *domain)?,
             codomain: lower_mathematical_type(lowerer, syntax, *codomain)?,
         },

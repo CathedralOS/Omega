@@ -110,7 +110,7 @@ pub(crate) fn generated_wire_codec_source(
             continue;
         }
         if let Some(fields) = collect_plain_fields(syntax_trees, data) {
-            data_fields.insert(data.name.as_str().to_string(), fields);
+            data_fields.insert(data.name.as_str(syntax_trees).to_string(), fields);
         }
     }
     let mut schemas: Vec<(String, Vec<WireMemberShape>)> = Vec::new();
@@ -123,7 +123,7 @@ pub(crate) fn generated_wire_codec_source(
             continue;
         }
         if let Some(members) = wire_schema_members(syntax_trees, &data_fields, data) {
-            schemas.push((data.name.as_str().to_string(), members));
+            schemas.push((data.name.as_str(syntax_trees).to_string(), members));
         }
     }
     if schemas.is_empty() {

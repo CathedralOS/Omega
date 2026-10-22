@@ -31,8 +31,8 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
         if !rest.at_punctuation(PunctuationKind::ColonColon) {
             return Err(rest.error_here(format!(
                 "bare `satisfies {}` on a machine is retired; bind one exact requirement as `satisfies {}::requirement`",
-                trait_name.as_str(),
-                trait_name.as_str(),
+                trait_name.as_str(syntax_trees),
+                trait_name.as_str(syntax_trees),
             )));
         }
         let next = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
@@ -58,7 +58,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             let next = rest.take_contextual("via")?;
             let is_bootstrap_binding = next
                 .take_identifier()
-                .is_ok_and(|(root, _)| root.as_str() == "ForeignBinding");
+                .is_ok_and(|(root, _)| root.as_str(syntax_trees) == "ForeignBinding");
             if is_bootstrap_binding {
                 let (binding, next) =
                     super::external_binding::parse_external_provider_binding(next)?;
@@ -160,12 +160,8 @@ pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
                 members.push(member);
                 rest = next;
             }
-            return Ok((
-                syntax_trees
-                    .type_references
-                    .insert_named(crate::input::paths::join_path_identifier(&members)),
-                rest,
-            ));
+            let name = crate::input::paths::join_path_identifier(syntax_trees, &members);
+            return Ok((syntax_trees.type_references.insert_named(name), rest));
         }
     }
     parse_type_reference_handle(syntax_trees, input)

@@ -53,17 +53,17 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
         let (signature_map, name) = if let Some(attached) = machine.attached_data.as_ref() {
             let method = machine
                 .name
-                .as_str()
+                .as_str(syntax)
                 .rsplit("::")
                 .next()
-                .unwrap_or(machine.name.as_str())
+                .unwrap_or(machine.name.as_str(syntax))
                 .to_owned();
             (
                 &mut attached_signatures,
-                (attached.as_str().to_owned(), method),
+                (attached.as_str(syntax).to_owned(), method),
             )
         } else {
-            let name = machine.name.as_str().to_owned();
+            let name = machine.name.as_str(syntax).to_owned();
             if let Some(signature) = signatures.get_mut(&name) {
                 let agrees = signature.as_ref().is_some_and(|prior| {
                     call_context_parameter_types_agree(syntax, prior, &parameters)
@@ -97,14 +97,14 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
             let parameter = syntax.tables.items.state_parameter(*parameter);
             if let Some(type_name) = named_type_name(syntax, parameter.type_reference) {
-                local_owner_types.insert(parameter.name.as_str().to_owned(), type_name);
+                local_owner_types.insert(parameter.name.as_str(syntax).to_owned(), type_name);
             }
         }
         for statement in &statements {
             if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
                 && let Some(type_name) = named_type_name(syntax, local.type_reference)
             {
-                local_owner_types.insert(local.name.as_str().to_owned(), type_name);
+                local_owner_types.insert(local.name.as_str(syntax).to_owned(), type_name);
             }
         }
         for (index, statement) in statements.iter().enumerate() {
@@ -131,9 +131,9 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                 .collect::<Vec<_>>();
             for (target, arguments, owner) in calls {
                 let parameters = if let Some(owner) = owner {
-                    attached_signatures.get(&(owner, target.as_str().to_owned()))
+                    attached_signatures.get(&(owner, target.as_str(syntax).to_owned()))
                 } else {
-                    signatures.get(target.as_str())
+                    signatures.get(target.as_str(syntax))
                 };
                 let Some(Some(parameters)) = parameters else {
                     continue;
@@ -167,12 +167,12 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                     let owner =
                         exact_statement_receiver_owner(syntax, call.receiver, &local_owner_types);
                     let parameters = if call.receiver.is_empty() {
-                        signatures.get(call.target.as_str())
+                        signatures.get(call.target.as_str(syntax))
                     } else {
                         let Some(owner) = owner else {
                             continue;
                         };
-                        attached_signatures.get(&(owner, call.target.as_str().to_owned()))
+                        attached_signatures.get(&(owner, call.target.as_str(syntax).to_owned()))
                     };
                     let Some(Some(parameters)) = parameters else {
                         continue;
@@ -222,7 +222,7 @@ pub(in crate::preparation::generic_data) fn exact_statement_receiver_owner(
 ) -> Option<String> {
     let members = syntax.tables.statements.identifier_path_members(receiver);
     match members {
-        [local] => local_owner_types.get(local.as_str()).cloned(),
+        [local] => local_owner_types.get(local.as_str(syntax)).cloned(),
         _ => None,
     }
 }
@@ -237,7 +237,7 @@ pub(in crate::preparation::generic_data) fn exact_expression_receiver_owner(
             let [local] = syntax.expressions.identifier_path_members(*path) else {
                 return None;
             };
-            local_owner_types.get(local.as_str()).cloned()
+            local_owner_types.get(local.as_str(syntax)).cloned()
         }
         _ => None,
     }
@@ -269,7 +269,9 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
         syntax.tables.type_references.type_reference(left),
         syntax.tables.type_references.type_reference(right),
     ) {
-        (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => left == right,
+        (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => {
+            left.as_str(syntax) == right.as_str(syntax)
+        }
         (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
         (
             TypeReferenceNode::Reference {
@@ -284,7 +286,8 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
             },
         ) => {
             left_access == right_access
-                && left_lifetime == right_lifetime
+                && left_lifetime.as_ref().map(|name| name.as_str(syntax))
+                    == right_lifetime.as_ref().map(|name| name.as_str(syntax))
                 && call_context_types_agree(syntax, *left, *right)
         }
         (
@@ -302,7 +305,10 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
                 element_type: right,
                 length: right_length,
             },
-        ) => left_length == right_length && call_context_types_agree(syntax, *left, *right),
+        ) => {
+            left_length.same_value(right_length, syntax)
+                && call_context_types_agree(syntax, *left, *right)
+        }
         (
             TypeReferenceNode::Generic {
                 base_name: left_base,
@@ -315,8 +321,11 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
                 arguments: right_arguments,
             },
         ) => {
-            left_base == right_base
-                && left_lifetimes == right_lifetimes
+            left_base.as_str(syntax) == right_base.as_str(syntax)
+                && left_lifetimes
+                    .iter()
+                    .map(|name| name.as_str(syntax))
+                    .eq(right_lifetimes.iter().map(|name| name.as_str(syntax)))
                 && call_context_parameter_types_agree(
                     syntax,
                     syntax
@@ -339,7 +348,7 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
                 trait_arguments: right_arguments,
             },
         ) => {
-            left_name == right_name
+            left_name.as_str(syntax) == right_name.as_str(syntax)
                 && call_context_parameter_types_agree(
                     syntax,
                     syntax

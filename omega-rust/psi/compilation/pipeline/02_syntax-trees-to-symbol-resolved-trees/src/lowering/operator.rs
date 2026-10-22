@@ -23,7 +23,7 @@ pub(crate) fn lower_operator_definition(
         lifetime_parameters: operator
             .lifetime_parameters
             .iter()
-            .map(crate::lowering::name::lower_name)
+            .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
             .collect(),
         type_parameters: lower_type_parameters(lowerer, syntax_trees, operator.type_parameters)?,
         parameters: lower_state_parameters(lowerer, syntax_trees, operator.parameters)?,
@@ -84,7 +84,7 @@ pub(crate) fn lower_bare_bodyless_signature(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
-    let name = machine.name.as_str();
+    let name = machine.name.as_str(syntax_trees);
     let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
     let family = CatalogFamily::naming(namespace, leaf);
     let sealed_source = family.is_some_and(|family| {
@@ -154,9 +154,10 @@ pub(crate) fn lower_bare_bodyless_signature(
             .operator_path_members
             .append_to_span(
                 &mut path,
-                crate::lowering::name::lower_name(&syntax::identifier::Identifier::new(
-                    member, name_span,
-                )),
+                crate::lowering::name::lower_name(
+                    syntax_trees,
+                    &syntax::identifier::Identifier::new(member, name_span),
+                ),
             );
     }
     Ok(symbol_resolved_trees::operator::OperatorDefinition {
@@ -167,7 +168,7 @@ pub(crate) fn lower_bare_bodyless_signature(
         lifetime_parameters: machine
             .lifetime_parameters
             .iter()
-            .map(crate::lowering::name::lower_name)
+            .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
             .collect(),
         type_parameters: lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?,
         parameters: lower_state_parameters(lowerer, syntax_trees, entry.parameters)?,
@@ -244,7 +245,7 @@ fn require_exact_ranking_view_row(
     entry: &syntax::item::StateNode,
     declaration: language_semantics::RankingViewDeclaration,
 ) -> Result<(), Diagnostic> {
-    let name = machine.name.as_str();
+    let name = machine.name.as_str(syntax_trees);
     let drift = |detail: String| {
         Diagnostic::error(format!(
             "`{name}` names the compiler ranking-view catalog, but {detail}; the sealed \
@@ -265,7 +266,9 @@ fn require_exact_ranking_view_row(
         .type_references
         .type_reference(handle)
     {
-        syntax::types::TypeReferenceNode::Named(identifier) => Some(identifier.as_str()),
+        syntax::types::TypeReferenceNode::Named(identifier) => {
+            Some(identifier.as_str(syntax_trees))
+        }
         _ => None,
     };
     let [parameter] = syntax_trees.items.state_parameters(entry.parameters) else {
@@ -275,13 +278,13 @@ fn require_exact_ranking_view_row(
     if parameter.is_const || parameter.is_mutable {
         return Err(drift(format!(
             "parameter `{}` carries a binding mode the row does not declare",
-            parameter.name.as_str()
+            parameter.name.as_str(syntax_trees)
         )));
     }
     if named_spelling(parameter.type_reference) != Some(declaration.parameter) {
         return Err(drift(format!(
             "parameter `{}` is not the row's `{}` subject",
-            parameter.name.as_str(),
+            parameter.name.as_str(syntax_trees),
             declaration.parameter
         )));
     }
@@ -307,7 +310,7 @@ fn require_exact_semantic_row(
     leaf: &str,
 ) -> Result<&'static numerics::float_semantics_catalog::FloatSemanticOperation, Diagnostic> {
     use numerics::float_semantics_catalog::{FloatSemanticOperation, FloatSemanticValueKind};
-    let name = machine.name.as_str();
+    let name = machine.name.as_str(syntax_trees);
     let drift = |detail: String| {
         Diagnostic::error(format!(
             "`{name}` names the compiler float-semantics catalog, but {detail}; the sealed \
@@ -326,12 +329,14 @@ fn require_exact_semantic_row(
         .type_reference(handle)
     {
         syntax::types::TypeReferenceNode::Named(identifier) => {
-            FloatSemanticValueKind::from_spelling(identifier.as_str()).ok_or_else(|| {
-                drift(format!(
-                    "{position} type `{}` is not a catalog value kind",
-                    identifier.as_str()
-                ))
-            })
+            FloatSemanticValueKind::from_spelling(identifier.as_str(syntax_trees)).ok_or_else(
+                || {
+                    drift(format!(
+                        "{position} type `{}` is not a catalog value kind",
+                        identifier.as_str(syntax_trees)
+                    ))
+                },
+            )
         }
         _ => Err(drift(format!(
             "{position} type is not a named catalog value kind"
@@ -343,12 +348,12 @@ fn require_exact_semantic_row(
         if parameter.is_const || parameter.is_mutable {
             return Err(drift(format!(
                 "parameter `{}` carries a binding mode no catalog row declares",
-                parameter.name.as_str()
+                parameter.name.as_str(syntax_trees)
             )));
         }
         parameters.push(kind_of(
             parameter.type_reference,
-            &format!("parameter `{}`", parameter.name.as_str()),
+            &format!("parameter `{}`", parameter.name.as_str(syntax_trees)),
         )?);
     }
     if !entry.return_type.is_valid() {
@@ -382,7 +387,7 @@ fn require_exact_atomic_fence_row(
                 && !parameter.is_mutable
                 && !parameter.relevance.is_erased()
                 && matches!(syntax_trees.tables.type_references.type_reference(parameter.type_reference),
-                    syntax::types::TypeReferenceNode::Named(name) if name.as_str() == "FenceOrdering")
+                    syntax::types::TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == "FenceOrdering")
         }
         _ => false,
     };

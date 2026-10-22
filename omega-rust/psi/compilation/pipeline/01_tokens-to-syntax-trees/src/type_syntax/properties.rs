@@ -14,9 +14,9 @@ pub(crate) fn parse_property_brackets<'tokens, 'source>(
     let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
     while !input.at_punctuation(PunctuationKind::RightBracket) {
         let (name, next) = input.take_identifier()?;
-        match name.as_str() {
+        match name.as_str(&input) {
             "copy" | "linear" => {
-                let spelling = if name.as_str() == "copy" {
+                let spelling = if name.as_str(&input) == "copy" {
                     "copy"
                 } else {
                     "linear"
@@ -96,12 +96,12 @@ fn parse_carry_policy<'tokens, 'source>(
         let (axis, next) = input.take_identifier()?;
         let next = next.take_punctuation(PunctuationKind::Colon, ":")?;
         let (value, rest) = next.take_identifier()?;
-        match axis.as_str() {
+        match axis.as_str(&input) {
             "suspension" => {
                 if suspension.is_some() {
                     return Err(rest.error_here("duplicate carry axis `suspension`"));
                 }
-                suspension = Some(match value.as_str() {
+                suspension = Some(match value.as_str(&input) {
                     "forbidden" => CarrySuspension::Forbidden,
                     "allowed" => CarrySuspension::Allowed,
                     other => {
@@ -115,7 +115,7 @@ fn parse_carry_policy<'tokens, 'source>(
                 if cpu.is_some() {
                     return Err(rest.error_here("duplicate carry axis `cpu`"));
                 }
-                cpu = Some(match value.as_str() {
+                cpu = Some(match value.as_str(&input) {
                     "same" => CarryCpu::Origin,
                     "any" => CarryCpu::Any,
                     other => {
@@ -129,7 +129,7 @@ fn parse_carry_policy<'tokens, 'source>(
                 if host_thread.is_some() {
                     return Err(rest.error_here("duplicate carry axis `thread`"));
                 }
-                host_thread = Some(match value.as_str() {
+                host_thread = Some(match value.as_str(&input) {
                     "same" => CarryHostThread::Origin,
                     "any" => CarryHostThread::Any,
                     other => {
@@ -143,7 +143,7 @@ fn parse_carry_policy<'tokens, 'source>(
                 if address.is_some() {
                     return Err(rest.error_here("duplicate carry axis `address`"));
                 }
-                address = Some(match value.as_str() {
+                address = Some(match value.as_str(&input) {
                     "stable" => CarryAddress::Stable,
                     "movable" => CarryAddress::Movable,
                     other => {

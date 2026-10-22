@@ -351,10 +351,10 @@ fn substitute_case_fact_domain_argument(
 ) -> TypeReferenceHandle {
     match syntax.type_references.type_reference(argument).clone() {
         TypeReferenceNode::Named(name) => {
-            if let Some(substituted) = substitution.get(name.as_str()) {
+            if let Some(substituted) = substitution.get(name.as_str(syntax)) {
                 return *substituted;
             }
-            if let Some(scalar) = const_scalars.get(name.as_str()) {
+            if let Some(scalar) = const_scalars.get(name.as_str(syntax)) {
                 // PDI2's closed-constant leaf is the literal name itself
                 // (`Domain<8>`, `Domain<true>`), so a `const` binder lands as
                 // that name.
@@ -407,7 +407,7 @@ fn expression_mentions_in<V>(
             let [member] = syntax.expressions.identifier_path_members(*path) else {
                 return false;
             };
-            members.contains_key(member.as_str())
+            members.contains_key(member.as_str(syntax))
         }
         ExpressionNode::Binary(binary) => {
             expression_mentions_in(syntax, binary.left, members)
@@ -494,10 +494,10 @@ fn decide_type_equality_conjunct(
         Some(member)
     };
     let Some((parameter, other)) = (match (single_name(binary.left), single_name(binary.right)) {
-        (Some(left), Some(right)) if type_identities.contains_key(left.as_str()) => {
+        (Some(left), Some(right)) if type_identities.contains_key(left.as_str(syntax)) => {
             Some((left, right))
         }
-        (Some(left), Some(right)) if type_identities.contains_key(right.as_str()) => {
+        (Some(left), Some(right)) if type_identities.contains_key(right.as_str(syntax)) => {
             Some((right, left))
         }
         _ => None,
@@ -505,13 +505,13 @@ fn decide_type_equality_conjunct(
         return Ok(ConjunctDecision::Ordinary);
     };
     let parameter_identity = type_identities
-        .get(parameter.as_str())
+        .get(parameter.as_str(syntax))
         .expect("the gate admits only listed type binders");
     let Some(other_identity) = closed_name_identity(syntax, selection, other) else {
         return Err(Diagnostic::error(format!(
             "case constraint on generic instance `{instance_name}` cannot decide `{}`: `{}` does not name a closed type",
-            parameter.as_str(),
-            other.as_str(),
+            parameter.as_str(syntax),
+            other.as_str(syntax),
         )));
     };
     let equal = *parameter_identity == other_identity;
@@ -538,7 +538,7 @@ pub(crate) fn closed_name_identity(
 ) -> Option<ClosedArgumentIdentity> {
     if let Some(atom) = symbols::BuiltinTypeAtom::ALL
         .into_iter()
-        .find(|atom| atom.symbol_name() == name.as_str())
+        .find(|atom| atom.symbol_name() == name.as_str(syntax))
     {
         return Some(ClosedArgumentIdentity::Builtin(atom));
     }
@@ -546,7 +546,7 @@ pub(crate) fn closed_name_identity(
         Some(ClosedArgumentIdentity::Nominal(declaration))
     } else {
         Some(ClosedArgumentIdentity::RetainedNominal(
-            selection?.retained_identity(name, symbols::SymbolKind::Data)?,
+            selection?.retained_identity(syntax, name, symbols::SymbolKind::Data)?,
         ))
     }
 }
@@ -585,7 +585,7 @@ pub(crate) fn substitute_type_reference(
         .clone();
     match node {
         TypeReferenceNode::Named(name) => substitution
-            .get(name.as_str())
+            .get(name.as_str(syntax))
             .copied()
             .unwrap_or(type_reference),
         TypeReferenceNode::Generic {
@@ -598,7 +598,7 @@ pub(crate) fn substitute_type_reference(
                 .type_references
                 .type_reference_handles(arguments)
                 .to_vec();
-            let integer_types = generic_const_integer_types(syntax, base_name.as_str());
+            let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
             let const_bindings: HashMap<String, i128> = substitution
                 .iter()
                 .filter_map(|(name, argument)| {
@@ -607,7 +607,7 @@ pub(crate) fn substitute_type_reference(
                         .type_references
                         .type_reference(*argument)
                         .as_named()?;
-                    Some((name.clone(), value.as_str().parse::<i128>().ok()?))
+                    Some((name.clone(), value.as_str(syntax).parse::<i128>().ok()?))
                 })
                 .collect();
             let mut substituted_arguments = Vec::with_capacity(argument_handles.len());
@@ -618,9 +618,10 @@ pub(crate) fn substitute_type_reference(
                     .type_reference(argument)
                     .clone();
                 let substituted = match node {
-                    TypeReferenceNode::Named(name) => {
-                        substitution.get(name.as_str()).copied().unwrap_or(argument)
-                    }
+                    TypeReferenceNode::Named(name) => substitution
+                        .get(name.as_str(syntax))
+                        .copied()
+                        .unwrap_or(argument),
                     TypeReferenceNode::ConstExpression(expression) => {
                         let warning_watermark = warnings.len();
                         match evaluate_const_argument_expression(
@@ -685,10 +686,12 @@ pub(crate) fn substitute_type_reference(
                     FixedArrayLength::Expression(syntax.copy_type_reference_handle(snapshot, value))
                 }
                 FixedArrayLength::ConstParameter(name) => substitution
-                    .get(name.as_str())
+                    .get(name.as_str(syntax))
                     .and_then(|argument| {
                         match syntax.tables.type_references.type_reference(*argument) {
-                            TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
+                            TypeReferenceNode::Named(value) => {
+                                value.as_str(syntax).parse::<usize>().ok()
+                            }
                             _ => None,
                         }
                     })
@@ -883,9 +886,10 @@ fn substitute_domain_index_argument(
         .type_reference(argument)
         .clone()
     {
-        TypeReferenceNode::Named(name) => {
-            substitution.get(name.as_str()).copied().unwrap_or(argument)
-        }
+        TypeReferenceNode::Named(name) => substitution
+            .get(name.as_str(syntax))
+            .copied()
+            .unwrap_or(argument),
         TypeReferenceNode::ConstExpression(expression) => {
             if !expression_mentions_parameter(syntax, expression, substitution) {
                 return argument;
@@ -945,7 +949,7 @@ pub(crate) fn type_reference_mentions_parameter(
     substitution: &HashMap<String, TypeReferenceHandle>,
 ) -> bool {
     match syntax.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str()),
+        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str(syntax)),
         TypeReferenceNode::Generic {
             base_name,
             arguments,
@@ -956,9 +960,9 @@ pub(crate) fn type_reference_mentions_parameter(
             // Keep that dependency so nested applications cannot bypass the
             // constructor-head guard and capture a global during synthesis.
             let head = base_name
-                .as_str()
+                .as_str(syntax)
                 .split_once("::")
-                .map_or(base_name.as_str(), |(head, _)| head);
+                .map_or(base_name.as_str(syntax), |(head, _)| head);
             substitution.contains_key(head)
                 || syntax
                     .tables

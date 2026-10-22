@@ -77,6 +77,29 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
 }
 
 impl<T: Default> PagedArenaSet<T> {
+    /// Contextual row equality includes unused page slots and all arena metadata.
+    pub fn equal_by(&self, other: &Self, mut equal: impl FnMut(&T, &T) -> bool) -> bool {
+        self.first_generation == other.first_generation
+            && self.current_generation == other.current_generation
+            && self.active_count == other.active_count
+            && equal(&self.dummy, &other.dummy)
+            && self.first_page.equal_by(&other.first_page, &mut equal)
+            && self.additional_pages.len() == other.additional_pages.len()
+            && self
+                .additional_pages
+                .iter()
+                .zip(&other.additional_pages)
+                .all(|(left, right)| match (left, right) {
+                    (Some(left_page), Some(right_page)) => {
+                        left_page.equal_by(right_page, &mut equal)
+                    }
+                    (None, None) => true,
+                    _ => false,
+                })
+    }
+}
+
+impl<T: Default> PagedArenaSet<T> {
     pub fn new() -> Self {
         Self::with_generation(1)
     }

@@ -23,7 +23,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // `Slice` is reserved as a data-type name so the parser's `Slice<T>` -> slice
     // fold (type_reference.rs) never collides with a user generic; `Slice<T>` is
     // the canonical spelling of the `[T]` slice type.
-    if name.as_str() == "Slice" {
+    if name.as_str(syntax_trees) == "Slice" {
         return Err(input.error_here(
             "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
         ));
@@ -163,7 +163,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, input) = input.take_identifier()?;
-    if name.as_str() == "Slice" {
+    if name.as_str(syntax_trees) == "Slice" {
         return Err(input.error_here(
             "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
         ));
@@ -392,7 +392,7 @@ fn parse_data_member<'tokens, 'source>(
                  are retired: every field is zero-initialized (ZII), and a \
                  constructed default belongs in an ordinary constructor machine \
                  that writes the field",
-                field_name.as_str()
+                field_name.as_str(syntax_trees)
             )));
         }
         input = if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -415,8 +415,8 @@ fn parse_data_member<'tokens, 'source>(
     // `case Name;` is the canonical alternative member.
     Err(input.error_here(format!(
         "expected `:` after data field `{}` (alternatives are spelled `case {};`)",
-        field_name.as_str(),
-        field_name.as_str()
+        field_name.as_str(syntax_trees),
+        field_name.as_str(syntax_trees)
     )))
 }
 

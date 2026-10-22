@@ -1,4 +1,5 @@
 use super::SyntaxTrees;
+use crate::SyntaxEquivalent;
 use crate::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
 };
@@ -320,14 +321,16 @@ fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
     assert_ne!(*copied_minimum, minimum);
     assert_ne!(*copied_maximum, maximum);
     assert!(!end_inclusive);
-    assert_eq!(
-        copied.expressions.expression(*copied_minimum),
-        original.expressions.expression(minimum)
-    );
-    assert_eq!(
-        copied.expressions.expression(*copied_maximum),
-        original.expressions.expression(maximum)
-    );
+    assert!(copied.expressions.expression(*copied_minimum).same_syntax(
+        original.expressions.expression(minimum),
+        &copied.text,
+        &original.text
+    ));
+    assert!(copied.expressions.expression(*copied_maximum).same_syntax(
+        original.expressions.expression(maximum),
+        &copied.text,
+        &original.text
+    ));
     assert_eq!(
         original
             .type_references
@@ -486,10 +489,11 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
     cloned
         .expressions
         .replace_expression(operand, ExpressionNode::Boolean(true));
-    assert_eq!(
-        source.expressions.expression(operand),
-        &ExpressionNode::Boolean(false)
-    );
+    assert!(source.expressions.expression(operand).same_syntax(
+        &ExpressionNode::Boolean(false),
+        &source.text,
+        &source.text
+    ));
 
     let mut destination = SyntaxTrees::new(Default::default());
     for _ in 0..8 {
@@ -516,9 +520,15 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
         assert_ne!(copied.value, value);
         assert_ne!(receipt.authored_expression, authored_expression);
         assert_ne!(receipt.authored_expression, copied.value);
-        assert_eq!(
-            destination.expressions.expression(copied.value),
-            &ExpressionNode::Boolean(true)
+        assert!(
+            destination
+                .expressions
+                .expression(copied.value)
+                .same_syntax(
+                    &ExpressionNode::Boolean(true),
+                    &destination.text,
+                    &destination.text
+                )
         );
         assert_eq!(destination.expressions.source_span(copied.value), span(20));
         assert_eq!(
@@ -535,9 +545,15 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
         };
         assert_eq!(unary.operator, crate::expression::UnaryOperator::LogicalNot);
         assert_ne!(unary.operand, operand);
-        assert_eq!(
-            destination.expressions.expression(unary.operand),
-            &ExpressionNode::Boolean(false)
+        assert!(
+            destination
+                .expressions
+                .expression(unary.operand)
+                .same_syntax(
+                    &ExpressionNode::Boolean(false),
+                    &destination.text,
+                    &destination.text
+                )
         );
         assert_eq!(destination.expressions.source_span(unary.operand), span(24));
         copied_operands.push(unary.operand);
@@ -546,14 +562,21 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
     destination
         .expressions
         .replace_expression(copied_operands[0], ExpressionNode::Boolean(true));
-    assert_eq!(
-        destination.expressions.expression(copied_operands[1]),
-        &ExpressionNode::Boolean(false)
+    assert!(
+        destination
+            .expressions
+            .expression(copied_operands[1])
+            .same_syntax(
+                &ExpressionNode::Boolean(false),
+                &destination.text,
+                &destination.text
+            )
     );
-    assert_eq!(
-        source.expressions.expression(operand),
-        &ExpressionNode::Boolean(false)
-    );
+    assert!(source.expressions.expression(operand).same_syntax(
+        &ExpressionNode::Boolean(false),
+        &source.text,
+        &source.text
+    ));
 }
 
 #[test]
@@ -578,9 +601,15 @@ fn semantic_nan_declaration_survives_copy_without_encoding() {
         let Item::Const(copied) = destination.copy_item_from(&source, &constant) else {
             panic!("copied constant");
         };
-        assert_eq!(
-            destination.expressions.expression(copied.value),
-            &ExpressionNode::UndeterminedNaN(format)
+        assert!(
+            destination
+                .expressions
+                .expression(copied.value)
+                .same_syntax(
+                    &ExpressionNode::UndeterminedNaN(format),
+                    &destination.text,
+                    &destination.text
+                )
         );
         let receipt = copied.normalization.expect("retained semantic result");
         assert_eq!(
@@ -892,7 +921,7 @@ fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens
     let TypeReferenceNode::Named(name) = destination.type_references.type_reference(secret) else {
         panic!("exact private payload");
     };
-    assert_eq!(name.as_str(), "Secret");
+    assert_eq!(name.as_str(&destination), "Secret");
     assert_eq!(name.source_span(), token("Secret", 40).source_span());
     assert!(
         destination.type_references.generic_nodes().is_empty(),
@@ -935,7 +964,7 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
     let origin = data.generic_instance.expect("copied generic origin");
     assert!(matches!(
         copied.type_references.type_reference(origin),
-        TypeReferenceNode::Generic { base_name, .. } if base_name.as_str() == "Carrier"
+        TypeReferenceNode::Generic { base_name, .. } if base_name.as_str(&copied) == "Carrier"
     ));
 
     let snapshot = copied.snapshot();
@@ -1094,7 +1123,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         .copied()
         .expect("entry state handle");
     let state = assembled.items.state(state_handle);
-    assert_eq!(state.name.as_str(), "entry");
+    assert_eq!(state.name.as_str(&assembled), "entry");
     assert!(state.return_type.is_valid());
 }
 
@@ -1270,7 +1299,92 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     };
 
     assert_eq!(
-        assembled.expressions.display_name(assignment.value),
+        assembled.display_expression_name(assignment.value),
         "max(0, player.xp_required(player.level))"
     );
+}
+
+#[test]
+fn retained_name_pages_survive_clone_copy_and_owner_retirement() {
+    use source::{SourceId, SourceSpan, Span};
+    use std::sync::Arc;
+    let source: Arc<str> = Arc::from("first second");
+    let mut original = SyntaxTrees::new(SourceId(1));
+    let page = original.text.retain(source.clone());
+    let first = Identifier::source_backed(page, SourceSpan::new(SourceId(1), Span::new(0, 5)));
+    let original_name = original
+        .expressions
+        .append_identifier_path_member(first.clone());
+    let original_expression =
+        original
+            .expressions
+            .insert(ExpressionNode::Name(HandleSpan::from_parts(
+                original_name,
+                1,
+            )));
+    let checkpoint = original.clone();
+    assert_eq!(
+        Arc::strong_count(&source),
+        3,
+        "one reference per forest, independent of name count"
+    );
+    let mut destination = SyntaxTrees::new(SourceId(1));
+    let other_text: Arc<str> = Arc::from("other");
+    let other_page = destination.text.retain(other_text);
+    let other_name =
+        Identifier::source_backed(other_page, SourceSpan::new(SourceId(1), Span::new(0, 5)));
+    let copied = destination.copy_expression_from(&original, original_expression);
+    drop(original);
+    drop(source);
+    assert_eq!(first.as_str(&checkpoint), "first");
+    assert_eq!(first.as_str(&destination), "first");
+    assert_eq!(other_name.as_str(&destination), "other");
+    assert_eq!(destination.display_expression_name(copied), "first");
+    let generated = Identifier::new("generated", first.source_span());
+    assert_eq!(
+        generated.as_str(&destination),
+        "generated",
+        "authored coordinates do not define generated spelling"
+    );
+    drop(checkpoint);
+    assert_eq!(destination.display_expression_name(copied), "first");
+}
+
+#[test]
+fn contextual_syntax_equality_includes_detached_nodes_and_logical_name_text() {
+    use source::{SourceId, SourceSpan, Span};
+    use std::sync::Arc;
+    fn forest(spelling: &str) -> SyntaxTrees {
+        let mut syntax = SyntaxTrees::new(SourceId(1));
+        let page = syntax.text.retain(Arc::from(spelling));
+        syntax
+            .expressions
+            .append_identifier_path_member(Identifier::source_backed(
+                page,
+                SourceSpan::new(SourceId(1), Span::new(0, spelling.len())),
+            ));
+        syntax
+    }
+    let left = forest("same");
+    let right = forest("same");
+    assert_eq!(
+        left, right,
+        "independent owner identities do not change logical equality"
+    );
+    assert_ne!(
+        left,
+        forest("else"),
+        "unreachable arena rows remain part of completion input"
+    );
+    let mut generated = SyntaxTrees::new(SourceId(1));
+    generated
+        .expressions
+        .append_identifier_path_member(Identifier::generated("same"));
+    assert_eq!(
+        left, generated,
+        "name equality retains its existing spelling-only contract"
+    );
+    let mut changed = right.clone();
+    changed.expressions.insert(ExpressionNode::Boolean(true));
+    assert_ne!(left, changed);
 }

@@ -21,7 +21,7 @@ pub use data_items::*;
 pub use machine_items::*;
 pub use proof_items::*;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub enum Item {
     Capability(CapabilityDefinition),
     Conformance(ConformanceItem),
@@ -73,7 +73,7 @@ impl Item {
 /// use substitutes a fresh copy of the initializer, so typed trees and
 /// everything downstream never see a const value. Resolution retains only a
 /// declaration-provenance symbol for authored-selection/package custody.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct ConstDefinition {
     /// The type scope (`EfiStatus` in `EfiStatus::SUCCESS`); empty text for
     /// a package/module-scoped declaration.
@@ -90,7 +90,7 @@ pub struct ConstDefinition {
     pub qualification: Option<ConstQualification>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct ConstQualification {
     pub destination: crate::types::TypeReferenceHandle,
     pub initializer: crate::expression::ExpressionHandle,
@@ -108,7 +108,7 @@ pub struct ConstInitializerCustody {
 /// Authored syntax and exact source custody retained when a constant initializer
 /// becomes an evaluated value. Source coordinates remain unchanged on copying;
 /// the authored expression is remapped into the destination syntax arena.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct ConstInitializerNormalization {
     /// Original source closure before private implementation realization.
     pub authored_custody: ConstInitializerCustody,
@@ -131,7 +131,7 @@ pub struct ConstInitializerNormalization {
 /// imports evaluate the compiler-owned `ForeignBinding::DllImport` value through a
 /// `via` producer machine, while `VtableSlot` still survives its own
 /// authored-spelling retirement for decoded artifacts and snapshots.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub enum ExternalBinding {
     /// Linux's stable ABI is the number table: `ForeignBinding::Syscall(1)`.
     Syscall { number: i64 },
@@ -165,22 +165,22 @@ impl Default for Item {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct UseItem {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct ModuleDeclaration {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct PackageDeclaration {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct ItemTable {
     items: Arena<Item>,
     /// Top-level `let`/`boundary let` declarations, kept beside `items` on
@@ -191,7 +191,7 @@ pub struct ItemTable {
     declaration_storage: DeclarationStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 struct StateStorage {
     parameters: Arena<StateParameterNode>,
     signatures: Arena<StateSignatureNode>,
@@ -204,7 +204,7 @@ struct StateStorage {
     traits: Arena<TraitNode>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 struct DeclarationStorage {
     identifier_path_members: Arena<Identifier>,
     conformance_members: Arena<ConformanceMember>,
@@ -762,7 +762,7 @@ fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<sou
 /// an erased parameter stays in checking, contracts, and semantic identity
 /// but owns no runtime storage, transfer, or read.
 /// Every parameter is explicit; carrier qualification creates no receiver row.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateParameterNode {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -775,14 +775,14 @@ pub struct StateParameterNode {
 /// boundary requirement. It participates in the authored native telescope but
 /// is not an Omega runtime parameter and therefore has no type-reference or
 /// source-call argument.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct NativeCallbackParameterNode {
     pub name: Identifier,
     pub binder: Identifier,
     pub native_ordinal: u32,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateSignatureNode {
     pub name: Identifier,
     pub spelling: Option<crate::operator_spelling::OperatorSpelling>,
@@ -808,7 +808,7 @@ pub struct StateSignatureNode {
     pub where_facts: HandleSpan<ProofFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateNode {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -817,7 +817,7 @@ pub struct StateNode {
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
@@ -832,7 +832,7 @@ pub struct MachineNode {
     pub states: HandleSpan<StateHandle>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct TraitNode {
     pub is_boundary: bool,
     pub name: Identifier,

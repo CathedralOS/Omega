@@ -50,7 +50,7 @@ pub(crate) fn try_desugar_atomic_let(
     // A single attempt establishes a whole sum value, not an observed-prior
     // scalar placeholder. Keep the authored receiver and value operands in
     // one local initializer; the ordering arguments become proof-static data.
-    if call.target.as_str() == "compare_exchange_once" {
+    if call.target.as_str(syntax_trees) == "compare_exchange_once" {
         let [expected, replacement, success, failure] = arguments else {
             return None;
         };
@@ -82,12 +82,12 @@ pub(crate) fn try_desugar_atomic_let(
         let first = syntax_trees.items.append_statement_handle(statement);
         return Some(HandleSpan::from_parts(first, 1));
     }
-    let (update, ordering) = match (call.target.as_str(), arguments) {
+    let (update, ordering) = match (call.target.as_str(syntax_trees), arguments) {
         (
             "fetch_add" | "fetch_sub" | "fetch_xor" | "fetch_or" | "fetch_and",
             [operand, ordering],
         ) => {
-            let operator = match call.target.as_str() {
+            let operator = match call.target.as_str(syntax_trees) {
                 "fetch_add" => BinaryOperator::Add,
                 "fetch_sub" => BinaryOperator::Subtract,
                 "fetch_xor" => BinaryOperator::BitwiseXor,
@@ -205,9 +205,8 @@ pub(crate) fn try_desugar_atomic_let(
 }
 
 fn result_reference(syntax_trees: &mut SyntaxTrees, name: &Identifier) -> ExpressionHandle {
-    let member = syntax_trees
-        .expressions
-        .append_identifier_path_member(Identifier::generated(name.as_str()));
+    let name = Identifier::generated(name.as_str(syntax_trees));
+    let member = syntax_trees.expressions.append_identifier_path_member(name);
     let path = HandleSpan::from_parts(member, 1);
     syntax_trees.expressions.insert(ExpressionNode::Name(path))
 }
@@ -220,7 +219,10 @@ pub(crate) fn try_desugar_atomic_store(
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone() else {
         return None;
     };
-    if call.target_is_static || call.target.as_str() != "store" || !call.receiver.is_valid() {
+    if call.target_is_static
+        || call.target.as_str(syntax_trees) != "store"
+        || !call.receiver.is_valid()
+    {
         return None;
     }
     let argument_count = syntax_trees

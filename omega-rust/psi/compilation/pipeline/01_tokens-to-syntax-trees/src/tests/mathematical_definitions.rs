@@ -33,7 +33,7 @@ fn render_type(parsed: &SyntaxTrees, handle: MathematicalTypeHandle) -> String {
             let domain = render_type(parsed, *domain);
             let codomain = render_type(parsed, *codomain);
             match binder {
-                Some(binder) => format!("({}: {domain}) -> {codomain}", binder.as_str()),
+                Some(binder) => format!("({}: {domain}) -> {codomain}", binder.as_str(parsed)),
                 None => format!("{domain} -> {codomain}"),
             }
         }
@@ -60,7 +60,7 @@ fn render_expression(
             .expressions
             .identifier_path_members(*path)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(parsed))
             .collect::<Vec<_>>()
             .join("::"),
         other => panic!("unexpected expression in test: {other:?}"),
@@ -72,7 +72,7 @@ fn render_type_reference(
     handle: syntax_trees::types::TypeReferenceHandle,
 ) -> String {
     match parsed.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => name.as_str().to_owned(),
+        TypeReferenceNode::Named(name) => name.as_str(parsed).to_owned(),
         TypeReferenceNode::Generic {
             base_name,
             arguments,
@@ -85,7 +85,7 @@ fn render_type_reference(
                 .map(|argument| render_type_reference(parsed, *argument))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{}<{arguments}>", base_name.as_str())
+            format!("{}<{arguments}>", base_name.as_str(parsed))
         }
         TypeReferenceNode::Unit => "()".to_owned(),
         other => panic!("unexpected type reference in test: {other:?}"),
@@ -99,18 +99,18 @@ fn parses_mathematical_let_with_relevant_and_erased_parameters() {
     );
     assert_eq!(parsed.root_item_handles().len(), 0);
     let definition = single_definition(&parsed);
-    assert_eq!(definition.name.as_str(), "greater_than");
+    assert_eq!(definition.name.as_str(&parsed), "greater_than");
     assert!(!definition.is_public);
     assert!(definition.type_parameters.is_empty());
 
     let parameters = parsed.items.mathematical_parameters(definition.parameters);
     assert_eq!(parameters.len(), 2);
     let limit = parsed.items.mathematical_parameter(parameters[0]);
-    assert_eq!(limit.name.as_str(), "limit");
+    assert_eq!(limit.name.as_str(&parsed), "limit");
     assert_eq!(limit.relevance, language_core::BindingRelevance::Relevant);
     assert_eq!(render_type(&parsed, limit.ty), "i32");
     let value = parsed.items.mathematical_parameter(parameters[1]);
-    assert_eq!(value.name.as_str(), "value");
+    assert_eq!(value.name.as_str(&parsed), "value");
     assert_eq!(value.relevance, language_core::BindingRelevance::Erased);
 
     assert_eq!(render_type(&parsed, definition.result), "core::Strict<0>");
@@ -129,11 +129,11 @@ fn parses_universe_and_type_binder_telescope() {
 ): C = f(g(value));",
     );
     let definition = single_definition(&parsed);
-    assert_eq!(definition.name.as_str(), "compose");
+    assert_eq!(definition.name.as_str(&parsed), "compose");
 
     let binders = parsed.items.type_parameters(definition.type_parameters);
     assert_eq!(binders.len(), 6);
-    assert_eq!(binders[0].name.as_str(), "u");
+    assert_eq!(binders[0].name.as_str(&parsed), "u");
     assert!(matches!(binders[0].kind, TypeParameterKind::Value { .. }));
     let TypeParameterKind::Value { type_reference } = &binders[3].kind else {
         panic!("`A: core::Type<u>` parses as a value binder");
@@ -146,7 +146,7 @@ fn parses_universe_and_type_binder_telescope() {
     let parameters = parsed.items.mathematical_parameters(definition.parameters);
     assert_eq!(parameters.len(), 3);
     let f = parsed.items.mathematical_parameter(parameters[0]);
-    assert_eq!(f.name.as_str(), "f");
+    assert_eq!(f.name.as_str(&parsed), "f");
     assert_eq!(render_type(&parsed, f.ty), "B -> C");
     let g = parsed.items.mathematical_parameter(parameters[1]);
     assert_eq!(render_type(&parsed, g.ty), "A -> B");
@@ -161,7 +161,7 @@ fn parses_boundary_let_as_bodyless_assumption() {
 ): A;",
     );
     let definition = single_definition(&parsed);
-    assert_eq!(definition.name.as_str(), "choose");
+    assert_eq!(definition.name.as_str(&parsed), "choose");
     assert_eq!(render_type(&parsed, definition.result), "A");
     assert_eq!(definition.body, MathematicalDefinitionBody::Assumption);
 
@@ -203,7 +203,7 @@ fn arrow_types_associate_right_and_bind_domains() {
 fn empty_parameter_list_names_a_nullary_definition() {
     let parsed = parse("let pi(): core::Real = term;");
     let definition = single_definition(&parsed);
-    assert_eq!(definition.name.as_str(), "pi");
+    assert_eq!(definition.name.as_str(&parsed), "pi");
     assert!(definition.parameters.is_empty());
     assert_eq!(render_type(&parsed, definition.result), "core::Real");
 }

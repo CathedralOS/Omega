@@ -71,7 +71,7 @@ fn local_bindings_parse_their_type_and_initializer_once() {
                 .expressions
                 .iter_expressions()
                 .filter(|(_, expression)| {
-                    matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == name)
+                    matches!(expression, ExpressionNode::Call(call) if call.target.as_str(&parsed) == name)
                 })
                 .count(),
             1,
@@ -123,7 +123,7 @@ fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
                 ExpressionNode::Atomic(_)
             ));
             assert_eq!(parsed.expressions.iter_expressions().filter(|(_, expression)| {
-                matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == "operand")
+                matches!(expression, ExpressionNode::Call(call) if call.target.as_str(&parsed) == "operand")
             }).count(), 1, "{source}");
         }
     }
@@ -223,7 +223,7 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
             else {
                 panic!("state/namespace target changed: {target}");
             };
-            assert_eq!(evidence_arguments[0].as_str(), "proof");
+            assert_eq!(evidence_arguments[0].as_str(&parsed), "proof");
         } else {
             let syntax_trees::statement::TransitionTargetNode::Value(expression) = target_node
             else {
@@ -233,16 +233,16 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
                 panic!("receiver call lost: {target}");
             };
             assert!(call.receiver.is_valid());
-            assert_eq!(call.target.as_str(), "next");
+            assert_eq!(call.target.as_str(&parsed), "next");
             assert_eq!(call.arguments.count(), 1);
-            assert_eq!(call.evidence_arguments[0].as_str(), "proof");
+            assert_eq!(call.evidence_arguments[0].as_str(&parsed), "proof");
             if target == "other.next" {
                 let ExpressionNode::Name(receiver) = parsed.expressions.expression(call.receiver)
                 else {
                     panic!("direct receiver identity lost");
                 };
                 assert_eq!(
-                    parsed.expressions.identifier_path_members(*receiver)[0].as_str(),
+                    parsed.expressions.identifier_path_members(*receiver)[0].as_str(&parsed),
                     "other"
                 );
             }
@@ -404,7 +404,7 @@ fn single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source() {
             .any(|(_, expression)| {
                 matches!(
                     expression,
-                    ExpressionNode::Call(call) if call.target.as_str() == "compare_exchange_once"
+                    ExpressionNode::Call(call) if call.target.as_str(&parsed) == "compare_exchange_once"
                 )
             })
     );
@@ -445,7 +445,11 @@ fn old_remains_an_ordinary_parameter_and_local_identifier() {
         panic!("one ordinary parameter")
     };
     assert_eq!(
-        parsed.items.state_parameter(*parameter).name.as_str(),
+        parsed
+            .items
+            .state_parameter(*parameter)
+            .name
+            .as_str(&parsed),
         "old"
     );
     assert!(
@@ -455,7 +459,7 @@ fn old_remains_an_ordinary_parameter_and_local_identifier() {
             .iter()
             .any(|statement| matches!(
                 parsed.statements.statement(*statement),
-                StatementNode::LocalData(local) if local.name.as_str() == "old_copy"
+                StatementNode::LocalData(local) if local.name.as_str(&parsed) == "old_copy"
             ))
     );
 }
@@ -467,12 +471,12 @@ fn entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry() {
         .expect("tokenize ordinary entry declaration");
     let parsed = parse_syntax_trees(&tokens).expect("entry must remain a declaration name");
     let machine = super::root_machine(&parsed, "ordinary entry machine");
-    assert_eq!(machine.name.as_str(), "entry");
+    assert_eq!(machine.name.as_str(&parsed), "entry");
     let [state_handle] = parsed.items.state_handles(machine.states) else {
         panic!("ordinary machine must retain one generated internal entry");
     };
     let state = parsed.items.state(*state_handle);
-    assert_eq!(state.name.as_str(), "entry");
+    assert_eq!(state.name.as_str(&parsed), "entry");
 }
 
 #[test]
@@ -488,7 +492,7 @@ fn trait_machine_parameter_is_requirement_identity() {
     else {
         panic!("one trait machine requirement parameter")
     };
-    assert_eq!(parameter.name.as_str(), "Requirement");
+    assert_eq!(parameter.name.as_str(&parsed), "Requirement");
     assert!(matches!(
         parameter.kind,
         syntax_trees::item::TypeParameterKind::Machine {
@@ -513,7 +517,9 @@ fn provider_selection_retains_two_structural_type_paths() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "select_provider" => Some(call),
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "select_provider" => {
+                Some(call)
+            }
             _ => None,
         })
         .expect("provider-selection call");
@@ -523,7 +529,7 @@ fn provider_selection_retains_two_structural_type_paths() {
         call.machine_arguments[0]
             .path
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["host", "Console"]
     );
@@ -531,11 +537,11 @@ fn provider_selection_retains_two_structural_type_paths() {
         call.machine_arguments[1]
             .path
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["application", "ConsoleProvider"]
     );
-    assert!(!call.target.as_str().contains('#'));
+    assert!(!call.target.as_str(&parsed).contains('#'));
 }
 
 #[test]
@@ -554,7 +560,9 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "exclude_service" => Some(call),
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "exclude_service" => {
+                Some(call)
+            }
             _ => None,
         })
         .expect("service-exclusion call");
@@ -564,7 +572,7 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
         call.machine_arguments[0]
             .path
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["host", "Console"]
     );
@@ -621,7 +629,9 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "select_provider" => Some(call),
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "select_provider" => {
+                Some(call)
+            }
             _ => None,
         })
         .expect("provider-selection call");
@@ -643,7 +653,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
             .expressions
             .identifier_path_members(*mode)
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["CompositionMode", "Independent"]
     );
@@ -671,7 +681,7 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
         binding
             .slot
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["linux_x86_64", "ProgramEntry"]
     );
@@ -679,7 +689,7 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
         binding
             .implementation
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["Main", "main"]
     );
@@ -754,7 +764,9 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "select_representation" => {
+            ExpressionNode::Call(call)
+                if call.target.as_str(&parsed) == "select_representation" =>
+            {
                 Some(call)
             }
             _ => None,
@@ -766,7 +778,7 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
         call.machine_arguments[0]
             .path
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["interrupt", "Ack"]
     );
@@ -774,7 +786,7 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
         call.machine_arguments[1]
             .path
             .iter()
-            .map(|member| member.as_str())
+            .map(|member| member.as_str(&parsed))
             .collect::<Vec<_>>(),
         ["platform", "AckRepresentation"]
     );
@@ -951,13 +963,13 @@ fn parses_type_and_integer_const_proposition_arguments() {
         .expressions
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            ExpressionNode::Call(call) if call.target.as_str() == "indexed" => Some(call),
+            ExpressionNode::Call(call) if call.target.as_str(&parsed) == "indexed" => Some(call),
             _ => None,
         })
         .expect("transparent proposition should contain the indexed application");
 
     assert_eq!(call.machine_arguments.len(), 2);
-    assert_eq!(call.machine_arguments[0].path[0].as_str(), "i32");
+    assert_eq!(call.machine_arguments[0].path[0].as_str(&parsed), "i32");
     assert_eq!(
         call.machine_arguments[1]
             .const_literal
@@ -965,7 +977,7 @@ fn parses_type_and_integer_const_proposition_arguments() {
             .map(|literal| literal.text()),
         Some("7")
     );
-    assert_eq!(call.display_name(&parsed.expressions), "indexed<i32, 7>()");
+    assert_eq!(call.display_name(&parsed), "indexed<i32, 7>()");
     let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
     assert!(snapshot.contains("\"machine_arguments\":[[{\"text\":\"i32\""));
     assert!(snapshot.contains(",\"7\"]"));
@@ -1028,7 +1040,7 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
     else {
         panic!("Relation should retain a proposition signature");
     };
-    assert_eq!(contract.name.as_str(), "Relation");
+    assert_eq!(contract.name.as_str(&parsed), "Relation");
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 2);
     let snapshot = parsed.snapshot_json().expect("snapshot should succeed");
     assert!(snapshot.contains("\"kind\":\"proposition\""));

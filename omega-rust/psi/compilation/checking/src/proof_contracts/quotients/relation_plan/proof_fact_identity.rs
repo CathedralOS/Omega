@@ -22,7 +22,7 @@ pub(super) struct ProofValueSubstitution {
 
 /// A fixed-size nested array's `[r1, r2, ...]` display rows — every leaf
 /// element kind renders identically.
-fn nested_array_rendered<T: std::fmt::Debug>(rows: &[std::sync::Arc<[T]>]) -> String {
+fn nested_array_rendered<T: std::fmt::Debug>(rows: &[impl AsRef<[T]>]) -> String {
     format!(
         "[{}]",
         rows.iter()
@@ -103,7 +103,7 @@ impl ProofValueSubstitution {
 
     pub(super) fn nested_fixed_byte_array(
         symbol: SymbolHandle,
-        rows: &[std::sync::Arc<[u8]>],
+        rows: &[source::SourceBytes],
     ) -> Self {
         Self {
             symbol,

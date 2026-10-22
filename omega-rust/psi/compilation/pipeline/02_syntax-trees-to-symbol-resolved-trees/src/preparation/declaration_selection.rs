@@ -57,31 +57,31 @@ impl<'base> ConstantSelection<'base> {
             match item {
                 Item::Const(definition) => declarations.push((
                     SymbolKind::Const,
-                    crate::constant::semantic_const_name(definition),
+                    crate::constant::semantic_const_name(syntax, definition),
                     definition.name.source_span(),
                     None,
                 )),
                 Item::Data(definition) => declarations.push((
                     SymbolKind::Data,
-                    definition.name.as_str().to_owned(),
+                    definition.name.as_str(syntax).to_owned(),
                     definition.name.source_span(),
                     Some(definition),
                 )),
                 Item::Domain(definition) => declarations.push((
                     SymbolKind::Domain,
-                    definition.name.as_str().to_owned(),
+                    definition.name.as_str(syntax).to_owned(),
                     definition.name.source_span(),
                     None,
                 )),
                 Item::Trait(definition) => declarations.push((
                     SymbolKind::Trait,
-                    definition.name.as_str().to_owned(),
+                    definition.name.as_str(syntax).to_owned(),
                     definition.name.source_span(),
                     None,
                 )),
                 Item::Machine(definition) => declarations.push((
                     SymbolKind::Machine,
-                    definition.name.as_str().to_owned(),
+                    definition.name.as_str(syntax).to_owned(),
                     definition.name.source_span(),
                     None,
                 )),
@@ -89,18 +89,14 @@ impl<'base> ConstantSelection<'base> {
                     if let Some(name) = &definition.alias {
                         declarations.push((
                             SymbolKind::Conformance,
-                            name.as_str().to_owned(),
+                            name.as_str(syntax).to_owned(),
                             name.source_span(),
                             None,
                         ));
                     }
                 }
-                Item::Module(module) => namespaces
-                    .modules
-                    .push(syntax.items.identifier_path_members(module.path).to_vec()),
-                Item::Use(import) => namespaces
-                    .imports
-                    .push(syntax.items.identifier_path_members(import.path).to_vec()),
+                Item::Module(module) => namespaces.record_module(syntax, module.path),
+                Item::Use(import) => namespaces.record_import(syntax, import.path),
                 _ => {}
             }
         }
@@ -205,7 +201,9 @@ impl<'base> ConstantSelection<'base> {
                 let Some(domain) = item.as_domain() else {
                     return false;
                 };
-                if Some(domain.name.source_span()) != source_span || domain.name.as_str() != leaf {
+                if Some(domain.name.source_span()) != source_span
+                    || domain.name.as_str(syntax) != leaf
+                {
                     return false;
                 }
                 let Some(parameter) = syntax.items.type_parameters(domain.type_parameters).first()
@@ -216,7 +214,7 @@ impl<'base> ConstantSelection<'base> {
                     && matches!(
                         syntax.type_references.type_reference(domain.target_type),
                         syntax_trees::types::TypeReferenceNode::Named(name)
-                            if name.as_str() == parameter.name.as_str()
+                            if name.as_str(syntax) == parameter.name.as_str(syntax)
                     )
             });
             let retained_generic_carrier = self.retained.is_some_and(|retained| {
@@ -290,11 +288,12 @@ impl<'base> ConstantSelection<'base> {
 
     pub(super) fn retained_identity(
         &self,
+        syntax_trees: &syntax_trees::SyntaxTrees,
         name: &Identifier,
         kind: SymbolKind,
     ) -> Option<symbols::SymbolHandle> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
+            name.as_str(syntax_trees),
             &[kind],
             name.source_span(),
         )?;
@@ -320,11 +319,12 @@ impl<'base> ConstantSelection<'base> {
 
     pub(super) fn retained_domain_identity(
         &self,
+        syntax_trees: &syntax_trees::SyntaxTrees,
         carrier: &Identifier,
         name: &Identifier,
     ) -> Option<symbols::SymbolHandle> {
         let carrier = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            carrier.as_str(),
+            carrier.as_str(syntax_trees),
             &[SymbolKind::BuiltinType, SymbolKind::Data],
             carrier.source_span(),
         )?;
@@ -335,9 +335,9 @@ impl<'base> ConstantSelection<'base> {
         ) {
             return None;
         }
-        let qualified = if name.as_str().contains("::") {
+        let qualified = if name.as_str(syntax_trees).contains("::") {
             self.symbols.find_top_level_by_name_and_kinds_from_source(
-                name.as_str(),
+                name.as_str(syntax_trees),
                 &[SymbolKind::Domain],
                 name.source_span(),
             )?
@@ -349,7 +349,7 @@ impl<'base> ConstantSelection<'base> {
                 && (if qualified.is_valid() {
                     domain.symbol == qualified
                 } else {
-                    domain.name.as_str().rsplit("::").next() == Some(name.as_str())
+                    domain.name.as_str().rsplit("::").next() == Some(name.as_str(syntax_trees))
                 })
                 && self.symbols.source_reference_can_see_symbol(name.source_span(), domain.symbol)
         });
@@ -429,7 +429,7 @@ impl<'base> ConstantSelection<'base> {
                 syntax.root_items().any(|item| {
                     matches!(item, Item::Domain(definition)
                         if definition.name.source_span() == span
-                            && definition.name.as_str() == self.symbols.name(symbol))
+                            && definition.name.as_str(syntax) == self.symbols.name(symbol))
                 })
             })
     }
@@ -492,7 +492,7 @@ impl<'base> ConstantSelection<'base> {
             let mut declarations = syntax.root_items().filter_map(|item| match item {
                 Item::Domain(definition)
                     if definition.name.source_span() == span
-                        && definition.name.as_str() == self.symbols.name(symbol) =>
+                        && definition.name.as_str(syntax) == self.symbols.name(symbol) =>
                 {
                     Some(definition)
                 }
@@ -610,11 +610,16 @@ impl<'base> ConstantSelection<'base> {
         let selected = self
             .symbols
             .find_top_level_by_name_and_kinds_from_source(
-                name.as_str(),
+                name.as_str(syntax),
                 &[SymbolKind::Data],
                 name.source_span(),
             )
-            .ok_or_else(|| format!("`{name}` does not select one declared canonical data type"))?;
+            .ok_or_else(|| {
+                format!(
+                    "`{name}` does not select one declared canonical data type",
+                    name = name.as_str(syntax)
+                )
+            })?;
         self.data_declaration(syntax, name, selected)
     }
 
@@ -627,7 +632,7 @@ impl<'base> ConstantSelection<'base> {
         name: &Identifier,
     ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
+            name.as_str(syntax),
             &[SymbolKind::Machine, SymbolKind::Conformance],
             name.source_span(),
         )?;
@@ -649,19 +654,29 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,
     ) -> Result<(&'syntax DataDefinition, Option<Identifier>), String> {
-        let (selected, case) =
-            crate::symbols::constructor_type(&self.symbols, name.as_str(), name.source_span())?
-                .ok_or_else(|| {
-                    format!("`{name}` does not select one declared constructor carrier")
-                })?;
+        let (selected, case) = crate::symbols::constructor_type(
+            &self.symbols,
+            name.as_str(syntax),
+            name.source_span(),
+        )?
+        .ok_or_else(|| {
+            format!(
+                "`{name}` does not select one declared constructor carrier",
+                name = name.as_str(syntax)
+            )
+        })?;
         let definition = self.data_declaration(syntax, name, selected)?;
         let case = case.map(|case| Identifier::new(case, name.trailing_span(case.len())));
         Ok((definition, case))
     }
 
-    pub(crate) fn builtin_type(&self, name: &Identifier) -> Option<symbols::BuiltinTypeAtom> {
+    pub(crate) fn builtin_type(
+        &self,
+        syntax_trees: &syntax_trees::SyntaxTrees,
+        name: &Identifier,
+    ) -> Option<symbols::BuiltinTypeAtom> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
+            name.as_str(syntax_trees),
             &[SymbolKind::BuiltinType, SymbolKind::Data],
             name.source_span(),
         )?;
@@ -671,10 +686,14 @@ impl<'base> ConstantSelection<'base> {
     /// Select one trait header in the authored occurrence's source context.
     /// The lookup distinguishes unique, absent, and ambiguous selection so the
     /// caller can reject ambiguity rather than guessing a same-leaf template.
-    pub(crate) fn trait_lookup(&self, name: &Identifier) -> symbols::SymbolLookup {
+    pub(crate) fn trait_lookup(
+        &self,
+        syntax_trees: &syntax_trees::SyntaxTrees,
+        name: &Identifier,
+    ) -> symbols::SymbolLookup {
         self.symbols
             .lookup_top_level_by_name_and_kinds_from_source_matching(
-                name.as_str(),
+                name.as_str(syntax_trees),
                 &[SymbolKind::Trait],
                 name.source_span(),
                 |_| true,
@@ -686,11 +705,15 @@ impl<'base> ConstantSelection<'base> {
     /// spellings stay compiler-owned only when no authored declaration binds
     /// them; this lookup owns that distinction before resolution assigns
     /// symbols.
-    pub(crate) fn names_declaration(&self, name: &Identifier) -> bool {
+    pub(crate) fn names_declaration(
+        &self,
+        syntax_trees: &syntax_trees::SyntaxTrees,
+        name: &Identifier,
+    ) -> bool {
         !matches!(
             self.symbols
                 .lookup_top_level_by_name_and_kinds_from_source_matching(
-                    name.as_str(),
+                    name.as_str(syntax_trees),
                     crate::selection::ANY_DECLARATION_LOOKUP_KINDS,
                     name.source_span(),
                     |_| true,
@@ -710,10 +733,14 @@ impl<'base> ConstantSelection<'base> {
     /// constants here: the leaf's checked admission and package custody own
     /// the legality verdict, while this lookup only distinguishes a value
     /// reference from a literal case or constructor spelling.
-    pub(crate) fn selects_const(&self, name: &Identifier) -> bool {
+    pub(crate) fn selects_const(
+        &self,
+        syntax_trees: &syntax_trees::SyntaxTrees,
+        name: &Identifier,
+    ) -> bool {
         self.symbols
             .find_top_level_by_name_and_kinds_from_source(
-                name.as_str(),
+                name.as_str(syntax_trees),
                 &[SymbolKind::Const],
                 name.source_span(),
             )
@@ -730,7 +757,7 @@ impl<'base> ConstantSelection<'base> {
     ) -> Result<Option<(&'syntax DataDefinition, Identifier)>, String> {
         let Some((owner, _, case)) = crate::symbols::qualified_payload_free_case_type(
             &self.symbols,
-            name.as_str(),
+            name.as_str(syntax),
             name.source_span(),
         )?
         else {
@@ -756,7 +783,7 @@ impl<'base> ConstantSelection<'base> {
         let mut declarations = syntax.root_items().filter_map(|item| match item {
             Item::Data(definition)
                 if definition.name.source_span() == span
-                    && definition.name.as_str() == self.symbols.name(selected) =>
+                    && definition.name.as_str(syntax) == self.symbols.name(selected) =>
             {
                 Some(definition)
             }
@@ -770,7 +797,8 @@ impl<'base> ConstantSelection<'base> {
         }
         if !definition.is_public && !self.symbols.same_source_package(name.source_span(), span) {
             return Err(format!(
-                "nominal carrier `{name}` selects a private declaration in another package"
+                "nominal carrier `{name}` selects a private declaration in another package",
+                name = name.as_str(syntax)
             ));
         }
         Ok(definition)
@@ -786,7 +814,7 @@ impl<'base> ConstantSelection<'base> {
         name: &Identifier,
     ) -> Option<String> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
+            name.as_str(syntax),
             &[SymbolKind::Data],
             name.source_span(),
         )?;
@@ -806,8 +834,8 @@ impl<'base> ConstantSelection<'base> {
         {
             return Some(path);
         }
-        if name.as_str().contains("::") && selects(name.as_str()) {
-            return Some(name.as_str().to_owned());
+        if name.as_str(syntax).contains("::") && selects(name.as_str(syntax)) {
+            return Some(name.as_str(syntax).to_owned());
         }
         for item in syntax.root_items() {
             let Item::Use(import) = item else {
@@ -822,7 +850,7 @@ impl<'base> ConstantSelection<'base> {
                 if !prefix.is_empty() {
                     prefix.push_str("::");
                 }
-                prefix.push_str(member.as_str());
+                prefix.push_str(member.as_str(syntax));
                 let candidate = format!("{prefix}::{path}");
                 if selects(&candidate) {
                     return Some(candidate);
@@ -833,7 +861,7 @@ impl<'base> ConstantSelection<'base> {
         // import can expose this exact carrier without making any qualified
         // spelling valid. Preserve that authored lookup only after trying the
         // qualified paths; declaration/argument custody still owns identity.
-        Some(name.as_str().to_owned())
+        Some(name.as_str(syntax).to_owned())
     }
 
     /// Return exact declaration custody, not a handle from the header table.
@@ -848,7 +876,7 @@ impl<'base> ConstantSelection<'base> {
             return Ok(None);
         }
         let Some(selected) = self.symbols.find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
+            name.as_str(syntax),
             &[SymbolKind::Const],
             name.source_span(),
         ) else {
@@ -881,6 +909,7 @@ impl<'base> ConstantSelection<'base> {
         {
             return Err(Diagnostic::error(format!(
                 "constant `{name}` selects a private declaration in another package",
+                name = name.as_str(syntax)
             ))
             .with_source_span(name.source_span()));
         }
@@ -907,7 +936,7 @@ fn append_variants(
                 Some((
                     SymbolKind::Variant,
                     SymbolNameRef::OwnedSource {
-                        value: variant.name.as_str(),
+                        value: variant.name.as_str(syntax),
                         source_span: variant.name.source_span(),
                     },
                 ))
@@ -937,7 +966,7 @@ pub(crate) fn type_mentions_parameters(
         return false;
     }
     match syntax.type_references.type_reference(type_reference) {
-        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str()),
+        TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str(syntax)),
         TypeReferenceNode::Generic { arguments, .. } => syntax
             .type_references
             .type_reference_handles(*arguments)
@@ -948,7 +977,7 @@ pub(crate) fn type_mentions_parameters(
             length,
         } => {
             type_mentions_parameters(syntax, *element_type, substitution)
-                || matches!(length, FixedArrayLength::ConstParameter(name) if substitution.contains_key(name.as_str()))
+                || matches!(length, FixedArrayLength::ConstParameter(name) if substitution.contains_key(name.as_str(syntax)))
         }
         TypeReferenceNode::Constrained {
             base_type,
@@ -994,7 +1023,7 @@ pub(crate) fn resolved_generic_argument(
     substitution: &GenericApplicationSubstitution,
 ) -> Result<syntax_trees::types::TypeReferenceHandle, String> {
     if let Some(name) = syntax.type_references.type_reference(argument).as_named()
-        && let Some(resolved) = substitution.get(name.as_str())
+        && let Some(resolved) = substitution.get(name.as_str(syntax))
     {
         return Ok(*resolved);
     }
@@ -1017,7 +1046,7 @@ pub(crate) fn substituted_generic_arguments(
     let mut next_substitution = GenericApplicationSubstitution::new();
     for (parameter, argument) in parameters.iter().zip(argument_handles.iter()) {
         next_substitution.insert(
-            parameter.name.as_str().to_owned(),
+            parameter.name.as_str(syntax).to_owned(),
             resolved_generic_argument(syntax, *argument, substitution)?,
         );
     }
@@ -1087,4 +1116,38 @@ pub fn select_data_declarations(
                 .map(|data| data.name.source_span())
         })
         .collect())
+}
+
+#[cfg(test)]
+mod retained_namespace_tests {
+    use super::*;
+    use arena::HandleSpan;
+    use source::{SourceId, SourceSpan, Span};
+    use syntax_trees::item::{ModuleDeclaration, UseItem};
+
+    #[test]
+    fn early_declaration_selection_retains_authored_namespace_names() {
+        let mut syntax = SyntaxTrees::new(SourceId(1));
+        let page = syntax.text.retain(Arc::from("example imported"));
+        let module = syntax
+            .items
+            .append_identifier_path_member(Identifier::source_backed(
+                page,
+                SourceSpan::new(SourceId(1), Span::new(0, 7)),
+            ));
+        let import = syntax
+            .items
+            .append_identifier_path_member(Identifier::source_backed(
+                page,
+                SourceSpan::new(SourceId(1), Span::new(8, 16)),
+            ));
+        syntax.push_root_item(Item::Module(ModuleDeclaration {
+            path: HandleSpan::from_parts(module, 1),
+        }));
+        syntax.push_root_item(Item::Use(UseItem {
+            path: HandleSpan::from_parts(import, 1),
+        }));
+        ConstantSelection::new(&syntax, None, Vec::new())
+            .expect("namespace registration retains source ownership before cloning names");
+    }
 }

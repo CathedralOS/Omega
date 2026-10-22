@@ -49,12 +49,12 @@ pub(crate) fn lower_statement_node(
                 slot: binding
                     .slot
                     .iter()
-                    .map(crate::lowering::name::lower_name)
+                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                     .collect(),
                 implementation: binding
                     .implementation
                     .iter()
-                    .map(crate::lowering::name::lower_name)
+                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                     .collect(),
                 // An ambiguous bare name is lowered outside the authored-
                 // selection exposure so a name that resolves to a
@@ -121,8 +121,8 @@ pub(crate) fn lower_statement_node(
                         machine_symbol: SymbolHandle::invalid(),
                         state_symbol: SymbolHandle::invalid(),
                         statement_index,
-                        target: crate::lowering::name::lower_name(target),
-                        source: crate::lowering::name::lower_name(source),
+                        target: crate::lowering::name::lower_name(syntax_trees, target),
+                        source: crate::lowering::name::lower_name(syntax_trees, source),
                         source_conformance: None,
                     },
                 );
@@ -162,7 +162,10 @@ pub(crate) fn lower_statement_node(
                     .statement_path_members
                     .span_or_empty(receiver)
                     .to_vec();
-                path.push(crate::lowering::name::lower_name(&call.target));
+                path.push(crate::lowering::name::lower_name(
+                    syntax_trees,
+                    &call.target,
+                ));
                 lowerer
                     .pending_static_module_statement_calls
                     .push((call.target.source_span(), path));
@@ -195,7 +198,7 @@ pub(crate) fn lower_statement_node(
             let lowered_call = Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: SymbolHandle::invalid(),
-                target: crate::lowering::name::lower_name(&call.target),
+                target: crate::lowering::name::lower_name(syntax_trees, &call.target),
                 storage: CallStorage {
                     receiver_root_symbol: SymbolHandle::invalid(),
                     receiver,
@@ -215,7 +218,7 @@ pub(crate) fn lower_statement_node(
                     evidence_arguments: call
                         .evidence_arguments
                         .iter()
-                        .map(crate::lowering::name::lower_name)
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -232,7 +235,7 @@ pub(crate) fn lower_statement_node(
             // these operations return Unit, so the discard marker names no
             // value and the one expression route serves every spelling.
             if matches!(
-                BuildOperation::from_call_target(call.target.as_str()),
+                BuildOperation::from_call_target(call.target.as_str(syntax_trees)),
                 Some(
                     BuildOperation::ProviderSelection
                         | BuildOperation::AssumedBindingContract
@@ -252,20 +255,26 @@ pub(crate) fn lower_statement_node(
         syntax::statement::StatementNode::ProofOutputBindingStatement(binding) => {
             let call = lower_statement_expression(lowerer, syntax_trees, binding.call)?;
             let runtime_value = binding.bindings.iter().find(|binding| {
-                binding.output_field.as_str() == "value" && binding.binding.as_str() != "_"
+                binding.output_field.as_str(syntax_trees) == "value"
+                    && binding.binding.as_str(syntax_trees) != "_"
             });
             let bindings = binding
                 .bindings
                 .iter()
                 .map(|binding| {
-                    if binding.output_field.as_str() != "value" && binding.binding.as_str() != "_" {
+                    if binding.output_field.as_str(syntax_trees) != "value"
+                        && binding.binding.as_str(syntax_trees) != "_"
+                    {
                         lowerer
                             .current_evidence_term_names
-                            .push(binding.binding.as_str().to_owned());
+                            .push(binding.binding.as_str(syntax_trees).to_owned());
                     }
                     symbol_resolved_trees::statement::ProofOutputSelector {
-                        output_field: crate::lowering::name::lower_name(&binding.output_field),
-                        binding: crate::lowering::name::lower_name(&binding.binding),
+                        output_field: crate::lowering::name::lower_name(
+                            syntax_trees,
+                            &binding.output_field,
+                        ),
+                        binding: crate::lowering::name::lower_name(syntax_trees, &binding.binding),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -278,7 +287,7 @@ pub(crate) fn lower_statement_node(
                 // local enters the typed runtime statement stream.
                 lowered.push(Statement::LocalData(LocalData {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(&runtime_value.binding),
+                    name: crate::lowering::name::lower_name(syntax_trees, &runtime_value.binding),
                     storage: LocalDataStorage {
                         role: language_core::LocalBindingRole::Value,
                         type_reference: TypeReference::Unit,
@@ -503,8 +512,14 @@ pub(crate) fn lower_statement_node(
                     .iter()
                     .map(
                         |selector| symbol_resolved_trees::statement::OutcomeProofSelector {
-                            output_field: crate::lowering::name::lower_name(&selector.output_field),
-                            binding: crate::lowering::name::lower_name(&selector.binding),
+                            output_field: crate::lowering::name::lower_name(
+                                syntax_trees,
+                                &selector.output_field,
+                            ),
+                            binding: crate::lowering::name::lower_name(
+                                syntax_trees,
+                                &selector.binding,
+                            ),
                         },
                     )
                     .collect::<Vec<_>>()
@@ -602,7 +617,7 @@ fn evidence_forwarding_names<'syntax>(
     (lowerer
         .current_evidence_term_names
         .iter()
-        .any(|name| name == target.as_str() || name == source.as_str()))
+        .any(|name| name == target.as_str(syntax_trees) || name == source.as_str(syntax_trees)))
     .then_some((target, source))
 }
 
@@ -746,7 +761,7 @@ fn lower_transition_target_node(
                     arguments,
                     evidence_arguments: evidence_arguments
                         .iter()
-                        .map(crate::lowering::name::lower_name)
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     source_span: *source_span,
@@ -786,7 +801,10 @@ fn lower_statement_path_members(
             .tables
             .declarations
             .statement_path_members
-            .append_to_span(&mut span, crate::lowering::name::lower_name(member));
+            .append_to_span(
+                &mut span,
+                crate::lowering::name::lower_name(syntax_trees, member),
+            );
     }
 
     span

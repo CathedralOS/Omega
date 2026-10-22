@@ -265,7 +265,8 @@ pub fn parse(
     source_id: SourceId,
     tokens: &TokenStream<'_>,
 ) -> Result<ParsedRootItems, ParseError> {
-    let mut input = Input::new(source_id, tokens);
+    let retained_source = Input::retain_source(tokens);
+    let mut input = Input::new(source_id, tokens, &retained_source, syntax_trees);
     let mut roots = ParsedRootItems::default();
     while !input.tokens.is_empty() {
         let (declaration, rest) = parse_item(syntax_trees, input)?;

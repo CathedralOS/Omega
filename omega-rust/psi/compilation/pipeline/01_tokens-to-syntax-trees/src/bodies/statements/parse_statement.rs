@@ -133,13 +133,13 @@ fn parse_statement_handle<'tokens, 'source>(
             .unwrap_or_default();
         let input = input.take_contextual("crash")?;
         let (cause, input) = input.take_identifier()?;
-        let cause = match cause.as_str() {
+        let cause = match cause.as_str(syntax_trees) {
             "Trap" => syntax_trees::item::CrashCause::Trap,
             "Abort" => syntax_trees::item::CrashCause::Abort,
             _ => {
                 return Err(input.error_here(format!(
                     "unknown crash cause `{}`; expected `Trap` or `Abort`",
-                    cause.as_str()
+                    cause.as_str(syntax_trees)
                 )));
             }
         };

@@ -58,10 +58,10 @@ use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use source::SourceSpan;
 use std::collections::HashMap;
-use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
 use syntax_trees::types::{
     IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -118,7 +118,7 @@ pub(crate) fn template_type_equation_offsets(
             EquationShape::KindMismatch { span, description } => {
                 return Err(Diagnostic::error(format!(
                     "generic data `{}` where equation mixes type and value kinds: {description}",
-                    definition.name.as_str(),
+                    definition.name.as_str(syntax),
                 ))
                 .with_source_span(span));
             }
@@ -153,7 +153,7 @@ pub(crate) fn validate_materialized_type_equations(
     if !template_type_equation_offsets(syntax, definition)?.is_empty() {
         return Err(Diagnostic::error(format!(
             "generic data `{}` retains unsolved type equations; its application requires closed instance specialization",
-            definition.name.as_str(),
+            definition.name.as_str(syntax),
         )).with_source_span(base_name.source_span()));
     }
     Ok(())
@@ -269,12 +269,13 @@ enum Side {
 }
 
 fn binder_index<'parameters>(
+    syntax_trees: &syntax_trees::SyntaxTrees,
     parameters: &'parameters [TypeParameter],
     name: &str,
 ) -> Option<(usize, &'parameters TypeParameterKind)> {
     parameters
         .iter()
-        .position(|parameter| parameter.name.as_str() == name)
+        .position(|parameter| parameter.name.as_str(syntax_trees) == name)
         .map(|index| (index, &parameters[index].kind))
 }
 
@@ -321,7 +322,7 @@ pub(crate) fn classify_type_equations(
                         span,
                         description: format!(
                             "{} cannot equal a range shell",
-                            describe_side(parameters, &other)
+                            describe_side(syntax, parameters, &other)
                         ),
                     }
                 }
@@ -330,7 +331,7 @@ pub(crate) fn classify_type_equations(
                         span,
                         description: format!(
                             "{} cannot equal a type structure",
-                            describe_side(parameters, &other)
+                            describe_side(syntax, parameters, &other)
                         ),
                     }
                 }
@@ -354,7 +355,7 @@ fn classify_side(
         ExpressionNode::Name(path) => {
             let members = syntax.expressions.identifier_path_members(*path);
             if let [member] = members
-                && let Some((index, kind)) = binder_index(parameters, member.as_str())
+                && let Some((index, kind)) = binder_index(syntax, parameters, member.as_str(syntax))
             {
                 return if matches!(kind, TypeParameterKind::Type) {
                     Side::TypeBinder(index)
@@ -372,7 +373,7 @@ fn classify_side(
                 .source_span()
                 .span
                 .end;
-            Side::ClosedName(Identifier::new(members.joined_path(), span))
+            Side::ClosedName(Identifier::new(members.joined_path_in(syntax), span))
         }
         ExpressionNode::Indexed(indexed) => {
             let Some(carrier) = single_name(syntax, indexed.collection) else {
@@ -392,16 +393,28 @@ fn classify_side(
     }
 }
 
-fn describe_side(parameters: &[TypeParameter], side: &Side) -> String {
+fn describe_side(
+    syntax_trees: &syntax_trees::SyntaxTrees,
+    parameters: &[TypeParameter],
+    side: &Side,
+) -> String {
     match side {
         Side::AmbiguousTypeOperand(_) => "a reference or slice operand".to_owned(),
         Side::TypeStructure(_) => "a type structure".to_owned(),
-        Side::TypeBinder(index) => format!("type binder `{}`", parameters[*index].name.as_str()),
+        Side::TypeBinder(index) => format!(
+            "type binder `{}`",
+            parameters[*index].name.as_str(syntax_trees)
+        ),
         Side::ValueBinder(index) => {
-            format!("value binder `{}`", parameters[*index].name.as_str())
+            format!(
+                "value binder `{}`",
+                parameters[*index].name.as_str(syntax_trees)
+            )
         }
-        Side::ClosedName(name) => format!("`{}`", name.as_str()),
-        Side::RangeShell { carrier, .. } => format!("range shell on `{}`", carrier.as_str()),
+        Side::ClosedName(name) => format!("`{}`", name.as_str(syntax_trees)),
+        Side::RangeShell { carrier, .. } => {
+            format!("range shell on `{}`", carrier.as_str(syntax_trees))
+        }
         Side::Other(what) => (*what).to_owned(),
     }
 }
@@ -413,7 +426,7 @@ fn equation_shape(
     other: Side,
     span: SourceSpan,
 ) -> EquationShape {
-    let binder_name = parameters[binder].name.as_str();
+    let binder_name = parameters[binder].name.as_str(syntax);
     let mismatch = |description: String| EquationShape::KindMismatch { span, description };
     let structure = match other {
         Side::AmbiguousTypeOperand(expression) => {
@@ -431,7 +444,7 @@ fn equation_shape(
         Side::ValueBinder(index) => {
             return mismatch(format!(
                 "type binder `{binder_name}` cannot equal value binder `{}`",
-                parameters[index].name.as_str()
+                parameters[index].name.as_str(syntax)
             ));
         }
         Side::Other(what) => {
@@ -443,12 +456,12 @@ fn equation_shape(
             end,
             end_inclusive,
         } => {
-            let carrier_binder = match binder_index(parameters, carrier.as_str()) {
+            let carrier_binder = match binder_index(syntax, parameters, carrier.as_str(syntax)) {
                 Some((index, TypeParameterKind::Type)) => Some(index),
                 Some(_) => {
                     return mismatch(format!(
                         "value binder `{}` cannot carry a range shell",
-                        carrier.as_str()
+                        carrier.as_str(syntax)
                     ));
                 }
                 None => None,
@@ -489,13 +502,13 @@ fn classify_endpoint(
             .value_bignum()
             .map_or(Endpoint::Expression(expression), Endpoint::Literal)),
         ExpressionNode::Name(_) => match single_name(syntax, expression)
-            .and_then(|name| binder_index(parameters, name.as_str()))
+            .and_then(|name| binder_index(syntax, parameters, name.as_str(syntax)))
         {
             Some((_, TypeParameterKind::Type)) => Err(format!(
                 "type binder `{}` cannot be a range endpoint",
                 single_name(syntax, expression)
                     .expect("a single-segment name was matched")
-                    .as_str()
+                    .as_str(syntax)
             )),
             Some((index, _)) => Ok(Endpoint::Binder(index)),
             None => Ok(Endpoint::Expression(expression)),
@@ -514,7 +527,7 @@ fn type_operand_kind_error(
     match syntax.expressions.expression(expression) {
         ExpressionNode::Name(path) => {
             if let [name] = syntax.expressions.identifier_path_members(*path)
-                && binder_index(parameters, name.as_str())
+                && binder_index(syntax, parameters, name.as_str(syntax))
                     .is_some_and(|(_, kind)| !matches!(kind, TypeParameterKind::Type))
             {
                 return Some("a value binder cannot supply a reference or slice element type");
@@ -560,7 +573,7 @@ fn collect_expression_binder_mentions(
             if let [member] = syntax.expressions.identifier_path_members(*path)
                 && let Some(index) = parameters
                     .iter()
-                    .position(|parameter| parameter == member.as_str())
+                    .position(|parameter| parameter == member.as_str(syntax))
             {
                 mentions.push(index);
             }
@@ -675,7 +688,7 @@ pub(crate) fn complete_equation_arguments_with_types(
                 continue;
             }
             Some(Binding::NamedType(name)) => {
-                TypeReferenceNode::Named(Identifier::new(name.as_str(), name.source_span()))
+                TypeReferenceNode::Named(Identifier::new(name.as_str(syntax), name.source_span()))
             }
             Some(Binding::Integer(value)) => {
                 TypeReferenceNode::Named(Identifier::generated(value.to_string()))
@@ -746,11 +759,11 @@ impl<'a, 's> Solver<'a, 's> {
             bindings[index] = Some(if base_info.const_parameter_types[index].is_some() {
                 match syntax.tables.type_references.type_reference(*argument) {
                     TypeReferenceNode::Named(value) => {
-                        if let Some(value) = normalized_boolean_argument(value.as_str()) {
+                        if let Some(value) = normalized_boolean_argument(value.as_str(syntax)) {
                             Binding::Boolean(value)
                         } else {
                             value
-                                .as_str()
+                                .as_str(syntax)
                                 .parse::<i128>()
                                 .map_or(Binding::Opaque, |value| {
                                     Binding::Integer(BigInt::from_i128(value))
@@ -986,7 +999,7 @@ impl<'a, 's> Solver<'a, 's> {
             return Err(self
                 .reject(format!(
                     "where type equation operand `{}` does not name a closed type",
-                    name.as_str(),
+                    name.as_str(self.syntax),
                 ))
                 .with_source_span(span));
         };
@@ -1486,13 +1499,13 @@ impl<'a, 's> Solver<'a, 's> {
             (Some(_), Some(_)) => Err(self
                 .reject(format!(
                     "where equation on `{binder_name}` does not hold: the supplied range carrier is not `{}`",
-                    carrier.as_str()
+                    carrier.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
             _ => Err(self
                 .reject(format!(
                     "where equation on `{binder_name}` cannot be decided: `{}` or the supplied carrier does not name a closed type",
-                    carrier.as_str()
+                    carrier.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
         }
@@ -1534,13 +1547,13 @@ impl<'a, 's> Solver<'a, 's> {
             (Some(_), Some(_)) => Err(self
                 .reject(format!(
                     "where equation on `{binder_name}` does not hold: the supplied `{binder_name}` argument is not `{}`",
-                    name.as_str()
+                    name.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
             _ => Err(self
                 .reject(format!(
                     "where equation on `{binder_name}` cannot be decided: `{}` or the supplied `{binder_name}` argument does not name a closed type",
-                    name.as_str()
+                    name.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
         }
@@ -1645,11 +1658,11 @@ impl<'a, 's> Solver<'a, 's> {
                         ))
                         .with_source_span(span));
                 };
-                let Some((minimum, maximum)) = const_binder_envelope(type_name.as_str()) else {
+                let Some((minimum, maximum)) = const_binder_envelope(type_name.as_str(self.syntax)) else {
                     return Err(self
                         .reject(format!(
                             "where equation mixes type and value kinds: const binder `{name}` of type `{}` cannot hold a range endpoint",
-                            type_name.as_str()
+                            type_name.as_str(self.syntax)
                         ))
                         .with_source_span(span));
                 };
@@ -1657,7 +1670,7 @@ impl<'a, 's> Solver<'a, 's> {
                     return Err(self
                         .reject(format!(
                             "where equation binds `{name}` to {value}, outside its declared `{}`",
-                            type_name.as_str()
+                            type_name.as_str(self.syntax)
                         ))
                         .with_source_span(span));
                 }

@@ -158,7 +158,7 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
     let generic_data = syntax
         .root_items()
         .filter_map(|item| match item {
-            Item::Data(data) if !data.type_parameters.is_empty() => Some(data.name.as_str()),
+            Item::Data(data) if !data.type_parameters.is_empty() => Some(data.name.as_str(syntax)),
             _ => None,
         })
         .collect::<HashSet<&str>>();
@@ -167,7 +167,7 @@ pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'synta
             && !machine
                 .attached_data
                 .as_ref()
-                .is_some_and(|attached| generic_data.contains(attached.as_str()))
+                .is_some_and(|attached| generic_data.contains(attached.as_str(syntax)))
     };
     let mut machines = Vec::new();
     for declaration in declarations {
@@ -357,8 +357,8 @@ impl ConstructorFrontier<'_> {
 
     pub fn captures_name(&self, syntax: &SyntaxTrees, name: &Identifier) -> bool {
         self.prior_statements.iter().rev().any(|statement| matches!(
-            syntax.statements.statement(*statement), StatementNode::LocalData(local) if local.name == *name
+            syntax.statements.statement(*statement), StatementNode::LocalData(local) if local.name.as_str(syntax) == name.as_str(syntax)
         )) || syntax.items.state_parameters(self.parameters).iter().any(|parameter|
-            syntax.items.state_parameter(*parameter).name == *name)
+            syntax.items.state_parameter(*parameter).name.as_str(syntax) == name.as_str(syntax))
     }
 }

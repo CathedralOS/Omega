@@ -31,7 +31,7 @@ pub(super) fn collect(
     };
     for (_, expression) in syntax.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            let mut name = call.target.as_str().to_owned();
+            let mut name = call.target.as_str(syntax).to_owned();
             if call.receiver.is_valid() {
                 let ExpressionNode::Name(path) = syntax.expressions.expression(call.receiver)
                 else {
@@ -41,7 +41,7 @@ pub(super) fn collect(
                     .expressions
                     .identifier_path_members(*path)
                     .iter()
-                    .map(|part| part.as_str())
+                    .map(|part| part.as_str(syntax))
                     .collect::<Vec<_>>()
                     .join("::");
                 name = format!("{prefix}::{name}");
@@ -62,9 +62,9 @@ pub(super) fn collect(
                     .statements
                     .identifier_path_members(call.receiver)
                     .iter()
-                    .map(|part| part.as_str())
+                    .map(|part| part.as_str(syntax))
                     .collect::<Vec<_>>();
-                path.push(call.target.as_str());
+                path.push(call.target.as_str(syntax));
                 visit(
                     Identifier::new(path.join("::"), call.target.source_span()),
                     &call.machine_arguments,
@@ -117,7 +117,7 @@ fn collect_application(
                 argument
                     .path
                     .iter()
-                    .map(|part| part.as_str())
+                    .map(|part| part.as_str(syntax))
                     .collect::<Vec<_>>()
                     .join("::"),
                 first.source_span(),

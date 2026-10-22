@@ -71,7 +71,7 @@ fn lower_state_parts(
         })?;
     let mut state = State {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(name),
+        name: crate::lowering::name::lower_name(syntax_trees, name),
         storage: StateStorage {
             parameters,
             return_type,
@@ -263,12 +263,12 @@ pub(crate) fn lower_state_signature_parts(
     Ok(LoweredStateSignature {
         signature: StateSignature {
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(name),
+            name: crate::lowering::name::lower_name(syntax_trees, name),
             storage: StateSignatureStorage {
                 spelling,
                 lifetime_parameters: lifetime_parameters
                     .iter()
-                    .map(crate::lowering::name::lower_name)
+                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                     .collect(),
                 type_parameters,
                 is_default,
@@ -277,8 +277,11 @@ pub(crate) fn lower_state_signature_parts(
                     .iter()
                     .map(
                         |parameter| symbol_resolved_trees::signature::NativeCallbackParameter {
-                            name: crate::lowering::name::lower_name(&parameter.name),
-                            binder: crate::lowering::name::lower_name(&parameter.binder),
+                            name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
+                            binder: crate::lowering::name::lower_name(
+                                syntax_trees,
+                                &parameter.binder,
+                            ),
                             native_ordinal: parameter.native_ordinal,
                         },
                     )
@@ -331,7 +334,7 @@ pub(crate) fn lower_service_reach_names(
         .items
         .identifier_path_members(service_reaches)
         .iter()
-        .map(crate::lowering::name::lower_name)
+        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
         .collect()
 }
 
@@ -460,22 +463,24 @@ fn lower_signature_contracts_with_result_sum(
                         "outcome-specific ensures requires the exact path `Result::Case`",
                     ));
                 };
-                if result_name.as_str() != result_sum.data_name.as_str() {
+                if result_name.as_str(syntax_trees) != result_sum.data_name.as_str() {
                     return Err(Diagnostic::error(format!(
                         "outcome-specific ensures case `{result_name}::{case_name}` does not belong to declared result sum `{}`",
-                        result_sum.data_name
+                        result_sum.data_name,
+                        result_name = result_name.as_str(syntax_trees),
+                        case_name = case_name.as_str(syntax_trees)
                     )));
                 }
                 let result_case_name = result_sum
                     .variants
                     .iter()
-                    .find(|name| name.as_str() == case_name.as_str())
+                    .find(|name| name.as_str() == case_name.as_str(syntax_trees))
                     .cloned()
                     .ok_or_else(|| {
                         Diagnostic::error(format!(
                             "outcome-specific ensures names unknown case `{case_name}` of declared result sum `{}`",
                             result_sum.data_name
-                        ))
+                        , case_name = case_name.as_str(syntax_trees)))
                     })?;
                 (
                     SignatureContractKind::EnsuresForResultCase {
@@ -517,7 +522,7 @@ fn lower_signature_contracts_with_result_sum(
                     binding: contract
                         .binding
                         .as_ref()
-                        .map(crate::lowering::name::lower_name),
+                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
                     facts,
                     token_count: contract.token_count,
                 },
@@ -685,7 +690,7 @@ pub(crate) fn lower_state_parameter(
     let parameter = syntax_trees.items.state_parameter(parameter);
     Ok(StateParameter {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(&parameter.name),
+        name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
         type_reference: lower_type_reference_handle(
             lowerer,
             syntax_trees,

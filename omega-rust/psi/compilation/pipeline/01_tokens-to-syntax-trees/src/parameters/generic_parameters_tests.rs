@@ -24,8 +24,9 @@ fn parse_parameters(
     let tokens = Lexer::new(source).tokenize().unwrap();
     let source_id = SourceId(7);
     let mut trees = SyntaxTrees::new(source_id);
-    let (parameters, rest) =
-        parse_generic_parameters(&mut trees, Input::new(source_id, &tokens), syntax)?;
+    let retained_source = Input::retain_source(&tokens);
+    let input = Input::new(source_id, &tokens, &retained_source, &mut trees);
+    let (parameters, rest) = parse_generic_parameters(&mut trees, input, syntax)?;
     assert!(rest.tokens.is_empty());
     Ok((trees, parameters))
 }
