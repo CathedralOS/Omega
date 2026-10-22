@@ -4276,31 +4276,31 @@ fail/facts/indexed_crash_guard_through_parameter rejected 3576ms expected @97fca
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_crash_guard_through_target_body rejected 3443ms expected @97fca7a18f74+wt
 	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_element_mut_loan_through_call_result_held rejected 1261ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_call_result_rejected rejected 1261ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_element_mut_loan_through_const_name_held rejected 1181ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_const_name_rejected rejected 1181ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_element_mut_loan_through_field_held rejected 1207ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_field_rejected rejected 1207ms expected @dee77250b5b9
 	state `bump` receives `rooms[selector.index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `rooms[selector.index].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_element_mut_loan_through_local_held rejected 1174ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_local_rejected rejected 1174ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_element_mut_loan_through_match_join_held rejected 1183ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_match_join_rejected rejected 1183ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_element_mut_loan_through_other_machine_held rejected 1191ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_other_machine_rejected rejected 1191ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/facts/indexed_element_mut_loan_through_other_state_held rejected 1157ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_other_state_rejected rejected 1157ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/facts/indexed_element_mut_loan_through_parameter_held rejected 1179ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_parameter_rejected rejected 1179ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/facts/indexed_element_mut_loan_through_target_body_held rejected 1232ms expected @dee77250b5b9
+fail/facts/indexed_element_mut_loan_through_target_body_rejected rejected 1232ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)

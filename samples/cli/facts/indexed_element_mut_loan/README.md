@@ -56,7 +56,8 @@ python3 tools/corpus_gate.py --native --filter indexed_element_mut_loan
 
 The corresponding regression fixtures are
 `tests/omega/pass/facts/indexed_element_mut_loan_through_<place>_exit` and
-`tests/omega/fail/facts/indexed_element_mut_loan_through_<place>_held`.
+`tests/omega/fail/facts/indexed_element_mut_loan_through_<place>_rejected`
+(nine each; the reject fixture is a byte-identical copy of `<place>/invalid/main.omg`).
 
 On the initial fixed compiler, three places ran and all nine twins rejected;
 local, field, call result, match join and const name reached a missing
