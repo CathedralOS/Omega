@@ -2006,7 +2006,10 @@ defines the complete product bar.
     across all nine places of `facts/crash_entry_ieee_view`. An entry `f32` proved
     equal to `-0.0` discharges `maybe_nonzero`'s `value != 0.0` Trap guard across all
     nine places of `facts/crash_entry_signed_zero`, because the guard reads recorded
-    IEEE equality and the two signed zeros compare equal. Keep exact
+    IEEE equality and the two signed zeros compare equal. An entry `f32` that is
+    NaN makes `value == value` false, so `maybe_ordered`'s Trap guard drops across
+    all nine places of `facts/crash_entry_nan_equality`; the guard reads that
+    unordered IEEE equality. The `1.0` twin keeps the route. Keep exact
     entry coordinates and recursive operand meaning, no source-arrangement
     exceptions, and private/local roots never become public parameters.
     Fixed-array field paths already work for crash-entry float operands.

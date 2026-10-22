@@ -893,15 +893,37 @@ fn ieee_equality_observation(
             // A writable local keeps the recorded equality only while its
             // storage is pristine; an intervening write ends the carrier. The
             // window rule lives with the rest of entry provenance, so every
-            // view route reads one answer.
-            let initial_value =
+            // view route reads one answer. A const name has no local storage,
+            // so it follows the initializer that spells the same value.
+            if let Some(initial_value) =
                 crate::facts::crash_entry_values::local_initial_value_before_statement(
                     program,
                     machine.symbol,
                     state.symbol,
                     before_statement,
                     path.symbol,
-                )?;
+                )
+            {
+                return ieee_equality_observation(
+                    program,
+                    semantic,
+                    machine,
+                    state,
+                    before_statement,
+                    entry_contexts,
+                    initial_value,
+                    depth + 1,
+                );
+            }
+            let declaration = program.const_declaration_by_symbol(path.symbol)?;
+            let initializer = if declaration.materialized_initializer.is_valid() {
+                declaration.materialized_initializer
+            } else {
+                declaration.authored_initializer
+            };
+            if !initializer.is_valid() {
+                return None;
+            }
             ieee_equality_observation(
                 program,
                 semantic,
@@ -909,7 +931,7 @@ fn ieee_equality_observation(
                 state,
                 before_statement,
                 entry_contexts,
-                initial_value,
+                initializer,
                 depth + 1,
             )
         }
@@ -928,7 +950,77 @@ fn ieee_equality_observation(
             )
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
-            let actual = parameter_returned_by_call(program, call)?;
+            if let Some(actual) = parameter_returned_by_call(program, call) {
+                return ieee_equality_observation(
+                    program,
+                    semantic,
+                    machine,
+                    state,
+                    before_statement,
+                    entry_contexts,
+                    actual,
+                    depth + 1,
+                );
+            }
+            // A selected Float divide stays a call after operator binding.
+            // Zero divided by zero is the unordered spelling; a finite
+            // quotient is not this record. Every place reads that call.
+            let (left, right) = sealed_float_divide_operands(program, expression)?;
+            let left = ieee_equality_observation(
+                program,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                left,
+                depth + 1,
+            )?;
+            let right = ieee_equality_observation(
+                program,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                right,
+                depth + 1,
+            )?;
+            unordered_quotient_spelling(&left, &right)
+        }
+        typed_trees::expression::ExpressionNode::Member(member) => {
+            let typed_trees::expression::ExpressionNode::Name(path) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+                || path.head_symbol != path.symbol
+            {
+                return None;
+            }
+            let initial_value =
+                crate::facts::crash_entry_values::local_initial_value_before_statement(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    before_statement,
+                    path.symbol,
+                )?;
+            let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(initial_value)
+            else {
+                return None;
+            };
+            let field = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|field| field.field_symbol == member.member_symbol)?;
             ieee_equality_observation(
                 program,
                 semantic,
@@ -936,7 +1028,7 @@ fn ieee_equality_observation(
                 state,
                 before_statement,
                 entry_contexts,
-                actual,
+                field.value,
                 depth + 1,
             )
         }
@@ -965,9 +1057,85 @@ fn ieee_equality_observation(
             }
             agreed
         }
+        typed_trees::expression::ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::Divide =>
+        {
+            let left = ieee_equality_observation(
+                program,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                binary.left,
+                depth + 1,
+            )?;
+            let right = ieee_equality_observation(
+                program,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                binary.right,
+                depth + 1,
+            )?;
+            unordered_quotient_spelling(&left, &right)
+        }
         typed_trees::expression::ExpressionNode::Float(value) => Some(value.text().to_owned()),
         _ => None,
     }
+}
+
+/// A closed IEEE quotient that is NaN.
+///
+/// Zero divided by zero is unordered. The spelling is the NaN the crash
+/// guard compares, so `value == value` is false. A finite quotient is not
+/// this record.
+/// The two operands of a sealed `Float::divide` call.
+///
+/// Operator binding rewrites the spelled division into that call. The
+/// token binding is the operation; a receiver or static argument does not
+/// change the two float operands.
+fn sealed_float_divide_operands(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let (machine, _) = validation::find_machine_by_entry_state(program, call.target_symbol)?;
+    let binding = program.machine_token_binding_by_symbol(machine.symbol)?;
+    let (operator, _) = typed_trees::operator::primitive_float_binary_semantics(program, binding)?;
+    if operator != typed_trees::expression::BinaryOperator::Divide {
+        return None;
+    }
+    let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+        return None;
+    };
+    Some((*left, *right))
+}
+
+fn unordered_quotient_spelling(left: &str, right: &str) -> Option<String> {
+    let left = numerics::literals::FloatLiteral::parse(left)?;
+    let right = numerics::literals::FloatLiteral::parse(right)?;
+    let binary32 = left.landing() == Some(numerics::literals::FloatFormat::F32)
+        || right.landing() == Some(numerics::literals::FloatFormat::F32);
+    let value = if binary32 {
+        f64::from(left.value_f32() / right.value_f32())
+    } else {
+        left.value_f64() / right.value_f64()
+    };
+    if !value.is_nan() {
+        return None;
+    }
+    Some(
+        numerics::literals::FloatLiteral::from_f64(value)
+            .text()
+            .to_owned(),
+    )
 }
 
 fn recorded_equal_spelling(
@@ -990,7 +1158,14 @@ fn recorded_equal_spelling(
 fn ieee_literal_same(left: &str, right: &str) -> Option<bool> {
     let left = numerics::literals::FloatLiteral::parse(left)?;
     let right = numerics::literals::FloatLiteral::parse(right)?;
-    Some(left.value_f64() == right.value_f64())
+    let left = left.value_f64();
+    let right = right.value_f64();
+    // Both NaNs are the one unordered record a match must carry. IEEE
+    // equality of those values stays false, which is what drops `value == value`.
+    if left.is_nan() || right.is_nan() {
+        return Some(left.is_nan() && right.is_nan());
+    }
+    Some(left == right)
 }
 
 fn ieee_view_carrier(

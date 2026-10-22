@@ -3003,6 +3003,24 @@ fail/facts/crash_entry_integer_view_incompatible_view rejected 6427ms expected @
 	machine `read_bits` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
 fail/facts/crash_entry_integer_view_stale_storage rejected 9125ms expected @457174b6ca03
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_call_result_one_rejected rejected 5522ms expected @1654d389500c+wt
+	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_const_name_one_rejected rejected 5575ms expected @1654d389500c+wt
+	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_field_one_rejected rejected 5623ms expected @1654d389500c+wt
+	call from `read_nan` to `maybe_ordered` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_local_one_rejected rejected 3927ms expected @1654d389500c+wt
+	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_match_join_one_rejected rejected 3973ms expected @1654d389500c+wt
+	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_other_machine_one_rejected rejected 3920ms expected @1654d389500c+wt
+	call from `read_nan` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_other_state_one_rejected rejected 3931ms expected @1654d389500c+wt
+	call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_parameter_one_rejected rejected 3494ms expected @1654d389500c+wt
+	call from `main` to `read_nan` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_nan_equality_target_body_one_rejected rejected 3525ms expected @1654d389500c+wt
+	call from `read_nan` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_representation_view_through_call_result_rejected rejected 5215ms expected @7df3e6a600f1+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_representation_view_through_const_name_rejected rejected 4988ms expected @7df3e6a600f1+wt
@@ -11531,6 +11549,15 @@ pass/facts/crash_entry_integer_view_reverse_signed_exit checked 21594ms check-ta
 pass/facts/crash_entry_integer_view_snapshot_after_write_exit checked 21890ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_surviving_guard_exit checked 21959ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_view_then_widen_exit checked 21373ms check-target:macos_arm64 @457174b6ca03
+pass/facts/crash_entry_nan_equality_call_result_exit checked 7073ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_const_name_exit checked 7099ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_field_exit checked 7077ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_local_exit checked 7416ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_match_join_exit checked 7024ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_other_machine_exit checked 6076ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_other_state_exit checked 7094ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_parameter_exit checked 6965ms check-target:macos_arm64 @1654d389500c+wt
+pass/facts/crash_entry_nan_equality_target_body_exit checked 7196ms check-target:macos_arm64 @1654d389500c+wt
 pass/facts/crash_entry_representation_view_through_call_result_exit checked 11599ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/crash_entry_representation_view_through_const_name_exit checked 11408ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/crash_entry_representation_view_through_field_exit checked 11170ms check-target:macos_arm64 @7df3e6a600f1+wt
