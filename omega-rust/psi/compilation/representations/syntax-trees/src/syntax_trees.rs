@@ -58,7 +58,56 @@ pub struct SyntaxTreeRoots {
     pub mathematical_definitions: Vec<MathematicalDefinitionHandle>,
 }
 
+/// Frontiers for an append-only parser attempt. Suffix handles are private
+/// until acceptance; rejection drops their payloads without copying a forest.
+pub struct SyntaxAppendCheckpoint {
+    items: declarations::item::ItemTableAppendCheckpoint,
+    expressions: values::expression::ExpressionTableAppendCheckpoint,
+    statements: control_flow::statement::StatementTableAppendCheckpoint,
+    types: type_system::types::TypeReferenceTableAppendCheckpoint,
+    root_items: usize,
+    mathematical_definitions: usize,
+    constant_extent_probes: usize,
+}
+
 impl SyntaxTrees {
+    /// Begin an append-only attempt. The attempt may edit rows it creates,
+    /// but must leave earlier rows and page identities unchanged. No rejected
+    /// handle may escape; retained handles remain stable across rollback.
+    pub fn append_checkpoint(&self) -> SyntaxAppendCheckpoint {
+        SyntaxAppendCheckpoint {
+            items: self.items.append_checkpoint(),
+            expressions: self.expressions.append_checkpoint(),
+            statements: self.statements.append_checkpoint(),
+            types: self.type_references.append_checkpoint(),
+            root_items: self.roots.items.len(),
+            mathematical_definitions: self.roots.mathematical_definitions.len(),
+            constant_extent_probes: self.roots.constant_extent_probes.len(),
+        }
+    }
+
+    pub fn rewind_appended(&mut self, checkpoint: SyntaxAppendCheckpoint) {
+        self.items.rewind_appended(checkpoint.items);
+        self.expressions.rewind_appended(checkpoint.expressions);
+        self.statements.rewind_appended(checkpoint.statements);
+        self.type_references.rewind_appended(checkpoint.types);
+        self.roots.items.truncate(checkpoint.root_items);
+        self.roots
+            .mathematical_definitions
+            .truncate(checkpoint.mathematical_definitions);
+        self.roots
+            .constant_extent_probes
+            .truncate(checkpoint.constant_extent_probes);
+    }
+
+    /// Retain immutable checkpoint payloads once; descendants detach edited pages.
+    pub fn share_pages(&mut self) {
+        self.items.share_pages();
+        self.expressions.share_pages();
+        self.statements.share_pages();
+        self.type_references.share_pages();
+    }
+
     pub fn new(source_id: SourceId) -> Self {
         Self::new_with_generation(source_id, 1)
     }

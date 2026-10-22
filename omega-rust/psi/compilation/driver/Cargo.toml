@@ -30,3 +30,6 @@ lowered-psi-to-terminal-psi = { path = "../pipeline/07_lowered-psi-to-terminal-p
 optimization = { path = "../../foundation/optimization-selections" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
+
+rayon = "1.10"
+arena = { path = "../../foundation/arena" }

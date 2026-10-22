@@ -1621,6 +1621,7 @@ dependencies = [
 name = "psi-compiler"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "build-time-evaluation",
  "checked-trees",
  "checked-trees-to-lowered-psi",
@@ -1630,6 +1631,7 @@ dependencies = [
  "lowered-psi-to-terminal-psi",
  "optimization",
  "phase-profile",
+ "rayon",
  "representation-selections",
  "semantic-vocabulary",
  "source",

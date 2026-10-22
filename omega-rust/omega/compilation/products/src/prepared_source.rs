@@ -25,10 +25,9 @@ pub struct TypedCompilationFrontier {
     pub application: Option<build_declarations::ApplicationDeclaration>,
 }
 
-/// Immutable parsing shared by exact checked children. Clones share storage;
+/// Immutable parsing shared by exact checked children. Forks share storage;
 /// consuming the last checkpoint allows assembly to move the original arenas.
 /// Every child supplies its own policy and independently admits its custody.
-#[derive(Clone)]
 pub struct PreparedCheckedSource {
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
@@ -53,6 +52,15 @@ pub struct TypedFrontierRetention {
 }
 
 impl PreparedCheckedSource {
+    /// Fork only at a real sibling boundary, freezing shared source pages once.
+    pub fn fork(&mut self) -> Self {
+        Self {
+            source_checkpoint: self.source_checkpoint.fork(),
+            shared_timings: self.shared_timings.clone(),
+            frontiers: self.frontiers.clone(),
+        }
+    }
+
     pub fn from_parsed(
         source_checkpoint: ImmutableSourceParseCheckpoint,
         shared_timings: CompileTimings,

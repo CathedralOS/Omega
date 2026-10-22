@@ -54,10 +54,29 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    pub fn tokenize(mut self) -> Result<TokenStream<'source>, LexError> {
-        let estimated_token_count = self.source.len().saturating_div(4).max(16);
-        let mut tokens = TokenStream::with_capacity(self.source, estimated_token_count);
+    pub fn tokenize(self) -> Result<TokenStream<'source>, LexError> {
+        let capacity = self.source.len().saturating_div(4).max(16);
+        let mut tokens = TokenStream::with_capacity(self.source, capacity);
+        self.fill_tokens(&mut tokens)?;
+        Ok(tokens)
+    }
 
+    pub fn tokenize_reusing(
+        self,
+        scratch: &mut tokens::TokenScratch,
+    ) -> Result<TokenStream<'source>, LexError> {
+        let capacity = self.source.len().saturating_div(4).max(16);
+        let mut tokens = TokenStream::with_scratch(self.source, capacity, scratch);
+        match self.fill_tokens(&mut tokens) {
+            Ok(()) => Ok(tokens),
+            Err(error) => {
+                tokens.recycle(scratch);
+                Err(error)
+            }
+        }
+    }
+
+    fn fill_tokens(mut self, tokens: &mut TokenStream<'source>) -> Result<(), LexError> {
         while let Some(token) = self.lex_next_token()? {
             if token.kind == TokenKind::StringLiteral {
                 let spelling = &self.source[token.span.start..token.span.end];
@@ -66,7 +85,7 @@ impl<'source> Lexer<'source> {
                 tokens.push_source(token.kind, token.span);
             }
         }
-        Ok(tokens)
+        Ok(())
     }
 
     fn lex_next_token(&mut self) -> Result<Option<LexedToken>, LexError> {

@@ -148,6 +148,12 @@ pub fn parse_source_units(mut lexed: LexedSources) -> Result<ParsedSyntaxPages, 
 /// configuring the process-wide Rayon pool.
 const PARSE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
+/// Run source parsing under the grammar's required stack budget. The facade
+/// may combine lexical scratch and parsing in one independently owned task.
+pub fn with_parse_workers<Output: Send>(operation: impl FnOnce() -> Output + Send) -> Output {
+    parse_thread_pool().install(operation)
+}
+
 fn parse_thread_pool() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {

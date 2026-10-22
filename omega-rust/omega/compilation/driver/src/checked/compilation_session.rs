@@ -170,16 +170,16 @@ impl CompilationSession {
         inputs: Option<Arc<PackageCompilationSourceInputs>>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
-        if let Some(prepared) = self.sources.iter().find(|prepared| {
+        if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
             prepared.root == root_path && prepared.inputs == inputs
         }) {
-            return Ok(prepared.source.clone());
+            return Ok(prepared.source.fork());
         }
-        let source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
+        let mut source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
         self.sources.push(PreparedSource {
             root: root_path.to_path_buf(),
             inputs,
-            source: source.clone(),
+            source: source.fork(),
         });
         Ok(source)
     }

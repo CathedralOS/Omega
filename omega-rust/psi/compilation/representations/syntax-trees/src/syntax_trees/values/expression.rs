@@ -20,7 +20,47 @@ pub struct ExpressionTable {
     match_arms: Arena<TableMatchArm>,
 }
 
+pub(crate) struct ExpressionTableAppendCheckpoint {
+    expressions: arena::PagedArenaFrontier<ExpressionNode>,
+    source_spans: arena::PagedArenaFrontier<SourceSpan>,
+    expression_handles: arena::PagedArenaFrontier<ExpressionHandle>,
+    identifier_path_members: arena::PagedArenaFrontier<Identifier>,
+    struct_fields: arena::PagedArenaFrontier<TableStructLiteralField>,
+    match_arms: arena::PagedArenaFrontier<TableMatchArm>,
+}
+
 impl ExpressionTable {
+    pub(crate) fn append_checkpoint(&self) -> ExpressionTableAppendCheckpoint {
+        ExpressionTableAppendCheckpoint {
+            expressions: self.expressions.frontier(),
+            source_spans: self.source_spans.frontier(),
+            expression_handles: self.expression_handles.frontier(),
+            identifier_path_members: self.identifier_path_members.frontier(),
+            struct_fields: self.struct_fields.frontier(),
+            match_arms: self.match_arms.frontier(),
+        }
+    }
+
+    pub(crate) fn rewind_appended(&mut self, checkpoint: ExpressionTableAppendCheckpoint) {
+        self.expressions.rewind_appended(checkpoint.expressions);
+        self.source_spans.rewind_appended(checkpoint.source_spans);
+        self.expression_handles
+            .rewind_appended(checkpoint.expression_handles);
+        self.identifier_path_members
+            .rewind_appended(checkpoint.identifier_path_members);
+        self.struct_fields.rewind_appended(checkpoint.struct_fields);
+        self.match_arms.rewind_appended(checkpoint.match_arms);
+    }
+
+    pub(crate) fn share_pages(&mut self) {
+        self.expressions.share_pages();
+        self.source_spans.share_pages();
+        self.expression_handles.share_pages();
+        self.identifier_path_members.share_pages();
+        self.struct_fields.share_pages();
+        self.match_arms.share_pages();
+    }
+
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,

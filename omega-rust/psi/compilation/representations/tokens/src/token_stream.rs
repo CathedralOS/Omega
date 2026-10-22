@@ -44,6 +44,15 @@ pub struct TokenStream<'source> {
     decoded_bytes: Option<Arc<Vec<u8>>>,
 }
 
+/// Invocation-owned lexical capacity reused after each source is parsed.
+/// Escaped decoded literals retain their buffer; only unshared bytes recycle.
+#[derive(Default)]
+pub struct TokenScratch {
+    tokens: Vec<Token>,
+    decoded_ranges: Arena<DecodedRange>,
+    decoded_bytes: Option<Arc<Vec<u8>>>,
+}
+
 impl Default for TokenStream<'_> {
     fn default() -> Self {
         Self::with_capacity("", 0)
@@ -58,6 +67,38 @@ impl<'source> TokenStream<'source> {
             decoded_ranges: Arena::default(),
             decoded_bytes: None,
         }
+    }
+
+    pub fn with_scratch(source: &'source str, capacity: usize, scratch: &mut TokenScratch) -> Self {
+        let mut tokens = std::mem::take(&mut scratch.tokens);
+        tokens.reserve(capacity);
+        Self {
+            source: SourceBacking::Borrowed(source),
+            tokens,
+            decoded_ranges: std::mem::take(&mut scratch.decoded_ranges),
+            decoded_bytes: scratch.decoded_bytes.take(),
+        }
+    }
+
+    pub fn recycle(self, scratch: &mut TokenScratch) {
+        let Self {
+            source: _,
+            mut tokens,
+            mut decoded_ranges,
+            mut decoded_bytes,
+        } = self;
+        tokens.clear();
+        decoded_ranges.reset_retain_capacity();
+        if let Some(bytes) = decoded_bytes.as_mut().and_then(Arc::get_mut) {
+            bytes.clear();
+        } else {
+            decoded_bytes = None;
+        }
+        *scratch = TokenScratch {
+            tokens,
+            decoded_ranges,
+            decoded_bytes,
+        };
     }
 
     #[inline]
@@ -176,6 +217,25 @@ impl Deref for TokenStream<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recycled_records_do_not_overwrite_escaped_literals() {
+        let mut scratch = TokenScratch::default();
+        let mut first = TokenStream::with_scratch("", 16, &mut scratch);
+        first.push_decoded(Span::default(), |bytes| bytes.extend_from_slice(b"first"));
+        let literal = first.literal_bytes(&first[0]);
+        let records = first.as_ptr();
+        first.recycle(&mut scratch);
+        let mut second = TokenStream::with_scratch("", 8, &mut scratch);
+        assert!(second.is_empty());
+        assert_eq!(second.as_ptr(), records);
+        second.push_decoded(Span::default(), |bytes| bytes.extend_from_slice(b"second"));
+        assert_eq!(second.text(&second[0]).as_bytes(), b"second");
+        assert_eq!(literal.as_ref(), b"first");
+        second.recycle(&mut scratch);
+        drop(scratch);
+        assert_eq!(literal.as_ref(), b"first");
+    }
 
     #[test]
     fn retained_literals_share_storage_and_survive_token_mutation() {

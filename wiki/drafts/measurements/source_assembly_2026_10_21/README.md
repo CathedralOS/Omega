@@ -24,6 +24,8 @@ Exact outputs match; allocation counts and all prior timing batches are retained
 
 The [retained syntax ownership experiment](../source_assembly_2026_10_22/retained_syntax/README.md) moves authored-name ownership to source pages and shares decoded literal ranges. Identifier records shrink from 72 to 48 bytes; all-worker assembly allocation traffic falls about 15%, with 17% fewer requests. Exact logical outputs are preserved.
 
+The [checkpoint, parser-transaction and token-recycling experiment](../source_assembly_2026_10_22/ingress_ownership/README.md) removes another 11.54% of all-worker allocation requests and 6.98% of requested bytes across 289 inputs. Median assembly time improves in the recorded paired batch; whole-compile time and RSS remain inconclusive. Internal extent-leaf differences and baseline failures are explicitly accounted for.
+
 This continues the ingress work landed at
 `245ce317c6742015981a84ca35cb6bab60ca0f63`. Both producers use that source;
 the diagnostic producer adds only the adjacent `instrumentation.patch`.

@@ -599,6 +599,21 @@ impl<T: Default> Arena<T> {
         self.fresh = self.items.is_empty();
     }
 
+    /// Drop an unpublished append-only suffix, retaining allocation capacity.
+    /// Callers must not publish suffix handles or mutate/free earlier rows.
+    pub fn rewind_appended(&mut self, retained_length: usize) {
+        assert!(self.fresh, "append rewind requires an unretired arena");
+        assert!(
+            retained_length <= self.items.len(),
+            "append rewind exceeds arena"
+        );
+        self.bump_revision();
+        self.items.truncate(retained_length);
+        self.generations.truncate(retained_length);
+        self.occupied.truncate(retained_length);
+        self.active_count = retained_length;
+    }
+
     pub fn reset_retain_capacity(&mut self) {
         self.bump_revision();
         self.items.clear();

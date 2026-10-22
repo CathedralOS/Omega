@@ -88,7 +88,70 @@ struct GenericApplicationOrigin {
     application: TypeReferenceHandle,
 }
 
+pub(crate) struct TypeReferenceTableAppendCheckpoint {
+    type_references: arena::PagedArenaFrontier<TypeReferenceNode>,
+    type_reference_handles: arena::PagedArenaFrontier<TypeReferenceHandle>,
+    constraints: arena::PagedArenaFrontier<TypeConstraintNode>,
+    generic_application_origins: arena::PagedArenaFrontier<GenericApplicationOrigin>,
+    const_argument_normalizations: arena::PagedArenaFrontier<RetainedConstArgumentNormalization>,
+    const_argument_origins: arena::PagedArenaFrontier<ConstArgumentOrigin>,
+    const_argument_builtin_operators: arena::PagedArenaFrontier<source::SourceSpan>,
+    integer_range_normalizations: arena::PagedArenaFrontier<RetainedIntegerRangeNormalization>,
+    pending_const_arguments: arena::PagedArenaFrontier<PendingConstArgument>,
+    supplied_operand_owners: arena::PagedArenaFrontier<SuppliedOperandOwner>,
+}
+
 impl TypeReferenceTable {
+    pub(crate) fn append_checkpoint(&self) -> TypeReferenceTableAppendCheckpoint {
+        TypeReferenceTableAppendCheckpoint {
+            type_references: self.type_references.frontier(),
+            type_reference_handles: self.type_reference_handles.frontier(),
+            constraints: self.constraints.frontier(),
+            generic_application_origins: self.generic_application_origins.frontier(),
+            const_argument_normalizations: self.const_argument_normalizations.frontier(),
+            const_argument_origins: self.const_argument_origins.frontier(),
+            const_argument_builtin_operators: self.const_argument_builtin_operators.frontier(),
+            integer_range_normalizations: self.integer_range_normalizations.frontier(),
+            pending_const_arguments: self.pending_const_arguments.frontier(),
+            supplied_operand_owners: self.supplied_operand_owners.frontier(),
+        }
+    }
+
+    pub(crate) fn rewind_appended(&mut self, checkpoint: TypeReferenceTableAppendCheckpoint) {
+        self.type_references
+            .rewind_appended(checkpoint.type_references);
+        self.type_reference_handles
+            .rewind_appended(checkpoint.type_reference_handles);
+        self.constraints.rewind_appended(checkpoint.constraints);
+        self.generic_application_origins
+            .rewind_appended(checkpoint.generic_application_origins);
+        self.const_argument_normalizations
+            .rewind_appended(checkpoint.const_argument_normalizations);
+        self.const_argument_origins
+            .rewind_appended(checkpoint.const_argument_origins);
+        self.const_argument_builtin_operators
+            .rewind_appended(checkpoint.const_argument_builtin_operators);
+        self.integer_range_normalizations
+            .rewind_appended(checkpoint.integer_range_normalizations);
+        self.pending_const_arguments
+            .rewind_appended(checkpoint.pending_const_arguments);
+        self.supplied_operand_owners
+            .rewind_appended(checkpoint.supplied_operand_owners);
+    }
+
+    pub(crate) fn share_pages(&mut self) {
+        self.type_references.share_pages();
+        self.type_reference_handles.share_pages();
+        self.constraints.share_pages();
+        self.generic_application_origins.share_pages();
+        self.const_argument_normalizations.share_pages();
+        self.const_argument_origins.share_pages();
+        self.const_argument_builtin_operators.share_pages();
+        self.integer_range_normalizations.share_pages();
+        self.pending_const_arguments.share_pages();
+        self.supplied_operand_owners.share_pages();
+    }
+
     pub fn new() -> Self {
         Self::new_with_generation(1)
     }

@@ -31,7 +31,49 @@ pub struct StatementTable {
     outcome_proof_selectors: Arena<TableOutcomeProofSelector>,
 }
 
+pub(crate) struct StatementTableAppendCheckpoint {
+    assembly: super::assembly::AssemblyTableAppendCheckpoint,
+    statements: arena::PagedArenaFrontier<StatementNode>,
+    expression_handles: arena::PagedArenaFrontier<crate::expression::ExpressionHandle>,
+    identifier_path_members: arena::PagedArenaFrontier<Identifier>,
+    transition_targets: arena::PagedArenaFrontier<TransitionTargetNode>,
+    outcome_proof_selectors: arena::PagedArenaFrontier<TableOutcomeProofSelector>,
+}
+
 impl StatementTable {
+    pub(crate) fn append_checkpoint(&self) -> StatementTableAppendCheckpoint {
+        StatementTableAppendCheckpoint {
+            assembly: self.assembly.append_checkpoint(),
+            statements: self.statements.frontier(),
+            expression_handles: self.expression_handles.frontier(),
+            identifier_path_members: self.identifier_path_members.frontier(),
+            transition_targets: self.transition_targets.frontier(),
+            outcome_proof_selectors: self.outcome_proof_selectors.frontier(),
+        }
+    }
+
+    pub(crate) fn rewind_appended(&mut self, checkpoint: StatementTableAppendCheckpoint) {
+        self.assembly.rewind_appended(checkpoint.assembly);
+        self.statements.rewind_appended(checkpoint.statements);
+        self.expression_handles
+            .rewind_appended(checkpoint.expression_handles);
+        self.identifier_path_members
+            .rewind_appended(checkpoint.identifier_path_members);
+        self.transition_targets
+            .rewind_appended(checkpoint.transition_targets);
+        self.outcome_proof_selectors
+            .rewind_appended(checkpoint.outcome_proof_selectors);
+    }
+
+    pub(crate) fn share_pages(&mut self) {
+        self.assembly.share_pages();
+        self.statements.share_pages();
+        self.expression_handles.share_pages();
+        self.identifier_path_members.share_pages();
+        self.transition_targets.share_pages();
+        self.outcome_proof_selectors.share_pages();
+    }
+
     pub fn new() -> Self {
         Self::new_with_generation(1)
     }

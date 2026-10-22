@@ -5,6 +5,8 @@
 //! Generated strata can instead request independent units, which prevents their
 //! later normalization from synthesizing across sibling custody boundaries.
 
+mod batches;
+
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use diagnostics::Diagnostic;
 use source::{DependencyScope, LoadedSources, SourceFileSystem};
@@ -30,15 +32,11 @@ impl SourceInput<'_> {
         syntax: &mut SyntaxTrees,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<ParsedSources, Vec<Diagnostic>> {
-        let lexed = self.lex(observer)?;
         let first_page = u32::try_from(syntax.page_count())
             .ok()
             .and_then(|identity| identity.checked_add(1))
             .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
-        let parsed = observer.record_result(PsiCompilationStage::Parsing, || {
-            tokens_to_syntax_trees::parse_source_pages_from(lexed, first_page)
-        })?;
-        let (pages, sources) = parsed.into_parts();
+        let (pages, sources) = self.parse_batch(first_page, false, observer)?;
         for page in pages {
             syntax.adopt_page(page);
         }
@@ -50,18 +48,16 @@ impl SourceInput<'_> {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<Vec<SyntaxTrees>, Vec<Diagnostic>> {
-        let lexed = self.lex(observer)?;
-        observer.record_result(PsiCompilationStage::Parsing, || {
-            tokens_to_syntax_trees::parse_source_units(lexed)
-                .map(|parsed| parsed.into_syntax_trees())
-        })
+        self.parse_batch(1, true, observer).map(|(pages, _)| pages)
     }
 
-    fn lex(
+    fn parse_batch(
         self,
+        first_page: u32,
+        independent_units: bool,
         observer: &mut impl PsiCompilationObserver,
-    ) -> Result<tokens::LexedSources, Vec<Diagnostic>> {
-        observer.record_result(PsiCompilationStage::Lexing, || {
+    ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
+        observer.record_result(PsiCompilationStage::SourceParsing, || {
             let loaded = match self {
                 Self::Files {
                     frontier,
@@ -70,7 +66,7 @@ impl SourceInput<'_> {
                 } => source_files_to_tokens::load_sources(frontier, first_source, filesystem)?,
                 Self::Retained(loaded) => loaded,
             };
-            source_files_to_tokens::lex_sources(loaded)
+            batches::parse(loaded, first_page, independent_units)
         })
     }
 }

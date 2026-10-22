@@ -4,6 +4,8 @@
 //! selects the page and its arena index selects the page-local slot. Semantic
 //! spans remain within one page and therefore continue to resolve as slices.
 
+mod page;
+use page::ArenaPage;
 use std::marker::PhantomData;
 
 use crate::{Arena, ArenaSpanInserter, Handle, HandleSpan};
@@ -45,8 +47,8 @@ impl<T> Default for PagedArenaFrontier<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct PagedArenaSet<T: Default> {
     first_generation: u32,
-    first_page: Arena<T>,
-    additional_pages: Vec<Option<Box<Arena<T>>>>,
+    first_page: ArenaPage<T>,
+    additional_pages: Vec<Option<Box<ArenaPage<T>>>>,
     current_generation: u32,
     active_count: usize,
     dummy: T,
@@ -77,6 +79,19 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
 }
 
 impl<T: Default> PagedArenaSet<T> {
+    /// Freeze nonempty payload pages for cheap independent checkpoint forks.
+    /// Appends to newly adopted pages stay owned; a later edit detaches only
+    /// the edited page. Empty pages remain inline and allocate nothing.
+    pub fn share_pages(&mut self)
+    where
+        T: Clone,
+    {
+        self.first_page.share();
+        for page in self.additional_pages.iter_mut().flatten() {
+            page.share();
+        }
+    }
+
     /// Contextual row equality includes unused page slots and all arena metadata.
     pub fn equal_by(&self, other: &Self, mut equal: impl FnMut(&T, &T) -> bool) -> bool {
         self.first_generation == other.first_generation
@@ -117,7 +132,7 @@ impl<T: Default> PagedArenaSet<T> {
         );
         Self {
             first_generation: generation,
-            first_page: Arena::with_generation(generation),
+            first_page: Arena::with_generation(generation).into(),
             additional_pages: Vec::new(),
             current_generation: generation,
             active_count: 0,
@@ -185,7 +200,7 @@ impl<T: Default> PagedArenaSet<T> {
             generation >= self.first_generation,
             "paged arena extension cannot precede retained pages"
         );
-        self.insert_page(generation, Arena::with_generation(generation));
+        self.insert_page(generation, Arena::with_generation(generation).into());
         self.current_generation = generation;
     }
 
@@ -347,7 +362,7 @@ impl<T: Default> PagedArenaSet<T> {
                     .iter()
                     .filter_map(|page| page.as_deref()),
             )
-            .flat_map(Arena::iter)
+            .flat_map(|page| page.iter())
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
@@ -358,6 +373,26 @@ impl<T: Default> PagedArenaSet<T> {
             .filter_map(|page| page.as_deref_mut())
         {
             page.for_each_mut(&mut visit);
+        }
+    }
+
+    /// Restore this page's append frontier. Unpublished suffix handles must
+    /// not escape; existing rows and the page roster must remain untouched.
+    pub fn rewind_appended(&mut self, frontier: PagedArenaFrontier<T>) {
+        assert_eq!(
+            self.current_generation, frontier.generation,
+            "append rewind cannot cross a published page"
+        );
+        let length = usize::try_from(frontier.next_arena_index - 1)
+            .expect("arena frontier length exceeds usize");
+        let removed = self
+            .current()
+            .len()
+            .checked_sub(length)
+            .expect("append rewind exceeds page");
+        if removed != 0 {
+            self.current_mut().rewind_appended(length);
+            self.active_count -= removed;
         }
     }
 
@@ -403,10 +438,10 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     fn pages(&self) -> impl Iterator<Item = &Arena<T>> {
-        std::iter::once(&self.first_page).chain(
+        std::iter::once(&*self.first_page).chain(
             self.additional_pages
                 .iter()
-                .filter_map(|page| page.as_deref()),
+                .filter_map(|page| page.as_deref().map(|page| &**page)),
         )
     }
 
@@ -456,7 +491,10 @@ impl<T: Default> PagedArenaSet<T> {
             return Some(&self.first_page);
         }
         let index = usize::try_from(generation.checked_sub(self.first_generation)?).ok()?;
-        self.additional_pages.get(index.checked_sub(1)?)?.as_deref()
+        self.additional_pages
+            .get(index.checked_sub(1)?)?
+            .as_deref()
+            .map(|page| &**page)
     }
 
     fn page_for_generation_mut(&mut self, generation: u32) -> Option<&mut Arena<T>> {
@@ -467,9 +505,10 @@ impl<T: Default> PagedArenaSet<T> {
         self.additional_pages
             .get_mut(index.checked_sub(1)?)?
             .as_deref_mut()
+            .map(|page| &mut **page)
     }
 
-    fn insert_page(&mut self, generation: u32, page: Arena<T>) {
+    fn insert_page(&mut self, generation: u32, page: ArenaPage<T>) {
         assert!(
             generation > self.first_generation,
             "paged arena generation adopted twice or precedes retained pages"
@@ -496,6 +535,37 @@ impl<T: Default> Default for PagedArenaSet<T> {
 #[cfg(test)]
 mod tests {
     use super::PagedArenaSet;
+
+    #[test]
+    fn checkpoint_shares_payloads_and_detaches_only_edited_pages() {
+        let mut parent = PagedArenaSet::<String>::new();
+        let first = parent.insert_many(["original".to_owned(), "neighbor".to_owned()]);
+        parent.begin_page(2);
+        let second = parent.append("second page".to_owned());
+        parent.share_pages();
+        let mut child = parent.clone();
+        assert_eq!(parent, child);
+        assert!(std::ptr::eq(
+            parent.get(first.start()),
+            child.get(first.start())
+        ));
+        assert!(std::ptr::eq(parent.get(second), child.get(second)));
+        child.begin_page(3);
+        let extension = child.append("child only".to_owned());
+        assert!(std::ptr::eq(
+            parent.get(first.start()),
+            child.get(first.start())
+        ));
+        child.span_mut(first).unwrap()[0].push_str(" changed");
+        assert_eq!(parent.get(first.start()), "original");
+        assert_eq!(child.get(first.start()), "original changed");
+        assert!(std::ptr::eq(parent.get(second), child.get(second)));
+        assert!(!parent.is_valid(extension));
+        assert!(child.free(second));
+        assert_eq!(parent.get(second), "second page");
+        drop(parent);
+        assert_eq!(child.get(extension), "child only");
+    }
 
     #[test]
     fn high_generation_page_has_no_empty_prefix() {

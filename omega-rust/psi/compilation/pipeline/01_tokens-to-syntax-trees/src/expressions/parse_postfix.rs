@@ -588,17 +588,16 @@ pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
         {
             let mut prefix = input;
             prefix.tokens = &input.tokens[..offset];
-            let mut scratch = SyntaxTrees::new(input.source_id);
-            let prefix = prefix.retained_by(&mut scratch);
-            if let Ok(Some((arguments, end))) = parse_static_call_arguments(&mut scratch, prefix)
+            let checkpoint = syntax_trees.append_checkpoint();
+            if let Ok(Some((arguments, end))) = parse_static_call_arguments(syntax_trees, prefix)
                 && end.tokens.is_empty()
                 && !end.at_punctuation(PunctuationKind::Greater)
             {
-                let arguments = syntax_trees.transfer_static_machine_arguments(&scratch, arguments);
                 let mut rest = input;
                 rest.tokens = &input.tokens[offset..];
                 return Ok(Some((arguments, rest)));
             }
+            syntax_trees.rewind_appended(checkpoint);
         }
         match punctuation {
             PunctuationKind::LeftParen
@@ -661,6 +660,7 @@ fn try_parse_static_argument<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
     let authored = input;
+    let argument_checkpoint = syntax_trees.append_checkpoint();
     if input.at_punctuation(PunctuationKind::LeftBracket)
         || input.at_punctuation(PunctuationKind::Ampersand)
     {
@@ -723,11 +723,18 @@ fn try_parse_static_argument<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::GreaterGreater)
         && let Some(value) = try_parse_static_value_argument(syntax_trees, authored)?
     {
+        if argument.application.is_some() {
+            // The value interpretation supersedes an already-built application.
+            // Drop that private alternative before publishing the value tree.
+            syntax_trees.rewind_appended(argument_checkpoint);
+            return try_parse_static_value_argument(syntax_trees, authored);
+        }
         return Ok(Some(value));
     }
     if !(input.at_punctuation(PunctuationKind::Comma)
         || input.at_punctuation(PunctuationKind::Greater))
     {
+        syntax_trees.rewind_appended(argument_checkpoint);
         return try_parse_static_value_argument(syntax_trees, authored);
     }
 
@@ -738,13 +745,23 @@ fn try_parse_static_argument<'tokens, 'source>(
 /// authored tree until the selected declaration supplies its expected carrier;
 /// parsing must not choose integer division or erase named operand custody.
 fn try_parse_static_value_argument<'tokens, 'source>(
+    syntax: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
+    let checkpoint = syntax.append_checkpoint();
+    let result = parse_static_value_alternatives(syntax, input);
+    if !matches!(&result, Ok(Some((argument, _))) if argument.const_literal.is_none()) {
+        // Literal arguments retain the number itself, not an expression row.
+        syntax.rewind_appended(checkpoint);
+    }
+    result
+}
+
+fn parse_static_value_alternatives<'tokens, 'source>(
     scratch: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
-    // The enclosing tentative argument pack owns these nodes. Failed value
-    // alternatives remain private until that pack is dropped; publication
-    // traverses only the returned arguments. Reuse that region instead of
-    // allocating a nested forest and copying the accepted expression twice.
+    let whole_attempt = scratch.append_checkpoint();
     let parsed = super::parse_expression::parse_const_integer_expression_handle(scratch, input);
     let (expression, rest) = match parsed {
         Ok(parsed)
@@ -754,6 +771,7 @@ fn try_parse_static_value_argument<'tokens, 'source>(
             parsed
         }
         _ => {
+            scratch.rewind_appended(whole_attempt);
             // A lexed `>>` may close two applications instead of shifting.
             // Prefer a complete expression; otherwise retry the delimited
             // prefix transactionally, leaving both closers for their owners.
@@ -770,6 +788,7 @@ fn try_parse_static_value_argument<'tokens, 'source>(
             for rest in boundaries.into_iter().rev() {
                 let mut prefix = input;
                 prefix.tokens = &input.tokens[..input.tokens.len() - rest.tokens.len()];
+                let attempt = scratch.append_checkpoint();
                 if let Ok((expression, end)) =
                     super::parse_expression::parse_const_integer_expression_handle(scratch, prefix)
                     && end.tokens.is_empty()
@@ -778,6 +797,7 @@ fn try_parse_static_value_argument<'tokens, 'source>(
                     selected = Some((expression, rest));
                     break;
                 }
+                scratch.rewind_appended(attempt);
             }
             let Some(selected) = selected else {
                 return Ok(None);
@@ -816,6 +836,24 @@ fn try_parse_static_value_argument<'tokens, 'source>(
 }
 
 fn try_parse_static_symbol_application<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<
+    Option<(
+        Box<syntax_trees::expression::StaticSymbolApplication>,
+        Input<'tokens, 'source>,
+    )>,
+    ParseError,
+> {
+    let checkpoint = syntax_trees.append_checkpoint();
+    let result = parse_static_symbol_application(syntax_trees, input);
+    if !matches!(&result, Ok(Some(_))) {
+        syntax_trees.rewind_appended(checkpoint);
+    }
+    result
+}
+
+fn parse_static_symbol_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<
@@ -915,4 +953,37 @@ pub(crate) fn call_path_members_and_receiver(
             .insert(ExpressionNode::Name(receiver_path))
     };
     (members, receiver)
+}
+
+#[cfg(test)]
+mod transaction_tests {
+    use super::*;
+
+    #[test]
+    fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
+        for spelling in [
+            "<Outer<[u8; Count]>, value + >()",
+            "<Outer<Inner<3>>, value + >()",
+        ] {
+            let tokens = source_files_to_tokens::Lexer::new(spelling)
+                .tokenize()
+                .unwrap();
+            let retained = Input::retain_source(&tokens);
+            let mut syntax = SyntaxTrees::new(source::SourceId(7));
+            let prefix = syntax.expressions.insert(ExpressionNode::Boolean(true));
+            let input = Input::new(source::SourceId(7), &tokens, &retained, &mut syntax);
+            let types = syntax.type_references.type_reference_count();
+            assert!(
+                try_parse_static_machine_arguments(&mut syntax, input)
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(syntax.expressions.iter_expressions().count(), 1);
+            assert_eq!(syntax.type_references.type_reference_count(), types);
+            assert!(matches!(
+                syntax.expressions.expression(prefix),
+                ExpressionNode::Boolean(true)
+            ));
+        }
+    }
 }

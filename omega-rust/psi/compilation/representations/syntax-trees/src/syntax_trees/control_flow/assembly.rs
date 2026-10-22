@@ -46,7 +46,37 @@ pub(crate) struct AssemblyTable {
     expressions: Arena<ExpressionHandle>,
 }
 
+pub(crate) struct AssemblyTableAppendCheckpoint {
+    graphs: arena::PagedArenaFrontier<AssemblyControlFlow>,
+    blocks: arena::PagedArenaFrontier<AssemblyBlock>,
+    instructions: arena::PagedArenaFrontier<StatementHandle>,
+    expressions: arena::PagedArenaFrontier<ExpressionHandle>,
+}
+
 impl AssemblyTable {
+    pub(crate) fn append_checkpoint(&self) -> AssemblyTableAppendCheckpoint {
+        AssemblyTableAppendCheckpoint {
+            graphs: self.graphs.frontier(),
+            blocks: self.blocks.frontier(),
+            instructions: self.instructions.frontier(),
+            expressions: self.expressions.frontier(),
+        }
+    }
+
+    pub(crate) fn rewind_appended(&mut self, checkpoint: AssemblyTableAppendCheckpoint) {
+        self.graphs.rewind_appended(checkpoint.graphs);
+        self.blocks.rewind_appended(checkpoint.blocks);
+        self.instructions.rewind_appended(checkpoint.instructions);
+        self.expressions.rewind_appended(checkpoint.expressions);
+    }
+
+    pub(crate) fn share_pages(&mut self) {
+        self.graphs.share_pages();
+        self.blocks.share_pages();
+        self.instructions.share_pages();
+        self.expressions.share_pages();
+    }
+
     pub(crate) fn new(generation: u32) -> Self {
         Self {
             graphs: Arena::with_generation(generation),

@@ -52,7 +52,6 @@ pub struct AssembledSyntax {
 
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
-#[derive(Clone)]
 pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
@@ -67,6 +66,22 @@ pub struct ImmutableSourceParseCheckpoint {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Publish page sharing on the first actual fork. A uniquely consumed
+    /// checkpoint keeps its original allocations without freezing overhead.
+    pub fn fork(&mut self) -> Self {
+        if let Some(storage) = Arc::get_mut(&mut self.source_storage) {
+            storage.syntax_trees.share_pages();
+        }
+        Self {
+            root_path: self.root_path.clone(),
+            source_storage: self.source_storage.clone(),
+            build_source_id: self.build_source_id,
+            application: self.application.clone(),
+            package_imports: self.package_imports.clone(),
+            package_source_inputs: self.package_source_inputs.clone(),
+        }
+    }
+
     pub fn root_path(&self) -> &Path {
         &self.root_path
     }
