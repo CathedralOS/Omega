@@ -590,17 +590,16 @@ fn a_decided_closed_equality_is_refl_in_the_kernel() {
     );
 }
 
-/// A `Primitive` leaf the calculus cannot prove definitionally — a
-/// decided closed order `1 < 2` — is a named decision assumption in the
-/// signature, so the closure names the bounded decision exactly.
+/// Closed order is derived from the fixed numeral laws. The closure names
+/// those laws and their vocabulary, never the requested comparison itself.
 #[test]
-fn a_decision_assumption_is_named_in_the_closure() {
+fn a_closed_order_uses_only_the_fixed_numeral_law_closure() {
     let goal = Proposition::LessThan(literal(1), literal(2));
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
     };
-    let denoted = verify_bounded_certificate(
+    let mut denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &goal,
         &[],
@@ -609,17 +608,30 @@ fn a_decision_assumption_is_named_in_the_closure() {
         &mut budget(),
     )
     .expect("the decided order verifies");
-    // `IntLt` is a relation, not an `Id`, so the decided `1 < 2`
-    // names a decision assumption of type `IntLt m₁ m₂` — the
-    // Endpoints are interned before the relation, so the signature is
-    // `{Int, zero, odd, one:=odd zero, double, two:=double one,
-    // IntLt, decision}`. Literal definitions do
-    // not appear as assumptions; their vocabulary does.
-    assert_eq!(denoted.certificate.signature.len(), 8);
+    assert_eq!(denoted.certificate.signature.len(), 14);
     assert_eq!(
         certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-        BTreeSet::from([0, 1, 2, 4, 6, 7]),
-        "carrier, relation, numeral vocabulary and the named decision",
+        BTreeSet::from([0, 1, 2, 4, 6, 8, 10, 12, 13]),
+        "exact fixed numeral vocabulary and order-law closure",
+    );
+
+    // Removing the checked numeral definition cannot turn the derivation
+    // into an assumed order over an opaque replacement numeral.
+    let mut missing_equation = denoted.certificate.clone();
+    missing_equation.signature[3].body = None;
+    assert!(
+        verify_mathematical_certificate(&mut denoted.arena, &missing_equation, &mut budget(),)
+            .is_err()
+    );
+    let zero = denoted.arena.insert(Term::Constant {
+        declaration: 1,
+        levels: Vec::new(),
+    });
+    let mut changed_operand = denoted.certificate.clone();
+    changed_operand.signature[3].body = Some(zero);
+    assert!(
+        verify_mathematical_certificate(&mut denoted.arena, &changed_operand, &mut budget(),)
+            .is_err()
     );
 
     // `Truth` is definitional: no signature, no decision assumption.
@@ -974,3 +986,40 @@ fn the_closure_names_every_judgment_premise() {
 }
 mod connectives;
 mod content_algebra;
+
+#[test]
+fn closed_primitive_order_does_not_assume_its_conclusion() {
+    let goal = Proposition::LessOrEqual(literal(3), literal(5));
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+    };
+    let context = PropositionContext::default();
+    let parameters = BTreeSet::new();
+    let mut elaboration = Elaboration::new(&context, &goal, &[], &[], &parameters).unwrap();
+    let term = elaboration.node(&proof).unwrap();
+    assert!(
+        elaboration.denotation.decisions.is_empty(),
+        "closed order must derive from numeral laws"
+    );
+    let mut denoted = elaboration.finish(term);
+    verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
+        .unwrap();
+}
+
+#[test]
+fn false_closed_order_is_rejected_before_derivation() {
+    for goal in [
+        Proposition::LessThan(literal(2), literal(1)),
+        Proposition::LessOrEqual(literal(6), literal(5)),
+    ] {
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+        };
+        assert!(matches!(
+            denote_bounded_certificate(&PropositionContext::default(), &goal, &[], &[], &proof),
+            Err(BoundedDenotationError::Certificate(_))
+        ));
+    }
+}

@@ -4452,8 +4452,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   **PROOF-CONTRACT-MIGRATION** owns source integration.
   - Replace remaining `bounded_denotation.rs::rule_instance` assumptions with
     derivations or justified checked rules for actual source obligations. Live
-    case: open `Equal(!a, b)` expanded into a disjunction still assumes its
-    conversion. Reuse the Boolean, correlated-arithmetic, cast and equality
+    cases include connective conversions beyond the checked forward
+    `Equal(!a, b)` expansion. Primitive closed orders now share the numeral
+    derivations used by predicate conversion; `samples/cli/facts/closed_integer_bound`
+    carries their source assignment bound into exact subtraction across nine
+    places. Reuse the Boolean, correlated-arithmetic, cast and equality
     transport derivations under `bounded_denotation/`. Fixed arithmetic laws
     and construction-budget fallbacks stay explicit assumptions; a judgment
     assuming its conclusion is not a proof.

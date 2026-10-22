@@ -128,14 +128,13 @@ impl<'a> Elaboration<'a> {
                 })?;
                 self.rules.insert(AcceptedProofRule::Primitive);
                 let denoted = self.denotation.denote(&proof.conclusion)?;
-                // `refl` proves a definitionally reflexive denotation —
-                // `Truth` and every decided `Equal`, whose operands the
-                // value interning already unified. Any other decided leaf
-                // is a named decision assumption in the signature.
-                if let Term::Id { ty, left, right } = self.denotation.arena.get(denoted)
-                    && self.denotation.arena.structurally_equal(left, right)
-                {
-                    return Ok(self.denotation.arena.insert(Term::Refl { ty, value: left }));
+                // Reuse the checked inhabitants used by predicate conversion:
+                // reflexive identities close by refl and closed orders derive
+                // from the fixed numeral laws. Only unsupported leaves retain
+                // the explicit decision assumption; a closed order must not
+                // assume the conclusion its numeral derivation establishes.
+                if let Some(evidence) = self.denotation.closed_inhabitant(denoted)? {
+                    return Ok(evidence);
                 }
                 self.denotation.decision(denoted)
             }
