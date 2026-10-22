@@ -267,15 +267,6 @@ impl TerminalEffectRejection {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct AcceptTerminalEffects;
-
-impl TerminalEffectHandler for AcceptTerminalEffects {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Ok(())
-    }
-}
-
 /// Receiving-host selected x86 processor flags, independent of host authority.
 /// The model supplies an architectural state, never an instruction callback.
 /// Arithmetic flag restores merge the six condition bits into this image.

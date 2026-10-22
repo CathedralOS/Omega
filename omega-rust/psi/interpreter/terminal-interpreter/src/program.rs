@@ -557,8 +557,8 @@ impl<'artifact> TerminalProgram<'artifact> {
     }
 
     /// Bind the complete host input record to one fresh execution on this
-    /// admitted program — the shared tail of `instantiate` and the bare
-    /// `TerminalExecution` artifact starts, so every entry accepts the same
+    /// admitted program — the shared tail of `instantiate` and the raw
+    /// `TerminalExecution::start_artifact`, so both entries accept the same
     /// `TerminalStructuralInputs` lanes.
     ///
     /// Boolean field values convert into the scalar-field lane before

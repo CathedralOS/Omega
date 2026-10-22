@@ -1,9 +1,10 @@
 //! Fuel-bounded reference execution of admitted Terminal Psi artifacts.
 //!
-//! Start at `terminal_interpreter.rs`: it owns the entries and the sequence
-//! every one of them runs — obtain canonical program storage, construct the
-//! execution, run it. External bytes decode once; retained artifacts are borrowed.
-//! `execution.rs` is the engine those entries drive: the live state and the
+//! Start at `terminal_interpreter.rs`: it owns the raw start entry — obtain
+//! canonical program storage, construct the execution, bind its inputs — for a
+//! caller that drives the loop itself. External bytes decode once; retained
+//! artifacts are borrowed.
+//! `execution.rs` is the engine that entry drives: the live state and the
 //! interpreter loop. Execution retains immutable code and resumable live
 //! custody; fuel exhaustion is not a semantic program outcome.
 //!
@@ -30,9 +31,7 @@
 //! mutates), `scalar_operations`, `structural_operations`,
 //! `atomic_operations`, `calls` and `terminators` (what the loop dispatches),
 //! `effects` (what it hands to the host and how host results bind), `values`,
-//! `results` and `errors` (what crosses the boundary) and
-//! `semantic_value_comparison` (trace-value comparison for differential
-//! checks).
+//! `results` and `errors` (what crosses the boundary).
 
 mod activation_storage;
 mod adapters;
@@ -56,7 +55,6 @@ mod results;
 mod runtime_indexes;
 mod scalar_array;
 mod scalar_operations;
-mod semantic_value_comparison;
 mod storage_addresses;
 mod structural_identities;
 mod structural_inputs;
@@ -81,11 +79,10 @@ pub use effects::storage_inputs::{
     TerminalStorageContents,
 };
 pub use effects::{
-    AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedTargetLayouts,
-    AdmittedTargetMachineSelections, AssumedBindingSelection, ProviderInstallationSelection,
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
-    TerminalRuntimeSupplyRequest, TerminalX86FlagsEnvironment, admit_target_layouts,
-    admit_target_machine_selections,
+    AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
+    TerminalX86FlagsEnvironment, admit_target_layouts, admit_target_machine_selections,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
@@ -101,17 +98,11 @@ pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };
 pub use results::{
-    MeasuredTerminalExecution, TerminalCrash, TerminalCrashSite, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,
-    TerminalStructuralResult,
+    TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalExternalCompletion, TerminalScalarCaseResult, TerminalStructuralResult,
 };
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use scalar_operations::float_result_policy;
-pub use semantic_value_comparison::{
-    TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
-    TerminalTraceStructuralComparisonError, TerminalTraceStructuralValueSide,
-    compare_terminal_trace_scalar_values, compare_terminal_trace_structural_values,
-};
 pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
 pub use structural_inputs::placed_views::TerminalPlacedViewEstablishment;
@@ -121,10 +112,6 @@ pub use terminal_installation::{
     AdmittedProviderSelections, admit_provider_installation,
     admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
-};
-pub use terminal_interpreter::{
-    interpret_serialized_terminal_artifact_measured, interpret_terminal_artifact,
-    interpret_terminal_artifact_measured,
 };
 pub use values::{
     TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,

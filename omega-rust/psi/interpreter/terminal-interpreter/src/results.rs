@@ -1,15 +1,11 @@
 //! What an execution reports: its result, status, crash site and the fuel
 //! measure around it.
 
-use crate::effects::TerminalEffect;
 use crate::errors::TerminalInterpretError;
 use crate::scalar_array::TerminalScalarArrayResult;
-use crate::values::{
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
-    TerminalStructuralValue,
-};
+use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, OperationId};
-use terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelUsage};
+use terminal_fuel::{FuelExhaustion, FuelMeterError};
 use terminal_psi::CrashCause;
 
 /// The normal result of terminal-Psi execution.
@@ -103,39 +99,4 @@ pub enum TerminalCrashSite {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-}
-
-/// A successful semantic result paired with deterministic terminal-Psi fuel.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MeasuredTerminalExecution {
-    pub(crate) value: TerminalExecutionResult,
-    pub(crate) usage: TerminalFuelUsage,
-    pub(crate) effects: Vec<TerminalEffect>,
-    pub(crate) structural_primitive_values: Vec<TerminalStructuralPrimitiveValue>,
-}
-
-impl MeasuredTerminalExecution {
-    pub fn value(&self) -> TerminalExecutionResult {
-        self.value.clone()
-    }
-
-    pub const fn usage(&self) -> &TerminalFuelUsage {
-        &self.usage
-    }
-
-    pub fn effects(&self) -> &[TerminalEffect] {
-        &self.effects
-    }
-
-    pub fn structural_primitive_values(&self) -> &[TerminalStructuralPrimitiveValue] {
-        &self.structural_primitive_values
-    }
-
-    pub fn into_value(self) -> TerminalExecutionResult {
-        self.value
-    }
-
-    pub fn into_parts(self) -> (TerminalExecutionResult, TerminalFuelUsage) {
-        (self.value, self.usage)
-    }
 }
