@@ -257,7 +257,7 @@ pub(super) fn refresh_generic_call_results(
     Ok(changed_owners)
 }
 
-pub(super) fn refresh(
+pub(crate) fn refresh(
     program: &mut TypedTrees,
     unavailable: &[crate::constructed_results::UnavailableValueType],
 ) -> Result<Vec<SymbolHandle>, Vec<diagnostics::Diagnostic>> {

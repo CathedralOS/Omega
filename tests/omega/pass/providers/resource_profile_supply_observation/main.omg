@@ -6,11 +6,13 @@ use omega::language::core::layout;
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
 
+data TestMemory {}
+
 SyntheticRoot satisfies ExtentRootProvider {
     machine grant(storage: Extent) -> Extent { storage }
 }
 
-MemorySupply satisfies ResourceProfileSupply {
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
         let mut regions: [ResourceRegion; 32];
@@ -31,13 +33,13 @@ data Owner { storage: Extent in Granted; }
 machine observe(storage: &Extent in Granted) -> ResourceProfile
 reaches ResourceProfileSupply
 {
-    ResourceProfileSupply::profile(storage)
+    ResourceProfileSupply<TestMemory>::profile(storage)
 }
 
 machine observe_qualified(storage: &Extent in Granted) -> ResourceProfile
 reaches ResourceProfileSupply
 {
-    ResourceProfileSupply::profile(storage as &Extent in Granted)
+    ResourceProfileSupply<TestMemory>::profile(storage as &Extent in Granted)
 }
 
 machine main()
@@ -47,10 +49,10 @@ reaches ExtentRootProvider + ResourceProfileSupply + ProcessExit
         Extent { base: 4096, length: 16 }
     );
     let owner: Owner = Owner { storage: storage };
-    let first: ResourceProfile = ResourceProfileSupply::profile(&owner.storage);
+    let first: ResourceProfile = ResourceProfileSupply<TestMemory>::profile(&owner.storage);
     let second: ResourceProfile = observe(&owner.storage);
     let third: ResourceProfile =
-        ResourceProfileSupply::profile(&owner.storage as &Extent in Granted);
+        ResourceProfileSupply<TestMemory>::profile(&owner.storage as &Extent in Granted);
     let fourth: ResourceProfile = observe_qualified(&owner.storage);
     transition first.region_count == 1 && second.region_count == 1 &&
                third.region_count == 1 && fourth.region_count == 1 &&

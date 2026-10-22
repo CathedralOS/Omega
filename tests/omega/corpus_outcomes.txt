@@ -7187,6 +7187,13 @@ fail/generics/open_const_wrong_literal_tuple rejected 1320ms expected @863cf92cb
 fail/generics/open_index_unlicensed_algebra rejected 179ms expected @a9ae30e1c334+wt
 fail/generics/open_value_case_constructor_false rejected 5667ms expected @c0ec033db8e0+wt
 	data `Tagged` case `At` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/owned_member_applied_ceiling_stale_bound rejected 287ms expected @3d64278a43eb+wt
+	exact arithmetic in machine `wrong` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/owned_member_applied_result_wrong_destination rejected 286ms expected @3d64278a43eb+wt
+	machine `forward` state `entry` local `result` expects `Envelope<bool>`, but the value is delivered as `Envelope<u64>`
+	machine `forward$specialized$41e02f46b757b377$0` state `entry` local `result` expects `Envelope<bool>`, but the value is delivered as `Envelope<u64>`
+fail/generics/owned_member_const_operand_is_not_type rejected 237ms expected @3d64278a43eb+wt
+	machine `identity` has no const parameter for extra argument `1`
 fail/generics/parameter_value_concrete_local_mismatch rejected 249ms expected @6ef08ceefee0+wt
 fail/generics/property_bound_violated_at_instantiation rejected 828ms expected @a9ae30e1c334+wt
 fail/generics/qualified_closed_equation_const_width rejected 19ms expected @a9ae30e1c334+wt
@@ -12886,6 +12893,9 @@ pass/generics/open_const_shadowed_binder_positive checked 1415ms check-target:ma
 pass/generics/open_const_two_evidence_binders checked 3831ms check-target:macos_arm64 @863cf92cb2f3
 pass/generics/open_const_unrelated_namespace checked 5864ms check-target:macos_arm64 @863cf92cb2f3
 pass/generics/open_value_case_constructor_checked checked 19660ms check-target:macos_arm64 @c0ec033db8e0+wt
+pass/generics/owned_member_applied_ceiling checked 1087ms check-target:macos_arm64 @3d64278a43eb+wt
+pass/generics/owned_member_applied_result checked 855ms check-target:macos_arm64 @3d64278a43eb+wt
+pass/generics/owned_member_static_type_operand checked 817ms check-target:macos_arm64 @3d64278a43eb+wt
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_applied_implementation_qualifier_exit checked 4126ms check-target:macos_arm64 @097fbfdea595+wt
 pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -13735,6 +13745,7 @@ pass/providers/provider_type_target_default_override checked 11443ms check-targe
 pass/providers/qualified_foreign_result_forwarding checked 8911ms @23cea4bf3b2f+wt
 pass/providers/qualified_foreign_structural_arguments checked 13698ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/resource_profile_initialization_coverage_exit checked 17299ms check-target:macos_arm64 @e2a6d051c734
+pass/providers/resource_profile_roles checked 1582ms check-target:macos_arm64 @3d64278a43eb+wt
 pass/providers/resource_profile_supply_observation checked 4672ms check-target:macos_arm64 @e2a6d051c734
 pass/providers/runtime_adapter_dispatch_exit checked 10056ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_boundary_address_model_exit checked 3842ms check-target:macos_arm64 @d75fe4ba5012+wt

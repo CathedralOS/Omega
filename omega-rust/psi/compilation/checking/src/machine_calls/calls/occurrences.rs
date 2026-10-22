@@ -29,6 +29,32 @@ pub enum CallSite<'program> {
 }
 
 impl<'program> CallSite<'program> {
+    /// Parameter carriers belong to the occurrence's applied logical contract.
+    /// A selected map's private body may still have open captured binders;
+    /// those are not types in the caller and cannot classify its authority.
+    pub fn parameters(
+        &self,
+        program: &'program dyn crate::CheckingInput,
+        lexical_owner: SymbolHandle,
+    ) -> Option<&'program [typed_trees::signature::StateParameter]> {
+        let signature = match self {
+            Self::Statement(call) => {
+                program.requirement_statement_call_signature(lexical_owner, call)
+            }
+            Self::Expression { call, .. } => {
+                program.requirement_call_signature(lexical_owner, call)
+            }
+            Self::TransitionNamed { .. } => None,
+        };
+        if let Some(signature) = signature {
+            return Some(program.state_signature_parameters(signature));
+        }
+        if self.static_requirement_dispatch().is_some() {
+            return None;
+        }
+        super::topology::call_target_parameters(program, self.target_symbol(program))
+    }
+
     /// Resolved executable destination shared by topology and exact-occurrence
     /// admission. Boundary operator calls retain their operator identity.
     pub fn target_symbol(&self, program: &dyn crate::CheckingInput) -> SymbolHandle {

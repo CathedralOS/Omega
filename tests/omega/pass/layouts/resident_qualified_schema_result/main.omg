@@ -3,6 +3,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 data Word { value: u64; }
 domain Word::Tagged;
 data Payload { word: Word in Tagged; }
@@ -33,12 +35,12 @@ machine initialize(storage: Extent in Granted & Vacant, value: Payload)
     >
 reaches ResourceProfileSupply
 {
-    NativePlacement<PayloadPlacement, Payload>::initialize(storage, value)
+    NativePlacement<PayloadPlacement, Payload, TestMemory>::initialize(storage, value)
 }
 
 machine extract(storage: Extent in Granted & Resident<PayloadPlacement, Payload>)
     -> PlacementExtraction<Extent in Granted & Vacant, Payload>
 reaches ResourceProfileSupply
 {
-    NativePlacement<PayloadPlacement, Payload>::move_out(storage)
+    NativePlacement<PayloadPlacement, Payload, TestMemory>::move_out(storage)
 }

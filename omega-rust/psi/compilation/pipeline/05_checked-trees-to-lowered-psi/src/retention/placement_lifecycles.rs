@@ -268,6 +268,9 @@ fn execution_contract(
             checked,
             exact_toolchain_sources,
             lowered,
+            declaration.profile_role(&checked.typed).map_err(|_| {
+                LoweringError::Unsupported("placement primitive lost its exact supply role")
+            })?,
         )?)
     } else {
         None
@@ -281,18 +284,23 @@ fn execution_contract(
 /// Bind the core requirement while its exact declaration still exists. Neither
 /// an unrelated same-shaped provider nor a direct implementation call is the
 /// admitted ResourceProfileSupply crossing. Retain its dense coordinate so
-/// execution need not resolve names or inspect source.
+/// execution need not resolve names or inspect source. Independent supply roles
+/// may coexist; only the primitive's exact closed role can select its receipt.
 fn profile_requirement(
     identities: &mut TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     lowered: &LoweredPsi,
+    role: typed_trees::types::TypeReferenceHandle,
 ) -> Result<terminal_psi::TerminalPlacementProfileRequirement, LoweringError> {
     const LAYOUT_SOURCE: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../source/library/core/layout.omg"
     ));
     let typed = &checked.typed;
+    let role_identity = typed.type_identity(
+        typed_trees::type_identity::TypeIdentityRequest::ordinary(role),
+    );
     let is_core = |symbol| {
         typed
             .symbols
@@ -324,6 +332,21 @@ fn profile_requirement(
                 .as_deref()
                 != Some("toolchain::ResourceProfileSupply")
             || typed.symbols.name(template).rsplit("::").next() != Some("profile")
+        {
+            continue;
+        }
+        let Some(application) = typed.closed_requirement_application(occurrence.source_target)
+        else {
+            continue;
+        };
+        let [supply_role] = application.trait_arguments else {
+            return Err(LoweringError::Unsupported(
+                "profile supply lost its closed role argument",
+            ));
+        };
+        if typed.type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
+            *supply_role,
+        )) != role_identity
         {
             continue;
         }

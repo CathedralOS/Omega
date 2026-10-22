@@ -500,8 +500,10 @@ public data ResourceProfile where region_count <= 32 {
 // an establishing consumer must bind the successful invocation and its complete
 // normalized result to the original qualified range. Copying or changing a
 // profile, or calling an implementation directly, establishes nothing. This
-// requirement supplies neither vacancy nor already initialized content.
-public boundary trait ResourceProfileSupply {
+// requirement supplies neither vacancy nor already initialized content. Role
+// distinguishes independently selected backing policies in one artifact. It is
+// a static selector, not evidence of that backing or permission to access it.
+public boundary trait ResourceProfileSupply<Role> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile;
 }
 
@@ -544,7 +546,7 @@ public data PlacementBorrowReturn {}
 // Vacant. The selected call supplies compatibility for this exact qualified
 // range, while the result retains the original storage loan. A numeric address
 // or a constructed ResourceProfile is not a substitute for either input.
-public machine Placed::view_extent<'storage, P, T>(
+public machine Placed::view_extent<'storage, P, T, Role>(
     storage: &'storage Extent in Granted
 ) -> PlacementOutcome<
     &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
@@ -552,11 +554,11 @@ public machine Placed::view_extent<'storage, P, T>(
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply;
 {
-    let profile: ResourceProfile = ResourceProfileSupply::profile(storage);
-    Placed::view_from_profile<P, T>(storage, &profile)
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
+    Placed::view_from_profile<P, T, Role>(storage, &profile)
 }
 
-boundary machine Placed::view_from_profile<'storage, P, T>(
+boundary machine Placed::view_from_profile<'storage, P, T, Role>(
     storage: &'storage Extent in Granted,
     profile: &ResourceProfile
 ) -> PlacementOutcome<
@@ -566,7 +568,7 @@ boundary machine Placed::view_from_profile<'storage, P, T>(
 // The exclusive counterpart carries the same interpretation and original
 // profile occurrence. Its reference ceiling, not a second lifecycle or a
 // geometry-based permission, allows the placement's admitted writes.
-public machine Placed::view_extent_mut<'storage, P, T>(
+public machine Placed::view_extent_mut<'storage, P, T, Role>(
     storage: &'storage mut Extent in Granted
 ) -> PlacementOutcome<
     &'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
@@ -574,11 +576,11 @@ public machine Placed::view_extent_mut<'storage, P, T>(
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply;
 {
-    let profile: ResourceProfile = ResourceProfileSupply::profile(storage);
-    Placed::view_mut_from_profile<P, T>(storage, &profile)
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
+    Placed::view_mut_from_profile<P, T, Role>(storage, &profile)
 }
 
-boundary machine Placed::view_mut_from_profile<'storage, P, T>(
+boundary machine Placed::view_mut_from_profile<'storage, P, T, Role>(
     storage: &'storage mut Extent in Granted,
     profile: &ResourceProfile
 ) -> PlacementOutcome<
@@ -629,7 +631,7 @@ public boundary trait PlacementLifecycle<P, T> {
 // result before treating the profile as admitted supply. The private operation
 // borrows that result: passing plain profile data by value would make an
 // independent copy, which carries no selected-call origin.
-public NativePlacement<P, T> satisfies PlacementLifecycle<P, T> {
+public NativePlacement<P, T, Role> satisfies PlacementLifecycle<P, T> {
     machine initialize(
         storage: Extent in Granted & Vacant,
         value: T
@@ -640,10 +642,10 @@ public NativePlacement<P, T> satisfies PlacementLifecycle<P, T> {
     >
     reaches ResourceProfileSupply
     {
-        let profile: ResourceProfile = ResourceProfileSupply::profile(
+        let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Placed::initialize_from_profile<P, T>(storage, value, &profile)
+        Placed::initialize_from_profile<P, T, Role>(storage, value, &profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -652,10 +654,10 @@ public NativePlacement<P, T> satisfies PlacementLifecycle<P, T> {
     {
         // Resident preserves the value and backing, not permission to read
         // every byte. Reobserve the same grant's admitted supply before decode.
-        let profile: ResourceProfile = ResourceProfileSupply::profile(
+        let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Placed::extract_resident<P, T>(storage, &profile)
+        Placed::extract_resident<P, T, Role>(storage, &profile)
     }
 }
 
@@ -663,7 +665,7 @@ public NativePlacement<P, T> satisfies PlacementLifecycle<P, T> {
 // Privacy supplies no profile or backing authority: compiler realization still
 // requires the exact admitted call, live claim and actual allocation. They
 // cannot interpret a constructed profile or an Extent's descriptor as bytes.
-boundary machine Placed::initialize_from_profile<P, T>(
+boundary machine Placed::initialize_from_profile<P, T, Role>(
     storage: Extent in Granted & Vacant,
     value: T,
     profile: &ResourceProfile
@@ -673,7 +675,7 @@ boundary machine Placed::initialize_from_profile<P, T>(
     PlacementInitializationFailure
 >;
 
-boundary machine Placed::extract_resident<P, T>(
+boundary machine Placed::extract_resident<P, T, Role>(
     storage: Extent in Granted & Resident<P, T>,
     profile: &ResourceProfile
 ) -> PlacementExtraction<Extent in Granted & Vacant, T>;

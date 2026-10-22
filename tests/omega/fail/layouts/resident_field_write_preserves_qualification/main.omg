@@ -3,6 +3,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public domain u64::Seventeen(value) requires value == 17;
 public data Word { value: u64 in Seventeen; }
 public data WordPlacement {}
@@ -19,7 +21,7 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
     }
 }
 
-MemorySupply satisfies ResourceProfileSupply {
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
         let mut regions: [ResourceRegion; 32];
@@ -42,7 +44,7 @@ machine attempt(storage: Extent in Granted & Vacant, expected_reason: u64)
     -> PlacementReturn<Extent in Granted & Vacant, Word>
 reaches ResourceProfileSupply crashes Trap
 {
-    transition NativePlacement<WordPlacement, Word>::initialize(storage, Word { value: 17 }) {
+    transition NativePlacement<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: 17 }) {
         PlacementOutcome::Ready { view } -> extract(view)
         PlacementOutcome::Rejected { returned, reason } -> unexpected(returned)
     }
@@ -50,7 +52,7 @@ reaches ResourceProfileSupply crashes Trap
         -> PlacementReturn<Extent in Granted & Vacant, Word> {
         let mut retained: Extent in Granted & Resident<WordPlacement, Word> = carry(storage);
         overwrite(Placed::view_resident_mut<WordPlacement, Word>(&mut retained));
-        transition NativePlacement<WordPlacement, Word>::move_out(retained) {
+        transition NativePlacement<WordPlacement, Word, TestMemory>::move_out(retained) {
             PlacementExtraction::Moved { storage, value } -> check_value(storage, value)
         }
     }

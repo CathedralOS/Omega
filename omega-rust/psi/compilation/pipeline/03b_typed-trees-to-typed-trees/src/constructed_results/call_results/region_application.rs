@@ -16,19 +16,21 @@ pub(super) fn bindings(
     state: &State,
     call: &TableCallExpression,
 ) -> Result<Vec<(Identifier, Option<Identifier>)>, Vec<Diagnostic>> {
-    let (parameters, lifetimes) = if let Some((machine, entry)) =
-        validation::find_state(program, call.target_symbol)
+    // Use the same applied logical signature that owns the result carrier,
+    // not a selected private body's still-open declaration telescope.
+    let (parameters, lifetimes) = if let Some(signature) =
+        program.requirement_call_signature(caller.symbol, call)
     {
+        (
+            program.state_signature_parameters(signature),
+            &signature.lifetime_parameters,
+        )
+    } else if let Some((machine, entry)) = validation::find_state(program, call.target_symbol) {
         (
             program.state_parameters(entry),
             &machine.lifetime_parameters,
         )
     } else if let Some((_, signature)) = program.machine_parameter_signature(call.target_symbol) {
-        (
-            program.state_signature_parameters(signature),
-            &signature.lifetime_parameters,
-        )
-    } else if let Some(signature) = program.requirement_call_signature(caller.symbol, call) {
         (
             program.state_signature_parameters(signature),
             &signature.lifetime_parameters,

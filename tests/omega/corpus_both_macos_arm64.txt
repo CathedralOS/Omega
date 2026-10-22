@@ -985,6 +985,9 @@ pass/generics/contextual_static_machine_const_scopes_exit built 3451ms exit:0 in
 pass/generics/contextual_static_machine_open_const_exit built 3537ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/generic_case_subject_sibling_bounds_exit built 873ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
 pass/generics/open_computed_quantity_result built 17044ms exit:70 interpreter-exit:70 interpreter:agrees @7b786cd56594+wt
+pass/generics/owned_member_applied_ceiling built 2935ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb+wt
+pass/generics/owned_member_applied_result built 919ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb+wt
+pass/generics/owned_member_static_type_operand built 878ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb+wt
 pass/generics/runtime_applied_implementation_qualifier_exit built 4167ms exit:0 interpreter-exit:0 interpreter:agrees @097fbfdea595+wt
 pass/generics/runtime_case_qualified_reference_storage_exit built 2329ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt
 pass/generics/runtime_closed_case_array_payload_exit built 2379ms exit:0 interpreter-exit:0 interpreter:agrees @baa32bc3a441
@@ -1194,6 +1197,7 @@ pass/providers/generic_result_recursive_reference_issuer checked 2701ms @abd1881
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 2754ms exit:41 interpreter-exit:41 interpreter:agrees @cba4ef8c9ab1
 pass/providers/linear_structural_provider_pure_exit built 9190ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 pass/providers/owned_array_operand_epochs_exit built 1550ms exit:0 interpreter-exit:0 interpreter:agrees @c27519066a03+wt
+pass/providers/resource_profile_roles built 3859ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb+wt
 pass/providers/runtime_boundary_address_model_exit built 3851ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_result_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c

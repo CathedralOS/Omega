@@ -79,12 +79,12 @@ impl PlacementExecutionDeclaration {
                     program.symbols.name(owner),
                 ))
             })?;
-        let [policy, schema] = program
+        let [policy, schema, _role] = program
             .data_type_parameters
             .span_or_empty(specialization.template_parameters)
         else {
             return Err(Diagnostic::error(
-                "placement execution lost its original policy/schema binders",
+                "placement execution lost its original policy/schema/supply-role binders",
             ));
         };
         let bindings = program
@@ -109,6 +109,51 @@ impl PlacementExecutionDeclaration {
             }
         };
         Ok((operand(policy.symbol)?, operand(schema.symbol)?))
+    }
+
+    /// The closed supply role belongs to the primitive's exact specialization.
+    /// It selects a requirement application, never storage or profile authority.
+    /// Keep the typed binding: neither a diagnostic type name nor a neighboring
+    /// profile call can supply this operand after lowering.
+    pub fn profile_role(
+        &self,
+        program: &crate::TypedTrees,
+    ) -> Result<crate::types::TypeReferenceHandle, Diagnostic> {
+        let specialization = program
+            .machine_specialization(self.machine)
+            .ok_or_else(|| {
+                Diagnostic::error("placement execution lost its closed supply-role application")
+            })?;
+        if !specialization.binding_application.is_valid() {
+            return Err(Diagnostic::error(
+                "placement execution lost its supply-role binding application",
+            ));
+        }
+        let [_, _, role] = program
+            .data_type_parameters
+            .span_or_empty(specialization.template_parameters)
+        else {
+            return Err(Diagnostic::error(
+                "placement execution lost its original supply-role binder",
+            ));
+        };
+        let mut bindings = program
+            .expression_table
+            .static_machine_application_bindings(specialization.binding_application)
+            .iter()
+            .filter(|binding| binding.parameter == role.symbol);
+        match (bindings.next(), bindings.next()) {
+            (
+                Some(crate::static_applications::StaticMachineBinding {
+                    value: crate::static_applications::StaticMachineBindingValue::Type(reference),
+                    ..
+                }),
+                None,
+            ) => Ok(*reference),
+            _ => Err(Diagnostic::error(
+                "placement execution lost its exact closed supply-role operand",
+            )),
+        }
     }
 
     pub fn authenticate(

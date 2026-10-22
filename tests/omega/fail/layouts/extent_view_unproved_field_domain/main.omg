@@ -2,6 +2,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public data Inner [copy] { value: u64; }
 public domain Inner::Requires17(value) requires value.value == 17;
 public data Word { inner: Inner in Requires17; }
@@ -19,7 +21,7 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine attempt(storage: &Extent in Granted) -> u64 reaches ResourceProfileSupply {
-    transition Placed::view_extent<WordPlacement, Word>(storage) {
+    transition Placed::view_extent<WordPlacement, Word, TestMemory>(storage) {
         PlacementOutcome::Ready { view } -> 1
         PlacementOutcome::Rejected { returned, reason } -> 0
     }

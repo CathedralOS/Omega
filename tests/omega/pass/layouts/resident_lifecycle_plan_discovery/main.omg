@@ -3,6 +3,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public data Word { value: u64; }
 public data WordPlacement {}
 
@@ -71,7 +73,7 @@ machine native_provider(storage: Extent in Granted & Vacant, value: Word)
     >
 reaches ResourceProfileSupply
 {
-    NativePlacement<WordPlacement, Word>::initialize(storage, value)
+    NativePlacement<WordPlacement, Word, TestMemory>::initialize(storage, value)
 }
 
 machine decline(storage: Extent in Granted & Vacant, value: Word)

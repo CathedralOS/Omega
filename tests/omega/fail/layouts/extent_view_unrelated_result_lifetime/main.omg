@@ -2,6 +2,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public data Word { value: u64; }
 public data WordPlacement {}
 machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
@@ -21,6 +23,6 @@ machine attempt<'left, 'right>(left: &'left Extent in Granted, right: &'right Ex
 reaches ResourceProfileSupply
 {
     let outcome: PlacementOutcome<&'right Placed<WordPlacement, Word>, PlacementBorrowReturn, PlacementInitializationFailure> =
-        Placed::view_extent<WordPlacement, Word>(right);
+        Placed::view_extent<WordPlacement, Word, TestMemory>(right);
     outcome
 }

@@ -4,6 +4,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public data Words { entries: [u64; 2]; }
 public data WordPlacement {}
 
@@ -22,7 +24,7 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
 machine update_existing(storage: &mut Extent in Granted) -> bool
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent_mut<WordPlacement, Words>(storage) {
+    transition Placed::view_extent_mut<WordPlacement, Words, TestMemory>(storage) {
         PlacementOutcome::Ready { view } -> check(view)
         PlacementOutcome::Rejected { returned, reason } -> false
     }
@@ -42,7 +44,7 @@ reaches ResourceProfileSupply
     }
 }
 
-MemorySupply satisfies ResourceProfileSupply {
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
         let mut transfers: [TransferRule; 16];
@@ -85,7 +87,7 @@ reaches ResourceProfileSupply crashes Trap
 machine observe_existing(storage: &Extent in Granted) -> bool
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent<WordPlacement, Words>(storage) {
+    transition Placed::view_extent<WordPlacement, Words, TestMemory>(storage) {
         PlacementOutcome::Ready { view } -> check(view)
         PlacementOutcome::Rejected { returned, reason } -> false
     }

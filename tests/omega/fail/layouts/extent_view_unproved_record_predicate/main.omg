@@ -2,6 +2,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public data Word where value == 17 { value: u64; }
 public data WordPlacement {}
 
@@ -18,7 +20,7 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine attempt(storage: &Extent in Granted) -> u64 reaches ResourceProfileSupply {
-    transition Placed::view_extent<WordPlacement, Word>(storage) {
+    transition Placed::view_extent<WordPlacement, Word, TestMemory>(storage) {
         PlacementOutcome::Ready { view } -> (placed_read(&view.value))
         PlacementOutcome::Rejected { returned, reason } -> 0
     }

@@ -77,6 +77,7 @@ pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 use crate::StateSignatureOwner;
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
+use std::borrow::Cow;
 use std::fmt;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -414,15 +415,18 @@ pub fn validate_static_type_argument(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The invocation telescope excludes an owned member's captures. Static
+    // operands are authored in the same lexical scope as its signature and
+    // locals, so use retained declaration containment for all three.
     let (type_parameters, lifetime_parameters, lexical_owner) = match caller {
-        StaticTypeArgumentOwner::Machine(machine) => (
-            program.machine_type_parameters(machine),
-            machine.lifetime_parameters.as_ref(),
-            machine.symbol,
-        ),
+        StaticTypeArgumentOwner::Machine(machine) => {
+            let (types, lifetimes) = program
+                .machine_type_reference_scope(machine, |left, right| left.name == right.name);
+            (Cow::Owned(types), Cow::Owned(lifetimes), machine.symbol)
+        }
         StaticTypeArgumentOwner::Data(data) => (
-            program.data_type_parameters(data),
-            data.lifetime_parameters.as_ref(),
+            Cow::Borrowed(program.data_type_parameters(data)),
+            Cow::Borrowed(data.lifetime_parameters.as_slice()),
             data.symbol,
         ),
     };
@@ -438,8 +442,8 @@ pub fn validate_static_type_argument(
         TypeParameterScope {
             operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner,
-            type_parameters,
-            lifetime_parameters,
+            type_parameters: &type_parameters,
+            lifetime_parameters: &lifetime_parameters,
         },
     );
 }

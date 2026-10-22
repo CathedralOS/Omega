@@ -6,6 +6,8 @@
 use omega::language::core::extent;
 use omega::language::core::layout;
 
+data TestMemory {}
+
 public data Words { entries: [u64; 2]; }
 public data WordPlacement {}
 
@@ -24,7 +26,7 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
 machine read_existing(storage: &Extent in Granted) -> u64
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent<WordPlacement, Words>(storage) {
+    transition Placed::view_extent<WordPlacement, Words, TestMemory>(storage) {
         PlacementOutcome::Ready { view } -> (placed_read(&view.entries[1]))
         PlacementOutcome::Rejected { returned, reason } -> 0
     }
@@ -36,7 +38,7 @@ machine read_stored(storage: &Extent in Granted) -> u64
 reaches ResourceProfileSupply
 {
     let outcome: PlacementOutcome<&Placed<WordPlacement, Words>, PlacementBorrowReturn, PlacementInitializationFailure> =
-        Placed::view_extent<WordPlacement, Words>(storage);
+        Placed::view_extent<WordPlacement, Words, TestMemory>(storage);
     let forwarded: PlacementOutcome<&Placed<WordPlacement, Words>, PlacementBorrowReturn, PlacementInitializationFailure> = forward(outcome);
     transition forwarded {
         PlacementOutcome::Ready { view } -> (placed_read(&view.entries[1]))
@@ -44,7 +46,7 @@ reaches ResourceProfileSupply
     }
 }
 
-MemorySupply satisfies ResourceProfileSupply {
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
         let mut transfers: [TransferRule; 16];

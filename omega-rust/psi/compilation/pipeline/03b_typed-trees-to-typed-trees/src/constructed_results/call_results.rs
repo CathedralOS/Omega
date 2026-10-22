@@ -39,9 +39,17 @@ pub(super) fn retain(
     // executable specialization. Its result type still belongs to this exact
     // application: the callee's T must become the caller's supplied type, not
     // remain a foreign binder or borrow the enclosing destination's type.
-    let (returned, substitutions) = if let Some((machine, state)) =
-        validation::find_state(program, call.target_symbol)
+    let (returned, substitutions) = if let Some(signature) =
+        program.requirement_call_signature(machine_symbol, call)
     {
+        // A selected map can still point at an open private body. Its applied
+        // public signature owns the caller-visible result, including captures;
+        // preferring that body's raw return would leak its foreign binders.
+        if !signature.type_parameters.is_empty() {
+            return Ok(None);
+        }
+        (signature.return_type, Vec::new())
+    } else if let Some((machine, state)) = validation::find_state(program, call.target_symbol) {
         let Some(substitutions) = validation::call_type_arguments(
             program,
             caller,
@@ -55,14 +63,6 @@ pub(super) fn retain(
         };
         (state.return_type, substitutions)
     } else if let Some((_, signature)) = program.machine_parameter_signature(call.target_symbol) {
-        (signature.return_type, Vec::new())
-    } else if let Some(signature) = program.requirement_call_signature(machine_symbol, call) {
-        // The trait application already substitutes its complete outer
-        // telescope, including open caller binders. Local method binders need
-        // their own invocation application before becoming a result carrier.
-        if !signature.type_parameters.is_empty() {
-            return Ok(None);
-        }
         (signature.return_type, Vec::new())
     } else {
         return Ok(None);

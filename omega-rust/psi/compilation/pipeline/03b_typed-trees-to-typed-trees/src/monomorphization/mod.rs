@@ -66,6 +66,7 @@ mod const_values;
 pub(crate) use const_values::value as materialize_static_value;
 mod range_arguments;
 mod result_locals;
+pub(crate) use result_locals::refresh as refresh_inferred_result_locals;
 mod saved_calls;
 mod target_families;
 mod type_reference_walk;
@@ -384,16 +385,19 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             {
                 literals.push(literal);
             }
-            // Builtin-type arguments intern the same named reference an
-            // authored `-> u64` would: an explicit `ident<u64>` is complete
-            // static evidence even when no other mention of the carrier
-            // exists in the program.
+            // Every named type operand needs its carrier, including phantom
+            // caller binders used only in static arguments. Consult the binder
+            // declaration, not forwarded_type: that query requires the very
+            // Named node this producer is responsible for materializing.
             if argument.application.is_none()
                 && argument.symbol.is_valid()
                 && (matches!(
                     program.symbols.get(argument.symbol).kind,
                     SymbolKind::Data | SymbolKind::BuiltinType
-                ) || const_arguments::forwarded_type(program, argument).is_valid())
+                ) || program.data_type_parameters.iter().any(|(_, parameter)| {
+                    parameter.symbol == argument.symbol
+                        && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                }))
                 && let Some(name) = argument.path.last()
                 && !types.iter().any(|(symbol, _)| *symbol == argument.symbol)
             {

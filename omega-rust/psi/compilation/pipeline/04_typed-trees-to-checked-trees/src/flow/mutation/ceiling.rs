@@ -63,7 +63,7 @@ pub(crate) fn signature_ceiling_regions(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     )?;
-    let parameters = validation::call_target_parameters(program, borrow_call.target_symbol)?;
+    let parameters = site.parameters(program, machine.symbol)?;
     let arguments = validation::call_site_argument_expressions(program, &site);
     if parameters.iter().count() != arguments.len() {
         return None;

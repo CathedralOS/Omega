@@ -264,6 +264,16 @@ pub fn prepare_typed_trees(
         crate::monomorphization::instantiate_requirement_applications(&mut program)?;
         materialized +=
             crate::monomorphization::generate_requirement_provider_specializations(&mut program)?;
+        // Public requirement application can settle a result without creating
+        // another executable body. Refresh its inferred consumers before token
+        // binding reads them and include that change in the same fixed point.
+        let unavailable = crate::constructed_results::retain_constructed_result_types(&mut program);
+        let result_owners =
+            crate::monomorphization::refresh_inferred_result_locals(&mut program, &unavailable)?;
+        materialized += result_owners.len();
+        for owner in result_owners {
+            changed_roots.include(owner);
+        }
         // Bind only complete producer outputs: newly cloned bodies and callers
         // whose calls or inferred results changed. The ordinary fixed point
         // settles targets and dependent temporaries before binding reads them;
