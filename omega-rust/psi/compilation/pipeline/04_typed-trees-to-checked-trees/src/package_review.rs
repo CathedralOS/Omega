@@ -5,7 +5,7 @@
 
 use checked_trees::{CheckFacts, CheckedSemanticDependencies};
 
-use crate::{authored_selections, checks, facts, flow, values};
+use crate::{authored_selections, checks, facts, flow};
 
 /// Conservative pre-check classification used by compiler-run semantic
 /// evaluation. `true` means the typed expression cannot select an authored
@@ -37,15 +37,6 @@ pub fn typed_operator_authored_selection_candidates(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<symbols::SymbolHandle> {
     authored_selections::typed_operator_authored_selection_candidates(program, expression)
-}
-
-/// Reuse the current checked value traversal without claiming proof validity.
-/// Exact expression origins also identify cast-owned constant type positions.
-pub fn derive_pre_flow_value_origins(
-    program: &dyn ::validation::CheckingInput,
-) -> checked_trees::CheckedValueFacts {
-    let proof_plan = ::proof::obligations::build_proof_plan(program);
-    values::build_value_facts(program, &proof_plan)
 }
 
 /// Rederive the complete, canonically ordered checked semantic-dependency
