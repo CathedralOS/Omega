@@ -306,6 +306,21 @@ pub(crate) fn call_argument_substitution<'program>(
                             argument,
                             0,
                         )
+                        .or_else(|| {
+                            // A proved float entry records an IEEE equality.
+                            // The guard reads that record, so the two signed
+                            // zeros compare equal. A bit-identical compare
+                            // would keep `-0.0 != 0.0` live.
+                            ieee_equality_observation(
+                                program,
+                                semantic,
+                                state,
+                                before_statement,
+                                &entry_contexts,
+                                argument,
+                                0,
+                            )
+                        })
                         .map(CrashPredicateExpression::Float)
                     })
             }));
@@ -823,6 +838,124 @@ fn ieee_view_observation(
         typed_trees::expression::ExpressionNode::Float(value) => Some(value.text().to_owned()),
         _ => None,
     }
+}
+
+/// The IEEE equality recorded for a float entry.
+///
+/// A local copy, a match whose arms agree, and a call that returns one
+/// parameter read the same `FloatPredicate` equality. The spelling keeps the
+/// sign of zero; the crash guard compares it with IEEE equality.
+fn ieee_equality_observation(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &facts::FactPlan,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+    entry_contexts: &[facts::FactContextHandle],
+    expression: ExpressionHandle,
+    depth: u32,
+) -> Option<String> {
+    if depth >= 8 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    if let Some(spelling) = recorded_equal_spelling(program, semantic, entry_contexts, expression) {
+        return Some(spelling);
+    }
+    match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Name(path) => {
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+                || path.head_symbol != path.symbol
+            {
+                return None;
+            }
+            let Some((ordinal, local)) = program.state_local_declaration(state, path.symbol) else {
+                return None;
+            };
+            if ordinal >= before_statement || local.is_mutable || !local.initial_value.is_valid() {
+                return None;
+            }
+            ieee_equality_observation(
+                program,
+                semantic,
+                state,
+                before_statement,
+                entry_contexts,
+                local.initial_value,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            ieee_equality_observation(
+                program,
+                semantic,
+                state,
+                before_statement,
+                entry_contexts,
+                borrow.target,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Call(call) => {
+            let actual = parameter_returned_by_call(program, call)?;
+            ieee_equality_observation(
+                program,
+                semantic,
+                state,
+                before_statement,
+                entry_contexts,
+                actual,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            let mut agreed: Option<String> = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let Some(observed) = ieee_equality_observation(
+                    program,
+                    semantic,
+                    state,
+                    before_statement,
+                    entry_contexts,
+                    arm.value,
+                    depth + 1,
+                ) else {
+                    return None;
+                };
+                if agreed
+                    .as_ref()
+                    .is_some_and(|known| ieee_literal_same(known, &observed) != Some(true))
+                {
+                    return None;
+                }
+                agreed = Some(observed);
+            }
+            agreed
+        }
+        typed_trees::expression::ExpressionNode::Float(value) => Some(value.text().to_owned()),
+        _ => None,
+    }
+}
+
+fn recorded_equal_spelling(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &facts::FactPlan,
+    entry_contexts: &[facts::FactContextHandle],
+    expression: ExpressionHandle,
+) -> Option<String> {
+    let place = validation::canonical_place_from_expression(program, expression)?;
+    crate::values::ieee_equal_spelling_at_place(
+        program,
+        semantic,
+        entry_contexts
+            .iter()
+            .map(|handle| semantic.contexts.get(*handle)),
+        &place,
+    )
 }
 
 fn ieee_literal_same(left: &str, right: &str) -> Option<bool> {

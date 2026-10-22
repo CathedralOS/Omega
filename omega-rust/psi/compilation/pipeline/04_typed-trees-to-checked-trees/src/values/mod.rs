@@ -31,10 +31,10 @@ pub(crate) use evaluation::{
 };
 pub(crate) use place_intervals::LivePlaceIntervals;
 pub(crate) use snapshots::{
-    AssignmentObservation, PlaceScalarValues, immutable_owned_place_root, integer_bounds_at_place,
-    integer_bounds_from_payloads, is_assignment_literal, literal_assignment_payload,
-    literal_at_place, prepare_assignment_observations, scalar_value_at_place,
-    scalar_value_from_payloads,
+    AssignmentObservation, PlaceScalarValues, ieee_equal_spelling_at_place,
+    immutable_owned_place_root, integer_bounds_at_place, integer_bounds_from_payloads,
+    is_assignment_literal, literal_assignment_payload, literal_at_place,
+    prepare_assignment_observations, scalar_value_at_place, scalar_value_from_payloads,
 };
 pub(crate) mod scalar;
 pub(crate) use scalar::subslice_endpoints;

@@ -1992,7 +1992,10 @@ defines the complete product bar.
     guard through the scalar observation across all nine places of
     `facts/crash_entry_boolean_view`. A checked view of an entry `i32` equal to
     1065353216, read as `f32`, discharges `maybe_zero`'s `value == 0.0` Trap guard
-    across all nine places of `facts/crash_entry_ieee_view`. Keep exact
+    across all nine places of `facts/crash_entry_ieee_view`. An entry `f32` proved
+    equal to `-0.0` discharges `maybe_nonzero`'s `value != 0.0` Trap guard across all
+    nine places of `facts/crash_entry_signed_zero`, because the guard reads recorded
+    IEEE equality and the two signed zeros compare equal. Keep exact
     entry coordinates and recursive operand meaning, no source-arrangement
     exceptions, and private/local roots never become public parameters.
     Fixed-array field paths already work for crash-entry float operands.

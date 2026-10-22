@@ -56,6 +56,27 @@ impl FloatPredicate {
         self.format
     }
 
+    /// The IEEE spelling of an exact equality bound.
+    ///
+    /// Signed zero keeps the sign bit in the spelling. Callers compare that
+    /// spelling with IEEE equality, where the two zeros match and NaN matches
+    /// nothing. A non-equality or a NaN exclusion has no single bound.
+    pub fn equal_bound_spelling(self) -> Option<String> {
+        if self.comparison != BinaryOperator::Equal {
+            return None;
+        }
+        let bits = self.bound_bits?;
+        let value = match self.format {
+            FloatFormat::F32 => f64::from(f32::from_bits(bits as u32)),
+            FloatFormat::F64 => f64::from_bits(bits),
+        };
+        Some(
+            numerics::literals::FloatLiteral::from_f64(value)
+                .text()
+                .to_owned(),
+        )
+    }
+
     /// State joins retain only shared consequences. Bounds weaken toward
     /// existing endpoints; no new endpoint is generated during flow iteration.
     pub fn common_consequence(self, other: Self) -> Option<Self> {

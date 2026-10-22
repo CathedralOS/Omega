@@ -189,6 +189,49 @@ pub(crate) fn integer_bounds_from_payloads(
     retained
 }
 
+/// The exact IEEE equality recorded on `subject`.
+///
+/// The producer stores one `FloatPredicate` equality, including the sign bit
+/// of zero. This read returns that bound's spelling. Two recorded equalities
+/// must be the same IEEE value; a bit difference that IEEE still equates,
+/// such as the two signed zeros, is one record. An inequality or a NaN
+/// exclusion is not an exact value.
+pub(crate) fn ieee_equal_spelling_at_place<'a>(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    contexts: impl IntoIterator<Item = &'a FactContext>,
+    subject: &CanonicalPlace,
+) -> Option<String> {
+    let mut retained: Option<String> = None;
+    for context in contexts {
+        for fact in semantic.context_view(context).facts() {
+            let facts::FactPayload::FloatPredicate { predicate } = fact.payload else {
+                continue;
+            };
+            let Some(spelling) = predicate.equal_bound_spelling() else {
+                continue;
+            };
+            let place = fact.place.as_place()?;
+            let candidate =
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+            if !crate::flow::canonical_places_agree(program, &candidate, subject) {
+                continue;
+            }
+            if let Some(existing) = &retained {
+                let same = numerics::literals::FloatLiteral::parse(existing)
+                    .zip(numerics::literals::FloatLiteral::parse(&spelling))
+                    .is_some_and(|(left, right)| left.value_f64() == right.value_f64());
+                if !same {
+                    return None;
+                }
+            } else {
+                retained = Some(spelling);
+            }
+        }
+    }
+    retained
+}
+
 fn payloads_at_place<'a>(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
