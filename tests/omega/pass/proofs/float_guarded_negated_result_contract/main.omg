@@ -21,3 +21,29 @@ ensures flag || Float::meaning64(result) == Float::meaning64(value)
         _ -> (0.0)
     }
 }
+
+machine absolute_f32(value: f32) -> f32
+ensures
+    (value == 0.0 && F32::meaning(result) == F32::meaning(0.0)) ||
+    (value < 0.0 && F32::meaning(result) == FloatSemantics::negate(FloatFormat::BINARY32, F32::meaning(value))) ||
+    (value != 0.0 && !(value < 0.0) && F32::meaning(result) == F32::meaning(value))
+{
+    transition {
+        value == 0.0 -> (0.0)
+        value < 0.0 -> (F32::negate(value))
+        _ -> (value)
+    }
+}
+
+machine absolute_f64(value: f64) -> f64
+ensures
+    (value == 0.0 && F64::meaning(result) == F64::meaning(0.0)) ||
+    (value < 0.0 && F64::meaning(result) == FloatSemantics::negate(FloatFormat::BINARY64, F64::meaning(value))) ||
+    (value != 0.0 && !(value < 0.0) && F64::meaning(result) == F64::meaning(value))
+{
+    transition {
+        value == 0.0 -> (0.0)
+        value < 0.0 -> (F64::negate(value))
+        _ -> (value)
+    }
+}

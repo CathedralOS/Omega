@@ -8268,6 +8268,8 @@ fail/proofs/field_view_constructor_geometry rejected 276ms expected @f87e5abb714
 fail/proofs/field_view_index_missing_bound rejected 1721ms expected @d3431e5a76cb+wt
 fail/proofs/field_view_index_wrong_sibling rejected 1731ms expected @d3431e5a76cb+wt
 fail/proofs/field_view_saved_descriptor_replaced rejected 3037ms expected @c48489ea6ad6
+fail/proofs/float_false_ordered_guard_is_not_reverse rejected 652ms expected @1654d389500c+wt
+	machine `invalid_absolute` ensures contract proof fact `value < 0.0 && F64.meaning(result) == FloatSemantics.negate(FloatFormat, F64.meaning(value)) || value >= 0.0 && F64.meaning(result) == F64.meaning(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/float_guarded_negated_result_mismatch rejected 464ms expected @1f63ee648905+wt
 fail/proofs/float_unordered_guard_is_not_order_complement rejected 464ms expected @1f63ee648905+wt
 fail/proofs/float_zero_equality_is_not_meaning_identity rejected 461ms expected @1f63ee648905+wt
@@ -14139,7 +14141,7 @@ pass/proofs/erased_mathematical_initializers checked 4624ms @c0ec033db8e0+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
 pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
-pass/proofs/float_guarded_negated_result_contract checked 3661ms @1f63ee648905+wt
+pass/proofs/float_guarded_negated_result_contract checked 1517ms @1654d389500c+wt
 pass/proofs/float_named_contract_literal_landing checked 3204ms @1f63ee648905+wt
 pass/proofs/guarded_dynamic_field_arrival checked 43960ms check-target:macos_arm64 @7912abbc354e
 pass/proofs/higher_order_machine_schema_compile checked 1725ms @a9ae30e1c334+wt
