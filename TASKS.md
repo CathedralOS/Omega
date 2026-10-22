@@ -6200,9 +6200,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     unselected admission still cannot cross. Co-live bounds of 8 and 8 inside
     bound 16, and exclusive branches of 16 and 12, exit 0 in
     `extent_composition`. A co-live sum that overflows the closed demand
-    rejects before establishment. Remaining: splitting one claim into children
-    that cover it and merging those children, then further target execution.
-    Open demand still rejects before establishment. Backing does not move.
+    rejects before establishment. One established claim splits into covering
+    children and those children merge back into that claim. `claim_split`
+    exits 0 on both engines through the local program and the field, parameter,
+    call result, match join, const name, other state, other machine, and target
+    body places. A split that does not cover its parent rejects before the
+    children are established. Remaining: further target execution. Open demand
+    still rejects before establishment. Backing does not move.
   Acceptance: a run fixture where `committed > bound` returns checked failure
   (no trap or clamp) and a within-bound claim executes; escaping claims, wrong
   activation, stale loans and invalid release order reject. **FRAME-LAYOUT** in

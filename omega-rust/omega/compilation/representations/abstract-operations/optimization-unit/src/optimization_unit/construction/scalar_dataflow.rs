@@ -105,8 +105,12 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
 fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
-        O::EstablishActivationClaim { committed, .. } => vec![*committed],
-        O::ReleaseActivationClaim { .. } => Vec::new(),
+        O::EstablishActivationClaim { committed, .. }
+        | O::SplitActivationClaim {
+            committed_at: committed,
+            ..
+        } => vec![*committed],
+        O::ReleaseActivationClaim { .. } | O::MergeActivationClaim { .. } => Vec::new(),
         O::RegisterAccess { event, .. } => event.inputs().copied().collect(),
         abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields
             .iter()

@@ -17,6 +17,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
     use AbstractOperation as O;
     match operation {
         O::EstablishActivationClaim { .. }
+        | O::SplitActivationClaim { .. }
+        | O::MergeActivationClaim { .. }
         | O::ReleaseActivationClaim { .. }
         | O::StorageAddress { .. }
         | O::ByteSequenceSubslice { .. }

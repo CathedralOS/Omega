@@ -333,6 +333,28 @@ pub enum OperationKind {
         source: StructuralArgument,
         claim: ClaimId,
     },
+    /// Divide one established claim into covering children. The cut is the
+    /// static `bound_at` and the runtime `committed_at`. Covered yields the
+    /// two children; Rejected returns the same claim. Backing stays at the
+    /// parent's establishment site.
+    SplitActivationClaim {
+        source: StructuralArgument,
+        claim: ClaimId,
+        bound_at: u64,
+        committed_at: ValueId,
+        covered_case: StructuralCaseId,
+        rejected_case: StructuralCaseId,
+    },
+    /// Merge two children of one split back into that claim. Covered yields
+    /// the parent; Rejected returns both children. Backing does not move.
+    MergeActivationClaim {
+        lower: StructuralArgument,
+        upper: StructuralArgument,
+        lower_claim: ClaimId,
+        upper_claim: ClaimId,
+        covered_case: StructuralCaseId,
+        rejected_case: StructuralCaseId,
+    },
     /// Atomically establish a complete fixed array from its ordered owned
     /// structural elements. The result declaration supplies the exact element
     /// type and length; projected operands retain their original custody.
@@ -1185,8 +1207,14 @@ impl OperationKind {
             }
         }
         match self {
-            Self::EstablishNativeCodeLayout { .. } | Self::ReleaseActivationClaim { .. } => {}
-            Self::EstablishActivationClaim { committed, .. } => *committed = map(*committed),
+            Self::EstablishNativeCodeLayout { .. }
+            | Self::ReleaseActivationClaim { .. }
+            | Self::MergeActivationClaim { .. } => {}
+            Self::EstablishActivationClaim { committed, .. }
+            | Self::SplitActivationClaim {
+                committed_at: committed,
+                ..
+            } => *committed = map(*committed),
             Self::EstablishReference { storage, .. } => {
                 if let Some(storage) = storage {
                     storage.byte_offset = map(storage.byte_offset);

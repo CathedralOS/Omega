@@ -27,6 +27,8 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
                 .collect();
         }
         O::EstablishActivationClaim { psi_operation, .. }
+        | O::SplitActivationClaim { psi_operation, .. }
+        | O::MergeActivationClaim { psi_operation, .. }
         | O::ReleaseActivationClaim { psi_operation, .. }
         | O::StorageAddress { psi_operation, .. }
         | O::EstablishPrimitiveLocal { psi_operation, .. }

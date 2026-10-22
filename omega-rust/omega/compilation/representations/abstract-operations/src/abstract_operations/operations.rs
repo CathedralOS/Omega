@@ -46,6 +46,26 @@ pub enum AbstractOperation {
         source: StructuralArgument,
         claim: ClaimId,
     },
+    SplitActivationClaim {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralArgument,
+        claim: ClaimId,
+        bound_at: u64,
+        committed_at: ValueId,
+        covered_case: StructuralCaseId,
+        rejected_case: StructuralCaseId,
+    },
+    MergeActivationClaim {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        lower: StructuralArgument,
+        upper: StructuralArgument,
+        lower_claim: ClaimId,
+        upper_claim: ClaimId,
+        covered_case: StructuralCaseId,
+        rejected_case: StructuralCaseId,
+    },
     EstablishNativeCodeLayout {
         psi_operation: OperationId,
         result: StructuralOperationResult,
@@ -939,6 +959,8 @@ impl AbstractOperation {
                 ..
             }
             | Self::EstablishActivationClaim { result, .. }
+            | Self::SplitActivationClaim { result, .. }
+            | Self::MergeActivationClaim { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }
@@ -1017,7 +1039,11 @@ impl AbstractOperation {
                 vec![destination.path.as_slice(), path.as_slice()]
             }
             Self::MoveStructuralValue { source, .. }
-            | Self::ReleaseActivationClaim { source, .. } => vec![source.path.as_slice()],
+            | Self::ReleaseActivationClaim { source, .. }
+            | Self::SplitActivationClaim { source, .. } => vec![source.path.as_slice()],
+            Self::MergeActivationClaim { lower, upper, .. } => {
+                vec![lower.path.as_slice(), upper.path.as_slice()]
+            }
             Self::TransformContent {
                 source, parents, ..
             } => std::iter::once(source.path.as_slice())
@@ -1107,6 +1133,8 @@ impl AbstractOperation {
     pub fn psi_operation(&self) -> Option<OperationId> {
         match self {
             Self::EstablishActivationClaim { psi_operation, .. }
+            | Self::SplitActivationClaim { psi_operation, .. }
+            | Self::MergeActivationClaim { psi_operation, .. }
             | Self::ReleaseActivationClaim { psi_operation, .. }
             | Self::WriteOnlyPrimitiveStore { psi_operation, .. }
             | Self::ByteSequenceWrite { psi_operation, .. }

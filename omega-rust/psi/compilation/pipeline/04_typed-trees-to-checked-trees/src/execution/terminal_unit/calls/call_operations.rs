@@ -456,7 +456,11 @@ pub(in crate::execution) fn build_call_operation(
         validation::exact_toolchain_activation_storage_contract(program, target_machine)
     {
         phase("activation storage: closed operation contract");
-        let bound = if contract.operation == validation::ActivationStorageOperation::Establish {
+        let bound = if matches!(
+            contract.operation,
+            validation::ActivationStorageOperation::Establish
+                | validation::ActivationStorageOperation::Split
+        ) {
             Some(
                 validation::activation_storage_bound(program, target_machine)
                     .inspect_err(|reason| phase(reason))

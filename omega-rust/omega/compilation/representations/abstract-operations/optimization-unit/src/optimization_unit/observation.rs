@@ -386,7 +386,7 @@ fn operation_observations(
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. } => (Vec::new(), No, No),
-        O::EstablishActivationClaim { .. } | O::ReleaseActivationClaim { .. } | O::StorageAddress { .. } | O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
+        O::EstablishActivationClaim { .. } | O::SplitActivationClaim { .. } | O::MergeActivationClaim { .. } | O::ReleaseActivationClaim { .. } | O::StorageAddress { .. } | O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | abstract_operations::primitive_storage_observation_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }

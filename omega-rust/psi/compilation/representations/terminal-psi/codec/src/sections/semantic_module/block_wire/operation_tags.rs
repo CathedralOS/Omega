@@ -263,3 +263,5 @@ pub(super) const REGISTER_OBSERVATION: u8 = 126;
 /// Caller-activation backing establishment and linear retirement.
 pub(super) const ESTABLISH_ACTIVATION_CLAIM: u8 = 127;
 pub(super) const RELEASE_ACTIVATION_CLAIM: u8 = 128;
+pub(super) const SPLIT_ACTIVATION_CLAIM: u8 = 129;
+pub(super) const MERGE_ACTIVATION_CLAIM: u8 = 130;

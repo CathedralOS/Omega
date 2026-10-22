@@ -292,7 +292,7 @@ fn operation_effect(
         // A storage query is read-only, but exposes runtime occurrence identity.
         // Value-only motion and transitive call purity cannot erase this axis.
         O::StorageAddress { .. } => (EffectClass::StructuralState, Yes, Yes, No, No),
-        O::EstablishActivationClaim { .. } | O::ReleaseActivationClaim { .. } | O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
+        O::EstablishActivationClaim { .. } | O::SplitActivationClaim { .. } | O::MergeActivationClaim { .. } | O::ReleaseActivationClaim { .. } | O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }

@@ -269,6 +269,7 @@ impl OperationKind {
                 derivations.sort();
             }
             Self::ReleaseActivationClaim { source, .. }
+            | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source, .. }
@@ -276,6 +277,10 @@ impl OperationKind {
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
                 source.place = map(source.place, source.access);
+            }
+            Self::MergeActivationClaim { lower, upper, .. } => {
+                lower.place = map(lower.place, lower.access);
+                upper.place = map(upper.place, upper.access);
             }
             Self::ElementViewLength { source } | Self::ByteSequenceLength { source } => {
                 source.place = map(source.place, StructuralAccess::SharedBorrow);
@@ -408,6 +413,7 @@ impl OperationKind {
                 projections.push(argument_projection(operand.argument()));
             }
             Self::ReleaseActivationClaim { source, .. }
+            | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source, .. }
@@ -419,6 +425,10 @@ impl OperationKind {
             | Self::ByteSequenceSubslice { source, .. }
             | Self::ElementViewSubslice { source, .. } => {
                 projections.push(argument_projection(source));
+            }
+            Self::MergeActivationClaim { lower, upper, .. } => {
+                projections.push(argument_projection(lower));
+                projections.push(argument_projection(upper));
             }
             Self::TransformContent {
                 source, parents, ..
@@ -530,6 +540,7 @@ impl OperationKind {
                 paths.push(&mut operand.argument_mut().path);
             }
             Self::ReleaseActivationClaim { source, .. }
+            | Self::SplitActivationClaim { source, .. }
             | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source, .. }
@@ -541,6 +552,10 @@ impl OperationKind {
             | Self::ByteSequenceSubslice { source, .. }
             | Self::ElementViewSubslice { source, .. } => {
                 paths.push(&mut source.path);
+            }
+            Self::MergeActivationClaim { lower, upper, .. } => {
+                paths.push(&mut lower.path);
+                paths.push(&mut upper.path);
             }
             Self::TransformContent {
                 source, parents, ..

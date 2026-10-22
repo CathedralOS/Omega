@@ -113,6 +113,46 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_argument(bytes, source);
                     bytes.extend_from_slice(&claim.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::SplitActivationClaim {
+                    result,
+                    source,
+                    claim,
+                    bound_at,
+                    committed_at,
+                    covered_case,
+                    rejected_case,
+                    layout,
+                } => {
+                    bytes.push(251);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    bytes.extend_from_slice(&claim.get().to_le_bytes());
+                    bytes.extend_from_slice(&bound_at.to_le_bytes());
+                    bytes.extend_from_slice(&committed_at.get().to_le_bytes());
+                    bytes.extend_from_slice(&covered_case.get().to_le_bytes());
+                    bytes.extend_from_slice(&rejected_case.get().to_le_bytes());
+                    super::read_byte::encode_layout(bytes, layout);
+                }
+                LegalizedScalarInstructionKind::MergeActivationClaim {
+                    result,
+                    lower,
+                    upper,
+                    lower_claim,
+                    upper_claim,
+                    covered_case,
+                    rejected_case,
+                    layout,
+                } => {
+                    bytes.push(252);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    super::structural_types::encode_structural_argument(bytes, lower);
+                    super::structural_types::encode_structural_argument(bytes, upper);
+                    bytes.extend_from_slice(&lower_claim.get().to_le_bytes());
+                    bytes.extend_from_slice(&upper_claim.get().to_le_bytes());
+                    bytes.extend_from_slice(&covered_case.get().to_le_bytes());
+                    bytes.extend_from_slice(&rejected_case.get().to_le_bytes());
+                    super::read_byte::encode_layout(bytes, layout);
+                }
                 LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
                     result,
                     machine,

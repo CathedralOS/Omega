@@ -83,6 +83,34 @@ pub(super) fn operation(
             )).count() == 1
                 && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
         }
+        AbstractOperation::SplitActivationClaim { psi_operation, result, source, claim, bound_at, committed_at, covered_case, rejected_case } => {
+            graph.operations().filter(|row| matches!(row,
+                TargetUnitOperation::SplitActivationClaim {
+                    psi_operation: retained, result_home, source: retained_source, claim: retained_claim,
+                    bound_at: retained_bound, committed: retained_committed, covered_case: retained_covered,
+                    rejected_case: retained_rejected,
+                } if retained == psi_operation
+                    && result_home.operation_result() == Some((*psi_operation, result))
+                    && retained_source == source && retained_claim == claim
+                    && retained_bound == bound_at && retained_committed.source_value() == *committed_at
+                    && retained_covered == covered_case && retained_rejected == rejected_case
+            )).count() == 1
+                && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
+        }
+        AbstractOperation::MergeActivationClaim { psi_operation, result, lower, upper, lower_claim, upper_claim, covered_case, rejected_case } => {
+            graph.operations().filter(|row| matches!(row,
+                TargetUnitOperation::MergeActivationClaim {
+                    psi_operation: retained, result_home, lower: retained_lower, upper: retained_upper,
+                    lower_claim: retained_lower_claim, upper_claim: retained_upper_claim,
+                    covered_case: retained_covered, rejected_case: retained_rejected,
+                } if retained == psi_operation
+                    && result_home.operation_result() == Some((*psi_operation, result))
+                    && retained_lower == lower && retained_upper == upper
+                    && retained_lower_claim == lower_claim && retained_upper_claim == upper_claim
+                    && retained_covered == covered_case && retained_rejected == rejected_case
+            )).count() == 1
+                && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
+        }
         AbstractOperation::StructuralCaseMembership { psi_operation, result, source, path, case } => {
             let mut observations = graph.operations().filter_map(|row| match row {
                 TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, path: retained_path, case: retained_case, tag_byte_offset, .. }

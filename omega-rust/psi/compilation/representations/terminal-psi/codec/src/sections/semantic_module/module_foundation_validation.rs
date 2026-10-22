@@ -758,6 +758,30 @@ fn validate_operation_foundation(
                 );
             }
         }
+        OperationKind::SplitActivationClaim {
+            source,
+            committed_at,
+            ..
+        } => {
+            if operation.result.structural().is_none()
+                || source.access != terminal_psi::StructuralAccess::Owned
+                || !matches!(declared_scalar_type(machine, *committed_at), Some(ScalarType::Integer(integer))
+                    if integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                        && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+            {
+                return malformed(
+                    "activation split requires one owned claim and an unsigned fixed 64-bit cut",
+                );
+            }
+        }
+        OperationKind::MergeActivationClaim { lower, upper, .. } => {
+            if operation.result.structural().is_none()
+                || lower.access != terminal_psi::StructuralAccess::Owned
+                || upper.access != terminal_psi::StructuralAccess::Owned
+            {
+                return malformed("activation merge requires two owned claims");
+            }
+        }
         OperationKind::EstablishMutableElementView { .. } => {
             storage_foundations::validate_establish_mutable_element_view(
                 module, machine, operation,

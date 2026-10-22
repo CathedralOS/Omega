@@ -39,6 +39,14 @@ impl OperationFrame<'_, '_> {
         );
         let mut extent = None;
         let mut source = None;
+        if matches!(
+            action,
+            ActivationStorageOperation::Split | ActivationStorageOperation::Merge
+        ) {
+            return self.lower_activation_division(
+                identities, operation, call, action, bound, inputs, &arguments, integer,
+            );
+        }
         match action {
             ActivationStorageOperation::Establish => {
                 let [committed] = inputs.evaluated_scalar_arguments.unwrap_or(&[]) else {
@@ -48,6 +56,9 @@ impl OperationFrame<'_, '_> {
                     return unsupported("activation establishment has unexpected operands");
                 }
                 extent = Some(committed.id);
+            }
+            ActivationStorageOperation::Split | ActivationStorageOperation::Merge => {
+                return unsupported("activation division is lowered before this match");
             }
             ActivationStorageOperation::BorrowBytes | ActivationStorageOperation::Release => {
                 let [argument] = arguments.as_slice() else {
@@ -177,6 +188,117 @@ impl OperationFrame<'_, '_> {
                     &mut self.calls.next_obligation_identity,
                 )?),
             }
+        };
+        let id = self.operations.allocate();
+        let (returned, declaration) =
+            self.prepare_structural_call_result(identities, call, &shape, id)?;
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Structural(returned.clone()),
+            kind,
+        });
+        if matches!(self.results, StructuralResults::Dense(_)) {
+            self.operations
+                .bind_structural_value(binding.binding_ordinal, returned.into());
+        }
+        self.publish_result(operation, binding, declaration, false)
+    }
+
+    fn lower_activation_division(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
+        action: ActivationStorageOperation,
+        bound: Option<u64>,
+        inputs: &CallInputs<'_>,
+        arguments: &[terminal_psi::StructuralArgument],
+        integer: ScalarType,
+    ) -> Result<(), LoweringError> {
+        let binding = call.structural_result().ok_or(LoweringError::Unsupported(
+            "activation division lost its structural result",
+        ))?;
+        let result_type =
+            crate::terminal_identities::lookup_type_id(self.type_ids, &binding.type_identity)?;
+        let row = self
+            .structural_types
+            .declarations()
+            .iter()
+            .find(|row| row.id == result_type)
+            .ok_or(LoweringError::Unsupported(
+                "activation division type is absent",
+            ))?;
+        let terminal_psi::StructuralTypeShape::Sum { cases } = &row.shape else {
+            return unsupported("activation division has no sum carrier");
+        };
+        let [covered, rejected] = cases.as_slice() else {
+            return unsupported("activation division has no exact outcome roster");
+        };
+        let transfers = call.claim_transfers();
+        let kind = match action {
+            ActivationStorageOperation::Split => {
+                let [source] = arguments else {
+                    return unsupported("activation split requires exactly one claim");
+                };
+                let [committed] = inputs.evaluated_scalar_arguments.unwrap_or(&[]) else {
+                    return unsupported("activation split lost its evaluated cut");
+                };
+                if committed.scalar_type != integer || source.access != StructuralAccess::Owned {
+                    return unsupported("activation split has unexpected operands");
+                }
+                let [transfer] = transfers else {
+                    return unsupported("activation split requires exactly one continuing claim");
+                };
+                let claim = lookup_claim_id(self.calls.claims.bindings(), transfer.claim_identity)?;
+                OperationKind::SplitActivationClaim {
+                    source: source.clone(),
+                    claim,
+                    bound_at: bound.ok_or(LoweringError::Unsupported(
+                        "activation split has no closed bound",
+                    ))?,
+                    committed_at: committed.id,
+                    covered_case: covered.id,
+                    rejected_case: rejected.id,
+                }
+            }
+            ActivationStorageOperation::Merge => {
+                let [lower, upper] = arguments else {
+                    return unsupported("activation merge requires exactly two claims");
+                };
+                if !call.scalar_arguments.is_empty()
+                    || bound.is_some()
+                    || lower.access != StructuralAccess::Owned
+                    || upper.access != StructuralAccess::Owned
+                {
+                    return unsupported("activation merge has unexpected operands");
+                }
+                let [lower_transfer, upper_transfer] = transfers else {
+                    return unsupported("activation merge requires exactly two continuing claims");
+                };
+                OperationKind::MergeActivationClaim {
+                    lower: lower.clone(),
+                    upper: upper.clone(),
+                    lower_claim: lookup_claim_id(
+                        self.calls.claims.bindings(),
+                        lower_transfer.claim_identity,
+                    )?,
+                    upper_claim: lookup_claim_id(
+                        self.calls.claims.bindings(),
+                        upper_transfer.claim_identity,
+                    )?,
+                    covered_case: covered.id,
+                    rejected_case: rejected.id,
+                }
+            }
+            _ => return unsupported("activation division is not a split or merge"),
+        };
+        let shape = CheckedBoundaryMachineResultPlan::Structural {
+            type_identity: binding.type_identity,
+            multiplicity: binding.multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         };
         let id = self.operations.allocate();
         let (returned, declaration) =

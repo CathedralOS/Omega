@@ -58,6 +58,54 @@ pub(super) fn lower(
                 claim: *claim,
             })
         }
+        OperationKind::SplitActivationClaim {
+            source,
+            claim,
+            bound_at,
+            committed_at,
+            covered_case,
+            rejected_case,
+        } => {
+            let result = operation
+                .result
+                .structural()
+                .cloned()
+                .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
+            Ok(AbstractOperation::SplitActivationClaim {
+                psi_operation: operation.id,
+                result,
+                source: source.clone(),
+                claim: *claim,
+                bound_at: *bound_at,
+                committed_at: *committed_at,
+                covered_case: *covered_case,
+                rejected_case: *rejected_case,
+            })
+        }
+        OperationKind::MergeActivationClaim {
+            lower,
+            upper,
+            lower_claim,
+            upper_claim,
+            covered_case,
+            rejected_case,
+        } => {
+            let result = operation
+                .result
+                .structural()
+                .cloned()
+                .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
+            Ok(AbstractOperation::MergeActivationClaim {
+                psi_operation: operation.id,
+                result,
+                lower: lower.clone(),
+                upper: upper.clone(),
+                lower_claim: *lower_claim,
+                upper_claim: *upper_claim,
+                covered_case: *covered_case,
+                rejected_case: *rejected_case,
+            })
+        }
         OperationKind::EstablishPlacedReference { source, resident } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));

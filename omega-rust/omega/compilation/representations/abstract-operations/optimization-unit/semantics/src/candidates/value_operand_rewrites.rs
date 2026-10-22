@@ -20,7 +20,13 @@ use semantic_vocabulary::ValueId;
 pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(&mut ValueId)) {
     match operation {
         O::EstablishActivationClaim { committed, .. } => replace(committed),
-        O::ReleaseActivationClaim { .. } | O::EstablishNativeCodeLayout { .. } => {},
+        O::SplitActivationClaim {
+            committed_at: committed,
+            ..
+        } => replace(committed),
+        O::ReleaseActivationClaim { .. }
+        | O::MergeActivationClaim { .. }
+        | O::EstablishNativeCodeLayout { .. } => {}
         O::RegisterAccess { event, .. } => {
             event.map_operands(|mut value| {
                 replace(&mut value);

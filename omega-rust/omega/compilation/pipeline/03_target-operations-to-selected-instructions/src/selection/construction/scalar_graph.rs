@@ -496,6 +496,8 @@ fn select_function(
                         integer_arithmetic::emit(function, environment, operation, &mut builder)?
                     }
                     LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
+                    | LegalizedScalarInstructionKind::SplitActivationClaim { .. }
+                    | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
                     | LegalizedScalarInstructionKind::PlacementLifecycle { .. }
                     | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
                     | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }

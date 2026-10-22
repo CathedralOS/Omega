@@ -43,6 +43,8 @@ impl TerminalFuelSchedule {
             | OperationKind::EstablishScalarArray { .. }
             | OperationKind::EstablishActivationClaim { .. }
             | OperationKind::ReleaseActivationClaim { .. }
+            | OperationKind::SplitActivationClaim { .. }
+            | OperationKind::MergeActivationClaim { .. }
             | OperationKind::EstablishZeroedStructural { .. }
             | OperationKind::EstablishStructuralLocal { .. }
             | OperationKind::EstablishByteSequenceConcatenation { .. }

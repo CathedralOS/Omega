@@ -1330,7 +1330,11 @@ pub fn structural_call_custody(
                 if contract.operation != *operation {
                     return Err("activation operation differs from its selected declaration");
                 }
-                let expected_bound = if *operation == crate::ActivationStorageOperation::Establish {
+                let expected_bound = if matches!(
+                    *operation,
+                    crate::ActivationStorageOperation::Establish
+                        | crate::ActivationStorageOperation::Split
+                ) {
                     Some(crate::activation_storage_bound(program, target)?)
                 } else {
                     None

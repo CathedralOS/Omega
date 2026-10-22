@@ -109,9 +109,11 @@ fn report_bodyless_boundary_symbol_call(
     let activation_realization =
         crate::exact_toolchain_activation_storage_contract(program, callee_machine).is_some_and(
             |contract| {
-                contract.operation
-                    != language_core::activation_storage::ActivationStorageOperation::Establish
-                    || crate::activation_storage_bound(program, callee_machine).is_ok()
+                !matches!(
+                    contract.operation,
+                    language_core::activation_storage::ActivationStorageOperation::Establish
+                        | language_core::activation_storage::ActivationStorageOperation::Split
+                ) || crate::activation_storage_bound(program, callee_machine).is_ok()
                     // Open templates retain symbolic const arguments. The executable
                     // route and lowering still require a closed numeric bound.
                     || program.typed_program().callable_body_has_open_parameters(current_machine)

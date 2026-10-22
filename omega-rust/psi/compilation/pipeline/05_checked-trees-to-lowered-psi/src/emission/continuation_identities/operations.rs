@@ -106,6 +106,15 @@ impl IdentityMap {
         }
         match operation {
             OperationKind::ReleaseActivationClaim { claim, .. } => *claim = self.claim(*claim),
+            OperationKind::SplitActivationClaim { claim, .. } => *claim = self.claim(*claim),
+            OperationKind::MergeActivationClaim {
+                lower_claim,
+                upper_claim,
+                ..
+            } => {
+                *lower_claim = self.claim(*lower_claim);
+                *upper_claim = self.claim(*upper_claim);
+            }
             OperationKind::CallUnit {
                 claim_transfers, ..
             }
@@ -160,6 +169,8 @@ pub(crate) fn map_obligations(
     match operation {
         OperationKind::EstablishNativeCodeLayout { .. }
         | OperationKind::EstablishActivationClaim { .. }
+        | OperationKind::SplitActivationClaim { .. }
+        | OperationKind::MergeActivationClaim { .. }
         | OperationKind::ReleaseActivationClaim { .. } => {}
         OperationKind::EstablishPrimitiveLocal {
             range_obligation, ..

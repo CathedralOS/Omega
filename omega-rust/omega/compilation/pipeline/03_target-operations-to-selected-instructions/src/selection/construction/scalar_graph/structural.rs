@@ -472,6 +472,8 @@ pub(super) fn operation(
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
+            | LegalizedScalarInstructionKind::SplitActivationClaim { .. }
+            | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
             | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
     ) {
         activation_storage::emit(source, builder, row)?;

@@ -320,6 +320,44 @@ pub(super) fn project(
                     claim: *claim,
                 }
             }
+            AbstractOperation::SplitActivationClaim {
+                result,
+                source,
+                claim,
+                bound_at,
+                committed_at,
+                covered_case,
+                rejected_case,
+                ..
+            } => LegalizedScalarInstructionKind::SplitActivationClaim {
+                result: result.clone(),
+                source: source.clone(),
+                claim: *claim,
+                bound_at: *bound_at,
+                committed_at: *committed_at,
+                covered_case: *covered_case,
+                rejected_case: *rejected_case,
+                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+            },
+            AbstractOperation::MergeActivationClaim {
+                result,
+                lower,
+                upper,
+                lower_claim,
+                upper_claim,
+                covered_case,
+                rejected_case,
+                ..
+            } => LegalizedScalarInstructionKind::MergeActivationClaim {
+                result: result.clone(),
+                lower: lower.clone(),
+                upper: upper.clone(),
+                lower_claim: *lower_claim,
+                upper_claim: *upper_claim,
+                covered_case: *covered_case,
+                rejected_case: *rejected_case,
+                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+            },
             AbstractOperation::EstablishNativeCodeLayout {
                 result, machine, ..
             } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {

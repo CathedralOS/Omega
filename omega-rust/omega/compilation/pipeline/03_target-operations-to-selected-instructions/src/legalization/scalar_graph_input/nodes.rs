@@ -80,6 +80,8 @@ pub(in crate::legalization) fn admit(
     if let abstract_operations::establish_or_subslice_set_pattern!(psi_operation, ..)
     | AbstractOperation::PortWrite { psi_operation, .. }
     | AbstractOperation::EstablishActivationClaim { psi_operation, .. }
+    | AbstractOperation::SplitActivationClaim { psi_operation, .. }
+    | AbstractOperation::MergeActivationClaim { psi_operation, .. }
     | AbstractOperation::ReleaseActivationClaim { psi_operation, .. }
     | AbstractOperation::EstablishNativeCodeLayout { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
@@ -766,6 +768,8 @@ pub(super) fn validate(
         if matches!(
             node.operation,
             AbstractOperation::EstablishActivationClaim { .. }
+                | AbstractOperation::SplitActivationClaim { .. }
+                | AbstractOperation::MergeActivationClaim { .. }
                 | AbstractOperation::ReleaseActivationClaim { .. }
                 | AbstractOperation::EstablishNativeCodeLayout { .. }
                 | AbstractOperation::EstablishRecord { .. }

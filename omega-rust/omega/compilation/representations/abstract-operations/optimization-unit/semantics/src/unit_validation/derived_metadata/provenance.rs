@@ -31,6 +31,8 @@ pub(crate) fn expected_provenance(
                 .collect()
         }
         O::EstablishActivationClaim { psi_operation, .. }
+        | O::SplitActivationClaim { psi_operation, .. }
+        | O::MergeActivationClaim { psi_operation, .. }
         | O::ReleaseActivationClaim { psi_operation, .. }
         | O::SelectImplementation { psi_operation, .. }
         | O::EstablishPrimitiveLocal { psi_operation, .. }

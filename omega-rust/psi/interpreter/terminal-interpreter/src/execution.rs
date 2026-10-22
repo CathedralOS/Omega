@@ -922,6 +922,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     EstablishStructuralCase => flow execute_establish_structural_case,
                                     EstablishActivationClaim => flow execute_establish_activation_claim,
                                     ReleaseActivationClaim => flow execute_release_activation_claim,
+                                    SplitActivationClaim => flow execute_split_activation_claim,
+                                    MergeActivationClaim => flow execute_merge_activation_claim,
                                     CallStructuralScalar => flow execute_call_structural_scalar,
                                     CallStructural => flow execute_call_structural,
                                     CallStructuralWithScalarArguments => flow execute_call_structural_with_scalar_arguments,

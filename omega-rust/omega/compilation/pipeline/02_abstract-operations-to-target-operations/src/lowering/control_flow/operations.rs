@@ -120,6 +120,71 @@ pub(super) fn lower_operation(
             provenance.operations.push(*psi_operation);
             Ok(())
         }
+        AbstractOperation::SplitActivationClaim {
+            psi_operation,
+            result,
+            source,
+            claim,
+            bound_at,
+            committed_at,
+            covered_case,
+            rejected_case,
+        } => {
+            let committed = super::scalar_sources::source(*committed_at, function, live)?;
+            let result_home =
+                super::aggregate_results::home(*psi_operation, result, structural_types)?;
+            if live
+                .structural_homes
+                .insert(result.place, result_home.clone())
+                .is_some()
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            operations.push(TargetUnitOperation::SplitActivationClaim {
+                psi_operation: *psi_operation,
+                result_home,
+                source: source.clone(),
+                claim: *claim,
+                bound_at: *bound_at,
+                committed,
+                covered_case: *covered_case,
+                rejected_case: *rejected_case,
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
+        AbstractOperation::MergeActivationClaim {
+            psi_operation,
+            result,
+            lower,
+            upper,
+            lower_claim,
+            upper_claim,
+            covered_case,
+            rejected_case,
+        } => {
+            let result_home =
+                super::aggregate_results::home(*psi_operation, result, structural_types)?;
+            if live
+                .structural_homes
+                .insert(result.place, result_home.clone())
+                .is_some()
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            operations.push(TargetUnitOperation::MergeActivationClaim {
+                psi_operation: *psi_operation,
+                result_home,
+                lower: lower.clone(),
+                upper: upper.clone(),
+                lower_claim: *lower_claim,
+                upper_claim: *upper_claim,
+                covered_case: *covered_case,
+                rejected_case: *rejected_case,
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::RegisterAccess {
             psi_operation,
             service,

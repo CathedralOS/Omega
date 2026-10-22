@@ -40,6 +40,46 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_argument(bytes, source);
             bytes.id(*claim);
         }
+        O::SplitActivationClaim {
+            psi_operation,
+            result,
+            source,
+            claim,
+            bound_at,
+            committed_at,
+            covered_case,
+            rejected_case,
+        } => {
+            bytes.u8(251);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_argument(bytes, source);
+            bytes.id(*claim);
+            bytes.u64(*bound_at);
+            bytes.id(*committed_at);
+            bytes.id(*covered_case);
+            bytes.id(*rejected_case);
+        }
+        O::MergeActivationClaim {
+            psi_operation,
+            result,
+            lower,
+            upper,
+            lower_claim,
+            upper_claim,
+            covered_case,
+            rejected_case,
+        } => {
+            bytes.u8(252);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_argument(bytes, lower);
+            encode_structural_argument(bytes, upper);
+            bytes.id(*lower_claim);
+            bytes.id(*upper_claim);
+            bytes.id(*covered_case);
+            bytes.id(*rejected_case);
+        }
 
         O::EstablishNativeCodeLayout {
             psi_operation,

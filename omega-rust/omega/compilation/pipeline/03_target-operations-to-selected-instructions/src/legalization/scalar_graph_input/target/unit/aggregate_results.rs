@@ -69,6 +69,86 @@ pub(super) fn validate(
                 return Err(LegalizationError::custody());
             }
         }
+        (
+            TargetUnitOperation::SplitActivationClaim {
+                psi_operation,
+                result_home,
+                source,
+                claim,
+                bound_at,
+                committed,
+                covered_case,
+                rejected_case,
+            },
+            AbstractOperation::SplitActivationClaim {
+                psi_operation: expected,
+                result,
+                source: expected_source,
+                claim: expected_claim,
+                bound_at: expected_bound,
+                committed_at,
+                covered_case: expected_covered,
+                rejected_case: expected_rejected,
+            },
+        ) => {
+            if psi_operation != expected
+                || source != expected_source
+                || claim != expected_claim
+                || bound_at != expected_bound
+                || covered_case != expected_covered
+                || rejected_case != expected_rejected
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+                || !sources
+                    .iter()
+                    .any(|(value, source)| value == committed_at && source == committed)
+            {
+                return Err(LegalizationError::custody());
+            }
+        }
+        (
+            TargetUnitOperation::MergeActivationClaim {
+                psi_operation,
+                result_home,
+                lower,
+                upper,
+                lower_claim,
+                upper_claim,
+                covered_case,
+                rejected_case,
+            },
+            AbstractOperation::MergeActivationClaim {
+                psi_operation: expected,
+                result,
+                lower: expected_lower,
+                upper: expected_upper,
+                lower_claim: expected_lower_claim,
+                upper_claim: expected_upper_claim,
+                covered_case: expected_covered,
+                rejected_case: expected_rejected,
+            },
+        ) => {
+            if psi_operation != expected
+                || lower != expected_lower
+                || upper != expected_upper
+                || lower_claim != expected_lower_claim
+                || upper_claim != expected_upper_claim
+                || covered_case != expected_covered
+                || rejected_case != expected_rejected
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+            {
+                return Err(LegalizationError::custody());
+            }
+        }
 
         (
             TargetUnitOperation::EstablishNativeCodeLayout {

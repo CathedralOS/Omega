@@ -30,3 +30,23 @@ public boundary machine ActivationClaim::bytes(claim: &mut ActivationClaim)
 // Only the newest live claim in this activation may release, and every loan
 // over its backing must have ended. No provider receives freed backing.
 public boundary machine ActivationClaim::release(claim: ActivationClaim);
+
+// One established claim divides into two children that cover it exactly.
+// Covered returns those children. Rejected returns the same claim. Neither
+// outcome moves the establishment-site backing or asks a provider for storage.
+public data ActivationClaimSplit {
+    case Covered(lower: ActivationClaim, upper: ActivationClaim);
+    case Rejected(claim: ActivationClaim);
+}
+
+public boundary machine ActivationClaim::split<const BoundAt: u64>(claim: ActivationClaim, committed_at: u64) -> ActivationClaimSplit;
+
+// The two newest children of one split merge back into that claim. Covered
+// returns the parent claim over the same backing. Rejected returns both
+// children when they are not that split.
+public data ActivationClaimMerge {
+    case Covered(claim: ActivationClaim);
+    case Rejected(lower: ActivationClaim, upper: ActivationClaim);
+}
+
+public boundary machine ActivationClaim::merge(lower: ActivationClaim, upper: ActivationClaim) -> ActivationClaimMerge;

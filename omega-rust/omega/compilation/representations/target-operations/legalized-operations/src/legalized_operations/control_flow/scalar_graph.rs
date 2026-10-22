@@ -137,10 +137,13 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::PlacementLifecycle { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
-            LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. } => {
-                visit(*committed)
-            }
+            LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. }
+            | LegalizedScalarInstructionKind::SplitActivationClaim {
+                committed_at: committed,
+                ..
+            } => visit(*committed),
             LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
+            | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
             | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. } => {}
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                 left,
@@ -415,6 +418,26 @@ pub enum LegalizedScalarInstructionKind {
     ReleaseActivationClaim {
         source: terminal_psi::StructuralArgument,
         claim: semantic_vocabulary::ClaimId,
+    },
+    SplitActivationClaim {
+        result: terminal_psi::StructuralOperationResult,
+        source: terminal_psi::StructuralArgument,
+        claim: semantic_vocabulary::ClaimId,
+        bound_at: u64,
+        committed_at: ValueId,
+        covered_case: semantic_vocabulary::StructuralCaseId,
+        rejected_case: semantic_vocabulary::StructuralCaseId,
+        layout: calling_conventions::ConventionalSumLayout,
+    },
+    MergeActivationClaim {
+        result: terminal_psi::StructuralOperationResult,
+        lower: terminal_psi::StructuralArgument,
+        upper: terminal_psi::StructuralArgument,
+        lower_claim: semantic_vocabulary::ClaimId,
+        upper_claim: semantic_vocabulary::ClaimId,
+        covered_case: semantic_vocabulary::StructuralCaseId,
+        rejected_case: semantic_vocabulary::StructuralCaseId,
+        layout: calling_conventions::ConventionalSumLayout,
     },
     EstablishNativeCodeLayout {
         result: terminal_psi::StructuralOperationResult,
@@ -1034,6 +1057,8 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishActivationClaim { result, .. }
+            | Self::SplitActivationClaim { result, .. }
+            | Self::MergeActivationClaim { result, .. }
             | Self::PlacementLifecycle { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }

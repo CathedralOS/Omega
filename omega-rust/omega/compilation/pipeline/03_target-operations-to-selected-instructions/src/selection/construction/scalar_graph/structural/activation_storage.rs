@@ -13,6 +13,13 @@ pub(super) fn emit(
     row: &LegalizedScalarInstruction,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = SelectedInstructionError::custody;
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::SplitActivationClaim { .. }
+            | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
+    ) {
+        return emit_division(builder, row);
+    }
     if let LegalizedScalarInstructionKind::ReleaseActivationClaim { source, .. } = &row.kind {
         // Retirement is statically proved; backing remains reserved until frame
         // unwind. Retain an executable fuel/provenance anchor for the operation.
@@ -145,6 +152,99 @@ pub(super) fn emit(
         committed_register,
     )?;
     super::local_storage::store(builder, row, slot, backing_offset, committed_register)?;
+    builder.transport.pointers.push((result.place, pointer));
+    Ok(())
+}
+
+/// Split and merge copy claim descriptors. They do not reserve another
+/// backing slot: both children and the merged claim keep the parent's pointer.
+fn emit_division(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<(), SelectedInstructionError> {
+    let invalid = SelectedInstructionError::custody;
+    let (result, source, layout) = match &row.kind {
+        LegalizedScalarInstructionKind::SplitActivationClaim {
+            result,
+            source,
+            layout,
+            ..
+        } => (result, source, layout),
+        LegalizedScalarInstructionKind::MergeActivationClaim {
+            result,
+            lower,
+            layout,
+            ..
+        } => (result, lower, layout),
+        _ => return Err(invalid()),
+    };
+    if layout.cases.len() != 2 || layout.cases[0].fields.is_empty() {
+        return Err(invalid());
+    }
+    let total = layout.shape.byte_size;
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        total,
+        layout.shape.alignment,
+    );
+    let pointer = super::local_storage::address(builder, row, slot, 0, total, true)?;
+    let count = transport_register(builder, result.place, 0)?;
+    let cursor = transport_register(builder, result.place, 1)?;
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(total)),
+        count,
+        provenance(row),
+    )?;
+    memory(
+        builder,
+        row,
+        result.place,
+        0,
+        total,
+        SelectedMemoryAccessRole::WriteLocal { slot },
+    )?;
+    let zero_bytes = builder.constraints.keys.zero_bytes.ok_or_else(invalid)?;
+    builder.emit(
+        SelectedInstructionKind::ZeroBytes,
+        zero_bytes,
+        &[pointer, count, cursor],
+        provenance(row),
+    )?;
+    let tag = transport_register(builder, result.place, 0)?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), tag, provenance(row))?;
+    memory(
+        builder,
+        row,
+        result.place,
+        layout.tag_byte_offset,
+        4,
+        SelectedMemoryAccessRole::WriteLocal { slot },
+    )?;
+    builder.emit_store(layout.tag_byte_offset, 4, pointer, tag, provenance(row))?;
+    let claim = super::place_pointer(builder, row, source.place, 0)?;
+    let parent_pointer = transport_register(builder, result.place, 2)?;
+    let parent_length = transport_register(builder, result.place, 3)?;
+    builder.emit_load64(0, claim, parent_pointer, provenance(row))?;
+    builder.emit_load64(8, claim, parent_length, provenance(row))?;
+    let fields = if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::SplitActivationClaim { .. }
+    ) {
+        &layout.cases[0].fields
+    } else {
+        &layout.cases[0].fields[..1]
+    };
+    for field in fields {
+        super::local_storage::store(builder, row, slot, field.byte_offset, parent_pointer)?;
+        super::local_storage::store(
+            builder,
+            row,
+            slot,
+            field.byte_offset.checked_add(8).ok_or_else(invalid)?,
+            parent_length,
+        )?;
+    }
     builder.transport.pointers.push((result.place, pointer));
     Ok(())
 }

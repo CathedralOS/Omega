@@ -31,6 +31,13 @@ struct Live {
     place: Place,
     claim: ClaimId,
     pending: Option<(Place, StructuralCaseId)>,
+    /// Pending admissions and the active outcome of a split or merge count.
+    /// The inactive outcome stays in the state until case selection drops it,
+    /// and must not double the parent's demand.
+    counts_demand: bool,
+    split_origin: Option<OperationId>,
+    /// 0 is a root claim, 1 the lower child, 2 the upper child.
+    split_role: u8,
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Loan {
@@ -124,6 +131,7 @@ impl State {
             let active = (*established == case) == positive;
             if active {
                 live.pending = None;
+                live.counts_demand = true;
             }
             active
         });
@@ -579,7 +587,187 @@ pub fn validate_flow(
                             },
                             *established_case,
                         )),
+                        counts_demand: true,
+                        split_origin: None,
+                        split_role: 0,
                     });
+                }
+                O::SplitActivationClaim {
+                    source,
+                    bound_at,
+                    covered_case,
+                    rejected_case,
+                    ..
+                } => {
+                    let place = Place::argument(source);
+                    let position = state
+                        .live
+                        .iter()
+                        .position(|live| live.place == place && live.pending.is_none())
+                        .ok_or("activation claim split has no established parent")?;
+                    let parent = state.live.remove(position);
+                    if state.loans.iter().any(|loan| loan.site == parent.site) {
+                        return Err(
+                            "activation claim cannot split while a captured loan remains live",
+                        );
+                    }
+                    if *bound_at == 0 || *bound_at >= parent.bound {
+                        return Err("activation claim split does not cover its parent");
+                    }
+                    let result = operation
+                        .result
+                        .structural()
+                        .ok_or("activation split result is missing")?;
+                    let root = Place {
+                        root: result.place,
+                        path: Vec::new(),
+                    };
+                    let binding = |role: u8| {
+                        result.claims.iter().find(|binding| {
+                            let covered = binding.path.iter().any(
+                                |segment| matches!(segment, P::Case(case) if case == covered_case),
+                            );
+                            match role {
+                                1 | 2 => covered,
+                                _ => !covered,
+                            }
+                        })
+                    };
+                    let Some(lower_binding) = binding(1) else {
+                        return Err("activation split result has no lower child");
+                    };
+                    let Some(upper_binding) = result.claims.iter().find(|candidate| {
+                        candidate.claim != lower_binding.claim
+                            && candidate.path.iter().any(
+                                |segment| matches!(segment, P::Case(case) if case == covered_case),
+                            )
+                    }) else {
+                        return Err("activation split result has no upper child");
+                    };
+                    let Some(restored) = result.claims.iter().find(|candidate| {
+                        candidate.path.iter().any(
+                            |segment| matches!(segment, P::Case(case) if case == rejected_case),
+                        )
+                    }) else {
+                        return Err("activation split result has no restored parent");
+                    };
+                    let child =
+                        |bound, binding: &terminal_psi::StructuralResultClaimBinding, role| Live {
+                            site: parent.site,
+                            bound,
+                            claim: binding.claim,
+                            place: Place {
+                                root: result.place,
+                                path: binding.path.clone(),
+                            },
+                            pending: Some((root.clone(), *covered_case)),
+                            counts_demand: true,
+                            split_origin: Some(operation.id),
+                            split_role: role,
+                        };
+                    state.live.push(child(*bound_at, lower_binding, 1));
+                    state
+                        .live
+                        .push(child(parent.bound - *bound_at, upper_binding, 2));
+                    state.live.push(Live {
+                        site: parent.site,
+                        bound: parent.bound,
+                        claim: restored.claim,
+                        place: Place {
+                            root: result.place,
+                            path: restored.path.clone(),
+                        },
+                        pending: Some((root, *rejected_case)),
+                        counts_demand: false,
+                        split_origin: parent.split_origin,
+                        split_role: parent.split_role,
+                    });
+                }
+                O::MergeActivationClaim {
+                    lower,
+                    upper,
+                    covered_case,
+                    rejected_case,
+                    ..
+                } => {
+                    let lower_place = Place::argument(lower);
+                    let upper_place = Place::argument(upper);
+                    if state.live.len() < 2 {
+                        return Err("activation claim merge is not that split");
+                    }
+                    let upper_live = state.live.pop().expect("upper child");
+                    let lower_live = state.live.pop().expect("lower child");
+                    if lower_live.place != lower_place
+                        || upper_live.place != upper_place
+                        || lower_live.pending.is_some()
+                        || upper_live.pending.is_some()
+                        || lower_live.split_role != 1
+                        || upper_live.split_role != 2
+                        || lower_live.split_origin.is_none()
+                        || lower_live.split_origin != upper_live.split_origin
+                        || lower_live.bound + upper_live.bound == 0
+                    {
+                        return Err("activation claim merge is not that split");
+                    }
+                    let result = operation
+                        .result
+                        .structural()
+                        .ok_or("activation merge result is missing")?;
+                    let root = Place {
+                        root: result.place,
+                        path: Vec::new(),
+                    };
+                    let covered = result
+                        .claims
+                        .iter()
+                        .find(|binding| {
+                            binding.path.iter().any(
+                                |segment| matches!(segment, P::Case(case) if case == covered_case),
+                            )
+                        })
+                        .ok_or("activation merge result has no restored parent")?;
+                    let rejected = result
+                        .claims
+                        .iter()
+                        .filter(|binding| {
+                            binding.path.iter().any(
+                                |segment| matches!(segment, P::Case(case) if case == rejected_case),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let [rejected_lower, rejected_upper] = rejected.as_slice() else {
+                        return Err("activation merge result has no returned children");
+                    };
+                    state.live.push(Live {
+                        site: lower_live.site,
+                        bound: lower_live.bound + upper_live.bound,
+                        claim: covered.claim,
+                        place: Place {
+                            root: result.place,
+                            path: covered.path.clone(),
+                        },
+                        pending: Some((root.clone(), *covered_case)),
+                        counts_demand: true,
+                        split_origin: None,
+                        split_role: 0,
+                    });
+                    for (child, binding) in
+                        [(&lower_live, rejected_lower), (&upper_live, rejected_upper)]
+                    {
+                        state.live.push(Live {
+                            site: child.site,
+                            bound: child.bound,
+                            claim: binding.claim,
+                            place: Place {
+                                root: result.place,
+                                path: binding.path.clone(),
+                            },
+                            pending: Some((root.clone(), *rejected_case)),
+                            counts_demand: false,
+                            split_origin: child.split_origin,
+                            split_role: child.split_role,
+                        });
+                    }
                 }
                 O::ReleaseActivationClaim { source, claim } => {
                     let place = Place::argument(source);
@@ -856,6 +1044,8 @@ pub fn validate_flow(
                 && !matches!(
                     operation.kind,
                     O::EstablishActivationClaim { .. }
+                        | O::SplitActivationClaim { .. }
+                        | O::MergeActivationClaim { .. }
                         | O::EstablishRecord { .. }
                         | O::EstablishStructuralCase { .. }
                         | O::EstablishStructuralArray { .. }
@@ -869,13 +1059,17 @@ pub fn validate_flow(
                 );
             }
             let branch = extents::ActivationClaimBranch::trunk();
-            let demand = extents::compose_claim_bounds(state.live.iter().map(|live| {
-                extents::ClaimBoundRow {
-                    bound: Some(live.bound),
-                    alignment: 1,
-                    branch: &branch,
-                }
-            }))
+            let demand = extents::compose_claim_bounds(
+                state
+                    .live
+                    .iter()
+                    .filter(|live| live.counts_demand)
+                    .map(|live| extents::ClaimBoundRow {
+                        bound: Some(live.bound),
+                        alignment: 1,
+                        branch: &branch,
+                    }),
+            )
             .map_err(|_| "activation co-live bound leaves closed stack demand open")?;
             maximum = maximum.max(demand);
         }

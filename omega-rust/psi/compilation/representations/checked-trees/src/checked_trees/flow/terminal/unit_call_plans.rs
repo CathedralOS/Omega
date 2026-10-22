@@ -241,6 +241,24 @@ impl CheckedUnitCallPlan {
                     Transfers::Claims(_),
                 ) => true,
                 (
+                    CheckedUnitCallRoute::ActivationStorage {
+                        operation:
+                            language_core::activation_storage::ActivationStorageOperation::Split,
+                        bound: Some(_),
+                    },
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
+                ) => true,
+                (
+                    CheckedUnitCallRoute::ActivationStorage {
+                        operation:
+                            language_core::activation_storage::ActivationStorageOperation::Merge,
+                        bound: None,
+                    },
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
+                ) => true,
+                (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
                         ..

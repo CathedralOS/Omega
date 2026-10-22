@@ -11,4 +11,8 @@ pub enum ActivationStorageOperation {
     Establish,
     BorrowBytes,
     Release,
+    /// Divide one established claim into two children that cover it.
+    Split,
+    /// Merge the two children of one split back into that claim.
+    Merge,
 }

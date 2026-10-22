@@ -107,9 +107,19 @@ pub fn exact_toolchain_activation_storage_contract(
         ActivationStorageOperation::BorrowBytes
     } else if sealed_machine(program, machine, "toolchain::ActivationClaim::release") {
         ActivationStorageOperation::Release
+    } else if sealed_machine(program, machine, "toolchain::ActivationClaim::split") {
+        ActivationStorageOperation::Split
+    } else if sealed_machine(program, machine, "toolchain::ActivationClaim::merge") {
+        ActivationStorageOperation::Merge
     } else {
         return None;
     };
+    if matches!(
+        operation,
+        ActivationStorageOperation::Split | ActivationStorageOperation::Merge
+    ) {
+        return split_merge_contract(program, machine, operation);
+    }
     valid_header(program, machine, operation)?;
 
     // Resolve the other two declarations by sealed identity, then authenticate
@@ -314,6 +324,163 @@ fn valid_header<'a>(
     Some(state)
 }
 
+fn split_merge_contract(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    operation: ActivationStorageOperation,
+) -> Option<ActivationStorageContract> {
+    let establish = program
+        .machines()
+        .iter()
+        .find(|candidate| sealed_machine(program, candidate, "toolchain::Activation::try_claim"))?;
+    let base = exact_toolchain_activation_storage_contract(program, establish)?;
+    let state = common_boundary_state(program, machine)?;
+    if !sealed(
+        program,
+        machine.attached_data_symbol,
+        "toolchain::ActivationClaim",
+    ) {
+        return None;
+    }
+    let parameters = program.state_parameters(state);
+    let (identity, covered_fields, rejected_fields) = match operation {
+        ActivationStorageOperation::Split => {
+            let [claim_parameter, committed] = parameters else {
+                return None;
+            };
+            if claim_parameter.is_mutable
+                || committed.is_mutable
+                || claim(program, claim_parameter.type_reference)? != base.claim
+                || !plain_primitive(program, committed.type_reference, PrimitiveType::U64)
+            {
+                return None;
+            }
+            let type_parameters = program
+                .machine_specialization(machine.symbol)
+                .map(|application| {
+                    program
+                        .data_type_parameters
+                        .span_or_empty(application.template_parameters)
+                })
+                .unwrap_or_else(|| program.machine_type_parameters(machine));
+            let [bound] = type_parameters else {
+                return None;
+            };
+            let TypeParameterKind::Const { type_reference } = bound.kind else {
+                return None;
+            };
+            if !plain_primitive(program, type_reference, PrimitiveType::U64) {
+                return None;
+            }
+            ("toolchain::ActivationClaimSplit", 2, 1)
+        }
+        ActivationStorageOperation::Merge => {
+            let [lower, upper] = parameters else {
+                return None;
+            };
+            if lower.is_mutable
+                || upper.is_mutable
+                || claim(program, lower.type_reference)? != base.claim
+                || claim(program, upper.type_reference)? != base.claim
+                || !program.machine_type_parameters(machine).is_empty()
+            {
+                return None;
+            }
+            ("toolchain::ActivationClaimMerge", 1, 2)
+        }
+        _ => return None,
+    };
+    let outcome = plain_data(
+        program,
+        state.return_type,
+        identity,
+        DataSupplyMode::CheckedShape,
+    )?;
+    if outcome.properties.multiplicity != Multiplicity::Affine {
+        return None;
+    }
+    let [covered, rejected] = program.data_members(outcome) else {
+        return None;
+    };
+    let DataMember::Variant(covered) = covered else {
+        return None;
+    };
+    let DataMember::Variant(rejected) = rejected else {
+        return None;
+    };
+    if covered.name.as_str() != "Covered" || rejected.name.as_str() != "Rejected" {
+        return None;
+    }
+    let covered_payload = program.data_payload_fields(covered);
+    let rejected_payload = program.data_payload_fields(rejected);
+    if covered_payload.len() != covered_fields || rejected_payload.len() != rejected_fields {
+        return None;
+    }
+    if covered_payload
+        .iter()
+        .chain(rejected_payload.iter())
+        .any(|field| {
+            claim(program, field.type_reference) != Some(base.claim)
+                || field.relevance.is_erased()
+                || field.identity.is_some()
+        })
+    {
+        return None;
+    }
+    Some(ActivationStorageContract {
+        operation,
+        declaration: machine.symbol,
+        claim: base.claim,
+        attempt: outcome.symbol,
+        established_case: covered.symbol,
+        rejected_case: rejected.symbol,
+        byte_type: base.byte_type,
+    })
+}
+
+fn common_boundary_state<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &'a Machine,
+) -> Option<&'a typed_trees::state::State> {
+    let declaration = program
+        .machine_specialization(machine.symbol)
+        .map_or(machine.symbol, |application| application.template);
+    let public_declaration = program
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == declaration)
+        .is_some_and(|candidate| candidate.is_public);
+    if !public_declaration
+        || machine.body_is_present
+        || machine.supply_mode != MachineSupplyMode::Boundary
+        || !machine.lifetime_parameters.is_empty()
+        || machine.spelling.is_some()
+        || !program.machine_trait_conformances(machine).is_empty()
+        || !machine.contracts.is_empty()
+        || machine.suspends
+        || machine.blocks
+        || !machine.conformance_bounds.is_empty()
+        || !machine.invokes.is_empty()
+        || machine.target.is_some()
+        || machine.authored_target.is_some()
+        || machine.target_family_interface
+        || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
+        || machine.entry_context_origin.is_some()
+        || !machine.owned_data.is_empty()
+        || machine.service_reach_is_installation_bound
+        || machine.admitted_same_stack_bytes != 0
+    {
+        return None;
+    }
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    if !state.contracts.is_empty() {
+        return None;
+    }
+    Some(state)
+}
+
 /// Evaluate the selected bound from the retained typed substitution. This
 /// never parses callable identity, diagnostic arguments, or rendered recipes.
 /// Failure leaves demand open and must reject before backing is provisioned.
@@ -323,7 +490,10 @@ pub fn activation_storage_bound(
 ) -> Result<u64, &'static str> {
     let contract = exact_toolchain_activation_storage_contract(program, machine)
         .ok_or("activation establishment has no exact sealed declaration contract")?;
-    if contract.operation != ActivationStorageOperation::Establish {
+    if !matches!(
+        contract.operation,
+        ActivationStorageOperation::Establish | ActivationStorageOperation::Split
+    ) {
         return Err("only activation establishment has a static backing bound");
     }
     let application = program

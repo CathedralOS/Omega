@@ -339,6 +339,54 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             writer.id(established_case);
             writer.id(rejected_case);
         }
+        OperationKind::SplitActivationClaim {
+            source,
+            claim,
+            bound_at,
+            committed_at,
+            covered_case,
+            rejected_case,
+        } => {
+            writer.u8(operation_tags::SPLIT_ACTIVATION_CLAIM);
+            writer.id(source.place);
+            super::structural_signature_wire::encode_structural_access(writer, source.access);
+            super::structural_place_wire::encode_structural_path(
+                writer,
+                "activation claim split",
+                &source.path,
+            )?;
+            writer.id(claim);
+            writer.u64(bound_at);
+            writer.id(committed_at);
+            writer.id(covered_case);
+            writer.id(rejected_case);
+        }
+        OperationKind::MergeActivationClaim {
+            lower,
+            upper,
+            lower_claim,
+            upper_claim,
+            covered_case,
+            rejected_case,
+        } => {
+            writer.u8(operation_tags::MERGE_ACTIVATION_CLAIM);
+            for (argument, label) in [
+                (lower, "activation claim merge lower"),
+                (upper, "activation claim merge upper"),
+            ] {
+                writer.id(argument.place);
+                super::structural_signature_wire::encode_structural_access(writer, argument.access);
+                super::structural_place_wire::encode_structural_path(
+                    writer,
+                    label,
+                    &argument.path,
+                )?;
+            }
+            writer.id(lower_claim);
+            writer.id(upper_claim);
+            writer.id(covered_case);
+            writer.id(rejected_case);
+        }
         OperationKind::ReleaseActivationClaim { source, claim } => {
             writer.u8(operation_tags::RELEASE_ACTIVATION_CLAIM);
             writer.id(source.place);
@@ -968,6 +1016,34 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
                 path: super::structural_place_wire::decode_structural_path(reader)?,
             },
             claim: reader.id("ClaimId")?,
+        },
+        operation_tags::SPLIT_ACTIVATION_CLAIM => OperationKind::SplitActivationClaim {
+            source: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::structural_signature_wire::decode_structural_access(reader)?,
+                path: super::structural_place_wire::decode_structural_path(reader)?,
+            },
+            claim: reader.id("ClaimId")?,
+            bound_at: reader.u64()?,
+            committed_at: reader.id("ValueId")?,
+            covered_case: reader.id("StructuralCaseId")?,
+            rejected_case: reader.id("StructuralCaseId")?,
+        },
+        operation_tags::MERGE_ACTIVATION_CLAIM => OperationKind::MergeActivationClaim {
+            lower: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::structural_signature_wire::decode_structural_access(reader)?,
+                path: super::structural_place_wire::decode_structural_path(reader)?,
+            },
+            upper: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::structural_signature_wire::decode_structural_access(reader)?,
+                path: super::structural_place_wire::decode_structural_path(reader)?,
+            },
+            lower_claim: reader.id("ClaimId")?,
+            upper_claim: reader.id("ClaimId")?,
+            covered_case: reader.id("StructuralCaseId")?,
+            rejected_case: reader.id("StructuralCaseId")?,
         },
         operation_tags::ESTABLISH_SCALAR_ARRAY => {
             value_operations::decode_establish_scalar_array(reader)?

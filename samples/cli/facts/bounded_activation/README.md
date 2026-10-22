@@ -121,8 +121,15 @@ the grant. `extent_composition` keeps two 8-byte claims live inside bound 16
 and then takes one of the exclusive 16-byte and 12-byte branches; both engines
 exit 0. Two co-live bounds that sum past the closed demand reject before
 establishment with `activation co-live bound leaves closed stack demand open`.
-Splitting one claim into covering children and merging those children, partial
-mutable-owner windows, and further target execution remain open.
+`claim_split` splits one established bound-16 claim into covering children and
+merges those children back into that claim. Both engines exit 0 for the local
+program and for field, parameter, call result, match join, const name, another
+state, another machine, and target body. A cut that leaves the upper child
+empty rejects before those children are established with `activation claim
+split does not cover its parent`. Partial mutable-owner windows and further
+target execution remain open. Open demand still rejects before establishment.
+Backing does not move, and the split does not mint a grant from an address
+and length.
 
 Invocation-local ignored `build/activation-slot4` retains producer identities,
 canonical passages with source revisions, raw observations, qualification and
