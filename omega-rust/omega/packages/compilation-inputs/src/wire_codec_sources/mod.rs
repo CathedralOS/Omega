@@ -22,10 +22,12 @@
 //!   nested messages). Borrowed non-byte slices can encode but need owning
 //!   destination storage to decode. Unsupported shapes decline generation.
 //! * Only operations with at least one statement call site whose argument
-//!   types render exactly (a borrow of a named `let` local or of a field
-//!   of a named data parameter). Every site for one (schema, operation) must agree on one
-//!   signature, or no machine is emitted — a wrong callee is worse than a
-//!   standing wall.
+//!   types render exactly: a borrow of a named `let` local, a field of a
+//!   named data parameter, or an exclusive reference returned by a machine
+//!   declared in the same source (the parameter type is that machine's
+//!   declared return, not a guessed carrier). Every site for one (schema,
+//!   operation) must agree on one signature, or no machine is emitted — a
+//!   wrong callee is worse than a standing wall.
 //! * Never for uncalled pairs: an unused generated machine whose body meets
 //!   an open wall would newly fail a program that currently compiles.
 //! * Storage shape is independent of predicate validation. Encoding reads

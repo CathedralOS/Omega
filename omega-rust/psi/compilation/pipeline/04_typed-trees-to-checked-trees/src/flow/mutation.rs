@@ -254,6 +254,31 @@ fn call_write_places(
         return Some(Vec::new());
     }
 
+    // A synthesized codec's frame already names each exclusive argument's
+    // proven referent, including one arm of a mutable choice. The generated
+    // body's `written` store and the unrefined loan set both keep every
+    // candidate, so the disjoint index on the other input stays open. Storage
+    // invalidation reads the frame.
+    if matches!(namespace, WritePlaceNamespace::Storage)
+        && let Some(site) = find_call_site(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        )
+        && call_site_is_wire_codec(program, &site)
+        && let Some(regions) = codec_frame_storage_regions(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+            call_frames,
+        )
+    {
+        return Some(unattributed_writes(regions));
+    }
+
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
         caller_machine_symbol,
@@ -449,10 +474,11 @@ fn exclusive_loan_places(
 }
 
 /// Add exclusive loans the completed write summary does not already cover.
-/// An empty summary lists no stores, but the loan still permits a store of the
-/// lent referent, so that referent retires saved observations. A summary write
-/// inside a wider loan keeps the narrower footprint: writing one array element
-/// must not become a write of the whole array.
+/// A summary that already stores keeps a loan it does not overlap, because
+/// that loan may still be written. An empty summary stored nothing: only a
+/// referent the reference result actually names retires, so an unselected
+/// input of a choice stays. An opaque result keeps every loan. A summary
+/// write inside a wider loan keeps the narrower footprint.
 fn union_unwritten_exclusive_loans(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
@@ -462,6 +488,15 @@ fn union_unwritten_exclusive_loans(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     mut summarized_places: Vec<CallMutationWrite>,
 ) -> Option<Vec<CallMutationWrite>> {
+    let returned = summarized_places.is_empty().then(|| {
+        exclusive_result_regions(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+            call_frames,
+        )
+    });
     for place in exclusive_loan_places(
         program,
         caller_machine_symbol,
@@ -483,6 +518,15 @@ fn union_unwritten_exclusive_loans(
             {
                 continue;
             }
+            if let Some(returned) = &returned
+                && returned.as_ref().is_some_and(|places| {
+                    !places.iter().any(|returned_region| {
+                        storage_regions_may_overlap(program, returned_region, &region)
+                    })
+                })
+            {
+                continue;
+            }
             summarized_places.push(CallMutationWrite {
                 region,
                 source: None,
@@ -490,6 +534,53 @@ fn union_unwritten_exclusive_loans(
         }
     }
     Some(summarized_places)
+}
+
+fn exclusive_result_regions(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    let frames = call_frames?;
+    let machine = program.machine_by_symbol(caller_machine_symbol)?;
+    let state = program.state_by_symbol(caller_state_symbol)?;
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(borrow_call.statement_index)?;
+    let CallSite::Expression { expression, .. } = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    )?
+    else {
+        return None;
+    };
+    let mut regions = Vec::new();
+    for path in frames.exclusive_reference_result_paths(machine, expression)? {
+        let source = local_origins::place_from_origin_path(
+            program,
+            state,
+            borrow_call.statement_index,
+            path.as_str(),
+        )?;
+        for region in local_origins::rebase_local_write_regions(
+            program,
+            caller_state_symbol,
+            borrow_call.statement_index,
+            source,
+            call_frames,
+        )? {
+            if !regions.contains(&region) {
+                regions.push(region);
+            }
+        }
+    }
+    Some(regions)
 }
 
 fn storage_regions_may_overlap(
@@ -503,6 +594,82 @@ fn storage_regions_may_overlap(
             &left.anchor().segments,
             &right.anchor().segments,
         )
+}
+
+fn codec_frame_storage_regions(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    let frames = call_frames?;
+    let machine = program.machine_by_symbol(caller_machine_symbol)?;
+    let state = program.state_by_symbol(caller_state_symbol)?;
+    let CallSite::Statement(call) = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    )?
+    else {
+        return None;
+    };
+    // The frame path is already the caller's storage name (`chosen`, `buffer`).
+    // Rebasing it through reference-origin discovery drops the place, and the
+    // loan fallback then writes every exclusive input. Keep the named place.
+    let mut regions = Vec::new();
+    for path in frames
+        .may_write_frame(machine, call)
+        .into_complete_paths()?
+    {
+        let place = local_origins::place_from_origin_path(
+            program,
+            state,
+            borrow_call.statement_index,
+            path.as_str(),
+        )
+        .or_else(|| state_root_place(program, state, path.as_str()))?;
+        let region = StorageRegion::Declared(place);
+        if !regions.contains(&region) {
+            regions.push(region);
+        }
+    }
+    Some(regions)
+}
+
+fn state_root_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    path: &str,
+) -> Option<CanonicalPlace> {
+    if path.contains('.') {
+        return None;
+    }
+    let root = program
+        .state_parameters(state)
+        .iter()
+        .find_map(|parameter| (parameter.name.as_str() == path).then_some(parameter.symbol))
+        .or_else(|| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| {
+                    let local = statement.as_local_data()?;
+                    (local.name.as_str() == path).then_some(local.symbol)
+                })
+        })?;
+    canonical_place_from_symbol(root)
+}
+
+fn call_site_is_wire_codec(program: &dyn ::validation::CheckingInput, site: &CallSite) -> bool {
+    let CallSite::Statement(call) = site else {
+        return false;
+    };
+    program.wire_encode_call_schema(call).is_some()
+        || program.wire_decode_call_schema(call).is_some()
 }
 
 fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {

@@ -307,7 +307,7 @@ fn retain_reachable_transition_results(
     }
 }
 
-fn reachable_value_parameters(
+pub(super) fn reachable_value_parameters(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,

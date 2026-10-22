@@ -665,10 +665,11 @@ pub(super) fn collect_call_sites(
 }
 
 /// Render each call argument as the parameter type it must bind: a borrow of a
-/// named local (`&sample` -> `&BlobSample` via its `let` type) or of a field
-/// of a named data parameter (`&mut main.buffer` -> `&mut [u8; 64]` via
-/// `main: &mut Main`). Anything else declines so no machine binds a guessed
-/// signature.
+/// named local (`&sample` -> `&BlobSample` via its `let` type), a field of a
+/// named data parameter (`&mut main.buffer` -> `&mut [u8; 64]` via
+/// `main: &mut Main`), or the declared exclusive-reference result of one
+/// same-source machine call (`choose(...) -> &mut u64`). Anything else
+/// declines so no machine binds a guessed signature.
 pub(super) fn render_argument_types(
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
@@ -677,41 +678,81 @@ pub(super) fn render_argument_types(
 ) -> Option<Vec<String>> {
     let mut rendered = Vec::new();
     for argument in syntax_trees.tables.statements.expression_handles(arguments) {
-        let ExpressionNode::Borrow(borrow) = syntax_trees.tables.expressions.expression(*argument)
-        else {
-            return None;
-        };
-        let access = if borrow.access.is_exclusive() {
-            "&mut "
-        } else {
-            "&"
-        };
-        let target = syntax_trees.tables.expressions.expression(borrow.target);
-        let base_type = match target {
-            ExpressionNode::Name(path) => local_type(
-                syntax_trees,
-                machine,
-                sole_member_name(syntax_trees, *path)?,
-            )?,
-            ExpressionNode::Member(member) => {
-                // A named `&mut Data` parameter (`main.buffer` in
-                // `main: &mut Main`) carries the field's declaration.
-                let data_name = match syntax_trees.tables.expressions.expression(member.receiver) {
-                    ExpressionNode::Name(path) => parameter_data_name(
+        match syntax_trees.tables.expressions.expression(*argument) {
+            ExpressionNode::Borrow(borrow) => {
+                let access = if borrow.access.is_exclusive() {
+                    "&mut "
+                } else {
+                    "&"
+                };
+                let target = syntax_trees.tables.expressions.expression(borrow.target);
+                let base_type = match target {
+                    ExpressionNode::Name(path) => local_type(
                         syntax_trees,
                         machine,
                         sole_member_name(syntax_trees, *path)?,
                     )?,
+                    ExpressionNode::Member(member) => {
+                        // A named `&mut Data` parameter (`main.buffer` in
+                        // `main: &mut Main`) carries the field's declaration.
+                        let data_name =
+                            match syntax_trees.tables.expressions.expression(member.receiver) {
+                                ExpressionNode::Name(path) => parameter_data_name(
+                                    syntax_trees,
+                                    machine,
+                                    sole_member_name(syntax_trees, *path)?,
+                                )?,
+                                _ => return None,
+                            };
+                        let fields = data_fields.get(data_name.as_str())?;
+                        *fields.get(member.member.as_str(syntax_trees))?
+                    }
                     _ => return None,
                 };
-                let fields = data_fields.get(data_name.as_str())?;
-                *fields.get(member.member.as_str(syntax_trees))?
+                rendered.push(format!("{access}{}", type_text(syntax_trees, base_type)?));
+            }
+            ExpressionNode::Call(call) => {
+                rendered.push(exclusive_call_result_type(syntax_trees, call)?);
             }
             _ => return None,
-        };
-        rendered.push(format!("{access}{}", type_text(syntax_trees, base_type)?));
+        }
     }
     Some(rendered)
+}
+
+/// The parameter type of an exclusive reference returned by one root machine
+/// in this source. A receiver, a static machine argument, a shared result, or
+/// two machines with the same name decline: those are not one declared result.
+fn exclusive_call_result_type(
+    syntax_trees: &SyntaxTrees,
+    call: &syntax_trees::expression::TableCallExpression,
+) -> Option<String> {
+    if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
+        return None;
+    }
+    let mut rendered = None;
+    for handle in syntax_trees.root_item_handles() {
+        let Some(candidate) = syntax_trees.tables.items.item(*handle).as_machine() else {
+            continue;
+        };
+        if candidate.name.as_str(syntax_trees) != call.target.as_str(syntax_trees) {
+            continue;
+        }
+        let state_handle = *syntax_trees
+            .tables
+            .items
+            .state_handles(candidate.states)
+            .first()?;
+        let result = type_text(
+            syntax_trees,
+            syntax_trees.tables.items.state(state_handle).return_type,
+        )?;
+        if !result.starts_with("&mut ") || rendered.is_some() {
+            return None;
+        }
+        rendered = Some(result);
+    }
+    rendered
 }
 
 /// `&[u8; N]`/`&mut [u8; N]` -> `&[u8]`/`&mut [u8]`: the buffer parameter's

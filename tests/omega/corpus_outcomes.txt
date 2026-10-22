@@ -4347,6 +4347,32 @@ fail/facts/may_write_choice_through_target_body_overlapping rejected 1221ms expe
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_codec_argument_through_call_result_overlapping rejected 2314ms expected @60171e6cb5bb+wt
+	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_argument_through_const_name_overlapping rejected 2066ms expected @60171e6cb5bb+wt
+	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_argument_through_field_overlapping rejected 1990ms expected @60171e6cb5bb+wt
+	cannot prove index `bounds.other` is within length 4 in main::entry
+fail/facts/may_write_codec_argument_through_local_overlapping rejected 1785ms expected @60171e6cb5bb+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_codec_argument_through_match_join_overlapping rejected 1911ms expected @60171e6cb5bb+wt
+	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_argument_through_other_machine_overlapping rejected 2008ms expected @60171e6cb5bb+wt
+	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_argument_through_other_state_overlapping rejected 1840ms expected @60171e6cb5bb+wt
+	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_argument_through_parameter_overlapping rejected 2120ms expected @60171e6cb5bb+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_codec_argument_through_target_body_overlapping rejected 2115ms expected @60171e6cb5bb+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
 fail/facts/may_write_named_state_through_call_result_overlapping rejected 1602ms expected @b9060c9ca30d+wt
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/may_write_named_state_through_const_name_overlapping rejected 1623ms expected @b9060c9ca30d+wt
@@ -11829,6 +11855,15 @@ pass/facts/may_write_choice_through_other_machine_exit checked 2062ms check-targ
 pass/facts/may_write_choice_through_other_state_exit checked 2068ms check-target:macos_arm64 @96673576ab49+wt
 pass/facts/may_write_choice_through_parameter_exit checked 2061ms check-target:macos_arm64 @96673576ab49+wt
 pass/facts/may_write_choice_through_target_body_exit checked 2117ms check-target:macos_arm64 @96673576ab49+wt
+pass/facts/may_write_codec_argument_through_call_result_exit checked 3077ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_const_name_exit checked 3078ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_field_exit checked 3423ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_local_exit checked 3132ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_match_join_exit checked 3460ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_other_machine_exit checked 3593ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_other_state_exit checked 2999ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_parameter_exit checked 3357ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_argument_through_target_body_exit checked 3122ms check-target:macos_arm64 @60171e6cb5bb+wt
 pass/facts/may_write_named_state_through_call_result_exit checked 2179ms check-target:macos_arm64 @b9060c9ca30d+wt
 pass/facts/may_write_named_state_through_const_name_exit checked 2191ms check-target:macos_arm64 @b9060c9ca30d+wt
 pass/facts/may_write_named_state_through_field_exit checked 2173ms check-target:macos_arm64 @b9060c9ca30d+wt

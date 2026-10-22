@@ -466,7 +466,28 @@ fn summarize_resolved_call(
     // referent retires saved observations even though this body did not write.
     // A summary write inside a wider loan keeps the narrower path: writing one
     // array element does not become a write of the whole array.
+    // An empty summary stored nothing. A reference result names the loans that
+    // remain writable: a choice returns one input, and the other input keeps
+    // its facts. An unresolved result keeps every loan.
+    let returned_loans = (written.is_empty()
+        && type_reference_is_reference(program, callee_state.return_type))
+    .then(|| {
+        transparent_results::reachable_value_parameters(
+            program,
+            callee_machine,
+            callee_state,
+            parameters,
+            arguments,
+        )
+    })
+    .flatten()
+    .filter(|returned| !returned.is_empty());
     for (parameter, argument) in parameters.iter().zip(arguments) {
+        if let Some(returned) = &returned_loans
+            && !returned.contains(&parameter.symbol)
+        {
+            continue;
+        }
         if exclusive_reference_referee(program, parameter.type_reference).is_none() {
             continue;
         }
