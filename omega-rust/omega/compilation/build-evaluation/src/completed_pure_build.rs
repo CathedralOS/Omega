@@ -15,6 +15,13 @@ use std::sync::{Arc, Mutex};
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
+    // Absence is the ordinary per-invocation policy, not a reason to repeat
+    // pure execution. Sponsored usage carries different ceilings and units;
+    // retain that distinction without retaining the account's authority.
+    sponsor_policy: Option<(
+        evaluation_accounting::EvaluationMeasurementIdentity,
+        evaluation_accounting::BuildEvaluationSponsorLimits,
+    )>,
     selected_entry: symbols::SymbolHandle,
     initial_build: build_time_evaluation::BuildTimeValue,
     source: package_compilation::SourceAssemblyInputs,
@@ -50,6 +57,7 @@ impl CompletedPureBuildInputs {
         scope: &package_compilation::BuildMachineFilesystemScope,
         artifact_only: bool,
         measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
+        sponsor: Option<&build_time_evaluation::BuildEvaluationSponsor>,
     ) -> Option<Self> {
         if artifact_only
             || !scope.required_outputs().is_empty()
@@ -65,6 +73,7 @@ impl CompletedPureBuildInputs {
         Some(Self {
             checked,
             measurement_identity,
+            sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
             selected_entry,
             initial_build,
             source: package_compilation::SourceAssemblyInputs::new(
@@ -92,6 +101,7 @@ impl CompletedPureBuildInputs {
     fn matches(&self, other: &Self) -> bool {
         self.checked == other.checked
             && self.measurement_identity == other.measurement_identity
+            && self.sponsor_policy == other.sponsor_policy
             && self.selected_entry == other.selected_entry
             && same_initial_value(&self.initial_build, &other.initial_build)
             && self.source == other.source

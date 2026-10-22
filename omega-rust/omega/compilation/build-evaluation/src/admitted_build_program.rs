@@ -52,7 +52,6 @@ impl AdmittedBuildProgram {
         if self.machine.filesystem_reachable
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
             || !self.restricted_build_requests().is_empty()
-            || self.evaluation_sponsor.is_none()
         {
             return None;
         }
@@ -65,6 +64,7 @@ impl AdmittedBuildProgram {
             &self.filesystem_scope,
             self.artifact_only,
             checked_interpreter::EvaluationMeasurementIdentity::CheckedTree,
+            self.evaluation_sponsor.as_ref(),
         )
     }
 

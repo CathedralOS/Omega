@@ -103,6 +103,26 @@ root scopes and rejoins the selected Build source after parsing. `SourceStorage`
 admits the package-root roster, while `admit_dependency_generated_sources` checks
 scope-qualified paths before source assembly loads any generated unit.
 
+## Pure execution across target requests
+
+One `CompilationSession` retains completed output-free Pure Builds for exact
+checked programs, initial values, captured source and dependency custody.
+Ordinary `CompileRequest` calls use the per-invocation evaluation policy without
+an aggregate sponsor; they may reuse a completed result too. The optional
+sponsor's measurement identity and limits participate in matching, so an
+unsponsored result cannot satisfy a later limited account. No account or grant
+is retained. Each occurrence still performs semantic/authority admission before
+looking for a completed result, and every target row remains in that result.
+Generated-source and required-output activations remain on their existing path.
+
+Run `mbx run -p compiler --example build_session` from the repository root.
+This public compiler measurement requires two target products, two preliminary
+admissions and one Build execution. It also requires a later one-unit fuel
+account to reject and a different source input to execute its own Build.
+This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a new
+language fact row or a foreign-host execution claim. The broader capability,
+including generated-source and target-row completion, remains open.
+
 ## Root-binding implementation boundary
 
 `Build::bind(builder, Target::Slot, Product::entry);` is retained as a dedicated
