@@ -69,34 +69,14 @@ impl TypeIdentityTable {
     }
 }
 
-/// The canonical conjunction of semantic domains selected on one binding.
-///
-/// Terms are sorted and deduplicated. Declared domains are keyed by their
-/// normalizer-owned semantic name, not by source order, local arena handles, or
-/// a carrier-specialized declaration symbol.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct NormalizedDomainExpression {
-    terms: Vec<NormalizedDomainTerm>,
-}
-
-impl NormalizedDomainExpression {
-    pub fn terms(&self) -> &[NormalizedDomainTerm] {
-        &self.terms
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.terms.is_empty()
-    }
-}
-
 /// The canonical set of domains that may select a named-machine or
 /// requirement overload from its expected result type.
 ///
-/// Unlike [`NormalizedDomainExpression`], this set expands transparent domain
-/// aliases and omits predicate-only refinements. Arithmetic policies, domains
-/// with a semantic role or establishment route, and explicit empty tags remain
-/// dispatch-bearing. Terms are sorted and deduplicated so authored conjunction
-/// order cannot affect overload identity.
+/// This set expands transparent domain aliases and omits predicate-only
+/// refinements. Arithmetic policies, domains with a semantic role or
+/// establishment route, and explicit empty tags remain dispatch-bearing. Terms
+/// are sorted and deduplicated so authored conjunction order cannot affect
+/// overload identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct NormalizedResultDispatchSet {
     pub(crate) terms: Vec<NormalizedDomainTerm>,

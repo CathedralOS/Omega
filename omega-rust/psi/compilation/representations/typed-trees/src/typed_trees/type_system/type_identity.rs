@@ -41,8 +41,8 @@ pub use lifetime_parameters::{
     lifetime_parameter_name, portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
-    NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
-    NormalizedTypeIdentity, TypeIdentityId, TypeIdentityTable,
+    NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
+    TypeIdentityTable,
 };
 
 use crate::TypedTrees;
