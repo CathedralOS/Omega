@@ -822,8 +822,8 @@ impl<'program> StructuralJudge<'program> {
         // capture sequence and equations in the caller environment.
         std::sync::Arc::make_mut(&mut self.normal_results)
             .retain(|(source, _)| *source != expression);
-        let integer_field_read = self.requires_value_preservation()
-            && super::super::observed_projections::declared_integer_field_read(
+        let scalar_field_read = self.requires_value_preservation()
+            && super::super::observed_projections::declared_scalar_field_read(
                 program, scope.0, scope.1, expression,
             )
             .is_some();
@@ -871,8 +871,7 @@ impl<'program> StructuralJudge<'program> {
             .map(|(child, child_reference)| {
                 let child_demand = match node {
                     ExpressionNode::Member(member)
-                        if (integer_field_read
-                            || matches!(demand, NormalValueDemand::Location))
+                        if (scalar_field_read || matches!(demand, NormalValueDemand::Location))
                             && child == member.receiver =>
                     {
                         NormalValueDemand::Location
@@ -967,7 +966,7 @@ impl<'program> StructuralJudge<'program> {
                     &writes,
                 )?;
                 let receiver_changed =
-                    integer_field_read && judge.storage_write_sequence != receiver_write_sequence;
+                    scalar_field_read && judge.storage_write_sequence != receiver_write_sequence;
                 let captured_field = if receiver_changed {
                     let ExpressionNode::Member(member) = node else {
                         return None;
@@ -1245,11 +1244,12 @@ impl<'program> StructuralJudge<'program> {
                         value = referent.clone();
                     }
                 }
-                if integer_field_read {
+                if scalar_field_read {
                     // Completing a typed read observes its actual value even
-                    // when no mathematical entry value is known. Retain that
-                    // snapshot at its storage coordinate until the write owner
-                    // retires it; source text is never its identity.
+                    // when no mathematical entry value is known. Integers,
+                    // addresses, and IEEE floats share that coordinate, so an
+                    // exclusive loan retires the read only when it overlaps.
+                    // Source text is never its identity.
                     if value.observation_identity_key().is_none() {
                         value = judge.capture_unknown_value(expression, scope)?;
                     }

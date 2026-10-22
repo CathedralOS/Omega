@@ -4,9 +4,20 @@
 //! may replace a binding's current value while earlier copies and equations
 //! still describe their captured values. A later read of retired storage gets
 //! a new unknown observation; unrelated owned bindings retain their facts.
-//! Whole aggregate roots are retired on an overlapping field write. Reference-
-//! bearing or opaque roots remain conservative until their exact preservation
-//! is available: a disjoint spelling alone cannot preserve aliased contents.
+//! A reference-free aggregate keeps a sibling field when the exposure names a
+//! different field. The whole root still dies when the write covers it.
+//! Reference-bearing or opaque roots remain conservative until their exact
+//! preservation is available: a disjoint spelling alone cannot preserve
+//! aliased contents.
+
+/// Exclusive exposures recorded for one judge. Opaque means the frame did not
+/// name places, so every invalidated binding stays retired. A path list lets a
+/// reference-free field read survive a loan of a different field.
+#[derive(Clone, Default)]
+pub(super) struct StorageExposureRecord {
+    pub(super) opaque: bool,
+    pub(super) paths: Vec<String>,
+}
 
 use super::StructuralJudge;
 use symbols::SymbolHandle;
@@ -153,6 +164,15 @@ pub(super) struct CapturedStoreDestination {
     frame: facts::NormalizedWriteFrame,
 }
 
+fn expression_exposure_path(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    let place = crate::value_custody::places::canonical_place_from_expression(program, expression)?;
+    let root = place.root.as_symbol()?;
+    crate::frame_coordinate_path(program, root, &place.segments)
+}
+
 impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
         &mut self,
@@ -172,6 +192,13 @@ impl StructuralJudge<'_> {
     ) -> Option<()> {
         if written.is_some_and(<[String]>::is_empty) || !self.requires_value_preservation() {
             return Some(());
+        }
+        {
+            let exposures = std::sync::Arc::make_mut(&mut self.storage_exposures);
+            match written {
+                None => exposures.opaque = true,
+                Some(paths) => exposures.paths.extend(paths.iter().cloned()),
+            }
         }
         self.storage_write_sequence += 1;
         let program = self.program;
@@ -271,18 +298,17 @@ impl StructuralJudge<'_> {
         }
         // These rows are source predicates, unlike the captured term equations.
         // A later branch must not reinterpret an old entry fact over new storage.
-        self.premise_facts.retain(|fact| {
+        // A reference-free field fact stays when the exposure names a different
+        // field; a fact about the lent field or the whole aggregate does not.
+        let mut facts = std::mem::take(&mut self.premise_facts);
+        facts.retain(|fact| {
             let mut expressions = Vec::new();
             crate::expression_traversal::collect_expression_tree(program, *fact, &mut expressions);
-            !expressions.iter().any(|expression| {
-                crate::value_custody::places::expression_root_symbol(
-                    *expression,
-                    &program.expression_table,
-                    self.machine_symbol,
-                )
-                .is_some_and(|symbol| storage.contains(&symbol))
-            })
+            !expressions
+                .iter()
+                .any(|expression| self.storage_observation_invalidated(*expression))
         });
+        self.premise_facts = facts;
         Some(())
     }
 
@@ -836,12 +862,65 @@ impl StructuralJudge<'_> {
     }
 
     pub(super) fn storage_observation_invalidated(&self, expression: ExpressionHandle) -> bool {
-        crate::value_custody::places::expression_root_symbol(
+        let Some(symbol) = crate::value_custody::places::expression_root_symbol(
             expression,
             &self.program.expression_table,
             self.machine_symbol,
-        )
-        .is_some_and(|symbol| self.invalidated_storage.contains(&symbol))
+        ) else {
+            return false;
+        };
+        if !self.invalidated_storage.contains(&symbol) {
+            return false;
+        }
+        // Reference-bearing and opaque exposures still retire the binding.
+        // A reference-free field read consults the recorded place and survives
+        // a loan of a different field of the same aggregate.
+        if self.storage_exposures.opaque || !self.root_exposure_is_precise(symbol) {
+            return true;
+        }
+        let Some(path) = expression_exposure_path(self.program, expression) else {
+            return true;
+        };
+        self.storage_exposures
+            .paths
+            .iter()
+            .any(|written| crate::frame_paths_overlap(written, &path))
+    }
+
+    /// Owned storage and an exclusive formal of owned storage name exact
+    /// fields. Any other root can alias, so a disjoint spelling is not enough.
+    fn root_exposure_is_precise(&self, symbol: SymbolHandle) -> bool {
+        let Some(frames) = self.frame_resolver() else {
+            return false;
+        };
+        let Some(reference) = crate::declaration_type_reference(self.program, symbol) else {
+            return false;
+        };
+        if frames.value_is_reference_free(reference) {
+            return true;
+        }
+        let Some(machine) = self.program.machine(self.machine_symbol) else {
+            return false;
+        };
+        let state = if self.declaration_state.is_valid() {
+            self.program
+                .state_in_machine(machine, self.declaration_state)
+        } else {
+            self.program.machine_states(machine).first()
+        };
+        let Some(state) = state else {
+            return false;
+        };
+        self.program
+            .state_parameter_by_symbol(state, symbol)
+            .is_some_and(|parameter| {
+                crate::reference_shell(self.program, parameter.type_reference).is_some_and(
+                    |shell| {
+                        shell.access == language_semantics::ReferenceAccess::Mutable
+                            && frames.value_is_reference_free(shell.referee)
+                    },
+                )
+            })
     }
 
     pub(super) fn storage_binding_invalidated(&self, symbol: SymbolHandle) -> bool {

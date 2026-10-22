@@ -140,12 +140,12 @@ fn readable_projection_crossings(
     Some(())
 }
 
-/// Authenticate an actual integer data field; collection metadata is not a field.
-/// Addresses retain their numeric read epochs too. Excluding them would lose
-/// an interval's entry base while retaining its count, making conservation
-/// depend on the representation of the coordinate rather than its actual read.
+/// Authenticate an actual scalar data field; collection metadata is not a field.
+/// Integers and addresses keep their numeric read epochs. IEEE floats join that
+/// roster because a float has no integer relation: the completed read is the
+/// observation an exclusive loan must retire, and only an overlapping loan does.
 /// This observation carries neither a native-width bound nor storage authority.
-pub(super) fn declared_integer_field_read(
+pub(super) fn declared_scalar_field_read(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -173,6 +173,24 @@ pub(super) fn declared_integer_field_read(
     }
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
     let primitive = program.primitive_type_reference(reference)?;
-    (primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Addr)
-        .then_some(primitive)
+    (primitive.is_fixed_integer()
+        || primitive == typed_trees::types::PrimitiveType::Addr
+        || matches!(
+            primitive,
+            typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
+        ))
+    .then_some(primitive)
+}
+
+/// Integer and address subset of [`declared_scalar_field_read`]. Arithmetic
+/// observations still exclude IEEE equality and its NaN cases.
+pub(super) fn declared_integer_field_read(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    declared_scalar_field_read(program, machine, state, expression).filter(|primitive| {
+        primitive.is_fixed_integer() || *primitive == typed_trees::types::PrimitiveType::Addr
+    })
 }

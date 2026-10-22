@@ -293,6 +293,9 @@ pub(super) struct StructuralJudge<'program> {
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     invalidated_storage: Arc<Vec<SymbolHandle>>,
+    // Precise exclusive exposures of reference-free storage. An opaque record
+    // retires the whole binding; a field path retires only overlapping reads.
+    storage_exposures: Arc<storage_effects::StorageExposureRecord>,
     // Typed storage observations retain live values and detached entry snapshots.
     stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
     capture_sequence: usize,
@@ -351,6 +354,7 @@ impl Clone for StructuralJudge<'_> {
             normal_results: Arc::clone(&self.normal_results),
             normal_memberships: Arc::clone(&self.normal_memberships),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
+            storage_exposures: Arc::clone(&self.storage_exposures),
             stored_values: Arc::clone(&self.stored_values),
             capture_sequence: self.capture_sequence,
             storage_write_sequence: self.storage_write_sequence,
@@ -508,6 +512,7 @@ impl<'program> StructuralJudge<'program> {
             normal_results: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
+            storage_exposures: Arc::new(storage_effects::StorageExposureRecord::default()),
             stored_values: Arc::new(Vec::new()),
             capture_sequence: 0,
             storage_write_sequence: 0,
