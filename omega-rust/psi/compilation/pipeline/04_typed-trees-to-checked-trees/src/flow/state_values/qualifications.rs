@@ -1,5 +1,6 @@
-//! Finite live predicates carried by exact state-argument values. Domain
-//! memberships and normalized IEEE observations use the same custody path.
+//! Finite live predicates carried by exact state arguments and original
+//! invocation referents. Domain memberships and normalized IEEE observations
+//! use the same custody path, including when no executable binding survives.
 //!
 //! Origins alone supply no row. Every row is captured from an available fact;
 //! incoming joins can only weaken claims, and root entry is never narrowed.
@@ -17,7 +18,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::flow) struct QualifiedInput {
-    parameter: SymbolHandle,
+    subject: facts::PlaceRoot,
     segments: Vec<facts::PlaceSegment>,
     predicate: CarriedPredicate,
     evidence: QualificationEvidence,
@@ -34,6 +35,25 @@ enum CarriedPredicate {
 }
 
 impl CarriedPredicate {
+    fn from_fact(fact: &Fact) -> Option<Self> {
+        if matches!(fact.origin, FactOrigin::CallRequires) {
+            return None;
+        }
+        match fact.payload {
+            facts::domain_membership_fields_pattern!(domain, domain_symbol, semantic_domain)
+                if domain_symbol.is_valid() =>
+            {
+                Some(Self::Domain {
+                    domain,
+                    domain_symbol,
+                    semantic_domain,
+                })
+            }
+            FactPayload::FloatPredicate { predicate } => Some(Self::Float(predicate)),
+            _ => None,
+        }
+    }
+
     fn implies(self, other: Self) -> bool {
         match (self, other) {
             (
@@ -81,7 +101,7 @@ impl CarriedPredicate {
 
 impl QualifiedInput {
     fn same_subject(&self, other: &Self) -> bool {
-        self.parameter == other.parameter
+        self.subject == other.subject
             && self.segments == other.segments
             && self.evidence == other.evidence
     }
@@ -242,21 +262,8 @@ fn capture_place(
             .context_view(semantic.contexts.get(context.context))
             .facts()
         {
-            if matches!(fact.origin, FactOrigin::CallRequires) {
+            let Some(predicate) = CarriedPredicate::from_fact(fact) else {
                 continue;
-            }
-            let predicate = match fact.payload {
-                facts::domain_membership_fields_pattern!(
-                    domain,
-                    domain_symbol,
-                    semantic_domain
-                ) if domain_symbol.is_valid() => CarriedPredicate::Domain {
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
-                },
-                FactPayload::FloatPredicate { predicate } => CarriedPredicate::Float(predicate),
-                _ => continue,
             };
             let Some(place) = fact.place.as_place() else {
                 continue;
@@ -277,7 +284,7 @@ fn capture_place(
             }
             captured.push(CapturedQualification {
                 input: QualifiedInput {
-                    parameter: destination,
+                    subject: facts::PlaceRoot::Symbol(destination),
                     segments: segments.to_vec(),
                     predicate,
                     evidence: fact.evidence,
@@ -371,9 +378,128 @@ pub(in crate::flow) fn finish(
     inputs
 }
 
+/// Capture original input storage independently of the next state's runtime
+/// argument roster. These are current live observations, not a replay of the
+/// machine requires. The same meet as explicit arguments withdraws a claim
+/// when any reachable predecessor lacks it.
+pub(super) fn capture_invocation_referents(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+) -> Vec<QualifiedInput> {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
+    if !program.state_parameters(entry).iter().any(|parameter| {
+        crate::flow::entry_origins::invocation_referent(program, machine, parameter.symbol)
+            .is_some()
+    }) {
+        return Vec::new();
+    }
+    let context_refs = build
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(contexts)
+        .to_vec();
+    let mut inputs = Vec::new();
+    for context in context_refs {
+        for fact in semantic
+            .context_view(semantic.contexts.get(context.context))
+            .facts()
+        {
+            let Some(predicate) = CarriedPredicate::from_fact(fact) else {
+                continue;
+            };
+            let Some(place) = fact.place.as_place().and_then(|place| {
+                crate::flow::canonical_place_from_semantic_place(
+                    program,
+                    semantic,
+                    semantic.places.get(place),
+                )
+            }) else {
+                continue;
+            };
+            let Some(projected) = crate::flow::entry_origins::project_invocation_place(
+                program,
+                build,
+                machine,
+                state,
+                statement_index,
+                &place,
+                true,
+            ) else {
+                continue;
+            };
+            let [projected] = projected.as_slice() else {
+                continue;
+            };
+            let facts::PlaceRoot::InvocationReferent { type_reference, .. } = projected.root else {
+                continue;
+            };
+            let Some(frames) = build.call_frames else {
+                continue;
+            };
+            if !owned_projection(program, frames, type_reference, &projected.segments) {
+                continue;
+            }
+            let same_carrier = || {
+                let source = validation::canonical_place_type_reference(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    &place,
+                )?;
+                let destination = validation::canonical_place_type_reference(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    projected,
+                )?;
+                let carrier = |reference| {
+                    let reference = program
+                        .type_reference_table
+                        .unconstrained_type_reference(reference);
+                    let reference = program
+                        .type_reference_table
+                        .dereferenced_type_reference(reference);
+                    program.normalized_type_identity(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(reference),
+                    )
+                };
+                Some(carrier(source) == carrier(destination))
+            };
+            if same_carrier() != Some(true) {
+                continue;
+            }
+            let input = QualifiedInput {
+                subject: projected.root,
+                segments: projected.segments.clone(),
+                predicate,
+                evidence: fact.evidence,
+            };
+            if !inputs
+                .iter()
+                .any(|previous: &QualifiedInput| previous.same_claim(&input))
+            {
+                inputs.push(input);
+            }
+        }
+    }
+    inputs
+}
+
 pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: ProgramPoint) {
     for input in inputs {
-        let place = semantic.append_symbol_place(input.parameter);
+        let place = semantic.places.append(facts::Place {
+            root: input.subject,
+            segments: HandleSpan::empty(),
+        });
         for segment in &input.segments {
             semantic.push_place_segment(place, *segment);
         }

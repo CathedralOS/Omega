@@ -171,7 +171,9 @@ pub(super) fn check_exit_ensures(
                 .span_or_empty(exit_flow.parameter_origins)
                 .iter()
                 .filter(|origin| {
-                    Some(origin.contract) == contract && !origin.state_parameter.is_valid()
+                    Some(origin.contract) == contract
+                        && !origin.state_parameter.is_valid()
+                        && !origin.retained_referent_type.is_valid()
                 })
                 .map(|origin| program.symbols.name(origin.entry_parameter))
                 .collect::<Vec<_>>();

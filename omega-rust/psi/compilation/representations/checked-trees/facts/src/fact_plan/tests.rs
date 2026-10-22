@@ -13,6 +13,47 @@ use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceHandle;
 
 #[test]
+fn invocation_referents_match_only_the_same_typed_storage_identity() {
+    let program = TypedTrees::default();
+    let mut facts = FactPlan::default();
+    let parameter = SymbolHandle::from_arena_index(10);
+    let reference = TypeReferenceHandle::from_arena_index(20);
+    let root = PlaceRoot::InvocationReferent {
+        parameter,
+        type_reference: reference,
+    };
+    let first = facts.places.append(crate::Place {
+        root,
+        segments: HandleSpan::empty(),
+    });
+    let same = facts.places.append(crate::Place {
+        root,
+        segments: HandleSpan::empty(),
+    });
+    let other_parameter = facts.places.append(crate::Place {
+        root: PlaceRoot::InvocationReferent {
+            parameter: SymbolHandle::from_arena_index(11),
+            type_reference: reference,
+        },
+        segments: HandleSpan::empty(),
+    });
+    let other_type = facts.places.append(crate::Place {
+        root: PlaceRoot::InvocationReferent {
+            parameter,
+            type_reference: TypeReferenceHandle::from_arena_index(21),
+        },
+        segments: HandleSpan::empty(),
+    });
+    let executable = facts.append_symbol_place(parameter);
+    assert!(facts.places_match(&program, first, same));
+    assert!(!facts.places_match(&program, first, other_parameter));
+    assert!(!facts.places_match(&program, first, other_type));
+    assert!(!facts.places_match(&program, first, executable));
+    assert!(root.as_symbol().is_none());
+    assert!(root.as_expression().is_none());
+}
+
+#[test]
 fn clone_from_replaces_every_fact_root_with_the_source_snapshot() {
     let mut source = FactPlan::default();
     source.places.append(Default::default());

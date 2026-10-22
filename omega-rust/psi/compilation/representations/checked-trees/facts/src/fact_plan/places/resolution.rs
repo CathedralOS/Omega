@@ -99,6 +99,10 @@ pub(crate) fn write_canonical_place_label(
     match root {
         PlaceRoot::Unknown => label.push_str("unknown"),
         PlaceRoot::Symbol(symbol) => push_symbol_label(program, symbol, label),
+        PlaceRoot::InvocationReferent { parameter, .. } => {
+            label.push_str("invocation referent ");
+            push_symbol_label(program, parameter, label);
+        }
         PlaceRoot::Expression(expression) => {
             program
                 .expression_table
@@ -404,7 +408,9 @@ fn fact_place_type_symbol(
             expression_type_symbol(program, expression)?,
             expression_type_reference(program, expression).unwrap_or_default(),
         ),
-        PlaceRoot::Unknown | PlaceRoot::TypeReference(_) => return None,
+        PlaceRoot::Unknown | PlaceRoot::TypeReference(_) | PlaceRoot::InvocationReferent { .. } => {
+            return None;
+        }
     };
 
     for segment in facts.place_segments.span_or_empty(place.segments) {

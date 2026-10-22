@@ -78,6 +78,9 @@ pub fn canonical_place_type_reference(
     statement_index: usize,
     place: &CanonicalPlace,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let facts::PlaceRoot::InvocationReferent { type_reference, .. } = place.root {
+        return project_type_reference_from_segments(program, type_reference, &place.segments);
+    }
     // An expression root resumes wherever the position walk's leaf evidence
     // places it — a call at its declared return type, a stored-type leaf at
     // its own reference, a window at its element — then replays the retained

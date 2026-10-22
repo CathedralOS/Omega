@@ -244,8 +244,13 @@ pub struct FlowExitFact {
 pub struct FlowExitParameterOrigin {
     pub contract: arena::Handle<typed_trees::domain::ProofFact>,
     pub entry_parameter: SymbolHandle,
-    /// Invalid when explicit incoming edges do not establish one exact origin.
+    /// Invalid when no executable parameter retains this exact typed origin.
+    /// A retained proof-only referent is recorded separately below.
     pub state_parameter: SymbolHandle,
+    /// Original reference type when the obligation instead names retained
+    /// invocation storage. This does not supply a current executable binding
+    /// or a live qualification; the exit must independently prove the fact.
+    pub retained_referent_type: typed_trees::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

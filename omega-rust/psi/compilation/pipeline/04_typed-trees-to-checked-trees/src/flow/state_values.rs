@@ -348,7 +348,16 @@ pub(super) fn record_transition(
         &path_contexts,
         machine.symbol,
     );
-    let qualifications = argument_qualifications;
+    let mut qualifications = argument_qualifications;
+    qualifications.extend(qualifications::capture_invocation_referents(
+        program,
+        semantic,
+        build,
+        machine,
+        state,
+        statement_index,
+        contexts,
+    ));
     join(
         program,
         build,

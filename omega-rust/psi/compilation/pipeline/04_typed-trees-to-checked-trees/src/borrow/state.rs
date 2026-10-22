@@ -269,6 +269,9 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                     (2u8, reference.arena_index(), reference.generation())
                 }
                 facts::PlaceRoot::Unknown => (3u8, 0, 0),
+                facts::PlaceRoot::InvocationReferent { parameter, .. } => {
+                    (4u8, parameter.arena_index(), parameter.generation())
+                }
             },
             loan.owner_path
                 .iter()

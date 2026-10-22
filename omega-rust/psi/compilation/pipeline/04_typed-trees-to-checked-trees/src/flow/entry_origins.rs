@@ -1,4 +1,8 @@
 //! Exact reference and immutable value origins across named-state arguments.
+//! A normal-return requirement can additionally name the original invocation
+//! referent after its runtime binding disappears. That proof-only identity is
+//! not a forwarded state parameter: live qualifications must independently
+//! survive every incoming edge and overlapping write.
 use crate::flow::FlowBuildContext;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
@@ -9,6 +13,11 @@ use symbols::SymbolHandle;
 use validation::{CallFrameResolver, LocalWriteSource};
 
 use typed_trees::statement::TransitionExit;
+
+mod invocation_referents;
+pub(super) use invocation_referents::{
+    extend_invocation_observations, invocation_referent, project_invocation_place,
+};
 
 fn reference_type(
     program: &dyn ::validation::CheckingInput,
@@ -599,6 +608,11 @@ pub(super) fn rebase_contexts(
                     if let Some((_, target)) = origins.iter().find(|(entry, _)| *entry == root) {
                         place.root = facts::PlaceRoot::Symbol(*target);
                         fact.place = FactPlace::Place(semantic.places.append(place));
+                    } else if !assumptions
+                        && let Some(subject) = invocation_referent(program, machine, root)
+                    {
+                        place.root = subject;
+                        fact.place = FactPlace::Place(semantic.places.append(place));
                     }
                 }
             }
@@ -612,6 +626,22 @@ pub(super) fn rebase_contexts(
                     .iter()
                     .find_map(|(entry, target)| (*entry == root).then_some(*target))
                     .unwrap_or_default();
+                // Only a requirement actually expressed at this retained
+                // storage subject can use it. A Boolean/proposition source
+                // expression still needs its ordinary executable substitution;
+                // knowing a reference once existed cannot make that expression
+                // refer to current storage or revive an entry premise.
+                let retained_referent_type = match fact
+                    .place
+                    .as_place()
+                    .map(|place| semantic.places.get(place).root)
+                {
+                    Some(facts::PlaceRoot::InvocationReferent {
+                        parameter,
+                        type_reference,
+                    }) if parameter == root => type_reference,
+                    _ => typed_trees::types::TypeReferenceHandle::invalid(),
+                };
                 // Entry assumptions do not establish arrival invariants after
                 // arbitrary predecessor writes. Only explicit state requires
                 // are assumed here; state_values transports independently
@@ -624,6 +654,7 @@ pub(super) fn rebase_contexts(
                             contract,
                             entry_parameter: root,
                             state_parameter: target,
+                            retained_referent_type,
                         },
                     );
                 }

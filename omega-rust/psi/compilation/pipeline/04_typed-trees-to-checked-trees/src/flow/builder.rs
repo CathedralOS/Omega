@@ -94,6 +94,7 @@ pub(crate) fn build_flow_facts(
     // than rebuilding identical rows.
     let new_build = || {
         FlowBuildContext::new(
+            program,
             borrow,
             proof,
             &baseline,

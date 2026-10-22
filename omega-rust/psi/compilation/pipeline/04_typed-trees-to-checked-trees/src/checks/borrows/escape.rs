@@ -76,7 +76,9 @@ pub(super) fn check_view_return_escape(
                     }
                     "temporary storage".to_owned()
                 }
-                facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => {
+                facts::PlaceRoot::Unknown
+                | facts::PlaceRoot::TypeReference(_)
+                | facts::PlaceRoot::InvocationReferent { .. } => {
                     diagnostics.push(Diagnostic::error(
                         "returned view has no captured storage origin",
                     ));

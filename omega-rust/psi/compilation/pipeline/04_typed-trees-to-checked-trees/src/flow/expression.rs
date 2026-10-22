@@ -1692,6 +1692,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         if changed.is_empty() {
             return;
         }
+        let mut changed = changed.to_vec();
+        super::entry_origins::extend_invocation_observations(
+            self.program,
+            self.context,
+            self.machine,
+            self.state,
+            self.statement_index,
+            &mut changed,
+        );
         *contexts = filter_contexts_after_place_mutations(
             self.program,
             self.semantic,
@@ -1700,7 +1709,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             &mut self.context.invalidations.segments,
             &mut self.context.invalidations.events,
             *contexts,
-            changed,
+            &changed,
             FlowInvalidationSource::Statement {
                 statement_index: self.statement_index,
             },

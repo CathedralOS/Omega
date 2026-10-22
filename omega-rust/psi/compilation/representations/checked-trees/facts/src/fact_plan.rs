@@ -601,6 +601,17 @@ impl FactPlan {
         if self.places_equal(left, right) {
             return true;
         }
+        // Invocation storage is an exact typed identity, never a source name
+        // to reconcile with executable places or another machine's formal.
+        if matches!(
+            self.places.get(left).root,
+            PlaceRoot::InvocationReferent { .. }
+        ) || matches!(
+            self.places.get(right).root,
+            PlaceRoot::InvocationReferent { .. }
+        ) {
+            return false;
+        }
         // Labels are only compared, so both are written into this thread's
         // reusable buffers instead of two fresh strings per comparison.
         thread_local! {

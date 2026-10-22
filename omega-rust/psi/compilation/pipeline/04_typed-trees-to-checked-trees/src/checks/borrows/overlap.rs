@@ -244,7 +244,9 @@ pub(super) fn canonical_place_for_loan(
             root: place.root,
             segments: place.segments.clone(),
         }),
-        facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => None,
+        facts::PlaceRoot::Unknown
+        | facts::PlaceRoot::TypeReference(_)
+        | facts::PlaceRoot::InvocationReferent { .. } => None,
     }
 }
 

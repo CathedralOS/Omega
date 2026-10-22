@@ -106,7 +106,7 @@ fn call_storage_mutations(
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        let observations = close_storage_places_over_aliases(
+        let mut observations = close_storage_places_over_aliases(
             program,
             machine.symbol,
             state.symbol,
@@ -121,6 +121,14 @@ fn call_storage_mutations(
             crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
             crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
         })?;
+        crate::flow::entry_origins::extend_invocation_observations(
+            program,
+            build,
+            machine,
+            state,
+            borrow_call.statement_index,
+            &mut observations,
+        );
         result.push(ObservedCallMutation {
             write,
             observations,

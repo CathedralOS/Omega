@@ -260,7 +260,7 @@ pub(super) fn apply_named_operator_call_effects(
     ) else {
         return;
     };
-    let mutated_places: Vec<CanonicalPlace> = operands
+    let mut mutated_places: Vec<CanonicalPlace> = operands
         .iter()
         .filter_map(|operand| {
             operand
@@ -270,6 +270,20 @@ pub(super) fn apply_named_operator_call_effects(
         })
         .collect();
     if !mutated_places.is_empty() {
+        if let Some((machine, state)) = validation::machine_state_by_symbols(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+        ) {
+            super::entry_origins::extend_invocation_observations(
+                program,
+                build,
+                machine,
+                state,
+                statement_index,
+                &mut mutated_places,
+            );
+        }
         *active_contexts = crate::flow::filter_contexts_after_place_mutations(
             program,
             semantic,

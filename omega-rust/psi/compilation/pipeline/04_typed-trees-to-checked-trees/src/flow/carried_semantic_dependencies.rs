@@ -252,6 +252,9 @@ pub(super) fn event_type_reference(
         facts::PlaceRoot::TypeReference(type_reference) => {
             project_type_reference_from_segments(program, type_reference, segments)
         }
+        facts::PlaceRoot::InvocationReferent { type_reference, .. } => {
+            project_type_reference_from_segments(program, type_reference, segments)
+        }
         facts::PlaceRoot::Unknown => None,
     }
 }

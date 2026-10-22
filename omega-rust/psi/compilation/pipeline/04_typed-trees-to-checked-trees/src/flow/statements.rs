@@ -545,6 +545,14 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             ));
         }
         if !mutated_places.is_empty() {
+            super::entry_origins::extend_invocation_observations(
+                program,
+                build,
+                machine,
+                state,
+                statement_index,
+                &mut mutated_places,
+            );
             *active_contexts = filter_contexts_after_place_mutations(
                 program,
                 semantic,

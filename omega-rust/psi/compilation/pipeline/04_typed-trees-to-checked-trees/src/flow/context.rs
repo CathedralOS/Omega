@@ -98,6 +98,7 @@ impl SymbolIndex {
 }
 
 pub(super) struct FlowBuildContext<'plans> {
+    program: &'plans dyn ::validation::CheckingInput,
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
     pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
     pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
@@ -222,6 +223,12 @@ pub(super) struct FlowBuildContext<'plans> {
     /// state's `entry_origin_chains` row.
     machine_parameter_origins:
         HashMap<SymbolHandle, Rc<crate::flow::entry_origins::MachineParameterOrigins>>,
+    /// Physical origins are distinct from typed value forwarding: a recast
+    /// can retain its backing without becoming the original formal's type.
+    machine_storage_origins: Vec<(
+        SymbolHandle,
+        Rc<crate::flow::entry_origins::MachineParameterOrigins>,
+    )>,
     /// Statement storage-write places per site: the answer is program-pure on
     /// (state, statement index) -- the machine and statement are implied by
     /// the key and the shared call-frame resolver is the same `call_frames`
@@ -271,6 +278,7 @@ pub(super) struct FlowBuildContext<'plans> {
 impl<'plans> FlowBuildContext<'plans> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
+        program: &'plans dyn ::validation::CheckingInput,
         borrow: &BorrowFacts,
         proof: &ProofFacts,
         semantic: &FactPlan,
@@ -295,6 +303,7 @@ impl<'plans> FlowBuildContext<'plans> {
                 .push(row);
         }
         Self {
+            program,
             state_statements_start: Default::default(),
             state_outgoing_start: Default::default(),
             scalar_expressions,
@@ -320,6 +329,7 @@ impl<'plans> FlowBuildContext<'plans> {
             transition_call_targets: HashMap::default(),
             entry_origin_chains: HashMap::default(),
             machine_parameter_origins: HashMap::default(),
+            machine_storage_origins: Vec::new(),
             statement_storage_writes: HashMap::default(),
             correspondence_root_types: HashMap::default(),
             expression_occurrences: HashMap::default(),
@@ -591,6 +601,29 @@ impl<'plans> FlowBuildContext<'plans> {
         self.entry_origin_chains
             .insert((machine.symbol, state.symbol), chain.clone());
         chain
+    }
+
+    pub(super) fn storage_origins_at(
+        &mut self,
+        machine: SymbolHandle,
+    ) -> Option<Rc<crate::flow::entry_origins::MachineParameterOrigins>> {
+        let program = self.program;
+        let machine = program.machine_by_symbol(machine)?;
+        if let Some((_, solved)) = self
+            .machine_storage_origins
+            .iter()
+            .find(|(owner, solved)| *owner == machine.symbol && solved.covers(program, machine))
+        {
+            return Some(solved.clone());
+        }
+        let solved = Rc::new(crate::flow::entry_origins::machine_storage_origins(
+            program,
+            self.call_frames?,
+            machine,
+        ));
+        self.machine_storage_origins
+            .push((machine.symbol, solved.clone()));
+        Some(solved)
     }
 
     pub(super) fn expression_occurrences_at(

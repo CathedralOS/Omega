@@ -66,6 +66,10 @@ pub(crate) fn canonical_place_from_semantic_place(
     let mut canonical = match place.root {
         facts::PlaceRoot::Unknown => return None,
         facts::PlaceRoot::Symbol(symbol) => canonical_place_from_symbol(symbol)?,
+        root @ facts::PlaceRoot::InvocationReferent { .. } => CanonicalPlace {
+            root,
+            segments: Vec::new(),
+        },
         facts::PlaceRoot::Expression(expression) => {
             canonical_place_from_expression(program, expression)?
         }

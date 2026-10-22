@@ -181,7 +181,7 @@ pub(super) fn resolve_member_symbol_from_place(
         facts::PlaceRoot::TypeReference(reference) => {
             member_resolution::MemberPosition::Reference(reference)
         }
-        facts::PlaceRoot::Unknown => return None,
+        facts::PlaceRoot::Unknown | facts::PlaceRoot::InvocationReferent { .. } => return None,
     };
 
     // The segment hops are the shared fold `member_position_after_segments`

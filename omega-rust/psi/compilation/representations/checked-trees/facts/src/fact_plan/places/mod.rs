@@ -15,6 +15,13 @@ pub enum PlaceRoot {
     #[default]
     Unknown,
     Symbol(SymbolHandle),
+    /// The storage denoted by an invocation's original reference formal. This
+    /// is a proof subject, not an executable binding or an entry-value snapshot.
+    /// Keep its reference type/access even after no state parameter carries it.
+    InvocationReferent {
+        parameter: SymbolHandle,
+        type_reference: TypeReferenceHandle,
+    },
     Expression(ExpressionHandle),
     TypeReference(TypeReferenceHandle),
 }
@@ -26,6 +33,10 @@ impl PlaceRoot {
         match self {
             Self::Unknown => false,
             Self::Symbol(symbol) => symbol.is_valid(),
+            Self::InvocationReferent {
+                parameter,
+                type_reference,
+            } => parameter.is_valid() && type_reference.is_valid(),
             Self::Expression(expression) => expression.is_valid(),
             Self::TypeReference(reference) => reference.is_valid(),
         }
