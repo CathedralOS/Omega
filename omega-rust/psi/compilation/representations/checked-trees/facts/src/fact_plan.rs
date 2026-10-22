@@ -22,10 +22,8 @@ use crate::{
 };
 
 pub type FactHandle = Handle<Fact>;
-pub type FactRefHandle = Handle<FactRef>;
 pub type FactContextHandle = Handle<FactContext>;
 pub type PlaceHandle = Handle<Place>;
-pub type PlaceSegmentHandle = Handle<PlaceSegment>;
 pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
 
 #[derive(Debug, Default, PartialEq, Eq)]

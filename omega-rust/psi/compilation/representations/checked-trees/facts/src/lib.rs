@@ -43,6 +43,6 @@ pub use fact_plan::places::{
     project_captured_view_segments, resolution, write_frame,
 };
 pub use fact_plan::{
-    FactContextHandle, FactHandle, FactPlan, FactRefHandle, PlaceHandle, PlaceSegmentHandle,
-    QualificationCorrespondenceHandle, contexts, evidence, places,
+    FactContextHandle, FactHandle, FactPlan, PlaceHandle, QualificationCorrespondenceHandle,
+    contexts, evidence, places,
 };
