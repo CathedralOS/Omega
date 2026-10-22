@@ -119,8 +119,9 @@ pub(super) struct ReferentExtent {
     pub(super) minimum: Option<i64>,
 }
 
-/// The extent a freshly bound local reference inherits from its single exact
-/// referent, or `None` when the binding has no uniquely resolved referent.
+/// The extent a freshly bound local reference inherits from its incoming
+/// exact referents, or `None` when the binding has no resolved referent (or
+/// its referents disagree).
 ///
 /// A returned `&mut [T]` owns no storage, and its slice type erases the
 /// receiver's extent: `let view = borrow_rows(level)` lends the element
@@ -129,13 +130,18 @@ pub(super) struct ReferentExtent {
 /// same recovery `flow::transfers`' `bound_reference_referent_place` performs
 /// to re-anchor element evidence onto the binding — and
 /// `canonical_place_type_reference` projects the referent's declared type for
-/// its fixed length. When the referent is a variable-fill carrier whose live
-/// length is not its type, the recorded `exact_length`/`minimum_length`
-/// facts keyed on the referent's own path supply the extent instead.
+/// its fixed length, a normalized window segment supplies its own length, and
+/// when the referent is a variable-fill carrier whose live length is not its
+/// type, the recorded `exact_length`/`minimum_length` facts keyed on the
+/// referent's own path supply the extent instead.
 ///
-/// An ambiguous or inexact (runtime-index-truncated) origin stays `None`: a
-/// truncated place names a container OF the referent, whose extent is not the
-/// bound slice's length, and multiple referents cannot pin one extent.
+/// An inexact (runtime-index-truncated) origin stays `None`: a truncated
+/// place names a container OF the referent, whose extent is not the bound
+/// slice's length. Multiple exact referents are admitted only when every
+/// incoming origin reports the same extent — a match join selecting between
+/// two windows of one length binds a slice of that length on every path —
+/// and any disagreement or unresolved extent stays `None`. The live-length
+/// floor is common to every path or not claimed at all.
 pub(super) fn bound_reference_referent_extent(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -164,28 +170,74 @@ pub(super) fn bound_reference_referent_extent(
         .statement_table
         .statements(state.statement_nodes)
         .get(facts.statement_index + 1)?;
-    let origin =
-        crate::flow::sole_local_referent_origin(call_frames?, machine, before, local_symbol)?;
-    let source = origin.source.as_ref()?;
-    let (place, precision) =
-        crate::flow::origin_place(program, state, facts.statement_index, &origin)?;
-    if precision != crate::flow::OriginPrecision::Exact {
+    let origins = call_frames?
+        .local_write_origins_before_statement(machine, before)?
+        .into_iter()
+        .filter(|origin| {
+            origin.local_symbol == local_symbol
+                && origin.local_segments.is_empty()
+                && origin
+                    .source
+                    .as_ref()
+                    .is_none_or(|source| source.root != local_symbol)
+        })
+        .collect::<Vec<_>>();
+    if origins.is_empty() {
         return None;
     }
-    let exact = validation::canonical_place_type_reference(
-        program,
-        state.symbol,
-        facts.statement_index,
-        &place,
-    )
-    .and_then(|reference| fixed_array_type_length(program, reference))
-    .or_else(|| {
-        facts
-            .exact_length(&source.path)
-            .and_then(|length| usize::try_from(length).ok())
-    });
-    let minimum = facts.minimum_length(&source.path);
+    // One exact extent that every incoming origin agrees on is still exact.
+    let mut exact = None;
+    let mut minimum = None;
+    let mut floor_on_every_path = true;
+    for origin in &origins {
+        let source = origin.source.as_ref()?;
+        let (place, precision) =
+            crate::flow::origin_place(program, state, facts.statement_index, origin)?;
+        if precision != crate::flow::OriginPrecision::Exact {
+            return None;
+        }
+        let extent = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            facts.statement_index,
+            &place,
+        )
+        .and_then(|reference| fixed_array_type_length(program, reference))
+        .or_else(|| window_place_extent(&place))
+        .or_else(|| {
+            facts
+                .exact_length(&source.path)
+                .and_then(|length| usize::try_from(length).ok())
+        });
+        match (exact, extent) {
+            (None, Some(extent)) => exact = Some(extent),
+            (Some(previous), Some(extent)) if previous == extent => {}
+            _ => return None,
+        }
+        if floor_on_every_path {
+            match facts.minimum_length(&source.path) {
+                Some(floor) => minimum = Some(minimum.map_or(floor, |held: i64| held.min(floor))),
+                None => {
+                    floor_on_every_path = false;
+                    minimum = None;
+                }
+            }
+        }
+    }
     Some(ReferentExtent { exact, minimum })
+}
+
+/// The exact extent a referent PLACE itself carries: a compiler-normalized
+/// half-open window selects `end - start` elements, so a returned reference
+/// bound to `chosen.value[0..2]` indexes against extent 2 even though its
+/// declared slice type erases the length. Bounds are element ordinals of a
+/// statically normalized range; `OpaqueRange` (a captured or runtime-scaled
+/// window) and runtime `Index` selectors deliberately supply none.
+fn window_place_extent(place: &validation::CanonicalPlace) -> Option<usize> {
+    match place.segments.last()? {
+        facts::PlaceSegment::FixedRange { start, end } if end >= start => Some(end - start),
+        _ => None,
+    }
 }
 
 /// The declared type of the local an assignment rebinds, from its unique

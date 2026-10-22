@@ -5225,10 +5225,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Borrowed joins: reuse
     `omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/control_flow/address_joins.rs`
     (shared primitive/plain aggregate and mutable whole-record carriers exist).
-    Still missing: primitive/projected exclusive arms, write-only joins
+    Still missing: write-only joins
     (**WRITE-ONLY-BORROW**), case/reference/descriptor-bearing referents,
-    runtime-sized element-view selections, ranges, computed roots, join-place reads/projections,
-    primitive-local origins and borrowed-result successor lifecycle. End loans
+    runtime-sized element-view selections, ranges, computed roots, and join-place
+    reads/projections. End loans
     at last use: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`
     currently pins origins through the whole dominated region.
   - `branch_edges` in
