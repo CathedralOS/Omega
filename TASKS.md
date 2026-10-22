@@ -205,14 +205,17 @@ helper that passes does not close an item.
   retirement of the exact linear obligation remain unfinished.
   Extend that control model rather than adding an opaque asm parser or verifier.
 
-  Current regression on main `921e9383c083`: a register loaded from a mutable
-  input must preserve that snapshot across a conditional label edge after the
-  input changes. Loading 5 into `eax`, assigning 7 to the input, and reaching
-  `jnz` currently refuses valid source with "state branch receives input as
-  both mutable and read-only". The same numeric-oracle program passes native
-  and Terminal execution before that change. Preserve the immutable register
-  version rather than rereading its initializer's mutable operands; keep the
-  ranked-backedge repair and ordinary custody checks intact.
+  The regression `921e9383c083` introduced is repaired: a register loaded from a
+  mutable input keeps that snapshot across a conditional label edge after the
+  input changes. A label edge still carries a register version's recorded
+  initializer (the ranked-decrease and zero-flag premises), but an initializer
+  that reads a mutable capture now yields the immutable register version rather
+  than re-reading the written place, so the edge no longer holds one place both
+  mutably and read-only (`pass/asm/scratch_snapshot_survives_input_write_exit`,
+  with its false-arrival twin still refusing). The AArch64 `ldr` typed-place
+  read is complete across the nine places and their bracketing twins in
+  `samples/cli/facts/checked_asm_arm_load`, bound to the four hosted targets,
+  with native/Terminal agreement on `macos_arm64`.
 
   Own the source grammar and catalogs in
   `01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs` and
