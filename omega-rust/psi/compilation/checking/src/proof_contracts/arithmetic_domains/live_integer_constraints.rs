@@ -320,9 +320,10 @@ fn contradicts(
     // the bridge to f(original). Publish proved equalities after all atoms
     // exist instead. Carrier/policy and child identity remain the shared
     // congruence owner's judgment; Wrapping is never expanded as Exact math.
+    let mut comparison = super::ordered_values::ValueComparison::new(&environment.ordered_values);
     for (position, operand) in observations.atoms.iter().enumerate() {
         for (other_position, other) in observations.atoms[..position].iter().enumerate() {
-            if super::ordered_values::same_value(&environment.ordered_values, operand, other) {
+            if comparison.same_value(operand, other) {
                 comparisons.push(ScopedArithmeticComparison {
                     operator: BinaryOperator::Equal,
                     left: atom(position),

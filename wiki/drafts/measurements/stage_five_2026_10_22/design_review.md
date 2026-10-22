@@ -1,5 +1,12 @@
 # Stage 05 design review after the lookup experiment
 
+Follow-up: the [implemented cold-graph experiment](ordered_graph/README.md)
+measured no previous Product judgment on either reuse probe, correcting the
+initial reuse premise below. The owner selected compact symbolic graphs. The
+bounded change passed its controls and reduced ordinary Stage 05 medians by
+5.35% and 2.59% on two workloads; CHECKED-PACKAGE-REUSE remains open. This document
+retains the earlier design hypotheses as history, not current measured facts.
+
 2026-10-22, base `b428c347b51786c5f57d577d59413977d6cf5d9f`, Apple M4,
 optimized dev compiler. The [completed lookup experiment](state_lookup/README.md)
 retained no compiler change: neither variant established useful latency savings.

@@ -29,7 +29,7 @@ use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod congruence;
-pub(super) use congruence::same_value;
+pub(super) use congruence::ValueComparison;
 mod delivered;
 mod requirements;
 mod storage;
@@ -384,24 +384,27 @@ impl Operand {
 impl Relation {
     /// A constant comparison on the exact observed operand. Display paths are
     /// invalidation metadata, never enough to match a relation to a read.
-    fn literal_comparisons<'relation>(
-        &'relation self,
-        subject: &'relation Operand,
-        relations: &'relation [Relation],
-    ) -> impl Iterator<Item = (i64, RelationConstraint, bool)> + 'relation {
+    fn literal_comparisons(
+        &self,
+        subject: &Operand,
+        comparison: &mut ValueComparison<'_>,
+    ) -> [Option<(i64, RelationConstraint, bool)>; 2] {
         [
             (&self.left, &self.right, true),
             (&self.right, &self.left, false),
         ]
-        .into_iter()
-        .filter_map(move |(candidate, opposite, subject_on_left)| {
-            if !congruence::same_value(relations, candidate, subject) {
-                return None;
-            }
+        .map(|(candidate, opposite, subject_on_left)| {
             let Operand::Integer(literal, _) = opposite else {
                 return None;
             };
-            Some((literal.value_i64()?, self.constraint, subject_on_left))
+            let constant = literal.value_i64()?;
+            // Only a representable literal can contribute a bound here. Do
+            // not build an equality graph for a relation this query cannot use.
+            comparison.same_value(candidate, subject).then_some((
+                constant,
+                self.constraint,
+                subject_on_left,
+            ))
         })
     }
 
@@ -1116,11 +1119,12 @@ pub(super) fn subtract_floor_limited(
         return None;
     }
     let relation_floor = |relations: &[Relation]| {
+        let mut comparison = congruence::ValueComparison::new(relations);
         relations
             .iter()
             .filter(|relation| {
-                congruence::same_value(relations, &relation.left, &left_operand)
-                    && congruence::same_value(relations, &relation.right, &right_operand)
+                comparison.same_value(&relation.left, &left_operand)
+                    && comparison.same_value(&relation.right, &right_operand)
             })
             .filter_map(Relation::minimum_difference)
             .max()
@@ -1151,9 +1155,12 @@ pub(super) fn excludes_integer_value(
     else {
         return false;
     };
+    let mut comparison = ValueComparison::new(&environment.ordered_values);
     environment.ordered_values.iter().any(|relation| {
-        for (constant, constraint, subject_is_left) in
-            relation.literal_comparisons(&subject, &environment.ordered_values)
+        for (constant, constraint, subject_is_left) in relation
+            .literal_comparisons(&subject, &mut comparison)
+            .into_iter()
+            .flatten()
         {
             let excludes = match constraint {
                 RelationConstraint::Unequal => constant == value,
@@ -1193,9 +1200,12 @@ pub(super) fn refine_place_interval(
     else {
         return interval;
     };
+    let mut comparison = ValueComparison::new(&environment.ordered_values);
     for relation in &environment.ordered_values {
-        for (constant, constraint, subject_on_left) in
-            relation.literal_comparisons(&subject, &environment.ordered_values)
+        for (constant, constraint, subject_on_left) in relation
+            .literal_comparisons(&subject, &mut comparison)
+            .into_iter()
+            .flatten()
         {
             let RelationConstraint::MinimumDifference(distance) = constraint else {
                 continue;
@@ -1347,15 +1357,16 @@ fn ordered_gaps<'relations>(
     relations: &'relations [Relation],
     value: &'relations Operand,
 ) -> Vec<(&'relations Operand, i64)> {
+    let mut comparison = congruence::ValueComparison::new(relations);
     ordered_gaps_by(relations, value, |left, right| {
-        congruence::same_value(relations, left, right)
+        comparison.same_value(left, right)
     })
 }
 
 fn ordered_gaps_by<'relations>(
     relations: &'relations [Relation],
     value: &'relations Operand,
-    same_value: impl Fn(&Operand, &Operand) -> bool,
+    mut same_value: impl FnMut(&Operand, &Operand) -> bool,
 ) -> Vec<(&'relations Operand, i64)> {
     let mut operands: Vec<&Operand> = vec![value];
     for relation in relations {
@@ -1366,18 +1377,17 @@ fn ordered_gaps_by<'relations>(
         }
     }
     let mut dist: Vec<(&Operand, i64)> = vec![(value, 0)];
-    let known_gap = |dist: &[(&Operand, i64)], operand: &Operand| {
-        dist.iter()
-            .find(|(known, _)| same_value(known, operand))
-            .map(|(_, gap)| *gap)
-    };
     for _ in 1..operands.len() {
         let mut improved = false;
         for relation in relations {
             let Some(floor) = relation.minimum_difference() else {
                 continue;
             };
-            let Some(gap) = known_gap(&dist, &relation.right) else {
+            let Some(gap) = dist
+                .iter()
+                .find(|(known, _)| same_value(known, &relation.right))
+                .map(|(_, gap)| *gap)
+            else {
                 continue;
             };
             let Some(gap) = gap.checked_add(floor) else {

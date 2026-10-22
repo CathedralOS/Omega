@@ -592,6 +592,7 @@ fn ceilings_of_equal_value(
         constraint: RelationConstraint::MinimumDifference(0),
     });
     let mut inherited = Vec::new();
+    let mut comparison = congruence::ValueComparison::new(&extended);
     for relation in &extended {
         let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
             continue;
@@ -599,7 +600,7 @@ fn ceilings_of_equal_value(
         if &relation.left == destination {
             continue;
         }
-        if !congruence::same_value(&extended, &relation.right, destination) {
+        if !comparison.same_value(&relation.right, destination) {
             continue;
         }
         let inherited_relation = Relation {

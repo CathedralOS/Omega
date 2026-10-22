@@ -467,3 +467,20 @@ Neither establishes a useful latency improvement. The compiler source was
 restored; no candidate corpus/native equivalence is claimed. The full-index
 candidate's 21 typed-tree tests passed. [Patches, raw observations, rationale
 and replay](stage_five_2026_10_22/state_lookup/README.md).
+
+### Stage 05 compact ordering graph reuse — 2026-10-22
+
+Retained one immutable comparison context with compact exact edges and lazily
+computed source rows. Constructor identity, edge order, finite round limits and
+checked overflow retain the old semantics. The reuse probe first corrected the
+prior premise: these inputs had no previous Product judgment to reuse.
+On Apple M4 / optimized dev opt-level 1, alternating fresh CLI processes reduced
+Stage 05 median 585.776 -> 554.424 ms on length/local (28 pairs; minima
+567.313 -> 532.451 ms), and 571.982 -> 557.196 ms on dependent_subtract/local
+(16 pairs; minima 556.846 -> 537.333 ms). Total medians improved 3.95% and 2.71%.
+Both minima stabilized for ten seconds; shared-host spread and all observations
+are retained. Eight Rust tests passed, 49 checked corpus outcomes and 21
+native/Terminal outcomes matched baseline, and nine public length positives
+plus nine reject twins met their oracles. Clippy completed with existing
+warnings; strict warnings-as-errors stops in an unchanged dependency.
+[Implementation, raw results, precision oracle, limits and replay](stage_five_2026_10_22/ordered_graph/README.md).
