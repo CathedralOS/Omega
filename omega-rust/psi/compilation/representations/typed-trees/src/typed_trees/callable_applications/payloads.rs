@@ -198,27 +198,33 @@ impl CallableApplication {
                 lifetime_arguments,
                 arguments,
             } => {
-                // An elided result region is not a captured caller lifetime.
-                // The nominal application still has to name the declaration's
-                // own binder: owner identity and common-field lookup compare
-                // that spelling, and loan sources stay on the call. Renaming
-                // the slot to an empty argument makes `Message` look fieldless.
+                // Nominal identity selects the data declaration; lifetime
+                // arguments belong to their supplying callable telescope.
+                // Elision retains those exact arguments, not the data's formal
+                // names. Repeated and permuted arguments keep their relation.
                 let nominal_owner = self.symbol(base_symbol);
-                // The generated subject local lives in the caller, which did
-                // not declare this binder. The region still belongs to the
-                // nominal owner, so later well-formedness reads that
-                // declaration instead of rejecting the caller's telescope.
                 if !applied_owner.is_valid()
                     && lifetime_arguments
                         .iter()
                         .any(|lifetime| self.elided_lifetimes.contains(lifetime))
                 {
-                    applied_owner = nominal_owner;
+                    applied_owner = self.region_scope;
                 }
                 let lifetimes = lifetime_arguments
                     .iter()
                     .map(|lifetime| {
                         if self.elided_lifetimes.contains(lifetime) {
+                            if crate::type_identity::lifetime_parameter_identity(
+                                program,
+                                applied_owner,
+                                lifetime.as_str(),
+                            )
+                            .is_none()
+                            {
+                                return Err(
+                                    "elided nominal result lost its supplying lifetime telescope",
+                                );
+                            }
                             return Ok(super::ScopedCallableLifetime {
                                 name: lifetime.clone(),
                                 region: Default::default(),
