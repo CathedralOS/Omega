@@ -55,6 +55,7 @@ pass/drops/owned_qualified_contextual_cleanup_exit built 11559ms exit:70 interpr
 pass/drops/runtime_case_selected_cleanup_continuations_exit built 8244ms exit:0 interpreter-exit:0 interpreter:agrees @37781ae2455d
 pass/facts/bounded_activation_cleanup_crossing_exit built 1361ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @26348267c99f+wt
 pass/facts/bounded_activation_extent_composition_exit built 1391ms exit:0 interpreter-exit:0 interpreter:agrees @96673576ab49+wt
+pass/facts/crash_entry_boolean_view_exit built 1067ms exit:0 interpreter-exit:0 interpreter:agrees @e8a7205c2959+wt
 pass/facts/guarded_line_loan_through_call_result_exit built 5148ms exit:0 interpreter-exit:0 interpreter:agrees @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit built 5047ms exit:0 interpreter-exit:0 interpreter:agrees @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit built 5065ms exit:0 interpreter-exit:0 interpreter:agrees @866a955e52f8
