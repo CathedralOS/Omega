@@ -6,6 +6,10 @@ The final candidate reduces Stage 05 median by 5.35% on `length/local` and
 2.59% on `dependent_subtract/local`. This finishes a bounded cold-check experiment;
 it does not close CHECKED-PACKAGE-REUSE or claim a fully optimized Stage 05.
 
+[Main landing integration](integration/README.md) records fresh builds and checks
+against `c00fe7c23ba7`, with separate noisier timing observations. The original
+measurements below retain their original producer identities.
+
 ## Premise and design
 
 The [preceding design review](../design_review.md) proposed measuring reuse first.
@@ -160,10 +164,12 @@ mbx nextest run -p validation
 mbx clippy -p validation --all-targets
 ```
 
-Corpus command (repeat with `--both` for execution comparison):
+Corpus command (repeat with `--both` for execution comparison). The historical
+run used the documentation-only `4533fd644482`; its compiler and fixtures equal
+`b428c347b517`, which remains available in main history for fresh replay:
 
 ```sh
-OMEGA_CORPUS_JOBS=2 python3 tools/corpus_gate.py --compare 4533fd644482 \
+OMEGA_CORPUS_JOBS=2 python3 tools/corpus_gate.py --compare b428c347b517 \
   --filter 'facts/length_,proofs/proof_congruence_add_constant,proofs/congruence_false_twin,proofs/scalar_field_snapshot_,calls/constructor_child_,calls/runtime_constructor_child_,calls/effectful_result_outside_captured_requirement,calls/completed_effectful_result_requirement_exit,calls/ordered_bound_requires_argument_rejected,collections/runtime_ordered_computed_selector_reads_exit,slices/runtime_ordered_nested_length_observation_exit'
 ```
 

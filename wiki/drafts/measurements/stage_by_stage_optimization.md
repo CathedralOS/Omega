@@ -484,3 +484,10 @@ native/Terminal outcomes matched baseline, and nine public length positives
 plus nine reject twins met their oracles. Clippy completed with existing
 warnings; strict warnings-as-errors stops in an unchanged dependency.
 [Implementation, raw results, precision oracle, limits and replay](stage_five_2026_10_22/ordered_graph/README.md).
+
+Landing integration against `c00fe7c23ba7` rebuilt both producers and preserved
+all 49 checked outcomes, 21 native/Terminal outcomes, eight Rust tests and the
+18 public length observations. The refreshed timing batch has lower candidate
+medians but inconsistent minima under load averages around 20–24; it is
+inconclusive for a precise integrated speedup and is kept separate from the
+original result. [Integrated evidence](stage_five_2026_10_22/ordered_graph/integration/README.md).
