@@ -363,6 +363,38 @@ def read(path) -> list[dict]:
         return parse(handle.read())
 
 
+def reason_free_rows(records: list) -> list[dict]:
+    """Rows asserting an expected/unexpected outcome with no stored reason.
+
+    The runner cannot write one: `expected_fragment_satisfied` answers `None`
+    — no token — when a fixture produced no diagnostics, and every diagnostic
+    it did produce is written as a tab-indented continuation line. A row that
+    carries the token and no line was therefore written by a splice, a script
+    or a merge that took one side's rows and the other side's reasons.
+
+    `LOST` structurally cannot see it — the key is still present, so nothing
+    is missing — which is why a reader has to ask for this state by name. The
+    outcome column of such a row is still an observation; its reason column is
+    not, so every reason-level verdict drawn from it is unsupported.
+    """
+    return [record for record in records
+            if record["expected_satisfied"] is not None
+            and not record["diagnostics"]]
+
+
+def reason_free_gap(path):
+    """`{"rows": n, "of": m}` for the golden at `path`, or None if unreadable.
+
+    None rather than a zero: a file this reader could not load has not been
+    shown to be free of reason-free rows.
+    """
+    try:
+        records = read(path)
+    except (OSError, UnicodeError, ValueError):
+        return None
+    return {"rows": len(reason_free_rows(records)), "of": len(records)}
+
+
 def context_from(text: str):
     """The recording context a `--record` wrote as a header comment, or
     None when the golden predates context stamping (or it is unreadable).

@@ -1002,7 +1002,7 @@ def compare_with_revision(options, leg, revision: str, head_records: list) -> in
         print(f"- {line}")
     for line in result["gains"]:
         print(f"+ {line}")
-    dirty = bool(git_out("status", "--porcelain", "--untracked-files=no"))
+    dirty = bool(dirty_paths())
     print(f"corpus_gate: compared {result['fixtures']} fixtures against "
           f"{revision[:12]}{' (head has uncommitted edits)' if dirty else ''}: "
           f"{len(result['losses'])} lost, {len(result['gains'])} gained")
@@ -1123,27 +1123,63 @@ def perf_context_warnings(golden_context, current_context) -> list[str]:
     return warnings
 
 
+def jobs_line(current_context, golden_context) -> str:
+    """The worker count this run measured under, beside the golden's own.
+
+    Fixture outcomes were measured to depend on `OMEGA_CORPUS_JOBS` in some
+    selections — a pass fixture that checked alone at jobs=1 was rejected by
+    the same revision, tree and binary in a 39-fixture selection at jobs=3 —
+    so a corpus number without its worker count is not comparable to its
+    neighbours. Printed on every verdict, not only when the two counts differ:
+    a difference is already a warning, and the value is what a reader needs
+    when nothing warns at all.
+    """
+    current = (current_context or {}).get("jobs") or "runner default"
+    line = f"corpus_gate: measured at jobs={current}"
+    if not golden_context:
+        return (line + " (the golden carries no context line, so its worker "
+                       "count is unknown)")
+    golden_jobs = golden_context.get("jobs") or "runner default"
+    return line + f", golden jobs={golden_jobs}"
+
+
+def porcelain_path(line: str) -> str:
+    """The path one `git status --porcelain` line names.
+
+    `git status --porcelain` writes `XY path` per line, but git_out strips the
+    whole buffer, so a first line like ` M x` arrives as `M x`; parse the path
+    after the status token instead of a fixed column.
+    """
+    return line.strip().split(None, 1)[-1].split(" -> ")[-1].strip().strip('"')
+
+
+def dirty_paths() -> list:
+    """Every path git reports as differing from HEAD, untracked files included.
+
+    `--untracked-files=no` was the original spelling here, and it is why a
+    newly authored fixture was invisible to the stamp: a directory of untracked
+    `main.omg` files left the tree reading "clean", so `--record` stamped rows
+    for a revision in which the fixture did not exist. A new fixture is exactly
+    what untracked files are, so the dirty test must see them.
+    """
+    status = git_out("status", "--porcelain", "--untracked-files=all") or ""
+    return [porcelain_path(line) for line in status.splitlines() if line]
+
+
 def measurement_stamp(golden) -> str | None:
-    """First 12 hex of HEAD, plus `+wt` when tracked files other than the
-    golden differ — the row's provenance for `--record`. None without git."""
+    """First 12 hex of HEAD, plus `+wt` when files other than the golden
+    differ from HEAD — including untracked ones — the row's provenance for
+    `--record`. None without git."""
     revision = git_out("rev-parse", "HEAD")
     if not revision:
         return None
-    status = git_out("status", "--porcelain", "--untracked-files=no") or ""
-    # `git status --porcelain` writes `XY path` per line, but git_out strips
-    # the whole buffer, so a first line like ` M x` arrives as `M x`; parse
-    # the path after the status token instead of a fixed column.
-    def porcelain_path(line):
-        return line.strip().split(None, 1)[-1].split(" -> ")[-1].strip().strip('"')
     # Record targets exempt from provenance dirt: every corpus golden, since a
     # multi-golden --record dirties the earlier goldens while measuring the next.
     record_targets = {
         path.resolve().relative_to(ROOT).as_posix()
         for path in (ROOT / "tests" / "omega").glob("corpus_*.txt")
     }
-    dirty = any(
-        porcelain_path(line) not in record_targets
-        for line in status.splitlines() if line)
+    dirty = any(path not in record_targets for path in dirty_paths())
     return revision[:12] + ("+wt" if dirty else "")
 
 
@@ -1181,7 +1217,33 @@ def is_ancestor(revision: str, ref: str) -> bool:
         return False
 
 
-def stamp_provenance_problem(stamp: str | None) -> str | None:
+def revision_absent_paths(revision: str, paths) -> list:
+    """Which of `paths` the revision's tree does not contain, in one Git read.
+
+    `git cat-file --batch-check` answers one `<revision>:<path>` query per
+    input line, so a whole record's fixtures cost one process rather than one
+    each. A query Git cannot answer counts as absent: this is a claim a reader
+    has to be able to check, and an unanswerable read has not shown it.
+    """
+    paths = list(paths)
+    if not paths:
+        return []
+    queries = "".join(f"{revision}:{path}\n" for path in paths)
+    try:
+        result = subprocess.run(["git", "cat-file", "--batch-check"], cwd=ROOT,
+                                input=queries, capture_output=True, text=True,
+                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                                timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return paths
+    answers = result.stdout.splitlines() if result.returncode == 0 else []
+    if len(answers) != len(paths):
+        return paths
+    return [path for path, answer in zip(paths, answers)
+            if answer.endswith(" missing")]
+
+
+def stamp_provenance_problem(stamp: str | None, fixtures=()) -> str | None:
     """Why `--record` must not write rows stamped `stamp`, or None when it may.
 
     A stamp claims the observation was made at a revision, and the claim is
@@ -1194,6 +1256,15 @@ def stamp_provenance_problem(stamp: str | None) -> str | None:
     for a revision that resolves here AND is an ancestor of the published main
     this checkout can see; anything else is refused with the reason, and the
     anchoring convention that satisfies the check is named in the refusal.
+
+    `fixtures` is what the run would stamp. A stamp with no `+wt` marker
+    claims the named revision had the tree these rows were measured from, so
+    each fixture must exist there for a reader to check the row at all. A row
+    whose fixture is absent from the revision it names — the shape a stamp
+    written over untracked new fixtures produced — is unresolvable evidence
+    and is refused. A `+wt` stamp names the base a dirty tree sat on instead,
+    so absence there is expected: the marker is what tells the reader the
+    fixture came from the working tree, not from that revision.
     """
     if not stamp:
         return None
@@ -1208,7 +1279,32 @@ def stamp_provenance_problem(stamp: str | None) -> str | None:
     if not is_ancestor(revision, main):
         return (f"it is not an ancestor of {main}, the published main this checkout "
                 f"can see, so only the recording clone's own object store holds it")
-    return None
+    if stamp.endswith("+wt"):
+        return None
+    corpus = ROOT / "tests" / "omega"
+    queries, outside = [], []
+    for fixture in sorted(set(fixtures)):
+        try:
+            queries.append((corpus / fixture).relative_to(ROOT).as_posix())
+        except ValueError:
+            # A fixture id that does not name a path under the corpus root was
+            # not discovered by walking it, so nothing at `revision` holds it.
+            outside.append(fixture)
+    absent = outside + revision_absent_paths(revision, queries)
+    if not absent:
+        return None
+    named = ", ".join(absent[:3]) + (f" and {len(absent) - 3} more"
+                                     if len(absent) > 3 else "")
+    return (f"{len(absent)} of the fixtures it would stamp do not exist at "
+            f"{revision}: {named}")
+
+
+def golden_label(golden: Path) -> str:
+    """How a message names a golden: checkout-relative where it is inside."""
+    try:
+        return golden.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(golden)
 
 
 def verdict_document(options, leg, target, verdict, exit_code, records,
@@ -1217,10 +1313,11 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
     """The `--json` verdict document; written on every outcome so a caller
     (or `git bisect run` wrapper) never has to grep the text summary."""
     golden = Path(options.golden)
-    try:
-        golden_path = golden.resolve().relative_to(ROOT).as_posix()
-    except ValueError:
-        golden_path = str(golden)
+    golden_path = golden_label(golden)
+    # The one measurement LOST cannot make: a row can keep its key and lose the
+    # reason stored under it. Read from the file so the number is the golden's
+    # own state, not this run's subset, and reported on every verdict.
+    reason_gaps = corpus_records.reason_free_gap(golden)
     by_status = collections.Counter(record["status"] for record in records)
     by_verdict = collections.Counter(entry["verdict"] for entry in classified)
     # Named, not just counted: a caller reading the document needs to know
@@ -1239,11 +1336,11 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
     return {
         "schema": "omega-corpus-verdict-v1",
         "revision": git_out("rev-parse", "HEAD"),
-        "dirty": bool(git_out("status", "--porcelain",
-                              "--untracked-files=no")),
+        "dirty": bool(dirty_paths()),
         "leg": leg or "checked",
         "target": target,
         "golden": golden_path,
+        "golden_reason_gaps": reason_gaps,
         "subset": subset,
         "filter": options.filter,
         "shard": options.shard,
@@ -1577,6 +1674,22 @@ def main() -> int:
             options, leg, target, "infrastructure_failed", usage_error, records,
             [], [failure["detail"] for failure in failures], message))
         return usage_error
+    # Report the golden's reason-free rows before any verdict is drawn from it.
+    # This is a read-only count: the rows are left byte-for-byte as they are,
+    # because the state is evidence of how the record was damaged and a repair
+    # would destroy it. `LOST` cannot report this — the key is present — so the
+    # operator has to be told here, before trusting a reason-level verdict.
+    if prior_records:
+        reason_gaps = corpus_records.reason_free_rows(prior_records)
+        if reason_gaps:
+            print(f"corpus_gate: {golden_label(options.golden)} carries "
+                  f"{len(reason_gaps)} of {len(prior_records)} rows asserting "
+                  f"an expected/unexpected outcome with no stored diagnostic "
+                  f"line — their outcome is an observation, their reason is "
+                  f"unsupported, and LOST cannot see them because the key is "
+                  f"present. Reason-level verdicts drawn from them are "
+                  f"unsupported; --record refuses to write new rows of that "
+                  f"shape")
     prior = {record["fixture"]: record for record in (prior_records or [])}
 
     # Each row this run replaces carries forward the last success it recorded
@@ -1616,7 +1729,8 @@ def main() -> int:
     # merged forward in a subset record keep the stamp they were born with.
     stamp = measurement_stamp(options.golden) if options.record else None
     if stamp:
-        problem = stamp_provenance_problem(stamp)
+        problem = stamp_provenance_problem(
+            stamp, [record["fixture"] for record in records])
         if problem:
             message = (
                 f"a row stamped @{stamp} would claim an observation at a revision "
@@ -1634,6 +1748,35 @@ def main() -> int:
             return usage_error
         for record in records:
             record["recorded_at"] = stamp
+    # The second measurement LOST cannot make. A row that carries an
+    # expected/unexpected token and no tab line asserts that the fixture's
+    # authored fragment was satisfied and stores no reason it was: the key is
+    # present, so nothing reads as lost. corpus_runner cannot write that state
+    # — `expected_fragment_satisfied` answers None, no token, when a fixture
+    # produced no diagnostics, and every diagnostic it did produce becomes a
+    # tab line — so a run that holds one has been spliced, scripted or merged,
+    # and the rows this run is writing are refused. Rows already in the golden
+    # are read and reported by the load below, never repaired: silently
+    # rewriting them would destroy the evidence of how the record was damaged.
+    reason_free = corpus_records.reason_free_rows(records)
+    if options.record and reason_free:
+        named = ", ".join(entry["fixture"] for entry in reason_free[:3])
+        if len(reason_free) > 3:
+            named += f" and {len(reason_free) - 3} more"
+        message = (
+            f"{len(reason_free)} of the rows this run would write carry an "
+            f"expected/unexpected token with no diagnostic line ({named}). The "
+            f"runner cannot produce that state — a token is written only when "
+            f"the fixture produced diagnostics, and each becomes a tab line — "
+            f"so the row would assert a satisfied fragment with no stored "
+            f"reason, which LOST cannot see because the key is present. Re-run "
+            f"--record from the runner's own output rather than a splice or an "
+            f"edited records file")
+        print(f"corpus_gate: --record refused: {message}", file=sys.stderr)
+        write_verdict(options, verdict_document(
+            options, leg, target, "infrastructure_failed", usage_error, records,
+            [], oracle_failures, message))
+        return usage_error
     rendered = corpus_records.render(records, context)
 
     if options.record:
@@ -1668,6 +1811,7 @@ def main() -> int:
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
               f"to {options.golden}; {len(recorded_gaps)} unimplemented rows "
               f"remain, {len(lost)} rows record a lost success")
+        print(jobs_line(context, corpus_records.read_context(options.golden)))
         for line in pinned_regression_lines(merged):
             print(line)
         if failures:
@@ -1811,6 +1955,9 @@ def main() -> int:
         commits_between)
     provenance = ("corpus_gate: "
                   + corpus_records.provenance_line(golden_provenance))
+    # Every reason-bearing verdict carries the worker count it was measured
+    # at, because fixture outcomes themselves were measured to move with it.
+    jobs = jobs_line(context, golden_context)
     # Perf moves are the only verdict drawn from millis; when the machines
     # or worker counts behind the two measurements disagree, say so instead
     # of letting a busy box read as a compiler slowdown.
@@ -1856,6 +2003,7 @@ def main() -> int:
         print(f"corpus_gate: {len(oracle_failures)} unmet oracle(s), "
               f"{len(structural_moves)} structural move(s) — {summary}")
         print(provenance)
+        print(jobs)
         write_moves()
         code = 1 if options.bisect else 3
         write_verdict(options, verdict_document(
@@ -1873,6 +2021,7 @@ def main() -> int:
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")
         print(provenance)
+        print(jobs)
         print_expectation_defects()
         for line in pinned_regression_lines(prior_records):
             print(line)
@@ -1906,6 +2055,7 @@ def main() -> int:
           f"{len(perf_moves)} perf move(s) — {summary}")
     print(move_classes(structured_diffs))
     print(provenance)
+    print(jobs)
     print_expectation_defects()
     for line in pinned_regression_lines(prior_records):
         print(line)

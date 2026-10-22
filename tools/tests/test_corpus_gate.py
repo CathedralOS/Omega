@@ -1181,6 +1181,139 @@ class MainVerdicts(unittest.TestCase):
             self.assertEqual(shortened, corpus_gate.windows_safe_target_dir(deep_path))
 
 
+class ReasonFreeRecord(unittest.TestCase):
+    """A row can keep its key and lose the reason stored under it.
+
+    `corpus_runner` cannot write that state: `expected_fragment_satisfied`
+    answers None — no token — when a fixture produced no diagnostics, and every
+    diagnostic it did produce becomes a tab line. So `--record` refuses a
+    token-with-no-diagnostics row it is about to write, reports the rows the
+    golden already carries, and leaves those rows byte-for-byte alone: the
+    state is evidence of how the record was damaged. `LOST` sees none of it,
+    because the key is still present.
+    """
+
+    def setUp(self):
+        profile = patch.object(corpus_gate, "require_optimized",
+                               return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+        receipt = patch.object(corpus_gate, "record_cargo_build")
+        receipt.start()
+        self.addCleanup(receipt.stop)
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.golden = self.root / "golden.txt"
+        self.json_path = self.root / "verdict.json"
+        self.errors = io.StringIO()
+        self.output = io.StringIO()
+
+    def run_gate(self, records, *extra, golden_records=None, environment=None):
+        if golden_records is not None:
+            self.golden.write_text(corpus_records.render(golden_records),
+                                   encoding="utf-8")
+        argv = ["corpus_gate", "--runner", "unused", "--golden", str(self.golden),
+                "--json", str(self.json_path), *extra]
+        patches = [patch.object(corpus_gate, "ROOT", self.root),
+                   patch.object(corpus_gate, "run_runner", return_value=records),
+                   patch.object(corpus_gate, "measurement_stamp",
+                                return_value="aaaaaaaaaaaa"),
+                   patch.object(corpus_gate, "stamp_provenance_problem",
+                                return_value=None),
+                   patch.dict(corpus_gate.os.environ, environment or {}, clear=True),
+                   patch.object(sys, "argv", argv)]
+        with contextlib.ExitStack() as stack:
+            for patcher in patches:
+                stack.enter_context(patcher)
+            with contextlib.redirect_stderr(self.errors), \
+                 contextlib.redirect_stdout(self.output):
+                return corpus_gate.main()
+
+    def test_record_refuses_a_row_whose_token_has_no_stored_reason(self):
+        rows = [record("fail/a/x", status="rejected", expected=True)]
+        code = self.run_gate(rows, "--record")
+        self.assertEqual(code, 2)
+        self.assertFalse(self.golden.exists())
+        message = self.errors.getvalue()
+        self.assertIn("--record refused", message)
+        self.assertIn("fail/a/x", message)
+        self.assertIn("no diagnostic line", message)
+        self.assertIn("LOST cannot see", message)
+        document = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(document["verdict"], "infrastructure_failed")
+        self.assertIn("no diagnostic line", document["infrastructure_error"])
+
+    def test_record_still_writes_a_diagnostic_free_row_without_a_token(self):
+        """A fixture that legitimately produced no diagnostics has no token,
+        and its row must still record: the guard refuses the claim, not the
+        absence of reasons."""
+        code = self.run_gate([record("pass/a/x", status="checked")], "--record")
+        self.assertEqual(code, 0)
+        written = corpus_records.read(self.golden)
+        self.assertEqual(len(written), 1)
+        self.assertIsNone(written[0]["expected_satisfied"])
+        self.assertEqual(written[0]["diagnostics"], [])
+        self.assertNotIn("\t", self.golden.read_text(encoding="utf-8"))
+
+    def test_record_still_writes_a_token_that_has_its_reason(self):
+        rows = [record("fail/a/x", status="rejected", expected=True,
+                       diagnostics=["cannot prove bound"])]
+        self.assertEqual(self.run_gate(rows, "--record"), 0)
+        written = corpus_records.read(self.golden)[0]
+        self.assertTrue(written["expected_satisfied"])
+        self.assertEqual(written["diagnostics"], ["cannot prove bound"])
+
+    def test_a_subset_record_is_not_refused_by_legacy_rows_it_is_not_writing(self):
+        """The 2767 damaged rows already in the golden must not block a record
+        of rows that are clean: the guard is over what this run writes."""
+        legacy = [record("fail/a/legacy", status="rejected", expected=True),
+                  record("pass/a/y", recorded_at="bbbbbbbbbbbb")]
+        code = self.run_gate([record("pass/a/y")], "--record", "--filter", "a/y",
+                             golden_records=legacy)
+        self.assertEqual(code, 0)
+        written = {row["fixture"]: row
+                   for row in corpus_records.read(self.golden)}
+        self.assertTrue(written["fail/a/legacy"]["expected_satisfied"])
+        self.assertEqual(written["fail/a/legacy"]["diagnostics"], [])
+
+    def test_the_gate_reports_the_goldens_reason_free_rows_at_load(self):
+        rows = [record("pass/a/x"),
+                record("fail/a/legacy", status="rejected", expected=True)]
+        self.assertEqual(self.run_gate(rows, golden_records=rows), 0)
+        text = self.output.getvalue()
+        self.assertIn("1 of 2 rows", text)
+        self.assertIn("no stored diagnostic line", text)
+        self.assertIn("LOST cannot see", text)
+
+    def test_the_verdict_document_carries_the_golden_reason_gap(self):
+        rows = [record("pass/a/x"),
+                record("fail/a/legacy", status="rejected", expected=True),
+                record("fail/a/other", status="rejected", expected=False,
+                       diagnostics=["moved"])]
+        self.assertEqual(self.run_gate(rows, golden_records=rows), 0)
+        document = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(document["golden_reason_gaps"], {"rows": 1, "of": 3})
+
+    def test_an_unreadable_golden_reports_no_reason_gap_rather_than_zero(self):
+        self.assertIsNone(corpus_records.reason_free_gap(self.golden))
+        self.golden.write_text("not a record line\n", encoding="utf-8")
+        self.assertIsNone(corpus_records.reason_free_gap(self.golden))
+
+    def test_every_verdict_states_the_worker_count_it_measured_at(self):
+        """Fixture outcomes themselves move with OMEGA_CORPUS_JOBS in some
+        selections, so the number is printed with the verdict rather than only
+        when the golden's count differs."""
+        rows = [record("pass/a/x")]
+        self.assertEqual(self.run_gate(rows, golden_records=rows,
+                                       environment={"OMEGA_CORPUS_JOBS": "3"}), 0)
+        self.assertIn("measured at jobs=3", self.output.getvalue())
+        self.output.seek(0)
+        self.output.truncate()
+        self.assertEqual(self.run_gate(rows, golden_records=rows), 0)
+        self.assertIn("measured at jobs=runner default", self.output.getvalue())
+
+
 class StampProvenance(unittest.TestCase):
     """`--record` stamps only a revision a reader of main can inspect.
 
@@ -1278,6 +1411,63 @@ class StampProvenance(unittest.TestCase):
         with patch.object(corpus_gate, "ROOT", self.root):
             problem = corpus_gate.stamp_provenance_problem(self.base[:12])
         self.assertIn("no published main ref", problem)
+
+    def record_gate(self, rows, *extra):
+        """A real `--record` run: the stamp and both of its guards are unpatched."""
+        argv = ["corpus_gate", "--runner", "unused", "--golden", str(self.golden),
+                "--json", str(self.json_path), *extra]
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner", return_value=rows), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", argv), \
+             contextlib.redirect_stderr(self.errors), \
+             contextlib.redirect_stdout(io.StringIO()):
+            return corpus_gate.main()
+
+    def test_the_dirty_test_sees_an_untracked_fixture(self):
+        with patch.object(corpus_gate, "ROOT", self.root):
+            self.assertEqual(corpus_gate.dirty_paths(), [])
+            fixture = self.root / "tests/omega/pass/a/x/main.omg"
+            fixture.parent.mkdir(parents=True)
+            fixture.write_text("machine Main { }\n", encoding="utf-8")
+            self.assertIn("tests/omega/pass/a/x/main.omg",
+                          corpus_gate.dirty_paths())
+
+    def test_an_untracked_fixture_records_under_the_dirty_marker(self):
+        """`--untracked-files=no` left a newly authored fixture invisible, so
+        the row was stamped for a revision where the fixture did not exist."""
+        self.git("checkout", "-q", "--detach", self.base)
+        fixture = self.root / "tests/omega/pass/a/x"
+        fixture.mkdir(parents=True)
+        (fixture / "main.omg").write_text("machine Main { }\n", encoding="utf-8")
+        self.assertEqual(self.record_gate([record("pass/a/x")], "--record"), 0)
+        row = corpus_records.read(self.golden)[0]
+        self.assertEqual(row["recorded_at"], self.base[:12] + "+wt")
+
+    def test_a_clean_stamp_refuses_a_fixture_that_is_not_in_its_tree(self):
+        self.git("checkout", "-q", "--detach", self.base)
+        self.assertEqual(self.record_gate([record("pass/a/absent")], "--record"), 2)
+        self.assertFalse(self.golden.exists())
+        message = self.errors.getvalue()
+        self.assertIn("--record refused", message)
+        self.assertIn("do not exist at", message)
+        self.assertIn(self.base[:12], message)
+        self.assertIn("pass/a/absent", message)
+
+    def test_a_fixture_tracked_at_the_stamped_revision_still_records(self):
+        """The absence guard must not block the legitimate case: a fixture that
+        exists where the row says it was measured records at a clean stamp."""
+        self.git("checkout", "-q", "--detach", self.base)
+        fixture = self.root / "tests/omega/pass/a/x"
+        fixture.mkdir(parents=True)
+        (fixture / "main.omg").write_text("machine Main { }\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "publish the fixture")
+        published = self.git("rev-parse", "HEAD")
+        self.git("update-ref", "refs/remotes/origin/main", published)
+        self.assertEqual(self.record_gate([record("pass/a/x")], "--record"), 0)
+        row = corpus_records.read(self.golden)[0]
+        self.assertEqual(row["recorded_at"], published[:12])
 
 
 if __name__ == "__main__":
