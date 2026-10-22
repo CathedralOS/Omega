@@ -194,10 +194,51 @@ pub(crate) fn has_observation_free_checked_closure(
     machine_symbol: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
 ) -> bool {
+    has_observation_free_closure(program, machine_symbol, operational, &[])
+}
+
+/// The observation judgment, extended through boundary requirements.
+///
+/// A boundary requirement is a declaration with no body, so the value a call
+/// to it returns is the ordinary checked body of the machine selected to
+/// satisfy it. Source checking has no selection row, so every declared
+/// satisfier must supply this closure: one satisfier that reads runtime
+/// observation or mutable storage keeps the requirement out of every
+/// specification, because the build could select it. Only this judgment reads
+/// a requirement's satisfiers; the effect, reach and crash walks keep exactly
+/// the promises they made before.
+///
+/// `requirements_in_flight` holds the requirements whose satisfiers are
+/// already being judged on this path; re-entering one has no finite evidence
+/// and fails closed rather than assuming the goal.
+fn has_observation_free_closure(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: symbols::SymbolHandle,
+    operational: &flow_effects::OperationalPlan,
+    requirements_in_flight: &[symbols::SymbolHandle],
+) -> bool {
+    if requirements_in_flight.contains(&machine_symbol) {
+        return false;
+    }
+    let mut path = requirements_in_flight.to_vec();
+    path.push(machine_symbol);
     each_reachable_checked_machine(program, machine_symbol, operational, |program, machine| {
-        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-            || !machine.body_is_present
-            || !program.machine_owned_data(machine).is_empty()
+        if !machine.supplies_checked_body() || !machine.body_is_present {
+            let satisfiers = requirement_satisfiers(program, machine.symbol);
+            if satisfiers.is_empty() {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "DENOTATION observation closure machine={:?} name={} is a requirement with no satisfier",
+                        machine.symbol, machine.name,
+                    );
+                }
+                return false;
+            }
+            return satisfiers.iter().all(|satisfier| {
+                has_observation_free_closure(program, *satisfier, operational, &path)
+            });
+        }
+        if !program.machine_owned_data(machine).is_empty()
             || !program
                 .service_reach_rows
                 .services(machine.service_reach_row)
@@ -516,6 +557,35 @@ pub(crate) fn has_no_crash_routes(
             })
         })
     })
+}
+
+/// The machines that declare this boundary requirement satisfied. A call to a
+/// requirement denotes whichever satisfier the build selects, so a source-level
+/// judgment that has no selection row must account for all of them. The
+/// denotational-call closure and the machine progress summary consult this same
+/// query, so both layers agree on what a requirement denotes.
+pub fn requirement_satisfiers(
+    program: &dyn crate::CheckingInput,
+    requirement: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            program
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| {
+                    typed_trees::machine::resolve_satisfied_declaration(
+                        program.typed_program(),
+                        machine,
+                        conformance,
+                    )
+                    .is_some_and(|satisfied| satisfied.symbol() == requirement)
+                })
+        })
+        .map(|machine| machine.symbol)
+        .collect()
 }
 
 fn complete_family_members<'program>(

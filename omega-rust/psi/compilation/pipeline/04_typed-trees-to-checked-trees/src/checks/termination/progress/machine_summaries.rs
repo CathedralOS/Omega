@@ -260,6 +260,32 @@ pub(crate) fn selected_call_summary<'a>(
     let target_machine = program
         .machine_by_symbol(target_symbol)
         .or_else(|| validation::find_state(program, target_symbol).map(|(machine, _)| machine))?;
+    // A boundary requirement is a declaration with no body: a call to it runs
+    // whichever satisfier the build selects. Source checking has no selection
+    // row, so the requirement terminates unconditionally only when every
+    // declared satisfier carries an unconditional checked summary. A satisfier
+    // that suspends, blocks, crashes or is external keeps the requirement's own
+    // published promise, which is the promise an unsatisfied boundary call has.
+    if !target_machine.body_is_present
+        && target_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+    {
+        let satisfiers = validation::requirement_satisfiers(program, target_machine.symbol);
+        if !satisfiers.is_empty()
+            && satisfiers.iter().all(|satisfier| {
+                summaries.iter().any(|summary| {
+                    summary.machine == *satisfier
+                        && matches!(
+                            &summary.guarantee,
+                            TerminationGuarantee::Terminates { premises } if premises.is_empty()
+                        )
+                })
+            })
+        {
+            return Some(SelectedCallProgress {
+                guarantee: &CLOSED_VALUE_TERMINATION,
+            });
+        }
+    }
     if target_machine.target_family_interface {
         let summary = program
             .machine_position_by_symbol(target_machine.symbol)

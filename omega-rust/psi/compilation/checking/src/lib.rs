@@ -224,7 +224,8 @@ pub use crate::machine_calls::calls::{
 };
 pub use crate::machine_calls::denotational_calls::{
     admit_specification_calls, checked_value_call_candidate, expression_values_have_call_identity,
-    normal_return_call_candidate, selected_operator_has_closed_value_denotation,
+    normal_return_call_candidate, requirement_satisfiers,
+    selected_operator_has_closed_value_denotation,
 };
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
