@@ -1829,7 +1829,14 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
-        std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
+        let recorded = if let SelectedCallContract::Concrete(callee, _) = &owner
+            && let Some(constructor) = returned_record_term(program, callee, parameters, actuals)
+        {
+            constructor
+        } else {
+            captured
+        };
+        std::sync::Arc::make_mut(&mut self.normal_results).push((expression, recorded));
         for (left, right) in equations {
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));
@@ -1974,4 +1981,54 @@ fn program_expression_is_live(
     expression: ExpressionHandle,
 ) -> bool {
     expression.is_valid() && program.expression_table.expression_is_valid(expression)
+}
+
+/// A call whose body is one record literal records that constructor. Field
+/// projections of the result use the substituted fields. A body that calls
+/// again stays a captured occurrence.
+fn returned_record_term(
+    program: &dyn crate::CheckingInput,
+    callee: &typed_trees::machine::Machine,
+    parameters: &[typed_trees::signature::StateParameter],
+    actuals: &[StructuralTerm],
+) -> Option<StructuralTerm> {
+    if parameters.len() != actuals.len() {
+        return None;
+    }
+    let state = program.machine_states(callee).first()?;
+    let statements: Vec<_> = program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+        .collect();
+    let [(_, statement)] = statements.as_slice() else {
+        return None;
+    };
+    let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+        return None;
+    };
+    let mut handles = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, *expression, &mut handles);
+    if handles.into_iter().any(|handle| {
+        matches!(
+            program.expression_table.expression(handle),
+            ExpressionNode::Call(_)
+        )
+    }) {
+        return None;
+    }
+    let environment = parameters
+        .iter()
+        .zip(actuals)
+        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term.clone()))
+        .collect::<Vec<_>>();
+    let judge = StructuralJudge::from_runtime_requires(program, callee, &[]);
+    let paths = judge.normal_return_paths(
+        *expression,
+        &environment,
+        (callee, state, state.return_type),
+    )?;
+    let [path] = paths.as_slice() else {
+        return None;
+    };
+    matches!(path.value, StructuralTerm::Constructor { .. }).then(|| path.value.clone())
 }

@@ -247,7 +247,16 @@ fn structural_requirement_at_prefix(
                     .collect::<Vec<_>>()
             );
         }
-        return false;
+        return borrowed_match_join_records_selected_place(
+            program,
+            machine,
+            state,
+            statement_index,
+            in_transition_target,
+            parameters,
+            arguments,
+            expression,
+        );
     }
     if super::struct_trace() {
         eprintln!(
@@ -337,7 +346,591 @@ fn structural_requirement_at_prefix(
             diagnostics.len()
         );
     }
-    recognized.is_some() && diagnostics.is_empty() && requirement.seen && requirement.proven
+    if recognized.is_some() && diagnostics.is_empty() && requirement.seen && requirement.proven {
+        return true;
+    }
+    // The callee prefix only has the formal. A borrowed match records the
+    // selected referent, and a later projection reads that record. Every
+    // direct caller supplies the referent its actual completed.
+    borrowed_match_join_records_selected_place(
+        program,
+        machine,
+        state,
+        statement_index,
+        in_transition_target,
+        parameters,
+        arguments,
+        expression,
+    )
+}
+
+/// A borrowed match join records the selected referent. Projection reads of
+/// that join use the record, including when the arm is a reference parameter
+/// whose caller completed the value. Each direct caller is one scenario.
+/// Target-family bodies share the interface call. A caller the scan cannot
+/// see leaves the obligation unproved.
+fn borrowed_match_join_records_selected_place(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    in_transition_target: bool,
+    parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> bool {
+    if parameters.len() != arguments.len() {
+        return false;
+    }
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return false;
+    }
+    if !expression_contains_match(program, expression)
+        && !arguments
+            .iter()
+            .any(|argument| expression_contains_match(program, *argument))
+        && !machine_contains_match(program, machine)
+    {
+        return false;
+    }
+    let Some(state) = program.state_in_machine(machine, state_symbol) else {
+        return false;
+    };
+    let Some(entry) = program.machine_states(machine).first() else {
+        return false;
+    };
+    let Some(scenarios) = state_scenarios(program, machine, state, &mut Vec::new()) else {
+        if super::struct_trace() {
+            eprintln!(
+                "JOIN no scenarios machine={} goal={}",
+                machine.name,
+                program.expression_table.display_name(expression)
+            );
+        }
+        return false;
+    };
+    if scenarios.is_empty() {
+        return false;
+    };
+    scenarios.iter().all(|scenario| {
+        let mut requires = if state.symbol == entry.symbol {
+            machine_requires_facts(program, machine)
+        } else {
+            Vec::new()
+        };
+        requires.extend(
+            crate::proof_contracts::proof_facts::contract_expression_facts(
+                program,
+                program.state_contracts(state).iter(),
+                typed_trees::signature::SignatureContractKind::Requires,
+            ),
+        );
+        let mut judge =
+            StructuralJudge::from_runtime_state_requires(program, machine, state, &requires);
+        for (name, term) in scenario {
+            judge.intake_equation(StructuralTerm::Variable(name.clone()), term.clone(), 0);
+        }
+        let classification = crate::proof_only_classification(program);
+        let mut diagnostics = Vec::new();
+        let mut goal = SelectedReferentGoal {
+            state: state.symbol,
+            statement_index,
+            in_transition_target,
+            parameters,
+            arguments,
+            expression,
+            operator: binary.operator,
+            scenario: scenario.clone(),
+            proven: false,
+        };
+        let recognized = recognize_structural_state_prefix(
+            program,
+            machine,
+            state,
+            &judge,
+            &classification,
+            &mut diagnostics,
+            &mut goal,
+        );
+        if super::struct_trace() {
+            eprintln!(
+                "JOIN machine={} goal={} recognized={} diagnostics={} proven={} scenario={}",
+                machine.name,
+                program.expression_table.display_name(expression),
+                recognized.is_some(),
+                diagnostics.len(),
+                goal.proven,
+                scenario
+                    .iter()
+                    .map(|(name, term)| format!("{name}:{}", term_kind(term)))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        recognized.is_some() && diagnostics.is_empty() && goal.proven
+    })
+}
+
+fn term_kind(term: &StructuralTerm) -> &'static str {
+    match term {
+        StructuralTerm::Constructor { .. } => "constructor",
+        StructuralTerm::Variable(_) => "variable",
+        StructuralTerm::ObservedValue { .. } => "observed",
+        StructuralTerm::Projection { .. } => "projection",
+        StructuralTerm::Integer(_) => "integer",
+        StructuralTerm::CapturedValue { .. } => "captured",
+        StructuralTerm::Opaque(_) => "opaque",
+        _ => "other",
+    }
+}
+
+fn machine_contains_match(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
+    program.machine_states(machine).iter().any(|state| {
+        program
+            .statement_table
+            .indexed_statements(state.statement_nodes)
+            .any(|(_, statement)| {
+                let mut handles = Vec::new();
+                crate::expression_traversal::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut handles,
+                );
+                handles.into_iter().any(|handle| {
+                    matches!(
+                        program.expression_table.expression(handle),
+                        ExpressionNode::Match(_)
+                    )
+                })
+            })
+    })
+}
+
+struct SelectedReferentGoal<'program> {
+    state: SymbolHandle,
+    statement_index: usize,
+    in_transition_target: bool,
+    parameters: &'program [typed_trees::signature::StateParameter],
+    arguments: &'program [ExpressionHandle],
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    scenario: Vec<(String, StructuralTerm)>,
+    proven: bool,
+}
+
+impl super::structural_prefix::StructuralPrefixVisitor for SelectedReferentGoal<'_> {
+    fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
+        super::structural_prefix::StructuralPrefixSite {
+            state: self.state,
+            statement_index: self.statement_index,
+            in_transition_target: self.in_transition_target,
+        }
+    }
+
+    fn visit<'program>(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        judge: &StructuralJudge<'program>,
+        environment: &[(String, StructuralTerm)],
+        _hypotheses: &[(String, StructuralTerm)],
+        _equations: &[(StructuralTerm, StructuralTerm)],
+        _guarantees: &CitationFacts,
+    ) {
+        let Some(state) = program.state_in_machine(machine, self.state) else {
+            return;
+        };
+        let Some(binary) = program.expression_table.binary_node(self.expression) else {
+            return;
+        };
+        let environment = overlay_environment(environment, &self.scenario);
+        let scope = (machine, state, state.return_type);
+        let mut paths = Vec::new();
+        for argument in self.arguments {
+            let Some(argument_paths) = judge.normal_return_paths(*argument, &environment, scope)
+            else {
+                return;
+            };
+            if argument_paths.is_empty() {
+                return;
+            }
+            paths.push(argument_paths);
+        }
+        self.proven = argument_bindings_prove(
+            judge,
+            scope,
+            self.parameters,
+            &paths,
+            0,
+            &mut Vec::new(),
+            &environment,
+            binary.left,
+            binary.right,
+            self.operator,
+        );
+    }
+}
+
+fn argument_bindings_prove<'program>(
+    judge: &StructuralJudge<'program>,
+    scope: (&Machine, &State, typed_trees::types::TypeReferenceHandle),
+    parameters: &[typed_trees::signature::StateParameter],
+    paths: &[Vec<super::structural_judgment::normal_returns::NormalReturnPath<'program>>],
+    index: usize,
+    binding: &mut Vec<(String, StructuralTerm)>,
+    environment: &[(String, StructuralTerm)],
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    operator: BinaryOperator,
+) -> bool {
+    if index == parameters.len() {
+        let environment = overlay_environment(environment, binding);
+        let Some(left_paths) = judge.normal_return_paths(left, &environment, scope) else {
+            return false;
+        };
+        let Some(right_paths) = judge.normal_return_paths(right, &environment, scope) else {
+            return false;
+        };
+        let [right] = right_paths.as_slice() else {
+            return false;
+        };
+        return !left_paths.is_empty()
+            && left_paths.iter().all(|left| {
+                let verdict = left.judge.judge_equation(
+                    left.judge.resolve(left.value.clone()),
+                    left.judge.resolve(right.value.clone()),
+                    0,
+                );
+                match operator {
+                    BinaryOperator::Equal => matches!(verdict, StructuralJudgment::Proven),
+                    BinaryOperator::NotEqual => matches!(verdict, StructuralJudgment::Refuted),
+                    _ => false,
+                }
+            });
+    }
+    paths.get(index).is_some_and(|argument_paths| {
+        argument_paths.iter().all(|path| {
+            binding.push((
+                parameters[index].name.as_str().to_owned(),
+                path.value.clone(),
+            ));
+            let proven = argument_bindings_prove(
+                &path.judge,
+                scope,
+                parameters,
+                paths,
+                index + 1,
+                binding,
+                environment,
+                left,
+                right,
+                operator,
+            );
+            binding.pop();
+            proven
+        })
+    })
+}
+
+fn expression_contains_match(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut handles = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, expression, &mut handles);
+    handles.into_iter().any(|handle| {
+        matches!(
+            program.expression_table.expression(handle),
+            ExpressionNode::Match(_)
+        )
+    })
+}
+
+struct SelectedReferentCall {
+    caller: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    arguments: Vec<ExpressionHandle>,
+}
+
+fn state_scenarios(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    stack: &mut Vec<SymbolHandle>,
+) -> Option<Vec<Vec<(String, StructuralTerm)>>> {
+    let entry = program.machine_states(machine).first()?;
+    if state.symbol == entry.symbol {
+        return parameter_scenarios(program, machine, stack);
+    }
+    let parameters = program.state_parameters(state);
+    if parameters.is_empty() {
+        return Some(vec![Vec::new()]);
+    }
+    if stack.contains(&state.symbol) {
+        return None;
+    }
+    stack.push(state.symbol);
+    let arrivals = transition_arrivals(program, machine, state);
+    if arrivals.is_empty() {
+        stack.pop();
+        return None;
+    }
+    let mut scenarios = Vec::new();
+    for arrival in &arrivals {
+        let source = program.state_in_machine(machine, arrival.state)?;
+        let source_scenarios = state_scenarios(program, machine, source, stack)?;
+        if arrival.arguments.len() != parameters.len() {
+            stack.pop();
+            return None;
+        }
+        for overlay in &source_scenarios {
+            let terms = capture_argument_terms(program, machine, arrival, overlay)?;
+            scenarios.push(
+                parameters
+                    .iter()
+                    .zip(terms)
+                    .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
+                    .collect(),
+            );
+        }
+    }
+    stack.pop();
+    Some(scenarios)
+}
+
+fn transition_arrivals(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> Vec<SelectedReferentCall> {
+    let mut arrivals = Vec::new();
+    for source in program.machine_states(machine) {
+        for (index, statement) in program
+            .statement_table
+            .indexed_statements(source.statement_nodes)
+        {
+            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            let TransitionTargetNode::Named {
+                path, arguments, ..
+            } = program.statement_table.transition_target(transition.target)
+            else {
+                continue;
+            };
+            if path.symbol != state.symbol {
+                continue;
+            }
+            arrivals.push(SelectedReferentCall {
+                caller: machine.symbol,
+                state: source.symbol,
+                statement_index: index,
+                arguments: program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .to_vec(),
+            });
+        }
+    }
+    arrivals
+}
+
+fn parameter_scenarios(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    stack: &mut Vec<SymbolHandle>,
+) -> Option<Vec<Vec<(String, StructuralTerm)>>> {
+    let entry = program.machine_states(machine).first()?;
+    let parameters = program.state_parameters(entry);
+    if parameters.is_empty() {
+        return Some(vec![Vec::new()]);
+    }
+    if stack.contains(&machine.symbol) {
+        return None;
+    }
+    stack.push(machine.symbol);
+    let calls = selected_referent_calls(program, machine);
+    if calls.is_empty() {
+        stack.pop();
+        return None;
+    }
+    let mut scenarios = Vec::new();
+    for call in &calls {
+        let caller = program.machine(call.caller)?;
+        let caller_scenarios = parameter_scenarios(program, caller, stack)?;
+        if call.arguments.len() != parameters.len() {
+            stack.pop();
+            return None;
+        }
+        for overlay in &caller_scenarios {
+            let terms = capture_argument_terms(program, caller, call, overlay)?;
+            scenarios.push(
+                parameters
+                    .iter()
+                    .zip(terms)
+                    .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
+                    .collect(),
+            );
+        }
+    }
+    stack.pop();
+    Some(scenarios)
+}
+
+fn selected_referent_calls(
+    program: &dyn crate::CheckingInput,
+    callee: &Machine,
+) -> Vec<SelectedReferentCall> {
+    let mut calls = Vec::new();
+    for caller in program.machines() {
+        for state in program.machine_states(caller) {
+            for (index, _) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+                    program, caller, state, index,
+                ) {
+                    if site.is_internal_state_transfer(program, caller.symbol)
+                        || !call_targets_machine(program, &site, callee)
+                    {
+                        continue;
+                    }
+                    calls.push(SelectedReferentCall {
+                        caller: caller.symbol,
+                        state: state.symbol,
+                        statement_index: index,
+                        arguments: crate::machine_calls::calls::call_site_argument_expressions(
+                            program, &site,
+                        )
+                        .to_vec(),
+                    });
+                }
+            }
+        }
+    }
+    calls
+}
+
+fn call_targets_machine(
+    program: &dyn crate::CheckingInput,
+    site: &crate::CallSite<'_>,
+    callee: &Machine,
+) -> bool {
+    let target = site.target_symbol(program);
+    if target == callee.symbol
+        || program
+            .machine_states(callee)
+            .first()
+            .is_some_and(|state| state.symbol == target)
+    {
+        return true;
+    }
+    let owner = match program.symbols.get(target).kind {
+        symbols::SymbolKind::State => program.symbols.get(target).parent,
+        _ => target,
+    };
+    program
+        .machine(owner)
+        .and_then(|interface| {
+            crate::machine_calls::calls::target_family_members(program, interface)
+        })
+        .is_some_and(|members| members.iter().any(|member| member.machine == callee.symbol))
+}
+
+fn capture_argument_terms(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    call: &SelectedReferentCall,
+    overlay: &[(String, StructuralTerm)],
+) -> Option<Vec<StructuralTerm>> {
+    let state = program.state_in_machine(caller, call.state)?;
+    let mut captured = CapturedArguments {
+        state: call.state,
+        statement_index: call.statement_index,
+        arguments: call.arguments.clone(),
+        overlay: overlay.to_vec(),
+        terms: Vec::new(),
+        complete: false,
+    };
+    super::structural_prefix::observe_runtime_state_prefix(program, caller, state, &mut captured)?;
+    captured.complete.then_some(captured.terms)
+}
+
+struct CapturedArguments {
+    state: SymbolHandle,
+    statement_index: usize,
+    arguments: Vec<ExpressionHandle>,
+    overlay: Vec<(String, StructuralTerm)>,
+    terms: Vec<StructuralTerm>,
+    complete: bool,
+}
+
+impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments {
+    fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
+        super::structural_prefix::StructuralPrefixSite {
+            state: self.state,
+            statement_index: self.statement_index,
+            in_transition_target: false,
+        }
+    }
+
+    fn visit<'program>(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        judge: &StructuralJudge<'program>,
+        environment: &[(String, StructuralTerm)],
+        _hypotheses: &[(String, StructuralTerm)],
+        _equations: &[(StructuralTerm, StructuralTerm)],
+        _guarantees: &super::citations::CitationFacts,
+    ) {
+        let Some(state) = program.state_in_machine(machine, self.state) else {
+            return;
+        };
+        let environment = overlay_environment(environment, &self.overlay);
+        let mut terms = Vec::new();
+        for argument in &self.arguments {
+            let Some(paths) = judge.normal_return_paths(
+                *argument,
+                &environment,
+                (machine, state, state.return_type),
+            ) else {
+                return;
+            };
+            let [path] = paths.as_slice() else {
+                return;
+            };
+            terms.push(path.value.clone());
+        }
+        self.terms = terms;
+        self.complete = true;
+    }
+}
+
+fn overlay_environment(
+    base: &[(String, StructuralTerm)],
+    overlay: &[(String, StructuralTerm)],
+) -> Vec<(String, StructuralTerm)> {
+    let mut environment = base.to_vec();
+    for (name, term) in overlay {
+        if let Some(slot) = environment
+            .iter_mut()
+            .find(|(existing, _)| existing == name)
+        {
+            slot.1 = term.clone();
+        } else {
+            environment.push((name.clone(), term.clone()));
+        }
+    }
+    environment
 }
 
 pub(super) struct CallRequirement<'program> {

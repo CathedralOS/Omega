@@ -1,0 +1,40 @@
+// A borrowed match join records the selected place, and a later projection read uses that recorded referent. The consumer reads the joined field.
+// Place: match_join.
+// The twin requires the other field.
+
+data Pair { kept: i64; other: i64; }
+
+machine choose() -> bool
+ensures result == true
+{
+    true
+}
+
+machine read_field(place: &Pair) -> i64
+requires place.other == 17
+{
+    place.other
+}
+
+machine main() crashes Trap {
+    let chosen: Pair = match true {
+        true -> Pair { kept: 17, other: 5 }
+        false -> Pair { kept: 17, other: 5 }
+    };
+    let spare: Pair = match true {
+        true -> Pair { kept: 0, other: 8 }
+        false -> Pair { kept: 0, other: 8 }
+    };
+    let joined: &Pair = match choose() {
+        true -> &chosen
+        false -> &spare
+    };
+    let observed: i64 = read_field(joined);
+    transition observed == 17 {
+        true -> done()
+        false -> wrong()
+    }
+
+    state done() {}
+    state wrong() { crash Trap; }
+}
