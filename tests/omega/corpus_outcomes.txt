@@ -7156,6 +7156,8 @@ fail/float/field_range_conversion_after_invalid_write rejected 494ms expected @9
 fail/float/finite_constructor_requires_operand_proof rejected 492ms expected @9c4d1c444502
 fail/float/finite_result_requires_proof rejected 487ms expected @9c4d1c444502
 fail/float/finite_store_invalidated rejected 464ms expected @9c4d1c444502
+fail/float/float_computation_route_mixed_arith_rejected rejected 2002ms expected @bea582d28f12+wt
+	builtin `+` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/float_guard_missing_upper_bound rejected 330ms expected @cc35a4f0d368+wt
 fail/float/float_range_field_store_outside_range rejected 223ms expected @71a3b689b85d+wt
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 34ms expected @9c4d1c444502
@@ -13174,6 +13176,7 @@ pass/float/f32_per_operation_rounding_exit checked 46604ms check-target:macos_ar
 pass/float/finite_core_domain_range_discharge checked 27869ms check-target:macos_arm64 @9c4d1c444502
 pass/float/finite_signature_transport_exit checked 27899ms check-target:macos_arm64 @9c4d1c444502
 pass/float/float_catalog_calls checked 17848ms @5041ef1af684+wt
+pass/float/float_computation_route_exit checked 10726ms check-target:macos_arm64 @bea582d28f12+wt
 pass/float/float_match_effects checked 18708ms @5041ef1af684+wt
 pass/float/float_match_patterns checked 18887ms @5041ef1af684+wt
 pass/float/float_ops_surface checked 18956ms @5041ef1af684+wt

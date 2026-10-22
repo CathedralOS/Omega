@@ -2874,21 +2874,26 @@ crash and native exit behavior.
     **X86-FMA-PROVIDER-TRANSPORT**. With
     `omega::language::core::float_operations` imported, f32/f64 arithmetic
     and comparison in local, field and guard positions run natively and in
-    Terminal on macOS ARM64. Comparison builtins now admit: the six IEEE
+    Terminal on macOS ARM64. Comparison builtins admit: the six IEEE
     relations ride `IeeeFloatArithmeticOperation::Compare` ordinals 61-66
-    with x86-64 and AArch64 selected forms and the host evaluator, so the
-    pending canary clears its missing `Float::equal` boundary target and
-    stops at the pre-existing program-entry acceptance wall that also
-    blocks every entry-bound fixture on this host. That pending fixture
-    depends on std, so the wall is an unaccepted `WindowsX86_64Application`
-    binding and is not this operator defect. The std-free witness
+    with x86-64 and AArch64 selected forms and the host evaluator, so a
+    comparison keeps the declared operator route with or without the
+    `float_operations` import. The std-free witness
     `samples/cli/facts/float_comparison_route` keeps
     `let mut equal: bool = left == right` for `f64` 212.0 and 2.0, imports
-    no `float_operations`, and binds `ProgramEntry` with no `Build::depend`.
-    On Windows at `30fbbc91026`, `omega run --both` reports native exit 0
-    and interpreter exit 0. The comparison already follows the declared
-    operator route. Preserve that selection; no spelling-based fallback.
-    The pending matrix still does not execute.
+    no `float_operations`, and binds `ProgramEntry` with no `Build::depend`;
+    its nine transport places and nine value twins are complete, and every
+    place's retained Terminal Psi carries `IeeeFloatCompare { comparison:
+    Equal }`. Preserve that selection; no spelling-based fallback. The
+    reduced float-computation matrix (copy, integer comparison, float
+    arithmetic, float ordered comparison, float equality) now routes with no
+    import and is pinned as `pass/float/float_computation_route_exit` with
+    the mixed-format control
+    `fail/float/float_computation_route_mixed_arith_rejected`; the former
+    `pending/arithmetic/float_computation_no_route` reproduction is
+    promoted, so no pending matrix remains. Executing that matrix natively
+    on the authored four hosted targets still needs a host that can run one
+    of them.
   - **Receiver-bearing requirements.** Complete a member-call witness through
     borrowed-field argument planning, provider signature refinement and native
     execution, keeping exact receiver/argument correspondence (no blanket
@@ -2899,8 +2904,8 @@ crash and native exit behavior.
     does not retain the Build's provider choice; this closes with
     **PROVIDER-SELECTION-AFTER-TERMINAL**.
 
-  Acceptance: the `pending/arithmetic/float_computation_no_route` matrix
-  executes natively.
+  Acceptance: the `pass/float/float_computation_route_exit` matrix executes
+  natively on a host that can run one of its authored hosted targets.
   Recover and execute the deleted customers from `089bd3290c`:
   `specialized_{boundary,fixed}_operator_physical_custody` and
   `specialized_{structural_fixed,mixed_structural_fixed}_operator_hosted_native`,
