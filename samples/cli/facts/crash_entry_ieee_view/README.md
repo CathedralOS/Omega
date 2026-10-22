@@ -26,10 +26,12 @@ The call-result place returns the viewed `f32` from a machine whose body is that
 
 Pinned corpus fixtures are `pass/facts/crash_entry_ieee_view_<place>_exit`, `fail/facts/crash_entry_ieee_view_<place>_rejected`, and `fail/facts/crash_entry_ieee_view_<place>_zero_rejected`.
 
+The local place also pins its writable carrier, because the view route reads the shared entry-provenance local carrier rule: `pass/facts/crash_entry_ieee_view_local_writable_exit` records the same observation in a writable local that is never written, and `fail/facts/crash_entry_ieee_view_local_written_rejected` overwrites that local with `0.0` before the call, so the guard is live and the route stays uncovered (`at statement 3 call 0`).
+
 ## Requirements and Evidence
 
 - **Establishment:** `requires value == 1065353216` (or `packet.bits` / `ONE_BITS` / the successor state's same equality) establishes the entry integer before `&value as &f32` observes it.
-- **Identity and lifetime:** the view records the IEEE value of the entry integer's bits. The crash guard reads that record.
+- **Identity and lifetime:** the view records the IEEE value of the entry integer's bits. The crash guard reads that record. A writable local keeps that record only while nothing between its declaration and the read can overwrite it or lend it exclusive access: the write window the shared entry-provenance law applies, witnessed by the writable and written local pins.
 - **Composition:** the same sentence is the local copy, the `Packet.bits` field, the direct parameter, the returned parameter, the match join, the const name, the successor state, the forwarding machine, and the four target-qualified bodies.
 - **Soundness boundaries:** the recast reinterprets bits. It does not convert the integer numerically. A missing proof or a zero bit pattern keeps the Trap route.
 - **Remaining open under `CRASH-CONTRACT`:** nonempty-path lengths and policy casts remain on `TASKS.md`.

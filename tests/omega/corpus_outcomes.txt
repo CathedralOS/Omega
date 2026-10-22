@@ -2997,6 +2997,8 @@ fail/facts/crash_entry_ieee_view_field_zero_rejected rejected 4014ms expected @e
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_local_rejected rejected 4473ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_ieee_view_local_written_rejected rejected 19922ms expected @1bd52dbc0ce5+wt
+	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_local_zero_rejected rejected 4350ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_match_join_rejected rejected 4209ms expected @e21fad3d9676+wt
@@ -11569,6 +11571,7 @@ pass/facts/crash_entry_ieee_view_call_result_exit checked 6431ms check-target:ma
 pass/facts/crash_entry_ieee_view_const_name_exit checked 6372ms check-target:macos_arm64 @e21fad3d9676+wt
 pass/facts/crash_entry_ieee_view_field_exit checked 6462ms check-target:macos_arm64 @e21fad3d9676+wt
 pass/facts/crash_entry_ieee_view_local_exit checked 6413ms check-target:macos_arm64 @e21fad3d9676+wt
+pass/facts/crash_entry_ieee_view_local_writable_exit checked 23800ms check-target:macos_arm64 @1bd52dbc0ce5+wt
 pass/facts/crash_entry_ieee_view_match_join_exit checked 6451ms check-target:macos_arm64 @e21fad3d9676+wt
 pass/facts/crash_entry_ieee_view_other_machine_exit checked 6187ms check-target:macos_arm64 @e21fad3d9676+wt
 pass/facts/crash_entry_ieee_view_other_state_exit checked 6225ms check-target:macos_arm64 @e21fad3d9676+wt
