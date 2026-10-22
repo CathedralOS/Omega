@@ -2004,9 +2004,9 @@ defines the complete product bar.
   **CRASH-CONTRACT** and never invent a Crash edge.
 
   Remaining: `pass/core/numeric_*` reach all 170 public machines of
-  `source/library/core/numeric_conversion.omg` but run natively and
-  interpreted on macOS ARM64 only; run them on Linux x86-64 and Windows x86-64
-  and record those goldens. Preserve exact coercion under every policy:
+  `source/library/core/numeric_conversion.omg`. The 16 fixtures already have
+  Windows rows, and `numeric_widening_preserves_values` exits 0 on both
+  Windows engines. Linux x86-64 rows remain unmeasured on this host. Preserve exact coercion under every policy:
   `as` requires unchanged denotation and representability; wrapping and
   clamping belong to the named machines of `core/numeric_conversion.omg`.
   Float policy/conversion customers belong to **OPERATOR-BOUNDARY-CALLS** /
