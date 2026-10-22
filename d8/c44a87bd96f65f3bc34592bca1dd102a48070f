@@ -1,0 +1,4 @@
+owner: cursor / match-selective-lowering
+provenance: agent=cursor model=grok-4.7-medium effort=medium
+ticket: 25289d9f031c4e58adeb57553e97c7ed
+published_utc: 2026-10-22T10:48:23.061227+00:00
