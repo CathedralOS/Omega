@@ -73,6 +73,26 @@ Producer: opt-level 1 `omega`, target `macos_arm64`, base `cc2f948d148`.
   0 lost, 0 gained. The nine fail twins' stored diagnostic text moved before
   this change; this row neither caused nor regressed it.
 
+### Re-verified at base 9ff26a87021
+
+The same checks re-measured at base
+`9ff26a870215d1a351e830cacd1255a852e3dd1e` with the factsr1 wave's opt-level 1
+`omega` and a corpus runner linked from this worktree at the same base; host
+`macos_arm64`. No compiler repair was needed and no golden row moved.
+
+- Root plus nine places, scratch copies, `omega run --both`: ten
+  `native exit 0` rows, each with `interp exit: 0`, zero traps.
+- `python3 tools/sample_native_gate.py --facts --filter
+  cli/facts/as_slice_views,cli/facts/borrowed_projection_cleanup --cli
+  <omega> --jobs 2`: 20/20 samples meet their documented oracle (10 here:
+  root + nine places), 27/27 intended-invalid controls match their authored
+  rejection (9 here: the nine `invalid/` twins).
+- `python3 tools/corpus_gate.py --filter borrowed_projection_cleanup_through_`
+  (jobs=4): 18 fixtures — nine `checked`, nine `rejected` at the pinned
+  fragment; 0 rejected without their expected fragment, 0 fail fixtures that
+  did not reject, 0 lost successes, 0 structural moves (the timed-faster rows
+  are jobs=4/host-load noise).
+
 ### Discrimination
 
 The recorded exit 0 is causal, not inert. Corrupting only the projection's own
