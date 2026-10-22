@@ -5286,6 +5286,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     `samples/cli/facts/generic_comparison_body/local` exits 0 on both engines,
     and the caller reads `direct == false`. Its twin changes only that body
     to `true` and rejects. The other eight places of that sentence remain open.
+    A call precondition that is a parameter projection is recorded on the
+    call: `samples/cli/facts/projection_call_premise` exits 0 on both engines
+    through all nine places, and the caller reads `direct == true`. Each twin
+    changes only that projected value from `true` to `false` and rejects the
+    missing projection fact.
     Keep
     `body_bearing_comparison/returned_boolean`: a body-wide Boolean result
     joins every normal exit, named-state destination and selected target body;

@@ -4,7 +4,9 @@
 //! binding owner. Each caller supplies its own admitted result identity and
 //! establishes the selected entry premises before importing any equation.
 //! Body-wide Boolean constants join every structurally reachable normal exit,
-//! including named states and selected target bodies. This is not execution or
+//! including named states and selected target bodies. A returned parameter
+//! projection that is the selected requires fact records true for an admitted
+//! call; that equation does not establish the premise. This is not execution or
 //! caller-actual specialization: an unknown returned value supplies no equation,
 //! and storage effects remain the call-frame owner's responsibility.
 
@@ -37,6 +39,123 @@ fn captured_boolean_producer(
             .map(|(_, value)| *value),
         _ => None,
     }
+}
+
+/// A joined exit is either a literal or call the constant walker already
+/// understands, or a projection that is itself the selected requires fact.
+enum RecordedBooleanExit {
+    Expression(ExpressionHandle),
+    ProjectionPremise,
+}
+
+fn followed_exit(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+    captured_values: &[(SymbolHandle, ExpressionHandle)],
+) -> ExpressionHandle {
+    for _ in 0..32 {
+        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+            break;
+        };
+        if path.symbol != path.head_symbol {
+            break;
+        }
+        let Some((_, value)) = captured_values
+            .iter()
+            .find(|(symbol, _)| *symbol == path.symbol)
+        else {
+            break;
+        };
+        expression = *value;
+    }
+    expression
+}
+
+fn term_is_parameter_projection(term: &StructuralTerm) -> bool {
+    match term {
+        StructuralTerm::Projection { subject, .. } => match subject.as_ref() {
+            StructuralTerm::Variable(_) => true,
+            nested => term_is_parameter_projection(nested),
+        },
+        _ => false,
+    }
+}
+
+/// The exit denotes a parameter projection that is one whole requires fact of
+/// this state. An admitted call has established that fact, so the returned
+/// boolean is true. A different field, a saved literal, or a conjunct is not
+/// this fact.
+fn projection_premise_exit(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    captured_values: &[(SymbolHandle, ExpressionHandle)],
+) -> bool {
+    let expression = followed_exit(program, expression, captured_values);
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_)
+    ) {
+        return false;
+    }
+    let parameters = program.state_parameters(state);
+    let Some(term) = super::super::structural_terms::structural_term(
+        program,
+        None,
+        Some((state.symbol, parameters)),
+        expression,
+        None,
+    ) else {
+        return false;
+    };
+    if !term_is_parameter_projection(&term) {
+        return false;
+    }
+    let owner = SelectedCallContract::Concrete(machine, state);
+    owner_contracts(program, &owner)
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| {
+            let ProofFact::Expression(required) = fact else {
+                return false;
+            };
+            super::super::structural_terms::structural_term(
+                program,
+                None,
+                Some((state.symbol, parameters)),
+                *required,
+                None,
+            )
+            .is_some_and(|required| required == term)
+        })
+}
+
+fn captured_projection(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    captured_values: &[(SymbolHandle, ExpressionHandle)],
+) -> Option<ExpressionHandle> {
+    let expression = followed_exit(program, expression, captured_values);
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_)
+    )
+    .then_some(expression)
+}
+
+fn recorded_boolean_exit(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    captured_values: &[(SymbolHandle, ExpressionHandle)],
+) -> Option<RecordedBooleanExit> {
+    if projection_premise_exit(program, machine, state, expression, captured_values) {
+        return Some(RecordedBooleanExit::ProjectionPremise);
+    }
+    captured_boolean_producer(program, expression, captured_values)
+        .map(RecordedBooleanExit::Expression)
 }
 
 /// Exact selected carrier and denotational owner, without importing conclusions.
@@ -415,7 +534,9 @@ impl StructuralJudge<'_> {
     }
 
     /// A body-wide constant does not depend on entry premises this judge could
-    /// not see. Formation still owes those premises before the call executes.
+    /// not see. A returned parameter projection that is the selected requires
+    /// fact is true once that call is admitted; the equation does not establish
+    /// the premise. Formation still owes those premises before the call executes.
     fn unconditional_boolean_result(
         &self,
         owner: &SelectedCallContract<'_>,
@@ -443,11 +564,12 @@ impl StructuralJudge<'_> {
         // destinations participate too: omitting a named state, another target
         // body or a fallthrough would turn a conditional value into a theorem.
         // This query is context independent. Cycles revisit no state and cannot
-        // manufacture a constant without an actual agreeing literal exit.
+        // manufacture a constant without an actual agreeing literal exit, or a
+        // projection exit that is the state's own requires fact.
         let mut pending_states = vec![owner_symbol(owner)];
         let mut visited_states = Vec::new();
-        let mut pending_values = Vec::new();
-        let mut common = None;
+        let mut pending_values: Vec<RecordedBooleanExit> = Vec::new();
+        let mut common: Option<bool> = None;
         while !pending_states.is_empty() || !pending_values.is_empty() {
             while let Some(symbol) = pending_states.pop() {
                 let machine = program
@@ -506,6 +628,9 @@ impl StructuralJudge<'_> {
                             local.initial_value,
                             &captured_values,
                         )
+                        .or_else(|| {
+                            captured_projection(program, local.initial_value, &captured_values)
+                        })
                     {
                         captured_values.push((local.symbol, value));
                     }
@@ -518,8 +643,10 @@ impl StructuralJudge<'_> {
                     for target in transition.targets() {
                         match program.statement_table.transition_target(target) {
                             typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                                pending_values.push(captured_boolean_producer(
+                                pending_values.push(recorded_boolean_exit(
                                     program,
+                                    machine,
+                                    state,
                                     *expression,
                                     &captured_values,
                                 )?);
@@ -537,8 +664,10 @@ impl StructuralJudge<'_> {
                 // expression statements may precede a completely different exit.
                 match &statements[*order.last()?] {
                     typed_trees::statement::StatementNode::Expression(expression) => {
-                        pending_values.push(captured_boolean_producer(
+                        pending_values.push(recorded_boolean_exit(
                             program,
+                            machine,
+                            state,
                             *expression,
                             &captured_values,
                         )?);
@@ -558,22 +687,32 @@ impl StructuralJudge<'_> {
                     _ => return None,
                 }
             }
-            while let Some(expression) = pending_values.pop() {
-                match program.expression_table.expression(expression) {
-                    ExpressionNode::Boolean(value) => {
-                        if common.is_some_and(|existing| existing != *value) {
+            while let Some(exit) = pending_values.pop() {
+                match exit {
+                    RecordedBooleanExit::ProjectionPremise => {
+                        if common.is_some_and(|existing| !existing) {
                             return None;
                         }
-                        common = Some(*value);
+                        common = Some(true);
                     }
-                    ExpressionNode::Call(call) => {
-                        let callee = selected_call_contract(program, call)?;
-                        if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
-                            return None;
+                    RecordedBooleanExit::Expression(expression) => {
+                        match program.expression_table.expression(expression) {
+                            ExpressionNode::Boolean(value) => {
+                                if common.is_some_and(|existing| existing != *value) {
+                                    return None;
+                                }
+                                common = Some(*value);
+                            }
+                            ExpressionNode::Call(call) => {
+                                let callee = selected_call_contract(program, call)?;
+                                if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
+                                    return None;
+                                }
+                                pending_states.push(owner_symbol(&callee));
+                            }
+                            _ => return None,
                         }
-                        pending_states.push(owner_symbol(&callee));
                     }
-                    _ => return None,
                 }
             }
         }

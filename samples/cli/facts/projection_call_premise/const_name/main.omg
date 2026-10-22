@@ -1,0 +1,29 @@
+// A call precondition is a projection term. The call records that
+// projection fact, and the caller reads the record.
+// Place: const_name.
+// Expected exit: 0
+data Mark [copy] { kept: bool; }
+
+machine project(mark: Mark) -> bool
+requires mark.kept
+{
+    mark.kept
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    true
+}
+
+const NAMED: Mark = Mark { kept: true };
+
+machine main() crashes Trap {
+    let direct: bool = project(NAMED);
+    transition hold(direct) {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
