@@ -8,9 +8,11 @@
 //! Completed callee-relative effects share the frozen program's caller-site
 //! memo. Lookup and publication release its lock before recursive inference;
 //! holding it across a walk forced nested queries into private, repeated work.
-//! Only complete walks and converged cycle equations publish. Active-call guards
-//! still govern recursion, and caller-relative result origins are derived in
-//! their own scope rather than cached with context-independent effects.
+//! Only context-independent complete walks and converged cycle equations publish.
+//! Invocation walks consume Boolean snapshots in the chronological transfer shared
+//! with result selection; they never read or publish a state-only summary.
+//! Active-call guards still govern recursion, and result origins retain their
+//! own validation rather than granting permission from a narrowed write set.
 //!
 //! This file owns the known-call summaries. `state_write_walk.rs` walks
 //! state write prefixes, `alias_origins.rs` propagates stable alias origins,
@@ -110,9 +112,7 @@ use place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
     frame_place_path, split_place_root,
 };
-use reference_origins::{
-    exclusive_reference_origins, exclusive_reference_referee, receiver_frame_origins,
-};
+use reference_origins::receiver_frame_origins;
 use state_paths::normalize_state_relative_path;
 use stored_origins::StoredLocalOrigins;
 use transparent_effects::expression_is_effectful_for_transparent_result;
@@ -428,14 +428,18 @@ fn summarize_resolved_call(
     let parameters = program.state_parameters(callee_state);
     let mut written = Vec::new();
 
+    let actual_values = inference.argument_values(program, arguments);
     inference.active_states.push(callee_state.symbol);
-    let relative_paths = summarize_complete_state_written_paths(
-        program,
-        callee_machine,
-        callee_state,
-        symbols,
-        inference,
-    );
+    let relative_paths =
+        inference.with_invocation(program, callee_state, &actual_values, |inference| {
+            summarize_complete_state_written_paths(
+                program,
+                callee_machine,
+                callee_state,
+                symbols,
+                inference,
+            )
+        });
     inference.active_states.pop();
     // Actual expressions run in the caller, not recursively inside this
     // callee body. A producer may call this same consumer in a finite tree;
@@ -461,54 +465,9 @@ fn summarize_resolved_call(
         }
     }
 
-    // A complete body summary lists stores. An exclusive loan still permits a
-    // store of the lent referent when that list does not overlap it, so the
-    // referent retires saved observations even though this body did not write.
-    // A summary write inside a wider loan keeps the narrower path: writing one
-    // array element does not become a write of the whole array.
-    // An empty summary stored nothing. A reference result names the loans that
-    // remain writable: a choice returns one input, and the other input keeps
-    // its facts. An unresolved result keeps every loan.
-    let returned_loans = (written.is_empty()
-        && type_reference_is_reference(program, callee_state.return_type))
-    .then(|| {
-        transparent_results::reachable_value_parameters(
-            program,
-            callee_machine,
-            callee_state,
-            parameters,
-            arguments,
-        )
-    })
-    .flatten()
-    .filter(|returned| !returned.is_empty());
-    for (parameter, argument) in parameters.iter().zip(arguments) {
-        if let Some(returned) = &returned_loans
-            && !returned.contains(&parameter.symbol)
-        {
-            continue;
-        }
-        if exclusive_reference_referee(program, parameter.type_reference).is_none() {
-            continue;
-        }
-        let Some(origins) =
-            exclusive_reference_origins(program, caller_machine, *argument, symbols, inference)
-        else {
-            continue;
-        };
-        for origin in origins {
-            if written
-                .iter()
-                .any(|path| demand::frame_paths_overlap(path, &origin.path))
-            {
-                continue;
-            }
-            if !written.contains(&origin.path) {
-                written.push(origin.path);
-            }
-        }
-    }
-
+    // Exclusive parameters bound an opaque call's authority; they are not
+    // additional stores in a complete checked body. Keep every actual body
+    // write, including writes preceding selection of the returned reference.
     Some(written)
 }
 

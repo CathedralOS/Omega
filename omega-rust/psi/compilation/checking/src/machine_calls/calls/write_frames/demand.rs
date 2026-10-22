@@ -469,25 +469,6 @@ impl<'program> CallFrameResolver<'program> {
 
     /// Complete exact referents captured by a reference-valued operand at this
     /// statement prefix. This source relation grants neither a loan nor a write.
-    /// Caller places a reference-valued operand names after the callee's
-    /// reachable result routes are filtered by literal actuals. An unselected
-    /// input of a choice is absent. `None` means the result is opaque.
-    pub fn exclusive_reference_result_paths(
-        &self,
-        machine: &Machine,
-        expression: ExpressionHandle,
-    ) -> Option<Vec<String>> {
-        let mut inference = FrameInference::default();
-        let origins = super::reference_origins::exclusive_reference_origins(
-            self.program,
-            machine,
-            expression,
-            &self.tables.symbols,
-            &mut inference,
-        )?;
-        Some(origins.into_iter().map(|origin| origin.path).collect())
-    }
-
     pub fn reference_expression_origins_before_statement(
         &self,
         machine: &Machine,

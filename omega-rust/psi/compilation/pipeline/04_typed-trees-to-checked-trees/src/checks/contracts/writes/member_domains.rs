@@ -406,7 +406,8 @@ fn member_subject_satisfies_domain(
         let captured_contexts = child.map(|(child, reference)| {
             crate::flow::operand_contexts(
                 program,
-                &facts.flow,
+                &facts.flow.contexts,
+                &facts.flow.control,
                 &facts.semantic,
                 child,
                 reference,

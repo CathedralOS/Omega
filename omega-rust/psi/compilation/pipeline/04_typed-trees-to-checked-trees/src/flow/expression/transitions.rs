@@ -103,6 +103,7 @@ impl Execution<'_, '_, '_> {
             transition,
             target,
             *contexts,
+            &captured_operands,
             &values,
             argument_qualifications,
         );

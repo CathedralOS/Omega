@@ -3,11 +3,15 @@
 //! Executed normal returns and total specification applications share this
 //! binding owner. Each caller supplies its own admitted result identity and
 //! establishes the selected entry premises before importing any equation.
+//! Body-wide Boolean constants join every structurally reachable normal exit,
+//! including named states and selected target bodies. This is not execution or
+//! caller-actual specialization: an unknown returned value supplies no equation,
+//! and storage effects remain the call-frame owner's responsibility.
 
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_return_type,
     owner_symbol, selected_call_contract, selected_call_contract_for_parameters,
-    selected_contract_by_symbol,
+    selected_call_site_contract, selected_contract_by_symbol,
 };
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::machine_calls::contract_dependencies::independent_callee;
@@ -17,35 +21,22 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
-/// The value a state returns. The exit is a transition value, not a trailing
-/// expression statement. Distinct returned values record nothing.
-fn returned_value_expression(
+/// Keep the original completed producer of an immutable Boolean copy. Only
+/// exact local identities participate; parameters, projections and mutable
+/// observations cannot acquire a body-wide constant through a saved name.
+fn captured_boolean_producer(
     program: &dyn crate::CheckingInput,
-    statements: &[typed_trees::statement::StatementNode],
+    expression: ExpressionHandle,
+    captured_values: &[(SymbolHandle, ExpressionHandle)],
 ) -> Option<ExpressionHandle> {
-    if let Some(expression) = statements
-        .iter()
-        .rev()
-        .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::Expression(expression) => Some(*expression),
-            _ => None,
-        })
-    {
-        return Some(expression);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(_) | ExpressionNode::Call(_) => Some(expression),
+        ExpressionNode::Name(path) if path.symbol == path.head_symbol => captured_values
+            .iter()
+            .find(|(symbol, _)| *symbol == path.symbol)
+            .map(|(_, value)| *value),
+        _ => None,
     }
-    for statement in statements {
-        let typed_trees::statement::StatementNode::Transition(transition) = statement else {
-            continue;
-        };
-        for target in transition.targets() {
-            if let typed_trees::statement::TransitionTargetNode::Value(expression) =
-                program.statement_table.transition_target(target)
-            {
-                return Some(*expression);
-            }
-        }
-    }
-    None
 }
 
 /// Exact selected carrier and denotational owner, without importing conclusions.
@@ -407,10 +398,9 @@ impl StructuralJudge<'_> {
                 }
             }
         }
-        // A body that is a boolean literal, or a chain of single-expression
-        // calls that reaches one, records that literal on the result. The
-        // match and the direct use read this equation; an authored `ensures`
-        // is not required for a result the body already is.
+        // A body-wide constant records its literal on the result. Both a
+        // match and a direct use read this equation; an authored `ensures`
+        // is not required for a result every normal exit already supplies.
         if let Some(literal) = self.recorded_body_boolean(owner, depth + 1) {
             let equation = (result.clone(), literal);
             let present = equations.iter().any(|(left, right)| {
@@ -424,11 +414,8 @@ impl StructuralJudge<'_> {
         Some(equations)
     }
 
-    /// The selected entry's result when the body is exactly one boolean
-    /// literal, or exactly one call whose own body is. Argument-dependent
-    /// bodies are not literals and record nothing here.
-    /// A boolean literal body does not depend on entry premises this judge
-    /// could not see. Callers still read that recorded result.
+    /// A body-wide constant does not depend on entry premises this judge could
+    /// not see. Formation still owes those premises before the call executes.
     fn unconditional_boolean_result(
         &self,
         owner: &SelectedCallContract<'_>,
@@ -444,77 +431,157 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         depth: usize,
     ) -> Option<StructuralTerm> {
-        if depth >= 32 {
+        let program = self.program;
+        if depth >= 32
+            || program.primitive_type_reference(owner_return_type(owner))
+                != Some(typed_trees::types::PrimitiveType::Bool)
+            || matches!(owner, SelectedCallContract::DynamicSlot { .. })
+        {
             return None;
         }
-        match owner {
-            SelectedCallContract::Concrete(machine, state) => {
-                self.recorded_entry_boolean(machine, state, depth)
-            }
-            // A spelled operator or its signature view has no body. The
-            // literal result is on the concrete machine entry.
-            SelectedCallContract::Operator(operator) => {
-                self.recorded_symbol_boolean(operator.symbol, depth)
-            }
-            SelectedCallContract::Signature(signature) => {
-                self.recorded_symbol_boolean(signature.symbol, depth)
-            }
-            SelectedCallContract::DynamicSlot { .. } => None,
-        }
-    }
-
-    fn recorded_symbol_boolean(
-        &self,
-        symbol: SymbolHandle,
-        depth: usize,
-    ) -> Option<StructuralTerm> {
-        let machine = self
-            .program
-            .machine_by_symbol(symbol)
-            .or_else(|| self.program.machine_holding_state(symbol))?;
-        let state = self
-            .program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
-            .or_else(|| self.program.machine_states(machine).first())?;
-        self.recorded_entry_boolean(machine, state, depth)
-    }
-
-    fn recorded_entry_boolean(
-        &self,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        depth: usize,
-    ) -> Option<StructuralTerm> {
-        let entry = self.program.machine_states(machine).first()?;
-        if entry.symbol != state.symbol {
-            return None;
-        }
-        let statements = typed_trees::statement::reachable_state_statements(
-            self.program
-                .statement_table
-                .statements(state.statement_nodes),
-        );
-        let Some(expression) = returned_value_expression(self.program, statements) else {
-            return None;
-        };
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: value.to_string(),
-                fields: Vec::new(),
-            }),
-            ExpressionNode::Call(call) => {
-                if let Some(callee) = selected_call_contract(self.program, call)
-                    && let Some(literal) = self.recorded_body_boolean(&callee, depth + 1)
-                {
-                    return Some(literal);
+        // Join normal exits, not the first return-looking expression. Unknown
+        // destinations participate too: omitting a named state, another target
+        // body or a fallthrough would turn a conditional value into a theorem.
+        // This query is context independent. Cycles revisit no state and cannot
+        // manufacture a constant without an actual agreeing literal exit.
+        let mut pending_states = vec![owner_symbol(owner)];
+        let mut visited_states = Vec::new();
+        let mut pending_values = Vec::new();
+        let mut common = None;
+        while !pending_states.is_empty() || !pending_values.is_empty() {
+            while let Some(symbol) = pending_states.pop() {
+                let machine = program
+                    .machine_by_symbol(symbol)
+                    .or_else(|| program.machine_holding_state(symbol))?;
+                let states = program.machine_states(machine);
+                let state = if symbol == machine.symbol {
+                    states.first()?
+                } else {
+                    states.iter().find(|state| state.symbol == symbol)?
+                };
+                if visited_states.contains(&state.symbol) {
+                    continue;
                 }
-                self.recorded_symbol_boolean(call.target_symbol, depth + 1)
+                visited_states.push(state.symbol);
+                if machine.target_family_interface {
+                    if states.first()?.symbol != state.symbol {
+                        return None;
+                    }
+                    for member in
+                        crate::machine_calls::calls::target_family_members(program, machine)?
+                    {
+                        pending_states.push(member.machine);
+                    }
+                    continue;
+                }
+                if !machine.body_is_present
+                    || program.primitive_type_reference(state.return_type)
+                        != Some(typed_trees::types::PrimitiveType::Bool)
+                {
+                    return None;
+                }
+                let statements = program.statement_table.statements(state.statement_nodes);
+                // Checked assembly may skip or reorder lexical windows. The
+                // shared control owner supplies the actual finite order; an
+                // unavailable order is not evidence for a constant result.
+                let order = program
+                    .statement_table
+                    .finite_execution_order(state.statement_nodes)
+                    .ok()??;
+                // Normalization can name a completed call before returning
+                // it. Retain exact immutable Bool producers in execution
+                // order, whether authored or introduced by normalization.
+                // This is not initializer replay: mutable homes and entry
+                // parameters supply no producer, and a copy keeps the
+                // producer captured before any later operation runs.
+                let mut captured_values = Vec::new();
+                for statement_index in &order {
+                    let statement = &statements[*statement_index];
+                    if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                        && !local.is_mutable
+                        && program.primitive_type_reference(local.type_reference)
+                            == Some(typed_trees::types::PrimitiveType::Bool)
+                        && let Some(value) = captured_boolean_producer(
+                            program,
+                            local.initial_value,
+                            &captured_values,
+                        )
+                    {
+                        captured_values.push((local.symbol, value));
+                    }
+                    let Some(transition) = statement.as_transition() else {
+                        continue;
+                    };
+                    if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
+                        continue;
+                    }
+                    for target in transition.targets() {
+                        match program.statement_table.transition_target(target) {
+                            typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                                pending_values.push(captured_boolean_producer(
+                                    program,
+                                    *expression,
+                                    &captured_values,
+                                )?);
+                            }
+                            typed_trees::statement::TransitionTargetNode::Named {
+                                path, ..
+                            } => {
+                                pending_states.push(path.symbol);
+                            }
+                            typed_trees::statement::TransitionTargetNode::Terminal => return None,
+                        }
+                    }
+                }
+                // Only the final expression is an implicit return. Earlier
+                // expression statements may precede a completely different exit.
+                match &statements[*order.last()?] {
+                    typed_trees::statement::StatementNode::Expression(expression) => {
+                        pending_values.push(captured_boolean_producer(
+                            program,
+                            *expression,
+                            &captured_values,
+                        )?);
+                    }
+                    typed_trees::statement::StatementNode::Call(call) if !call.discards_result => {
+                        let selected =
+                            selected_call_site_contract(program, crate::CallSite::Statement(call))?;
+                        if matches!(selected, SelectedCallContract::DynamicSlot { .. }) {
+                            return None;
+                        }
+                        pending_states.push(owner_symbol(&selected));
+                    }
+                    typed_trees::statement::StatementNode::Transition(transition)
+                        if transition.guard
+                            == typed_trees::statement::TransitionGuardNode::Always
+                            || transition.continuation.is_valid() => {}
+                    _ => return None,
+                }
             }
-            _ => None,
+            while let Some(expression) = pending_values.pop() {
+                match program.expression_table.expression(expression) {
+                    ExpressionNode::Boolean(value) => {
+                        if common.is_some_and(|existing| existing != *value) {
+                            return None;
+                        }
+                        common = Some(*value);
+                    }
+                    ExpressionNode::Call(call) => {
+                        let callee = selected_call_contract(program, call)?;
+                        if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
+                            return None;
+                        }
+                        pending_states.push(owner_symbol(&callee));
+                    }
+                    _ => return None,
+                }
+            }
         }
+        Some(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: common?.to_string(),
+            fields: Vec::new(),
+        })
     }
 
     /// Transport an exact declared membership over its still-live subject.

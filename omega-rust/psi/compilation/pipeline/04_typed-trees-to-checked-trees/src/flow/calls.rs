@@ -53,7 +53,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         machine,
         state,
         borrow_call,
-        *active_contexts,
+        captured_operands,
     );
     let contract_call = proof_contract_call(
         proof,

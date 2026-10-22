@@ -1,11 +1,11 @@
-// A saved observation that items[0] is 7 stays provable across an exclusive loan of a different element.
+// A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.
 // Expected exit: 0
 machine read_kept(items: &mut [u64; 2]) -> u64
 requires items[0] == 7
 ensures result == items[0] && result == 7
 {
     let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     transition held == held { true -> saved _ -> saved }
 }
 

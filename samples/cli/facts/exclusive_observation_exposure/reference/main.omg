@@ -1,4 +1,4 @@
-// A saved observation that the kept referent is 7 stays provable across an exclusive loan of a different referent.
+// A saved observation that the kept referent is 7 stays provable across a complete non-writing exclusive call on that referent.
 // Expected exit: 0
 data Ends { kept: u64; other: u64; }
 
@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let mut item: Ends = Ends { kept: 7, other: 1 };
     let view: &mut Ends = &mut item;
     let saved: u64 = view.kept;
-    let held: u64 = expose(&mut view.other);
+    let held: u64 = expose(&mut view.kept);
     transition agree(saved, view.kept) == 7 { true -> done(held) _ -> bad() }
     state done(held: u64) {}
     state bad() { crash Trap; }

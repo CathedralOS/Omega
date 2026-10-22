@@ -665,11 +665,22 @@ defines the complete product bar.
     engines in all nine places; each overlapping-write twin rejects the
     equality. Stable unwritten mutable carriers still contribute saved facts
     in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`.
-    Exclusive exposure of that saved array element is
-    `samples/cli/facts/exclusive_observation_exposure`: an exclusive loan of
-    the element retires the observation even when the loan does not store, and
-    an exclusive loan of a different element leaves it provable, in all nine
-    places. Case payload and generic field already exit 0 on both engines, and each same-place twin rejects with cannot prove requires contract. The reference local already exits 0 on both engines, and its same-place twin rejects with cannot prove requires contract. An exclusive loan keeps a sibling float field provable in the local, field, parameter, match join, const name, and other state places, and each twin rejects with cannot prove requires contract. Call result, other machine, and target body still fail that float equality with no loan. Share capture with
+    `samples/cli/facts/exclusive_observation_exposure` carries that saved
+    array-element observation through a complete non-writing exclusive call;
+    its actual overlapping-write twins retire the observation. Permission to
+    write is not an extra write in a complete body frame. Case-payload,
+    generic-field and reference-local probes preserve the same observation.
+    Float probes cover local, field, parameter, match join, const name and
+    another state, with actual overlapping-write twins. Float call result,
+    other machine and target body still fail that equality with no loan;
+    those transports and remaining case/generic/reference composition stay
+    open.
+    `samples/cli/facts/copied_call_argument_snapshot`: the first copied 7
+    must survive a later operand overwriting its former home with 9. Callee
+    inputs consume the retained completion constraints, not a source reread;
+    live views retain their separate invocation-time rule. Keep all nine
+    transports and source-9 reject twins when extending argument facts. Share
+    capture with
     **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
     ranges use ordinary view formation and call/state-edge evaluation:
     keep `python3 tools/corpus_gate.py --both --filter
@@ -5259,6 +5270,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     `true` and rejects `direct == false`. A domain on an `f64` constant keeps
     the carrier's float encoding. Bodyless `float_comparison_route` stays
     on the comparison route (native exit 0, interpreter exit 0). Keep
+    `body_bearing_comparison/returned_boolean`: a body-wide Boolean result
+    joins every normal exit, named-state destination and selected target body;
+    a first literal cannot erase a different or unknown return. Keep its
+    actual-result and false-premise controls when extending body inference.
+    Preserve
     [Equatable's sealed type-owned route](wiki/spec/language/conformances.md#core-equality-acquisition):
     `machine == Card::same(..)` must not override it through visibility. No
     operator interpreter, satisfier search, or fallback arithmetic.

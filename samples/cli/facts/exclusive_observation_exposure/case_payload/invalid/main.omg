@@ -1,5 +1,5 @@
-// A saved observation that the kept payload is 7 stays provable across an exclusive loan of a different payload.
-// This twin exclusively borrows the saved payload and does not write it, so the observation is no longer valid.
+// A saved observation that the kept payload is 7 stays provable across a complete, non-writing exclusive call on that payload.
+// This twin writes 8 through the borrowed field, so the saved observation is stale.
 data Pair { case Both(kept: u64, other: u64); }
 
 machine agree(observed: u64, current: u64) -> u64
@@ -9,6 +9,7 @@ requires observed == current && observed == 7
 }
 
 machine expose(slot: &mut u64) -> u64 {
+    slot = 8;
     slot
 }
 

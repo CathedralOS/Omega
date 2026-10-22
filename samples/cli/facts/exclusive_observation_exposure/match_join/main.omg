@@ -1,4 +1,4 @@
-// A saved observation that items[0] is 7 stays provable across an exclusive loan of a different element.
+// A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.
 // Expected exit: 0
 machine agree(observed: u64, current: u64) -> u64
 requires observed == current && observed == 7
@@ -13,7 +13,7 @@ machine expose(slot: &mut u64) -> u64 {
 machine main() crashes Trap {
     let mut items: [u64; 2] = [7, 1];
     let saved: u64 = match true { true -> items[0], false -> items[0] };
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     transition agree(saved, items[0]) == 7 { true -> done(held) _ -> bad() }
     state done(held: u64) {}
     state bad() { crash Trap; }

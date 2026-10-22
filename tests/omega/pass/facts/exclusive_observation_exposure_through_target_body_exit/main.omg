@@ -1,4 +1,4 @@
-// A saved observation that items[0] is 7 stays provable across an exclusive loan of a different element.
+// A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.
 // Expected exit: 0
 machine agree(observed: u64, current: u64) -> u64
 requires observed == current && observed == 7
@@ -14,7 +14,7 @@ linux_x86_64 machine observe(items: &mut [u64; 2]) -> u64
 requires items[0] == 7
 {
     let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     let agreed: u64 = agree(saved, items[0]);
     transition { _ -> finish(agreed, held) }
     state finish(agreed: u64, held: u64) -> u64 {
@@ -26,7 +26,7 @@ linux_arm64 machine observe(items: &mut [u64; 2]) -> u64
 requires items[0] == 7
 {
     let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     let agreed: u64 = agree(saved, items[0]);
     transition { _ -> finish(agreed, held) }
     state finish(agreed: u64, held: u64) -> u64 {
@@ -38,7 +38,7 @@ macos_arm64 machine observe(items: &mut [u64; 2]) -> u64
 requires items[0] == 7
 {
     let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     let agreed: u64 = agree(saved, items[0]);
     transition { _ -> finish(agreed, held) }
     state finish(agreed: u64, held: u64) -> u64 {
@@ -50,7 +50,7 @@ windows_x86_64 machine observe(items: &mut [u64; 2]) -> u64
 requires items[0] == 7
 {
     let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     let agreed: u64 = agree(saved, items[0]);
     transition { _ -> finish(agreed, held) }
     state finish(agreed: u64, held: u64) -> u64 {

@@ -5,12 +5,12 @@ use crate::flow::FlowBuildContext;
 
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
+use checked_trees::{BorrowCallFact, FlowConstraintRef, FlowOperandFact, FlowSemanticContextRef};
 use facts::ScalarValue;
 use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
-use validation::CanonicalPlace;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
+use validation::CanonicalPlace;
 
 mod arguments;
 mod parameter_bounds;
@@ -39,7 +39,7 @@ pub(super) struct StateValues {
     /// One predecessor's selected-case and, for an entry call, scalar
     /// deliveries. Transitions leave `values` empty because `StateValues::values`
     /// already joined those scalars.
-    argument_edges: Vec<ArgumentEdge>,
+    argument_edges: ArgumentInputs,
     /// Cases every recorded edge agrees on, keyed by the destination parameter.
     cases: Vec<(SymbolHandle, SymbolHandle)>,
 }
@@ -53,6 +53,15 @@ struct ArgumentEdge {
     /// Entry calls carry scalar actuals. Transition edges leave this false so
     /// their scalar join stays on `StateValues::values`.
     carries_values: bool,
+}
+
+/// Unreached inputs collect edges; a conservative fallback already represents
+/// every possible predecessor. Unknown is absorbing, not an empty edge list
+/// that a later visit may narrow to the predecessors encountered so far.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ArgumentInputs {
+    Unknown,
+    Edges(Vec<ArgumentEdge>),
 }
 
 /// The greatest predicate set this state's incoming edges have ever jointly
@@ -213,7 +222,7 @@ pub(super) fn unknown_inputs(
                         .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                         .collect(),
                     bounds: Vec::new(),
-                    argument_edges: Vec::new(),
+                    argument_edges: ArgumentInputs::Unknown,
                     cases: Vec::new(),
                 })
         })
@@ -245,6 +254,7 @@ pub(super) fn record_transition(
     transition: &typed_trees::statement::TableTransition,
     target: typed_trees::statement::TransitionTargetHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
+    captured_operands: &[FlowOperandFact],
     argument_values: &[ScalarValue],
     argument_qualifications: Vec<qualifications::QualifiedInput>,
 ) {
@@ -353,26 +363,26 @@ pub(super) fn record_transition(
             qualifications,
             predicates,
             entry_paths,
-            argument_edges: Vec::new(),
+            argument_edges: ArgumentInputs::Edges(Vec::new()),
             cases: Vec::new(),
         },
     );
-    let cases = capture_argument_cases(
+    let observations = capture_argument_observations(
         program,
         semantic,
         build,
+        machine,
         state,
         destination,
-        statement_index,
         arguments,
-        contexts,
+        captured_operands,
     );
     deliver_argument_edge(
         program,
         build,
         destination,
         fields::BoundsSource::transition(state.symbol, target),
-        cases,
+        observations.cases,
         Vec::new(),
         false,
     );
@@ -435,7 +445,7 @@ pub(super) fn record_invocation<'plans>(
                 .iter()
                 .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                 .collect(),
-            argument_edges: Vec::new(),
+            argument_edges: ArgumentInputs::Edges(Vec::new()),
             cases: Vec::new(),
         },
     );
@@ -451,7 +461,7 @@ pub(super) fn record_call_argument_facts<'plans>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
-    contexts: HandleSpan<FlowSemanticContextRef>,
+    captured_operands: &[FlowOperandFact],
 ) {
     let Some(site) = super::calls::memoized_find_call_site(
         program,
@@ -468,6 +478,21 @@ pub(super) fn record_call_argument_facts<'plans>(
         return;
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
+    let receiver = match &site {
+        CallSite::Expression { call, .. } if call.receiver.is_valid() => Some(call.receiver),
+        _ => None,
+    };
+    let captured_arguments = if captured_operands
+        .iter()
+        .map(|operand| operand.expression)
+        .eq(receiver.into_iter().chain(arguments.iter().copied()))
+    {
+        &captured_operands[usize::from(receiver.is_some())..]
+    } else {
+        // An unavailable capture is an unknown incoming edge, not an omitted
+        // predecessor that would leave another caller's fact unchallenged.
+        &[]
+    };
     let source =
         fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
     for (owner_index, state_index) in destinations {
@@ -478,27 +503,18 @@ pub(super) fn record_call_argument_facts<'plans>(
         }
         let entry =
             entry_state(program, owner).is_some_and(|entry| entry.symbol == destination.symbol);
-        let cases = capture_argument_cases(
+        let observations = capture_argument_observations(
             program,
             semantic,
             build,
+            machine,
             state,
             destination,
-            call.statement_index,
             arguments,
-            contexts,
+            captured_arguments,
         );
         let values = if entry {
-            capture_entry_scalars(
-                program,
-                semantic,
-                build,
-                state,
-                destination,
-                call.statement_index,
-                arguments,
-                contexts,
-            )
+            observations.values
         } else {
             Vec::new()
         };
@@ -507,7 +523,7 @@ pub(super) fn record_call_argument_facts<'plans>(
             build,
             destination,
             source,
-            cases,
+            observations.cases,
             values,
             entry,
         );
@@ -569,36 +585,120 @@ fn call_destinations(
     }
 }
 
-fn capture_argument_cases(
+struct ArgumentObservations {
+    cases: Vec<(SymbolHandle, SymbolHandle)>,
+    values: Vec<(SymbolHandle, ScalarValue)>,
+}
+
+/// Deliver what each operand completed, not what its source holds after the
+/// other operands ran. Ordinary calls and named jumps use the same capture law
+/// as contract checking: detached values keep completion facts; views consult
+/// their exact live referents at invocation. Missing captures remain unknown
+/// incoming edges and never disappear from a destination's join.
+fn capture_argument_observations(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
-    statement_index: usize,
     arguments: &[ExpressionHandle],
-    contexts: HandleSpan<FlowSemanticContextRef>,
-) -> Vec<(SymbolHandle, SymbolHandle)> {
-    let mut subjects = Vec::new();
-    for (parameter, argument) in program
-        .state_parameters(destination)
-        .iter()
-        .zip(arguments.iter().copied())
+    captured: &[FlowOperandFact],
+) -> ArgumentObservations {
+    let parameters = program.state_parameters(destination);
+    let mut observations = ArgumentObservations {
+        cases: Vec::new(),
+        values: parameters
+            .iter()
+            .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
+            .collect(),
+    };
+    if parameters.len() != arguments.len()
+        || !captured
+            .iter()
+            .map(|capture| capture.expression)
+            .eq(arguments.iter().copied())
+        || captured
+            .iter()
+            .any(|capture| capture.state_symbol != state.symbol)
     {
-        let place = build.canonical_place_at(program, state.symbol, statement_index, argument);
-        subjects.push((parameter.symbol, place));
+        return observations;
     }
-    let mut cases = Vec::new();
-    for (parameter, place) in subjects {
-        let Some(place) = place else {
-            continue;
+    let invocation = captured
+        .last()
+        .map_or(HandleSpan::<FlowConstraintRef>::empty(), |capture| {
+            capture.constraints
+        });
+    for (position, (parameter, capture)) in parameters.iter().zip(captured).enumerate() {
+        let contexts = super::operand_contexts(
+            program,
+            &build.contexts,
+            &build.control,
+            semantic,
+            capture,
+            parameter.type_reference,
+            invocation,
+        );
+        let view = super::operand_binds_live_view(program, parameter.type_reference);
+        let expression_place = (!view).then_some(CanonicalPlace {
+            root: facts::PlaceRoot::Expression(capture.expression),
+            segments: Vec::new(),
+        });
+        let storage_place = if view {
+            match build
+                .control
+                .operand_referents
+                .span_or_empty(capture.referents)
+            {
+                [referent] => build
+                    .control
+                    .operand_referent_segments
+                    .span(referent.segments)
+                    .map(|segments| CanonicalPlace {
+                        root: referent.root,
+                        segments: segments.to_vec(),
+                    }),
+                _ => None,
+            }
+        } else if validation::value_has_builtin_coordinates(
+            program,
+            machine,
+            state,
+            capture.expression,
+        ) {
+            build.canonical_place_at(
+                program,
+                capture.state_symbol,
+                capture.statement_index,
+                capture.expression,
+            )
+        } else {
+            None
         };
-        let Some(variant) = assigned_case_at(program, semantic, build, contexts, &place) else {
-            continue;
+        let places = expression_place.iter().chain(storage_place.iter());
+        let value = places
+            .clone()
+            .find_map(|place| {
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    contexts
+                        .iter()
+                        .map(|context| semantic.contexts.get(*context)),
+                    place,
+                )
+            })
+            .or_else(|| literal(program, capture.expression))
+            .unwrap_or_default();
+        observations.values[position].1 = value;
+        if let Some(variant) = places
+            .into_iter()
+            .find_map(|place| assigned_case_at(program, semantic, &contexts, place))
+        {
+            observations.cases.push((parameter.symbol, variant));
         };
-        cases.push((parameter, variant));
     }
-    cases.sort_by_key(|(parameter, variant)| {
+    observations.cases.sort_by_key(|(parameter, variant)| {
         (
             parameter.arena_index(),
             parameter.generation(),
@@ -606,48 +706,25 @@ fn capture_argument_cases(
             variant.generation(),
         )
     });
-    cases
-}
-
-fn capture_entry_scalars(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &FactPlan,
-    build: &mut FlowBuildContext,
-    state: &typed_trees::state::State,
-    destination: &typed_trees::state::State,
-    statement_index: usize,
-    arguments: &[ExpressionHandle],
-    contexts: HandleSpan<FlowSemanticContextRef>,
-) -> Vec<(SymbolHandle, ScalarValue)> {
-    let mut values = Vec::new();
-    for (parameter, argument) in program
-        .state_parameters(destination)
-        .iter()
-        .zip(arguments.iter().copied())
-    {
-        let value = build
-            .canonical_place_at(program, state.symbol, statement_index, argument)
-            .and_then(|place| build.scalar_value_at_place(program, semantic, contexts, &place))
-            .unwrap_or_default();
-        values.push((parameter.symbol, value));
-    }
-    values
+    observations
 }
 
 fn assigned_case_at(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
-    build: &FlowBuildContext,
-    contexts: HandleSpan<FlowSemanticContextRef>,
+    contexts: &[facts::FactContextHandle],
     place: &CanonicalPlace,
 ) -> Option<SymbolHandle> {
     let mut found = None;
-    for fact in crate::flow::active_context_facts(build, semantic, contexts) {
+    for fact in contexts.iter().flat_map(|context| {
+        semantic
+            .context_view(semantic.contexts.get(*context))
+            .facts()
+    }) {
         let FactPayload::AssignedCase { variant } = fact.payload else {
             continue;
         };
-        if !variant.is_valid()
-            || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
+        if !variant.is_valid() || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
         {
             continue;
         }
@@ -683,12 +760,11 @@ fn deliver_argument_edge(
 ) {
     let index = ensure_input_row(program, build, destination);
     let row = &mut build.state_value_inputs[index];
+    let ArgumentInputs::Edges(edges) = &mut row.argument_edges else {
+        return;
+    };
     let mut added = false;
-    if let Some(edge) = row
-        .argument_edges
-        .iter_mut()
-        .find(|edge| edge.source == source)
-    {
+    if let Some(edge) = edges.iter_mut().find(|edge| edge.source == source) {
         if edge.cases == cases && edge.values == values && edge.carries_values == carries_values {
             return;
         }
@@ -696,7 +772,7 @@ fn deliver_argument_edge(
         edge.values = values;
         edge.carries_values = carries_values;
     } else {
-        row.argument_edges.push(ArgumentEdge {
+        edges.push(ArgumentEdge {
             source,
             cases,
             values,
@@ -704,20 +780,18 @@ fn deliver_argument_edge(
         });
         added = true;
     }
+    let cases = joined_cases(edges);
+    let values = carries_values.then(|| joined_scalars(edges)).flatten();
     if added {
-        build.new_state_field_input_height =
-            build.new_state_field_input_height.saturating_add(1);
+        build.new_state_field_input_height = build.new_state_field_input_height.saturating_add(1);
     }
     let row = &mut build.state_value_inputs[index];
-    let cases = joined_cases(&row.argument_edges);
     let mut changed = cases != row.cases;
     row.cases = cases;
-    if carries_values {
-        if let Some(values) = joined_scalars(&row.argument_edges) {
-            if values != row.values {
-                changed = true;
-                row.values = values;
-            }
+    if let Some(values) = values {
+        if values != row.values {
+            changed = true;
+            row.values = values;
         }
     }
     let state = destination.symbol;
@@ -750,7 +824,7 @@ fn ensure_input_row(
         qualifications: Vec::new(),
         predicates: Vec::new(),
         entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
-        argument_edges: Vec::new(),
+        argument_edges: ArgumentInputs::Edges(Vec::new()),
         cases: Vec::new(),
     });
     build.state_value_inputs.len() - 1

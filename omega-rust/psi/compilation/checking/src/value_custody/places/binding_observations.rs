@@ -58,7 +58,9 @@ pub fn stable_slice_descriptor_place(
 /// `bare-range-reference-access` that spelling is the only mutable window.
 /// The scan is deliberately state-wide -- the caller's obligation order is
 /// not the statement order -- and covers every carrier that can hold an
-/// expression.
+/// expression. Ordinary borrows and representation recasts use the same
+/// formation source. Placed factory views interpret separate backing, not the
+/// source owner's descriptor bytes.
 pub(crate) fn binding_is_exclusively_exposed(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -69,16 +71,16 @@ pub(crate) fn binding_is_exclusively_exposed(
     for root in statement_expression_roots(program, state) {
         crate::expression_traversal::collect_expression_nodes(program, root, &mut nodes, &mut seen);
     }
-    nodes
-        .iter()
-        .any(|node| match program.expression_table.expression(*node) {
-            ExpressionNode::Borrow(borrow) => {
-                borrow.access.is_exclusive()
-                    && borrow_root_symbol(program, borrow.target) == Some(symbol)
-                    && !selects_builtin_collection_contents(program, state, borrow.target)
-            }
-            _ => false,
-        })
+    nodes.iter().any(|node| {
+        crate::value_custody::recasts::reference_formation_source(program, *node).is_some_and(
+            |formation| {
+                !formation.interpretation.is_placed()
+                    && formation.access.is_exclusive()
+                    && borrow_root_symbol(program, formation.source) == Some(symbol)
+                    && !selects_builtin_collection_contents(program, state, formation.source)
+            },
+        )
+    })
 }
 
 /// Whether a place selects elements of its root binding rather than
@@ -128,7 +130,7 @@ pub(crate) enum BindingObservation {
 
 /// An entry observation names the value the call edge still sees only while
 /// nothing in `state` writes the carrier. `binding_is_exclusively_exposed`
-/// covers `&mut`/`&out` borrow expressions; the remaining write channels are
+/// covers exclusive reference formations; the remaining write channels are
 /// an assignment reaching the observed storage, a receiver call
 /// whose callee claims a mutable `self`, and a sealed atomic operation on
 /// the place. Reads and moves leave the observed value alone -- a moved
@@ -145,27 +147,43 @@ pub(crate) fn binding_is_written(
         .statements(state.statement_nodes)
         .iter()
     {
-        match statement {
-            StatementNode::Assignment(assignment)
-                if borrow_root_symbol(program, assignment.target) == Some(symbol) =>
-            {
-                // Indexed syntax alone does not prove an element write:
-                // authored indexing can execute arbitrary code. Only builtin
-                // coordinates separate descriptor storage from its elements.
-                let selects_contents = observation == BindingObservation::Descriptor
-                    && selects_builtin_collection_contents(program, state, assignment.target);
-                if !selects_contents {
-                    return true;
-                }
-            }
-            StatementNode::Call(call)
-                if call.receiver_root_symbol == symbol
-                    && call_receiver_is_mutable(program, call.target_symbol) =>
-            {
+        if let StatementNode::Assignment(assignment) = statement
+            && borrow_root_symbol(program, assignment.target) == Some(symbol)
+        {
+            // Indexed syntax alone does not prove an element write:
+            // authored indexing can execute arbitrary code. Only builtin
+            // coordinates separate descriptor storage from its elements.
+            let selects_contents = observation == BindingObservation::Descriptor
+                && selects_builtin_collection_contents(program, state, assignment.target);
+            if !selects_contents {
                 return true;
             }
-            _ => {}
         }
+    }
+    binding_has_write_effects(program, state, symbol, observation)
+}
+
+/// Writes performed by calls or sealed atomic operations, independently of an
+/// assignment's explicit destination. A source-value transfer can account for
+/// its own direct stores without mistaking these effects for those stores.
+/// Explicit exclusive borrows remain a separate exposure observation.
+pub(crate) fn binding_has_write_effects(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+    observation: BindingObservation,
+) -> bool {
+    if program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            matches!(statement, StatementNode::Call(call)
+                if call.receiver_root_symbol == symbol
+                    && call_receiver_is_mutable(program, call.target_symbol))
+        })
+    {
+        return true;
     }
     let mut nodes = Vec::new();
     let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);

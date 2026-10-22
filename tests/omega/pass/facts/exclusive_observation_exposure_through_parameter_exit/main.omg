@@ -1,4 +1,4 @@
-// A saved observation that items[0] is 7 stays provable across an exclusive loan of a different element.
+// A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.
 // Expected exit: 0
 machine agree(observed: u64, current: u64) -> u64
 requires observed == current && observed == 7
@@ -13,7 +13,7 @@ machine expose(slot: &mut u64) -> u64 {
 machine hold(items: &mut [u64; 2], observed: u64) -> u64
 requires observed == items[0] && observed == 7
 {
-    let held: u64 = expose(&mut items[1]);
+    let held: u64 = expose(&mut items[0]);
     let agreed: u64 = agree(observed, items[0]);
     transition { _ -> finish(agreed, held) }
     state finish(agreed: u64, held: u64) -> u64 {

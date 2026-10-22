@@ -6,6 +6,31 @@ The helper `choose` returns either mutable `u64`. `overwrite` writes `9` through
 
 This witnesses **R5** in `TASKS.md`: caller-visible may-write summaries under [state contracts](../../../../wiki/spec/language/state_contracts.md). It does not close nested helpers, named-state results, codec arguments, finite write cycles, or parameter-permutation write sets.
 
+[`written_selector/main.omg`](written_selector/main.omg) exercises the same
+disjoint-bound preservation after `choose` replaces its Boolean selector. The
+entry argument is `true`, but the stored `false` makes `other` the written
+referent; the unchanged `chosen` still indexes the four-element array. The
+runtime oracle also requires the written `other` to contain `9`. This
+depends on the selector's current value, not its entry snapshot. It introduces
+no additional transport matrix or caller guard that re-establishes the bound.
+
+The focused fixtures under `tests/omega/{pass,fail}/borrow/` distinguish an
+unchanged mutable selector, a literal replacement, and an assignment computed
+from the old value. Unknown replacements and exclusive exposure retain the
+complete possible-origin union, and a selected relation supplies no builtin
+equality. The `mutated_selector_entry_actual_{case,guard}` controls index the
+overwritten referent and must reject its stale bound. These controls add no
+borrow authority and do not close the remaining R5 acceptance.
+
+The captured-result fixture also forwards the selector through a nested helper,
+saves the returned reference, changes the selector again, and writes through the
+saved reference. The reference keeps its production-time choice. Internal writes
+and returned-origin selection consume the same invocation values; different
+callers cannot share a specialized write frame, and an earlier write cannot be
+removed merely because the helper returns a different reference. A bare mutable
+recast exposes the selector just as an explicit exclusive borrow does. These
+are focused controls, not another place matrix.
+
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | the other input is a local of `main` |

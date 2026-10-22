@@ -2,7 +2,9 @@
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
-use crate::machine_calls::calls::write_frames::inference::FrameInference;
+use crate::machine_calls::calls::write_frames::inference::{
+    BoolTruth, FrameInference, ParameterValues,
+};
 use crate::machine_calls::calls::write_frames::parameter_aliases::ParameterRelativeFrameOrigin;
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path,
@@ -10,10 +12,10 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 };
 use crate::machine_calls::calls::write_frames::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
+use crate::value_custody::places::binding_observations::binding_is_exclusively_exposed;
 use symbols::SymbolHandle;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
-};
+
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
@@ -45,6 +47,8 @@ pub(crate) fn transparent_call_result_origins(
         return None;
     }
 
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let actual_values = inference.argument_values(program, arguments);
     let mut result_origins = transparent_callee_result_origins(
         program,
         callee_machine,
@@ -53,13 +57,11 @@ pub(crate) fn transparent_call_result_origins(
         inference,
     )?;
     let parameters = program.state_parameters(callee_state);
-    let arguments = program.expression_table.expression_handles(call.arguments);
     retain_reachable_transition_results(
         program,
-        callee_machine,
         callee_state,
         parameters,
-        arguments,
+        &actual_values,
         &mut result_origins,
     );
     let mut origins = Vec::new();
@@ -268,30 +270,70 @@ pub(crate) fn transparent_callee_result_origins(
     (!returned.is_empty()).then_some(returned)
 }
 
-/// One call's formals and the actual expressions supplied at that call.
-#[derive(Clone, Copy)]
-struct ActualFrame<'a> {
-    parameters: &'a [StateParameter],
-    arguments: &'a [ExpressionHandle],
+/// Return selection composes invocation values with completed local choices.
+/// Those reference results are not part of write-frame working state.
+struct ResultSelection {
+    values: ParameterValues,
+    captured_results: Vec<(SymbolHandle, Option<Vec<SymbolHandle>>)>,
+}
+
+impl ResultSelection {
+    fn new(program: &dyn crate::CheckingInput, state: &State, actual_values: &[BoolTruth]) -> Self {
+        Self {
+            values: ParameterValues::new(program, state, actual_values),
+            captured_results: Vec::new(),
+        }
+    }
+
+    fn finish_statement(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+        statement: &StatementNode,
+    ) {
+        self.values.finish_statement(program, state, statement);
+        let StatementNode::Assignment(assignment) = statement else {
+            return;
+        };
+        let ExpressionNode::Name(target) = program.expression_table.expression(assignment.target)
+        else {
+            return;
+        };
+        if let Some((_, captured)) = self
+            .captured_results
+            .iter_mut()
+            .find(|(symbol, _)| *symbol == target.symbol)
+            && program
+                .machine_holding_state(state.symbol)
+                .and_then(|machine| {
+                    super::reference_subjects::replaces_reference_binding(
+                        program, machine, statement,
+                    )
+                })
+                != Some(false)
+        {
+            // Descriptor replacement retires the choice. A scalar store through
+            // the captured reference changes its referent, not that descriptor.
+            *captured = None;
+        }
+    }
 }
 
 /// A transition block is sequential. The next arm runs only when the previous
-/// ordinary guard falls through. Literal actuals can refute that guard, which
-/// removes the unselected referent from the caller-visible candidate union.
-/// A helper that returns another helper's result substitutes the same actuals
-/// through the inner call, a named state, or a terminal call. Those are one
-/// substitution: the result's reachable inputs are replayed through the
-/// expressions that supplied them. An unresolved route leaves the union intact.
+/// ordinary guard falls through. Current captured Boolean values can refute a
+/// guard and remove an unreachable referent from the caller-visible union.
+/// Calls and named-state arrivals substitute the same captured current values,
+/// not expressions replayed against a later caller or the outer entry. Cycles
+/// and unresolved routes retain the complete result union.
 fn retain_reachable_transition_results(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: &State,
     parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    actual_values: &[BoolTruth],
     origins: &mut Vec<ParameterRelativeFrameOrigin>,
 ) {
     let Some(reachable) =
-        reachable_value_parameters(program, machine, state, parameters, arguments)
+        reachable_value_parameters(program, state, parameters, actual_values, &mut Vec::new())
     else {
         return;
     };
@@ -307,61 +349,60 @@ fn retain_reachable_transition_results(
     }
 }
 
-pub(super) fn reachable_value_parameters(
+fn reachable_value_parameters(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: &State,
     parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
-) -> Option<Vec<SymbolHandle>> {
-    let mut stack = Vec::new();
-    reachable_value_parameters_in(
-        program,
-        machine,
-        state,
-        ActualFrame {
-            parameters,
-            arguments,
-        },
-        &[],
-        &mut stack,
-    )
-}
-
-fn reachable_value_parameters_in(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    current: ActualFrame<'_>,
-    outer: &[ActualFrame<'_>],
+    actual_values: &[BoolTruth],
     stack: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<SymbolHandle>> {
-    if stack.contains(&state.symbol) {
+    if stack.contains(&state.symbol) || parameters.len() != actual_values.len() {
         return None;
     }
     stack.push(state.symbol);
-    let result = reachable_value_parameters_body(program, machine, state, current, outer, stack);
+    let result = reachable_value_parameters_body(program, state, actual_values, stack);
     stack.pop();
     result
 }
 
 fn reachable_value_parameters_body(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: &State,
-    current: ActualFrame<'_>,
-    outer: &[ActualFrame<'_>],
+    actual_values: &[BoolTruth],
     stack: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<SymbolHandle>> {
+    let mut current = ResultSelection::new(program, state, actual_values);
     let mut fall_through = true;
     let mut reachable = Vec::new();
     let mut saw_value = false;
     let statements = program.statement_table.statements(state.statement_nodes);
     let last = statements.len().saturating_sub(1);
-    for (index, statement) in statements.iter().enumerate() {
+    for (statement_index, statement) in program
+        .statement_table
+        .admitted_execution_statements(state.statement_nodes)
+    {
         match statement {
+            StatementNode::Assignment(_) => current.finish_statement(program, state, statement),
+            StatementNode::LocalData(local)
+                if type_reference_is_reference(program, local.type_reference) =>
+            {
+                // Preserve a completed choice before a later selector store.
+                // Unstable bindings keep the unspecialized result relation.
+                let stable = !binding_is_exclusively_exposed(program, state, local.symbol);
+                let result = stable
+                    .then(|| {
+                        contributed_parameters(program, state, &current, stack, local.initial_value)
+                    })
+                    .flatten();
+                current.captured_results.push((local.symbol, result));
+            }
             StatementNode::Transition(transition) => {
-                let truth = guard_truth(program, current, outer, transition.guard);
+                let truth = match transition.guard {
+                    TransitionGuardNode::Always => BoolTruth::True,
+                    TransitionGuardNode::When(condition) => {
+                        current.values.truth(program, state, condition)
+                    }
+                };
                 if transition.exit == TransitionExit::Ordinary
                     && fall_through
                     && truth != BoolTruth::False
@@ -371,19 +412,13 @@ fn reachable_value_parameters_body(
                             TransitionTargetNode::Value(result) => {
                                 saw_value = true;
                                 reachable.extend(contributed_parameters(
-                                    program, state, current, outer, stack, *result,
+                                    program, state, &current, stack, *result,
                                 )?);
                             }
-                            // A named target is either an internal state jump or
-                            // the same machine invocation as an expression call.
-                            // Both substitute their result inputs through the
-                            // authored actuals. Leaving the target opaque kept
-                            // every input in the caller-visible union, so a
-                            // literal selector could not preserve a disjoint fact.
                             TransitionTargetNode::Named { .. } => {
                                 saw_value = true;
                                 reachable.extend(contributed_named_target(
-                                    program, machine, state, current, outer, stack, edge,
+                                    program, state, &current, stack, edge,
                                 )?);
                             }
                             TransitionTargetNode::Terminal => {}
@@ -403,10 +438,10 @@ fn reachable_value_parameters_body(
                     fall_through = false;
                 }
             }
-            StatementNode::Expression(result) if index == last && fall_through => {
+            StatementNode::Expression(result) if statement_index == last && fall_through => {
                 saw_value = true;
                 reachable.extend(contributed_parameters(
-                    program, state, current, outer, stack, *result,
+                    program, state, &current, stack, *result,
                 )?);
             }
             _ => {}
@@ -418,76 +453,53 @@ fn reachable_value_parameters_body(
 fn contributed_parameters(
     program: &dyn crate::CheckingInput,
     state: &State,
-    current: ActualFrame<'_>,
-    outer: &[ActualFrame<'_>],
+    current: &ResultSelection,
     stack: &mut Vec<SymbolHandle>,
-    mut result: ExpressionHandle,
+    result: ExpressionHandle,
 ) -> Option<Vec<SymbolHandle>> {
-    let mut seen = Vec::new();
-    loop {
-        match program.expression_table.expression(result) {
-            ExpressionNode::Borrow(borrow) => result = borrow.target,
-            ExpressionNode::Name(path) => {
-                if let Some(parameter) = current
-                    .parameters
-                    .iter()
-                    .find(|parameter| parameter.symbol == path.symbol)
-                {
-                    return Some(vec![parameter.symbol]);
-                }
-                if seen.contains(&path.symbol) {
-                    return None;
-                }
-                seen.push(path.symbol);
-                let Some(initial) = local_initializer(program, state, path.symbol) else {
-                    return None;
-                };
-                result = initial;
-            }
-            ExpressionNode::Call(call) => {
-                if call.receiver.is_valid() {
-                    return None;
-                }
-                let (callee_machine, callee_state) =
-                    machine_state_by_symbol(program, call.target_symbol)?;
-                let callee_arguments = program.expression_table.expression_handles(call.arguments);
-                return parameters_reached_through(
-                    program,
-                    callee_machine,
-                    state,
-                    current,
-                    outer,
-                    stack,
-                    callee_state,
-                    callee_arguments,
-                );
-            }
-            _ => return None,
+    match program.expression_table.expression(result) {
+        ExpressionNode::Borrow(borrow) => {
+            contributed_parameters(program, state, current, stack, borrow.target)
         }
+        ExpressionNode::Name(path) => {
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == path.symbol)
+            {
+                return Some(vec![parameter.symbol]);
+            }
+            current
+                .captured_results
+                .iter()
+                .find(|(symbol, _)| *symbol == path.symbol)?
+                .1
+                .clone()
+        }
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                return None;
+            }
+            let (_, callee_state) =
+                super::call_targets::machine_state_by_symbol(program, call.target_symbol)?;
+            let callee_arguments = program.expression_table.expression_handles(call.arguments);
+            parameters_reached_through(
+                program,
+                state,
+                current,
+                stack,
+                callee_state,
+                callee_arguments,
+            )
+        }
+        _ => None,
     }
-}
-
-fn local_initializer(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    symbol: SymbolHandle,
-) -> Option<ExpressionHandle> {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
-            _ => None,
-        })
 }
 
 fn contributed_named_target(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: &State,
-    current: ActualFrame<'_>,
-    outer: &[ActualFrame<'_>],
+    current: &ResultSelection,
     stack: &mut Vec<SymbolHandle>,
     edge: typed_trees::statement::TransitionTargetHandle,
 ) -> Option<Vec<SymbolHandle>> {
@@ -502,174 +514,43 @@ fn contributed_named_target(
     if static_machine_parameter.is_valid() {
         return None;
     }
-    let argument_handles = program.statement_table.expression_handles(*arguments);
+    let machine = program.machine_holding_state(state.symbol)?;
     let call_symbol = super::terminal_calls::target(program, machine, edge);
-    let (target_machine, target_state) = if call_symbol.is_valid() {
-        machine_state_by_symbol(program, call_symbol)?
+    let target_state = if call_symbol.is_valid() {
+        machine_state_by_symbol(program, call_symbol)?.1
     } else {
-        (
-            machine,
-            super::transition_topology::named_transition_target_state(
-                program, machine, state, edge,
-            )?,
-        )
+        super::transition_topology::named_transition_target_state(program, machine, state, edge)?
     };
-    parameters_reached_through(
-        program,
-        target_machine,
-        state,
-        current,
-        outer,
-        stack,
-        target_state,
-        argument_handles,
-    )
+    let arguments = program.statement_table.expression_handles(*arguments);
+    parameters_reached_through(program, state, current, stack, target_state, arguments)
 }
 
+/// Compose result provenance across either a call or a state arrival. Evaluate
+/// selector actuals before entering the target; translate only its selected
+/// parameter roots back through the caller's already captured reference choices.
 fn parameters_reached_through(
     program: &dyn crate::CheckingInput,
-    target_machine: &Machine,
     host_state: &State,
-    host: ActualFrame<'_>,
-    outer: &[ActualFrame<'_>],
+    host: &ResultSelection,
     stack: &mut Vec<SymbolHandle>,
     target_state: &State,
     target_arguments: &[ExpressionHandle],
 ) -> Option<Vec<SymbolHandle>> {
-    let target_parameters = program.state_parameters(target_state);
-    let mut frames = Vec::with_capacity(outer.len() + 1);
-    frames.push(host);
-    frames.extend_from_slice(outer);
-    let inner = reachable_value_parameters_in(
-        program,
-        target_machine,
-        target_state,
-        ActualFrame {
-            parameters: target_parameters,
-            arguments: target_arguments,
-        },
-        &frames,
-        stack,
-    )?;
+    let parameters = program.state_parameters(target_state);
+    let actual_values = host.values.argument_values(program, target_arguments);
+    let inner =
+        reachable_value_parameters(program, target_state, parameters, &actual_values, stack)?;
     let mut mapped = Vec::new();
     for symbol in inner {
-        let index = target_parameters
+        let position = parameters
             .iter()
             .position(|parameter| parameter.symbol == symbol)?;
-        let actual = *target_arguments.get(index)?;
-        for parameter in contributed_parameters(program, host_state, host, outer, stack, actual)? {
+        let actual = *target_arguments.get(position)?;
+        for parameter in contributed_parameters(program, host_state, host, stack, actual)? {
             if !mapped.contains(&parameter) {
                 mapped.push(parameter);
             }
         }
     }
     Some(mapped)
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum BoolTruth {
-    True,
-    False,
-    Unknown,
-}
-
-fn guard_truth(
-    program: &dyn crate::CheckingInput,
-    current: ActualFrame<'_>,
-    outer: &[ActualFrame<'_>],
-    guard: TransitionGuardNode,
-) -> BoolTruth {
-    match guard {
-        TransitionGuardNode::Always => BoolTruth::True,
-        TransitionGuardNode::When(condition) => {
-            let mut frames = Vec::with_capacity(outer.len() + 1);
-            frames.push(current);
-            frames.extend_from_slice(outer);
-            bool_truth(program, &frames, condition)
-        }
-    }
-}
-
-fn bool_truth(
-    program: &dyn crate::CheckingInput,
-    frames: &[ActualFrame<'_>],
-    expression: ExpressionHandle,
-) -> BoolTruth {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => {
-            if *value {
-                BoolTruth::True
-            } else {
-                BoolTruth::False
-            }
-        }
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            match bool_truth(program, frames, unary.operand) {
-                BoolTruth::True => BoolTruth::False,
-                BoolTruth::False => BoolTruth::True,
-                BoolTruth::Unknown => BoolTruth::Unknown,
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            let left = bool_truth(program, frames, binary.left);
-            let right = bool_truth(program, frames, binary.right);
-            match binary.operator {
-                BinaryOperator::Equal => left.equal(right),
-                BinaryOperator::NotEqual => left.equal(right).negate(),
-                BinaryOperator::And => left.and(right),
-                BinaryOperator::Or => left.or(right),
-                _ => BoolTruth::Unknown,
-            }
-        }
-        ExpressionNode::Name(path) => {
-            for (index, frame) in frames.iter().enumerate() {
-                if let Some(position) = frame
-                    .parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == path.symbol)
-                {
-                    let Some(actual) = frame.arguments.get(position) else {
-                        return BoolTruth::Unknown;
-                    };
-                    return bool_truth(program, &frames[index + 1..], *actual);
-                }
-            }
-            BoolTruth::Unknown
-        }
-        _ => BoolTruth::Unknown,
-    }
-}
-
-impl BoolTruth {
-    fn negate(self) -> Self {
-        match self {
-            Self::True => Self::False,
-            Self::False => Self::True,
-            Self::Unknown => Self::Unknown,
-        }
-    }
-
-    fn equal(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
-            (Self::True, Self::True) | (Self::False, Self::False) => Self::True,
-            _ => Self::False,
-        }
-    }
-
-    fn and(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::False, _) | (_, Self::False) => Self::False,
-            (Self::True, Self::True) => Self::True,
-            _ => Self::Unknown,
-        }
-    }
-
-    fn or(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::True, _) | (_, Self::True) => Self::True,
-            (Self::False, Self::False) => Self::False,
-            _ => Self::Unknown,
-        }
-    }
 }

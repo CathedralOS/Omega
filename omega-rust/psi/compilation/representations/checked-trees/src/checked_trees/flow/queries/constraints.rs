@@ -2,7 +2,25 @@ use arena::{Handle, HandleSpan};
 
 use crate::{BorrowCallFact, BorrowLoanFact, BorrowWritableRootFact};
 
-use super::super::{FlowConstraintKind, FlowConstraintRef, FlowFacts};
+use super::super::{FlowConstraintKind, FlowConstraintRef, FlowContextFacts, FlowFacts};
+
+impl FlowContextFacts {
+    /// Semantic evidence retained by this exact operand/context roster.
+    /// Borrow constraints stay separate; growing output does not replace an
+    /// earlier operand's completion contexts with invocation-time contexts.
+    pub fn semantic_constraint_contexts(
+        &self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = facts::FactContextHandle> + '_ {
+        self.constraint_refs
+            .span_or_empty(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::SemanticContext { context } => Some(context),
+                FlowConstraintKind::Unknown | crate::borrow_set_quint_pattern!(..) => None,
+            })
+    }
+}
 
 impl FlowFacts {
     pub fn constraints(&self, constraints: HandleSpan<FlowConstraintRef>) -> &[FlowConstraintRef] {
@@ -13,12 +31,7 @@ impl FlowFacts {
         &self,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> impl Iterator<Item = facts::FactContextHandle> + '_ {
-        self.constraints(constraints)
-            .iter()
-            .filter_map(|constraint| match constraint.kind {
-                FlowConstraintKind::SemanticContext { context } => Some(context),
-                FlowConstraintKind::Unknown | crate::borrow_set_quint_pattern!(..) => None,
-            })
+        self.contexts.semantic_constraint_contexts(constraints)
     }
 
     pub fn borrow_call_constraints(

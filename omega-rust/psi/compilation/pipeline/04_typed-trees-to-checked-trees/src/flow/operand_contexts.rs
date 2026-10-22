@@ -2,7 +2,9 @@
 //! exact views read their referents at invocation. Operators and ordinary calls
 //! share this law, including the conservative context-identity intersection.
 use arena::HandleSpan;
-use checked_trees::{FlowConstraintRef, FlowFacts, FlowOperandFact};
+use checked_trees::{
+    FlowConstraintRef, FlowContextFacts, FlowControlFacts, FlowFacts, FlowOperandFact,
+};
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -44,13 +46,14 @@ pub(crate) fn captured_call_operands<'facts>(
 
 pub(crate) fn operand_contexts(
     program: &dyn ::validation::CheckingInput,
-    flow: &FlowFacts,
+    contexts: &FlowContextFacts,
+    control: &FlowControlFacts,
     semantic: &FactPlan,
     operand: &FlowOperandFact,
     type_reference: TypeReferenceHandle,
     invocation: HandleSpan<FlowConstraintRef>,
 ) -> Vec<FactContextHandle> {
-    let mut captured = flow
+    let mut captured = contexts
         .semantic_constraint_contexts(operand.constraints)
         .collect::<Vec<_>>();
     if operand_binds_stable_copy(program, type_reference) {
@@ -61,13 +64,14 @@ pub(crate) fn operand_contexts(
     // that captured evidence only while its exact context is still live. Facts
     // established later on the original referent remain independently usable.
     captured.retain(|candidate| {
-        flow.semantic_constraint_contexts(invocation)
+        contexts
+            .semantic_constraint_contexts(invocation)
             .any(|context| context == *candidate)
     });
     if !operand.referents.is_empty() {
-        for context in
-            invocation_contexts_at_referents(program, flow, semantic, operand, invocation)
-        {
+        for context in invocation_contexts_at_referents(
+            program, contexts, control, semantic, operand, invocation,
+        ) {
             if !captured.contains(&context) {
                 captured.push(context);
             }
@@ -78,16 +82,15 @@ pub(crate) fn operand_contexts(
 
 fn invocation_contexts_at_referents(
     program: &dyn ::validation::CheckingInput,
-    flow: &FlowFacts,
+    contexts: &FlowContextFacts,
+    control: &FlowControlFacts,
     semantic: &FactPlan,
     operand: &FlowOperandFact,
     invocation: HandleSpan<FlowConstraintRef>,
 ) -> Vec<FactContextHandle> {
-    let referents = flow
-        .control
-        .operand_referents
-        .span_or_empty(operand.referents);
-    flow.semantic_constraint_contexts(invocation)
+    let referents = control.operand_referents.span_or_empty(operand.referents);
+    contexts
+        .semantic_constraint_contexts(invocation)
         .filter(|context| {
             semantic
                 .refs
@@ -110,7 +113,7 @@ fn invocation_contexts_at_referents(
                             && crate::flow::canonical_place_segments_may_overlap(
                                 program,
                                 &place.segments,
-                                flow.control
+                                control
                                     .operand_referent_segments
                                     .span_or_empty(referent.segments),
                             )

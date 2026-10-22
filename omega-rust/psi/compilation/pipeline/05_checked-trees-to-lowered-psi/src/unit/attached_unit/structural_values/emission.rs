@@ -915,14 +915,28 @@ fn prepare_owners(
         let Some(symbol) = root.as_symbol() else {
             continue;
         };
-        let local =
-            checked
-                .facts
-                .state_locals
-                .named(state, symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "selection survivor has no authored local",
-                ))?;
+        let local = match checked.facts.state_locals.named(state, symbol) {
+            Some(local) => local,
+            None => {
+                let parameter = source_parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "selection home has no checked source declaration",
+                    ))?;
+                // The home catalogue also contains addressable scalar ingress.
+                // Checked unrestricted custody needs no affine survivor, even
+                // when a mutable parameter has an emitted structural home.
+                // Never invent a local identity or discard an affine/linear
+                // parameter here; selected owned ingress joins separately below.
+                if crate::reference_custody::binding_multiplicity(checked, parameter.type_reference)
+                    == Multiplicity::Unrestricted
+                {
+                    continue;
+                }
+                return unsupported("selection home requires an owned ingress frontier");
+            }
+        };
         if !available(symbol, local.statement_index)? {
             continue;
         }

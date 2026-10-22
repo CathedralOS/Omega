@@ -265,7 +265,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                             && values.iter().all(|captured| {
                                 let contexts = crate::flow::operand_contexts(
                                     program,
-                                    &facts.flow,
+                                    &facts.flow.contexts,
+                                    &facts.flow.control,
                                     &facts.semantic,
                                     captured.operand,
                                     captured.type_reference,

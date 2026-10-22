@@ -327,23 +327,8 @@ fn call_write_places(
         .map(unattributed_writes);
     }
     if let Some(summarized_places) = summarized_places {
-        if matches!(namespace, WritePlaceNamespace::Storage) {
-            // A complete summary lists stores the body performs. An exclusive
-            // loan still permits a write when that list does not overlap the
-            // lent referent, so the referent retires saved observations of
-            // it. A loan the summary already overlaps keeps the summary's
-            // footprint: a write to one array element does not become a
-            // write of the whole array.
-            return union_unwritten_exclusive_loans(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow,
-                borrow_call,
-                call_frames,
-                summarized_places,
-            );
-        }
+        // A complete frame describes actual writes, not everything exclusive
+        // permission would allow. Only the fallback below uses loan ceilings.
         return Some(summarized_places);
     }
     let mut places = exclusive_loan_places(
@@ -402,8 +387,8 @@ fn call_write_places(
 }
 
 /// Exclusive argument, mutable-parameter, and mutable-receiver places the call
-/// lends. These are the referents an exclusive loan permits a later write
-/// through, whether or not this body stores.
+/// lends. These form the conservative ceiling when no complete body frame is
+/// available, not extra writes to append to an already complete frame.
 fn exclusive_loan_places(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
@@ -471,129 +456,6 @@ fn exclusive_loan_places(
         places.push(place);
     }
     places
-}
-
-/// Add exclusive loans the completed write summary does not already cover.
-/// A summary that already stores keeps a loan it does not overlap, because
-/// that loan may still be written. An empty summary stored nothing: only a
-/// referent the reference result actually names retires, so an unselected
-/// input of a choice stays. An opaque result keeps every loan. A summary
-/// write inside a wider loan keeps the narrower footprint.
-fn union_unwritten_exclusive_loans(
-    program: &dyn ::validation::CheckingInput,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
-    borrow: &BorrowFacts,
-    borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    mut summarized_places: Vec<CallMutationWrite>,
-) -> Option<Vec<CallMutationWrite>> {
-    let returned = summarized_places.is_empty().then(|| {
-        exclusive_result_regions(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow_call,
-            call_frames,
-        )
-    });
-    for place in exclusive_loan_places(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        borrow,
-        borrow_call,
-    ) {
-        let regions = local_origins::rebase_local_write_regions(
-            program,
-            caller_state_symbol,
-            borrow_call.statement_index,
-            place,
-            call_frames,
-        )?;
-        for region in regions {
-            if summarized_places
-                .iter()
-                .any(|write| storage_regions_may_overlap(program, &write.region, &region))
-            {
-                continue;
-            }
-            if let Some(returned) = &returned
-                && returned.as_ref().is_some_and(|places| {
-                    !places.iter().any(|returned_region| {
-                        storage_regions_may_overlap(program, returned_region, &region)
-                    })
-                })
-            {
-                continue;
-            }
-            summarized_places.push(CallMutationWrite {
-                region,
-                source: None,
-            });
-        }
-    }
-    Some(summarized_places)
-}
-
-fn exclusive_result_regions(
-    program: &dyn ::validation::CheckingInput,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
-    borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<StorageRegion>> {
-    let frames = call_frames?;
-    let machine = program.machine_by_symbol(caller_machine_symbol)?;
-    let state = program.state_by_symbol(caller_state_symbol)?;
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(borrow_call.statement_index)?;
-    let CallSite::Expression { expression, .. } = find_call_site(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    )?
-    else {
-        return None;
-    };
-    let mut regions = Vec::new();
-    for path in frames.exclusive_reference_result_paths(machine, expression)? {
-        let source = local_origins::place_from_origin_path(
-            program,
-            state,
-            borrow_call.statement_index,
-            path.as_str(),
-        )?;
-        for region in local_origins::rebase_local_write_regions(
-            program,
-            caller_state_symbol,
-            borrow_call.statement_index,
-            source,
-            call_frames,
-        )? {
-            if !regions.contains(&region) {
-                regions.push(region);
-            }
-        }
-    }
-    Some(regions)
-}
-
-fn storage_regions_may_overlap(
-    program: &dyn ::validation::CheckingInput,
-    left: &StorageRegion,
-    right: &StorageRegion,
-) -> bool {
-    left.anchor().root == right.anchor().root
-        && canonical_place_segments_may_overlap(
-            program,
-            &left.anchor().segments,
-            &right.anchor().segments,
-        )
 }
 
 fn codec_frame_storage_regions(
@@ -671,7 +533,6 @@ fn call_site_is_wire_codec(program: &dyn ::validation::CheckingInput, site: &Cal
     program.wire_encode_call_schema(call).is_some()
         || program.wire_decode_call_schema(call).is_some()
 }
-
 fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
     regions
         .into_iter()

@@ -246,7 +246,8 @@ impl<'facts> InvocationContexts<'facts> {
             };
             let operand_contexts = crate::flow::operand_contexts(
                 program,
-                self.flow,
+                &self.flow.contexts,
+                &self.flow.control,
                 self.semantic,
                 operand,
                 parameter.type_reference,

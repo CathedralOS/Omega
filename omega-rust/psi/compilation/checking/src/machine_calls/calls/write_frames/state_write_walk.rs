@@ -92,6 +92,24 @@ pub(crate) fn summarize_complete_state_written_paths(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
+    if inference.selects_state(state) {
+        if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
+            // Keep the existing full fixed point for cycles, without importing
+            // a caller's current values into its state-only completed memo.
+            return inference.without_values(|inference| {
+                summarize_complete_state_written_paths(program, machine, state, symbols, inference)
+            });
+        }
+        return walk_state_write_prefix(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            Some(StateWriteQuery::Complete),
+        )
+        .map(|prefix| prefix.written);
+    }
     if let Some(paths) = symbols.caller_sites.completed_state_writes(state.symbol) {
         return Some(paths);
     }
@@ -399,6 +417,30 @@ fn walk_state_write_prefix_inner(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     query: Option<StateWriteQuery>,
+    collect: Option<&mut StatementPrefixCollection<'_>>,
+    assignments: Option<&mut Vec<(usize, AssignmentPrefix)>>,
+) -> Option<StateWritePrefix> {
+    inference.with_state_values(program, state, |inference| {
+        walk_state_write_prefix_body(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            query,
+            collect,
+            assignments,
+        )
+    })
+}
+
+fn walk_state_write_prefix_body(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    query: Option<StateWriteQuery>,
     mut collect: Option<&mut StatementPrefixCollection<'_>>,
     mut assignments: Option<&mut Vec<(usize, AssignmentPrefix)>>,
 ) -> Option<StateWritePrefix> {
@@ -473,6 +515,14 @@ fn walk_state_write_prefix_inner(
         collection.prefixes.resize_with(statements.len(), || None);
     }
     for (position, &statement_index) in order.indices().iter().enumerate() {
+        if let Some(&previous) = position
+            .checked_sub(1)
+            .and_then(|position| order.indices().get(position))
+        {
+            // Every early-continue path still commits exactly the preceding
+            // store. Operand/origin queries for that store saw its old value.
+            inference.finish_statement(program, state, &statements[previous]);
+        }
         let statement = &statements[statement_index];
         if let Some(collection) = collect.as_deref_mut() {
             collection.prefixes[statement_index] =

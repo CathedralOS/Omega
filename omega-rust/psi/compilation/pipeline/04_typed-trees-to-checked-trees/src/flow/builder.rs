@@ -10,8 +10,8 @@
 //! survives that replacement boundary. Baseline contents still copy per sweep,
 //! including context-point links, while clone_from reuses their allocations.
 //!
-//! Value inputs cross state boundaries only along transitions inside one
-//! machine and invocations of another machine's non-entry state, so machines
+//! Value inputs cross state boundaries along transitions and ordinary call
+//! argument deliveries, including another machine's entry, so machines
 //! joined by such invocations form independent groups. Each group reaches its
 //! own fixed point, or its own unknown-input fallback, on a worker over a copy
 //! of the baseline plan, writing every machine on page

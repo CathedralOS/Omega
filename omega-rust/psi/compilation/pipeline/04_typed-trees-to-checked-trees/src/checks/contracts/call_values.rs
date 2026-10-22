@@ -443,7 +443,8 @@ pub(super) fn membership_evidence(
     let contexts = match values.as_slice() {
         [captured] => crate::flow::operand_contexts(
             program,
-            &facts.flow,
+            &facts.flow.contexts,
+            &facts.flow.control,
             &facts.semantic,
             captured.observation,
             captured.observation_type,
@@ -498,7 +499,8 @@ pub(crate) fn actual_contexts(
     };
     crate::flow::operand_contexts(
         program,
-        &facts.flow,
+        &facts.flow.contexts,
+        &facts.flow.control,
         &facts.semantic,
         captured.observation,
         captured.observation_type,
@@ -735,7 +737,8 @@ pub(crate) fn proves_bound_predicate<'program>(
         let capture_type = captured.observation_type;
         let operand_contexts = crate::flow::operand_contexts(
             program,
-            &facts.flow,
+            &facts.flow.contexts,
+            &facts.flow.control,
             &facts.semantic,
             capture,
             capture_type,

@@ -1,18 +1,16 @@
-# Exclusive exposure of a saved array element
+# Complete non-writing frames preserve saved observations
 
-A saved observation that items[0] is 7 stays provable across an exclusive loan of a different element.
+A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.
 
-The consuming operation is `agree(observed, current)` with `requires observed == current && observed == 7`, after a saved read of `items[0]` on `[7, 1]` and an exclusive loan of the other element that does not store. Exit 0 means the saved observation still names that element. The reject twin loans `items[0]` instead and does not write it, so the observation is no longer valid.
+The consuming operation is `agree(observed, current)` with `requires observed == current && observed == 7`, after a saved read of `items[0]` on `[7, 1]` and an exclusive call borrowing `items[0]` without storing. Exit 0 means the saved observation remains valid. The reject twin changes only `expose` by adding `slot = 8`, which invalidates the live equality.
 
-Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` (`TASKS.md`). An exclusive loan permits a later store of the lent referent, so a complete empty store list does not preserve a saved observation of that referent. A loan the body already overlaps keeps the narrower footprint: lending or writing one array element does not become a write of the whole array.
+Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` (`TASKS.md`). [State contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity) preserve facts under complete empty summaries. [Mutation frames](../../../../wiki/spec/language/dependent_values.md#mutation-frames) allow checked implementations to derive narrower frames than their exclusive signature ceiling. Permission to store is not an actual store; unknown effects still use their conservative ceiling.
 
-## Measured on `d6a282e29da` before the repair
+## Baseline and acceptance
 
-Without the compiler edit, `omega run --both samples/cli/facts/exclusive_observation_exposure/local/main.omg` exited 0 in both engines. `omega --check samples/cli/facts/exclusive_observation_exposure/local/invalid/main.omg` also exited 0. There was no diagnostic: the saved fact stayed provable after an exclusive loan of `items[0]` that only reads.
+On current main `d545ec03095b`, each overlapping no-store program (formerly labeled invalid) wrongly refuses its `agree` contract. The same synthetic-store broadening also refuses the existing direct-choice and named-state disjoint-bound samples. Historical refusal labels were not language authority: a known complete empty body frame preserves these facts.
 
-## Measured after the repair
-
-All nine positive places exit 0 in Terminal Psi and native execution (`omega run --both`). Each reject twin fails `omega --check` with `cannot prove requires contract`. The other-machine twin also fails its `ensures result == items[0]` for that same overlapping loan.
+Acceptance is `omega run --both <place>/main.omg` exiting 0 in both engines for all nine places, and each `omega --check <place>/invalid/main.omg` rejecting the actual overlapping write with `cannot prove requires contract`. Producer-bound observations live in the owning qualification/claim record; no unexecuted target is claimed here.
 
 ## Places
 
@@ -30,11 +28,26 @@ All nine positive places exit 0 in Terminal Psi and native execution (`omega run
 
 ## Requirements and evidence
 
-- **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
-- **Identity and invalidation.** An exclusive loan of `items[1]` does not overlap the observed element, so the saved copy stays equal to it. An exclusive loan of `items[0]` overlaps it even when the loan body does not store, and the equality is unprovable.
-- **Composition.** The nine places carry that same sentence. Parameter, call result, other machine, and target body pass the saved value or the array through a contract that names the element. Field, match join, const name, and another state keep the read in the lending state. The positive and reject twins differ only in which element is lent.
-- **Soundness.** The loan is ordinary exclusive access. No mathematical binding is executed. Proof retirement follows the lent referent.
-- **Checked-to-Terminal Psi.** The positive places execute in the Terminal Psi interpreter and agree with native execution. The reject twins fail checking, so they have no Terminal Psi product.
-- **Later realization.** Each positive binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and exits 0 natively on this Windows x86_64 host. The other three targets are bound and not executed here.
+The [`case_payload`](case_payload/main.omg) and [`generic`](generic/main.omg)
+mechanism probes preserve the saved case payload or generic field through the
+same non-writing call. Their respective [`case twin`](case_payload/invalid/main.omg)
+and [`generic twin`](generic/invalid/main.omg) add only the overlapping store.
+These focused probes do not close the parent outcome's remaining composition.
 
-Acceptance demonstrated: exclusive exposure of a saved array-element observation, in all nine places, with overlapping-loan twins. What remains open in `STATE-LOCAL-VALUE-FRONTIER` is case, generic, reference, and float carriers, plus the rest of that outcome's composition obligations.
+The [`reference`](reference/main.omg) probe and the six [`float`](float/main.omg)
+places (local, field, parameter, match join, const name, another state) use that
+same complete non-writing call on the observed referent. Each twin adds only
+the overlapping store. On `8bd3d5732111`, these non-writing same-place sources
+wrongly refuse their saved equality; their former invalid labels do not justify
+treating permission as a store. Producer-bound baseline observations retain the
+original sources and diagnostics. Float call-result, other-machine and
+target-body transport remain open, including their no-loan equality gap.
+
+- **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
+- **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.
+- **Composition.** The nine places carry that same sentence. Parameter, call result, other machine, and target body pass the saved value or the array through a contract that names the element. Field, match join, const name, and another state keep the read in the lending state. The positive and reject twins differ only by the store in `expose`.
+- **Soundness.** The loan is ordinary exclusive access. No mathematical binding is executed. Proof retirement follows actual write footprints; no frame grants borrow authority.
+- **Checked-to-Terminal Psi.** The positive places execute in the Terminal Psi interpreter and agree with native execution. The reject twins fail checking, so they have no Terminal Psi product.
+- **Later realization.** Each positive binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. Current native/Terminal execution evidence is host-specific; bindings alone do not establish execution on the other hosts.
+
+This row covers complete non-writing frames over saved array-element observations, with actual overlapping-write twins. Case, generic and reference probes and six float places do not close their remaining transport obligations or the rest of `STATE-LOCAL-VALUE-FRONTIER`.

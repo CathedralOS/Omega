@@ -48,7 +48,8 @@ pub(in crate::checks::contracts) fn scalar_at_path(
         .find_map(|(operand, reference, places)| {
             let contexts = crate::flow::operand_contexts(
                 program,
-                &facts.flow,
+                &facts.flow.contexts,
+                &facts.flow.control,
                 &facts.semantic,
                 operand,
                 reference,

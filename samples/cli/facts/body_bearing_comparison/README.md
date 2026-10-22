@@ -23,3 +23,19 @@ rejects `direct == false`.
 The comparison records the selected body's boolean result. The match and the
 direct use read that result. A domain on an `f64` constant keeps the `f64`
 encoding.
+
+The [`returned_boolean`](returned_boolean/main.omg) rung keeps a result constant
+through agreeing literal returns, a named state and a terminal call; a separate
+conditional result still executes both true and false. Its
+[`twin`](returned_boolean/invalid/main.omg) changes only the named state's
+returned value. Body-result equations join every reachable normal return and
+selected target body. An unknown or disagreeing return supplies no constant;
+an earlier expression statement is not the invocation's final result.
+
+On `55898d082fc8`, an unrelated conditional body returning true or false wrongly
+checks as always true, and a mixed named-state body wrongly checks as always
+false. The agreeing named-state/call rung instead refuses its valid `demand`
+contract. Those frozen baseline observations and the actual host execution
+records are retained in the owning qualification/claim evidence. The focused
+fixtures under `tests/omega/{pass,fail}/proofs/` pin the shared return join;
+they do not close the rest of **OPERATOR-MACHINE-SUPPLY**.

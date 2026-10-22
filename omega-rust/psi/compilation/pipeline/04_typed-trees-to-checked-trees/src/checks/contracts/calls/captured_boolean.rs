@@ -338,7 +338,8 @@ fn captured_expression_proven(
                     for value in values {
                         let contexts = crate::flow::operand_contexts(
                             program,
-                            &facts.flow,
+                            &facts.flow.contexts,
+                            &facts.flow.control,
                             &facts.semantic,
                             value.operand,
                             value.type_reference,

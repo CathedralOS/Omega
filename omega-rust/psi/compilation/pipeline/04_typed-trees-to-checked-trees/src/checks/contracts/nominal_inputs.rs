@@ -192,7 +192,8 @@ pub(super) fn check(
                             .any(|(operand, reference, subjects)| {
                                 let contexts = crate::flow::operand_contexts(
                                     program,
-                                    &facts.flow,
+                                    &facts.flow.contexts,
+                                    &facts.flow.control,
                                     &facts.semantic,
                                     operand,
                                     reference,

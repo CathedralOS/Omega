@@ -186,7 +186,8 @@ pub(super) fn check_constructor_membership(
         captures.iter().all(|capture| {
             let contexts = crate::flow::operand_contexts(
                 program,
-                &facts.flow,
+                &facts.flow.contexts,
+                &facts.flow.control,
                 &facts.semantic,
                 capture,
                 capture.type_reference,

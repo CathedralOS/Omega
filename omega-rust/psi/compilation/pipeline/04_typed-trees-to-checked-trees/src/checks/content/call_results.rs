@@ -1127,7 +1127,8 @@ pub(super) fn input_claim(
     // The transfer joins below still owe current custody of this exact claim.
     let contexts = crate::flow::operand_contexts(
         program,
-        &facts.flow,
+        &facts.flow.contexts,
+        &facts.flow.control,
         &facts.semantic,
         value.observation,
         value.observation_type,
