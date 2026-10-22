@@ -1,0 +1,4 @@
+owner: macw15 coordinator
+provenance: agent=deepseek-harness model=deepseek-v4.1-flash effort=max wave=macw15 role=coordinator-board-sweep
+ticket: a8b0a32fcbab41f7afdfaeab40fc14c7
+published_utc: 2026-10-22T21:39:20.715721+00:00
