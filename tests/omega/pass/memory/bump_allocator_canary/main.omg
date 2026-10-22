@@ -3,10 +3,13 @@
 // through two live owned results. Fallible calls keep the strategy in place.
 // `exercise_release` consumes a release whose retired extent stays unavailable
 // until `reset` recomposes it: the monotonic cursor never moves on release.
+// `exercise_shrink` retires a truncation's freed suffix in the container, takes
+// the second truncation's rejection, folds the carrier back into the buffer a
+// growth replaces, and closes over every carrier.
 //
 // This remains a compile-only integration fixture: its entry acquires no
 // backing. The merge and resident declarations below do not establish an
-// executable allocator, physical storage or the unfinished truncate/reset
+// executable allocator, physical storage or the unfinished multi-claim reset
 // contract.
 use omega::language::core::extent;
 use omega::language::core::content;
@@ -127,6 +130,7 @@ reaches ExtentPartition
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
             retained_buffer: vec.retained_buffer,
+            freed_suffix: vec.freed_suffix,
         },
     );
     let backing: Extent in Granted & Vacant = recomposed.backing;
@@ -152,6 +156,7 @@ reaches ExtentPartition
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
             retained_buffer: vec.retained_buffer,
+            freed_suffix: vec.freed_suffix,
         },
         32,
     );
@@ -196,6 +201,7 @@ reaches ExtentPartition
             strategy: Bump { tail: tail, remaining: remaining },
             buffer: buffer,
             retained_buffer: vec.retained_buffer,
+            freed_suffix: vec.freed_suffix,
         },
         capacity,
     );
@@ -220,11 +226,12 @@ reaches ExtentPartition
     }
 }
 
-// Shrink then grow: `shrink` returns the live buffer's freed suffix to the
-// tail, `grow` spends part of the restored residual on a new buffer while
-// the shrunk one moves to the retained slot, and `close` folds every region
-// back. The grown leg proves the restored residual is spendable, not just
-// recorded — the same residual law `release` established.
+// Truncate, then grow: the truncation keeps the freed suffix as retired
+// content in the container, so the cursor does not move; a second truncation —
+// even one that frees nothing — rejects while that one carrier is held; `grow`
+// spends residual tail on a new buffer and folds the held suffix back into the
+// buffer it was cut from before retiring that allocation; and `close` folds
+// every region back in address order.
 machine exercise_shrink(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
     48 <= capacity;
@@ -232,11 +239,26 @@ requires
 reaches ExtentPartition
 {
     let vec: BumpVec = open(whole, 32, capacity);
-    let shrunk: BumpVec = shrink(vec, 16);
-    let growth: Growth = grow(shrunk, 8);
-    transition growth {
-        Growth::Grown { vec } -> finish(vec)
-        Growth::Rejected { vec } -> finish(vec)
+    let truncation: Truncation = shrink(vec, 16);
+    transition truncation {
+        Truncation::Truncated { vec } -> again(vec)
+        Truncation::Rejected { vec } -> finish(vec)
+    }
+
+    state again(vec: BumpVec) -> Extent {
+        let second: Truncation = shrink(vec, 0);
+        transition second {
+            Truncation::Truncated { vec } -> grown(vec)
+            Truncation::Rejected { vec } -> grown(vec)
+        }
+    }
+
+    state grown(vec: BumpVec) -> Extent {
+        let growth: Growth = grow(vec, 8);
+        transition growth {
+            Growth::Grown { vec } -> finish(vec)
+            Growth::Rejected { vec } -> finish(vec)
+        }
     }
 
     state finish(vec: BumpVec) -> Extent {

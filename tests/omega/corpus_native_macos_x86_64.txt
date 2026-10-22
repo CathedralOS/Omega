@@ -17,4 +17,4 @@ pass/facts/checked_asm_countdown_other_machine_exit built 3516ms exit:0 @fa165e5
 pass/facts/checked_asm_countdown_other_state_exit built 3477ms exit:0 @fa165e504cfa
 pass/facts/checked_asm_countdown_parameter_exit built 3475ms exit:0 @fa165e504cfa
 pass/facts/checked_asm_countdown_target_body_exit built 3543ms exit:0 @fa165e504cfa
-pass/memory/bump_allocator_canary built 10679ms @6cd22386cbb5+wt
+pass/memory/bump_allocator_canary built 10969ms @208d6107f46d+wt

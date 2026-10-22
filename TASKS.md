@@ -4915,13 +4915,18 @@ wait for Cathedral's instruction coverage. The interpreter is
     `Vacant`/`Resident` transfer routes over actual backing; a route declaration
     alone supplies neither vacancy nor resident custody. Live residents cannot
     merge as vacant.
-  - `release` is monotonic: it retains its returned extent as retired content
-    (`Released`) without moving the cursor or residual, pinned by
-    `fail/memory/bump_allocator_retired_extent_unavailable`. Still to do:
-    `BumpVec::shrink` folds its freed suffix into the allocatable tail, and
-    `reset` recomposes only the two claims a caller can name, so
-    every-retired-extent recomposition needs the container's retired roles
-    (below and above the live buffer) and a claim carrier the strategy lacks.
+  - The strategy's cursor is monotonic: `release` retains its returned extent as
+    retired content (`Released`), and `BumpVec`'s truncate edge retires the
+    buffer's freed suffix in the container (`Truncation`), folds it back into
+    the buffer a growth replaces, and closes over every carrier in address
+    order — pinned by the canary's release/truncate exercises,
+    `fail/memory/bump_allocator_retired_extent_unavailable` and
+    `fail/memory/bump_allocator_truncation_beyond_buffer`. Still to do: `reset`
+    recomposes only the two claims a caller can name, so every-retired-extent
+    recomposition needs a claim carrier the strategy lacks; the canary's
+    fixture-local `ResidentStorage` still stands in for PLAN-LAID-VIEWS
+    establishment, element transfer and retirement; and real backing needs the
+    measured prerequisite below.
   - Measured prerequisite for the acceptance below: a hosted program reaches
     `Extent in Granted` through `ExtentRootProvider`, but no admitted provider
     establishes `Vacant` outside the UEFI program-storage entry, so neither the
