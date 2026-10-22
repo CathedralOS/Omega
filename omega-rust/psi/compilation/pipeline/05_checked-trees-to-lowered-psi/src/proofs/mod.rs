@@ -37,17 +37,17 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     BoundaryContentGuarantee, ClaimContentProjection, ContentConservationGuarantee,
-    ContentEntryClaim, ContentIdentityReshuffle, ContentPlaceSubstitution,
-    CrashCause as TerminalCrashCause, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, OperationResult, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
-    OutcomeSpecificGuard, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderDeclaration, PropositionBinderKind, PropositionDeclaration,
-    PropositionEvidence, StaticRequirementDispatch, StructuralContentProjection,
-    StructuralFieldType, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, ValueDeclaration,
+    ContentEntryClaim, ContentIdentityReshuffle, CrashCause as TerminalCrashCause,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
+    OperationResult, OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard, ProofOutput,
+    ProofOutputCall, ProofOutputRuntimeCall, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, StaticRequirementDispatch,
+    StructuralContentProjection, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    ValueDeclaration,
 };
 
 use crate::emission::scalar_types::{integer_scalar_type, terminal_scalar_type};

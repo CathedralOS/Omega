@@ -93,7 +93,6 @@ pub use lowered_machine_provenance::lowered_machine_provenance;
 // Proof artifacts this stage produces for owners outside it.
 pub use proofs::content_conservation::{
     LoweredContentConservation, LoweredContentIdentityReshuffles,
-    LoweredContentPartitionComposition, LoweredContentPartitionCompositions,
 };
 pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
 

@@ -1,4 +1,4 @@
-//! Content conservation, identity reshuffle, and partition-composition lowering.
+//! Content conservation and identity reshuffle lowering.
 //!
 //! The upstream checking::value_custody::content_conservation normalizer checks
 //! projection calls, entry revisions, separation, and equality. This owner
@@ -22,14 +22,13 @@ use super::{
     ClaimId, ContentAlgebra, ContentAlgebraKind, ContentArithmeticOperator, ContentConservation,
     ContentConservationGuarantee, ContentConservationOwnerKind, ContentConservationPlan,
     ContentDomainId, ContentEntryClaim, ContentIdentityReshuffle, ContentIdentityReshuffleFact,
-    ContentPlaceSegment, ContentPlaceSubstitution, ContentPlaceVersion,
-    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
-    ContentStructuralPlace, ContentTerm, LoweringError, PermissionClaimIdentity, PlaceId,
-    Proposition, PropositionContext, SemanticDomainId, StructuralContentProjection,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, conservation_report_fingerprint, lookup_claim_id, unsupported,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    LoweringError, PermissionClaimIdentity, PlaceId, Proposition, PropositionContext,
+    SemanticDomainId, StructuralContentProjection, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    conservation_report_fingerprint, lookup_claim_id, unsupported,
 };
-use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 
 /// One checked content equation translated into terminal-Psi identities.
 /// Arena-local domain, projection-machine, and field symbols are deliberately
@@ -57,24 +56,6 @@ pub struct LoweredContentIdentityReshuffles {
     pub source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoweredContentPartitionCompositions {
-    pub structural_places: Vec<StructuralPlaceDeclaration>,
-    pub compositions: Vec<LoweredContentPartitionComposition>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoweredContentPartitionComposition {
-    pub(crate) producer_coordinate: SourceCallCoordinate,
-    pub(crate) source_callable: symbols::SymbolHandle,
-    /// Non-authoritative compact coordinate beside the exact retained source.
-    pub(crate) source_report_fingerprint: u64,
-    pub(crate) source_structural_places: Vec<StructuralPlaceDeclaration>,
-    pub(crate) source: ContentConservation,
-    pub(crate) input_claims: Vec<ClaimId>,
-    pub(crate) substitutions: Vec<ContentPlaceSubstitution>,
-    pub(crate) derived: ContentConservation,
-}
 fn content_field_identity(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> Option<String> {
     checked.data_definitions().iter().find_map(|definition| {
         checked.data_members(definition).iter().find_map(|member| {
