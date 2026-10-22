@@ -1056,15 +1056,6 @@ impl ExpressionTable {
         self.expression_roots.insert_many(retained);
     }
 
-    pub fn expression_is_direct_place_path(&self, handle: ExpressionHandle) -> bool {
-        match self.expression(handle) {
-            ExpressionNode::Name(_) => true,
-            ExpressionNode::Member(member) => self.expression_is_direct_place_path(member.receiver),
-            ExpressionNode::Borrow(inner) => self.expression_is_direct_place_path(inner.target),
-            _ => false,
-        }
-    }
-
     #[inline]
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
