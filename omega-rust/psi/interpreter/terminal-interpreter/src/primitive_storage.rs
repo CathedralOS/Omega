@@ -24,7 +24,9 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
-use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
+use crate::values::{
+    StructuralFieldNamespace, StructuralRuntimePlace, StructuralScalarRuntimeField,
+};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use terminal_psi::TerminalMachine;
 
@@ -1535,11 +1537,40 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&parent)
             .ok_or_else(malformed)?;
-        let fields = match &declaration.shape {
-            terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
+        let parent_place = StructuralRuntimePlace {
+            opaque_identity: view.opaque_identity,
+            path: parent_path.to_vec(),
+        };
+        // Projection drops a Case step from the runtime path. The scalar cell
+        // still lives in that case's payload namespace, not in a record member
+        // of the sum. A common mixed field keeps the member namespace.
+        let member = match &declaration.shape {
+            terminal_psi::record_or_mixed_shape_pattern!(fields) => {
+                terminal_psi::live_field_by_identity(fields, identity)
+            }
+            _ => None,
+        };
+        let payload = match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Sum { cases }
+            | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
+                let stored = self
+                    .structural_cases
+                    .get(&parent_place)
+                    .ok_or_else(malformed)?;
+                if stored.structural_type != parent {
+                    return Err(malformed());
+                }
+                let selected =
+                    terminal_psi::find_structural_case(cases, stored.case).ok_or_else(malformed)?;
+                terminal_psi::live_field_by_identity(&selected.fields, identity)
+            }
+            _ => None,
+        };
+        let (field, namespace) = match (member, payload) {
+            (Some(field), None) => (field, StructuralFieldNamespace::Member),
+            (None, Some(field)) => (field, StructuralFieldNamespace::CasePayload),
             _ => return Err(malformed()),
         };
-        let field = terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;
         let shape = if shared_view {
             field.field_type.shared_observation_shape()
         } else {
@@ -1568,13 +1599,12 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        Ok(StructuralScalarRuntimeField::member(
-            StructuralRuntimePlace {
-                opaque_identity: view.opaque_identity,
-                path: parent_path.to_vec(),
-            },
-            field.id,
-        ))
+        let cell = StructuralScalarRuntimeField {
+            parent: parent_place,
+            namespace,
+            field: field.id,
+        };
+        Ok(cell)
     }
 
     pub(crate) fn execute_primitive_establishment(
