@@ -126,7 +126,6 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         self.bindings.insert(
             boundary,
             TerminalImportBinding {
-                signature,
                 adapter: Box::new(adapter),
             },
         );

@@ -112,10 +112,6 @@ impl TerminalProcessExitAdmission {
 /// host adapter that answers it. The instance roster owns it; it cannot
 /// migrate, copy, or rebind into another instance.
 struct TerminalImportBinding<'host> {
-    /// The signature the adapter declared at establishment — the record of
-    /// what this binding was checked against, readable through
-    /// `bound_signature`.
-    signature: crate::adapters::TerminalImportSignature,
     adapter: Box<dyn TerminalImportAdapter + 'host>,
 }
 
@@ -321,7 +317,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         self.bindings.insert(
             slot,
             TerminalImportBinding {
-                signature,
                 adapter: Box::new(adapter),
             },
         );
@@ -439,16 +434,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         self.required_imports.iter().copied().filter(move |slot| {
             !closed && !self.bindings.contains_key(slot) && !self.components.contains_key(slot)
         })
-    }
-
-    /// The contract `slot`'s established binding was checked against —
-    /// the retained import description this instance answered it with.
-    /// Absent while the slot is unbound and after close consumes the roster.
-    pub fn bound_signature(
-        &self,
-        slot: BoundaryMachineId,
-    ) -> Option<&crate::adapters::TerminalImportSignature> {
-        self.bindings.get(&slot).map(|binding| &binding.signature)
     }
 
     /// Drive the entry invocation until it completes, crashes, or pauses on
