@@ -76,7 +76,6 @@ use typed_trees::TypedTrees;
 
 pub(crate) mod dependencies;
 pub(crate) mod rewrite;
-mod sibling_evidence;
 
 use dependencies::{MachineIndex, collect_machine_edges, interface_retention_set};
 use rewrite::apply_pruning;
@@ -321,45 +320,6 @@ pub fn prune_checked_tree_product(
     Ok(CheckedTreeProductPruningOutcome { checked, selection })
 }
 
-/// Domain-separated SHA-256 identity of one executed product selection.
-/// Drop every target sibling once checking has committed: their bodies were
-/// checked for their own targets, and this realization supplies nothing from
-/// them. Transitional: realization-time selection between siblings belongs
-/// to Omega (board item PROVIDER-SELECTION-AFTER-TERMINAL), after which every
-/// body travels through Terminal Psi instead of being pruned here.
-pub fn prune_target_siblings(mut checked: CheckedTrees) -> CheckedTrees {
-    let pruned: HashSet<SymbolHandle> = checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|machine| machine.target.is_some())
-        .map(|machine| machine.symbol)
-        .collect();
-    if pruned.is_empty() {
-        return checked;
-    }
-    let index = MachineIndex::build(&checked.typed);
-    let mut dead = sibling_evidence::DeadEvidence::default();
-    for machine in checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|machine| pruned.contains(&machine.symbol))
-    {
-        sibling_evidence::collect_machine_evidence(&checked.typed, machine, &mut dead);
-    }
-    sibling_evidence::drop_dead_operator_evidence(&mut checked.facts, &dead);
-    let retained: HashSet<SymbolHandle> = checked
-        .typed
-        .machines()
-        .iter()
-        .map(|machine| machine.symbol)
-        .filter(|symbol| !pruned.contains(symbol))
-        .collect();
-    checked = apply_pruning(checked, &retained, &pruned, &index);
-    checked
-}
-
 /// Keep the target-machine family roster consistent with the pruned machine
 /// table: `members` names only bodies this product still carries, and a
 /// family whose members all left keeps no row. `canonical` is retained
@@ -384,6 +344,7 @@ fn retain_live_family_members(typed: &mut TypedTrees) {
         .retain(|family| !family.members.is_empty());
 }
 
+/// Domain-separated SHA-256 identity of one executed product selection.
 fn selection_identity(
     roots: &[SymbolHandle],
     retained: &[SymbolHandle],
