@@ -451,7 +451,9 @@ impl StructuralArgumentSubstitution<'_> {
 
 /// A checked `bool` view of a byte already proved to be 0 or 1.
 ///
-/// The view keeps that scalar observation. It does not become a total integer
+/// The view records that scalar observation. A local copy, a call whose
+/// result is ensured equal to an argument, and a match whose arms agree all
+/// read the same observation. The view does not become a total integer
 /// representation view, and a byte outside `{0, 1}` establishes no Boolean.
 fn boolean_view_observation(
     program: &dyn ::validation::CheckingInput,
@@ -590,8 +592,145 @@ fn boolean_view_observation(
                 _ => None,
             }
         }
+        typed_trees::expression::ExpressionNode::Call(call) => observation_carried_by_call(
+            program,
+            operators,
+            semantic,
+            machine,
+            state,
+            before_statement,
+            entry_contexts,
+            caller_symbols,
+            call,
+            depth,
+        ),
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            let mut agreed = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let Some(observed) = boolean_view_observation(
+                    program,
+                    operators,
+                    semantic,
+                    machine,
+                    state,
+                    before_statement,
+                    entry_contexts,
+                    caller_symbols,
+                    arm.value,
+                    depth + 1,
+                ) else {
+                    return None;
+                };
+                if agreed.is_some_and(|known| known != observed) {
+                    return None;
+                }
+                agreed = Some(observed);
+            }
+            agreed
+        }
+        typed_trees::expression::ExpressionNode::Boolean(value) => Some(*value),
         _ => None,
     }
+}
+
+/// The observation a call result carries when the callee ensures that result
+/// equals one argument. The argument is read in the caller; a missing or
+/// disagreeing observation leaves the result unresolved.
+fn observation_carried_by_call(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+    entry_contexts: &[facts::FactContextHandle],
+    caller_symbols: &[SymbolHandle],
+    call: &typed_trees::expression::TableCallExpression,
+    depth: u32,
+) -> Option<bool> {
+    let (callee, callee_state) = validation::find_machine_head(program, call.target_symbol)?;
+    let parameters = program.state_parameters(callee_state);
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let scalar_parameters = parameters
+        .iter()
+        .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+        .collect::<Vec<_>>();
+    let mut agreed = None;
+    for contract in program
+        .machine_contracts(callee)
+        .iter()
+        .chain(program.state_contracts(callee_state))
+    {
+        if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let Some(expression) = fact.as_expression().copied() else {
+                continue;
+            };
+            let Some(checked) = crate::values::lower_callable_scalar_contract_predicate(
+                program,
+                operators,
+                callee.symbol,
+                parameters,
+                callee_state.return_type,
+                expression,
+                true,
+                &mut 4096,
+            ) else {
+                continue;
+            };
+            let checked_trees::CheckedBooleanExpression::Equal { left, right } = checked else {
+                continue;
+            };
+            for (result_term, input_term) in [
+                (left.as_ref(), right.as_ref()),
+                (right.as_ref(), left.as_ref()),
+            ] {
+                let (
+                    checked_trees::CheckedBooleanExpression::Parameter { position: output },
+                    checked_trees::CheckedBooleanExpression::Parameter { position: input },
+                ) = (result_term, input_term)
+                else {
+                    continue;
+                };
+                if *output != scalar_parameters.len() {
+                    continue;
+                }
+                let Some(parameter) = scalar_parameters.get(*input) else {
+                    continue;
+                };
+                let Some(position) = parameters
+                    .iter()
+                    .position(|candidate| candidate.symbol == parameter.symbol)
+                else {
+                    continue;
+                };
+                let Some(actual) = arguments.get(position).copied() else {
+                    continue;
+                };
+                let Some(observed) = boolean_view_observation(
+                    program,
+                    operators,
+                    semantic,
+                    machine,
+                    state,
+                    before_statement,
+                    entry_contexts,
+                    caller_symbols,
+                    actual,
+                    depth + 1,
+                ) else {
+                    continue;
+                };
+                if agreed.is_some_and(|known| known != observed) {
+                    return None;
+                }
+                agreed = Some(observed);
+            }
+        }
+    }
+    agreed
 }
 
 fn recast_views_boolean(

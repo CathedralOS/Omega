@@ -1974,8 +1974,8 @@ defines the complete product bar.
     equal-width integer views through `facts/crash_entry_representation_view`'s
     nine places; nonempty-path lengths and policy casts remain. A Boolean view of an
     entry `u8` proved equal to 1 discharges `maybe_clear`'s `value == false` Trap
-    guard through the scalar observation (`facts/crash_entry_boolean_view`); the
-    other eight Boolean places and IEEE representation views remain. Keep exact
+    guard through the scalar observation across all nine places of
+    `facts/crash_entry_boolean_view`. IEEE representation views remain. Keep exact
     entry coordinates and recursive operand meaning, no source-arrangement
     exceptions, and private/local roots never become public parameters.
     Fixed-array field paths already work for crash-entry float operands.
