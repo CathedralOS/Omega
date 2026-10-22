@@ -9,8 +9,6 @@
 
 use symbols::SymbolHandle;
 use typed_trees::domain::DomainDefinition;
-
-use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
@@ -104,67 +102,6 @@ pub(super) fn scalar_tag_constraint(
                 )
                 && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
         })
-}
-
-pub fn scalar_state_contracts_are_qualifications(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> bool {
-    let Some(contracts) = program.signature_contracts.span(state.contracts) else {
-        return false;
-    };
-    contracts.iter().all(|contract| {
-        if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
-            return false;
-        }
-        let Some(facts) = program.proof_facts.span(contract.facts) else {
-            return false;
-        };
-        !facts.is_empty()
-            && facts.iter().all(|fact| {
-                let Some(membership) = fact.as_membership() else {
-                    return false;
-                };
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(membership.domain_arguments);
-                if arguments.len() != membership.domain_arguments.len() {
-                    return false;
-                }
-                if !program
-                    .expression_table
-                    .expression_is_valid(membership.value)
-                {
-                    return false;
-                }
-                let Some(path) = program.expression_table.name_path_node(membership.value) else {
-                    return false;
-                };
-                program.state_parameters(state).iter().any(|parameter| {
-                    parameter.symbol.is_valid()
-                        && parameter.symbol == path.symbol
-                        && !parameter.is_mutable
-                        && (arguments.is_empty()
-                            && scalar_predicate_domains(program, parameter.type_reference)
-                                .contains(&(membership.domain_symbol, membership.semantic_domain))
-                            || scalar_type_tags(program, parameter.type_reference)
-                                .iter()
-                                .any(|(symbol, identity)| {
-                                    *symbol == membership.domain_symbol
-                                        && program.domain_definitions().iter().any(|domain| {
-                                            domain.symbol == *symbol
-                                                && exact_instance(
-                                                    program,
-                                                    domain,
-                                                    arguments,
-                                                    membership.semantic_domain,
-                                                )
-                                        })
-                                        && *identity == membership.semantic_domain
-                                }))
-                })
-            })
-    })
 }
 
 /// Declared scalar domains whose complete meaning has a subject-bound

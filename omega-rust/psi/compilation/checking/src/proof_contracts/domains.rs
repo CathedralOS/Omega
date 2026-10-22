@@ -19,10 +19,7 @@ pub use runtime_predicates::{
     scalar_membership_value_carrier, scalar_membership_value_predicates,
 };
 mod scalar_tags;
-pub use scalar_tags::{
-    scalar_predicate_domains, scalar_state_contracts_are_qualifications,
-    scalar_type_routed_domains, scalar_type_tags,
-};
+pub use scalar_tags::{scalar_predicate_domains, scalar_type_routed_domains, scalar_type_tags};
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
