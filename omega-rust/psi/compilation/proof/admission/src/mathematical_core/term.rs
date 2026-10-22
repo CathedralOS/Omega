@@ -21,7 +21,7 @@ use arena::Arena;
 ///
 /// `Level` is syntax, not a normal form: `Maximum(v, u)` and `Maximum(u, v)`
 /// are different levels that convert. Semantic equality is decided by
-/// [`levels_equal`] through the `max`-normal form, never by `==`.
+/// `levels_equal` through the `max`-normal form, never by `==`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Level {
     /// A closed natural level `k`.
@@ -177,7 +177,7 @@ pub(crate) fn sorts_equal(left: &Sort, right: &Sort) -> bool {
 
 /// A mathematical universe sort: `Type u` is relevant, `Strict v` is the
 /// definitionally irrelevant logical layer. Derived `PartialEq` is
-/// syntactic on the level syntax; conversion uses [`sorts_equal`].
+/// syntactic on the level syntax; conversion uses `sorts_equal`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Sort {
     Type(Level),

@@ -205,7 +205,7 @@ pub use source_integer::{SourceIntegerTheory, SourceIntegerVocabulary};
 ///
 /// `arena` is where the certificate's handles resolve — a caller hands
 /// both to `encode_mathematical_certificate` for the wire or re-decides
-/// the judgment with [`verify_mathematical_certificate`]. `certificate`
+/// the judgment with `verify_mathematical_certificate`. `certificate`
 /// is producer evidence even though this module produced it: the kernel
 /// never trusts who built it. `rules`, `assumptions` and
 /// `semantic_axioms` are the premise/rule record the denotation observed,
@@ -391,7 +391,7 @@ fn math_literal_value(literal: IntegerMathLiteral) -> Option<IntegerValue> {
 /// performs: rule labels and node conclusions are re-derived, never
 /// trusted. The returned certificate is still only evidence —
 /// [`verify_bounded_certificate`] or an explicit
-/// [`verify_mathematical_certificate`] call decides it.
+/// `verify_mathematical_certificate` call decides it.
 pub fn denote_bounded_certificate(
     context: &PropositionContext,
     goal: &Proposition,

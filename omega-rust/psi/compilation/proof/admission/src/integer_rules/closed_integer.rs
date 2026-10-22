@@ -231,7 +231,7 @@ fn charge_limit(
 /// Evaluates one comparison with a fresh shared budget for both operands.
 ///
 /// Closed evaluation decides first. When it leaves a term open, the licensed
-/// ring normalization in [`super::open_terms`] decides the remaining ring
+/// ring normalization in `super::open_terms` decides the remaining ring
 /// identities: `left - right` reducing to a closed constant fixes the
 /// ordering for every valuation of the open atoms. Anything else — a
 /// nonconstant difference, an uninterpreted operation, a refusal — is still
