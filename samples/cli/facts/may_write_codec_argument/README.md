@@ -40,9 +40,21 @@ omega run --both samples/cli/facts/may_write_codec_argument/target_body/main.omg
 
 Each `invalid/` project is `intended-invalid`. The source differs only by passing `false` to `choose`. The overlapping index bound is then stale.
 
+| Place | Twin | Pinned diagnostic fragment |
+| --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove` |
+
 ## Pinned fixtures
 
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_codec_argument_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_codec_argument_through_<place>_overlapping`.
+Positive places are byte-identical to `tests/omega/pass/facts/may_write_codec_argument_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_codec_argument_through_<place>_overlapping`. The nine positives record native execution and interpreter agreement (`built ... exit:0 interpreter-exit:0 interpreter:agrees` at `94247f983231`); the nine twins record their `cannot prove` fragment.
 
 ## Requirements and evidence
 

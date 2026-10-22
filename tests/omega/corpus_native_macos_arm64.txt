@@ -3520,3 +3520,12 @@ pass/facts/returned_write_destination_through_other_state_exit built 19021ms exi
 pass/facts/returned_write_destination_through_parameter_exit built 20548ms exit:0 @f734a3095d6c
 pass/facts/returned_write_destination_through_target_body_exit built 20414ms exit:0 @f734a3095d6c
 pass/facts/write_only_checked_adapter_exit built 12652ms exit:0 @f734a3095d6c
+pass/facts/may_write_codec_argument_through_call_result_exit built 5776ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_const_name_exit built 5733ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_field_exit built 5681ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_local_exit built 5712ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_match_join_exit built 6659ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_other_machine_exit built 6627ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_other_state_exit built 6364ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_parameter_exit built 6478ms exit:0 @94247f983231+wt
+pass/facts/may_write_codec_argument_through_target_body_exit built 6962ms exit:0 @94247f983231+wt
