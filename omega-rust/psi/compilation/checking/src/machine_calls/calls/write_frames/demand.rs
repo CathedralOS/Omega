@@ -1684,11 +1684,13 @@ fn value_builtin_has_empty_write_frame(
             .builtin_function_for_symbol(call.target_symbol)
             .is_some_and(|builtin| {
                 builtin.has_empty_write_frame()
-                    // PUSHFQ reads architectural state and uses separately
-                    // admitted private temporary stack storage. It writes no
-                    // caller Omega place; its observable event and faults
-                    // remain in ordinary call/effect planning.
-                    || builtin == symbols::BuiltinFunction::AsmSnapshotFlags
+                    // Flag snapshot and restore use separately admitted
+                    // temporary stack storage. They write no caller Omega
+                    // place; the place keeps the flag requirements a following
+                    // label reads.
+                    || language_core::inline_assembly::asm_intrinsic_retains_flag_place(
+                        builtin.name(),
+                    )
             })
 }
 

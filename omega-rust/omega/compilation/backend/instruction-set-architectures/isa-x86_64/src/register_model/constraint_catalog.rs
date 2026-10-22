@@ -228,6 +228,14 @@ pub fn x86_64_register_constraint_catalog(
             .into_iter()
             .flat_map(|name| view(name).units.iter().copied()),
     );
+    let mut flags_restore = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_FLAGS_RESTORE,
+        vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+    );
+    flags_restore.implicit_uses = sorted_units(view("rsp").units.iter().copied());
+    flags_restore.implicit_defs = sorted_units(view("rflags").units.iter().copied());
+    flags_restore.clobbers = flags_snapshot.clobbers.clone();
     let control_rows = [
         (crate::X86_64_CONTROL_REGISTER_READ, true),
         (crate::X86_64_CONTROL_REGISTER_WRITE, false),
@@ -260,6 +268,7 @@ pub fn x86_64_register_constraint_catalog(
     });
     let mut constraints = vec![
         flags_snapshot,
+        flags_restore,
         control_rows[0].clone(),
         control_rows[1].clone(),
         port_write,

@@ -278,7 +278,8 @@ impl TerminalEffectHandler for AcceptTerminalEffects {
 
 /// Receiving-host selected x86 processor flags, independent of host authority.
 /// The model supplies an architectural state, never an instruction callback.
-/// No flag-changing operation is supported by this read-only environment yet.
+/// Arithmetic flag restores merge the six condition bits into this image.
+/// Reserved bits stay the bits captured from the host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalX86FlagsEnvironment {
     rflags: u64,
@@ -296,5 +297,13 @@ impl TerminalX86FlagsEnvironment {
     }
     pub(crate) fn snapshot(self) -> u64 {
         self.rflags & !((1 << 16) | (1 << 17))
+    }
+
+    /// Keep reserved bits from the host image. The saved place carries the
+    /// arithmetic flags recorded by the producing instruction, not a complete
+    /// RFLAGS image, so only CF, PF, AF, ZF, SF and OF move.
+    pub(crate) fn restore_arithmetic_bits(&mut self, image: u64) {
+        const ARITHMETIC: u64 = 0x8d5;
+        self.rflags = (self.rflags & !ARITHMETIC) | (image & ARITHMETIC);
     }
 }

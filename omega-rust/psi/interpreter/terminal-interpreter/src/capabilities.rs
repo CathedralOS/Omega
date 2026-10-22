@@ -143,6 +143,10 @@ pub(crate) fn check_with_private_entry_ram(
                         event:
                             terminal_psi::RegisterAccessEvent::Read {
                                 register: terminal_psi::SystemRegister::Rflags,
+                            }
+                            | terminal_psi::RegisterAccessEvent::Write {
+                                register: terminal_psi::SystemRegister::Rflags,
+                                ..
                             },
                         ..
                     } if installation.is_some_and(|supplies| supplies.x86_flags.is_some()) => None,

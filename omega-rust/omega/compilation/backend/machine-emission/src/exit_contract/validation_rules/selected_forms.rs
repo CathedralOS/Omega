@@ -257,6 +257,15 @@ fn balanced_temporary_stack(
             8,
             effects.external_operand_reads.is_empty() && effects.external_operand_writes == [0],
         ),
+        SelectedInstructionKind::RegisterAccess {
+            operation:
+                selected_instructions::RegisterOperation::SystemWrite(
+                    selected_instructions::SystemRegister::Rflags,
+                ),
+        } => (
+            8,
+            effects.external_operand_reads == [0] && effects.external_operand_writes.is_empty(),
+        ),
         _ => return false,
     };
     let stack_pointer = isa_x86_64::validated_x86_64_physical_register_model()

@@ -266,7 +266,7 @@ fn selected_keys(
     Ok(SelectedConstraintKeys {
         port_write: Some(crate::X86_64_PORT_WRITE),
         system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
-        system_register_write: None,
+        system_register_write: Some(crate::X86_64_FLAGS_RESTORE),
         control_register_read: Some(crate::X86_64_CONTROL_REGISTER_READ),
         control_register_write: Some(crate::X86_64_CONTROL_REGISTER_WRITE),
         port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
@@ -653,7 +653,10 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             );
         }
         MachineSemanticKind::SystemRegisterWrite => {
-            unreachable!("AArch64 system-register semantics have no x86 constraint")
+            return crate::selected_form_encoding::register_access::effects(
+                crate::selected_form_encoding::register_access::operation(semantic)
+                    .expect("x86 flags restore"),
+            );
         }
         MachineSemanticKind::PlacedScalarAccess(form) => {
             if form.write {
@@ -979,14 +982,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
         | MachineSemanticKind::SystemRegisterRead
+        | MachineSemanticKind::SystemRegisterWrite
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 1,
             maximum_bytes: Some(40),
         },
-        MachineSemanticKind::SystemRegisterWrite => {
-            unreachable!("AArch64 system-register semantics have no x86 constraint")
-        }
         MachineSemanticKind::PlacedScalarAccess(_) => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 7,
             maximum_bytes: Some(9),

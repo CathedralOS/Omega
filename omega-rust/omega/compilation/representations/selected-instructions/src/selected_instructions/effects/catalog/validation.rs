@@ -130,8 +130,10 @@ pub(super) fn validate_declaration(
     // Understating a surface the rule needs, or overstating one it cannot
     // have, fails admission instead of reaching canonical replay.
     let temporary_stack = architecture == target::Architecture::X86_64
-        && (semantic == MachineSemanticKind::SystemRegisterRead
-            || matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(form) if form.operation.rounding_direction().is_some()));
+        && (matches!(
+            semantic,
+            MachineSemanticKind::SystemRegisterRead | MachineSemanticKind::SystemRegisterWrite
+        ) || matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(form) if form.operation.rounding_direction().is_some()));
     if semantic == MachineSemanticKind::PortWrite
         && (architecture != target::Architecture::X86_64
             || !constraint.operands.is_empty()
@@ -886,7 +888,10 @@ fn validate_encoded_effects(
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if memory_pointer == stack_pointer
             && declaration.memory == crate::MachineMemoryEffect::TemporaryStackStorageV1
-            && declaration.semantic == MachineSemanticKind::SystemRegisterRead => {}
+            && matches!(
+                declaration.semantic,
+                MachineSemanticKind::SystemRegisterRead | MachineSemanticKind::SystemRegisterWrite
+            ) => {}
         (
             MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
                 stack_pointer: memory_pointer,

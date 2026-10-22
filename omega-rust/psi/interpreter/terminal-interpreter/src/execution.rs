@@ -869,6 +869,18 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         if scalar_type != IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).map_err(|_| malformed())? { return Err(malformed()); }
                                         self.store_scalar(operation, TerminalScalarValue::Integer { scalar_type, value: IntegerValue::Unsigned(image.into()) })?
                                     }
+                                    OperationKind::RegisterAccess { event: terminal_psi::RegisterAccessEvent::Write { register: terminal_psi::SystemRegister::Rflags, value }, .. } => {
+                                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
+                                            return Err(malformed());
+                                        }
+                                        let Some(environment) = self.x86_flags.as_mut() else {
+                                            return Err(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SystemWrite(terminal_psi::SystemRegister::Rflags) }));
+                                        };
+                                        if let Some(TerminalScalarValue::Integer { value: IntegerValue::Unsigned(bits), .. }) = self.values.get(&value) {
+                                            environment.restore_arithmetic_bits(u64::try_from(*bits).unwrap_or(u64::MAX));
+                                        }
+                                        OperationFlow::Advance
+                                    }
                                     OperationKind::RegisterAccess { event, .. } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(
                                             crate::capabilities::TerminalUnsupportedCapability::RegisterAccess {

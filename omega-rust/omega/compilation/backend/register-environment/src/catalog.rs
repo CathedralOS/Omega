@@ -200,7 +200,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             Some(SelectedConstraintKeys {
                 port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
                 system_register_read: Some(isa_x86_64::X86_64_FLAGS_SNAPSHOT),
-                system_register_write: None,
+                system_register_write: Some(isa_x86_64::X86_64_FLAGS_RESTORE),
                 control_register_read: Some(isa_x86_64::X86_64_CONTROL_REGISTER_READ),
                 control_register_write: Some(isa_x86_64::X86_64_CONTROL_REGISTER_WRITE),
                 port_register_read: Some(isa_x86_64::X86_64_PORT_REGISTER_READ),
@@ -315,7 +315,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
             system_register_read: Some(isa_x86_64::X86_64_FLAGS_SNAPSHOT),
-            system_register_write: None,
+            system_register_write: Some(isa_x86_64::X86_64_FLAGS_RESTORE),
             control_register_read: Some(isa_x86_64::X86_64_CONTROL_REGISTER_READ),
             control_register_write: Some(isa_x86_64::X86_64_CONTROL_REGISTER_WRITE),
             // These ISA declarations do not grant execution authority. Omitting

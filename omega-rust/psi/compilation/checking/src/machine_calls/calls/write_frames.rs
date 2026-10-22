@@ -172,6 +172,18 @@ fn known_call_written_paths_for_parts(
     {
         return Some(Vec::new());
     }
+    // Flag snapshot and restore record requirements on the operand place.
+    // The call writes architectural flags, not caller storage, so the place's
+    // requirements stay readable by the following label.
+    if program
+        .symbols
+        .builtin_function_for_symbol(target_symbol)
+        .is_some_and(|builtin| {
+            language_core::inline_assembly::asm_intrinsic_retains_flag_place(builtin.name())
+        })
+    {
+        return Some(Vec::new());
+    }
 
     // A static callable owns a public write ceiling just like an operator.
     // Project only that exact telescope; unresolved nested substitutions stay

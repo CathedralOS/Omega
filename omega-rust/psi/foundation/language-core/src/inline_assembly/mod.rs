@@ -405,10 +405,11 @@ impl AsmSystemRegister {
 
     /// Syndrome registers are read-only in the catalog: they describe the
     /// last exception rather than machine configuration.
-    const WRITABLE: [Self; 10] = [
+    const WRITABLE: [Self; 11] = [
         Self::Control(AsmControlRegister::Cr0),
         Self::Control(AsmControlRegister::Cr3),
         Self::Control(AsmControlRegister::Cr4),
+        Self::Rflags,
         Self::SctlrEl1,
         Self::TcrEl1,
         Self::Ttbr0El1,
@@ -460,7 +461,8 @@ impl AsmSystemRegister {
             Self::MairEl1 => Some("write_mair_el1"),
             Self::VbarEl1 => Some("write_vbar_el1"),
             Self::TpidrEl1 => Some("write_tpidr_el1"),
-            Self::EsrEl1 | Self::FarEl1 | Self::Rflags => None,
+            Self::Rflags => Some("popfq"),
+            Self::EsrEl1 | Self::FarEl1 => None,
         }
     }
 
@@ -490,7 +492,8 @@ impl AsmSystemRegister {
             Self::MairEl1 => Some("asm#write_mair_el1"),
             Self::VbarEl1 => Some("asm#write_vbar_el1"),
             Self::TpidrEl1 => Some("asm#write_tpidr_el1"),
-            Self::EsrEl1 | Self::FarEl1 | Self::Rflags => None,
+            Self::Rflags => Some("asm#popfq"),
+            Self::EsrEl1 | Self::FarEl1 => None,
         }
     }
 
@@ -1013,6 +1016,25 @@ pub fn asm_intrinsic_mnemonic(intrinsic_name: &str) -> Option<&'static str> {
     }
 }
 
+/// Snapshot and restore keep the Omega place that carries the flag
+/// requirements. The snapshot's result is the surrounding assignment; restore
+/// reads the saved place and writes architectural flags, not that place. A
+/// following label therefore still reads the requirements recorded on the
+/// place. This is the catalog data-flow, not one mnemonic.
+pub fn asm_intrinsic_retains_flag_place(intrinsic_name: &str) -> bool {
+    let Some(mnemonic) = asm_intrinsic_mnemonic(intrinsic_name) else {
+        return false;
+    };
+    matches!(
+        asm_catalog_entry(mnemonic),
+        Some(AsmCatalogEntry::Contract(contract))
+            if matches!(
+                contract.flags_data_flow,
+                AsmFlagsDataFlow::SnapshotToOperand | AsmFlagsDataFlow::RestoreFromOperand
+            )
+    )
+}
+
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmAuthorityRequirement::{
         IdtControl as IdtControlAuthority, MachineOwner, None as NoAuthority,
@@ -1105,7 +1127,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             SYSTEM_REGISTER_READ_CLOBBERS,
         )));
     }
-    if let Some(register) = AsmSystemRegister::from_write_mnemonic(mnemonic) {
+    if let Some(register) = AsmSystemRegister::from_write_mnemonic(mnemonic)
+        && register != AsmSystemRegister::Rflags
+    {
         let operands = match register {
             AsmSystemRegister::SctlrEl1 => SCTLR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::TcrEl1 => TCR_EL1_WRITE_OPERANDS,
@@ -1114,10 +1138,12 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::MairEl1 => MAIR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::VbarEl1 => VBAR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::TpidrEl1 => TPIDR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::EsrEl1
-            | AsmSystemRegister::FarEl1
-            | AsmSystemRegister::Rflags
-            | AsmSystemRegister::Control(_) => return None,
+            AsmSystemRegister::Rflags => {
+                unreachable!("rflags restore keeps the popfq contract")
+            }
+            AsmSystemRegister::EsrEl1 | AsmSystemRegister::FarEl1 | AsmSystemRegister::Control(_) => {
+                return None;
+            }
         };
         // Register writes with architecturally deferred effect (translation
         // base, memory attributes, control state) synchronize context through

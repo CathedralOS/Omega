@@ -115,7 +115,8 @@ impl CompilerIntrinsicExecutionIdentity {
                 R::MairEl1 => B::AsmWriteMairEl1,
                 R::VbarEl1 => B::AsmWriteVbarEl1,
                 R::TpidrEl1 => B::AsmWriteTpidrEl1,
-                R::EsrEl1 | R::FarEl1 | R::Rflags => return None,
+                R::Rflags => B::AsmRestoreFlags,
+                R::EsrEl1 | R::FarEl1 => return None,
             },
         };
         Some(Self::BuiltinFunction(function))
