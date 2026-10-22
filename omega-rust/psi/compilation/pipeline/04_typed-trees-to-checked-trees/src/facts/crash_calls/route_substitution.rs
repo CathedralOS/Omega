@@ -193,66 +193,93 @@ pub(crate) fn call_argument_substitution<'program>(
                 scalar_evidence_is_crash_lane_lowerable(&lowered).then_some(lowered)
             }));
             values.push(argument.and_then(|argument| {
-                let (machine, state) = builtin_bound_owner(program, owner, argument)?;
-                let lowered = crate::values::lower_unit_scalar_argument(
-                    program,
-                    operators,
-                    state,
-                    before_statement,
-                    argument,
-                    expected,
-                )?;
-                crate::values::evaluate_checked_scalar(
-                    &lowered,
-                    &mut crate::values::PlaceScalarValues {
+                let folded = (|| {
+                    let (machine, state) = builtin_bound_owner(program, owner, argument)?;
+                    let lowered = crate::values::lower_unit_scalar_argument(
                         program,
-                        parameters: program.state_parameters(state),
-                        symbols: &caller_symbols,
-                        value_at_place: |place: &validation::CanonicalPlace| {
-                            if containing_statement.is_none_or(|statement| {
-                                crate::facts::crash_entry_values::statement_may_overwrite_place(
+                        operators,
+                        state,
+                        before_statement,
+                        argument,
+                        expected,
+                    )?;
+                    crate::values::evaluate_checked_scalar(
+                        &lowered,
+                        &mut crate::values::PlaceScalarValues {
+                            program,
+                            parameters: program.state_parameters(state),
+                            symbols: &caller_symbols,
+                            value_at_place: |place: &validation::CanonicalPlace| {
+                                if containing_statement.is_none_or(|statement| {
+                                    crate::facts::crash_entry_values::statement_may_overwrite_place(
+                                        program,
+                                        machine.symbol,
+                                        statement,
+                                        place,
+                                    )
+                                }) {
+                                    return None;
+                                }
+                                crate::values::scalar_value_at_place(
                                     program,
-                                    machine.symbol,
-                                    statement,
-                                    place,
-                                )
-                            }) {
-                                return None;
-                            }
-                            crate::values::scalar_value_at_place(
-                                program,
-                                semantic,
-                                entry_contexts
-                                    .iter()
-                                    .map(|handle| semantic.contexts.get(*handle)),
-                                place,
-                            )
-                            .or_else(|| {
-                                crate::checks::contracts::boolean_value_at_place(
-                                    program,
-                                    operators,
                                     semantic,
-                                    &entry_contexts,
-                                    facts::ProgramPoint::Statement {
-                                        machine_symbol: machine.symbol,
-                                        state_symbol: state.symbol,
-                                        statement_index: before_statement,
-                                    },
+                                    entry_contexts
+                                        .iter()
+                                        .map(|handle| semantic.contexts.get(*handle)),
                                     place,
                                 )
-                                .map(facts::ScalarValue::Boolean)
-                            })
+                                .or_else(|| {
+                                    crate::checks::contracts::boolean_value_at_place(
+                                        program,
+                                        operators,
+                                        semantic,
+                                        &entry_contexts,
+                                        facts::ProgramPoint::Statement {
+                                            machine_symbol: machine.symbol,
+                                            state_symbol: state.symbol,
+                                            statement_index: before_statement,
+                                        },
+                                        place,
+                                    )
+                                    .map(facts::ScalarValue::Boolean)
+                                })
+                            },
                         },
-                    },
-                )
-                .and_then(|value| match value {
-                    facts::ScalarValue::Boolean(value) => {
-                        Some(CrashPredicateExpression::Boolean(value))
+                    )
+                    .and_then(|value| match value {
+                        facts::ScalarValue::Boolean(value) => {
+                            Some(CrashPredicateExpression::Boolean(value))
+                        }
+                        facts::ScalarValue::Integer(value) => {
+                            Some(CrashPredicateExpression::Integer(value.to_string()))
+                        }
+                        facts::ScalarValue::Unknown => None,
+                    })
+                })();
+                // A byte proved in {0, 1} and viewed as bool keeps that scalar
+                // observation. It is not a total integer representation view,
+                // so the view carrier does not enter entry identity. Only the
+                // proved endpoints fold; any other byte leaves the route.
+                folded.or_else(|| {
+                    if expected != typed_trees::types::PrimitiveType::Bool {
+                        return None;
                     }
-                    facts::ScalarValue::Integer(value) => {
-                        Some(CrashPredicateExpression::Integer(value.to_string()))
-                    }
-                    facts::ScalarValue::Unknown => None,
+                    let Some((machine, state)) = owner else {
+                        return None;
+                    };
+                    let observed = boolean_view_observation(
+                        program,
+                        operators,
+                        semantic,
+                        machine,
+                        state,
+                        before_statement,
+                        &entry_contexts,
+                        &caller_symbols,
+                        argument,
+                        0,
+                    );
+                    observed.map(CrashPredicateExpression::Boolean)
                 })
             }));
         } else {
@@ -420,6 +447,163 @@ impl StructuralArgumentSubstitution<'_> {
             path,
         })
     }
+}
+
+/// A checked `bool` view of a byte already proved to be 0 or 1.
+///
+/// The view keeps that scalar observation. It does not become a total integer
+/// representation view, and a byte outside `{0, 1}` establishes no Boolean.
+fn boolean_view_observation(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+    entry_contexts: &[facts::FactContextHandle],
+    caller_symbols: &[SymbolHandle],
+    expression: ExpressionHandle,
+    depth: u32,
+) -> Option<bool> {
+    if depth >= 8 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Name(path) => {
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+                || path.head_symbol != path.symbol
+            {
+                return None;
+            }
+            let Some((ordinal, local)) = program.state_local_declaration(state, path.symbol) else {
+                return None;
+            };
+            if ordinal >= before_statement || local.is_mutable || !local.initial_value.is_valid() {
+                return None;
+            }
+            boolean_view_observation(
+                program,
+                operators,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                caller_symbols,
+                local.initial_value,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            boolean_view_observation(
+                program,
+                operators,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                caller_symbols,
+                borrow.target,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            if !recast_views_boolean(program, cast.target_type) {
+                return None;
+            }
+            let mut source = cast.value;
+            if let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+                program.expression_table.expression(source)
+                && borrow.access == language_core::ReferenceAccess::Shared
+            {
+                source = borrow.target;
+            }
+            let Some(source_type) = program.primitive_type_reference(
+                validation::expression_result_type_reference(program, machine, state, source)
+                    .unwrap_or_default(),
+            ) else {
+                return None;
+            };
+            if !source_type.is_fixed_integer() {
+                return None;
+            }
+            let Some(lowered) = crate::values::lower_unit_scalar_argument(
+                program,
+                operators,
+                state,
+                before_statement,
+                source,
+                source_type,
+            ) else {
+                return None;
+            };
+            let Some(value) = crate::values::evaluate_checked_scalar(
+                &lowered,
+                &mut crate::values::PlaceScalarValues {
+                    program,
+                    parameters: program.state_parameters(state),
+                    symbols: caller_symbols,
+                    value_at_place: |place: &validation::CanonicalPlace| {
+                        if let Some(statement) = program
+                            .statement_table
+                            .statement_at(state, before_statement)
+                            && crate::facts::crash_entry_values::statement_may_overwrite_place(
+                                program,
+                                machine.symbol,
+                                statement,
+                                place,
+                            )
+                        {
+                            return None;
+                        }
+                        crate::values::scalar_value_at_place(
+                            program,
+                            semantic,
+                            entry_contexts
+                                .iter()
+                                .map(|handle| semantic.contexts.get(*handle)),
+                            place,
+                        )
+                    },
+                },
+            ) else {
+                return None;
+            };
+            match value {
+                facts::ScalarValue::Integer(value)
+                    if value == numerics::bignum::BigInt::from_u64(0) =>
+                {
+                    Some(false)
+                }
+                facts::ScalarValue::Integer(value)
+                    if value == numerics::bignum::BigInt::from_u64(1) =>
+                {
+                    Some(true)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn recast_views_boolean(
+    program: &dyn ::validation::CheckingInput,
+    target: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let peeled = program.type_reference_table.peeled_type_reference(target);
+    let carrier = match program.type_reference_table.type_reference(peeled) {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+        _ => peeled,
+    };
+    program.primitive_type_reference(carrier) == Some(typed_trees::types::PrimitiveType::Bool)
 }
 
 /// A scalar annotation crossing the call boundary may only carry terms a

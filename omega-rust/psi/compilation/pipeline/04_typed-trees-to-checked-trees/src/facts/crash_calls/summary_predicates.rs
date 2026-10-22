@@ -77,6 +77,25 @@ pub(crate) fn summary_boolean_value(expression: &CrashPredicateExpression) -> Op
             if *operator == BinaryOperator::Or as u8 {
                 return Some(summary_boolean_value(left)? || summary_boolean_value(right)?);
             }
+            // A proved Boolean observation substitutes a closed literal.
+            // Integer comparison does not read that node, so equality of two
+            // Boolean literals folds here. Any other operand stays unresolved.
+            if *operator == BinaryOperator::Equal as u8
+                || *operator == BinaryOperator::NotEqual as u8
+            {
+                if let (
+                    CrashPredicateExpression::Boolean(left_value),
+                    CrashPredicateExpression::Boolean(right_value),
+                ) = (left.as_ref(), right.as_ref())
+                {
+                    let equal = left_value == right_value;
+                    return Some(if *operator == BinaryOperator::Equal as u8 {
+                        equal
+                    } else {
+                        !equal
+                    });
+                }
+            }
             let left = summary_integer_literal(left)?;
             let right = summary_integer_literal(right)?;
             match *operator {
