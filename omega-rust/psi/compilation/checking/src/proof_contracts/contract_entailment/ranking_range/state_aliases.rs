@@ -61,7 +61,23 @@ pub(super) fn premise_symbols(
     let root = program.machine_states(machine).first()?;
     let mut constrained = Vec::new();
     let mut expressions = range.map_or_else(Vec::new, |range| vec![range.start, range.end]);
-    super::push_measure_subjects(measure, &mut expressions);
+    let mut inputs = Vec::new();
+    if let RankingRangeMeasure::SliceLength(subject) = measure {
+        let place = crate::canonical_place_from_expression_in_state(
+            program,
+            root.symbol,
+            usize::MAX,
+            subject,
+        )?;
+        record(
+            &mut inputs,
+            place.root.as_symbol()?,
+            place.segments,
+            RankPremiseObservation::Length,
+        );
+    } else {
+        super::push_measure_subjects(measure, &mut expressions);
+    }
     if entry_facts {
         expressions.extend(super::required_contract_expressions(program, machine));
         super::constrained_parameter_bound_expressions(
@@ -71,7 +87,6 @@ pub(super) fn premise_symbols(
             Some(&mut constrained),
         );
     }
-    let mut inputs = Vec::new();
     for parameter in constrained {
         record(
             &mut inputs,

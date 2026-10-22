@@ -177,6 +177,14 @@ impl ConstructionPredicates<'_> {
         let supplied = program.expression_table.struct_fields(self.literal.fields);
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
+        let reference = crate::value_custody::struct_literals::construction_application(
+            program,
+            self.expression,
+        );
+        for (parameter, value) in judge.data_application_static_bindings(reference) {
+            bindings.push((parameter.name.to_string(), value));
+            parameters.push(parameter);
+        }
         for parameter in self.parameters {
             let mut matches = supplied.iter().enumerate().filter(|(_, field)| {
                 crate::value_custody::struct_literals::selected_construction_field(

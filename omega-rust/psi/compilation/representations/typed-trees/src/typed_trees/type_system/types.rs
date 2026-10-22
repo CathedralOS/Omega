@@ -1,4 +1,6 @@
 use arena::{Arena, Handle, HandleSpan};
+use language_core::ReferenceAccess;
+use numerics::arithmetic::ArithmeticDomain;
 use std::fmt;
 use symbols::SymbolHandle;
 
@@ -668,6 +670,61 @@ impl TypeReferenceTable {
         &self,
     ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
         self.type_references.iter()
+    }
+
+    pub fn retain_collection_result_types(
+        &mut self,
+        symbols: &symbols::SymbolTable,
+        reference: TypeReferenceHandle,
+    ) {
+        let mut current = reference;
+        let mut element = loop {
+            match self.type_reference(current) {
+                TypeReferenceNode::Reference { referee, .. }
+                | TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => current = *referee,
+                TypeReferenceNode::Slice { element_type }
+                | TypeReferenceNode::FixedArray { element_type, .. } => break *element_type,
+                _ => return,
+            }
+        };
+        let policy = self.arithmetic_domain(reference);
+        if self.element_inherits_collection_arithmetic_policy(element, symbols)
+            && policy != ArithmeticDomain::Exact
+            && self.arithmetic_domain(element) == ArithmeticDomain::Exact
+        {
+            element = match self.find_policy_qualified_type_reference(element, policy) {
+                Some(retained) => retained,
+                None => {
+                    let constraints =
+                        self.insert_constraints([TypeConstraintNode::ArithmeticDomain(policy)]);
+                    self.insert(TypeReferenceNode::Constrained {
+                        base_type: element,
+                        constraints,
+                    })
+                }
+            };
+            self.retain_collection_result_types(symbols, element);
+        }
+        for access in [ReferenceAccess::Shared, ReferenceAccess::Mutable] {
+            if self
+                .slice_view_references()
+                .any(|(_, candidate_access, candidate_element)| {
+                    candidate_access == access && candidate_element == element
+                })
+            {
+                continue;
+            }
+            let slice = self.insert(TypeReferenceNode::Slice {
+                element_type: element,
+            });
+            self.insert(TypeReferenceNode::Reference {
+                referee: slice,
+                access,
+                lifetime: None,
+            });
+        }
     }
 
     pub fn find_named_type_reference(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {

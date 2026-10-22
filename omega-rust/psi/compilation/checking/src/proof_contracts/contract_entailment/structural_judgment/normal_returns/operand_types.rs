@@ -8,7 +8,7 @@
 //! origins or post-call preservation. Those judgments retain their owners.
 
 use super::super::super::specification_calls::{
-    SelectedCallContract, owner_leading_operands, owner_parameter_scope, selected_call_contract,
+    SelectedCallContract, call_parameter_scope, owner_leading_operands, selected_call_contract,
 };
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -48,7 +48,11 @@ pub(super) fn receiving_types(
                     program.applied_callable_signature(&application, signature.symbol)?,
                 );
             }
-            let parameters = owner_parameter_scope(program, &owner)?;
+            let parameters = call_parameter_scope(
+                program,
+                &owner,
+                crate::CallSite::Expression { expression, call },
+            )?;
             let leading = owner_leading_operands(&owner);
             if program
                 .expression_table

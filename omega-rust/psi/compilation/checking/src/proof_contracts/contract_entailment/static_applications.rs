@@ -137,7 +137,7 @@ pub fn static_application_where_judgment(
     judgment
 }
 
-enum ConstantValue {
+pub(super) enum ConstantValue {
     Integer(BigInt),
     Boolean(bool),
 }
@@ -291,7 +291,7 @@ fn immutable_fact(
     true
 }
 
-fn constant_value(
+pub(super) fn constant_value(
     program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> Option<ConstantValue> {

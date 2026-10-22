@@ -732,8 +732,8 @@ fn retained_record_owner_application(
     // owns the substituted field telescope. Source checking already judged
     // the application; stores still retain their own leaf and custody checks.
     program
-        .closed_data_definition(application)
-        .is_some_and(|retained| retained == data)
+        .closed_data_constructor_definition(application, data.symbol)
+        .is_some()
 }
 
 /// Whether a declared field type names storage behind a reference.

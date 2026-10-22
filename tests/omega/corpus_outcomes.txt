@@ -1064,6 +1064,12 @@ fail/contracts/float_field_crash_wrong_field rejected 1014ms expected @c29465709
 fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c294657097ec+wt
 fail/contracts/float_guard_overlapping_operand_write rejected 1395ms expected @9a1008d23dee+wt
 fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
+fail/contracts/generic_component_invalid_bound rejected 235ms expected @30104000a4c4+wt
+	data `Bounded<4>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/contracts/generic_component_nondecreasing_window rejected 439ms expected @30104000a4c4+wt
+	machine call cycle: `walk` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/contracts/generic_component_unequal_windows rejected 448ms expected @30104000a4c4+wt
+	cannot prove requires contract for call pair from Main::main: main.left[..2].len == main.right[..1].len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/contracts/indexed_crash_call_result_missing_identity rejected 3500ms expected @97fca7a18f74+wt
 	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/contracts/indexed_crash_changed_selector rejected 3593ms expected @97fca7a18f74+wt
@@ -9973,6 +9979,7 @@ pass/contracts/runtime_float_fused_crash_guard_exit checked 6888ms check-target:
 pass/contracts/runtime_float_indexed_crash_guard_exit checked 6679ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_generic_component_window_tick_exit checked 4093ms check-target:macos_arm64 @30104000a4c4+wt
 pass/contracts/runtime_indexed_element_requirements_exit checked 2817ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/runtime_later_arm_call_requires_exit checked 11514ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/runtime_literal_view_extent_calls_exit checked 7388ms check-target:macos_arm64 @e02ff5008d25+wt
@@ -10403,7 +10410,7 @@ pass/domains/runtime_qualified_borrowed_gated_input_exit checked 11348ms check-t
 pass/domains/runtime_qualified_ieee_field_read_exit checked 11525ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 4811ms check-target:macos_arm64 @9dd545defbc0
 pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 12996ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 684ms check-target:macos_arm64 @30104000a4c4+wt
 pass/domains/runtime_scalar_domain_generic_issuer_exit checked 30492ms check-target:macos_arm64 @83f47d8fae73
 pass/domains/runtime_scalar_domain_mixed_return_origins_exit checked 30540ms check-target:macos_arm64 @83f47d8fae73
 pass/domains/runtime_scalar_domain_return_cleanup_exit checked 33617ms check-target:macos_arm64 @83f47d8fae73

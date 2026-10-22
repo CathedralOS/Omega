@@ -324,7 +324,7 @@ impl StructuralResults<'_> {
     ///
     /// A composed state's binding ordinals belong to the source state, while
     /// its place catalog spans the whole emitted machine, so the view rejoins
-    /// the operation buffer's registry (one row per ordinal, in order) to the
+    /// the operation buffer's registry (one row per retained ordinal) to the
     /// one catalog declaration its producing operation established. Graph
     /// states own each result's cleanup per edge (`result_custody`), so no
     /// row is marked for a return discard here. A call naming no completed
@@ -383,16 +383,10 @@ impl StructuralResults<'_> {
             Self::Dense(roster) => return Ok(Cow::Borrowed(roster.as_slice())),
             Self::StateGraph { places, .. } => places,
         };
-        operations
+        let bindings = operations
             .structural_values
             .iter()
-            .enumerate()
-            .map(|(binding_position, (ordinal, result))| {
-                if *ordinal as usize != binding_position {
-                    return unsupported(
-                        "composed call result binding namespace is stale or duplicated",
-                    );
-                }
+            .map(|(ordinal, result)| {
                 match result {
                     StructuralBinding::ByteSequenceLiteral { place, structural_type, declaration_ordinal } => {
                         let declaration = StructuralPlaceDeclaration { id: *place, kind: StructuralPlaceKind::ByteSequenceLiteral { structural_type: *structural_type, declaration_ordinal: *declaration_ordinal } };
@@ -418,9 +412,24 @@ impl StructuralResults<'_> {
                         Ok((Some(*declaration), false))
                     }
                 }
+                .map(|declaration| (*ordinal as usize, declaration))
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map(Cow::Owned)
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut roster = Vec::new();
+        for (ordinal, declaration) in bindings {
+            if roster.len() <= ordinal {
+                roster.resize(ordinal + 1, None);
+            }
+            if roster[ordinal].replace(declaration).is_some() {
+                return unsupported("composed call result repeats its binding ordinal");
+            }
+        }
+        Ok(Cow::Owned(
+            roster
+                .into_iter()
+                .map(|declaration| declaration.unwrap_or((None, false)))
+                .collect(),
+        ))
     }
 
     /// Add one completed result's declaration: the dense row with its

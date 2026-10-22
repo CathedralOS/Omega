@@ -21,6 +21,10 @@ pub fn slice_tail_strictly_decreases<'p>(
     if !parameter.symbol.is_valid() || !parameter_is_slice(program, parameter) {
         return false;
     }
+    let argument = program
+        .expression_table
+        .borrow_expression(argument)
+        .map_or(argument, |borrow| borrow.target);
     let Some(indexed) = program.expression_table.indexed_node(argument) else {
         return false;
     };

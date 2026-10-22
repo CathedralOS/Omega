@@ -324,6 +324,7 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         )
         .is_some_and(|retained| retained == identity)
     {
+        retain_collection_results(program, &instance);
         program.retain_data_application_definition(reference, instance, true);
         return;
     }
@@ -366,7 +367,29 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     application.type_parameters = HandleSpan::empty();
     application.lifetime_parameters.clear();
     application.generic_instance = Some(reference);
+    retain_collection_results(program, &application);
     program.retain_data_application_definition(reference, application, is_closed);
+}
+
+fn retain_collection_results(
+    program: &mut TypedTrees,
+    definition: &typed_trees::data::DataDefinition,
+) {
+    let mut references = Vec::new();
+    for member in program.data_members(definition) {
+        match member {
+            DataMember::Field(field) => references.push(field.type_reference),
+            DataMember::Variant(variant) => references.extend(
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .map(|field| field.type_reference),
+            ),
+        }
+    }
+    for reference in references {
+        program.retain_collection_result_types(reference);
+    }
 }
 
 /// This is closure, not admission: unknown/open operands retain no closed storage.

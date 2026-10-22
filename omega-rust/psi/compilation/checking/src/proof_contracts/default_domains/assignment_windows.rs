@@ -399,6 +399,10 @@ pub(crate) fn handle_assignment<'program>(
         .iter()
         .filter(|fact| fact_mentions_any_field(program, definition, fact))
         .filter(|fact| {
+            !region_was_established
+                || super::place_queries::fact_names_field(program, fact, &field_name)
+        })
+        .filter(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return true;
             };

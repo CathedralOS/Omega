@@ -20,6 +20,31 @@ the key. The key opens the sanctum, whose guarded relic completes the game.
 The cistern chest restores health once. The six-room map records exploration.
 Input and simulation pause when the window loses focus. There is no save file.
 
+## Engine
+
+The engine uses exact arithmetic and default domains on its data records.
+Positions, runtime vitality, countdowns, actor IDs and live storage counts carry
+their bounds with their values; maximum health is actor data, not a global limit.
+
+`actors` owns components, travel, combat and storage passes. `control` maps input
+devices and pursuit controllers to actor commands, independently of actor kind.
+One input device may control several actors. Ground versus air traversal is a
+movement property, not a player/enemy branch. `world` owns room metadata and
+campaign content, `simulation` orchestrates the tick, and `presentation` supplies
+an immutable frame snapshot to the software renderer.
+
+Actor, controller and dungeon storage are const-generic. The campaign currently
+uses one adventurer and one active room enemy; input routing, movement, combat
+and hostile scans traverse the actual stored work rather than assuming two
+actors. Control and actor passes have explicit termination guarantees and
+decreasing slice/work-count witnesses. The interactive application loop does
+not promise termination.
+
+`engine/configuration.omg` defines room and tile geometry, capacities, combat
+timings, movement limits, frame dimensions, event budget and window scale.
+Room layout decorations, spawn positions, health values and sprite artwork
+remain authored campaign content.
+
 ## Build
 
 From the repository root, using the optimized development compiler:
@@ -61,19 +86,15 @@ python3 samples/gui/dungeon_crawler/verify_window.py --cycles 2
 It launches the original `.app`, requires its window to be on screen, checks
 that actual keyboard input changes rendered pixels, clicks the red close
 button, and verifies that the process exits before the next launch. Captures
-are retained under `build/window-*.png`. Both launch/input/close cycles were
-observed passing under the unchanged `com.omega.dungeon-crawler` identifier.
-Those interactive observations used producer `ba7501de328` before integration.
-A locked desktop prevented repeating input/close observations on the integrated
-producer; the test refuses that environment before launching the game. The
-integrated producer at `1636562ddf3` still completed the campaign in both engines
-and rendered all 60 frames of the existing window demo with exit 0.
+are retained under `build/window-*.png`. It refuses a locked desktop before
+launching or injecting input. The exact refactor's campaign and two original-ID
+launch/input/close cycles are checked before landing; run identities and scoped
+compiler regression comparisons are recorded with the change.
 
-Native and Terminal Psi executions both observed exit 0 on macOS ARM64 with
-the compiler built from `ba7501de328` and the accompanying local standard-library
-changes. A native window was captured successfully. The existing `window_app`
-sample also checks against the retained fixed-size blit API, and `window_demo`
-renders all 60 frames and exits 0 against the repaired shared Cocoa host.
+The separate `smoke/models` application checks a four-room/two-actor instance,
+runtime health maximum 12, exact movement and terminating input fan-out. The
+compiler corpus pins generic component/result/window composition and rejects
+invalid generic bounds, unequal windows and nondecreasing mutable traversal.
 
 The standard-library changes add a dimension-checked borrowed framebuffer
 presenter and map Space, A, D and W in the existing macOS keyboard adapter.
@@ -84,4 +105,8 @@ original application identity with an invisible, unresponsive window. The
 same behavior was reproduced with a native Objective-C control; the bounded
 application-loop initialization repaired it without changing identifiers or
 adding another windowing library.
-No Rust compiler changes were necessary for this game.
+
+The exact modular engine also exercises compiler repairs for complete zero-domain
+establishment, exact generic application and result identities, captured operand
+predicates, generic field view types, private by-value writes and mutable-slice
+ranking. These are compiler rules, not special treatment of this sample.

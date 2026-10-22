@@ -15,6 +15,71 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
+pub fn completed_value_is_bounded_by_static(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    binder: symbols::SymbolHandle,
+    strict: bool,
+) -> bool {
+    let Some(parameter) = program
+        .machine_type_parameters(machine)
+        .iter()
+        .find(|parameter| parameter.symbol == binder)
+    else {
+        return false;
+    };
+    let typed_trees::data::TypeParameterKind::Const {
+        type_reference: bound_type,
+    } = parameter.kind
+    else {
+        return false;
+    };
+    let Some(reference) =
+        crate::expression_result_type_reference(program, machine, state, expression)
+    else {
+        return false;
+    };
+    let Some(primitive) = program
+        .primitive_type_reference(reference)
+        .filter(|primitive| primitive.is_fixed_integer())
+    else {
+        return false;
+    };
+    if program.primitive_type_reference(bound_type) != Some(primitive) {
+        return false;
+    }
+    let mut proven = true;
+    let complete = observe_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        |judge, value| {
+            let predicate = StructuralTerm::ScalarBinary {
+                references: [reference, bound_type],
+                operator: if strict {
+                    typed_trees::expression::BinaryOperator::Less
+                } else {
+                    typed_trees::expression::BinaryOperator::LessOrEqual
+                },
+                meaning: [(primitive, numerics::arithmetic::ArithmeticDomain::Exact); 2],
+                left: Box::new(value),
+                right: Box::new(StructuralTerm::BoundValue(binder)),
+            };
+            proven &= matches!(
+                judge.judge_observed_predicate(predicate, 0),
+                super::structural_judgment::StructuralJudgment::Proven
+            );
+        },
+    );
+    complete == Some(true) && proven
+}
+
 /// Visit every reachable completion. None means the prefix was unavailable;
 /// false means that the callbacks do not cover all reachable completions.
 /// Partial observations may refute a predicate, but cannot establish one.

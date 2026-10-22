@@ -116,13 +116,7 @@ fn append_zero_initialized_field_domain_facts(
                 field.type_reference,
             )
             .into_iter()
-            .filter(|(symbol, _)| {
-                validation::field_domains::domain_admits_zero_byte_carrier(
-                    program,
-                    *symbol,
-                    field.type_reference,
-                )
-            })
+            .filter(|_| !validation::type_requires_establishment(program, field.type_reference))
         {
             // Place `<root>.<prefix…>.<field>`: root the local symbol + the segment
             // chain, so the canonical label matches a `root.a.b` read exactly

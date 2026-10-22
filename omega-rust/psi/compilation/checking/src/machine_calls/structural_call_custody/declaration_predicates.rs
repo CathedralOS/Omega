@@ -521,15 +521,16 @@ fn owned_data_definition(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    match program.type_reference_table.type_reference(
-        program
-            .type_reference_table
-            .unconstrained_type_reference(type_reference),
-    ) {
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
+    match program.type_reference_table.type_reference(carrier) {
         // Array traversal revisits these owners at each exact index. Reuse the
         // program's revision-checked first-match index instead of rescanning
         // every declaration; predicate enumeration and path order stay intact.
-        TypeReferenceNode::Named { symbol, .. } => program.data_definition_by_symbol(*symbol),
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+            program.closed_data_definition(carrier)
+        }
         _ => None,
     }
 }

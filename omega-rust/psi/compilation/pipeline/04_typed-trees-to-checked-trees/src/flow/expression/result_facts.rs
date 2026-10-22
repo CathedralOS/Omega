@@ -195,11 +195,11 @@ impl Execution<'_, '_, '_> {
         ) {
             validation::field_domains::declared_owned_field_domain_identities(self.program, reference)
                 .into_iter()
-                .filter(|(path, domain, _)| {
+                .filter(|(path, _, _)| {
                     crate::flow::literal_value_projections(self.program, expression, reference, path, false)
                         .is_some_and(|projections| !projections.is_empty() && projections.iter().all(|projection| {
                             matches!(projection.source, crate::flow::LiteralValueSource::OmittedZero { type_reference, .. }
-                                if validation::field_domains::domain_admits_zero_byte_carrier(self.program, *domain, type_reference))
+                                if !validation::type_requires_establishment(self.program, type_reference))
                         }))
                 })
                 .collect::<Vec<_>>()

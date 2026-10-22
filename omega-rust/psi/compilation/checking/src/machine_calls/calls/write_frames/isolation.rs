@@ -303,6 +303,21 @@ fn type_is_caller_isolated_local_inner(
     if program.primitive_type_reference(handle).is_some() {
         return true;
     }
+    if let Some(definition) = program
+        .data_application_definition(handle)
+        .or_else(|| program.closed_data_definition(handle))
+    {
+        return data_definition_is_caller_isolated(
+            program,
+            definition,
+            Some(handle),
+            visiting,
+            proof_values,
+            isolated_parameters,
+            bindings,
+            identities,
+        );
+    }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Constrained { base_type, .. } => type_is_caller_isolated_local_inner(
             program,

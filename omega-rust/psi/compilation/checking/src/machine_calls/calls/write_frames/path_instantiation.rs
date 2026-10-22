@@ -74,6 +74,11 @@ pub(super) fn instantiate_written_path_for_origins(
         .find(|(_, parameter)| parameter.name.as_str() == root)
     {
         let argument = *arguments.get(argument_index)?;
+        if !super::type_reference_is_reference(program, parameter.type_reference)
+            && super::type_is_caller_isolated_local(program, parameter.type_reference)
+        {
+            return Some(Vec::new());
+        }
         if matches!(
             program.expression_table.expression(argument),
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)

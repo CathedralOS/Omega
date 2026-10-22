@@ -1,0 +1,50 @@
+// Expected exit: 0.
+// Expected output contains: PASS: bounded components and terminating controller fan-out
+use omega_language_std::console;
+use dungeon_core::actors::state::ActorSet;
+use dungeon_core::actors::state::Countdown;
+use dungeon_core::actors::state::Vitality;
+use dungeon_core::actors::state::Actor;
+use dungeon_core::actors::state::Position;
+use dungeon_core::actors::travel::move_actor;
+use dungeon_core::world::rooms::Dungeon;
+use dungeon_core::actors::state::damage;
+use dungeon_core::actors::state::elapse;
+use dungeon_core::control::state::ControllerSet;
+use dungeon_core::control::state::IntentSet;
+use dungeon_core::control::state::Command;
+use dungeon_core::control::routing::route_input;
+use dungeon_core::configuration::ATTACK_FRAMES;
+
+data Smoke {
+    actors: ActorSet<2, 4>;
+    controllers: ControllerSet<2, 2>;
+    intents: IntentSet<2>;
+    timer: Countdown<ATTACK_FRAMES>;
+    dungeon: Dungeon<4>;
+}
+
+machine Smoke::main(smoke: &mut Smoke) reaches Console {
+    smoke.actors.items[0].vitality = Vitality { current: 12, maximum: 12 };
+    smoke.actors.items[0].vitality = damage(smoke.actors.items[0].vitality);
+    smoke.actors.items[0].position = Position { x: 128, y: 112 };
+    smoke.actors.items[0].speed = 2;
+    smoke.actors.items[0].active = true;
+    let moving: Actor<4> = Actor { position: Position { x: 128, y: 112 }, vitality: Vitality { current: 12, maximum: 12 }, room: 0, speed: 2, active: true };
+    let moved: Actor<4> = move_actor<4>(moving, &smoke.dungeon, 1, false);
+    smoke.controllers.bindings[0].actor = 0;
+    smoke.controllers.bindings[1].actor = 1;
+    smoke.controllers.count = 2;
+    smoke.timer.remaining = ATTACK_FRAMES;
+    smoke.timer = elapse(smoke.timer);
+    route_input(&smoke.controllers, &mut smoke.intents, 0, Command { direction: 1, attack: true });
+    transition smoke.actors.items[0].vitality.current == 11
+        && moved.position.x == 130 && moved.position.y == 112
+        && smoke.timer.remaining == ATTACK_FRAMES - 1
+        && smoke.intents.items[0].direction == 1 && smoke.intents.items[1].attack {
+        true -> passed()
+        _ -> failed()
+    }
+    state passed() { Console::write_line("PASS: bounded components and terminating controller fan-out"); Console::exit_process(0); }
+    state failed() { Console::exit_process(1); }
+}

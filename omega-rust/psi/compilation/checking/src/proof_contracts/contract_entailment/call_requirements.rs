@@ -64,6 +64,7 @@ pub fn structural_call_requirement_entailed(
         callee.symbol,
         program.state_parameters(callee),
         Some(callee_machine),
+        None,
         ExpressionHandle::invalid(),
         0,
         arguments,
@@ -83,20 +84,34 @@ pub fn selected_value_call_requirement_entailed(
     site: crate::machine_calls::calls::CallSite<'_>,
     expression: ExpressionHandle,
 ) -> bool {
-    let crate::machine_calls::calls::CallSite::Expression {
-        expression: call_expression,
-        call,
-    } = site
-    else {
-        return false;
+    let (call_expression, argument_handles) = match site {
+        crate::CallSite::Expression { expression, call } => (expression, call.arguments),
+        crate::CallSite::Statement(call) => (ExpressionHandle::invalid(), call.arguments),
+        crate::CallSite::TransitionNamed { .. } => return false,
     };
-    let Some(owner) = super::specification_calls::selected_call_contract(program, call) else {
+    let Some(owner) = super::specification_calls::selected_call_site_contract(program, site) else {
         return false;
     };
     if !super::specification_calls::owner_contracts(program, &owner)
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .any(|fact| matches!(fact, typed_trees::domain::ProofFact::Expression(required) if *required == expression))
+        .any(|fact| {
+            let typed_trees::domain::ProofFact::Expression(required) = fact else {
+                return false;
+            };
+            let mut pending = vec![*required];
+            while let Some(required) = pending.pop() {
+                if required == expression {
+                    return true;
+                }
+                if let Some(binary) = program.expression_table.binary_node(required)
+                    && binary.operator == BinaryOperator::And
+                {
+                    pending.extend([binary.left, binary.right]);
+                }
+            }
+            false
+        })
     {
         return false;
     }
@@ -104,14 +119,15 @@ pub fn selected_value_call_requirement_entailed(
         super::specification_calls::SelectedCallContract::Concrete(machine, _) => Some(machine),
         _ => None,
     };
-    let Some(parameter_scope) = super::specification_calls::owner_parameter_scope(program, &owner)
+    let Some(parameter_scope) =
+        super::specification_calls::call_parameter_scope(program, &owner, site)
     else {
         return false;
     };
     let leading_operands = super::specification_calls::owner_leading_operands(&owner);
     let Some(arguments) = program
         .expression_table
-        .expression_handles(call.arguments)
+        .expression_handles(argument_handles)
         .get(leading_operands..)
     else {
         return false;
@@ -130,6 +146,7 @@ pub fn selected_value_call_requirement_entailed(
         super::specification_calls::owner_symbol(&owner),
         parameter_scope.as_ref(),
         callee_machine,
+        Some(site),
         call_expression,
         leading_operands,
         arguments,
@@ -148,6 +165,7 @@ fn structural_requirement_at_prefix(
     callee_owner: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     callee_machine: Option<&Machine>,
+    call_site: Option<crate::CallSite<'_>>,
     call_expression: ExpressionHandle,
     leading_operands: usize,
     arguments: &[ExpressionHandle],
@@ -245,6 +263,7 @@ fn structural_requirement_at_prefix(
         in_transition_target,
         callee_owner,
         parameters,
+        call_site,
         call_expression,
         leading_operands,
         arguments,
@@ -327,6 +346,7 @@ pub(super) struct CallRequirement<'program> {
     pub(super) in_transition_target: bool,
     callee_owner: SymbolHandle,
     parameters: &'program [typed_trees::signature::StateParameter],
+    call_site: Option<crate::CallSite<'program>>,
     call_expression: ExpressionHandle,
     leading_operands: usize,
     arguments: &'program [ExpressionHandle],
@@ -402,8 +422,33 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             entries
         };
         self.proven &= !entries.is_empty();
+        let mut requirement_parameters = self.parameters.to_vec();
+        let mut static_substitution = Vec::new();
+        if let Some(site) = self.call_site {
+            let arguments = match site {
+                crate::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+                crate::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+                crate::CallSite::TransitionNamed { .. } => &[],
+            };
+            let Some(owner) =
+                super::specification_calls::selected_call_site_contract(program, site)
+            else {
+                self.proven = false;
+                return;
+            };
+            let Some(bindings) =
+                super::specification_calls::call_scalar_substitution(program, &owner, arguments)
+            else {
+                self.proven = false;
+                return;
+            };
+            for (parameter, value) in bindings {
+                static_substitution.push((parameter.name.to_string(), value));
+                requirement_parameters.push(parameter);
+            }
+        }
         for entry in entries {
-            let mut substitution = Vec::new();
+            let mut substitution = static_substitution.clone();
             let subjects = if self.call_expression.is_valid() {
                 let Some(owner_machine) = program.machine(machine.symbol) else {
                     self.proven = false;
@@ -419,10 +464,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             } else {
                 Some(Vec::new())
             };
-            let Some(subjects) = subjects else {
-                self.proven = false;
-                return;
-            };
+            let subjects = subjects.unwrap_or_default();
             let Some(arguments) = entry.arguments.get(self.leading_operands..) else {
                 self.proven = false;
                 return;
@@ -466,8 +508,25 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     Some(value.clone())
                 };
                 let Some(value) = value else {
-                    self.proven = false;
-                    return;
+                    let mut expressions = Vec::new();
+                    crate::expression_traversal::collect_expression_tree(
+                        program,
+                        self.expression,
+                        &mut expressions,
+                    );
+                    if expressions.iter().any(|expression| {
+                        program
+                            .expression_table
+                            .name_path_node(*expression)
+                            .is_some_and(|path| {
+                                path.symbol == parameter.symbol
+                                    || path.head_symbol == parameter.symbol
+                            })
+                    }) {
+                        self.proven = false;
+                        return;
+                    }
+                    continue;
                 };
                 substitution.push((parameter.name.as_str().to_owned(), value));
             }
@@ -476,7 +535,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     program,
                     &entry.judge,
                     self.callee_owner,
-                    self.parameters,
+                    &requirement_parameters,
                     self.expression,
                     &substitution,
                     Some((machine, caller_state)),

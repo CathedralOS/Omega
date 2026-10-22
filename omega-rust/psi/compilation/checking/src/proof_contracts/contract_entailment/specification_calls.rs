@@ -651,6 +651,101 @@ pub(super) fn owner_parameter_scope<'program>(
     Some(std::borrow::Cow::Owned(parameters))
 }
 
+pub(super) fn call_parameter_scope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'program>,
+    site: crate::CallSite<'program>,
+) -> Option<std::borrow::Cow<'program, [StateParameter]>> {
+    let declared = owner_parameter_scope(program, owner)?;
+    let (application, arguments) = match site {
+        crate::CallSite::Expression { call, .. } => (
+            call.authored_machine_application,
+            call.machine_arguments.as_ref(),
+        ),
+        crate::CallSite::Statement(call) => (
+            call.authored_machine_application,
+            call.machine_arguments.as_ref(),
+        ),
+        crate::CallSite::TransitionNamed { .. } => return Some(declared),
+    };
+    let mut substitutions = Vec::new();
+    if application.is_valid() {
+        for binding in program
+            .expression_table
+            .static_machine_application_bindings(application)
+        {
+            match binding.value {
+                typed_trees::static_applications::StaticMachineBindingValue::Type(reference)
+                | typed_trees::static_applications::StaticMachineBindingValue::Const(reference) => {
+                    substitutions.push((binding.parameter, reference))
+                }
+                _ => {}
+            }
+        }
+    } else if let SelectedCallContract::Concrete(machine, _) = owner {
+        let binders = program.machine_type_parameters(machine);
+        if binders.len() == arguments.len() {
+            for (binder, argument) in binders.iter().zip(arguments) {
+                let actual = if argument.type_reference.is_valid() {
+                    Some(argument.type_reference)
+                } else {
+                    program
+                        .type_reference_table
+                        .find_named_type_reference(argument.symbol)
+                        .or_else(|| {
+                            if !argument.symbol.is_valid() {
+                                return None;
+                            }
+                            program.type_reference_table.references().find_map(
+                                |(reference, node)| {
+                                    let typed_trees::types::TypeReferenceNode::ConstExpression(
+                                        expression,
+                                    ) = node
+                                    else {
+                                        return None;
+                                    };
+                                    program
+                                        .expression_table
+                                        .name_path_node(*expression)
+                                        .is_some_and(|path| {
+                                            path.symbol == argument.symbol
+                                                && path.head_symbol == argument.symbol
+                                        })
+                                        .then_some(reference)
+                                },
+                            )
+                        })
+                };
+                if let Some(actual) = actual {
+                    substitutions.push((binder.symbol, actual));
+                }
+            }
+        }
+    }
+    if substitutions.is_empty() {
+        return Some(declared);
+    }
+    let mut parameters = declared.into_owned();
+    for parameter in &mut parameters {
+        let identity = program.type_identity_with_simultaneous_substitutions(
+            typed_trees::type_identity::TypeIdentityRequest {
+                substitutions: &substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                    parameter.type_reference,
+                )
+            },
+        );
+        parameter.type_reference =
+            program
+                .type_reference_table
+                .references()
+                .find_map(|(reference, _)| {
+                    (program.normalized_type_identity(reference) == identity).then_some(reference)
+                })?;
+    }
+    Some(std::borrow::Cow::Owned(parameters))
+}
+
 /// Locate an authored contract binder in the selected invocation's operand
 /// roster. Dynamic slots retain fresh invocation symbols and a dispatch prefix;
 /// their requirement's declaration correspondence, never parameter spelling,
@@ -742,6 +837,64 @@ fn applicable_requirements_of<'program>(
 /// Bind only the selected owner's machine parameters. Unsupported type/const
 /// telescopes remain unavailable rather than being silently erased. Concrete
 /// specialization and open modular checking use the same symbol correspondence.
+pub(super) fn call_scalar_substitution(
+    program: &dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'_>,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
+    let SelectedCallContract::Concrete(machine, _) = owner else {
+        return arguments.is_empty().then(Vec::new);
+    };
+    let parameters = program.machine_type_parameters(machine);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    let mut result = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let (typed_trees::data::TypeParameterKind::Const { type_reference }
+        | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
+        else {
+            continue;
+        };
+        if !program
+            .primitive_type_reference(type_reference)
+            .is_some_and(|primitive| primitive.is_fixed_integer())
+        {
+            return None;
+        }
+        let value = match super::static_applications::constant_value(program, argument) {
+            Some(super::static_applications::ConstantValue::Integer(value)) => {
+                StructuralTerm::Integer(value)
+            }
+            Some(_) => return None,
+            None if argument.symbol.is_valid()
+                && program.symbols.get(argument.symbol).kind
+                    == symbols::SymbolKind::TypeParameter =>
+            {
+                StructuralTerm::BoundValue(argument.symbol)
+            }
+            None => return None,
+        };
+        result.push((
+            typed_trees::signature::StateParameter {
+                symbol: parameter.symbol,
+                name: format!(
+                    "\0static_{}_{}",
+                    parameter.symbol.arena_index(),
+                    parameter.symbol.generation()
+                )
+                .as_str()
+                .into(),
+                type_reference,
+                is_const: true,
+                ..Default::default()
+            },
+            value,
+        ));
+    }
+    Some(result)
+}
+
 fn call_machine_substitution(
     program: &dyn crate::CheckingInput,
     owner: &SelectedCallContract<'_>,

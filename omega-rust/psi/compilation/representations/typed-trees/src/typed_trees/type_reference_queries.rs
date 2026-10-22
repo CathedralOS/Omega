@@ -9,6 +9,12 @@ use crate::typed_trees::{
 use crate::{expression, name, types};
 
 impl TypedTrees {
+    pub fn retain_collection_result_types(&mut self, reference: types::TypeReferenceHandle) {
+        self.tables
+            .type_reference_table
+            .retain_collection_result_types(&self.symbols, reference);
+    }
+
     /// The carrier type beneath a reference's `Reference` shells and a
     /// qualification's `Constrained` shells, or `None` for the zero handle.
     ///

@@ -378,7 +378,7 @@ pub(super) fn fact_mentions_any_field(
         .any(|field| fact_names_field(program, fact, field))
 }
 
-fn fact_names_field(
+pub(super) fn fact_names_field(
     program: &dyn crate::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
     field: &str,

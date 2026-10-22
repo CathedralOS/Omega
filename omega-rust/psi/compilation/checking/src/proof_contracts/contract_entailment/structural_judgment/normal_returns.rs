@@ -878,7 +878,8 @@ impl<'program> StructuralJudge<'program> {
                         NormalValueDemand::Location
                     }
                     ExpressionNode::Indexed(indexed)
-                        if matches!(demand, NormalValueDemand::Location) =>
+                        if matches!(demand, NormalValueDemand::Location)
+                            || program.expression_table.range_node(indexed.index).is_some() =>
                     {
                         // A view's pointer/count descriptor is evaluated before
                         // its selector. Fixed-array geometry needs only a place,
@@ -1043,6 +1044,9 @@ impl<'program> StructuralJudge<'program> {
                     value
                 } else if judge.runtime_body_values
                     && (matches!(node, ExpressionNode::Call(_))
+                        || matches!(node, ExpressionNode::Indexed(indexed)
+                            if program.expression_table.range_node(indexed.index).is_some()
+                                && crate::value_custody::places::place_has_builtin_coordinates(program, scope.0, Some(scope.1), expression))
                         || judge.storage_observation_invalidated(expression)
                         || discarded_value_has_no_own_effects(program, scope, expression)
                         || matches!(node, ExpressionNode::Cast(cast)
@@ -1146,6 +1150,14 @@ impl<'program> StructuralJudge<'program> {
                     // value when its collection's contents have no structural
                     // denotation. A stable descriptor alone cannot reconstruct
                     // an element identity from an earlier storage epoch.
+                    if let Some(reference) = crate::expression_result_type_reference(
+                        program,
+                        scope.0,
+                        scope.1,
+                        expression,
+                    ) {
+                        judge.intake_admitted_value_predicates(reference, value.clone());
+                    }
                 }
                 if let ExpressionNode::Indexed(indexed) = node
                     && let Some(range) = program.expression_table.range_node(indexed.index)
@@ -1209,12 +1221,7 @@ impl<'program> StructuralJudge<'program> {
                         ),
                     };
                     if let Some(extent) = extent
-                        && let Some(view) = crate::expression_result_type_reference(
-                            program,
-                            scope.0,
-                            scope.1,
-                            expression,
-                        )
+                        && let Some(view) = judge.normal_value_type_reference(expression, scope)
                         && let Some(measure) =
                             super::super::structural_terms::observed_collection_measure(
                                 program,
@@ -1273,6 +1280,46 @@ impl<'program> StructuralJudge<'program> {
             .map(|paths| paths.into_iter().flatten().collect())
     }
 
+    fn normal_value_type_reference(
+        &self,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> Option<TypeReferenceHandle> {
+        let program = self.program;
+        crate::expression_result_type_reference(program, scope.0, scope.1, expression).or_else(
+            || {
+                let indexed = program.expression_table.indexed_node(expression)?;
+                program.expression_table.range_node(indexed.index)?;
+                crate::slice_view_shell(program, scope.2, &[])?;
+                if !crate::value_custody::places::place_has_builtin_coordinates(
+                    program,
+                    scope.0,
+                    Some(scope.1),
+                    expression,
+                ) {
+                    return None;
+                }
+                let source = crate::expression_result_type_reference(
+                    program,
+                    scope.0,
+                    scope.1,
+                    indexed.collection,
+                )?;
+                let source_element =
+                    crate::value_custody::places::collection_element_type_reference(
+                        program, source,
+                    )?;
+                let receiving_element =
+                    crate::value_custody::places::collection_element_type_reference(
+                        program, scope.2,
+                    )?;
+                (program.normalized_type_identity(source_element)
+                    == program.normalized_type_identity(receiving_element))
+                .then_some(scope.2)
+            },
+        )
+    }
+
     fn capture_unknown_value(
         &mut self,
         expression: ExpressionHandle,
@@ -1283,37 +1330,33 @@ impl<'program> StructuralJudge<'program> {
             expression,
             callable: SymbolHandle::invalid(),
             occurrence: self.capture_sequence,
-            result_type: crate::expression_result_type_reference(
-                self.program,
-                scope.0,
-                scope.1,
-                expression,
-            )
-            .or_else(|| {
-                // Collection literals have contextual storage types, not one
-                // context-free result reference. Constructor operands already
-                // carry the selected field type; retain that receiving carrier
-                // without claiming anything about its contents.
-                matches!(
-                    self.program.expression_table.expression(expression),
-                    ExpressionNode::String(_) | ExpressionNode::ArrayLiteral(_)
-                )
-                .then(|| {
-                    crate::value_custody::places::collection_element_type_reference(
-                        self.program,
-                        scope.2,
-                    )
-                })
-                .flatten()
-                .filter(|element| {
+            result_type: self
+                .normal_value_type_reference(expression, scope)
+                .or_else(|| {
+                    // Collection literals have contextual storage types, not one
+                    // context-free result reference. Constructor operands already
+                    // carry the selected field type; retain that receiving carrier
+                    // without claiming anything about its contents.
                     matches!(
                         self.program.expression_table.expression(expression),
-                        ExpressionNode::ArrayLiteral(_)
-                    ) || self.program.primitive_type_reference(*element)
-                        == Some(typed_trees::types::PrimitiveType::U8)
-                })
-                .map(|_| scope.2)
-            })?,
+                        ExpressionNode::String(_) | ExpressionNode::ArrayLiteral(_)
+                    )
+                    .then(|| {
+                        crate::value_custody::places::collection_element_type_reference(
+                            self.program,
+                            scope.2,
+                        )
+                    })
+                    .flatten()
+                    .filter(|element| {
+                        matches!(
+                            self.program.expression_table.expression(expression),
+                            ExpressionNode::ArrayLiteral(_)
+                        ) || self.program.primitive_type_reference(*element)
+                            == Some(typed_trees::types::PrimitiveType::U8)
+                    })
+                    .map(|_| scope.2)
+                })?,
         };
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
@@ -1508,12 +1551,14 @@ impl<'program> StructuralJudge<'program> {
         if call_has_mathematical_denotation(program, call) {
             return None;
         }
-        if !call.machine_arguments.is_empty()
-            || !call.evidence_arguments.is_empty()
-            || call.quotient_operation.is_some()
-        {
+        if !call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
             return None;
         }
+        let static_bindings = super::super::specification_calls::call_scalar_substitution(
+            program,
+            &owner,
+            &call.machine_arguments,
+        )?;
         let Some(parameter_scope) = owner_parameter_scope(program, &owner) else {
             return None;
         };
@@ -1575,7 +1620,7 @@ impl<'program> StructuralJudge<'program> {
         // Keep both substitutions: dropping a mutable input's post-state
         // observation must not erase a proven entry requirement or an
         // independent guarantee about the captured result.
-        let entry_bindings = parameters
+        let mut entry_bindings = parameters
             .iter()
             .zip(actuals)
             .filter_map(|(parameter, value)| {
@@ -1604,6 +1649,11 @@ impl<'program> StructuralJudge<'program> {
                 Some((parameter.symbol, value))
             })
             .collect::<Vec<_>>();
+        entry_bindings.extend(
+            static_bindings
+                .iter()
+                .map(|(parameter, value)| (parameter.symbol, value.clone())),
+        );
         let mut bindings = entry_bindings
             .iter()
             .filter(|(symbol, _)| {
@@ -1611,7 +1661,9 @@ impl<'program> StructuralJudge<'program> {
                     .iter()
                     .find(|parameter| parameter.symbol == *symbol)
                 else {
-                    return false;
+                    return static_bindings
+                        .iter()
+                        .any(|(parameter, _)| parameter.symbol == *symbol);
                 };
                 if crate::reference_shell(program, parameter.type_reference).is_none() {
                     !parameter.is_mutable
@@ -1670,17 +1722,15 @@ impl<'program> StructuralJudge<'program> {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(&owner),
         };
-        let result_type = owner_return_type(&owner);
-        let Some(observed_type) =
+        let Some(result_type) =
             crate::expression_result_type_reference(program, scope.0, scope.1, expression)
         else {
             return None;
         };
         // A selected policy adapter may change the returned denotation. A raw
         // declaration's equation cannot describe that adapted result.
-        if !crate::declared_carriers_match(program, observed_type, result_type)
-            || program.arithmetic_domain_for_type_reference(observed_type)
-                != program.arithmetic_domain_for_type_reference(result_type)
+        if program.arithmetic_domain_for_type_reference(result_type)
+            != program.arithmetic_domain_for_type_reference(owner_return_type(&owner))
         {
             return None;
         }

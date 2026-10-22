@@ -601,7 +601,7 @@ pub(crate) fn construction_field_type(
 /// source constructor has a closed destination; skipping the template's
 /// obligations would silently discard its case predicates and field bounds.
 /// Retained application custody joins the authored owner to that occurrence.
-fn construction_application(
+pub(crate) fn construction_application(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> TypeReferenceHandle {

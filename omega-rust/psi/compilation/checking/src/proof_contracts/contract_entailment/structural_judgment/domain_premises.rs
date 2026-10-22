@@ -373,6 +373,10 @@ impl StructuralJudge<'_> {
         active.push(definition.symbol);
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
+        for (parameter, value) in self.data_application_static_bindings(reference) {
+            bindings.push((parameter.name.to_string(), value));
+            parameters.push(parameter);
+        }
         // Unknown case identity admits only common fields. Payload predicates
         // enter through the separately authenticated selected-case arm; reading
         // every variant here would project inactive same-named payloads onto
@@ -419,6 +423,93 @@ impl StructuralJudge<'_> {
             }
         }
         active.pop();
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn data_application_static_bindings(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Vec<(StateParameter, StructuralTerm)> {
+        use typed_trees::types::TypeReferenceNode;
+        let program = self.program;
+        let Some(definition) =
+            crate::field_domains::readable_nominal_definition(program, reference)
+        else {
+            return Vec::new();
+        };
+        let Some(application) = definition.generic_instance else {
+            return Vec::new();
+        };
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = program.type_reference_table.type_reference(application)
+        else {
+            return Vec::new();
+        };
+        let Some(template) = program.unique_data_definition_by_symbol(*base_symbol) else {
+            return Vec::new();
+        };
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        let parameters = program.data_type_parameters(template);
+        if parameters.len() != arguments.len() {
+            return Vec::new();
+        }
+        parameters
+            .iter()
+            .zip(arguments)
+            .filter_map(|(parameter, argument)| {
+                let (typed_trees::data::TypeParameterKind::Const { type_reference }
+                | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
+                else {
+                    return None;
+                };
+                if !program
+                    .primitive_type_reference(type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
+                {
+                    return None;
+                }
+                let value = if let Some(literal) = program
+                    .typed_program()
+                    .static_const_literal_from_type_reference(*argument)
+                {
+                    StructuralTerm::Integer(literal.value_bignum()?)
+                } else {
+                    let symbol = match program.type_reference_table.type_reference(*argument) {
+                        TypeReferenceNode::Named { symbol, .. } => *symbol,
+                        TypeReferenceNode::ConstExpression(expression) => {
+                            program.expression_table.name_path_node(*expression)?.symbol
+                        }
+                        _ => return None,
+                    };
+                    if !symbol.is_valid()
+                        || program.symbols.get(symbol).kind != symbols::SymbolKind::TypeParameter
+                    {
+                        return None;
+                    }
+                    StructuralTerm::BoundValue(symbol)
+                };
+                Some((
+                    StateParameter {
+                        symbol: parameter.symbol,
+                        name: format!(
+                            "\0static_{}_{}",
+                            parameter.symbol.arena_index(),
+                            parameter.symbol.generation()
+                        )
+                        .as_str()
+                        .into(),
+                        type_reference,
+                        is_const: true,
+                        ..Default::default()
+                    },
+                    value,
+                ))
+            })
+            .collect()
     }
 
     fn intake_domain_predicates(

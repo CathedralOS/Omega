@@ -198,6 +198,7 @@ fn symbolic_extent_index_is_proven(
         // the next state with the index parameter; a concrete floor is not
         // required, because the comparison is already the obligation.
         || facts.below_const_binder(&index_label, extent.0)
+        || validation::completed_value_is_bounded_by_static(program, machine, state, facts.statement_index, index, extent.0, true)
         // `index` folds to `k` and `k < floor(N)` (`const N: u64[1..=18446744073709551615]` proves
         // `items[0]`); an unranged unsigned binder floors at 0 and proves none.
         || expression_integer_value(program, facts, index)
@@ -241,6 +242,7 @@ fn symbolic_extent_range_bound_is_proven(
         program, machine, state, collection, extent, facts,
     );
     facts.range_bound_is_proven(&collection_label, &bound_label)
+        || validation::completed_value_is_bounded_by_static(program, machine, state, facts.statement_index, bound, extent.0, false)
         || symbolic_extent_is_named(program, machine, state, facts, collection, bound, extent)
         // A declared `u64[..N]` or `u64[..=N]` bound asserts `bound <= N`
         // under either inclusivity.
