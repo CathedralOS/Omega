@@ -41,8 +41,10 @@ their `<place>/invalid/` reject twins accompany the mechanism variations below.
 | [First-label backedge](backedge/main.omg) | A two-iteration loop re-enters the authored first label and observes the prior iteration's flag version. |
 
 The x86 instruction fixtures bind Linux x86-64 explicitly so the checked corpus
-selects an applicable target. The sample Build files retain their four entry
-bindings; those bindings do not make the instruction available on ARM.
+selects an applicable target. The sample Build files bind only Linux and
+Windows x86-64 ProgramEntry: an ARM entry binding would demand an instruction
+catalog the realized target cannot supply, so these programs are not
+host-runnable on ARM machines.
 
 Each positive is pinned under `tests/omega/pass/facts/checked_asm_flag_snapshot*`.
 The [root invalid twin](invalid/main.omg) changes only the required bit from
@@ -115,8 +117,8 @@ The former rejecting `asm/scratch_hardware_flag_mix` source is unchanged under
 run observed native signal 4 and Terminal typed `Trap` agreement, with CLI
 exit 255. Its corpus oracle is `trap`, not an ordinary numeric success.
 
-This instruction cohort applies to x86 target bodies. Four Build entry bindings
-do not establish ARM instruction support; only Linux x86-64 executed here.
+This instruction cohort applies to x86 target bodies. The Build entries bind
+x86-64 targets only; only Linux x86-64 executed here.
 Windows x86-64 execution and other hosts remain unmeasured. Flag restoration,
 other ISA/register views, indexed-memory composition, ranked termination and
 hardware-effect retirement of exact linear obligations remain broader parent
