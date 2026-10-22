@@ -41,12 +41,27 @@ Every positive place and the root witness observe `native exit 0` and `interp ex
 
 ### Run record
 
-Measured on 2026-10-21/22 with a fresh optimized producer built from this change's
-candidate (`python3 tools/build_slot.py -- mbx build -p omega`, reported
-`{"opt_level":"1"}`; the candidate was rebased onto
-`5f2beccab8304737319f32377d97240781855d4e` after the first measurements on
-`6cd22386cbb51240d17751e61d82b88632bbcd41`, and the row was re-measured on the rebased
-candidate). Host: Intel macOS x86_64. Executing target: `macos_x86_64`.
+Measured on 2026-10-21/22 with fresh optimized producers
+(`python3 tools/build_slot.py -- mbx build -p omega`, reported `{"opt_level":"1"}`).
+Host: Intel macOS x86_64. Executing target: `macos_x86_64`.
+
+Every number in this README names the revision it was measured at:
+
+| Revision | What was measured there |
+| --- | --- |
+| `6cd22386cbb51240d17751e61d82b88632bbcd41` | the baseline refusal, and the first repair validation before any rebase |
+| `5f2beccab8304737319f32377d97240781855d4e` | the wide `float/,facts/,domains/,contracts/` comparison: 5118 fixtures, 0 lost behaviour, 15 gained |
+| `447c91b42746196fe7ff5b52d818ddaf141e2a47` | the integrated parent of the landed commit; the row filter replayed here: 36 fixtures, 0 lost, 10 gained |
+| `ea0cca748785a1586b82b6fab46446e4d0008887` | the landed commit: post-landing execution, twin, corpus and public-gate runs |
+
+The three repair files are byte-identical between the first validated candidate and the
+landed commit (`git diff fabf273c6436350833151a856caa12c3bca8c5be
+ea0cca748785a1586b82b6fab46446e4d0008887 --
+omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/value_environment.rs
+.../guard_narrowing/boolean_values.rs .../guard_narrowing/arrivals.rs` is empty). That
+identity is the applicability argument for carrying the wide comparison forward; the wide
+comparison was **not** replayed at `447c91b4274`, so its figure is retained evidence, not a
+fresh measurement at the integrated parent.
 
 The four authored targets do not include this host's catalogued target, so the bare
 `omega run --both <place>/main.omg` refuses here during entry settlement with
@@ -67,6 +82,48 @@ python3 tools/sample_native_gate.py --cli <candidate> --facts --filter cli/facts
 
 It scores `0/0` runnable positives on `macos_x86_64` (10 unscored: not host-runnable)
 and `9/9 intended-invalid controls match their authored rejection`.
+
+### What the row's evidence establishes
+
+Five of the nine places — `local`, `field`, `parameter`, `match_join`, `const_name` — were
+rejected at the integrated parent `447c91b4274` while `tests/omega/corpus_outcomes.txt`
+already recorded them `checked` (rows added by
+`ac963cec7a3586a55898a4e1124f9326297148e1`, "tests: pin the repro and assumed-binding fact
+rows", 2026-10-18). For those five rows this change **restores** the recorded outcome; it
+does not add a new capability. The other four places were already restored before it by the
+saved-guard recovery landed separately in `flow/guard_predicates.rs`. The measured gain of
+this change at `447c91b4274` is therefore ten rows: those five `repro` places and their five
+older `ieee_guard_i32_from_f64_*` twins' positive counterparts.
+
+### Evidence ledger
+
+- **Fresh** (measured at the revision named above): the baseline refusal at `6cd22386cbb`;
+  the ten executing positives, the nine reject twins, the corrupted-oracle trap and the
+  36-fixture corpus run at the landed `ea0cca74878`; the row-filter comparison at the
+  integrated parent.
+- **Retained with an applicability argument**: the 5118-fixture wide comparison, measured at
+  `5f2beccab83` and carried because the three repair files are byte-identical through the
+  landed commit.
+- **Unverified**: any host other than `macos_x86_64`; corpus `--native` rows for these
+  fixtures (host pinning, above); and no isolated probe made `IeeeConditionalFacts::intersect`
+  the sole carrier of a join decision — the nearest evidence is the review's sibling probe
+  showing an unjustified enclosure is dropped at the join.
+
+### Frontier recorded by independent review
+
+- **Accepted widening.** A state declaring only `requires value == value` is now accepted
+  where the integrated parent refused it: the enclosure carried through the join proves the
+  conversion. It is sound under the all-predecessor join — a sibling probe that does not
+  prove the enclosure drops the fact, and the probed state has a single proving predecessor —
+  but it widens state-body acceptance beyond the state's declared premises. Recorded as
+  accepted frontier rather than left as a silent side effect.
+- **Two owners, one predicate class.** The conversion obligation (checking) and the operator
+  `requires` (checked flow) decide the same predicate class and are accepted as their
+  conjunction, and they do not agree today: `flow/guard_predicates.rs` follows only
+  `SymbolKind::Local` captures, so a state joined from two edges that both prove the
+  enclosure, with the subject carried as a state parameter and no redeclared `requires`, is
+  refused by the checked-flow owner although the checking side proves it. Named remaining
+  design gap for a follow-up owner; deliberately not repaired here.
 
 ### The oracle discriminates
 
@@ -110,8 +167,12 @@ omega --check samples/cli/facts/repro/target_body/invalid/main.omg
   - Positive passes: `tests/omega/pass/facts/repro_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_exit`
   - Negative controls: `tests/omega/fail/facts/repro_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_rejected`
   - Earlier-pinned copies of the same programs: `tests/omega/pass/facts/ieee_guard_i32_from_f64_*` and `tests/omega/fail/facts/ieee_guard_i32_from_f64_*_invalid`.
-- **Producer:** this change's candidate, optimized `opt_level=1`, based on
-  `6cd22386cbb51240d17751e61d82b88632bbcd41`; host `macos_x86_64`.
+- **Producer:** this change's landed commit `ea0cca748785a1586b82b6fab46446e4d0008887`,
+  optimized `opt_level=1`, integrated parent
+  `447c91b42746196fe7ff5b52d818ddaf141e2a47`; host `macos_x86_64`. The first validation ran
+  from `6cd22386cbb51240d17751e61d82b88632bbcd41`, and the wide comparison from
+  `5f2beccab8304737319f32377d97240781855d4e`; see the revision ledger above for which
+  figure belongs to which revision.
 - **Remaining open:** this row does not close its parent item. The same item's other
   frontiers — field/case propositions through construction, nonliteral and indexed
   writes, mutable recasts and returns, the ten-position recast inventory, and every
