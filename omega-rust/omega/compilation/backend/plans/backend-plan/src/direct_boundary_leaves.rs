@@ -6,6 +6,10 @@
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectBoundaryLeaf {
+    /// The declaration this leaf names, in the vocabulary its consumer joins
+    /// on: the hermetic package/toolchain identity when the declaration has
+    /// one, and the exact `program-local::<path>` coordinate for a declaration
+    /// authored in the compilation's own root program.
     pub declaration_identity: String,
     pub callable_identity: String,
     pub satisfied_schema: effects::provider_plan::ServiceSchema,

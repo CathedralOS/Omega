@@ -4,6 +4,15 @@
 //! and calling policy. Projection changes the callable demand coordinate, never
 //! aliases it to a selected wrapper. Native execution scope later chooses which
 //! candidates to activate; merely retaining a declaration grants no authority.
+//!
+//! A leaf's declaration coordinate is the identity its consumer joins on. A
+//! foreign leaf consumes the physical Terminal boundary-machine declaration, so
+//! it requires the exact hermetic owner that catalog publishes under. An
+//! intrinsic leaf closes from this settlement and needs no catalog declaration;
+//! when its declaration is authored in this compilation's own root program --
+//! the one origin that has no package digest and no toolchain owner -- it keeps
+//! its exact program-local coordinate, and a native producer that finds no
+//! matching published declaration leaves the row to its ordinary provider.
 
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
@@ -132,10 +141,28 @@ pub(crate) fn derive(
                 }
                 backend_plan::DirectBoundaryExecution::Foreign(external_binding)
             };
+            // A foreign leaf must join the Terminal boundary-machine catalog,
+            // whose physical declaration is published only under an exact
+            // hermetic owner (package digest or toolchain source). An intrinsic
+            // leaf closes from this settlement -- plan, satisfied schema and
+            // row -- and its native projection is optional by construction
+            // (`DirectBoundaryExecution::Intrinsic`), so a declaration authored
+            // in this compilation's own root program keeps its exact
+            // program-local coordinate instead of failing a join the catalog
+            // can never serve.
+            let declaration_identity =
+                match typed.normalized_hermetic_symbol_identity(machine.symbol) {
+                    Ok(identity) => identity,
+                    Err(_) if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) => {
+                        format!(
+                            "program-local::{}",
+                            typed.symbols.display_path(machine.symbol, "::")
+                        )
+                    }
+                    Err(reason) => return Err(vec![Diagnostic::error(reason)]),
+                };
             let leaf = backend_plan::DirectBoundaryLeaf {
-                declaration_identity: typed
-                    .normalized_hermetic_symbol_identity(machine.symbol)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                declaration_identity,
                 callable_identity: identity,
                 satisfied_schema,
                 plan,
