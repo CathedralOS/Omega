@@ -102,11 +102,36 @@ with the fact-sensitive diagnostics. Producer digests, source hashes, exact
 commands and raw outputs are retained in this change's qualification evidence;
 these observations are distinct from final candidate review.
 
-Every positive declares the four hosted `ProgramEntry` bindings. Linux x86-64 is
-the observed execution target. Linux ARM64 and macOS ARM64 bindings are declared
-but have no matching-host runtime observation here. This exact BSD inet API has
-no verified Windows provider in this row: a Windows entry declaration does not
-establish provider availability. Full crosshost coverage therefore remains open.
+Every positive declares the four hosted `ProgramEntry` bindings. Linux x86-64 and
+macOS ARM64 are observed execution targets: all nine places and all nine
+independent places run `omega run --both` on macOS ARM64 with native exit 0 and
+Terminal agreement, and every cleanup twin rejects at checking. Linux ARM64
+bindings are declared but have no matching-host runtime observation here. This
+exact BSD inet API has no verified Windows provider in this row: a Windows entry
+declaration does not establish provider availability. Full crosshost coverage
+therefore remains open.
+
+### Matching-host execution (macos_arm64)
+
+Measured on `macos_arm64` with the wave's shared producer at `9ff26a87`
+(`opt_level 1`; its compiler source is identical to this row's base
+`c1c6bc8`, the only intervening change being `float_result_equality` sample
+content):
+
+```sh
+omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
+omega --check samples/cli/facts/opaque_closed_carrier_exchange/local/invalid/main.omg
+```
+
+All nine places and all nine independent places report `native exit 0` and
+`interp exit: 0`; the eighteen cleanup twins reject at checking with
+`contains independently invoked nominal cleanup` and `v1 carriers must be inert
+storage`. Each positive differs from its twin only by the added
+`AddressWord::drop` obligation. The corpus native and `both` golden rows for
+macOS ARM64 remain to be recorded; the check-leg rows already carry
+`check-target:macos_arm64` facts. The root `main.omg` retains its Console/std
+route and needs an accepted macOS program-entry binding (`omega update` review)
+before it checks on a fresh host.
 
 The parent still requires complete composition-edge rejection of provider,
 carrier, target, lifecycle, multiplicity and historical-selection drift. The
@@ -205,7 +230,9 @@ The applicable requirement categories above extend through the component edge:
   with an exact export trie and `@loader_path` sibling binding, using its own
   segment indices for rebases and eager imports. Ordinary flat publication
   retains distinct root and component receipts and validates their exact bytes.
-  The macOS files have been produced on Linux; their execution is unobserved.
+  The macOS files have been produced on Linux; their macOS execution is now
+  observed: the nine independent places run natively at exit 0 with Terminal
+  agreement on `macos_arm64` under the shared producer at `9ff26a87`.
   This initial process route does not establish hot replacement, stable-handle
   eras or cross-host loading.
 
