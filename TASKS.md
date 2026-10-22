@@ -1453,7 +1453,7 @@ defines the complete product bar.
   Quotient/remainder, shifts and bitwise-AND actuals already use
   `install_nonpolynomial_terms`. Executing controls:
   `pass/control_flow/termination_index_distance_compile` (exit 0 on macOS and
-  Linux; Windows rejected), `pass/termination/runtime_named_state_remainder_endpoint_exit`
+  Linux; on 35368a0c497 both Windows engines exit 0), `pass/termination/runtime_named_state_remainder_endpoint_exit`
   and `pass/termination/rank_endpoint_borrows_recovery` (exit 0).
 
   Retain executable controls `pass/termination/runtime_saved_rank_cycle_exit`
