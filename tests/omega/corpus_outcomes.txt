@@ -196,6 +196,8 @@ fail/asm/backward_write_stale_ensures rejected 1154ms expected @6d0b8da07bdd+wt
 fail/asm/borrow_read_after_backward_write rejected 1165ms expected @6d0b8da07bdd+wt
 fail/asm/cyclic_label rejected 146ms expected @6d0b8da07bdd+wt
 fail/asm/duplicate_label rejected 0ms expected @6d0b8da07bdd+wt
+fail/asm/finite_prefix_skipped_fact rejected 757ms expected @068118abfe8d
+	cannot prove requires contract for call seven from convert: value == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/instruction_disposition_conditional_call rejected 7024ms expected @eac8a2f4b8cc+wt
 fail/asm/instruction_disposition_foreign_owner rejected 4567ms expected @eac8a2f4b8cc+wt
 fail/asm/instruction_disposition_helper_bypass rejected 4039ms expected @eac8a2f4b8cc+wt
@@ -217,6 +219,8 @@ fail/asm/instruction_effect_unperformed_machine_ensure rejected 3647ms expected 
 fail/asm/instruction_effect_user_model rejected 3771ms expected @eac8a2f4b8cc+wt
 fail/asm/instruction_effect_wrong_byte rejected 3880ms expected @eac8a2f4b8cc+wt
 fail/asm/instruction_effect_wrong_port rejected 3564ms expected @eac8a2f4b8cc+wt
+fail/asm/observation_does_not_establish_address_model rejected 378ms expected @068118abfe8d
+	Exact integer cast in machine `convert` state `entry` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
 fail/asm/proposition_missing_premise rejected 1167ms expected @6d0b8da07bdd+wt
 fail/asm/proposition_prior_write_invalidates_requires rejected 1147ms expected @6d0b8da07bdd+wt
 fail/asm/proposition_runtime_value rejected 54ms expected @6d0b8da07bdd+wt
@@ -394,6 +398,8 @@ fail/borrows/borrow_local_alias_active rejected 1516ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_mut_and_read rejected 1566ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_mut_literal rejected 813ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_unknown_index_pair_mut rejected 1580ms expected @a9ae30e1c334+wt
+fail/borrows/boundary_additional_input_domain_not_restored rejected 926ms expected @068118abfe8d
+	cannot prove requires contract for call read from exercise: ticket in Ticket::Issued (invalidated by prior mutation of ticket; ticket is part of Ticket::Issued) in state `entry`
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 1640ms expected @a9ae30e1c334+wt
 fail/borrows/boundary_constant_temporary_reference_escape rejected 1306ms expected @c9eefa9130a0+wt
 fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 3423ms expected @a9ae30e1c334+wt
@@ -598,6 +604,10 @@ fail/borrows/returned_review_keeps_original_backing_loan rejected 417ms expected
 fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 2060ms expected @8a2c1f68d503
 fail/borrows/returned_slice_record_reference_conflict rejected 5366ms expected @761f5fae99a7+wt
 fail/borrows/returned_view_temporary_backing rejected 1767ms expected @a9ae30e1c334+wt
+fail/borrows/routed_field_handback_not_old_value rejected 800ms expected @068118abfe8d
+	cannot prove requires contract for call exact from exercise: holder.ticket.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrows/routed_membership_reference_contract_replacement rejected 877ms expected @068118abfe8d
+	cannot prove ensures contract for exit from replace at statement 1: ticket in Ticket::Issued
 fail/borrows/runtime_index_mut_borrow rejected 5619ms expected @a9ae30e1c334+wt
 fail/borrows/runtime_indexed_reference_missing_bound rejected 5364ms expected @a9ae30e1c334+wt
 fail/borrows/runtime_selected_reference_holds_input rejected 439ms expected @dd6871ed0476
@@ -9466,7 +9476,9 @@ pass/asm/checked_label_edges_exit checked 3399ms check-target:macos_arm64 @7c138
 pass/asm/checked_label_reverse_local_exit checked 3405ms check-target:macos_arm64 @7c138f5545aa
 pass/asm/checked_label_specialization_exit checked 3439ms check-target:macos_arm64 @7c138f5545aa
 pass/asm/checked_label_transition_exit checked 3380ms check-target:macos_arm64 @7c138f5545aa
+pass/asm/finite_prefix_preserves_model_exit checked 1116ms check-target:macos_arm64 @068118abfe8d
 pass/asm/instruction_disposition_native checked 10811ms check-target:linux_x86_64 @eac8a2f4b8cc+wt
+pass/asm/observation_preserves_address_model checked 1024ms @068118abfe8d
 pass/asm/port_write_effect_contract checked 8833ms @eac8a2f4b8cc+wt
 pass/asm/proposition_label_contracts_exit checked 7299ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:linux_x86_64 @351c5ba81137+wt
@@ -9661,6 +9673,8 @@ pass/borrows/returned_record_projected_call_exit checked 11044ms check-target:ma
 pass/borrows/returned_record_scalar_call_exit checked 3664ms check-target:macos_arm64 @27f6b04f2658
 pass/borrows/returned_reference_source_guarantee_exit checked 4912ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/borrows/returned_slice_record_reference_custody_exit checked 17190ms check-target:macos_arm64 @761f5fae99a7+wt
+pass/borrows/routed_field_boundary_handback_exit checked 1117ms check-target:macos_arm64 @068118abfe8d
+pass/borrows/routed_membership_reference_contract checked 1008ms @068118abfe8d
 pass/borrows/runtime_affine_local_case_return_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_anonymous_operand_backing_cleanup_exit checked 8392ms check-target:macos_arm64 @cc6649bfa8e5
@@ -13777,6 +13791,7 @@ pass/machines/write_state_forward checked 9672ms @5041ef1af684+wt
 pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
 pass/memory/bump_allocator_canary checked 15077ms check-target:linux_x86_64 @208d6107f46d+wt
+pass/memory/indexed_resident_bodyless_handback checked 958ms @068118abfe8d
 pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
 pass/memory/resident_content_mutation_transport checked 2669ms @e2a6d051c734
 pass/memory/runtime_indexed_resident_exchange_exit checked 9214ms check-target:macos_arm64 @226fbdd49549+wt
