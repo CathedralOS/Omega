@@ -48,8 +48,7 @@ use typed_trees::statement::StatementNode;
 mod contract_queries;
 mod statements;
 pub use contract_queries::{
-    checked_operator_contract_snapshot, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
 };
 use statements::validate_state_statement_node;
 

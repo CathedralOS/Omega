@@ -140,9 +140,7 @@ pub use law_conformance::{
     inherited_requirement_proposition_label, inherited_satisfier_parameters,
 };
 pub use law_conformance::{MatchedLawGuarantee, matched_machine_law_guarantees};
-pub(crate) use law_conformance::{
-    check_law_conformance, check_operator_contract_conformance, checked_operator_contract_snapshot,
-};
+pub(crate) use law_conformance::{check_law_conformance, check_operator_contract_conformance};
 pub(crate) use proof_edges::proof_edge_strict_decrease_judged;
 pub(crate) use proof_integer::mathematical_integer_operands;
 pub use proof_integer::{anonymous_integer_math_literal, proof_integer_expression};

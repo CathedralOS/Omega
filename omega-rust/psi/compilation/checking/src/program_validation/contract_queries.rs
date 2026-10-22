@@ -24,16 +24,6 @@ pub fn validate_checked_operator_realization_contract(
     finish_diagnostics(diagnostics)
 }
 
-/// Capture the exact typed contract structure consumed by checked operator
-/// conformance. The bytes are compiler-private custody for equality within one
-/// checked compilation; they are deliberately not a persisted format or hash.
-pub fn checked_operator_contract_snapshot(
-    program: &dyn crate::CheckingInput,
-    contracts: &[typed_trees::signature::SignatureContract],
-) -> Vec<u8> {
-    contract_entailment::checked_operator_contract_snapshot(program, contracts)
-}
-
 /// Prove machine-generic contracts before specialization. Static selections
 /// must already have been checked against their declared callable contracts.
 pub fn validate_generic_machine_contract_entailment(
