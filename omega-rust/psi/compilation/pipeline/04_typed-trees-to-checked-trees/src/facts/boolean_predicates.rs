@@ -5,9 +5,10 @@
 use validation::CanonicalPlace;
 
 mod availability;
-pub(crate) use availability::case_premise_is_available;
+pub(crate) use availability::CasePremiseAvailability;
 mod normalization;
 mod paths;
+mod retention;
 use arena::HandleSpan;
 use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
 use facts::{
@@ -18,6 +19,7 @@ use normalization::normalize;
 pub(crate) use paths::{
     EntryPaths, capture_entry_guard, conjunction, entry_path_condition, seed_entry_paths,
 };
+pub(crate) use retention::retained;
 use symbols::SymbolHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
@@ -460,112 +462,6 @@ pub(crate) fn seed(
     semantic.append_context(point, refs)
 }
 
-pub(crate) fn retained(
-    program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    semantic: &FactPlan,
-    contexts: &[FactContextHandle],
-    point: ProgramPoint,
-) -> Vec<BoundPredicate> {
-    let mut rows = Vec::new();
-    let mut availability =
-        availability::CasePremiseAvailability::new(program, semantic, contexts, point);
-    for context in contexts {
-        for fact in semantic
-            .context_view(semantic.contexts.get(*context))
-            .facts()
-        {
-            if let Some(predicate_rows) =
-                domain_predicates(program, operators, semantic, fact, &mut availability)
-            {
-                for row in predicate_rows {
-                    if !rows.contains(&row) {
-                        rows.push(row);
-                    }
-                }
-                continue;
-            }
-            let FactPayload::BooleanPredicate { predicate } = fact.payload else {
-                continue;
-            };
-            if !semantic.boolean_predicates.is_valid(predicate) {
-                continue;
-            }
-            let predicate = semantic.boolean_predicates.get(predicate);
-            if predicate.role != facts::BooleanPredicateRole::CurrentObservation {
-                continue;
-            }
-            let Some(bindings) = semantic.boolean_predicate_bindings.span(predicate.bindings)
-            else {
-                continue;
-            };
-            let Some(bindings) = bindings
-                .iter()
-                .map(|binding| {
-                    if !semantic.places.is_valid(binding.place) {
-                        return None;
-                    }
-                    Some(BoundObservation {
-                        operand: binding.operand.clone(),
-                        type_reference: binding.type_reference,
-                        place: crate::flow::canonical_place_from_semantic_place(
-                            program,
-                            semantic,
-                            semantic.places.get(binding.place),
-                        )?,
-                    })
-                })
-                .collect::<Option<Vec<_>>>()
-            else {
-                continue;
-            };
-            let row = BoundPredicate {
-                machine: predicate.machine,
-                entry_state: predicate.entry_state,
-                expression: predicate.expression.clone(),
-                bindings,
-            };
-            if !rows.contains(&row) {
-                rows.push(row);
-            }
-        }
-    }
-    rows
-}
-
-/// Live membership entails its declaration's predicates at the same exact
-/// subject. Reuse contract lowering and formal binding; no source initializer,
-/// receiving annotation or establishment route supplies an observation.
-/// A conditional payload invariant additionally needs independent selected-tag
-/// evidence at the consumer's scope before it becomes a Boolean premise.
-fn domain_predicates(
-    program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    semantic: &FactPlan,
-    fact: &facts::Fact,
-    availability: &mut availability::CasePremiseAvailability<'_>,
-) -> Option<Vec<BoundPredicate>> {
-    let (_, _, symbol, identity) = fact.payload.domain_membership()?;
-    let domain = program.domain_definition(symbol)?;
-    if domain.semantic_id != identity {
-        return None;
-    }
-    let place = fact.place.as_place()?;
-    let subject = crate::flow::canonical_place_from_semantic_place(
-        program,
-        semantic,
-        semantic.places.get(place),
-    )?;
-    // Preparing a candidate is not introducing it. Predicate-free custody tags
-    // and unsupported declaration shapes contribute nothing here; do not scan
-    // every live fact to prove a case merely to return an empty premise set.
-    let predicates = domain_predicates_for_subject(program, operators, domain, &subject)?;
-    if !predicates.is_empty() && !availability.proves(&subject) {
-        return None;
-    }
-    Some(predicates)
-}
-
 /// Bind a domain's predicates to an independently selected live subject.
 /// This supplies goals, not membership premises: admission may use the same
 /// binding to veto a refuted claim without assuming the claim under judgment.
@@ -684,30 +580,34 @@ pub(crate) fn evaluate(
 /// Finite truth propagation over the selected Boolean algebra. Integer
 /// comparisons remain whole observations: knowing one never supplies a value
 /// for either integer operand. Every round uses only already established facts.
-pub(crate) fn inferred_booleans(
+/// The requested place must occur as a Boolean observation: inferring all
+/// unrelated predicates cannot produce a Boolean value for an integer subject.
+pub(crate) fn inferred_boolean_at_place(
     predicates: &[BoundPredicate],
+    actual: &CanonicalPlace,
     ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
-) -> Vec<(CanonicalPlace, bool)> {
-    let Some((expressions, observations)) = normalize(predicates) else {
-        return Vec::new();
-    };
-    let Some(truths) = formula_closure(&expressions, &observations, ordinary) else {
-        return Vec::new();
-    };
-    observations
-        .into_iter()
-        .enumerate()
-        .filter_map(|(position, (place, primitive))| {
-            (primitive == PrimitiveType::Bool)
-                .then(|| {
-                    truths.iter().find_map(|(expression, value)| {
-                        (*expression == Boolean::Parameter { position })
-                            .then_some((place.clone(), *value))
-                    })
-                })
-                .flatten()
+) -> Option<bool> {
+    // Normalization obtains every observation from one exact bound operand.
+    // This necessary-condition query declines only; it does not prove a goal,
+    // filter the premise set, or ignore a contradiction for a represented Bool.
+    if !predicates
+        .iter()
+        .flat_map(|row| &row.bindings)
+        .any(|binding| {
+            binding.place == *actual
+                && binding.operand.primitive_type() == Some(PrimitiveType::Bool)
         })
-        .collect()
+    {
+        return None;
+    }
+    let (expressions, observations) = normalize(predicates)?;
+    let position = observations
+        .iter()
+        .position(|(place, primitive)| *place == *actual && *primitive == PrimitiveType::Bool)?;
+    let truths = formula_closure(&expressions, &observations, ordinary)?;
+    truths.into_iter().find_map(|(expression, value)| {
+        (expression == Boolean::Parameter { position }).then_some(value)
+    })
 }
 
 type Observation = (CanonicalPlace, PrimitiveType);

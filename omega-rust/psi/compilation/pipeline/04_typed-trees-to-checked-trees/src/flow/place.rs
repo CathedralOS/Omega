@@ -4,8 +4,12 @@
 mod canonicalization;
 mod case_access;
 mod comparison;
+mod coverage;
+mod domain_membership;
 mod literal_projection;
 
+pub(crate) use coverage::segments_cover_subject;
+pub(crate) use domain_membership::MembershipEvidence;
 pub(crate) use facts::compose_captured_view_segments;
 
 pub(crate) use canonicalization::{
@@ -13,7 +17,7 @@ pub(crate) use canonicalization::{
     projected_leaf_place, reference_source_place, source_independent_place,
 };
 pub(crate) use case_access::{
-    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
+    CaseEvidence, place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
     stable_subject as stable_case_subject,
 };
 pub(crate) use comparison::{

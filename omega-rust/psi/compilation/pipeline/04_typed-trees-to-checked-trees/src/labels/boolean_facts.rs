@@ -19,6 +19,9 @@ pub(crate) fn context_proves_boolean_label(
     point: facts::ProgramPoint,
     required_label: &str,
 ) -> bool {
+    let availability = crate::facts::boolean_predicates::CasePremiseAvailability::new(
+        program, semantic, contexts, point,
+    );
     let context = semantic.contexts.get(context);
     semantic
         .context_view(context)
@@ -66,9 +69,7 @@ pub(crate) fn context_proves_boolean_label(
                 ) else {
                     return false;
                 };
-                if !crate::facts::boolean_predicates::case_premise_is_available(
-                    program, semantic, contexts, point, &subject,
-                ) {
+                if !availability.allows(&subject) {
                     return false;
                 }
                 let canonical_base = semantic.place_label(program, place);

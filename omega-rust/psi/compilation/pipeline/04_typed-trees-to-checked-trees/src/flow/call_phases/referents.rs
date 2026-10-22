@@ -13,13 +13,13 @@
 
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
-use crate::flow::reference_spans;
+mod batches;
+mod guarantees;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowCallFact, DomainFacts, FlowSemanticContextRef};
 use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
-    QualificationEvidence,
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 
 /// Re-seed the declared field facts of every exclusive borrowed referent the
@@ -206,7 +206,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 {
                     continue;
                 }
-                guarantees.push((parameter.symbol, place, *domain_symbol, *semantic_domain));
+                guarantees.push(guarantees::ReturnedGuarantee {
+                    parameter: parameter.symbol,
+                    place,
+                    domain: *domain_symbol,
+                    identity: *semantic_domain,
+                });
                 if targets.len() > 1 {
                     // Alternative origins need the all-writers preservation
                     // judgment below, not independent unconditional facts.
@@ -228,106 +233,116 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     if let Some(writes) = writes
         && !guarantees.is_empty()
     {
-        for reference in build
+        let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
+        // Confinement depends only on this immutable write path and its
+        // selected formal, not on a live fact or a candidate guarantee. A
+        // qualified fixed array can contribute thousands of each: proving
+        // the same reference/field/index geometry inside that join repeated
+        // millions of type walks per call. Prepare only this static premise;
+        // overlap and the all-writers restoration verdict stay pass-local.
+        let confined_writes: Vec<bool> = writes
+            .iter()
+            .map(|contribution| {
+                let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
+                    &contribution.write.source
+                else {
+                    return false;
+                };
+                matches!(
+                    contribution.write.region,
+                    crate::flow::mutation::StorageRegion::Declared(_)
+                ) && write_stays_in_captured_storage(program, parameters, source)
+            })
+            .collect();
+        let contexts = build
             .contexts
             .semantic_context_refs
             .span_or_empty(pre_contexts)
-        {
-            for fact_reference in semantic
-                .refs
-                .span_or_empty(semantic.contexts.get(reference.context).facts)
-            {
-                let fact = semantic.facts.get(fact_reference.fact);
-                let (
-                    FactPlace::Place(handle),
-                    FactPayload::DomainMembership {
-                        domain_symbol,
-                        semantic_domain,
-                        ..
-                    }
-                    | FactPayload::ContractDomainMembership {
-                        domain_symbol,
-                        semantic_domain,
-                        ..
-                    },
-                ) = (fact.place, fact.payload)
-                else {
-                    continue;
-                };
-                if !semantic_domain.is_valid() {
-                    continue;
+            .iter()
+            .map(|reference| reference.context);
+        for fact_handle in semantic.unique_context_facts(contexts) {
+            let fact = semantic.facts.get(fact_handle);
+            let (
+                FactPlace::Place(handle),
+                FactPayload::DomainMembership {
+                    domain_symbol,
+                    semantic_domain,
+                    ..
                 }
-                let Some(place) = crate::flow::canonical_place_from_semantic_place(
+                | FactPayload::ContractDomainMembership {
+                    domain_symbol,
+                    semantic_domain,
+                    ..
+                },
+            ) = (fact.place, fact.payload)
+            else {
+                continue;
+            };
+            if !semantic_domain.is_valid() {
+                continue;
+            }
+            let Some(place) = crate::flow::canonical_place_from_semantic_place(
+                program,
+                semantic,
+                semantic.places.get(handle),
+            ) else {
+                continue;
+            };
+            if !place
+                .segments
+                .iter()
+                .all(crate::flow::place_segment_has_static_identity)
+            {
+                continue;
+            }
+            let mut affected = false;
+            let mut prepared_writes = writes.iter().zip(&confined_writes);
+            let restored = prepared_writes.all(|(contribution, confined)| {
+                if contribution
+                    .write
+                    .region
+                    .preserves_owner_qualification(program, semantic, fact, handle)
+                {
+                    return true;
+                }
+                if crate::flow::domain::matching_mutation_for_fact_place(
                     program,
                     semantic,
-                    semantic.places.get(handle),
-                ) else {
-                    continue;
-                };
-                if !place
-                    .segments
-                    .iter()
-                    .all(crate::flow::place_segment_has_static_identity)
+                    domains,
+                    fact,
+                    handle,
+                    &contribution.observations,
+                )
+                .is_none()
                 {
-                    continue;
+                    return true;
                 }
-                let mut affected = false;
-                let restored = writes.iter().all(|contribution| {
-                    if contribution
-                        .write
-                        .region
-                        .preserves_owner_qualification(program, semantic, fact, handle)
-                    {
-                        return true;
-                    }
-                    if crate::flow::domain::matching_mutation_for_fact_place(
-                        program,
-                        semantic,
-                        domains,
-                        fact,
-                        handle,
-                        &contribution.observations,
-                    )
-                    .is_none()
-                    {
-                        return true;
-                    }
-                    affected = true;
-                    let write = &contribution.write;
-                    let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
-                        &write.source
-                    else {
-                        return false;
-                    };
-                    if !matches!(
-                        write.region,
-                        crate::flow::mutation::StorageRegion::Declared(_)
-                    ) {
-                        // A content guarantee does not restore an owner's
-                        // descriptor fact merely because the loan is anchored
-                        // there. Its own observation frontier must be proved.
-                        return false;
-                    }
-                    guarantees
-                        .iter()
-                        .any(|(parameter, guarantee, domain, identity)| {
-                            source.root.as_symbol() == Some(*parameter)
-                                && write_stays_in_captured_storage(program, parameters, source)
-                                && *domain == domain_symbol
-                                && *identity == semantic_domain
-                                && same_occurrence_when_selected(program, &place, guarantee)
-                        })
-                });
-                if affected && restored {
-                    // This is a frame judgment about a pre-existing fact,
-                    // not a new claim issued on this exact path by the call.
-                    // Keep its original issuer and proof point for the
-                    // qualification join; only its liveness changes here.
-                    let row = (place, fact_reference.fact);
-                    if !preserved.contains(&row) {
-                        preserved.push(row);
-                    }
+                affected = true;
+                let write = &contribution.write;
+                let Some(crate::flow::mutation::StorageRegion::Declared(source)) = &write.source
+                else {
+                    return false;
+                };
+                if !*confined {
+                    // A content guarantee does not restore an owner's
+                    // descriptor fact merely because the loan is anchored
+                    // there. Its own observation frontier must be proved.
+                    return false;
                 }
+                guarantees.restores(
+                    program,
+                    source.root.as_symbol(),
+                    &place,
+                    domain_symbol,
+                    semantic_domain,
+                )
+            });
+            if affected && restored {
+                // This is a frame judgment about a pre-existing fact,
+                // not a new claim issued on this exact path by the call.
+                // Keep its original issuer and proof point for the
+                // qualification join; only its liveness changes here.
+                preserved.push((place, fact_handle));
             }
         }
     }
@@ -346,19 +361,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     );
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
-    let mut contexts: Vec<(validation::CanonicalPlace, HandleSpan<facts::FactRef>)> = Vec::new();
-    for (place, fact) in preserved {
-        if let Some((_, refs)) = contexts
-            .iter_mut()
-            .find(|(candidate, _)| *candidate == place)
-        {
-            semantic.append_ref(refs, fact);
-        } else {
-            let mut refs = HandleSpan::empty();
-            semantic.append_ref(&mut refs, fact);
-            contexts.push((place, refs));
-        }
-    }
+    let mut contexts = preserved;
     for (storage, path, domain_symbol, semantic_domain) in rows {
         let Some(place) = crate::flow::project_captured_view_place(storage, &path) else {
             continue;
@@ -377,20 +380,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 semantic_domain,
             },
         });
-        if let Some((_, refs)) = contexts
-            .iter_mut()
-            .find(|(candidate, _)| *candidate == place)
-        {
-            semantic.append_ref(refs, fact);
-        } else {
-            let mut refs = HandleSpan::empty();
-            semantic.append_ref(&mut refs, fact);
-            contexts.push((place, refs));
-        }
+        contexts.push((place, fact));
     }
-    for (_, refs) in contexts {
-        reference_spans::append_semantic_context(semantic, build, exit, point, refs);
-    }
+    batches::append_place_contexts(semantic, build, exit, point, contexts);
 }
 
 /// A callee-relative inline write stays within this captured occurrence.
@@ -428,28 +420,4 @@ fn write_stays_in_captured_storage(
     // not only replacement of the descriptor slot. Without that distinction
     // in the summary, it cannot establish confinement to the inline owner.
     validation::reference_shell(program, reference).is_none()
-}
-
-/// Conditional identity of a concrete row and a captured selected occurrence.
-/// An unknown single-element coordinate may select that concrete index; it
-/// does not equate two separately evaluated selectors or a whole range.
-fn same_occurrence_when_selected(
-    program: &dyn ::validation::CheckingInput,
-    concrete: &validation::CanonicalPlace,
-    selected: &validation::CanonicalPlace,
-) -> bool {
-    concrete.root == selected.root
-        && concrete.segments.len() == selected.segments.len()
-        && concrete
-            .segments
-            .iter()
-            .zip(&selected.segments)
-            .all(|(left, right)| match (*left, *right) {
-                (PlaceSegment::FixedIndex { .. }, PlaceSegment::Index { expression }) => {
-                    expression.is_valid()
-                        && program.expression_table.range_node(expression).is_none()
-                }
-                _ => crate::flow::static_place_segment_pair_equal(*left, *right)
-                    .unwrap_or(*left == *right),
-            })
 }

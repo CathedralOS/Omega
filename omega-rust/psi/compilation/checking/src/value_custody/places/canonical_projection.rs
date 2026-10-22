@@ -14,6 +14,52 @@ pub struct CanonicalPlace {
 }
 
 impl CanonicalPlace {
+    /// Order exact structural identities for construction-time batch joins.
+    /// This matches structural equality, including full handle generations;
+    /// it does not establish aliasing, overlap or equality of runtime indices.
+    pub fn compare_identity(&self, other: &Self) -> std::cmp::Ordering {
+        use facts::{PlaceRoot, PlaceSegment};
+        let root_key = |root| match root {
+            PlaceRoot::Unknown => (0, 0, 0, 0, 0),
+            PlaceRoot::Symbol(handle) => (1, handle.arena_index(), handle.generation(), 0, 0),
+            PlaceRoot::Expression(handle) => (2, handle.arena_index(), handle.generation(), 0, 0),
+            PlaceRoot::TypeReference(handle) => {
+                (3, handle.arena_index(), handle.generation(), 0, 0)
+            }
+            PlaceRoot::InvocationReferent {
+                parameter,
+                type_reference,
+            } => (
+                4,
+                parameter.arena_index(),
+                parameter.generation(),
+                type_reference.arena_index(),
+                type_reference.generation(),
+            ),
+        };
+        let segment_key = |segment| match segment {
+            PlaceSegment::Field { symbol } => (0, symbol.arena_index(), symbol.generation(), 0, 0),
+            PlaceSegment::Case { variant } => {
+                (1, variant.arena_index(), variant.generation(), 0, 0)
+            }
+            PlaceSegment::FixedIndex { index } => (2, 0, 0, index, 0),
+            PlaceSegment::FixedRange { start, end } => (3, 0, 0, start, end),
+            PlaceSegment::OpaqueRange => (4, 0, 0, 0, 0),
+            PlaceSegment::Index { expression } => {
+                (5, expression.arena_index(), expression.generation(), 0, 0)
+            }
+        };
+        root_key(self.root)
+            .cmp(&root_key(other.root))
+            .then_with(|| {
+                self.segments
+                    .iter()
+                    .copied()
+                    .map(segment_key)
+                    .cmp(other.segments.iter().copied().map(segment_key))
+            })
+    }
+
     pub fn extend_segments(&mut self, segments: &[facts::PlaceSegment]) {
         self.segments.extend(segments.iter().copied());
     }

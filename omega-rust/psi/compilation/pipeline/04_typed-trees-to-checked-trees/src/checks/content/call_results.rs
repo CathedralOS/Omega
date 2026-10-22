@@ -20,6 +20,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::signature::StateParameter;
 
+mod parameter_qualifications;
+use parameter_qualifications::ParameterQualificationJoin;
+
 pub(super) struct Invocation<'program> {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -78,6 +81,9 @@ pub(super) fn check_call_result_qualifications(
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Only immutable subject preparation is reused. Each promise still joins
+    // its own evidence and, for bodyless calls, its exact entry membership.
+    let mut parameter_join = None;
     for (_, fact) in facts.semantic.facts.iter() {
         let (FactOrigin::CallEnsures, FactPlace::Place(place)) = (fact.origin, fact.place) else {
             continue;
@@ -128,16 +134,18 @@ pub(super) fn check_call_result_qualifications(
                 ) if expression == actual
             );
             if !is_result_place {
-                return call_parameter_qualification_join(
-                    program,
-                    facts,
+                if !matches!(&parameter_join, Some((point, _)) if *point == fact.point) {
+                    parameter_join = Some((
+                        fact.point,
+                        ParameterQualificationJoin::prepare(program, facts, site, fact.point),
+                    ));
+                }
+                return parameter_join.as_ref()?.1.as_ref()?.check(
                     &fact.evidence,
                     place.root,
                     path,
                     domain_symbol,
                     semantic_domain,
-                    site,
-                    fact.point,
                 );
             }
             let (PlaceRoot::Expression(expression), validation::CallSite::Expression { call, .. }) =
@@ -528,206 +536,6 @@ fn private_placement_result_contract(
         ));
     }
     Ok(true)
-}
-
-/// The out-parameter direction of the call-ensures join: a routed
-/// `DomainMembership` claim rooted at an exact argument place rather than the
-/// result expression. Checked bodies owe their exclusive referents' declared
-/// root and field memberships at every normal exit. Authored parameter
-/// guarantees also join here. Each promise must name the exact domain instance
-/// and project onto the completed argument's captured storage. A bodyless
-/// boundary call must carry the membership into the invocation. Fresh parameter
-/// introduction belongs to an installed external root, not an ordinary call,
-/// even when the domain names this requirement as an issuer.
-#[allow(clippy::too_many_arguments)]
-fn call_parameter_qualification_join(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    evidence: &facts::QualificationEvidence,
-    root: PlaceRoot,
-    path: &[PlaceSegment],
-    domain_symbol: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
-    site: validation::CallSite<'_>,
-    point: ProgramPoint,
-) -> Option<()> {
-    let ProgramPoint::CallEnsures {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        call_ordinal,
-    } = point
-    else {
-        return None;
-    };
-    let call_target = match site {
-        validation::CallSite::Expression { call, .. } => call.target_symbol,
-        validation::CallSite::Statement(call) => call.target_symbol,
-        validation::CallSite::TransitionNamed { path, .. } => path.symbol,
-    };
-    if evidence.origin != QualificationEvidenceOrigin::Propagated
-        || evidence.source_symbol != call_target
-        || evidence.requirement_symbol.is_valid()
-    {
-        return None;
-    }
-    let selected = match site {
-        validation::CallSite::Expression { call, .. } => {
-            program.requirement_call_signature(machine_symbol, call)
-        }
-        _ => None,
-    };
-    let parameters = selected
-        .map(|signature| program.state_signature_parameters(signature))
-        .or_else(|| validation::call_target_parameters(program, call_target))?;
-    let arguments = validation::call_site_argument_expressions(program, &site);
-    let state_flow = facts.flow.control.state(machine_symbol, state_symbol)?;
-    let call_flow = facts
-        .flow
-        .control
-        .calls
-        .span(state_flow.calls)?
-        .iter()
-        .find(|call| {
-            call.statement_index == statement_index
-                && call.call_ordinal == call_ordinal
-                && call.target_symbol == call_target
-        })?;
-    let operands = facts.flow.control.operands.span(call_flow.operands)?;
-    let receiver = match site {
-        validation::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
-            Some(call.receiver)
-        }
-        _ => None,
-    };
-    if parameters.len() != arguments.len()
-        || !operands
-            .iter()
-            .map(|operand| operand.expression)
-            .eq(receiver.into_iter().chain(arguments.iter().copied()))
-    {
-        return None;
-    }
-    let checked_body = validation::call_target_has_checked_body_contract(program, call_target);
-    let identities =
-        crate::flow::call_parameter_qualification_identities(program, call_target, selected);
-    let position = parameters
-        .iter()
-        .enumerate()
-        .find_map(|(position, parameter)| {
-            // Authored ensures and declared exclusive-referent fields both
-            // describe normal-return obligations. A checked body proves them
-            // at its exits. A bodyless handback must additionally join the
-            // exact pre-live membership below; its type alone cannot issue it.
-            let mut promised_paths = Vec::new();
-            if identities
-                .iter()
-                .any(|(declared, symbol, identity, from_declared_type)| {
-                    (checked_body || !*from_declared_type)
-                        && *declared == position
-                        && *symbol == domain_symbol
-                        && *identity == semantic_domain
-                })
-            {
-                promised_paths.push(Vec::new());
-            }
-            let referent = crate::checks::contracts::exclusive_referent_type(
-                program,
-                parameter.type_reference,
-            );
-            if referent.is_valid() {
-                promised_paths.extend(
-                    validation::field_domains::declared_result_field_domain_paths(
-                        program, referent,
-                    )
-                    .into_iter()
-                    .filter_map(|(path, domain, identity)| {
-                        (domain == domain_symbol && identity == semantic_domain).then_some(path)
-                    }),
-                );
-            }
-            let argument = arguments.get(position)?;
-            if crate::flow::operand_binds_live_view(program, parameter.type_reference) {
-                // Join the same completed reference used by flow publication.
-                // Its descriptor spelling may name different storage, or may
-                // already have been replaced by a later operand's evaluation.
-                let operand = operands.get(position + usize::from(receiver.is_some()))?;
-                return facts
-                    .flow
-                    .control
-                    .operand_referents
-                    .span(operand.referents)?
-                    .iter()
-                    .any(|referent| {
-                        let Some(segments) = facts
-                            .flow
-                            .control
-                            .operand_referent_segments
-                            .span(referent.segments)
-                        else {
-                            return false;
-                        };
-                        let storage = validation::CanonicalPlace {
-                            root: referent.root,
-                            segments: segments.to_vec(),
-                        };
-                        promised_paths.iter().any(|promised| {
-                            crate::flow::project_captured_view_place(storage.clone(), promised)
-                                .is_some_and(|subject| {
-                                    subject.root == root && subject.segments.as_slice() == path
-                                })
-                        })
-                    })
-                    .then_some(position);
-            }
-            let canonical = validation::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                *argument,
-            )?;
-            promised_paths
-                .iter()
-                .any(|promised| {
-                    crate::flow::project_captured_view_place(canonical.clone(), promised)
-                        .is_some_and(|subject| {
-                            subject.root == root && subject.segments.as_slice() == path
-                        })
-                })
-                .then_some(position)
-        })?;
-    // The same exit checker owes every selected normal-return promise.
-    if checked_body {
-        return Some(());
-    }
-    let parameter = parameters.get(position)?;
-    if !crate::checks::contracts::is_readable_mutable_reference(program, parameter.type_reference) {
-        return None;
-    }
-    // The public ensures preserves the exact entry subject. Issuer metadata is
-    // not an installation receipt: an ordinary invocation may not manufacture a
-    // parameter premise from its own normal-return promise.
-    facts
-        .flow
-        .semantic_constraint_contexts(call_flow.entry_constraints)
-        .any(|context| {
-            facts
-                .semantic
-                .context_view(facts.semantic.contexts.get(context))
-                .facts()
-                .any(|fact| {
-                    fact.payload
-                        .domain_membership()
-                        .is_some_and(|(_, _, symbol, instance)| {
-                            symbol == domain_symbol && instance == semantic_domain
-                        })
-                        && matches!(fact.place, FactPlace::Place(place)
-                            if facts.semantic.places.get(place).root == root
-                                && facts.semantic.place_segments.span_or_empty(
-                                    facts.semantic.places.get(place).segments) == path)
-                })
-        })
-        .then_some(())
 }
 
 #[allow(clippy::too_many_arguments)]

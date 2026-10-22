@@ -9,9 +9,7 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
-use facts::{
-    FactContextHandle, FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
-};
+use facts::{FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint};
 use symbols::SymbolHandle;
 
 pub(super) struct DeclaredFieldRequirements {
@@ -119,6 +117,18 @@ pub(super) fn check(
         return;
     };
     let arguments = validation::call_site_argument_expressions(program, &site);
+    // Field obligations project different subjects from the same completed
+    // operand. Select its namespace once at this fixed invocation; each field
+    // still proves its own case validity and exact domain obligation below.
+    let mut operand_contexts = crate::flow::OperandContextSelections::new(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        call.entry_constraints,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+    );
     let mut argument_index = 0;
     for parameter in parameters {
         let argument = {
@@ -190,15 +200,7 @@ pub(super) fn check(
                             ]
                             .into_iter()
                             .any(|(operand, reference, subjects)| {
-                                let contexts = crate::flow::operand_contexts(
-                                    program,
-                                    &facts.flow.contexts,
-                                    &facts.flow.control,
-                                    &facts.semantic,
-                                    operand,
-                                    reference,
-                                    call.entry_constraints,
-                                );
+                                let selection = operand_contexts.for_operand(operand, reference);
                                 subjects.is_some_and(|subjects| {
                                     !subjects.is_empty()
                                         && subjects.iter().all(|place| {
@@ -218,30 +220,16 @@ pub(super) fn check(
                                             // a case. A declared field row is
                                             // conditional validity, not a read
                                             // that requires its case active.
-                                            crate::flow::place_cases_are_selected(
-                                                program,
-                                                &facts.semantic,
-                                                &contexts,
-                                                state.machine_symbol,
-                                                state.state_symbol,
-                                                call.statement_index,
-                                                &place.storage,
-                                            ) && (crate::flow::place_case_path_is_inactive(
-                                                program,
-                                                &facts.semantic,
-                                                &contexts,
-                                                state.machine_symbol,
-                                                state.state_symbol,
-                                                call.statement_index,
-                                                &place.projected,
-                                            ) || prove_declared_field_domain(
-                                                program,
-                                                facts,
-                                                &contexts,
-                                                &place.projected,
-                                                *domain_symbol,
-                                                *semantic_domain,
-                                            ))
+                                            selection.cases_are_selected(&place.storage)
+                                                && (selection.path_is_inactive(&place.projected)
+                                                    || prove_declared_field_domain(
+                                                        program,
+                                                        facts,
+                                                        selection,
+                                                        &place.projected,
+                                                        *domain_symbol,
+                                                        *semantic_domain,
+                                                    ))
                                         })
                                 })
                             })
@@ -310,7 +298,7 @@ fn pointwise_field_is_empty(
 fn prove_declared_field_domain(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    contexts: &[FactContextHandle],
+    selection: &crate::flow::OperandContextSelection<'_>,
     subject: &validation::CanonicalPlace,
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
@@ -318,19 +306,12 @@ fn prove_declared_field_domain(
     if validation::field_domains::domain_requires_provenance(program, domain_symbol)
         || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
     {
-        super::exits::exact_scalar_membership(
-            program,
-            facts,
-            contexts,
-            subject,
-            domain_symbol,
-            semantic_domain,
-        )
+        selection.has_membership(subject, domain_symbol, semantic_domain)
     } else {
         super::prover::prove_domain_at_place(
             program,
             &facts.semantic,
-            contexts,
+            &selection.contexts,
             subject,
             domain_symbol,
         )

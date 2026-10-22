@@ -15,7 +15,7 @@ use super::scalar_exits::*;
 use crate::flow::canonical_place_from_semantic_place;
 use checked_trees::{CheckFacts, FlowExitFact, FlowStateFact};
 use diagnostics::Diagnostic;
-use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
+use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
 use typed_trees::types::TypeReferenceNode;
 
 /// Every declared field predicate of an owned nominal (or fixed-array nominal
@@ -517,6 +517,12 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
     // Exclusive roots use implicit signature preconditions rather than seeded
     // StateParameterDomain facts. Their declaration still creates a return
     // obligation, even when a write retired every copy of the entry evidence.
+    let memberships = std::cell::OnceCell::new();
+    let membership = || {
+        memberships.get_or_init(|| {
+            crate::flow::MembershipEvidence::prepare(program, &facts.semantic, &entry_contexts)
+        })
+    };
     if let Some(state) = validation::find_state_for_exit(program, exit) {
         for parameter in program.state_parameters(state).iter().filter(|parameter| {
             exclusive_referent_type(program, parameter.type_reference).is_valid()
@@ -531,14 +537,7 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
                     root: PlaceRoot::Symbol(parameter.symbol),
                     segments: Vec::new(),
                 };
-                let established = exact_scalar_membership(
-                    program,
-                    facts,
-                    &entry_contexts,
-                    &subject,
-                    domain_symbol,
-                    semantic_domain,
-                );
+                let established = membership().contains(&subject, domain_symbol, semantic_domain);
                 // Predicate-only qualifications may be repaired inside the
                 // invariant window. At return they need live evidence just
                 // as routed qualifications do; their declaration is not a
@@ -568,6 +567,9 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
             }
         }
     }
+    // Every return-field question sees this same immutable exit namespace.
+    // Prepare tags once if any conditional payload needs them, never per field.
+    let cases = std::cell::OnceCell::new();
     for requirement in &requirements {
         let (
             FactPlace::Place(place),
@@ -586,15 +588,23 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
         // is selected or that its inactive bytes contain an established value.
         if canonical_place_from_semantic_place(program, &facts.semantic, place).is_some_and(
             |subject| {
-                crate::flow::place_case_path_is_inactive(
-                    program,
-                    &facts.semantic,
-                    &entry_contexts,
-                    exit.machine_symbol,
-                    exit.state_symbol,
-                    exit.statement_index,
-                    &subject,
-                )
+                subject
+                    .segments
+                    .iter()
+                    .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+                    && cases
+                        .get_or_init(|| {
+                            crate::flow::CaseEvidence::prepare(
+                                program,
+                                &facts.semantic,
+                                &entry_contexts,
+                                exit.machine_symbol,
+                                exit.state_symbol,
+                                exit.statement_index,
+                            )
+                        })
+                        .as_ref()
+                        .is_some_and(|cases| cases.path_is_inactive(&subject))
             },
         ) {
             continue;
@@ -602,16 +612,7 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
         let satisfied =
             if validation::field_domains::domain_requires_provenance(program, domain_symbol) {
                 canonical_place_from_semantic_place(program, &facts.semantic, place).is_some_and(
-                    |subject| {
-                        exact_scalar_membership(
-                            program,
-                            facts,
-                            &entry_contexts,
-                            &subject,
-                            domain_symbol,
-                            semantic_domain,
-                        )
-                    },
+                    |subject| membership().contains(&subject, domain_symbol, semantic_domain),
                 )
             } else {
                 super::super::super::prover::semantic_contexts_prove_contract_fact(

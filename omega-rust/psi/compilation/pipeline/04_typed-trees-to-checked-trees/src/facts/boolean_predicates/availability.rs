@@ -1,23 +1,25 @@
 use facts::{FactContextHandle, FactPlan, ProgramPoint};
+use std::cell::OnceCell;
 use validation::CanonicalPlace;
 
-/// One immutable predicate-query scope. Many field/domain facts share the
-/// same enclosing case path; selected-tag evidence depends on that path, not
-/// on its trailing scalar field. Reuse only within these exact contexts and
-/// this exact program point, never across a write or a different invocation.
-pub(super) struct CasePremiseAvailability<'scope> {
-    program: &'scope dyn validation::CheckingInput,
-    semantic: &'scope FactPlan,
-    contexts: &'scope [FactContextHandle],
+/// A payload membership is a conditional invariant, not an unconditional
+/// Boolean premise. Expansion requires selected tags in the consumer scope;
+/// a fact's publication point may still name another contract's telescope.
+/// A batch is valid only for these immutable consumer contexts and scope.
+/// Templates may be shared across subjects; selected-case verdicts may not.
+pub(crate) struct CasePremiseAvailability<'program> {
+    program: &'program dyn validation::CheckingInput,
+    semantic: &'program FactPlan,
+    contexts: &'program [FactContextHandle],
     point: ProgramPoint,
-    observations: Vec<(CanonicalPlace, bool)>,
+    evidence: OnceCell<Option<crate::flow::CaseEvidence<'program>>>,
 }
 
-impl<'scope> CasePremiseAvailability<'scope> {
-    pub(super) fn new(
-        program: &'scope dyn validation::CheckingInput,
-        semantic: &'scope FactPlan,
-        contexts: &'scope [FactContextHandle],
+impl<'program> CasePremiseAvailability<'program> {
+    pub(crate) fn new(
+        program: &'program dyn validation::CheckingInput,
+        semantic: &'program FactPlan,
+        contexts: &'program [FactContextHandle],
         point: ProgramPoint,
     ) -> Self {
         Self {
@@ -25,59 +27,41 @@ impl<'scope> CasePremiseAvailability<'scope> {
             semantic,
             contexts,
             point,
-            observations: Vec::new(),
+            evidence: OnceCell::new(),
         }
     }
 
-    pub(super) fn proves(&mut self, subject: &CanonicalPlace) -> bool {
-        let Some(last_case) = subject
+    pub(crate) fn allows(&self, subject: &CanonicalPlace) -> bool {
+        !subject
             .segments
             .iter()
-            .rposition(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-        else {
-            return true;
-        };
-        let case_path = &subject.segments[..=last_case];
-        if let Some((_, available)) = self.observations.iter().find(|(observed, _)| {
-            observed.root == subject.root && observed.segments.as_slice() == case_path
-        }) {
-            return *available;
-        }
-        let selected = CanonicalPlace {
-            root: subject.root,
-            segments: case_path.to_vec(),
-        };
-        let available = case_premise_is_available(
-            self.program,
-            self.semantic,
-            self.contexts,
-            self.point,
-            &selected,
-        );
-        self.observations.push((selected, available));
-        available
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+            || self
+                .evidence
+                .get_or_init(|| {
+                    consumer_scope(self.program, self.point).and_then(
+                        |(machine, state, statement)| {
+                            crate::flow::CaseEvidence::prepare(
+                                self.program,
+                                self.semantic,
+                                self.contexts,
+                                machine,
+                                state,
+                                statement,
+                            )
+                        },
+                    )
+                })
+                .as_ref()
+                .is_some_and(|evidence| evidence.cases_are_selected(subject))
     }
 }
 
-/// A field membership below a case is a conditional invariant, not an
-/// unconditional premise. Expansion needs selected-tag evidence at the
-/// consumer's exact scope. A fact's publication point is not that scope:
-/// transported contracts can still contain another telescope's expressions.
-pub(crate) fn case_premise_is_available(
+fn consumer_scope(
     program: &dyn validation::CheckingInput,
-    semantic: &FactPlan,
-    contexts: &[FactContextHandle],
     point: ProgramPoint,
-    subject: &CanonicalPlace,
-) -> bool {
-    if !subject
-        .segments
-        .iter()
-        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-    {
-        return true;
-    }
-    let (machine_symbol, state_symbol, statement_index) = match point {
+) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle, usize)> {
+    Some(match point {
         ProgramPoint::State {
             machine_symbol,
             state_symbol,
@@ -118,23 +102,10 @@ pub(crate) fn case_premise_is_available(
             ..
         } => (machine_symbol, state_symbol, statement_index),
         ProgramPoint::Machine { machine_symbol } => {
-            let Some(machine) = program.machine_by_symbol(machine_symbol) else {
-                return false;
-            };
-            let Some(state) = program.machine_states(machine).first() else {
-                return false;
-            };
+            let machine = program.machine_by_symbol(machine_symbol)?;
+            let state = program.machine_states(machine).first()?;
             (machine_symbol, state.symbol, 0)
         }
-        ProgramPoint::Global | ProgramPoint::Definition { .. } => return false,
-    };
-    crate::flow::place_cases_are_selected(
-        program,
-        semantic,
-        contexts,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        subject,
-    )
+        ProgramPoint::Global | ProgramPoint::Definition { .. } => return None,
+    })
 }

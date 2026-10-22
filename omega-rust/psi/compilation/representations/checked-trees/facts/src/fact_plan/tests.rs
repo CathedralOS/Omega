@@ -54,6 +54,30 @@ fn invocation_referents_match_only_the_same_typed_storage_identity() {
 }
 
 #[test]
+fn unique_context_facts_keeps_complete_identity_and_order() {
+    let mut plan = FactPlan::default();
+    // This collection operation retains opaque identities; it does not
+    // dereference or admit their payloads, including a different generation.
+    let first = crate::FactHandle::from_parts(7, 1);
+    let next_generation = crate::FactHandle::from_parts(7, 2);
+    let other = crate::FactHandle::from_parts(8, 1);
+    let mut first_references = HandleSpan::empty();
+    for fact in [first, next_generation, first] {
+        plan.append_ref(&mut first_references, fact);
+    }
+    let first_context = plan.append_context(ProgramPoint::Global, first_references);
+    let mut other_references = HandleSpan::empty();
+    for fact in [other, first, next_generation] {
+        plan.append_ref(&mut other_references, fact);
+    }
+    let other_context = plan.append_context(ProgramPoint::Global, other_references);
+    assert_eq!(
+        plan.unique_context_facts([other_context, first_context, other_context]),
+        [other, first, next_generation],
+    );
+}
+
+#[test]
 fn clone_from_replaces_every_fact_root_with_the_source_snapshot() {
     let mut source = FactPlan::default();
     source.places.append(Default::default());

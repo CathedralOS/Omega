@@ -74,7 +74,7 @@ pub(crate) fn boolean_value_at_place(
     }
     let predicates =
         crate::facts::boolean_predicates::retained(program, operators, semantic, contexts, point);
-    crate::facts::boolean_predicates::inferred_booleans(&predicates, |place| {
+    crate::facts::boolean_predicates::inferred_boolean_at_place(&predicates, actual, |place| {
         ordinary_boolean_value_at_place(program, semantic, contexts, place)
             .map(ScalarValue::Boolean)
             .or_else(|| {
@@ -88,8 +88,6 @@ pub(crate) fn boolean_value_at_place(
                 )
             })
     })
-    .into_iter()
-    .find_map(|(place, value)| (place == *actual).then_some(value))
 }
 
 fn ordinary_boolean_value_at_place(

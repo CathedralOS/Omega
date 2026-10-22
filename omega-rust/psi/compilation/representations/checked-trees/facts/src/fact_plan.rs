@@ -497,6 +497,21 @@ impl FactPlan {
         }
     }
 
+    /// Collect each complete fact identity once, retaining first appearance.
+    /// Context membership selects the input; this does not compare payloads,
+    /// combine issuers or establish availability outside the supplied contexts.
+    pub fn unique_context_facts(
+        &self,
+        contexts: impl IntoIterator<Item = FactContextHandle>,
+    ) -> Vec<FactHandle> {
+        arena::unique_handles_in_order(contexts.into_iter().flat_map(|context| {
+            self.refs
+                .span_or_empty(self.contexts.get(context).facts)
+                .iter()
+                .map(|reference| reference.fact)
+        }))
+    }
+
     pub fn contexts_at_point(
         &self,
         point: ProgramPoint,

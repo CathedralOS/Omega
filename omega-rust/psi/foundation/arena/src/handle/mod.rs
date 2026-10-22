@@ -104,11 +104,27 @@ impl<T> fmt::Debug for Handle<T> {
     }
 }
 
+/// Retain each complete identity once, in first-appearance order.
+/// This compares opaque identities only: it neither dereferences handles nor
+/// establishes that they are valid in an arena. Stable sorting retains the
+/// first occurrence before restoring the caller's order.
+pub fn unique_handles_in_order<T>(handles: impl IntoIterator<Item = Handle<T>>) -> Vec<Handle<T>> {
+    let mut ordered: Vec<_> = handles
+        .into_iter()
+        .enumerate()
+        .map(|(order, handle)| (handle, order))
+        .collect();
+    ordered.sort_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+    ordered.dedup_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
+    ordered.sort_by_key(|(_, order)| *order);
+    ordered.into_iter().map(|(handle, _)| handle).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
-    use super::Handle;
+    use super::{Handle, unique_handles_in_order};
 
     struct NonHashItem;
 
@@ -119,5 +135,34 @@ mod tests {
         let next_generation = Handle::<NonHashItem>::from_parts(7, 3);
 
         assert_eq!(HashSet::from([first, same, next_generation]).len(), 2);
+    }
+
+    #[test]
+    fn unique_handles_preserve_generations_and_first_appearance() {
+        let handles = [
+            Handle::<NonHashItem>::from_parts(8, 1),
+            Handle::from_parts(7, 2),
+            Handle::from_parts(7, 1),
+            Handle::invalid(),
+        ];
+        // Compare with the original growing identity scan for every short
+        // sequence, including empty input, interleaved repeats and absence.
+        for length in 0..=5 {
+            for sequence_number in 0..handles.len().pow(length) {
+                let mut digits = sequence_number;
+                let mut sequence = Vec::new();
+                for _ in 0..length {
+                    sequence.push(handles[digits % handles.len()]);
+                    digits /= handles.len();
+                }
+                let mut expected = Vec::new();
+                for handle in &sequence {
+                    if !expected.contains(handle) {
+                        expected.push(*handle);
+                    }
+                }
+                assert_eq!(unique_handles_in_order(sequence), expected);
+            }
+        }
     }
 }

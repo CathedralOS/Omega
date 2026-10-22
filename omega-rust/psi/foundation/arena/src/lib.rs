@@ -33,8 +33,8 @@ pub use concurrent_paged_arena::{
     SealedPagedArena,
 };
 pub use generational_paged_arena::{GenerationalPagedArena, SlotRef};
-pub use handle::Handle;
 pub use handle::handle_span::HandleSpan;
+pub use handle::{Handle, unique_handles_in_order};
 pub use hierarchy_arena::{
     HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles, HierarchyNode,
 };

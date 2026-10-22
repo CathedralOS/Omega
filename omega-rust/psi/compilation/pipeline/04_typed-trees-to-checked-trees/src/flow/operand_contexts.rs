@@ -1,6 +1,9 @@
 //! One invocation operand's evidence: detached copies retain completion facts;
 //! exact views read their referents at invocation. Operators and ordinary calls
 //! share this law, including the conservative context-identity intersection.
+mod selections;
+pub(crate) use selections::{OperandContextSelection, OperandContextSelections};
+
 use arena::HandleSpan;
 use checked_trees::{
     FlowConstraintRef, FlowContextFacts, FlowControlFacts, FlowFacts, FlowOperandFact,

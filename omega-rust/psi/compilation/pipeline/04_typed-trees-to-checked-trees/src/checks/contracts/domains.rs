@@ -74,6 +74,9 @@ fn context_domain_proves_label(
     point: facts::ProgramPoint,
     candidate_label: &String,
 ) -> bool {
+    let availability = crate::facts::boolean_predicates::CasePremiseAvailability::new(
+        program, semantic, contexts, point,
+    );
     semantic.context_view(context).facts().any(|fact| {
         let (domain_symbol, value, place) = match fact.payload {
             FactPayload::DomainMembership {
@@ -100,9 +103,7 @@ fn context_domain_proves_label(
         ) else {
             return false;
         };
-        if !crate::facts::boolean_predicates::case_premise_is_available(
-            program, semantic, contexts, point, &subject,
-        ) {
+        if !availability.allows(&subject) {
             return false;
         }
         let canonical_base_label = semantic.place_label(program, place);
