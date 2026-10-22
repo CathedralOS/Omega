@@ -880,13 +880,6 @@ impl InterpretOutcome {
         outcome.crash_cause = Some(cause);
         outcome
     }
-
-    /// Whether ordinary completion is unavailable. Crash-aware consumers
-    /// inspect `crash_cause` first; other consumers must not treat a crash as
-    /// a successful zero exit.
-    pub fn is_error(&self) -> bool {
-        self.error.is_some()
-    }
 }
 
 /// Maximum generated sources included by one build evaluation.
