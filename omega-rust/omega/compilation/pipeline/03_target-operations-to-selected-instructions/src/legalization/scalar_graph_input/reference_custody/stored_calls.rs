@@ -285,10 +285,7 @@ pub(super) fn prepare(
             })
             .map(|(output_index, output)| {
                 let terminal_psi::BoundaryReferenceDestination::Parameter(position) =
-                    output.destination
-                else {
-                    return None;
-                };
+                    output.destination;
                 let parameter = boundary.structural_parameters.get(position as usize)?;
                 let mut dependencies = Vec::new();
                 for debt in &output.dependencies {
