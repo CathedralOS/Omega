@@ -17,9 +17,10 @@ a code explanation, and an edit to this skill must not independently select boar
 work or authorize publication. Use the assertions as outcome criteria, not required
 wording. Existing AGENTS.md requirements are controls, not evidence of a skill win.
 
-Scenarios 18–22 exercise capability-directed selection: priority versus sample
+Scenarios 18–23 exercise capability-directed selection: priority versus sample
 size, continuity after a witness lands, missing witnesses, already-satisfied
-acceptance and explicit sample scope. Compiler advancement selects fact folders
+acceptance, explicit sample scope, and drawing a new fact from the board rather
+than from another count or width of an existing row. Compiler advancement selects fact folders
 under `samples/cli/facts`, one fact across the nine places, and leaves the rest
 of `samples/` unselected. Review the next completed assignments
 for requirements actually removed from their selected tasks, preserved regression

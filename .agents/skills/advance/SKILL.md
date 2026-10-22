@@ -134,7 +134,10 @@ The facts queue lists projects the sample gate admits. Also read the
 directories under `samples/cli/facts`, including folders the gate classifies
 as libraries. An absent or green facts queue does not close the task and does
 not mean an unfilled or one-place fact is done: write the next missing place,
-or take the next uncovered fact. Several places with one demonstrated root
+or take the next uncovered fact. Take a new fact from an open `TASKS.md`
+item's remaining acceptance and name that item in the README; a folder that
+changes only a count, width, arity or extension pair of an existing row repeats
+that row and is not a new fact. Several places with one demonstrated root
 cause may belong to one repair. Do not leave `samples/cli/facts` to fill
 compiler-advance capacity.
 

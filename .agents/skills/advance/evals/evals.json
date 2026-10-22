@@ -366,6 +366,19 @@
         "Does not launch agents or take an unrelated task",
         "A checking, proof, or lowering repair inside that sample is still not done until the fact-place fixtures pass, including a native run; a miss generalizes the operation"
       ]
+    },
+    {
+      "id": 23,
+      "name": "saturated-facts-draw-from-board-not-parameters",
+      "prompt": "advance the compiler. Every fact folder under samples/cli/facts has its nine places and twins, and the facts queue is green. nine_arg_stack_calling_plan through thirty_arg_stack_calling_plan exist, and thirtythree_arg_stack_calling_plan does not.",
+      "status": "Not run against this revision",
+      "expected_output": "Select an open TASKS.md item's remaining acceptance, write the new fact for that requirement, and name the item in the fact README; do not add another argument count, width or extension pair of an existing row.",
+      "files": [],
+      "assertions": [
+        "Does not create thirtythree_arg_stack_calling_plan or another folder that changes only a count, width, arity or extension pair",
+        "Names the TASKS.md item and exact requirement the new fact discharges",
+        "Verifies the requirement's gap against a fresh current-main compiler before writing the fact"
+      ]
     }
   ]
 }

@@ -892,6 +892,18 @@ launchctl load ~/Library/LaunchAgents/dev.omega.native-watch.plist
 schtasks /Create /SC HOURLY /MO 4 /TN OmegaNativeWatch /TR "python <repo>\tools\native_watch.py"
 ```
 
+The native watch covers the corpus only. The Windows x86-64 development host
+also runs the full programs-only sample gate once a day, at night, from a
+dedicated clean worktree (`<gate-worktree>`) that it moves to `origin/main`
+first; no agent session starts this run. A sample that passed in the previous
+full record under `build/sample-gate-runs/` and fails in the new one is a main
+regression, owned like any other.
+
+```powershell
+# Windows: daily at 03:00 via Task Scheduler, 4 jobs to leave CPU for other work
+schtasks /Create /SC DAILY /ST 03:00 /TN OmegaSampleGate /TR "cmd /c cd /d <gate-worktree> && git fetch -q origin main && git checkout -q --detach origin/main && python tools\sample_native_gate.py --programs-only --jobs 4 < NUL"
+```
+
 Large structural moves (deleting a mechanism, rewriting a seam) may land while
 some fixtures stop compiling, under one rule. A regressed pass or run fixture
 must reject with a diagnostic whose message starts `unimplemented:` and names

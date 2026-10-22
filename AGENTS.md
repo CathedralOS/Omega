@@ -233,7 +233,12 @@ capability.
    assignments, preserving the parent outcome and next requirement for resumption.
    A green facts queue does not establish capability closure. Open-ended
    advancement stays inside `samples/cli/facts` and takes the next uncovered
-   fact there.
+   fact there. Draw that fact from an open `TASKS.md` item's remaining
+   acceptance and name the item in its README, not from the mechanism list
+   above. A folder that changes only a count, width, arity or extension pair
+   of an existing row repeats that row. By 2026-10-21, 24 folders differed
+   only in argument count (9 through 32), and 128 belonged to families that
+   differ only in bit width or extension pair.
 
 A smaller witness is a rung inside the fact that is too large to trace.
 Land it in the same session that returns to that fact. A session that
@@ -555,16 +560,27 @@ are byte-sensitive.
 - A newly discovered obstacle belongs to the work that found it: fix it
   rather than filing a task for someone else. Do not split work or mine
   tasks to keep agents busy; narrow parallel slices build duplicate routes for
-  the same operation. An empty facts queue calls for the next uncovered place
-  or fact under `samples/cli/facts` (step 4 of the sample loop).
+  the same operation. An empty facts queue calls for the next uncovered place,
+  or a new fact drawn from an open `TASKS.md` item's remaining acceptance
+  (step 4 of the sample loop).
 - Overlap is expected and needs no permission. A Git conflict is a design
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
   breakage lands without one, which is why main must stay green on every host
   (below).
-- Main stays green on every supported host. No machine runs all three OSes,
-  so each host with a native golden runs `python tools/native_watch.py` on a
-  schedule ([testing](tools/testing.md#corpus-outcome-gate)). Whoever sees a
+- Main stays green on every supported host, for the corpus and for the
+  representative samples. No machine runs all three OSes, so each host with
+  a native golden runs `python tools/native_watch.py` on a
+  schedule ([testing](tools/testing.md#corpus-outcome-gate)). The watch runs
+  the corpus only, and landing requires only a build receipt, so the Windows
+  x86-64 development host also runs the full
+  `python tools/sample_native_gate.py --programs-only` once a day from Task
+  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)); a sample that
+  passed in the previous full record in `build/sample-gate-runs/` and fails
+  now is a regression. Agent sessions, local or cloud, never start a full
+  programs-only run for this check. Between 1483ea14d01 and 50ace165363, at
+  least 10 passing samples, including `basics/print_number`, stopped
+  building and no check saw it. Whoever sees a
   regression bisects it to its first bad commit and repairs it before landing
   more capability work. Record it in `TASKS.md` only when it cannot be
   repaired in that session, and say exactly what prevents the repair.
@@ -688,7 +704,11 @@ Apply these selection rules in order:
 The statement is lowercase and declarative: name the resulting behavior or
 structure. Aim for about 68 characters for the whole subject; 85 is the
 maximum. No trailing period, ticket-only title, or bare `update`. No second
-change-type prefix such as `feat:` or `fix:`.
+change-type prefix such as `feat:` or `fix:`. Fact-row and fixture commits
+follow the same rule: they take the lane of the behavior they pin, or
+`samples` when they add only sample content. `facts(...)`, `tests(facts):`,
+`docs(workflow):` and a bare `Pin ...` or `Complete ...` subject are not lanes;
+496 of 1,736 commits from Oct 15 to Oct 21 had no lane.
 
 The body is prose paragraphs after a blank line, with numbers in place of
 adjectives. Cover what applies: what the previous behavior was and why it
