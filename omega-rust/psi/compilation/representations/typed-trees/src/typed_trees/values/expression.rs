@@ -1762,10 +1762,6 @@ impl NamePath {
         }
     }
 
-    pub fn unresolved_from_iter(members: impl IntoIterator<Item = Identifier>) -> Self {
-        Self::unresolved(members.into_iter().collect())
-    }
-
     pub fn resolved(
         members: Vec<Identifier>,
         head_symbol: SymbolHandle,
@@ -1843,12 +1839,6 @@ impl NamePath {
             *last_symbol = SymbolHandle::invalid();
         }
         Arc::make_mut(&mut self.members).last_mut()
-    }
-
-    pub fn replace_last_preserving_symbol(&mut self, member: Identifier) -> Option<()> {
-        let last = Arc::make_mut(&mut self.members).last_mut()?;
-        *last = member;
-        Some(())
     }
 
     pub fn push(&mut self, member: Identifier) {
