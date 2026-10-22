@@ -24,7 +24,7 @@ public trait ScriptCalls<Context> {
 
 data RewardScript { }
 
-machine RewardScript::reward(context: &mut RewardScript, player: u64)
+machine reward(context: &mut RewardScript, player: u64)
 satisfies ScriptCalls<RewardScript>::reward
 reaches Game
 {
@@ -37,8 +37,10 @@ exported entry for the script and supplies every demanded static import slot;
 the example does not implicitly export `reward`. There is no special script
 `main` name. Missing, ambiguous, or incompatible supply rejects before guest execution.
 `ScriptCalls` declares the context parameter rather than relying on an implicit
-receiver. The installed entry adapter supplies that parameter from the admitted
-instance; an ordinary in-language call supplies it explicitly.
+receiver. An explicit installed export contract must establish and supply that
+argument from actual admitted instance storage. Merely selecting the declaration
+or declaring a mutable parameter allocates nothing; an ordinary in-language
+call supplies its argument explicitly.
 
 The exact boundary-trait application names the import slot. Native execution may
 use a direct selected provider; interpretation uses a checked adapter to the host

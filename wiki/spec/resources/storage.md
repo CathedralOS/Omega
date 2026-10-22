@@ -18,6 +18,16 @@ child authority rather than ambient global allocation. External retained storage
 remains part of ordinary claims and custody. A spatial provision may belong to
 an installation profile; it is not API/ABI identity unless the API promises it.
 
+An application entry has no privileged storage class. Its state is ordinary
+stack-local or static data, or ordinary allocated storage obtained through
+explicit capabilities. Stack-local state contributes to checked WCSU; static
+placement retains its installation, lifetime and access obligations without
+creating ambient mutable access. An installed entry contract may supply values
+or borrows, but must establish their actual backing and custody. Neither
+`main`, data qualification nor an otherwise unprovided mutable parameter
+requests automatic zeroed context allocation. See
+[entry roots](../build/entry_roots.md#entry-shape-and-arrival-bridge).
+
 ## Stack demand and backing
 
 Worst-case stack usage (WCSU) is a spatial bound for a closed activation.

@@ -17,19 +17,23 @@ trait arguments. There is no conformance data subject or `Self` type binding
 ([conformances](conformances.md#data-and-code-are-independent)).
 There is no special `self` parameter,
 implicit receiver, bound-method value, or receiver-inserting call syntax.
-`Counter::increment` may identify a carrier-qualified declaration; qualification
-retains its semantic owner and visibility but contributes no argument or storage.
+Named decision: `no-data-code-attachment`, ratified 2026-10-22. A data declaration
+is not a machine owner or namespace. Declaring a machine under a data carrier,
+such as `machine Counter::increment`, is retired even with an explicit parameter.
+Machine qualification identifies an ordinary module, trait requirement, or named
+implementation; it never binds code to a data type. Package visibility and exact
+declaration identity remain independent of the types of explicit arguments.
 
 ```omega
 data Counter { value: u64; }
 
-machine Counter::clear(counter: &mut Counter) {
+machine clear(counter: &mut Counter) {
     counter.value = 0;
 }
 
 machine example() {
     let mut counter: Counter;
-    Counter::clear(&mut counter);
+    clear(&mut counter);
 }
 ```
 
@@ -51,11 +55,14 @@ only when that record actually owns the required state or resource lifetime.
 This introduces no machine-scoped temporary storage, implicit capture, or new
 local lifetime rule. Implementations must support the ordinary local-storage and
 borrow path instead of requiring authors to put temporary buffers in a persistent
-context record. [Entry provisioning](../build/entry_roots.md#entry-shape-and-arrival-bridge)
-is an explicit root-parameter obligation, not a receiver exception.
+context record. Entry state uses ordinary stack or static storage. An explicitly
+installed entry contract may instead supply arguments, as with UEFI handoff;
+declaring a mutable context parameter requests no automatic allocation. See
+[entry arguments and storage](../build/entry_roots.md#entry-shape-and-arrival-bridge).
 
-This is the source contract. Remaining receiver-based compiler paths, samples
-and documentation examples are migration debt, not an alternative accepted form.
+This is the source contract. Remaining receiver-based or carrier-qualified
+compiler paths, samples and documentation examples are migration debt, not an
+alternative accepted form.
 An implementation must reject retired `self` declarations and expressions rather
 than silently translate them or enable a compatibility mode. A rejected legacy
 fixture does not verify the behavior that its eventual static form must exercise.

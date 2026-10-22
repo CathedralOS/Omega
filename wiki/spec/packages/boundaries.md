@@ -56,9 +56,10 @@ A public interface cannot expose a private declaration for consumer source
 selection. Private issuer references in a domain's authorization catalog are the
 limited evidence-only exception described below.
 
-Independently nameable declarations own their own visibility, including
-carrier-qualified declarations. Only genuine members of one exact semantic owner
-inherit visibility. An attached declaration head selects its carrier independently;
+Independently nameable declarations own their own visibility. Only genuine
+members of one exact module, trait or named implementation inherit that owner's
+visibility; data does not own machine declarations. Qualified declaration heads
+retain exact namespace/dependency selection without a data-attachment route;
 qualification does not admit a transitive-only owner. Exported boundary supply
 has interface exposure even without ordinary `public`.
 

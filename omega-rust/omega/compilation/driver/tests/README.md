@@ -94,9 +94,11 @@ from family catalog membership.
 
 `--checked-interpreter` explicitly selects the checked-tree source oracle instead
 of Terminal. It uses the same reviewed fixture inputs, selected entry and
-provisioned receiver, but owns its independent checked compilation rather than
+explicit installed arguments, but owns its independent checked compilation rather than
 reusing a native report's Terminal artifact. No refusal or source spelling chooses
-this route. It records `interpreter-engine:checked-tree`; its separate defaults
+this route. Remaining automatic entry-context construction must migrate under
+`EXPLICIT-ENTRY-STORAGE`; a root parameter alone grants no storage. It records
+`interpreter-engine:checked-tree`; its separate defaults
 are `corpus_checked_interpreted.txt` and, with `--both`,
 `corpus_checked_both_<target>.txt`. Until those goldens exist, use an explicit
 golden to expose fact moves without recording:

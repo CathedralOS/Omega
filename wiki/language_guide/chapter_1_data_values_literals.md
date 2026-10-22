@@ -17,9 +17,7 @@ A console entry uses its admitted Console provider:
 ```omega
 use omega_language_std::console;
 
-data Main { }
-
-machine Main::main(context: &mut Main) reaches Console {
+machine start() {
     Console::write_line("Hello, Omega.");
 }
 ```
@@ -31,7 +29,7 @@ entry:
 machine build(builder: &mut Build) {
     Build::application(builder, "hello");
     // Declare the std dependency for this project's source layout.
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, start);
 }
 ```
 
@@ -42,13 +40,12 @@ declarations and target bindings.
 
 The invocation selects an exact target. The checked `Console::write_line` call
 demands one admitted provider for the exact `Console` application; missing or
-ambiguous build supply rejects compilation. The target's entry bridge provisions
-only the declared ordinary context storage before calling the entry. `Main::main` names a
-static declaration; its qualified name supplies no argument. There is no special
-discovery of a machine named `main`. An entry needing no context may omit that
-parameter when its selected entry shape permits it.
-Other values of `Main` remain ordinary values: the data type itself grants no
-entry authority. See [entry roots](../spec/build/entry_roots.md).
+ambiguous build supply rejects compilation. Reach is inferred without an
+annotation on this checked body. The entry bridge invokes the selected machine;
+it does not construct a hidden application record. There is no discovery of a
+reserved `main` name and no binding of a machine to a data type. Application
+state uses ordinary local or static storage, or explicit arguments established
+by an installed entry contract. See [entry roots](../spec/build/entry_roots.md).
 
 ## Data
 
@@ -61,7 +58,7 @@ data Player {
     armor: i32;
 }
 
-machine Player::take_damage(player: &mut Player, amount: i32)
+machine take_damage(player: &mut Player, amount: i32)
 requires amount >= 0
 requires player.health >= amount
 {
@@ -235,9 +232,11 @@ There is no separate `const machine` category. Target-dependent constants retain
 their exact target dependencies even after folding. Runtime use additionally
 needs determined bytes under the selected layout; proof-only use may erase.
 
-A constant grants no authority. Omega has no ambient mutable `static`; long-lived
-entry state is one explicitly provisioned occurrence. See
-[constants](../spec/language/constants.md).
+A constant grants no authority and is not static mutable storage. Long-lived
+state uses ordinary owned storage, including static placement under its normal
+access rules; static placement creates no ambient mutable capability or special
+entry instance. See [constants](../spec/language/constants.md) and
+[ordinary entry storage](../spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
 
 ## Lexical Profile V1
 

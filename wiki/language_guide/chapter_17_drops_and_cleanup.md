@@ -23,25 +23,28 @@ The core rules are:
 
 ## Cleanup Machines
 
-Cleanup uses one reserved, owner-attached machine shape:
+Cleanup uses one exact owner-authorized disposition selecting an independent
+static cleanup operation. Its value parameter is explicit:
 
 ```omega
 data MutexGuard<T> {
     mutex: &Mutex<T>;
 }
 
-machine MutexGuard::drop<T>(guard: &mut MutexGuard<T>)
+machine cleanup_mutex_guard<T>(guard: &mut MutexGuard<T>)
     // The checked body must establish the mutex's published release contract.
 {
-    Mutex::unlock_raw(guard.mutex);
+    unlock_raw(guard.mutex);
 }
 ```
 
-Only the data declaration's owning package may declare the exact attached
-`T::drop`. At most one exists. It is a compiler-selected hook, not a trait
-requirement or an authored callable: source selection of that exact declaration
-as a qualified call, static-machine argument, or forwarded reference
-rejects. An unrelated ordinary machine named `drop` has no reserved meaning.
+Only the data declaration's owning package may authorize that exact nominal
+disposition. At most one applies. The checked cleanup plan selects its exact
+hook, not an ambient trait implementation or a machine found by `T::drop`
+spelling. Source invocation of the selected edge-only hook still rejects;
+ordinary early disposal uses the consuming operation below. The example shows
+the operation's parameter/body shape, not new disposition-registration syntax.
+An unrelated machine named `drop` has no reserved meaning.
 
 At a cleanup edge the compiler has already begun consuming the owning
 occurrence and temporarily lends the whole valid value as `value: &mut T` to the
@@ -69,7 +72,7 @@ value's owned authority and facts established at the edge, with no extra
 runtime argument, returned custody, failure, blocking, or suspension. Many
 linear protocols therefore remain explicit: unregistering may require
 quiescence evidence, returning storage may need allocator authority, and
-committing may fail. A valid owner-attached hook is nevertheless a legitimate
+committing may fail. A valid owner-authorized hook is nevertheless a legitimate
 exact-once terminal disposition for a linear type.
 
 Current executable support is narrower than these rules; see
@@ -90,7 +93,7 @@ public machine drop<T>(value: T) {
 `omega::core::drop(value)` moves the whole value into that machine. The caller's
 occurrence is dead immediately, and the callee's return edge invokes the same
 cleanup plan that scope exit would use. This is not a direct call to
-`T::drop(value: &mut T)` and does not require a `Drop` or `Disposable` trait.
+the edge-only mutable hook and does not require a `Drop` or `Disposable` trait.
 
 The core machine is checked once against a symbolic contextual-cleanup row. At
 each application the concrete type supplies its exact structural plan,
@@ -101,14 +104,16 @@ belongs to death edges, not to the core helper that first exposes it.
 Cleanup is deliberately not a core trait. Ordinary Omega traits permit several
 separately named conformances for the same type and do not authorize dedicated
 syntax to discover one ambiently; automatic cleanup requires one structurally
-unique owner attachment. Static generic code consumes symbolic cleanup rows,
+unique owner-authorized disposition. Static generic code consumes symbolic cleanup rows,
 and dynamic code consumes the type descriptor described below, so neither needs
-a nominal `T: Drop` bound.
+a nominal `T: Drop` bound. The reserved data-owned hook spelling is retired;
+its source-selection migration belongs to `STATIC-MACHINE-MIGRATION` in
+[the task board](../../TASKS.md), without weakening unique disposition selection.
 
 Named consuming machines remain the source surface for protocols with results
-or stronger behavior. `File::close(file)`, `Task::finish(task)`,
-`Transaction::commit(transaction)`, `Registry::unregister(registration, ...)`,
-and `Claim::abandon(claim)` may fail, block, return authority,
+or stronger behavior. `close(file)`, `finish(task)`,
+`commit(transaction)`, `unregister(registration, ...)`,
+and `abandon(claim)` may fail, block, return authority,
 or promise more than the automatic fallback. They are distinct operations, not
 alternative spellings of the hook.
 

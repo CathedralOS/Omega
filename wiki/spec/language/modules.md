@@ -110,9 +110,10 @@ visible carrier would make one case appear likely. Lexical bindings keep their
 ordinary meaning; the compiler does not reinterpret an unresolved single-segment
 name as a case.
 
-Distinct visible declarations competing for the same carrier-qualified domain,
-case, or machine name reject; neither carrier ownership nor import order selects
-a winner. Module growth can therefore introduce a collision in a broad import.
+Distinct visible declarations competing for the same carrier-qualified domain
+or case, or for one module/trait/implementation machine path, reject. Neither
+carrier ownership nor import order selects a winner. Module growth can therefore
+introduce a collision in a broad import.
 Narrow imports avoid exposure to unrelated additions. Diagnostics retain both
 declaration owners, the exact carrier, and the imports exposing the conflict.
 
@@ -124,8 +125,10 @@ Independently nameable data, domains, traits, machines,
 wire schemas, operators, constants, and complete named conformances are private
 unless marked `public`. Carrier qualification does not inherit visibility.
 Fields, cases, states, and trait requirements instead inherit their exact
-semantic owner's visibility. An attached declaration head independently selects
-its carrier and therefore needs authority to name that carrier.
+semantic owner's visibility. A data-attached domain head independently selects
+its carrier and therefore needs authority to name that carrier. A machine head
+cannot attach to a data carrier; its argument types and code-owning namespace
+retain their ordinary independent declaration selections.
 
 Ranking measures are private proof machinery; `public measure` rejects. A public
 termination guarantee does not publish its implementation's ranking witness.

@@ -1,5 +1,11 @@
 # Trait Default Chain
 
+This probe retains legacy source awaiting `STATIC-MACHINE-MIGRATION` and
+`TRAIT-IMPLEMENTATION-SOURCE-MIGRATION` in [TASKS.md](../../../../TASKS.md).
+Data-owned machines and reference rows are retired; replace them with ordinary
+free/module calls inside inline named-implementation members while retaining
+the behavior below. Historical green observations are not current acceptance.
+
 Depend-free compile-scope probe: trait inheritance with default bodies —
 the first sample carrying a parent-trait bound and named implementation
 bindings.

@@ -20,6 +20,12 @@ are ordinary declared parameters; zero, one, or several are allowed, and none
 has special status. An implementation name identifies a map of machines, not a
 type that can be borrowed as state. All state remains explicit value arguments.
 
+The `no-data-code-attachment` decision (2026-10-22) also retires data-owned
+machine declarations even when every parameter is explicit. Put an ordinary
+operation at free or module scope; keep trait requirements and named
+implementation members under their code-owning declarations. A data type is
+neither an implementation nor a machine namespace. `main` gains no exception.
+
 These are the governing source rules. Existing compiler support, fixtures and
 library declarations using data-subject conformances are migration debt, not
 an alternative dialect. The migration may break old tests and source APIs;

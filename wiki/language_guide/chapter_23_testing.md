@@ -76,20 +76,26 @@ work without std and can coexist with it; there is no built-in category list.
 ## Services and fixtures
 
 A group declares permitted behavior; the build selects compatible providers.
-For service-bearing tests, declare an ordinary context parameter for provisioning:
+For service-bearing tests, declare the group's permitted row and construct
+ordinary fixture state inside the test:
 
 ```omega
-trait Tests<Context> {
-    machine memory(context: &mut Context)
+trait Tests {
+    machine memory()
         reaches Filesystem;
         crashes Trap;
 }
 
 data ScanFixture { }
 
-machine ScanFixture::empty_input(context: &mut ScanFixture)
-satisfies Tests<ScanFixture>::memory
+machine empty_input()
+satisfies Tests::memory
 {
+    let mut fixture: ScanFixture;
+    check_empty_input(&mut fixture);
+}
+
+machine check_empty_input(fixture: &mut ScanFixture) {
     // Filesystem operations call the selected static provider slot.
     // Keep scratch buffers local to this invocation.
 }
@@ -100,18 +106,18 @@ service and compatible in-memory provider; the compiler does not recognize
 them by spelling. This is a separate example from the arithmetic-only trait.
 
 ```omega
-let memory: TestGroup = builder.tests.group<Tests<ScanFixture>::memory>();
+let memory: TestGroup = builder.tests.group<Tests::memory>();
 memory.service<Filesystem, MemoryFilesystem>();
 ```
 
-The registered requirement explicitly applies `Tests` to `ScanFixture`;
-ordinary trait-argument substitution fixes the context parameter's type. Each invocation receives
-a fresh context and mock-service state. The runner
-installs the selected group-scoped provider slot before entering the test; it
-does not add a service field to the context. Ordinary fields must be zero-valid,
-and additional fixture construction is ordinary code. The runner supplies the explicitly declared
-context parameter. A test entry takes no other arguments; call
-parameterized helpers from its body.
+Each test invocation constructs its own fixture and runs with the configured
+mock-service state. The runner installs the selected group-scoped provider slot;
+registration does not allocate a context record or add service fields to data.
+Zero initialization is valid only when ordinary validity rules permit it;
+otherwise construct the fixture explicitly. Parameterized helpers receive
+ordinary explicit arguments. A runner may supply root arguments only through
+an explicitly installed call contract that establishes their backing and
+preconditions, never by discovering a mutable parameter.
 
 The root controls the actual authority. If it supplies a virtual filesystem,
 a dependency cannot obtain the host filesystem by selecting a different provider

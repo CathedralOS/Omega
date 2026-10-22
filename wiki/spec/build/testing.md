@@ -65,20 +65,22 @@ tests; it is not evidence that any test passed.
 
 ## Entry contracts and ordinary calls
 
-A runnable entry has no caller-supplied invocation arguments and no observed result.
-It is a static machine with either no parameters or one ordinary mutable context
-parameter designated for provisioning. The requirement declares that exact
-parameter shape; a qualified machine name adds no implicit argument. Reuse
-[entry provisioning](entry_roots.md#entry-shape-and-arrival-bridge): initialize
-ordinary context fields only when ZII-valid. Boundary calls in the checked test
+A runnable entry has no observed result and receives only arguments established
+by its explicit installed runner contract. A parameterless test constructs its
+fixture in ordinary local or static storage. A parameterized root is an installed
+ordinary call whose contract supplies each argument and its custody; a mutable
+parameter alone requests no allocation. Reuse
+[entry storage rules](entry_roots.md#entry-shape-and-arrival-bridge), including
+ordinary initialization and WCSU. Boundary calls in the checked test
 closure demand exact provider slots independently of that context; missing,
 ambiguous, or unauthorized supply rejects before invocation. Provider selection
 constructs no source routing value. Other fixture construction and parameterized helper
 calls are ordinary test code.
 
-For a context-bearing requirement, the registered exact trait application
-names the context type as an ordinary trait argument, for example
-`Tests<ScanFixture>::memory`. Every satisfier matches that declared parameter.
+For an explicitly fixture-bearing installed requirement, the registered exact
+trait application may name the fixture type as an ordinary trait argument, for
+example `Tests<ScanFixture>::memory`. The runner's installation must separately
+provide its actual argument. Every satisfier matches that declared parameter.
 Register different concrete applications separately; the runner neither infers
 a data subject nor guesses generic arguments or synthesizes a whole-trait map.
 

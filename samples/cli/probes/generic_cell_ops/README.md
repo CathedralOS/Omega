@@ -1,5 +1,11 @@
 # Generic Cell Ops
 
+Historical implementation probe. Data-qualified generic machines are retired
+under `no-data-code-attachment`; their bodies and type parameters must migrate
+to ordinary free/module declarations under `STATIC-MACHINE-MIGRATION` in
+[TASKS.md](../../../../TASKS.md). The compile observations below are not evidence
+that the old spelling remains a supported language form.
+
 Compile-scope probe: static generic attached machines on generic
 data. No standard-library dependency.
 

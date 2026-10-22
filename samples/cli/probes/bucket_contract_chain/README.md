@@ -1,10 +1,15 @@
 # Bucket contract chain
 
+The contract-chaining behavior remains required, but this source's data-owned
+machine spelling is migration debt under `no-data-code-attachment` and
+`STATIC-MACHINE-MIGRATION` in [TASKS.md](../../../../TASKS.md). Historical
+implementation observations below do not establish current syntax support.
+
 Depend-free compile-scope probe: proof-obligated mutation as user code —
 the first sample whose calls are gated by `requires` and chained by
 `ensures`. A concrete 3-slot bucket hand-instantiates the core
-`FixedVec<T, const N>` pattern (generic machine instantiation is not wired
-yet, so concrete data + attached machines carry the contracts).
+`FixedVec<T, const N>` pattern. Its original concrete data and attached-machine
+form describes the historical probe, not a requirement to bind code to data.
 
 The discharge chain is pure contract chaining — no runtime checks:
 `clear` ESTABLISHES spare room (`length < items.len`), `push` CONSUMES it

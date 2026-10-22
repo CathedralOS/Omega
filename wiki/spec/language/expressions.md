@@ -134,12 +134,13 @@ not a common-carrier promotion. This does not change operator selection or add
 conversions to ordinary machine arguments.
 
 An operator binding is a property of an ordinary named machine declaration,
-package-private unless declared `public machine`. A qualified path does not inherit
-its namespace type's visibility. An optional fixed token immediately after
+package-private unless declared `public machine`. Data is not a code namespace;
+an operator machine may be free or module/trait/implementation-qualified. An
+optional fixed token immediately after
 `machine` binds operator syntax to that declaration:
 
 ```omega
-public machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 {
+public machine + add(left: Vec2, right: Vec2) -> Vec2 {
     add_vectors(left, right)
 }
 ```
@@ -323,14 +324,14 @@ forms additionally require the appropriate loans and write authority. Descriptor
 construction implements the selected contract but cannot establish its proofs.
 
 For a static index machine such as
-`machine [] Buffer::at(buffer: &Buffer, index: u64)`, `buffer[index]`
+`machine [] at(buffer: &Buffer, index: u64)`, `buffer[index]`
 supplies the collection at operand zero and forms the shared loan required by
 that parameter. An admitted index machine whose collection parameter is
 `&mut Buffer` similarly requires and forms an exclusive collection loan.
 This is the existing token-specific collection adaptation for `[]` and `[..]`,
 independent of receiver identity; it is not method-call sugar. Authors do not
 need `(&buffer)[index]` or a distinct `&[]` operator. Named calls remain ordinary
-static calls: `Buffer::at(buffer, index)` follows shared argument admission,
+static calls: `at(buffer, index)` follows shared argument admission,
 and a mutable collection parameter requires an explicit `&mut buffer` argument.
 This rule introduces neither write-only collection adaptation nor automatic
 borrowing for other operator operands.

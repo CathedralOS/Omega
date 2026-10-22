@@ -704,8 +704,10 @@ command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/te
 
 `--checked-interpreter` explicitly selects the independent checked-tree source
 oracle instead of Terminal. It compiles the same reviewed fixture inputs and
-executes the exact selected entry with its provisioned receiver; it never serves
-as a fallback for a Terminal refusal. Records include
+executes the exact selected entry with its admitted installed arguments; it never serves
+as a fallback for a Terminal refusal. Legacy automatic context construction is
+migration debt under `EXPLICIT-ENTRY-STORAGE`, not permission to fabricate test
+storage or authority. Records include
 `interpreter-engine:checked-tree`, and the separate default goldens are
 `corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
 combined with `--both`. An absent golden still requires an explicit `--golden`.

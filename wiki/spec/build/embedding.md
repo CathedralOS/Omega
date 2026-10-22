@@ -77,11 +77,13 @@ value. The compile-time foreign locator remains separately named
 does not replace provider admission or runtime authority checks.
 
 The host and guest use exact shared interface declarations. Builds select exported
-static entries and establish their schema-designated ordinary context parameters
-under [entry roots](entry_roots.md). A qualified machine name introduces no hidden
-receiver. Requirement and implementation signatures retain the same explicit
-parameter correspondence; the admitted entry adapter supplies any provisioned
-context rather than changing the machine's signature.
+static entries and explicit installed-call contracts under
+[entry roots](entry_roots.md). Every supplied argument must have actual backing
+and established qualifications. A machine name or mutable parameter creates
+no hidden receiver, allocation or default context. Requirement and implementation
+signatures retain the same explicit parameter correspondence. An admitted
+adapter may supply declared arguments, not synthesize a context by inspecting
+the selected function's signature.
 Neither `public` nor `satisfies` alone exports a callable ABI. No `main`, `run`, or
 `Run` name is privileged by embedding.
 

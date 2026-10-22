@@ -1,10 +1,11 @@
 # sum_receiver_dispatch
 
-A carrier-qualified static machine may borrow a SUM, not just a
-record: `Transition::equals(transition: &Transition, ...)` dispatches
-on the borrowed sum's cases, and its states receive the discriminated
-other explicitly — nominal ownership manufactures no record-shaped
-receiver.
+An ordinary static machine may explicitly borrow a sum rather than a record
+and dispatch on its cases. The present fixture still spells that operation
+`Transition::equals(transition: &Transition, ...)`; that data-owned path is
+migration debt under `STATIC-MACHINE-MIGRATION` in
+[TASKS.md](../../../../../TASKS.md), not accepted binding of code to data.
+Retain the explicit subject, case knowledge and state arguments when migrating.
 
 Compile-checked only: no standard-library dependency and
 no `Main::exit` — run a check target, not native.

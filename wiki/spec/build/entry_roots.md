@@ -48,7 +48,7 @@ lookup and canary repair is `ENTRY-SLOT-EXACT-SCHEMA-SELECTION` in `TASKS.md`.
 ## Source selection is not invocation
 
 For an application named `entry_example`, Build selects
-`windows_x86_64::ProgramEntry` with machine argument `Application::start`, and
+`windows_x86_64::ProgramEntry` with machine argument `start`, and
 may separately select `TestConsole` for the exact Console requirement. Neither
 selection invokes application code. The Build operations themselves follow the
 ordinary static-machine argument rules; they have no receiver-syntax exemption.
@@ -59,12 +59,11 @@ value; ordinary helpers may forward that value. The remaining operands select
 the slot and entry rather than invoking either. There is no `roots` receiver
 facet or implicit Build argument.
 
-The entry selection identifies an exact static machine. When the entry shape
-permits provisioning, it designates one ordinary mutable context parameter,
-for example `machine Application::start(context: &mut Application)`. The
-qualified declaration path does not supply or imply that parameter. Build
-selects the declaration, not a context value or invocation arguments; the arrival
-bridge supplies the schema-declared arguments. The provider selection names a provider implementation;
+The entry selection identifies an exact static machine. Build selects that
+declaration, not a data instance or an allocation request. An explicitly
+installed entry contract determines its invocation arguments and the arrival
+bridge must establish each one from actual backing. A mutable parameter alone
+does not ask the bridge to construct its referent. The provider selection names a provider implementation;
 its ordinary satisfiers determine the derived plan. A leaf needs `via` only for
 payload not derivable from its exact declaration and target.
 
@@ -75,13 +74,13 @@ exposure cannot redirect them. Ordinary same-named operations receive no excepti
 defines lexical visibility, restricted helper delegation, exact source/target
 identity, and rejection of generated-source or unfinished-layout cycles.
 
-There is no special `main`, `Main::run`, uniquely visible export, entry field,
-or ambient static discovery. Templates may write ordinary bindings. A test
+There is no special `main`, data-owned entry machine, uniquely visible export,
+entry field, or ambient static discovery. Templates may write ordinary bindings. A test
 harness name override carries no slot, signature, calling-plan, or storage
 authority.
 
 [Build-time test roots](testing.md#entry-contracts-and-ordinary-calls) reuse the
-unprovisioned-entry or provisioned-context rules below. Their runner roots are separate
+ordinary storage and explicit installed-argument rules below. Their runner roots are separate
 from application target slots; registration does not install them in the
 application or make their checked bodies trusted boundary declarations.
 A native test harness instead binds an ordinary executable entry normally.
@@ -90,19 +89,19 @@ A native test harness instead binds an ordinary executable entry normally.
 
 An entry shape names distinct physical and semantic arrival requirements, the
 boundary schema and physical contract package that own its generated arrival
-bridge and physical result map, visible parameters, semantic result, and a
-context provisioning mode. `NoneOrProvisionedZii` admits an entry without a
-context or with one ordinary `context: &mut Context` parameter; `context` and
-`Context` are illustrative names, not reserved identities. The entry shape
-identifies its exact parameter occurrence separately from physical arrival
-arguments. No receiver flag or declaration attachment participates in that
-selection. For example, a hosted Windows
+bridge and physical result map, visible parameters and semantic result. Named
+decision: `ordinary-entry-storage`, ratified 2026-10-22. An entry has no special
+storage or automatic context-construction mode. `NoneOrProvisionedZii` and
+signature-scanned mutable-context provisioning are retired, not an optional
+compatibility path. The installed contract identifies exact argument
+occurrences separately from physical arrival arguments; no receiver flag,
+machine name or data attachment participates. For example, a hosted Windows
 `ProgramEntry` joins the `WindowsProcessEntry::enter` process arrival under the
 `WindowsX86_64CallingPolicy` calling policy to the `ProgramStorageEntry::enter`
 semantic continuation through the `WindowsX86_64Application` boundary schema's
 generated bridge; the authored contract's `u32` return maps to the process
-exit code, and no physical arrival parameters are exposed to source. An admitted
-provisioned context parameter is supplied by the bridge, not by the operating system.
+exit code, and no physical arrival parameters are exposed to source unless its
+explicit installed contract declares and establishes them.
 
 The platform calling plan validates the generated physical shell; the target's
 entry shape validates the selected source signature. Resolve the slot first,
@@ -118,39 +117,48 @@ The compiler does not invent meanings for platform handles. The combined bridge
 derives crash, reach, write, work, stack/state, introduction, provisioning, and
 provenance contracts and composes them with the application closure.
 
-A nonprovisioned entry receives no implicit state. A provisioned entry receives
-its explicitly declared context argument, derived beneath an admitted root and
-borrowed for that activation. The parameter's declared referent type, not the
-machine's qualified name, determines the record. Ordinary
-fields must be ZII-valid. Boundary services are static provider slots demanded
-by checked calls in the entry closure; they are not provisioned data fields. An erased
-field on a record-field route whose term a unique accessible nullary
-constructor determines needs neither: provisioning supplies that term as
-construction supplies an omitted
-[erased binding](../proofs/contracts.md#explicit-erased-bindings), and the
-checked receipt names it so the bridge never mistakes it for an unestablished
-service. Any other erased field rejects. The context
-is not globally nameable. Provisioning is occurrence-local: the nominal data
-type acquires no root authority or storage class. Storage used for the context
-or active stack cannot also be forwarded whole; retain the partition and pass
-only the exact disjoint residual. Generated bridge code remains subject to
-portable demand checking. A freestanding schema may deliberately expose image
-and initial-storage roots as parameters; hosted source sees neither by default.
+Application state has the same storage choices as other state:
 
-The bridge runs ordinary context cleanup on normal return. A crash retains its
+- Ordinary stack locals use ordinary construction, lifetime and cleanup, with
+	their complete activation demand checked by WCSU against actual stack supply.
+	ZII is an initialization rule, not a special entry allocation mechanism.
+- Ordinary static data uses its existing placement, lifetime and access rules.
+	Static backing does not make mutable state ambient or freely shareable; an
+	exclusive owner may lend it explicitly.
+- An explicitly installed entry call may receive values or borrows, as with UEFI
+	handoff. This is provisioning rather than a third storage class: the contract
+	must establish backing, occurrence identity, qualifications and authority
+	before invocation. Build selection does not execute the call or manufacture
+	runtime capabilities.
+
+Heap-backed state remains ordinary allocation/library use, not another entry
+mechanism. A parameter not provided by the installed contract rejects; its
+type or mutable-reference shape supplies no default object. Non-ZII state needs
+ordinary explicit construction. Erased values obey the normal
+[binding rules](../proofs/contracts.md#explicit-erased-bindings), not an
+entry-only field-synthesis path. Boundary services remain exact provider slots
+demanded by calls, never provisioned fields on an application record.
+
+Storage used for application state or the active stack cannot also be forwarded
+whole; retain the partition and pass only the exact disjoint residual. Generated
+bridge code remains subject to portable demand checking. A freestanding schema
+may explicitly expose image and initial-storage roots; hosted source sees
+neither by default. Removing automatic context allocation does not remove the
+target ABI startup bridge or weaken its custody obligations.
+
+Ordinary owners perform cleanup on normal return; explicitly installed arguments
+retain the caller/bridge's declared handback obligations. A crash retains its
 crash frontier; a canonical [process exit](../language/process_exit.md) instead
 retains the distinct external terminal outcome and abandonment contract.
 Returning from the entry does not establish that other activations were settled:
 the root/runtime contract must settle or legally transfer outstanding task and
 resource custody before physical completion. The result map cannot conceal
-abandonment behind the same exit syscall. An ordinary non-ZII-valid field
-rejects; a free entry may instead explicitly
-construct state from the resources in its schema. Other roots, tasks, and
+abandonment behind the same exit syscall. Other roots, tasks, and
 handlers obtain access only through explicit ordinary capability transfer,
 borrowing, or synchronized sharing.
 Hosted writable-image placement and freestanding storage partitioning must
 preserve the same occurrence, root lineage, backing, and initial exclusive borrow.
-Knowing the context's size never creates a new physical root.
+Knowing an argument's size never creates a new physical root.
 
 Each demanded static provider slot retains the exact source call occurrence,
 closed requirement application, schema, target, and selected plan digest.
@@ -160,21 +168,27 @@ slots, Terminal replay independently joins the call demand and plan before
 erasing dispatch. Independent slots retain internal era identity without adding
 a source context field.
 
-Calling the same machine ordinarily supplies that context explicitly and gains
+Calling the same machine ordinarily supplies every argument explicitly and gains
 no provisioning authority. Provider demands follow its checked call closure,
-not a constructor implicitly attached to the context type.
+not a constructor attached to a data type. Remaining automatic entry-context
+code and examples are migration debt under `EXPLICIT-ENTRY-STORAGE` in
+[the execution board](../../../TASKS.md), not supported source semantics.
 
 ## Authority, identity, and resources
 
-Selection is distinct from runtime permission. The authoritative build declares
-one complete ceiling, and validation proves:
+Selection is distinct from runtime permission and from an optional machine
+annotation. For installation or an explicitly requested deployment-compatibility
+check, the root's application/deployment manifest or installed contract supplies
+the authoritative complete permission ceiling, and admission proves:
 
 ```text
-transitive runtime demand ⊆ authored complete reach ceiling ⊆ target supply
+transitive runtime demand ⊆ manifest/installation permission ceiling ⊆ target supply
 ```
 
-Omission from that complete set denies authority; absence of a provider selection
-alone does not. Rejection preserves provenance to the dependency/declaration/
+Omitting a checked machine's `reaches` requests inference; it neither supplies
+nor removes manifest permission. A declared service ceiling grants no runtime
+authority. Omission from the manifest's complete set denies permission; absence
+of a provider selection alone does not. Rejection preserves provenance to the dependency/declaration/
 selection introducing excess demand, including when only artifact evidence is
 available.
 

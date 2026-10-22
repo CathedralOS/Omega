@@ -275,8 +275,11 @@ required on the returning branch.
 
 ## Nominal cleanup
 
-The static `T::drop(value: &mut T)` target is a compiler-owned edge dependency,
-not a source-selectable call or static-machine value. Authored early disposal
+The exact independently declared static cleanup target is a compiler-owned edge
+dependency with an explicit mutable value parameter, not a data-owned method,
+source-selectable call or static-machine value. Legacy `T::drop` attachment and
+name discovery are migration debt; the type owner's unique authorized
+disposition and edge custody remain mandatory. Authored early disposal
 uses the ordinary consuming `omega::core::drop(value)` call. The cleanup plan
 keeps Type-side discharge eligibility, logical prerequisites, operational
 reach/effects/work, and derived guarantees separate.

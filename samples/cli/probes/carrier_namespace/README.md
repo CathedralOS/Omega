@@ -1,5 +1,12 @@
 # Carrier Namespace
 
+Historical implementation probe, not accepted source guidance. The
+`no-data-code-attachment` decision retires its data-qualified machine
+declarations, including when their parameters name unrelated data.
+`STATIC-MACHINE-MIGRATION` in [TASKS.md](../../../../TASKS.md) owns migration to
+independent free/module machines while preserving explicit borrow behavior.
+The observations below describe the legacy implementation only.
+
 Compile-scope probe: attached machines are namespaced statics. No
 standard-library dependency.
 

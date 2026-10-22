@@ -46,6 +46,14 @@ names. Narrow Win32 queries and image-buffer operations retain their distinct
 contracts. External bindings still require their own trust review; a service
 row neither proves opaque native behavior nor grants physical authority.
 
+Under the 2026-10-22 `optional-reach-ceilings` decision, checked library bodies
+may infer reach; an authored clause is a ceiling, and an empty clause permits
+no services. Boundary requirements must explicitly declare their rows. The
+existing mandatory/additive implementation and carrier-qualified helper
+declarations remain migration work under `OPTIONAL-REACH-CEILINGS` and
+`STATIC-MACHINE-MIGRATION` in [TASKS.md](../../TASKS.md); publishing this contract
+does not claim those source migrations are complete.
+
 The consuming root can make an exact boundary identity mandatory in review
 with `Build::audit_service<Trait>(builder)`. Only executed registrations through
 its original delegated Build count. Dependency registrations do not set the

@@ -45,8 +45,10 @@ A generated physical shell invokes the exact source-authored target bootstrap
 adapter. The adapter validates arrival, installs lifecycle-scoped providers, obtains
 root geometry and correspondence evidence, then crosses the semantic
 installation edge. The source continuation receives only the semantic schema's
-visible arguments, with its optional provisioned receiver. It does not receive
-hidden firmware arguments or project the private system table.
+visible arguments. There is no optional automatically provisioned receiver or
+context object. Additional state uses ordinary storage or an argument explicitly
+established by that installed contract. The continuation does not receive hidden
+firmware arguments or project the private system table.
 
 The physical arrival contract retains pointer validity, alignment and lifetime,
 the paging/CPU regime, entry/exit control, and firmware lifecycle assumptions.
@@ -67,7 +69,7 @@ does not manufacture a returning status result.
 
 Initial storage is a separately owned reserved region proved disjoint from the
 image root or an admitted allocation. Image sections are subextents, not fresh
-roots. Active stack, receiver, or retained bootstrap state cannot hide inside
+roots. Active stack, application state, or retained bootstrap state cannot hide inside
 an extent forwarded whole. A shared parent allocation must partition exactly,
 leaving one contiguous disjoint residual when source receives one `Extent`.
 

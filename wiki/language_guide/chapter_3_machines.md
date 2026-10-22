@@ -13,10 +13,10 @@ function-like call is one important use of a machine, not its definition.
 > separate machine species. See
 > [machines and contract refinement](../spec/language/machines.md).
 
-All machines are static: every input is an ordinary declared parameter. A
-qualified path such as `Player::take_damage` gives the operation a namespace
-and semantic owner; it does not supply a receiver. There is no special `self`
-parameter or receiver-style dot invocation.
+All machines are static: every input is an ordinary declared parameter. Data
+does not own functions or provide a code namespace. Qualified paths name modules,
+trait requirements or named implementations, never an attachment to a data type.
+There is no special `self` parameter or receiver-style dot invocation.
 
 Contracts state logical conditions; ordinary machines establish their
 conclusions. Traits and named conformances bundle mathematical operations,
@@ -31,7 +31,7 @@ cited as proof, started through a task runtime, or used to satisfy a
 trait requirement, including a requirement in a boundary trait.
 
 An optional fixed token binds operator notation to a named machine:
-`machine + Vec2::add(...) { ... }`. Its body and contracts remain ordinary
+`machine + vector::add(...) { ... }`. Its body and contracts remain ordinary
 machine code; [chapter 5](chapter_5_expressions_evaluation.md#operators) covers
 selection, ownership, and the bodyless requirement/primitive cases.
 Those contexts change eligibility and lowering; they do not create parallel
@@ -49,17 +49,18 @@ through the declared observation surface and only above the floor imposed by
 the caller. A machine cannot hide blocking, authority, failure, or another
 context-forbidden behavior merely by calling it unobservable.
 
-## Data-Owned Operations
+## Operations With Explicit Data
 
-A data-owned operation names its data input explicitly, just like any other
-input. Borrowing and ownership come from that parameter's type.
+An operation names its data input explicitly, just like any other input.
+Borrowing and ownership come from that parameter's type; the type does not own
+the machine.
 
 ```omega
 data Player {
     health: i32;
 }
 
-machine Player::take_damage(
+machine take_damage(
     player: &mut Player,
     amount: i32
 ) {
@@ -67,8 +68,10 @@ machine Player::take_damage(
 }
 ```
 
-Call it as `Player::take_damage(&mut player, amount)`. The qualified name
-does not insert an argument or permit `player.take_damage(amount)`.
+Call it as `take_damage(&mut player, amount)`. Neither
+`machine Player::take_damage` nor `player.take_damage(amount)` is a supported
+code-to-data binding. Put related machines in an ordinary module when a
+namespace is useful.
 
 ## Free-Standing Machines
 
@@ -84,15 +87,15 @@ machine add_i32(
 }
 ```
 
-Use a free-standing machine for math helpers, proof helpers, and operations
-that are not naturally owned by one data type.
+Free and module-scoped machines are equally suitable for math, proof helpers
+and operations on one or several data types. No data type is a code owner.
 
 ## Program Entry
 
 `build.omg` binds a target-owned program-entry slot to one exact machine. The
 binding selects what the target bridge will call; it is not itself a call and
 does not pass arguments or allocate values. A free entry machine has no
-implicit state, and naming a data-owned operation does not allocate that data:
+implicit state and no machine name allocates data:
 
 ```omega
 machine start() {
@@ -109,14 +112,14 @@ data Application {
     total: i32;
 }
 
-machine Application::run(application: &mut Application) {
+machine run(application: &mut Application) {
     let increment: i32 = add_i32(3, 4);
     application.total = increment;
 }
 
 machine start() {
     let mut application: Application;
-    Application::run(&mut application);
+    run(&mut application);
 }
 ```
 
@@ -130,10 +133,11 @@ instance created from a machine's qualified name.
 
 The target schema controls ordinary entry parameters: hosted entry normally
 exposes no physical arrival arguments, while freestanding entry may intentionally
-expose raw image or initial-storage extents. An entry shape may separately permit
-one explicit mutable context parameter and provision its valid fields and selected
-bindings. That permission belongs to the exact entry occurrence, not an arbitrary
-parameter or a qualified machine name. See the entry rules below.
+expose raw image or initial-storage extents. Any entry argument must be supplied
+by an explicitly installed call contract with actual backing and authority.
+A mutable context parameter does not request allocation or zero-initialization.
+Large local state is checked against stack supply by WCSU; ordinary static data
+is another placement choice with its own access rules, not ambient mutable state.
 
 The machine name is not special. The build binding chooses the machine, its
 source signature states its explicit arguments, and
@@ -150,8 +154,9 @@ See [program-entry rules](../spec/build/entry_roots.md) and
 End-to-end physical entry support remains incomplete under
 [ENTRY-CONTENT-ROOTS](../../TASKS.md); selecting and checking an entry does not
 claim that its native bridge has been installed.
-The static-only source contract also does not claim that receiver removal is
-complete in the compiler, bundled libraries, or remaining samples.
+The ratified contract does not claim that removal of carrier-qualified machines
+or automatic entry contexts is complete. `STATIC-MACHINE-MIGRATION` and
+`EXPLICIT-ENTRY-STORAGE` in [the task board](../../TASKS.md) own that migration.
 
 ## Parameters And Returns
 
@@ -160,7 +165,7 @@ body or internal state graph produces if it reaches a returned terminal
 outcome. The type alone is not a termination guarantee.
 
 ```omega
-machine Parser::resolve(
+machine resolve_command(
     parser: &Parser,
     line: &[u8]
 ) -> Command {
@@ -247,7 +252,7 @@ An external realization binds an irreducible imported operation to a
 requirement without pretending the binding is executable Omega code:
 
 ```omega
-windows_x86_64 machine WindowsBindings::write_file() -> ForeignBinding<12, 9, 0> {
+windows_x86_64 machine write_file_binding() -> ForeignBinding<12, 9, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
@@ -256,9 +261,9 @@ windows_x86_64 machine WindowsBindings::write_file() -> ForeignBinding<12, 9, 0>
     }
 }
 
-boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+boundary machine kernel32_write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
-    via WindowsBindings::write_file();
+    via write_file_binding();
 ```
 
 The expression after `via` is a typed compile-time locator value. It names the
@@ -295,7 +300,7 @@ Ordinary call syntax invokes a machine contract in the current activation. Its
 realization may need a call frame; a jump to a local state adds none.
 
 ```omega
-let command: Command = Parser::resolve(&parser, &line);
+let command: Command = resolve_command(&parser, &line);
 let guard: Guard = block Mutex::lock(&mut mutex);
 let event: Event = suspend Inbox::take(&mut inbox);
 ```
@@ -317,12 +322,12 @@ an exported or required promise is explicit or inherited from its requirement.
 A terminating cycle needs an authored ranking witness:
 
 ```omega
-machine Gauss::sum(n: u64, acc: u64) -> u64
+machine sum(n: u64, acc: u64) -> u64
 terminates by n -> Nat::Descending;
 {
     transition n {
         0 -> acc
-        _ -> Gauss::sum(n - 1, acc + n)
+        _ -> sum(n - 1, acc + n)
     }
 }
 ```
@@ -337,7 +342,7 @@ Two questions must stay separate:
   may run forever and owe no ranking.
 - **Can runtime code execute it without growing the stack?** Runtime recursive
   calls must be tail calls. They lower to iteration with no accumulating frames.
-  `3 * Gauss::sum(...)` is not tail: multiplication remains after the return.
+    `3 * sum(...)` is not tail: multiplication remains after the return.
   Non-tail runtime recursion rejects; use explicit work storage when an
   algorithm needs pending work.
 
@@ -362,7 +367,7 @@ question.
 
 ### Borrowed subplaces
 
-For `Parser::scan(&mut compiler.parser, ...)`, the ordinary call borrows the
+For `scan_parser(&mut compiler.parser, ...)`, the ordinary call borrows the
 parser field. Inside `scan`, the explicit parameter names the same referent
 across backedges and return. Writes affect the original field; conflicting
 parent access is unavailable while the loan is live. A changing traversal
@@ -385,7 +390,7 @@ See [compiler-owned stack storage](chapter_16_errors_traps_failure.md#compiler-o
 Machines may declare requirements and guarantees.
 
 ```omega
-machine Player::enter_combat(player: &mut Player)
+machine enter_combat(player: &mut Player)
 requires
     player in Player::Alive
 ensures
@@ -413,7 +418,7 @@ A result-case group makes postconditions conditional on one exact nominal case
 of the declared result sum:
 
 ```omega
-machine Search::find(items: &[Item], target: Item) -> SearchResult
+machine find(items: &[Item], target: Item) -> SearchResult
 ensures
     SearchResult::Found -> {
         result.index < items.len;

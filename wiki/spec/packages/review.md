@@ -210,6 +210,15 @@ requirement, and external supply forbid one; boundary supply may have an adapter
 Underdeclaration rejects. Dangerous overdeclaration is visible audit-recommended
 slack with exact callable/service ownership, not an invented body observation.
 
+Under [optional reach ceilings](../language/effects.md#declarations), omission
+on a checked body requests inference, whereas a present empty clause is a
+zero-service bound. Preserve that distinction in public signatures, comparison
+rows and diagnostics. An unannotated public API still publishes its complete
+checked summary; an explicit ceiling remains visible alongside its derived
+reach. Boundary requirements must retain explicit ceilings, including empty,
+and an opaque provider does not acquire inferred-body evidence. Changing an
+annotation never hides actual transitive demand or grants manifest permission.
+
 A bodyless guarantee is an explicit accepted claim; a claim-free boundary symbol
 is not. Retain the complete published envelope as a distinct trust finding.
 Authority establishment, provider guarantees, executable mechanisms, assumptions,

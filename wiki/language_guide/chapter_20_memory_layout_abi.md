@@ -186,7 +186,9 @@ machine addresses() {
 
 The static machine argument needs no `&`: its declaration already names the entry.
 `<u32>` chooses a concrete application, not the ordinary `value` argument.
-Nothing is invoked, and an attached machine's address captures no receiver.
+Nothing is invoked, and a machine address captures no data argument. Data-owned
+machine declarations are retired; module, trait and implementation paths retain
+their ordinary declaration identities.
 The storage query observes `value`'s location, not a temporary borrow
 descriptor. These are compiler-known core queries, not new keywords or casts.
 Machine/reference `as addr` is not an alternate spelling.

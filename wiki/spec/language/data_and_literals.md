@@ -29,8 +29,9 @@ disposal follow [ownership order](ownership.md#construction-and-disposal-order).
 A case implicitly declares its same-named domain. `Type::Case` therefore denotes
 case membership in domain position. A payload-free case can also denote a
 constructed value; a payload-bearing case needs its payload in value position.
-Cases, attached domains, and attached machines share a member namespace;
-collisions reject rather than selecting by priority. Pattern rules are defined
+Cases and attached domains retain their member namespace; data does not own
+machine declarations. Collisions reject rather than selecting by priority.
+Pattern rules are defined
 in [dispatch](patterns.md).
 
 Case values always use their carrier-qualified member path. Expected type,

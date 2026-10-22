@@ -9,7 +9,8 @@ in [values](../resources/authority.md); implementation trust is recorded by
 
 | Clause | Meaning |
 | --- | --- |
-| `reaches A + B;` | Declares reach of the named boundary services and their boundary parents. |
+| `reaches A + B;` | Bounds service reach by the named boundary services and their boundary parents. |
+| `reaches;` | Explicitly bounds service reach by the empty set. |
 | `invokes handler;` | May synchronously enter that binding before returning. |
 | `suspends;` | May park the current activation. |
 | `blocks;` | May occupy its worker while waiting. |
@@ -17,32 +18,51 @@ in [values](../resources/authority.md); implementation trust is recorded by
 
 Boundary traits supply identities that may be named in `reaches`; declaring or
 calling one does not implicitly add its identity. A boundary call contributes
-its requirement's explicit reach row, with boundary-parent closure. Omission
-on a bodyless requirement means empty, exactly like a memberless clause; it
-does not mean "reach the containing trait". Ordinary traits are not service
+its requirement's explicit reach ceiling, with boundary-parent closure. Every
+boundary-trait machine requirement must declare that ceiling, using `reaches;`
+when it permits no services. A memberless service-identity trait has no operation
+requiring an annotation. Ordinary traits are not service
 identities. A wake operation may reach a scheduler without suspending.
 Mutation through ordinary borrows adds no service identity;
 its access and write frame follow [structural access](../terminal-psi/structural_access.md).
 
-A checked body directly invoking a boundary operation must declare the reached
-service in `reaches`, including for a receiver-free static boundary call. Ordinary
-machine calls propagate reach automatically: a wrapper need not repeat its
-callees' declarations. This applies to private and exported checked bodies alike.
-Omitting `reaches` does not promise empty transitive reach or permit undeclared
-direct service use. A direct call whose requirement has empty reach needs no
-service declaration. Authored members remain conservative contributions to the
-published row; they cannot mask additional transitive reach. A memberless clause
-contributes no members and is not a prohibition on callees' reach.
+Named decision: `optional-reach-ceilings`, ratified 2026-10-22. A checked body
+may omit `reaches`, including when it directly calls a boundary operation. Its
+reach is then inferred from every checked call and pinned requirement contract.
+This applies equally to private helpers, exported library APIs, named
+implementation members, and an installed application entry. `main` has no
+annotation exemption because no checked body needs one.
 
-Bodyless trait requirements and opaque boundaries publish declared reach ceilings;
-omission there is empty. A selected implementation must fit its requirement.
-An empty row is not permission for a checked provider to hide its calls.
+A present clause is an upper bound, not an assertion of exact equality and not
+an additive contribution. The complete derived reach must fit its normalized
+ceiling. `reaches A + B` permits a body reaching only `A`; `reaches;` rejects
+any nonempty derived service row. Omission requests inference and is distinct
+from an explicit empty clause. Reach does not count local mutation as a service,
+and empty reach promises neither termination nor absence of blocking or crashes.
+
+Boundary requirements publish their explicit ceilings. Opaque supplies inherit
+the governing requirement's admitted contract, not an inferred native-body
+summary; a realizer need not repeat that same clause. A bodyless non-boundary
+requirement still has no body from which to infer reach; omission there is empty.
+A selected checked or opaque implementation must fit its requirement even when
+its own optional clause is absent. Neither inference nor an empty row lets a
+provider hide its calls.
 Foreign and assumed supplies retain their separate trust admission and physical
 authority classifications. Pure arithmetic may have a selected boundary
 implementation without acquiring an arithmetic-service reach.
 Reach declarations and propagation grant no capability or provider authority.
-Reach prohibitions, including negation or Boolean restriction syntax, are outside
-this contract; `reaches` does not double as a no-effects assertion.
+Negation and Boolean row-restriction syntax are outside this contract. An empty
+ceiling is the ordinary zero-member bound, not a separate purity or authority
+mechanism. The compiler must publish a checked reach summary whether or not the
+author wrote a clause. An explicit published ceiling may conservatively remain
+wider than its checked body; review retains the declared ceiling and derived
+reach separately. Manifest admission and `Build::audit_service` policy consume
+those checked records independently of whether the author annotated the body.
+
+Existing mandatory direct-call annotations and additive checked-body rows are
+superseded implementation behavior, not an alternate language mode. Migration
+and end-to-end acceptance are tracked by `OPTIONAL-REACH-CEILINGS` in
+[the execution board](../../../TASKS.md).
 
 ### Implementation boundaries and capability identities
 
@@ -142,8 +162,11 @@ duplicate semantic member. There is no ranking or name-based service discovery.
 For a checked body, a callee, and a provider satisfying a pinned requirement:
 
 ```text
-published body reach  = normalize(authored reach + contributions from calls)
-provider reach        subset-of requirement reach ceiling
+derived body reach     = normalize(contributions from calls)
+derived body reach     subset-of authored ceiling, when a clause is present
+published reach        = authored ceiling, when a clause is present
+published reach        = derived body reach, otherwise
+provider reach         subset-of requirement reach ceiling
 
 body/callee/provider may_suspend implies corresponding ceiling permits suspension
 body/callee/provider may_block   implies corresponding ceiling permits blocking

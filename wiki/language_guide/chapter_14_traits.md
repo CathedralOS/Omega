@@ -60,7 +60,7 @@ guard proves that its addition fits `i32`.
 The implementation remains an ordinary machine. The enclosing conformance
 block gives the compiler and programmer one closed, reviewable unit that binds
 every requirement and law in the trait surface. At top level `machine` declares
-a free or carrier-qualified static machine; inside a trait it declares a
+a free or module-scoped static machine; inside a trait it declares a
 requirement; inside a conformance block it declares the satisfier for that block's corresponding
 requirement. The lexically visible enclosure carries that distinction.
 

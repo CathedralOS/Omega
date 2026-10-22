@@ -208,17 +208,18 @@ checks. See [behavior exclusions](../spec/build/behavior_exclusions.md).
 
 ## Path separator: `::` for names, `.` for values
 
-Use `::` to resolve a static name: a package, module, type, or associated
-declaration. Use `.` to access a field. An ordinary machine declaration with
-signature `public machine Room::describe(room: &Room)` in `dungeon::rooms` takes
-its data argument explicitly:
+Use `::` to resolve a static name: a package, module, type, case, domain, trait
+requirement or named implementation member. Use `.` to access a field. Data
+does not own machine declarations. An ordinary declaration with signature
+`public machine describe(room: &Room)` in `dungeon::rooms` takes its data
+argument explicitly:
 
 ```omega
 let room: dungeon::rooms::Room = dungeon::rooms::create();
-dungeon::rooms::Room::describe(&room);
+dungeon::rooms::describe(&room);
 ```
 
-Both `dungeon::rooms::create` and `dungeon::rooms::Room::describe` select
+Both `dungeon::rooms::create` and `dungeon::rooms::describe` select
 declarations. The latter receives an explicit shared borrow; it neither moves
 `room` nor inserts a receiver. The machine's declaring package must still be
 an authorized dependency.
@@ -298,14 +299,15 @@ The same distinction preserves an exact foreign-domain qualification and its
 evidence when received through an API. Carrying it does not import the domain
 for authored lookup or activate its declaring package's other extensions.
 
-Selecting the handle owner's fields, methods, cases, operators, or conformances
-is different. That needs a direct dependency on the owner, even if its name is
-hidden by receiver inference. An attached declaration such as
-`machine Handle::inspect` also selects `Handle`; qualification does not
-provide missing access.
+Selecting the handle owner's fields, cases, domains, operators or named
+implementations is different. That needs a direct dependency on the selected
+declaration's owner; carrying an inferred foreign type does not provide that
+access. Authoring `machine inspect(handle: &Handle)` explicitly selects the
+parameter type in its declaring scope. A data-owned declaration such as
+`machine Handle::inspect` is retired, not another import route.
 
 Automatic cleanup is carried type behavior. The compiler uses the exact
-owner-attached cleanup hook, not an arbitrary same-spelled machine. Authored
+owner-selected nominal cleanup operation, not an arbitrary same-spelled machine. Authored
 early cleanup uses an ordinary consuming operation such as
 `omega::core::drop(value)`, with its ordinary dependency requirements.
 
@@ -319,7 +321,8 @@ API and rebuild consequences.
 
 Independently nameable declarations are private unless marked `public`.
 Qualification does not inherit visibility: a public `Player` does not
-automatically publish `Player::take_damage`. A genuine field, case, state, or
+automatically publish a separate `take_damage` machine or create a machine
+namespace. A genuine field, case, state, or
 trait requirement follows its exact containing declaration.
 
 ```omega

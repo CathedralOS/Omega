@@ -8,7 +8,7 @@ Keep five questions separate:
 
 | Question | Where the answer lives |
 | --- | --- |
-| Which services may this code reach? | Direct `reaches` declarations and the published transitive summary. |
+| Which services may this code reach? | Checked transitive inference, optionally bounded by `reaches`, and explicit boundary requirement contracts. |
 | May it park, block a worker, or crash? | Independent operational clauses. |
 | What authority was it given? | Values with established qualifications and provenance. |
 | Why trust the implementation? | Checked evidence or explicit provider admissions. |
@@ -43,13 +43,17 @@ Indexing, for example, keeps its caller obligation visible even when the
 physical operation is compiler-provided:
 
 ```omega
-boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
-requires
-    index < items.len;
+boundary trait ElementIndex<T [copy]> {
+    machine [] index(items: &[T], index: u64) -> T
+    reaches;
+    requires index < items.len;
+}
 
-boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-requires
-    start <= end && end <= items.len;
+boundary trait ElementRange<T> {
+    machine [..] range(items: &[T], start: u64, end: u64) -> &[T]
+    reaches;
+    requires start <= end && end <= items.len;
+}
 ```
 
 The caller proves the bounds. The requirement does not select its realization;
@@ -118,8 +122,10 @@ boundary trait Readable {
 The caller proves input requirements. Checked realizations prove their
 guarantees; opaque realizations require admitted guarantees. The requirement
 explicitly names `Readable` in its reach row. The boundary trait's name is not
-added automatically; omission would mean an empty requirement row. `suspends`
-separately permits parking.
+added automatically. A boundary requirement must declare its row; spell
+`reaches;` explicitly when it permits no services. `suspends` separately permits
+parking. Opaque realizations inherit that published contract; unknown native
+behavior is not inferred as empty.
 
 Calling a window requirement declaring window-service reach contributes that row.
 Whether its code came from a DLL is a provider fact. Calling an explicit runtime
@@ -172,23 +178,19 @@ For example, a library can declare these two views of the same runtime data:
 
 ```omega
 public boundary trait WritableMemory {
-    machine claim(region: Range) -> Range in Writable;
+    machine claim(region: Range) -> Range in Writable reaches WritableMemory;
 }
 
 public boundary trait RangeSupplier {
-    machine supply(region: Range) -> Range;
+    machine supply(region: Range) -> Range reaches;
 }
 
-public data EchoSupplier { }
-
-machine EchoSupplier::supply(region: Range) -> Range
-satisfies RangeSupplier::supply
-{
-    region
+public EchoSupplier satisfies RangeSupplier {
+    machine supply(region: Range) -> Range { region }
 }
 
 machine claim_memory(region: Range) -> Range in Writable
-reaches WritableMemory;
+reaches WritableMemory
 {
     WritableMemory::claim(region)
 }
@@ -216,19 +218,18 @@ The root may also assume a connection the checker can demonstrably refute:
 ```omega
 boundary trait Expected {
     machine value() -> u32
+    reaches;
     ensures result == 1;
 }
 
 boundary trait Supplied {
     machine value() -> u32
+    reaches;
     ensures result == 0;
 }
 
-data ZeroProvider { }
-
-machine ZeroProvider::value() -> u32
-satisfies Supplied::value {
-    0
+ZeroProvider satisfies Supplied {
+    machine value() -> u32 { 0 }
 }
 
 machine build(builder: &mut Build) {
@@ -259,9 +260,13 @@ for this scoped exception to the ordinary refutable-claim veto.
 
 ## Service Reach And Operational Clauses
 
-`reaches` declares a `+`-separated set of boundary services. Direct boundary
-calls require the declaration; ordinary calls propagate reach without repeating
-it. Bodyless requirements declare the ceiling their implementations must fit.
+`reaches` is an optional ceiling on a checked body's complete service reach.
+Without a clause, infer the row from direct boundary calls and ordinary callees,
+whether the body is private, an exported library API or an application entry.
+An explicit `reaches A + B` permits a body reaching only `A`; `reaches;`
+permits no services and rejects hidden transitive use. Boundary-trait machine
+requirements must declare their ceiling, including an explicit empty one.
+Implementations must fit that requirement regardless of their own annotations.
 Parking, worker
 blocking, and crashes use independent clauses; `terminates` is a positive
 progress guarantee, not another may-effect.
@@ -317,12 +322,12 @@ warnings or hide underlying physical operations behind an unregistered wrapper.
 See [critical service audit policy](../spec/packages/review.md#critical-service-audit-policy)
 for the fixed core catalog and install/update acceptance rules.
 
-Checked bodies publish the reach contributed by their declarations and calls,
-including when exported. For example:
+Checked bodies publish their inferred row when unannotated, or their checked
+authored ceiling when one is present. Review retains both declared and derived
+rows. For example:
 
 ```omega
 machine greet()
-reaches Console;
 {
     Console::write_line("Hello");
 }
@@ -332,9 +337,12 @@ machine start() {
 }
 ```
 
-`greet` must declare Console because it calls the boundary directly. `start`
-automatically publishes Console reach through `greet`. Provider selection and
-any required runtime authority remain separate obligations.
+`greet` infers the row declared by `Console::write_line`, and `start` propagates
+that published summary. Neither needs an annotation. An author may add a
+ceiling to catch accidental widening; a consumer audit still receives checked
+reach without that annotation. Provider selection and any required runtime
+authority remain separate obligations. `main` follows the same rules; a
+Cathedral application's deployment manifest separately bounds its permission.
 The same reach rule applies to directly named boundary calls; provider
 selection is not creation of a global mutable Console object.
 
@@ -365,9 +373,12 @@ summary. Adding logging inside a private helper can change the exported
 interface; callers and retained evidence are revalidated against the new row.
 This does not automatically require a package-version bump or break every caller.
 
-Reach omission on a checked body is not a no-effects promise. A memberless
-clause is not one either: it cannot suppress transitive reach. Forbidding effects
-is a separate design, not a second meaning of this declaration.
+Reach omission requests inference. An explicitly empty clause bounds the row
+to empty; it never suppresses a service the body actually reaches. This is an
+upper-bound contract, not exact equality, a runtime authority grant or a promise
+of no mutation, blocking, crashes or divergence. Mandatory direct-call clauses
+and additive rows in the current compiler are migration debt under
+`OPTIONAL-REACH-CEILINGS` in [the task board](../../TASKS.md).
 
 Suspension/blocking do not vary with the selected callback's narrower behavior.
 Published omissions forbid those possibilities; private bodies may infer them.
@@ -668,7 +679,7 @@ is an implementation mechanism, not a bypass around their contracts.
 Physical arrival is distinct from semantic authority. UEFI supplies an image
 handle and system-table pointer; neither is an owned `Extent`. A target-owned
 bootstrap obtains admitted image correspondence, establishes separate storage,
-accounts for stack and receiver storage, crosses the semantic entry once, and
+accounts for stack and explicitly owned state storage, crosses the semantic entry once, and
 calls the source continuation with only its declared values.
 
 That bootstrap is target-package Omega code. Firmware structures, layouts,
