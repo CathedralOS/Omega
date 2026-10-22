@@ -181,7 +181,6 @@ impl S {
 }
 
 pub(super) struct Case {
-    pub symbol: SymbolHandle,
     pub payload: Vec<(SymbolHandle, TermHandle)>,
     /// Closed function of common fields then nonrecursive payload fields,
     /// returning the complete type-wide and active-case constraint type.
@@ -1371,7 +1370,6 @@ mod induction_tests {
         let mut arena = TermArena::new();
         let mut declarations = proof_admission::indexed_scheme(&mut arena);
         let two = arena.insert(Term::Two);
-        let owner = SymbolHandle::from_arena_index(1);
         let field = SymbolHandle::from_arena_index(2);
         let x = Key::Source(field);
         let empty = arena.insert(Term::Empty);
@@ -1389,7 +1387,6 @@ mod induction_tests {
         let cases = [0usize, 1]
             .into_iter()
             .map(|count| Case {
-                symbol: owner,
                 payload: vec![],
                 constraints,
                 child_indices: vec![child_index; count],
@@ -1832,13 +1829,11 @@ mod indexed_vector_budget_tests {
             close_source_telescope(&mut arena, &declarations, scalar, integer, 5, index);
         let cases = vec![
             Case {
-                symbol: SymbolHandle::from_arena_index(20),
                 payload: vec![],
                 constraints: nil_constraints,
                 child_indices: vec![],
             },
             Case {
-                symbol: SymbolHandle::from_arena_index(21),
                 payload: payload_symbols
                     .iter()
                     .map(|&symbol| (symbol, integer))

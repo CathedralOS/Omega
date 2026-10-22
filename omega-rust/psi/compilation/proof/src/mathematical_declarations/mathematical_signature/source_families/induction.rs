@@ -12,13 +12,10 @@ use proof_admission::{
 };
 use symbols::SymbolHandle;
 
-/// An ordinary, kernel-checked theorem, with its source index coordinates.
-/// This is not itself permission to erase or cite a source machine.
+/// An ordinary, kernel-checked theorem. This is not itself permission to
+/// erase or cite a source machine.
 #[derive(Clone)]
 pub(in super::super) struct SourceInduction {
-    pub family: SymbolHandle,
-    pub index_parameters: Vec<SymbolHandle>,
-    pub invariant: TermHandle,
     pub theorem: TermHandle,
     pub ty: TermHandle,
 }
@@ -63,9 +60,6 @@ mod tests {
         let cached = CheckedSourceInduction {
             raw_invariant: statement,
             result: SourceInduction {
-                family: SymbolHandle::invalid(),
-                index_parameters: vec![],
-                invariant: statement,
                 theorem: proof,
                 ty: statement,
             },
@@ -203,17 +197,7 @@ impl Elaborator<'_> {
                     proof,
                 );
                 self.check_induction_term(theorem, ty, "closed source invariant theorem")?;
-                let result = SourceInduction {
-                    family: family.symbol,
-                    index_parameters: family
-                        .parameters
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .collect(),
-                    invariant,
-                    theorem,
-                    ty,
-                };
+                let result = SourceInduction { theorem, ty };
                 self.record_source_induction(symbol, raw_invariant, &result);
                 return Ok(result);
             }
@@ -365,7 +349,6 @@ impl Elaborator<'_> {
                 .push(Declaration::definition(0, lemma_type, lemma));
             lemmas.push(self.constant(position));
             schemes.push(terms::Case {
-                symbol: case.symbol,
                 payload,
                 constraints: case.constraints,
                 child_indices: case.child_indices.clone(),
@@ -387,17 +370,7 @@ impl Elaborator<'_> {
         self.check_induction_term(theorem, ty, "derived indexed-family theorem")?;
         // The final mathematical-signature trust boundary checks every
         // retained definition once, including this step and arithmetic laws.
-        let result = SourceInduction {
-            family: family.symbol,
-            index_parameters: family
-                .parameters
-                .iter()
-                .map(|parameter| parameter.symbol)
-                .collect(),
-            invariant,
-            theorem,
-            ty,
-        };
+        let result = SourceInduction { theorem, ty };
         self.record_source_induction(symbol, raw_invariant, &result);
         Ok(result)
     }

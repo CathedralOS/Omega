@@ -119,11 +119,6 @@ impl ProofDerivationCache {
         self.report.invalidated += removed as u64;
         removed
     }
-
-    /// Drop every retained derivation and reset the index.
-    pub fn clear(&mut self) {
-        self.store.clear();
-    }
 }
 
 /// One obligation's borrowed view of a [`ProofDerivationCache`]: the

@@ -21,7 +21,6 @@
 mod construction;
 pub(super) use construction::SourceConstructorContext;
 mod induction;
-pub(super) use induction::SourceInduction;
 mod terms;
 
 use super::{Elaborator, ScalarCarrier};
@@ -568,7 +567,6 @@ impl Elaborator<'_> {
                 child_indices.push(self.close_family_telescope(index));
             }
             schemes.push(terms::Case {
-                symbol: case_symbol,
                 payload: payload_types,
                 constraints,
                 child_indices: child_indices.clone(),

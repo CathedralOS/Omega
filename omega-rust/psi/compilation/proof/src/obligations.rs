@@ -18,7 +18,7 @@ pub use collection::build_proof_plan;
 pub(crate) use collection::declared_integer_range;
 pub(crate) use constraints::expression_constraints;
 pub use facts::IntegerRange;
-pub use identity::{KEY_SCHEMA, ProofObligationKey, proof_obligation_key};
+pub use identity::{ProofObligationKey, proof_obligation_key};
 pub(crate) use plan::FloatRange;
 pub use plan::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
