@@ -676,21 +676,35 @@ fn capture_argument_observations(
             None
         };
         let places = expression_place.iter().chain(storage_place.iter());
-        let value = places
-            .clone()
-            .find_map(|place| {
-                crate::values::scalar_value_at_place(
-                    program,
-                    semantic,
-                    contexts
-                        .iter()
-                        .map(|context| semantic.contexts.get(*context)),
-                    place,
-                )
-            })
-            .or_else(|| literal(program, capture.expression))
-            .unwrap_or_default();
-        observations.values[position].1 = value;
+        // By-value scalars stay with the declared contract: an entry call
+        // discharges the requires premise at its boundary, so specializing
+        // the parameter to this call's actual would let one caller's literal
+        // discharge obligations the contract never carried. Reference
+        // parameters are different -- the actual names caller-owned storage,
+        // and its live scalar is the referent's content, which only the
+        // caller's edge can supply.
+        let reference = validation::peel_declared_constraints(program, parameter.type_reference);
+        let carries_scalar = matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        );
+        if carries_scalar {
+            let value = places
+                .clone()
+                .find_map(|place| {
+                    crate::values::scalar_value_at_place(
+                        program,
+                        semantic,
+                        contexts
+                            .iter()
+                            .map(|context| semantic.contexts.get(*context)),
+                        place,
+                    )
+                })
+                .or_else(|| literal(program, capture.expression))
+                .unwrap_or_default();
+            observations.values[position].1 = value;
+        }
         if let Some(variant) = places
             .into_iter()
             .find_map(|place| assigned_case_at(program, semantic, &contexts, place))
