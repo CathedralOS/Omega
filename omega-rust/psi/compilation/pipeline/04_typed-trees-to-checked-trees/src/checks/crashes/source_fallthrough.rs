@@ -260,7 +260,7 @@ fn holds_entry_meaning(
         return false;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
+        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => true,
         ExpressionNode::Unary(unary) => holds_entry_meaning(
             program,
             machine,

@@ -95,6 +95,21 @@ pub(crate) fn summary_boolean_value(expression: &CrashPredicateExpression) -> Op
                         !equal
                     });
                 }
+                // An equal-width integer view records its IEEE value as a
+                // closed float spelling. Equality uses IEEE comparison:
+                // NaN matches nothing, and the two signed zeros match.
+                if let (
+                    CrashPredicateExpression::Float(left_text),
+                    CrashPredicateExpression::Float(right_text),
+                ) = (left.as_ref(), right.as_ref())
+                {
+                    let equal = ieee_literal_equal(left_text, right_text)?;
+                    return Some(if *operator == BinaryOperator::Equal as u8 {
+                        equal
+                    } else {
+                        !equal
+                    });
+                }
             }
             let left = summary_integer_literal(left)?;
             let right = summary_integer_literal(right)?;
@@ -110,6 +125,61 @@ pub(crate) fn summary_boolean_value(expression: &CrashPredicateExpression) -> Op
         }
         _ => None,
     }
+}
+
+pub(crate) fn summary_closed_float_relation(expression: &CrashPredicateExpression) -> Option<bool> {
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+
+    match expression {
+        CrashPredicateExpression::Boolean(value) => Some(*value),
+        CrashPredicateExpression::Unary { operator, operand }
+            if *operator == UnaryOperator::LogicalNot as u8 =>
+        {
+            Some(!summary_closed_float_relation(operand)?)
+        }
+        CrashPredicateExpression::Binary {
+            operator,
+            left,
+            right,
+        } if *operator == BinaryOperator::And as u8 => {
+            Some(summary_closed_float_relation(left)? && summary_closed_float_relation(right)?)
+        }
+        CrashPredicateExpression::Binary {
+            operator,
+            left,
+            right,
+        } if *operator == BinaryOperator::Or as u8 => {
+            Some(summary_closed_float_relation(left)? || summary_closed_float_relation(right)?)
+        }
+        CrashPredicateExpression::Binary {
+            operator,
+            left,
+            right,
+        } if *operator == BinaryOperator::Equal as u8
+            || *operator == BinaryOperator::NotEqual as u8 =>
+        {
+            let (
+                CrashPredicateExpression::Float(left_text),
+                CrashPredicateExpression::Float(right_text),
+            ) = (left.as_ref(), right.as_ref())
+            else {
+                return None;
+            };
+            let equal = ieee_literal_equal(left_text, right_text)?;
+            Some(if *operator == BinaryOperator::Equal as u8 {
+                equal
+            } else {
+                !equal
+            })
+        }
+        _ => None,
+    }
+}
+
+fn ieee_literal_equal(left: &str, right: &str) -> Option<bool> {
+    let left = numerics::literals::FloatLiteral::parse(left)?;
+    let right = numerics::literals::FloatLiteral::parse(right)?;
+    Some(left.value_f64() == right.value_f64())
 }
 
 fn summary_integer_literal(

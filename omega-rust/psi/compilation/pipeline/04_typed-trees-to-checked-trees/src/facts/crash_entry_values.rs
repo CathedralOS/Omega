@@ -813,7 +813,13 @@ fn entry_operand_at(
                     | typed_trees::expression::BinaryOperator::LessOrEqual
                     | typed_trees::expression::BinaryOperator::Greater
                     | typed_trees::expression::BinaryOperator::GreaterOrEqual
-            ) && builtin_binary_meaning(program, machine_symbol, state_symbol, expression) =>
+            ) && (builtin_binary_meaning(program, machine_symbol, state_symbol, expression)
+                || ieee_comparison_has_entry_meaning(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    expression,
+                )) =>
         {
             // An entry identity can become a route witness. Authenticate
             // every operation before erasing its selected meaning; identical
@@ -963,6 +969,46 @@ fn entry_operand_symbol_at(
 /// predicates. Bind the name to the state's `is_self` parameter so receiver
 /// projections take the parameter path below.
 
+/// A sealed or builtin IEEE comparison is an entry predicate when its
+/// operands are. Primitive float equality is not the integer builtin, and
+/// the transition subject that captures it still has to carry the comparison
+/// the published crash guard names.
+fn ieee_comparison_has_entry_meaning(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        typed_trees::expression::BinaryOperator::Equal
+            | typed_trees::expression::BinaryOperator::NotEqual
+            | typed_trees::expression::BinaryOperator::Less
+            | typed_trees::expression::BinaryOperator::LessOrEqual
+            | typed_trees::expression::BinaryOperator::Greater
+            | typed_trees::expression::BinaryOperator::GreaterOrEqual
+    ) {
+        return false;
+    }
+    let Some((machine, state)) =
+        validation::machine_state_by_symbols(program, machine_symbol, state_symbol)
+    else {
+        return false;
+    };
+    let left = validation::expression_result_type_reference(program, machine, state, binary.left);
+    let right = validation::expression_result_type_reference(program, machine, state, binary.right);
+    validation::has_builtin_or_sealed_float_comparison_meaning(
+        program,
+        machine.symbol,
+        expression,
+        binary.operator,
+        &[left, right],
+    )
+}
+
 fn builtin_binary_meaning(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -1002,6 +1048,21 @@ fn observation_requires_write_scan(
     type_reference: typed_trees::types::TypeReferenceHandle,
     field_path: &[PlaceSegment],
 ) -> Option<bool> {
+    // A primitive IEEE value is one scalar, the same entry operand an integer
+    // parameter is. Contents classification can refuse a float domain without
+    // changing that: an immutable parameter still names its entry bits, and a
+    // mutable one still takes the write scan below through `is_mutable`.
+    if field_path.is_empty()
+        && program
+            .primitive_type_reference(
+                program
+                    .type_reference_table
+                    .peeled_type_reference(type_reference),
+            )
+            .is_some_and(|primitive| primitive.accepts_float_literal())
+    {
+        return Some(false);
+    }
     let stable = match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable,

@@ -5,6 +5,7 @@ use crate::facts::crash_calls::summary_predicates::{
     CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
     concrete_guard_scalar_value, normalize_summary_buckets, normalize_summary_guards,
     scalar_guard_is_integer_comparison, scalar_guard_proves_false, summary_boolean_value,
+    summary_closed_float_relation,
 };
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
@@ -260,27 +261,53 @@ pub(crate) fn call_argument_substitution<'program>(
                 // observation. It is not a total integer representation view,
                 // so the view carrier does not enter entry identity. Only the
                 // proved endpoints fold; any other byte leaves the route.
-                folded.or_else(|| {
-                    if expected != typed_trees::types::PrimitiveType::Bool {
-                        return None;
-                    }
-                    let Some((machine, state)) = owner else {
-                        return None;
-                    };
-                    let observed = boolean_view_observation(
-                        program,
-                        operators,
-                        semantic,
-                        machine,
-                        state,
-                        before_statement,
-                        &entry_contexts,
-                        &caller_symbols,
-                        argument,
-                        0,
-                    );
-                    observed.map(CrashPredicateExpression::Boolean)
-                })
+                folded
+                    .or_else(|| {
+                        if expected != typed_trees::types::PrimitiveType::Bool {
+                            return None;
+                        }
+                        let Some((machine, state)) = owner else {
+                            return None;
+                        };
+                        let observed = boolean_view_observation(
+                            program,
+                            operators,
+                            semantic,
+                            machine,
+                            state,
+                            before_statement,
+                            &entry_contexts,
+                            &caller_symbols,
+                            argument,
+                            0,
+                        );
+                        observed.map(CrashPredicateExpression::Boolean)
+                    })
+                    .or_else(|| {
+                        // An equal-width integer recast records the IEEE value of
+                        // those bits. f32 and f64 share this read; the crash guard
+                        // compares the recorded spelling. A missing integer leaves
+                        // the route unresolved.
+                        if !expected.accepts_float_literal() {
+                            return None;
+                        }
+                        let Some((machine, state)) = owner else {
+                            return None;
+                        };
+                        ieee_view_observation(
+                            program,
+                            operators,
+                            semantic,
+                            machine,
+                            state,
+                            before_statement,
+                            &entry_contexts,
+                            &caller_symbols,
+                            argument,
+                            0,
+                        )
+                        .map(CrashPredicateExpression::Float)
+                    })
             }));
         } else {
             values.push(None);
@@ -631,6 +658,297 @@ fn boolean_view_observation(
         typed_trees::expression::ExpressionNode::Boolean(value) => Some(*value),
         _ => None,
     }
+}
+
+/// The IEEE value of an equal-width integer view.
+///
+/// The producing recast records the entry integer's bits at the viewed
+/// carrier, `f32` or `f64`. A local copy, a match whose arms agree, and a
+/// call whose body returns one parameter all read that record. The spelling
+/// is the closed float the crash guard compares. An integer that is not a
+/// single entry value records nothing.
+fn ieee_view_observation(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+    entry_contexts: &[facts::FactContextHandle],
+    caller_symbols: &[SymbolHandle],
+    expression: ExpressionHandle,
+    depth: u32,
+) -> Option<String> {
+    if depth >= 8 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Name(path) => {
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+                || path.head_symbol != path.symbol
+            {
+                return None;
+            }
+            let Some((ordinal, local)) = program.state_local_declaration(state, path.symbol) else {
+                return None;
+            };
+            if ordinal >= before_statement || local.is_mutable || !local.initial_value.is_valid() {
+                return None;
+            }
+            ieee_view_observation(
+                program,
+                operators,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                caller_symbols,
+                local.initial_value,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            ieee_view_observation(
+                program,
+                operators,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                caller_symbols,
+                borrow.target,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            let target = ieee_view_carrier(program, cast.target_type)?;
+            let mut source = cast.value;
+            if let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+                program.expression_table.expression(source)
+                && borrow.access == language_core::ReferenceAccess::Shared
+            {
+                source = borrow.target;
+            }
+            let integer = closed_entry_integer(
+                program,
+                operators,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                caller_symbols,
+                source,
+            )?;
+            let source_type = program.primitive_type_reference(
+                validation::expression_result_type_reference(program, machine, state, source)
+                    .unwrap_or_default(),
+            )?;
+            if !source_type.is_fixed_integer()
+                || source_type.scalar_byte_size() != target.scalar_byte_size()
+            {
+                return None;
+            }
+            let admitted = crate::values::admitted_integer(
+                crate::values::integer_type(source_type)?,
+                &integer,
+            )?;
+            let bits = match admitted {
+                semantic_vocabulary::IntegerValue::Signed(value) => value as u128,
+                semantic_vocabulary::IntegerValue::Unsigned(value) => value,
+            };
+            let literal = match target {
+                typed_trees::types::PrimitiveType::F32 => {
+                    numerics::literals::FloatLiteral::from_f64(f64::from(f32::from_bits(
+                        bits as u32,
+                    )))
+                }
+                typed_trees::types::PrimitiveType::F64 => {
+                    numerics::literals::FloatLiteral::from_f64(f64::from_bits(bits as u64))
+                }
+                _ => return None,
+            };
+            Some(literal.text().to_owned())
+        }
+        typed_trees::expression::ExpressionNode::Call(call) => {
+            let actual = parameter_returned_by_call(program, call)?;
+            ieee_view_observation(
+                program,
+                operators,
+                semantic,
+                machine,
+                state,
+                before_statement,
+                entry_contexts,
+                caller_symbols,
+                actual,
+                depth + 1,
+            )
+        }
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            let mut agreed: Option<String> = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let Some(observed) = ieee_view_observation(
+                    program,
+                    operators,
+                    semantic,
+                    machine,
+                    state,
+                    before_statement,
+                    entry_contexts,
+                    caller_symbols,
+                    arm.value,
+                    depth + 1,
+                ) else {
+                    return None;
+                };
+                if agreed
+                    .as_ref()
+                    .is_some_and(|known| ieee_literal_same(known, &observed) != Some(true))
+                {
+                    return None;
+                }
+                agreed = Some(observed);
+            }
+            agreed
+        }
+        typed_trees::expression::ExpressionNode::Float(value) => Some(value.text().to_owned()),
+        _ => None,
+    }
+}
+
+fn ieee_literal_same(left: &str, right: &str) -> Option<bool> {
+    let left = numerics::literals::FloatLiteral::parse(left)?;
+    let right = numerics::literals::FloatLiteral::parse(right)?;
+    Some(left.value_f64() == right.value_f64())
+}
+
+fn ieee_view_carrier(
+    program: &dyn ::validation::CheckingInput,
+    target: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    let peeled = program.type_reference_table.peeled_type_reference(target);
+    let carrier = match program.type_reference_table.type_reference(peeled) {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+        _ => peeled,
+    };
+    let primitive = program.primitive_type_reference(carrier)?;
+    primitive.accepts_float_literal().then_some(primitive)
+}
+
+fn closed_entry_integer(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+    entry_contexts: &[facts::FactContextHandle],
+    caller_symbols: &[SymbolHandle],
+    source: ExpressionHandle,
+) -> Option<numerics::bignum::BigInt> {
+    let Some(source_type) = program.primitive_type_reference(
+        validation::expression_result_type_reference(program, machine, state, source)
+            .unwrap_or_default(),
+    ) else {
+        return None;
+    };
+    if !source_type.is_fixed_integer() {
+        return None;
+    }
+    let Some(lowered) = crate::values::lower_unit_scalar_argument(
+        program,
+        operators,
+        state,
+        before_statement,
+        source,
+        source_type,
+    ) else {
+        return None;
+    };
+    let Some(value) = crate::values::evaluate_checked_scalar(
+        &lowered,
+        &mut crate::values::PlaceScalarValues {
+            program,
+            parameters: program.state_parameters(state),
+            symbols: caller_symbols,
+            value_at_place: |place: &validation::CanonicalPlace| {
+                if let Some(statement) = program
+                    .statement_table
+                    .statement_at(state, before_statement)
+                    && crate::facts::crash_entry_values::statement_may_overwrite_place(
+                        program,
+                        machine.symbol,
+                        statement,
+                        place,
+                    )
+                {
+                    return None;
+                }
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    entry_contexts
+                        .iter()
+                        .map(|handle| semantic.contexts.get(*handle)),
+                    place,
+                )
+            },
+        },
+    ) else {
+        return None;
+    };
+    match value {
+        facts::ScalarValue::Integer(value) => Some(value),
+        facts::ScalarValue::Boolean(_) | facts::ScalarValue::Unknown => None,
+    }
+}
+
+/// A call whose body is one parameter expression carries that argument's
+/// observation. IEEE equality is not reflexive, so this transport does not
+/// ask the callee to ensure `result == value`.
+fn parameter_returned_by_call(
+    program: &dyn ::validation::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<ExpressionHandle> {
+    let (_callee, callee_state) = validation::find_machine_head(program, call.target_symbol)?;
+    let statements = program
+        .statement_table
+        .statements(callee_state.statement_nodes);
+    let [typed_trees::statement::StatementNode::Expression(returned)] = statements else {
+        return None;
+    };
+    let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(*returned)
+    else {
+        return None;
+    };
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+        || path.head_symbol != path.symbol
+    {
+        return None;
+    }
+    let parameters = program.state_parameters(callee_state);
+    let position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == path.symbol)?;
+    program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(position)
+        .copied()
 }
 
 /// The observation a call result carries when the callee ensures that result
@@ -1323,7 +1641,14 @@ pub(crate) fn refine_published_crash_routes(
                                 if builtin_meaning {
                                     summary_boolean_value(&substituted)
                                 } else {
-                                    substituted.boolean_value()
+                                    // An authored integer operator stays
+                                    // unresolved. A closed IEEE observation
+                                    // still answers its own equality: the
+                                    // recorded float spelling is the value
+                                    // the guard compares.
+                                    substituted
+                                        .boolean_value()
+                                        .or_else(|| summary_closed_float_relation(&substituted))
                                 }
                             }) {
                                 if value {
