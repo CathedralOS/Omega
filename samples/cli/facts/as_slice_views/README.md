@@ -67,6 +67,27 @@ and [call requirements](../../../../wiki/spec/proofs/contracts.md#machines-and-b
 The four-entry extent supplies a mathematical fact; descriptor construction
 cannot waive its backing loan or supply missing authority.
 
+## Measured run record
+
+Producer: the factsr1 wave's opt-level 1 `omega` built at base
+`9ff26a870215d1a351e830cacd1255a852e3dd1e`, plus a corpus runner linked from
+this worktree at the same base; host `macos_arm64`.
+
+- Root plus nine places, scratch copies, `omega run --both`: ten
+  `native exit 0` rows, each with `interp exit: 0`, zero traps.
+- `python3 tools/sample_native_gate.py --facts --filter
+  cli/facts/as_slice_views,cli/facts/borrowed_projection_cleanup --cli
+  <omega> --jobs 2`: 20/20 samples meet their documented oracle (10 here:
+  root + nine places), 27/27 intended-invalid controls match their authored
+  rejection (18 here: the nine `invalid/` twins and the nine
+  `controls/short_extent/` twins).
+- `python3 tools/corpus_gate.py --filter as_slice_views_through_` (jobs=4):
+  18 fixtures — nine `checked`, nine `rejected` at the pinned fragment
+  `cannot prove requires contract for call require_four`; 0 rejected without
+  their expected fragment, 0 fail fixtures that did not reject, 0 lost
+  successes, 0 structural moves against `tests/omega/corpus_outcomes.txt`
+  (the timed-slower rows are jobs=4/host-load noise the gate labels as such).
+
 ```sh
 python3 tools/sample_native_gate.py --filter cli/facts/as_slice_views --cli <omega> --jobs 2
 python3 tools/corpus_gate.py --filter as_slice_views_through_
