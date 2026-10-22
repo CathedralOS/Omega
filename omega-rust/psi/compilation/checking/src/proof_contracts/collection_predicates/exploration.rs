@@ -75,8 +75,6 @@ pub(crate) enum Binding {
         carrier: TypeReferenceHandle,
     },
     Boolean(bool),
-    /// A parameter outside the fragment; reading it stands down.
-    Unreadable,
 }
 
 /// The integer carrier of a type, when it is a builtin fixed integer.
@@ -727,7 +725,6 @@ pub(crate) fn evaluate(
                     carrier: Some(*carrier),
                 },
                 Binding::Boolean(value) => Value::Boolean(*value),
-                Binding::Unreadable => return Err(Stop::Unsupported),
             })
         }
         ExpressionNode::Borrow(borrow)

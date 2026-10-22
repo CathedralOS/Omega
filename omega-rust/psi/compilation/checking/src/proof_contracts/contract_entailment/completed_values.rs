@@ -158,7 +158,6 @@ fn field_projections(
         .flat_map(|member| match member {
             typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
             typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-            _ => &[],
         })
         .filter(|field| field.name.as_str() == name)
         .filter_map(|field| {

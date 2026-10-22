@@ -474,10 +474,7 @@ pub(crate) fn provider_completion_covers_writable_slots(
     if !inventory.slots.iter().all(|slot| {
         outputs.iter().any(|output| {
             let crate::borrow_contracts::ProviderOutputDestination::Parameter(position) =
-                output.destination
-            else {
-                return false;
-            };
+                output.destination;
             parameters
                 .get(position)
                 .is_some_and(|parameter| parameter.symbol == slot.origin.local_symbol)

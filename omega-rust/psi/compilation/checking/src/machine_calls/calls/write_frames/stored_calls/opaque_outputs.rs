@@ -22,9 +22,7 @@ pub(super) fn effects(
     let relation = resolve_provider_outputs(program, parameters).ok()?;
     let mut effects = Vec::new();
     for output in relation.outputs {
-        let ProviderOutputDestination::Parameter(parameter_index) = output.destination else {
-            return None;
-        };
+        let ProviderOutputDestination::Parameter(parameter_index) = output.destination;
         let parameter = &parameters[parameter_index];
         let destination = destination_source(
             program,

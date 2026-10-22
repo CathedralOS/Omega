@@ -931,7 +931,6 @@ fn receiving_projection_paths(
                 typed_trees::data::DataMember::Variant(variant) => {
                     program.data_payload_fields(variant)
                 }
-                _ => &[],
             })
         {
             let previous = prefix.len();
