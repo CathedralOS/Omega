@@ -5321,11 +5321,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     result from `true` to `false` and rejects `premise(kept)`. The other eight
     places of that sentence remain open.
     A call premise that is a static evidence argument is recorded on the
-    selected realization: `samples/cli/facts/static_evidence_premise/local`
-    exits 0 on both engines, and the caller reads `direct == true`.
-    `kept == true` stays a separate premise. Its twin supplies `NoKept`
-    instead of `YesKept` and rejects `Proof.holds(kept)`. The other eight
-    places of that sentence remain open.
+    selected realization: `samples/cli/facts/static_evidence_premise` exits 0
+    on both engines through all nine places, and the caller reads
+    `direct == true`. `kept == true` stays a separate premise. Each twin
+    supplies `NoKept` instead of `YesKept` and rejects `Proof.holds(kept)`.
     Keep
     `body_bearing_comparison/returned_boolean`: a body-wide Boolean result
     joins every normal exit, named-state destination and selected target body;
