@@ -459,22 +459,6 @@ impl ExpressionTable {
         }
     }
 
-    /// The typed `Boolean` node, or `None` for every other kind.
-    pub fn boolean_node(&self, handle: ExpressionHandle) -> Option<&bool> {
-        match self.expression(handle) {
-            ExpressionNode::Boolean(node) => Some(node),
-            _ => None,
-        }
-    }
-
-    /// The typed `String` node, or `None` for every other kind.
-    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&source::SourceBytes> {
-        match self.expression(handle) {
-            ExpressionNode::String(node) => Some(node),
-            _ => None,
-        }
-    }
-
     /// The typed `Unary` node, or `None` for every other kind.
     pub fn unary_node(&self, handle: ExpressionHandle) -> Option<&TableUnaryExpression> {
         match self.expression(handle) {
@@ -533,93 +517,12 @@ impl ExpressionTable {
         self.spans.name_path_member_symbols.span_or_empty(span)
     }
 
-    pub fn name_path_member_at_offset(
-        &self,
-        members: HandleSpan<DiagnosticName>,
-        offset: u32,
-    ) -> &DiagnosticName {
-        self.spans.name_path_members.get(members.handle_at(offset))
-    }
-
-    fn storage_path_len(&self, expression: ExpressionHandle) -> Option<u32> {
-        match self.expression(expression) {
-            ExpressionNode::Name(path) => Some(path.members.count()),
-            ExpressionNode::Indexed(indexed) => self.storage_path_len(indexed.collection),
-            ExpressionNode::Borrow(target) => self.storage_path_len(target.target),
-            _ => None,
-        }
-    }
-
-    fn storage_path_head_symbol(&self, expression: ExpressionHandle) -> SymbolHandle {
-        match self.expression(expression) {
-            ExpressionNode::Name(path) => path.head_symbol,
-            ExpressionNode::Indexed(indexed) => self.storage_path_head_symbol(indexed.collection),
-            ExpressionNode::Borrow(target) => self.storage_path_head_symbol(target.target),
-            _ => SymbolHandle::invalid(),
-        }
-    }
-
-    fn fill_storage_path_members(
-        &mut self,
-        expression: ExpressionHandle,
-        members: HandleSpan<DiagnosticName>,
-        offset: u32,
-    ) -> Option<()> {
-        match self.expression(expression).clone() {
-            ExpressionNode::Name(path) => {
-                for source_offset in 0..path.members.count() {
-                    let member = self
-                        .name_path_member_at_offset(path.members, source_offset)
-                        .clone();
-                    self.set_name_path_member_at_offset(
-                        members,
-                        offset
-                            .checked_add(source_offset)
-                            .expect("name path member span count overflow"),
-                        member,
-                    );
-                }
-                Some(())
-            }
-            ExpressionNode::Indexed(indexed) => {
-                let index = self.integer_node(indexed.index)?;
-                // An index beyond i64 cannot name a real element; treat it
-                // like any non-constant index.
-                let index = index.value_i64()?;
-                self.fill_storage_path_members(indexed.collection, members, offset)?;
-                let path_len = self.storage_path_len(indexed.collection)?;
-                let last_offset = offset
-                    .checked_add(path_len.checked_sub(1)?)
-                    .expect("name path member span count overflow");
-                let last_member = self.name_path_member_at_offset(members, last_offset);
-                let indexed_member = DiagnosticName::generated(format!("{last_member}[{index}]"));
-                self.set_name_path_member_at_offset(members, last_offset, indexed_member);
-                Some(())
-            }
-            ExpressionNode::Borrow(target) => {
-                self.fill_storage_path_members(target.target, members, offset)
-            }
-            _ => None,
-        }
-    }
-
     pub fn expression_count(&self) -> usize {
         self.nodes.expressions.len()
     }
 
-    pub fn struct_field_count(&self) -> usize {
-        self.spans.struct_fields.len()
-    }
-
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
-    }
-
-    pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&[u8]> {
-        match self.expression(handle) {
-            ExpressionNode::String(value) => Some(value.as_ref()),
-            _ => None,
-        }
     }
 }
 

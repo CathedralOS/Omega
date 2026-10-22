@@ -1,5 +1,5 @@
-//! Copying expressions, handles, name paths and struct literal fields between
-//! expression tables, including member-suffixed copies.
+//! Copying expressions, name paths and struct literal fields between expression
+//! tables.
 //!
 //! Every subtree copy runs through [`ExpressionTable::copy_subtree`]; the
 //! public entry points differ only in the [`CopySource`] they read. The walk
@@ -55,11 +55,11 @@ impl ExpressionTable {
         self.copy_subtree(CopySource::Own, expression)
     }
 
-    /// The one subtree copy behind `copy_from`, `copy_from_self` and the
-    /// expression-handle copies. Each node and span is cloned out of `source`
-    /// before anything is appended, which lets a copy read the table it
-    /// writes. The copy keeps the node's source span, authored exposure,
-    /// compiler selection partition and authored-selection occurrences.
+    /// The one subtree copy behind `copy_from` and `copy_from_self`. Each node
+    /// and span is cloned out of `source` before anything is appended, which
+    /// lets a copy read the table it writes. The copy keeps the node's source
+    /// span, authored exposure, compiler selection partition and
+    /// authored-selection occurrences.
     fn copy_subtree(
         &mut self,
         source: CopySource<'_>,
@@ -260,14 +260,6 @@ impl ExpressionTable {
         }
     }
 
-    pub fn copy_expression_handles_from_slice(
-        &mut self,
-        source: &ExpressionTable,
-        expressions: &[ExpressionHandle],
-    ) -> HandleSpan<ExpressionHandle> {
-        self.copy_expression_list(CopySource::Table(source), expressions)
-    }
-
     fn copy_expression_span(
         &mut self,
         source: CopySource<'_>,
@@ -358,151 +350,5 @@ impl ExpressionTable {
         }
 
         span
-    }
-
-    pub fn copy_name_path_members_with_member_suffix(
-        &mut self,
-        members: HandleSpan<DiagnosticName>,
-        suffix_members: HandleSpan<DiagnosticName>,
-        suffix_start_offset: u32,
-    ) -> HandleSpan<DiagnosticName> {
-        let suffix_count = suffix_members.count().saturating_sub(suffix_start_offset);
-        let span = self.reserve_name_path_members(
-            members
-                .count()
-                .checked_add(suffix_count)
-                .expect("name path member span count overflow"),
-        );
-
-        for offset in 0..members.count() {
-            let member = self
-                .spans
-                .name_path_members
-                .get(members.handle_at(offset))
-                .clone();
-            self.set_name_path_member_at_offset(span, offset, member);
-        }
-
-        for (target_offset, offset) in (suffix_start_offset..suffix_members.count()).enumerate() {
-            let member = self
-                .name_path_member_at_offset(suffix_members, offset)
-                .clone();
-            self.set_name_path_member_at_offset(
-                span,
-                members
-                    .count()
-                    .checked_add(
-                        target_offset
-                            .try_into()
-                            .expect("name path member span count overflow"),
-                    )
-                    .expect("name path member span count overflow"),
-                member,
-            );
-        }
-
-        span
-    }
-
-    pub fn insert_copy_with_member_suffix(
-        &mut self,
-        expression: ExpressionHandle,
-        suffix_members: HandleSpan<DiagnosticName>,
-        suffix_start_offset: u32,
-    ) -> ExpressionHandle {
-        if suffix_start_offset >= suffix_members.count() {
-            return expression;
-        }
-
-        let occurrences = self
-            .authored_selection_occurrences(expression)
-            .collect::<Vec<_>>();
-        let authored_exposure = self.authored_expression_exposure(expression);
-        let compiler_partition = self.compiler_selection_partition(expression);
-        let copied = match self.expression(expression).clone() {
-            ExpressionNode::Name(path) => {
-                let members = self.copy_name_path_members_with_member_suffix(
-                    path.members,
-                    suffix_members,
-                    suffix_start_offset,
-                );
-                let member_symbols = self.reserve_name_path_member_symbols(members.count());
-                self.insert(ExpressionNode::Name(TableNamePath {
-                    members,
-                    member_symbols,
-                    head_symbol: path.head_symbol,
-                    symbol: SymbolHandle::invalid(),
-                }))
-            }
-            ExpressionNode::Borrow(target) => {
-                let access = target.access;
-                let target = self.insert_copy_with_member_suffix(
-                    target.target,
-                    suffix_members,
-                    suffix_start_offset,
-                );
-                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
-                    target,
-                    access,
-                }))
-            }
-            ExpressionNode::Indexed(indexed) => self
-                .insert_indexed_expression_path_with_member_suffix(
-                    &indexed,
-                    suffix_members,
-                    suffix_start_offset,
-                )
-                .unwrap_or_else(|| self.copy_from_self(expression)),
-            _ => self.copy_from_self(expression),
-        };
-        if let Some(exposure) = authored_exposure {
-            self.set_authored_expression_exposure(copied, exposure);
-        }
-        if let Some(partition) = compiler_partition {
-            self.set_compiler_selection_partition(copied, partition);
-        }
-        self.attach_authored_selection_occurrences(copied, occurrences);
-        copied
-    }
-
-    fn insert_indexed_expression_path_with_member_suffix(
-        &mut self,
-        indexed: &TableIndexedExpression,
-        suffix_members: HandleSpan<DiagnosticName>,
-        suffix_start_offset: u32,
-    ) -> Option<ExpressionHandle> {
-        let path_len = self.storage_path_len(indexed.collection)?;
-        let suffix_count = suffix_members.count().saturating_sub(suffix_start_offset);
-        let members = self.reserve_name_path_members(
-            path_len
-                .checked_add(suffix_count)
-                .expect("name path member span count overflow"),
-        );
-        self.fill_storage_path_members(indexed.collection, members, 0)?;
-
-        for (target_offset, offset) in (suffix_start_offset..suffix_members.count()).enumerate() {
-            let member = self
-                .name_path_member_at_offset(suffix_members, offset)
-                .clone();
-            self.set_name_path_member_at_offset(
-                members,
-                path_len
-                    .checked_add(
-                        target_offset
-                            .try_into()
-                            .expect("name path member span count overflow"),
-                    )
-                    .expect("name path member span count overflow"),
-                member,
-            );
-        }
-
-        let member_symbols = self.reserve_name_path_member_symbols(members.count());
-        Some(self.insert(ExpressionNode::Name(TableNamePath {
-            members,
-            member_symbols,
-            head_symbol: self.storage_path_head_symbol(indexed.collection),
-            symbol: SymbolHandle::invalid(),
-        })))
     }
 }
