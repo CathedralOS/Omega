@@ -1277,10 +1277,12 @@ fail/core/content_conservation_wrapper_match_unproved_alternative rejected 10182
 	cannot prove ensures contract for exit from Main::split_proved at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_counted_partition_unconserved rejected 726ms expected @b794c35ad5f8+wt
 fail/core/content_issuance_consumed_constructed_claims rejected 1598ms expected @a9ae30e1c334+wt
+fail/core/content_membership_return_adapter_weaker_guarantee rejected 5761ms expected @bd134a19a5f9+wt
+	cannot prove ensures contract for exit from direct at statement 0: result in Extent::Vacant
 fail/core/content_membership_return_consumed_issuance rejected 1801ms expected @064c5aeb618a+wt
 	cannot establish call-result qualification `Ticket::Owned` in `combine`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 	callable `combine` returns content-bearing custody `Ticket::Owned` with ambiguous compatible consumed inputs `left`, `right`; retained-after-return authority requires one unambiguous owned source or an exact postcondition correspondence
-fail/core/content_membership_return_direct_adapter rejected 2017ms expected @064c5aeb618a+wt
+fail/core/content_membership_return_direct_adapter rejected 6467ms expected @bd134a19a5f9+wt
 	cannot prove ensures contract for exit from direct at statement 0: result in Extent::Vacant
 	cannot prove ensures contract for exit from direct at statement 0: Granted.content(old(&storage)) == Granted.content(&result)
 fail/core/content_membership_return_erased_provider rejected 700ms expected @064c5aeb618a+wt
@@ -10490,6 +10492,7 @@ pass/core/content_conservation_wrapper_exit checked 3399ms check-target:macos_ar
 pass/core/content_conservation_wrapper_match_exit checked 10710ms check-target:macos_arm64 @4bd2529e7559+wt
 pass/core/content_counted_partition_exit checked 3956ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/content_membership_return checked 12484ms check-target:macos_arm64 @064c5aeb618a+wt
+pass/core/content_membership_return_boundary_crossing checked 5719ms @bd134a19a5f9+wt
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/content_transform_empty_array checked 2707ms @42423ab60d61+wt
 pass/core/content_transform_ended_parent_loan checked 2815ms @42423ab60d61+wt
