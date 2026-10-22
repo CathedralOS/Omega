@@ -414,11 +414,9 @@ impl TerminalExecution<'_> {
         if grant_frame != frame {
             return Err(malformed());
         }
-        let stored = self
-            .structural_byte_storage
-            .get(&home)
-            .ok_or_else(malformed)?
-            .len();
+        if !self.structural_byte_storage.contains_key(&home) {
+            return Err(malformed());
+        }
         let covered = self
             .activation_storage
             .ledgers
