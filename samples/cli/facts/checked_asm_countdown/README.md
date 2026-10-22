@@ -178,9 +178,13 @@ status line.
 ## Pinned fixtures
 
 The row is pinned under `tests/omega/{pass,fail}/facts/checked_asm_countdown_*`:
-nine `..._exit` positives with `expected_native_exit.txt` (0) and nine
-`..._wrong_fallthrough` twins with `expected.txt`. The positives bind the same
-three x86_64 targets as the samples. `tests/omega/corpus_native_macos_x86_64.txt`
+nine `..._through_<place>_exit` positives with `expected_native_exit.txt` (0)
+and nine `..._through_<place>_rejected` twins with `expected.txt`. The twins
+are the false-fallthrough variant (`done requires eax == 1`); the canonical
+suffix is what the fact-row census counts, and the fixture directories were
+renamed to it without touching a byte of fixture or golden-row content. The
+positives bind the same three x86_64 targets as the samples.
+`tests/omega/corpus_native_macos_x86_64.txt`
 records their native rows (`built … exit:0`), which the corpus runner observed by
 launching each image on the Intel macOS host at `fa165e504cf`;
 `tests/omega/corpus_outcomes.txt` records the check rows and the nine

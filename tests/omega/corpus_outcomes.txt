@@ -2650,23 +2650,23 @@ fail/facts/case_where_equality_through_target_body_rejected rejected 4931ms expe
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3856ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_call_result_rejected rejected 3856ms expected @fb19bb8df981
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 3777ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_const_name_rejected rejected 3777ms expected @fb19bb8df981
 	cannot prove requires contract for call done from main$assembly$portable$4$entry: asm#scratch#2#eax$version$1 == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_field_wrong_fallthrough rejected 3786ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_field_rejected rejected 3786ms expected @fb19bb8df981
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#3#eax$version$1 == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_local_wrong_fallthrough rejected 3871ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_local_rejected rejected 3871ms expected @fb19bb8df981
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#2#eax$version$1 == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_match_join_wrong_fallthrough rejected 3790ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_match_join_rejected rejected 3790ms expected @fb19bb8df981
 	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: asm#scratch#32#eax$version$1 == 1 (needs fact `asm#scratch#32#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_other_machine_wrong_fallthrough rejected 3842ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 3842ms expected @fb19bb8df981
 	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#13#eax$version$1 == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_other_state_wrong_fallthrough rejected 3843ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_other_state_rejected rejected 3843ms expected @fb19bb8df981
 	cannot prove requires contract for call done from main$assembly$portable$4$next: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_parameter_wrong_fallthrough rejected 3837ms expected @fb19bb8df981
+fail/facts/checked_asm_countdown_through_parameter_rejected rejected 3837ms expected @fb19bb8df981
 	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-fail/facts/checked_asm_countdown_target_body_wrong_fallthrough rejected 2733ms expected @fa165e504cfa
+fail/facts/checked_asm_countdown_through_target_body_rejected rejected 2733ms expected @fa165e504cfa
 	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: asm#scratch#47#eax$version$1 == 1 (needs fact `asm#scratch#47#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: asm#scratch#87#eax$version$1 == 1 (needs fact `asm#scratch#87#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
@@ -11589,15 +11589,15 @@ pass/facts/case_where_equality_through_other_machine_exit checked 5621ms check-t
 pass/facts/case_where_equality_through_other_state_exit checked 5557ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_parameter_exit checked 5744ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_target_body_exit checked 5710ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/checked_asm_countdown_call_result_exit checked 8355ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_const_name_exit checked 8324ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_field_exit checked 8441ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_local_exit checked 8289ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_match_join_exit checked 8356ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_other_machine_exit checked 8331ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_other_state_exit checked 8165ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_parameter_exit checked 8233ms check-target:linux_x86_64 @fb19bb8df981
-pass/facts/checked_asm_countdown_target_body_exit checked 8244ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_call_result_exit checked 8355ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_const_name_exit checked 8324ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_field_exit checked 8441ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_local_exit checked 8289ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_match_join_exit checked 8356ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_other_machine_exit checked 8331ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_other_state_exit checked 8165ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_parameter_exit checked 8233ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_through_target_body_exit checked 8244ms check-target:linux_x86_64 @fb19bb8df981
 pass/facts/checked_asm_flag_snapshot checked 13912ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_alias_exit checked 11575ms check-target:linux_x86_64 @7df3e6a600f1+wt
 pass/facts/checked_asm_flag_snapshot_backedge_exit checked 11852ms check-target:linux_x86_64 @7df3e6a600f1+wt

@@ -8,13 +8,13 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 16, "jobs": "1", "load1_end": 10.89, "load1_start": 12.57, "machine": "x86_64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-pass/facts/checked_asm_countdown_call_result_exit built 4162ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_const_name_exit built 3901ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_field_exit built 3839ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_local_exit built 3703ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_match_join_exit built 3607ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_other_machine_exit built 3516ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_other_state_exit built 3477ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_parameter_exit built 3475ms exit:0 @fa165e504cfa
-pass/facts/checked_asm_countdown_target_body_exit built 3543ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_call_result_exit built 4162ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_const_name_exit built 3901ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_field_exit built 3839ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_local_exit built 3703ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_match_join_exit built 3607ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_other_machine_exit built 3516ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_other_state_exit built 3477ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_parameter_exit built 3475ms exit:0 @fa165e504cfa
+pass/facts/checked_asm_countdown_through_target_body_exit built 3543ms exit:0 @fa165e504cfa
 pass/memory/bump_allocator_canary built 10969ms @208d6107f46d+wt
