@@ -84,15 +84,6 @@ impl std::fmt::Debug for SymbolNameStorage {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum SymbolNameStorageKind {
-    #[default]
-    Missing,
-    Source,
-    Static,
-    Owned,
-}
-
 impl SymbolName {
     pub fn from_ref(name: SymbolNameRef<'_>) -> Self {
         Self {
@@ -146,18 +137,6 @@ impl SymbolName {
             SymbolNameStorage::OwnedSource { value, .. } => value.as_ref(),
             SymbolNameStorage::Static(value) => value,
             SymbolNameStorage::Owned(value) => value.as_ref(),
-        }
-    }
-
-    pub fn storage_kind(&self) -> SymbolNameStorageKind {
-        match self.storage {
-            SymbolNameStorage::Missing => SymbolNameStorageKind::Missing,
-            SymbolNameStorage::Source(_) | SymbolNameStorage::SourceSlice { .. } => {
-                SymbolNameStorageKind::Source
-            }
-            SymbolNameStorage::OwnedSource { .. } => SymbolNameStorageKind::Source,
-            SymbolNameStorage::Static(_) => SymbolNameStorageKind::Static,
-            SymbolNameStorage::Owned(_) => SymbolNameStorageKind::Owned,
         }
     }
 

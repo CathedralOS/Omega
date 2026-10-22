@@ -99,14 +99,6 @@ impl SourceScopedTopLevelBinding {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct SymbolNameStorageCounts {
-    pub missing: usize,
-    pub source_names: usize,
-    pub static_names: usize,
-    pub owned_names: usize,
-}
-
 /// Outcome after declaration eligibility and source lookup precedence.
 /// Ambiguity must remain distinct from absence when composing static names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

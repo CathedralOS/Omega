@@ -24,11 +24,11 @@ pub use builtin::{
 };
 pub use fast_map::{BuildSymbolHasher, SymbolHasher, SymbolKeyMap, SymbolMap};
 pub use symbol::kind::SymbolKind;
-pub use symbol::name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
+pub use symbol::name::{SymbolName, SymbolNameRef};
 pub use symbol::path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{
-    JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolNameStorageCounts, SymbolTable,
+    JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolTable,
     SymbolTableAppender, SymbolTableBuilder, SymbolTableExtension, same_semantic_name,
 };
 
