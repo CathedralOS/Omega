@@ -1,0 +1,1895 @@
+{
+  "decision": "not retained; CPU benefit unresolved under measured contention",
+  "baseline": "c1c6bc8cb8ec886f645976a82e496d4191937339",
+  "final_experimental_producer": "8379eac881803d0546dc3f3b3777dc2109aac811",
+  "parser": {
+    "syntax": {
+      "files": 463,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 205625,
+        "requested_bytes": 63456771,
+        "live_requested_bytes": 30745944
+      },
+      "candidate": {
+        "allocation_requests": 199237,
+        "requested_bytes": 63039843,
+        "live_requested_bytes": 30745944
+      }
+    },
+    "lookahead": {
+      "files": 1792,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 797848,
+        "requested_bytes": 212660373,
+        "live_requested_bytes": 104515106
+      },
+      "candidate": {
+        "allocation_requests": 774021,
+        "requested_bytes": 211156277,
+        "live_requested_bytes": 104515106
+      }
+    }
+  },
+  "assembly": {
+    "unique": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 5412022,
+        "requested_bytes": 2179412884
+      },
+      "candidate": {
+        "allocation_requests": 5263258,
+        "requested_bytes": 2164077780
+      }
+    },
+    "shared": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 5471364,
+        "requested_bytes": 2187919337
+      },
+      "candidate": {
+        "allocation_requests": 5322600,
+        "requested_bytes": 2172584233
+      }
+    }
+  },
+  "timing": [
+    {
+      "capture": "timing.json",
+      "scope": "single-source context",
+      "allocator": "System",
+      "labels": {
+        "baseline": "original",
+        "candidate": "context"
+      },
+      "summary": {
+        "baseline": {
+          "min_ms": 24.172541,
+          "median_ms": 26.065292,
+          "mean_ms": 27.070867862227324,
+          "max_ms": 228.946208,
+          "trials": 871
+        },
+        "candidate": {
+          "min_ms": 24.58575,
+          "median_ms": 26.415666,
+          "mean_ms": 27.021879483606558,
+          "max_ms": 53.51925,
+          "trials": 854
+        }
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "producer": "baseline",
+          "load_before": [
+            19.6142578125,
+            24.2734375,
+            30.1572265625
+          ],
+          "load_after": [
+            18.52392578125,
+            23.9697265625,
+            30.015625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24580917,
+          "quiet_reached": true,
+          "median_ns": 25939729.5,
+          "mean_ns": 26245341.638888888,
+          "max_ns": 53157458,
+          "trials": 180
+        },
+        {
+          "round": 0,
+          "producer": "candidate",
+          "load_before": [
+            18.52392578125,
+            23.9697265625,
+            30.015625
+          ],
+          "load_after": [
+            17.60107421875,
+            23.68798828125,
+            29.88037109375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 25163667,
+          "quiet_reached": true,
+          "median_ns": 26364895.5,
+          "mean_ns": 27009807.941666666,
+          "max_ns": 48913750,
+          "trials": 120
+        },
+        {
+          "round": 1,
+          "producer": "candidate",
+          "load_before": [
+            17.60107421875,
+            23.68798828125,
+            29.88037109375
+          ],
+          "load_after": [
+            16.671875,
+            23.39404296875,
+            29.740234375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24585750,
+          "quiet_reached": true,
+          "median_ns": 26345375.0,
+          "mean_ns": 26641857.279141106,
+          "max_ns": 53519250,
+          "trials": 326
+        },
+        {
+          "round": 1,
+          "producer": "baseline",
+          "load_before": [
+            16.671875,
+            23.39404296875,
+            29.740234375
+          ],
+          "load_after": [
+            14.23974609375,
+            22.52490234375,
+            29.31884765625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24172541,
+          "quiet_reached": true,
+          "median_ns": 26003584,
+          "mean_ns": 26628383.894484412,
+          "max_ns": 54264791,
+          "trials": 417
+        },
+        {
+          "round": 2,
+          "producer": "baseline",
+          "load_before": [
+            14.23974609375,
+            22.52490234375,
+            29.31884765625
+          ],
+          "load_after": [
+            14.23974609375,
+            22.52490234375,
+            29.31884765625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24462375,
+          "quiet_reached": true,
+          "median_ns": 25933584,
+          "mean_ns": 26516826.751633987,
+          "max_ns": 49974750,
+          "trials": 153
+        },
+        {
+          "round": 2,
+          "producer": "candidate",
+          "load_before": [
+            14.23974609375,
+            22.52490234375,
+            29.31884765625
+          ],
+          "load_after": [
+            13.49951171875,
+            22.23388671875,
+            29.17626953125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24613125,
+          "quiet_reached": true,
+          "median_ns": 26381750.0,
+          "mean_ns": 27107847.648809522,
+          "max_ns": 53035000,
+          "trials": 168
+        },
+        {
+          "round": 3,
+          "producer": "candidate",
+          "load_before": [
+            13.49951171875,
+            22.23388671875,
+            29.17626953125
+          ],
+          "load_after": [
+            12.66650390625,
+            21.765625,
+            28.92822265625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 25111875,
+          "quiet_reached": true,
+          "median_ns": 26555479.5,
+          "mean_ns": 27483934.366666667,
+          "max_ns": 50237541,
+          "trials": 240
+        },
+        {
+          "round": 3,
+          "producer": "baseline",
+          "load_before": [
+            12.66650390625,
+            21.765625,
+            28.92822265625
+          ],
+          "load_after": [
+            12.66650390625,
+            21.765625,
+            28.92822265625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24759250,
+          "quiet_reached": true,
+          "median_ns": 27822458,
+          "mean_ns": 30524411.867768597,
+          "max_ns": 228946208,
+          "trials": 121
+        }
+      ],
+      "binary_hashes": {
+        "baseline": "6fcccb52755140b538329af8a7278e636a804904e88e420ffb18094e6116ead7",
+        "candidate": "47780611ada808326ec5f67390451adcfb57ebb1b02bfc13cce2ae6282227def"
+      }
+    },
+    {
+      "capture": "timing-direct.json",
+      "scope": "single-source direct",
+      "allocator": "System",
+      "labels": {
+        "baseline": "original",
+        "context": "context",
+        "candidate": "direct"
+      },
+      "summary": {
+        "baseline": {
+          "min_ms": 23.673959,
+          "median_ms": 40.685875,
+          "mean_ms": 40.928257969082125,
+          "max_ms": 274.232292,
+          "trials": 1035
+        },
+        "context": {
+          "min_ms": 23.76425,
+          "median_ms": 38.570167,
+          "mean_ms": 37.90191008438409,
+          "max_ms": 74.555167,
+          "trials": 1031
+        },
+        "candidate": {
+          "min_ms": 23.581959,
+          "median_ms": 39.49325,
+          "mean_ms": 39.449903292592595,
+          "max_ms": 230.659375,
+          "trials": 810
+        }
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "producer": "baseline",
+          "load_before": [
+            31.7548828125,
+            37.173828125,
+            34.78076171875
+          ],
+          "load_after": [
+            29.6123046875,
+            36.6396484375,
+            34.60595703125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23673959,
+          "quiet_reached": true,
+          "median_ns": 37451979.0,
+          "mean_ns": 38433551.78125,
+          "max_ns": 59095667,
+          "trials": 160
+        },
+        {
+          "round": 0,
+          "producer": "context",
+          "load_before": [
+            29.6123046875,
+            36.6396484375,
+            34.60595703125
+          ],
+          "load_after": [
+            28.56640625,
+            36.2021484375,
+            34.47509765625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24022250,
+          "quiet_reached": true,
+          "median_ns": 34399584,
+          "mean_ns": 36508290.06844106,
+          "max_ns": 63329292,
+          "trials": 263
+        },
+        {
+          "round": 0,
+          "producer": "candidate",
+          "load_before": [
+            28.56640625,
+            36.2021484375,
+            34.47509765625
+          ],
+          "load_after": [
+            29.16162109375,
+            36.19873046875,
+            34.48388671875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 25682417,
+          "quiet_reached": true,
+          "median_ns": 45340271.0,
+          "mean_ns": 45242365.052083336,
+          "max_ns": 63453500,
+          "trials": 96
+        },
+        {
+          "round": 1,
+          "producer": "context",
+          "load_before": [
+            29.16162109375,
+            36.19873046875,
+            34.48388671875
+          ],
+          "load_after": [
+            27.13427734375,
+            35.54638671875,
+            34.27294921875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23869833,
+          "quiet_reached": true,
+          "median_ns": 36556833,
+          "mean_ns": 36297020.08637874,
+          "max_ns": 62993500,
+          "trials": 301
+        },
+        {
+          "round": 1,
+          "producer": "candidate",
+          "load_before": [
+            27.13427734375,
+            35.54638671875,
+            34.27294921875
+          ],
+          "load_after": [
+            25.28125,
+            35.0224609375,
+            34.09521484375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23581959,
+          "quiet_reached": true,
+          "median_ns": 25736625,
+          "mean_ns": 28133778.485380117,
+          "max_ns": 44807375,
+          "trials": 171
+        },
+        {
+          "round": 1,
+          "producer": "baseline",
+          "load_before": [
+            25.28125,
+            35.0224609375,
+            34.09521484375
+          ],
+          "load_after": [
+            25.25830078125,
+            34.85595703125,
+            34.04150390625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 25185208,
+          "quiet_reached": true,
+          "median_ns": 28280042,
+          "mean_ns": 37514668.010526314,
+          "max_ns": 274232292,
+          "trials": 95
+        },
+        {
+          "round": 2,
+          "producer": "candidate",
+          "load_before": [
+            25.25830078125,
+            34.85595703125,
+            34.04150390625
+          ],
+          "load_after": [
+            24.9169921875,
+            34.62548828125,
+            33.96484375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 26391750,
+          "quiet_reached": true,
+          "median_ns": 44385250,
+          "mean_ns": 43451175.96116505,
+          "max_ns": 61479791,
+          "trials": 103
+        },
+        {
+          "round": 2,
+          "producer": "baseline",
+          "load_before": [
+            24.9169921875,
+            34.62548828125,
+            33.96484375
+          ],
+          "load_after": [
+            25.48388671875,
+            34.58154296875,
+            33.953125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 25605417,
+          "quiet_reached": true,
+          "median_ns": 41893500,
+          "mean_ns": 41691852.438709676,
+          "max_ns": 59357792,
+          "trials": 155
+        },
+        {
+          "round": 2,
+          "producer": "context",
+          "load_before": [
+            25.48388671875,
+            34.58154296875,
+            33.953125
+          ],
+          "load_after": [
+            27.52685546875,
+            34.85400390625,
+            34.052734375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 28723250,
+          "quiet_reached": true,
+          "median_ns": 41460250,
+          "mean_ns": 41929157.3592233,
+          "max_ns": 74555167,
+          "trials": 103
+        },
+        {
+          "round": 3,
+          "producer": "candidate",
+          "load_before": [
+            27.52685546875,
+            34.85400390625,
+            34.052734375
+          ],
+          "load_after": [
+            27.06396484375,
+            34.5126953125,
+            33.94091796875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 26809834,
+          "quiet_reached": true,
+          "median_ns": 42304291.5,
+          "mean_ns": 42755785.39823009,
+          "max_ns": 75042667,
+          "trials": 226
+        },
+        {
+          "round": 3,
+          "producer": "context",
+          "load_before": [
+            27.06396484375,
+            34.5126953125,
+            33.94091796875
+          ],
+          "load_after": [
+            27.69921875,
+            34.5205078125,
+            33.94677734375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 24100667,
+          "quiet_reached": true,
+          "median_ns": 43209625,
+          "mean_ns": 42880863.36434109,
+          "max_ns": 64733916,
+          "trials": 129
+        },
+        {
+          "round": 3,
+          "producer": "baseline",
+          "load_before": [
+            27.69921875,
+            34.5205078125,
+            33.94677734375
+          ],
+          "load_after": [
+            27.953125,
+            34.35400390625,
+            33.89404296875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 26630875,
+          "quiet_reached": true,
+          "median_ns": 42747750,
+          "mean_ns": 42898141.40585774,
+          "max_ns": 62281834,
+          "trials": 239
+        },
+        {
+          "round": 4,
+          "producer": "context",
+          "load_before": [
+            27.953125,
+            34.35400390625,
+            33.89404296875
+          ],
+          "load_after": [
+            27.15576171875,
+            34.08203125,
+            33.80078125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 26991834,
+          "quiet_reached": true,
+          "median_ns": 38942271.0,
+          "mean_ns": 39306183.26530612,
+          "max_ns": 53983333,
+          "trials": 98
+        },
+        {
+          "round": 4,
+          "producer": "baseline",
+          "load_before": [
+            27.15576171875,
+            34.08203125,
+            33.80078125
+          ],
+          "load_after": [
+            25.48828125,
+            33.50146484375,
+            33.59814453125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 26003292,
+          "quiet_reached": true,
+          "median_ns": 40944166,
+          "mean_ns": 41158405.48017621,
+          "max_ns": 69235375,
+          "trials": 227
+        },
+        {
+          "round": 4,
+          "producer": "candidate",
+          "load_before": [
+            25.48828125,
+            33.50146484375,
+            33.59814453125
+          ],
+          "load_after": [
+            24.88818359375,
+            33.24365234375,
+            33.50634765625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 27601042,
+          "quiet_reached": true,
+          "median_ns": 41542167,
+          "mean_ns": 44909330.967479676,
+          "max_ns": 230659375,
+          "trials": 123
+        },
+        {
+          "round": 5,
+          "producer": "baseline",
+          "load_before": [
+            24.88818359375,
+            33.24365234375,
+            33.50634765625
+          ],
+          "load_after": [
+            23.37548828125,
+            32.791015625,
+            33.3447265625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23745833,
+          "quiet_reached": true,
+          "median_ns": 37455250,
+          "mean_ns": 41444240.77987421,
+          "max_ns": 136793500,
+          "trials": 159
+        },
+        {
+          "round": 5,
+          "producer": "candidate",
+          "load_before": [
+            23.37548828125,
+            32.791015625,
+            33.3447265625
+          ],
+          "load_after": [
+            22.70458984375,
+            32.49560546875,
+            33.23681640625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23781542,
+          "quiet_reached": true,
+          "median_ns": 33741417,
+          "mean_ns": 34485188.65934066,
+          "max_ns": 51384125,
+          "trials": 91
+        },
+        {
+          "round": 5,
+          "producer": "context",
+          "load_before": [
+            22.70458984375,
+            32.49560546875,
+            33.23681640625
+          ],
+          "load_after": [
+            22.08740234375,
+            32.205078125,
+            33.1298828125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23764250,
+          "quiet_reached": true,
+          "median_ns": 34659083,
+          "mean_ns": 35382813.291970804,
+          "max_ns": 74276792,
+          "trials": 137
+        }
+      ],
+      "binary_hashes": {
+        "baseline": "6fcccb52755140b538329af8a7278e636a804904e88e420ffb18094e6116ead7",
+        "context": "47780611ada808326ec5f67390451adcfb57ebb1b02bfc13cce2ae6282227def",
+        "candidate": "9992d289178ace4e8f70050ad806011a9dbd523a3a7f7f55ef7d1844fd99828b"
+      }
+    },
+    {
+      "capture": "timing-static.json",
+      "scope": "single-source static callback",
+      "allocator": "System",
+      "labels": {
+        "baseline": "original",
+        "context": "direct",
+        "candidate": "static callback"
+      },
+      "summary": {
+        "baseline": {
+          "min_ms": 22.531959,
+          "median_ms": 31.84775,
+          "mean_ms": 32.75472010630942,
+          "max_ms": 90.004958,
+          "trials": 1157
+        },
+        "context": {
+          "min_ms": 22.757417,
+          "median_ms": 33.833459,
+          "mean_ms": 34.436511651762686,
+          "max_ms": 91.833333,
+          "trials": 1163
+        },
+        "candidate": {
+          "min_ms": 22.987334,
+          "median_ms": 32.510125,
+          "mean_ms": 33.526740269423556,
+          "max_ms": 106.281625,
+          "trials": 798
+        }
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "producer": "baseline",
+          "load_before": [
+            21.1533203125,
+            29.962890625,
+            32.21728515625
+          ],
+          "load_after": [
+            22.1015625,
+            30.01318359375,
+            32.2216796875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22702875,
+          "quiet_reached": true,
+          "median_ns": 34590792,
+          "mean_ns": 36641952.87912088,
+          "max_ns": 86896000,
+          "trials": 91
+        },
+        {
+          "round": 0,
+          "producer": "context",
+          "load_before": [
+            22.1015625,
+            30.01318359375,
+            32.2216796875
+          ],
+          "load_after": [
+            22.73388671875,
+            30.0126953125,
+            32.20849609375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23025250,
+          "quiet_reached": true,
+          "median_ns": 34000875.0,
+          "mean_ns": 35786110.85714286,
+          "max_ns": 91833333,
+          "trials": 224
+        },
+        {
+          "round": 0,
+          "producer": "candidate",
+          "load_before": [
+            22.73388671875,
+            30.0126953125,
+            32.20849609375
+          ],
+          "load_after": [
+            22.3544921875,
+            29.81298828125,
+            32.125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23167167,
+          "quiet_reached": true,
+          "median_ns": 32893250.5,
+          "mean_ns": 32421185.9,
+          "max_ns": 50175917,
+          "trials": 100
+        },
+        {
+          "round": 1,
+          "producer": "context",
+          "load_before": [
+            22.3544921875,
+            29.81298828125,
+            32.125
+          ],
+          "load_after": [
+            22.33447265625,
+            29.56982421875,
+            32.01171875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22789917,
+          "quiet_reached": true,
+          "median_ns": 34147458,
+          "mean_ns": 34958393.47257384,
+          "max_ns": 57787334,
+          "trials": 237
+        },
+        {
+          "round": 1,
+          "producer": "candidate",
+          "load_before": [
+            22.33447265625,
+            29.56982421875,
+            32.01171875
+          ],
+          "load_after": [
+            23.8291015625,
+            29.75927734375,
+            32.06396484375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23265750,
+          "quiet_reached": true,
+          "median_ns": 33608625,
+          "mean_ns": 34788407.46456693,
+          "max_ns": 106281625,
+          "trials": 127
+        },
+        {
+          "round": 1,
+          "producer": "baseline",
+          "load_before": [
+            23.8291015625,
+            29.75927734375,
+            32.06396484375
+          ],
+          "load_after": [
+            23.8427734375,
+            29.66357421875,
+            32.0166015625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22817458,
+          "quiet_reached": true,
+          "median_ns": 33486271.0,
+          "mean_ns": 33738570.78571428,
+          "max_ns": 68352333,
+          "trials": 182
+        },
+        {
+          "round": 2,
+          "producer": "candidate",
+          "load_before": [
+            23.8427734375,
+            29.66357421875,
+            32.0166015625
+          ],
+          "load_after": [
+            23.21435546875,
+            29.4365234375,
+            31.92236328125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23304459,
+          "quiet_reached": true,
+          "median_ns": 34364354.0,
+          "mean_ns": 34684219.5505618,
+          "max_ns": 84369042,
+          "trials": 178
+        },
+        {
+          "round": 2,
+          "producer": "baseline",
+          "load_before": [
+            23.21435546875,
+            29.4365234375,
+            31.92236328125
+          ],
+          "load_after": [
+            22.55615234375,
+            29.19677734375,
+            31.82275390625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22606084,
+          "quiet_reached": true,
+          "median_ns": 32161166.5,
+          "mean_ns": 32438886.725,
+          "max_ns": 47249917,
+          "trials": 160
+        },
+        {
+          "round": 2,
+          "producer": "context",
+          "load_before": [
+            22.55615234375,
+            29.19677734375,
+            31.82275390625
+          ],
+          "load_after": [
+            22.72607421875,
+            29.02294921875,
+            31.73095703125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22757417,
+          "quiet_reached": true,
+          "median_ns": 33063083.5,
+          "mean_ns": 33084507.352941178,
+          "max_ns": 50719417,
+          "trials": 340
+        },
+        {
+          "round": 3,
+          "producer": "candidate",
+          "load_before": [
+            22.72607421875,
+            29.02294921875,
+            31.73095703125
+          ],
+          "load_after": [
+            22.74755859375,
+            28.9228515625,
+            31.6796875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23314542,
+          "quiet_reached": true,
+          "median_ns": 33552896.0,
+          "mean_ns": 33837197.11702128,
+          "max_ns": 54362208,
+          "trials": 94
+        },
+        {
+          "round": 3,
+          "producer": "context",
+          "load_before": [
+            22.74755859375,
+            28.9228515625,
+            31.6796875
+          ],
+          "load_after": [
+            21.806640625,
+            28.625,
+            31.55810546875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22935959,
+          "quiet_reached": true,
+          "median_ns": 34333792,
+          "mean_ns": 35279923.44966443,
+          "max_ns": 61886416,
+          "trials": 149
+        },
+        {
+          "round": 3,
+          "producer": "baseline",
+          "load_before": [
+            21.806640625,
+            28.625,
+            31.55810546875
+          ],
+          "load_after": [
+            21.42138671875,
+            28.431640625,
+            31.47265625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22577250,
+          "quiet_reached": true,
+          "median_ns": 33899791,
+          "mean_ns": 34815921.69172932,
+          "max_ns": 54755375,
+          "trials": 133
+        },
+        {
+          "round": 4,
+          "producer": "context",
+          "load_before": [
+            21.42138671875,
+            28.431640625,
+            31.47265625
+          ],
+          "load_after": [
+            20.74658203125,
+            28.17529296875,
+            31.3642578125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22962375,
+          "quiet_reached": true,
+          "median_ns": 34909125,
+          "mean_ns": 35722893.172413796,
+          "max_ns": 64837583,
+          "trials": 87
+        },
+        {
+          "round": 4,
+          "producer": "baseline",
+          "load_before": [
+            20.74658203125,
+            28.17529296875,
+            31.3642578125
+          ],
+          "load_after": [
+            19.4365234375,
+            27.6572265625,
+            31.14306640625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22531959,
+          "quiet_reached": true,
+          "median_ns": 26333458,
+          "mean_ns": 30271374.90909091,
+          "max_ns": 90004958,
+          "trials": 297
+        },
+        {
+          "round": 4,
+          "producer": "candidate",
+          "load_before": [
+            19.4365234375,
+            27.6572265625,
+            31.14306640625
+          ],
+          "load_after": [
+            18.2802734375,
+            27.28076171875,
+            30.98974609375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22987334,
+          "quiet_reached": true,
+          "median_ns": 30421312.5,
+          "mean_ns": 31707923.40952381,
+          "max_ns": 82195625,
+          "trials": 210
+        },
+        {
+          "round": 5,
+          "producer": "baseline",
+          "load_before": [
+            18.2802734375,
+            27.28076171875,
+            30.98974609375
+          ],
+          "load_after": [
+            17.4072265625,
+            26.79443359375,
+            30.7734375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22613208,
+          "quiet_reached": true,
+          "median_ns": 31768708.5,
+          "mean_ns": 32690597.81972789,
+          "max_ns": 55323500,
+          "trials": 294
+        },
+        {
+          "round": 5,
+          "producer": "candidate",
+          "load_before": [
+            17.4072265625,
+            26.79443359375,
+            30.7734375
+          ],
+          "load_after": [
+            17.4072265625,
+            26.79443359375,
+            30.7734375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23271625,
+          "quiet_reached": true,
+          "median_ns": 33070667,
+          "mean_ns": 34617313.16853932,
+          "max_ns": 80695833,
+          "trials": 89
+        },
+        {
+          "round": 5,
+          "producer": "context",
+          "load_before": [
+            17.4072265625,
+            26.79443359375,
+            30.7734375
+          ],
+          "load_after": [
+            17.61474609375,
+            26.68115234375,
+            30.7099609375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22846333,
+          "quiet_reached": true,
+          "median_ns": 32344187.5,
+          "mean_ns": 32818271.15873016,
+          "max_ns": 50392792,
+          "trials": 126
+        }
+      ],
+      "binary_hashes": {
+        "baseline": "6fcccb52755140b538329af8a7278e636a804904e88e420ffb18094e6116ead7",
+        "context": "9992d289178ace4e8f70050ad806011a9dbd523a3a7f7f55ef7d1844fd99828b",
+        "candidate": "1d34c329c477c2549f2a2541f2350f57c031e8ada81b50c03b262a47c1caccf7"
+      }
+    },
+    {
+      "capture": "timing-inline.json",
+      "scope": "single-source inline",
+      "allocator": "System",
+      "labels": {
+        "baseline": "original",
+        "context": "static callback",
+        "candidate": "inline"
+      },
+      "summary": {
+        "baseline": {
+          "min_ms": 21.844167,
+          "median_ms": 25.001584,
+          "mean_ms": 29.94578244217687,
+          "max_ms": 136.545542,
+          "trials": 1323
+        },
+        "context": {
+          "min_ms": 22.743375,
+          "median_ms": 32.419417,
+          "mean_ms": 33.61924188824214,
+          "max_ms": 131.705375,
+          "trials": 859
+        },
+        "candidate": {
+          "min_ms": 22.037917,
+          "median_ms": 23.477292,
+          "mean_ms": 30.53255579001135,
+          "max_ms": 110.360917,
+          "trials": 881
+        }
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "producer": "baseline",
+          "load_before": [
+            7.9541015625,
+            18.376953125,
+            25.43896484375
+          ],
+          "load_after": [
+            7.95751953125,
+            18.20458984375,
+            25.33642578125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 21844167,
+          "quiet_reached": true,
+          "median_ns": 22369749.5,
+          "mean_ns": 22458920.60055866,
+          "max_ns": 33550291,
+          "trials": 358
+        },
+        {
+          "round": 0,
+          "producer": "context",
+          "load_before": [
+            7.95751953125,
+            18.20458984375,
+            25.33642578125
+          ],
+          "load_after": [
+            7.88330078125,
+            17.8515625,
+            25.12744140625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22760292,
+          "quiet_reached": true,
+          "median_ns": 23383541.5,
+          "mean_ns": 24506245.922764227,
+          "max_ns": 56303875,
+          "trials": 246
+        },
+        {
+          "round": 0,
+          "producer": "candidate",
+          "load_before": [
+            7.88330078125,
+            17.8515625,
+            25.12744140625
+          ],
+          "load_after": [
+            7.88330078125,
+            17.8515625,
+            25.12744140625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22252500,
+          "quiet_reached": true,
+          "median_ns": 22538291,
+          "mean_ns": 22584549.78787879,
+          "max_ns": 25588542,
+          "trials": 165
+        },
+        {
+          "round": 1,
+          "producer": "context",
+          "load_before": [
+            7.88330078125,
+            17.8515625,
+            25.12744140625
+          ],
+          "load_after": [
+            8.052734375,
+            17.72119140625,
+            25.03857421875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22743375,
+          "quiet_reached": true,
+          "median_ns": 23629959,
+          "mean_ns": 24595815.0070922,
+          "max_ns": 34733875,
+          "trials": 141
+        },
+        {
+          "round": 1,
+          "producer": "candidate",
+          "load_before": [
+            8.052734375,
+            17.72119140625,
+            25.03857421875
+          ],
+          "load_after": [
+            7.88818359375,
+            17.5263671875,
+            24.9267578125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22037917,
+          "quiet_reached": true,
+          "median_ns": 22624458.5,
+          "mean_ns": 23076546.615384616,
+          "max_ns": 46860083,
+          "trials": 312
+        },
+        {
+          "round": 1,
+          "producer": "baseline",
+          "load_before": [
+            7.88818359375,
+            17.5263671875,
+            24.9267578125
+          ],
+          "load_after": [
+            7.49658203125,
+            17.28515625,
+            24.7978515625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22264542,
+          "quiet_reached": true,
+          "median_ns": 23294271.0,
+          "mean_ns": 27343031.275862068,
+          "max_ns": 136545542,
+          "trials": 116
+        },
+        {
+          "round": 2,
+          "producer": "candidate",
+          "load_before": [
+            7.49658203125,
+            17.28515625,
+            24.7978515625
+          ],
+          "load_after": [
+            7.37646484375,
+            17.09765625,
+            24.6875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23120292,
+          "quiet_reached": true,
+          "median_ns": 30026166.5,
+          "mean_ns": 34109192.4680851,
+          "max_ns": 104461250,
+          "trials": 94
+        },
+        {
+          "round": 2,
+          "producer": "baseline",
+          "load_before": [
+            7.37646484375,
+            17.09765625,
+            24.6875
+          ],
+          "load_after": [
+            7.779296875,
+            16.86328125,
+            24.51513671875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22376708,
+          "quiet_reached": true,
+          "median_ns": 25241187.5,
+          "mean_ns": 27610278.354066987,
+          "max_ns": 69550834,
+          "trials": 418
+        },
+        {
+          "round": 2,
+          "producer": "context",
+          "load_before": [
+            7.779296875,
+            16.86328125,
+            24.51513671875
+          ],
+          "load_after": [
+            8.59765625,
+            16.8818359375,
+            24.4765625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23337875,
+          "quiet_reached": true,
+          "median_ns": 40145062.5,
+          "mean_ns": 42404884.69014084,
+          "max_ns": 131705375,
+          "trials": 142
+        },
+        {
+          "round": 3,
+          "producer": "candidate",
+          "load_before": [
+            8.59765625,
+            16.8818359375,
+            24.4765625
+          ],
+          "load_after": [
+            9.99072265625,
+            17.033203125,
+            24.4853515625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 30456417,
+          "quiet_reached": true,
+          "median_ns": 41173520.5,
+          "mean_ns": 41154516.95348837,
+          "max_ns": 54911458,
+          "trials": 86
+        },
+        {
+          "round": 3,
+          "producer": "context",
+          "load_before": [
+            9.99072265625,
+            17.033203125,
+            24.4853515625
+          ],
+          "load_after": [
+            10.3916015625,
+            16.9990234375,
+            24.4296875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 27438000,
+          "quiet_reached": true,
+          "median_ns": 39285666,
+          "mean_ns": 39867820.4137931,
+          "max_ns": 95471709,
+          "trials": 87
+        },
+        {
+          "round": 3,
+          "producer": "baseline",
+          "load_before": [
+            10.3916015625,
+            16.9990234375,
+            24.4296875
+          ],
+          "load_after": [
+            12.36181640625,
+            17.2978515625,
+            24.4912109375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22673333,
+          "quiet_reached": true,
+          "median_ns": 38776250,
+          "mean_ns": 38726629.64566929,
+          "max_ns": 78082125,
+          "trials": 127
+        },
+        {
+          "round": 4,
+          "producer": "context",
+          "load_before": [
+            12.36181640625,
+            17.2978515625,
+            24.4912109375
+          ],
+          "load_after": [
+            13.29345703125,
+            17.40869140625,
+            24.48828125
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23871000,
+          "quiet_reached": true,
+          "median_ns": 41197771.0,
+          "mean_ns": 41552153.11486486,
+          "max_ns": 96400208,
+          "trials": 148
+        },
+        {
+          "round": 4,
+          "producer": "baseline",
+          "load_before": [
+            13.29345703125,
+            17.40869140625,
+            24.48828125
+          ],
+          "load_after": [
+            13.91015625,
+            17.46826171875,
+            24.4677734375
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22526542,
+          "quiet_reached": true,
+          "median_ns": 37807083.0,
+          "mean_ns": 38097296.865079366,
+          "max_ns": 74436459,
+          "trials": 126
+        },
+        {
+          "round": 4,
+          "producer": "candidate",
+          "load_before": [
+            13.91015625,
+            17.46826171875,
+            24.4677734375
+          ],
+          "load_after": [
+            15.7587890625,
+            17.79248046875,
+            24.541015625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22910125,
+          "quiet_reached": true,
+          "median_ns": 40317750,
+          "mean_ns": 41535683.67586207,
+          "max_ns": 110360917,
+          "trials": 145
+        },
+        {
+          "round": 5,
+          "producer": "baseline",
+          "load_before": [
+            15.7587890625,
+            17.79248046875,
+            24.541015625
+          ],
+          "load_after": [
+            16.4970703125,
+            17.8818359375,
+            24.4931640625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22890083,
+          "quiet_reached": true,
+          "median_ns": 39981208.0,
+          "mean_ns": 40149141.83146068,
+          "max_ns": 66820125,
+          "trials": 178
+        },
+        {
+          "round": 5,
+          "producer": "candidate",
+          "load_before": [
+            16.4970703125,
+            17.8818359375,
+            24.4931640625
+          ],
+          "load_after": [
+            16.4970703125,
+            17.8818359375,
+            24.4931640625
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 22718709,
+          "quiet_reached": true,
+          "median_ns": 39954500,
+          "mean_ns": 40564831.75949367,
+          "max_ns": 61462375,
+          "trials": 79
+        },
+        {
+          "round": 5,
+          "producer": "context",
+          "load_before": [
+            16.4970703125,
+            17.8818359375,
+            24.4931640625
+          ],
+          "load_after": [
+            16.77734375,
+            17.9169921875,
+            24.466796875
+          ],
+          "expression_node_size": 112,
+          "inputs": 463,
+          "minimum_ns": 23263041,
+          "quiet_reached": true,
+          "median_ns": 37987583,
+          "mean_ns": 39396523.22105263,
+          "max_ns": 94178583,
+          "trials": 95
+        }
+      ],
+      "binary_hashes": {
+        "baseline": "6fcccb52755140b538329af8a7278e636a804904e88e420ffb18094e6116ead7",
+        "context": "1d34c329c477c2549f2a2541f2350f57c031e8ada81b50c03b262a47c1caccf7",
+        "candidate": "15e14aae0fb3468483900452fe4646354336ee1d0f43b48a6d99685a16abbd6c"
+      }
+    },
+    {
+      "capture": "batch-timing.json",
+      "scope": "38 worker pages / 456 sources",
+      "allocator": "mimalloc",
+      "labels": {
+        "baseline": "original",
+        "candidate": "inline"
+      },
+      "summary": {
+        "baseline": {
+          "min_ms": 5.932959,
+          "median_ms": 12.559291,
+          "mean_ms": 15.118040626262626,
+          "max_ms": 103.985584,
+          "trials": 2277
+        },
+        "candidate": {
+          "min_ms": 5.913208,
+          "median_ms": 12.595104,
+          "mean_ms": 14.868202513833992,
+          "max_ms": 79.914375,
+          "trials": 2024
+        }
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "producer": "baseline",
+          "load_before": [
+            18.005859375,
+            18.14697265625,
+            24.1103515625
+          ],
+          "load_after": [
+            18.005859375,
+            18.14697265625,
+            24.1103515625
+          ],
+          "inputs": 456,
+          "minimum_ns": 6490875,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 11768208.5,
+          "mean_ns": 13509813.947183099,
+          "max_ns": 70181834,
+          "trials": 284
+        },
+        {
+          "round": 0,
+          "producer": "candidate",
+          "load_before": [
+            18.005859375,
+            18.14697265625,
+            24.1103515625
+          ],
+          "load_after": [
+            19.12646484375,
+            18.376953125,
+            24.15625
+          ],
+          "inputs": 456,
+          "minimum_ns": 6533917,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 11065209,
+          "mean_ns": 12730137.268085107,
+          "max_ns": 38745625,
+          "trials": 235
+        },
+        {
+          "round": 1,
+          "producer": "candidate",
+          "load_before": [
+            19.12646484375,
+            18.376953125,
+            24.15625
+          ],
+          "load_after": [
+            21.73974609375,
+            18.95751953125,
+            24.29443359375
+          ],
+          "inputs": 456,
+          "minimum_ns": 5913208,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 11890000,
+          "mean_ns": 14555086.24952741,
+          "max_ns": 79914375,
+          "trials": 529
+        },
+        {
+          "round": 1,
+          "producer": "baseline",
+          "load_before": [
+            21.73974609375,
+            18.95751953125,
+            24.29443359375
+          ],
+          "load_after": [
+            24.24267578125,
+            19.5224609375,
+            24.46240234375
+          ],
+          "inputs": 456,
+          "minimum_ns": 7092792,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 12795250,
+          "mean_ns": 15699004.815724816,
+          "max_ns": 103985584,
+          "trials": 407
+        },
+        {
+          "round": 2,
+          "producer": "baseline",
+          "load_before": [
+            24.24267578125,
+            19.5224609375,
+            24.46240234375
+          ],
+          "load_after": [
+            25.66455078125,
+            19.8955078125,
+            24.56494140625
+          ],
+          "inputs": 456,
+          "minimum_ns": 6906166,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 12638708,
+          "mean_ns": 15678437.380566802,
+          "max_ns": 49698375,
+          "trials": 247
+        },
+        {
+          "round": 2,
+          "producer": "candidate",
+          "load_before": [
+            25.66455078125,
+            19.8955078125,
+            24.56494140625
+          ],
+          "load_after": [
+            26.091796875,
+            20.07958984375,
+            24.6025390625
+          ],
+          "inputs": 456,
+          "minimum_ns": 6965083,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 15559416,
+          "mean_ns": 18288629.36612022,
+          "max_ns": 63955958,
+          "trials": 183
+        },
+        {
+          "round": 3,
+          "producer": "candidate",
+          "load_before": [
+            26.091796875,
+            20.07958984375,
+            24.6025390625
+          ],
+          "load_after": [
+            28.486328125,
+            20.67578125,
+            24.7861328125
+          ],
+          "inputs": 456,
+          "minimum_ns": 7132084,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 13792063.0,
+          "mean_ns": 15716350.213592233,
+          "max_ns": 53089459,
+          "trials": 412
+        },
+        {
+          "round": 3,
+          "producer": "baseline",
+          "load_before": [
+            28.486328125,
+            20.67578125,
+            24.7861328125
+          ],
+          "load_after": [
+            29.728515625,
+            21.06298828125,
+            24.8984375
+          ],
+          "inputs": 456,
+          "minimum_ns": 7048584,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 13673667.0,
+          "mean_ns": 16731385.569620254,
+          "max_ns": 59880625,
+          "trials": 316
+        },
+        {
+          "round": 4,
+          "producer": "baseline",
+          "load_before": [
+            29.728515625,
+            21.06298828125,
+            24.8984375
+          ],
+          "load_after": [
+            29.75,
+            21.2109375,
+            24.92822265625
+          ],
+          "inputs": 456,
+          "minimum_ns": 5932959,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 12284146.0,
+          "mean_ns": 14901236.375,
+          "max_ns": 58219666,
+          "trials": 376
+        },
+        {
+          "round": 4,
+          "producer": "candidate",
+          "load_before": [
+            29.75,
+            21.2109375,
+            24.92822265625
+          ],
+          "load_after": [
+            28.56884765625,
+            21.107421875,
+            24.86962890625
+          ],
+          "inputs": 456,
+          "minimum_ns": 7076834,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 13173125.0,
+          "mean_ns": 14463172.211009175,
+          "max_ns": 47227916,
+          "trials": 218
+        },
+        {
+          "round": 5,
+          "producer": "candidate",
+          "load_before": [
+            28.56884765625,
+            21.107421875,
+            24.86962890625
+          ],
+          "load_after": [
+            29.275390625,
+            21.49951171875,
+            24.96435546875
+          ],
+          "inputs": 456,
+          "minimum_ns": 6873500,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 12399250,
+          "mean_ns": 14378281.87919463,
+          "max_ns": 53733875,
+          "trials": 447
+        },
+        {
+          "round": 5,
+          "producer": "baseline",
+          "load_before": [
+            29.275390625,
+            21.49951171875,
+            24.96435546875
+          ],
+          "load_after": [
+            30.4365234375,
+            22.0087890625,
+            25.1044921875
+          ],
+          "inputs": 456,
+          "minimum_ns": 6166459,
+          "pages": 38,
+          "quiet_reached": true,
+          "median_ns": 12666625,
+          "mean_ns": 14582596.035548687,
+          "max_ns": 54709125,
+          "trials": 647
+        }
+      ],
+      "binary_hashes": {
+        "baseline": "febb54fd2685d2e31ea70c23e08f4ca728f9d67e247abbb5064af83c5a04697c",
+        "candidate": "6d2d7752e260e94e9c1af7b7b96a8ced33fbcb4a423955c98933ed8f62f644a9"
+      }
+    }
+  ],
+  "baseline_failures": {
+    "revision": "c1c6bc8cb8ec886f645976a82e496d4191937339",
+    "same_failures": [
+      "parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission",
+      "sample_projects_ignore_local_build_output",
+      "tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements",
+      "tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once",
+      "tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source",
+      "tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests",
+      "tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections"
+    ],
+    "normalized_diagnostics": [
+      "thread 'parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parameters/generic_parameters_tests.rs:<line>:<column>:\n    assertion failed: parameters.type_parameters.is_empty()",
+      "thread 'sample_projects_ignore_local_build_output' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/tests/sample_files.rs:<line>:<column>:\n    failed to read <ROOT>/samples/cli/algorithms/record_range_search/.gitignore: No such file or directory (os error 2)",
+      "thread 'tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/expression_stack.rs:<line>:<column>:\n    borrow",
+      "thread 'tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:<line>:<column>:\n    assertion `left == right` failed\n      left: 3\n     right: 2",
+      "thread 'tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:<line>:<column>:\n    assertion failed: !parsed.expressions.iter_expressions().any(|(_, expression)|\n                {\n                    matches!(expression, ExpressionNode::Atomic(atomic) if\n                        matches!(atomic.ordering,\n                        language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce\n                        { .. }))\n                })",
+      "thread 'tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:<line>:<column>:\n    authored transition",
+      "thread 'tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/type_constraints.rs:<line>:<column>:\n    [Element; -1]"
+    ],
+    "normalization": "Root paths, thread IDs and Rust line/column coordinates; diagnostic payloads unchanged."
+  }
+}
