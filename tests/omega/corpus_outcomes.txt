@@ -3771,6 +3771,24 @@ fail/facts/float_range_delivery_through_target_body_rejected rejected 3388ms exp
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_result_equality_through_call_result_rejected rejected 32128ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_const_name_rejected rejected 32151ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_field_rejected rejected 32055ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == holder.item.kept && result == 7.0
+fail/facts/float_result_equality_through_local_rejected rejected 28919ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 1: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_match_join_rejected rejected 28981ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_other_machine_rejected rejected 28836ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_other_state_rejected rejected 27715ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_parameter_rejected rejected 27555ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/float_result_equality_through_target_body_rejected rejected 27667ms expected @438f700a3012+wt
+	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 2358ms expected @a0de2759cfe0+wt
 	cannot prove ensures contract for exit from extract_payload at statement 6: result >= 40 && result <= 80
 fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 1838ms expected @a0de2759cfe0+wt
@@ -11981,6 +11999,15 @@ pass/facts/float_range_delivery_through_other_machine_exit checked 18710ms check
 pass/facts/float_range_delivery_through_other_state_exit checked 18219ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/float_range_delivery_through_parameter_exit checked 18101ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/float_range_delivery_through_target_body_exit checked 18235ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_result_equality_through_call_result_exit checked 38465ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_const_name_exit checked 38299ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_field_exit checked 38287ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_local_exit checked 38530ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_match_join_exit checked 38462ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_other_machine_exit checked 38910ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_other_state_exit checked 38287ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_parameter_exit checked 38499ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/float_result_equality_through_target_body_exit checked 38385ms check-target:macos_arm64 @438f700a3012+wt
 pass/facts/four_variant_enum_payload_bound_through_call_result_exit checked 3262ms check-target:macos_arm64 @a0de2759cfe0+wt
 pass/facts/four_variant_enum_payload_bound_through_const_name_exit checked 3146ms check-target:macos_arm64 @a0de2759cfe0+wt
 pass/facts/four_variant_enum_payload_bound_through_field_exit checked 3034ms check-target:macos_arm64 @a0de2759cfe0+wt
