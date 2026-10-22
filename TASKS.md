@@ -5681,13 +5681,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   grant borrow access. Extend the shared origin/fixpoint owners, not a
   recognizer per reference spelling.
 
-  Acceptance: add a pass fixture for the helper-choice program that checks with
-  the disjoint bound and runs its authored result (reference-result transport
-  via **MATCH-SELECTIVE-LOWERING**), and a fail fixture where an overlapping
-  candidate rejects the stale bound. Add fixtures for nested helpers,
-  named-state results, codec arguments and finite write cycles; parameter
-  permutations keep finite write sets; `omega --check tests/psi/parser/main.omg`
-  still converges.
+  Acceptance: the direct helper-choice row and the nested-helper row each keep
+  the disjoint index bound and exit 0 on both engines across the nine places,
+  and each overlapping twin rejects the stale bound. Remaining: named-state
+  results, codec arguments, and finite write cycles; parameter permutations
+  keep finite write sets; `omega --check tests/psi/parser/main.omg` still
+  converges. Reference-result transport stays with **MATCH-SELECTIVE-LOWERING**.
 
 - **TPR6.** Carry exact progress subjects through calls, state arrivals, private
   recursive components, exported contracts and provider evidence under

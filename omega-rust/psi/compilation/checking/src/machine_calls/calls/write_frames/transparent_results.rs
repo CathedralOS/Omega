@@ -267,9 +267,18 @@ pub(crate) fn transparent_callee_result_origins(
     (!returned.is_empty()).then_some(returned)
 }
 
+/// One call's formals and the actual expressions supplied at that call.
+#[derive(Clone, Copy)]
+struct ActualFrame<'a> {
+    parameters: &'a [StateParameter],
+    arguments: &'a [ExpressionHandle],
+}
+
 /// A transition block is sequential. The next arm runs only when the previous
 /// ordinary guard falls through. Literal actuals can refute that guard, which
 /// removes the unselected referent from the caller-visible candidate union.
+/// A helper that returns another helper's result substitutes the same actuals
+/// through the inner call.
 fn retain_reachable_transition_results(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -298,41 +307,174 @@ fn reachable_value_parameters(
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
 ) -> Option<Vec<SymbolHandle>> {
+    let mut stack = Vec::new();
+    reachable_value_parameters_in(
+        program,
+        state,
+        ActualFrame {
+            parameters,
+            arguments,
+        },
+        &[],
+        &mut stack,
+    )
+}
+
+fn reachable_value_parameters_in(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    current: ActualFrame<'_>,
+    outer: &[ActualFrame<'_>],
+    stack: &mut Vec<SymbolHandle>,
+) -> Option<Vec<SymbolHandle>> {
+    if stack.contains(&state.symbol) {
+        return None;
+    }
+    stack.push(state.symbol);
+    let result = reachable_value_parameters_body(program, state, current, outer, stack);
+    stack.pop();
+    result
+}
+
+fn reachable_value_parameters_body(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    current: ActualFrame<'_>,
+    outer: &[ActualFrame<'_>],
+    stack: &mut Vec<SymbolHandle>,
+) -> Option<Vec<SymbolHandle>> {
     let mut fall_through = true;
     let mut reachable = Vec::new();
     let mut saw_value = false;
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        let StatementNode::Transition(transition) = statement else {
-            continue;
-        };
-        let truth = guard_truth(program, parameters, arguments, transition.guard);
-        if transition.exit == TransitionExit::Ordinary && fall_through && truth != BoolTruth::False
-        {
-            for edge in transition.targets() {
-                match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Value(result) => {
-                        saw_value = true;
-                        reachable.push(value_parameter_symbol(program, parameters, *result)?);
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let last = statements.len().saturating_sub(1);
+    for (index, statement) in statements.iter().enumerate() {
+        match statement {
+            StatementNode::Transition(transition) => {
+                let truth = guard_truth(program, current, outer, transition.guard);
+                if transition.exit == TransitionExit::Ordinary
+                    && fall_through
+                    && truth != BoolTruth::False
+                {
+                    for edge in transition.targets() {
+                        match program.statement_table.transition_target(edge) {
+                            TransitionTargetNode::Value(result) => {
+                                saw_value = true;
+                                reachable.extend(contributed_parameters(
+                                    program, state, current, outer, stack, *result,
+                                )?);
+                            }
+                            TransitionTargetNode::Named { .. } => return None,
+                            TransitionTargetNode::Terminal => {}
+                        }
                     }
-                    TransitionTargetNode::Named { .. } => return None,
-                    TransitionTargetNode::Terminal => {}
+                } else if transition.exit == TransitionExit::Ordinary && fall_through {
+                    for edge in transition.targets() {
+                        if matches!(
+                            program.statement_table.transition_target(edge),
+                            TransitionTargetNode::Value(_)
+                        ) {
+                            saw_value = true;
+                        }
+                    }
+                }
+                if truth == BoolTruth::True {
+                    fall_through = false;
                 }
             }
-        } else if transition.exit == TransitionExit::Ordinary && fall_through {
-            for edge in transition.targets() {
-                if matches!(
-                    program.statement_table.transition_target(edge),
-                    TransitionTargetNode::Value(_)
-                ) {
-                    saw_value = true;
-                }
+            StatementNode::Expression(result) if index == last && fall_through => {
+                saw_value = true;
+                reachable.extend(contributed_parameters(
+                    program, state, current, outer, stack, *result,
+                )?);
             }
-        }
-        if truth == BoolTruth::True {
-            fall_through = false;
+            _ => {}
         }
     }
     saw_value.then_some(reachable)
+}
+
+fn contributed_parameters(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    current: ActualFrame<'_>,
+    outer: &[ActualFrame<'_>],
+    stack: &mut Vec<SymbolHandle>,
+    mut result: ExpressionHandle,
+) -> Option<Vec<SymbolHandle>> {
+    let mut seen = Vec::new();
+    loop {
+        match program.expression_table.expression(result) {
+            ExpressionNode::Borrow(borrow) => result = borrow.target,
+            ExpressionNode::Name(path) => {
+                if let Some(parameter) = current
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == path.symbol)
+                {
+                    return Some(vec![parameter.symbol]);
+                }
+                if seen.contains(&path.symbol) {
+                    return None;
+                }
+                seen.push(path.symbol);
+                let Some(initial) = local_initializer(program, state, path.symbol) else {
+                    return None;
+                };
+                result = initial;
+            }
+            ExpressionNode::Call(call) => {
+                if call.receiver.is_valid() {
+                    return None;
+                }
+                let (_, callee_state) =
+                    super::call_targets::machine_state_by_symbol(program, call.target_symbol)?;
+                let callee_parameters = program.state_parameters(callee_state);
+                let callee_arguments = program.expression_table.expression_handles(call.arguments);
+                let mut frames = Vec::with_capacity(outer.len() + 1);
+                frames.push(current);
+                frames.extend_from_slice(outer);
+                let inner = reachable_value_parameters_in(
+                    program,
+                    callee_state,
+                    ActualFrame {
+                        parameters: callee_parameters,
+                        arguments: callee_arguments,
+                    },
+                    &frames,
+                    stack,
+                )?;
+                let mut mapped = Vec::new();
+                for symbol in inner {
+                    let index = callee_parameters
+                        .iter()
+                        .position(|parameter| parameter.symbol == symbol)?;
+                    let actual = *callee_arguments.get(index)?;
+                    let parameter = value_parameter_symbol(program, current.parameters, actual)?;
+                    if !mapped.contains(&parameter) {
+                        mapped.push(parameter);
+                    }
+                }
+                return Some(mapped);
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn local_initializer(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<ExpressionHandle> {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
+            _ => None,
+        })
 }
 
 fn value_parameter_symbol(
@@ -363,22 +505,24 @@ enum BoolTruth {
 
 fn guard_truth(
     program: &dyn crate::CheckingInput,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    current: ActualFrame<'_>,
+    outer: &[ActualFrame<'_>],
     guard: TransitionGuardNode,
 ) -> BoolTruth {
     match guard {
         TransitionGuardNode::Always => BoolTruth::True,
         TransitionGuardNode::When(condition) => {
-            bool_truth(program, parameters, arguments, condition)
+            let mut frames = Vec::with_capacity(outer.len() + 1);
+            frames.push(current);
+            frames.extend_from_slice(outer);
+            bool_truth(program, &frames, condition)
         }
     }
 }
 
 fn bool_truth(
     program: &dyn crate::CheckingInput,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    frames: &[ActualFrame<'_>],
     expression: ExpressionHandle,
 ) -> BoolTruth {
     match program.expression_table.expression(expression) {
@@ -390,15 +534,15 @@ fn bool_truth(
             }
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            match bool_truth(program, parameters, arguments, unary.operand) {
+            match bool_truth(program, frames, unary.operand) {
                 BoolTruth::True => BoolTruth::False,
                 BoolTruth::False => BoolTruth::True,
                 BoolTruth::Unknown => BoolTruth::Unknown,
             }
         }
         ExpressionNode::Binary(binary) => {
-            let left = bool_truth(program, parameters, arguments, binary.left);
-            let right = bool_truth(program, parameters, arguments, binary.right);
+            let left = bool_truth(program, frames, binary.left);
+            let right = bool_truth(program, frames, binary.right);
             match binary.operator {
                 BinaryOperator::Equal => left.equal(right),
                 BinaryOperator::NotEqual => left.equal(right).negate(),
@@ -407,23 +551,21 @@ fn bool_truth(
                 _ => BoolTruth::Unknown,
             }
         }
-        ExpressionNode::Name(path) => parameters
-            .iter()
-            .position(|parameter| parameter.symbol == path.symbol)
-            .and_then(|index| arguments.get(index))
-            .map(
-                |actual| match program.expression_table.expression(*actual) {
-                    ExpressionNode::Boolean(value) => {
-                        if *value {
-                            BoolTruth::True
-                        } else {
-                            BoolTruth::False
-                        }
-                    }
-                    _ => BoolTruth::Unknown,
-                },
-            )
-            .unwrap_or(BoolTruth::Unknown),
+        ExpressionNode::Name(path) => {
+            for (index, frame) in frames.iter().enumerate() {
+                if let Some(position) = frame
+                    .parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == path.symbol)
+                {
+                    let Some(actual) = frame.arguments.get(position) else {
+                        return BoolTruth::Unknown;
+                    };
+                    return bool_truth(program, &frames[index + 1..], *actual);
+                }
+            }
+            BoolTruth::Unknown
+        }
         _ => BoolTruth::Unknown,
     }
 }
