@@ -445,6 +445,21 @@ fail/borrows/direct_reference_array_live_source_move rejected 1701ms expected @a
 fail/borrows/direct_reference_array_live_source_write rejected 1509ms expected @a9ae30e1c334+wt
 fail/borrows/direct_reference_array_range_narrowing rejected 857ms expected @a9ae30e1c334+wt
 fail/borrows/dispatch_boundary_returning_sibling_escape rejected 1501ms expected @58a5ed816ae5
+fail/borrows/dropped_reference_qualification_after_alias_write rejected 620ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from corrupt at statement 0: invocation referent ticket in Ticket::Issued
+fail/borrows/dropped_reference_qualification_carrier_write rejected 771ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from corrupt at statement 0: invocation referent ticket in Ticket::Issued
+fail/borrows/dropped_reference_qualification_join rejected 620ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent ticket in Ticket::Issued
+fail/borrows/dropped_reference_qualification_later_operand rejected 592ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from corrupt at statement 0: invocation referent ticket in Ticket::Issued
+fail/borrows/dropped_reference_qualification_mixed_origins rejected 593ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent left in Ticket::Issued
+	cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent right in Ticket::Issued
+fail/borrows/dropped_reference_qualification_private_alternative rejected 591ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from fail_to_issue at statement 0: invocation referent ticket in Ticket::Issued
+fail/borrows/dropped_reference_refresh_does_not_restore_payload rejected 580ms expected @147c3a05de1b
+	cannot prove ensures contract for exit from corrupt at statement 0: ticket.number == 7; no exact incoming reference origin for ticket
 fail/borrows/duplicate_retained_subject_arguments rejected 1702ms expected @a9ae30e1c334+wt
 fail/borrows/dynamic_byte_result_retains_first_candidate rejected 779ms expected @8c69b643aa24
 fail/borrows/dynamic_byte_result_retains_second_candidate rejected 731ms expected @8c69b643aa24
@@ -9726,6 +9741,7 @@ pass/borrows/runtime_cyclic_field_loan_release_exit checked 10991ms check-target
 pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 10347ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_discarded_reference_release_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 10390ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_dropped_reference_qualification_exit checked 976ms check-target:macos_arm64 @147c3a05de1b
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit checked 27142ms check-target:macos_arm64 @5d70318dade2
 pass/borrows/runtime_fixed_byte_view_forwarding_exit checked 10292ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_forwarded_indexed_reference_exit checked 3820ms check-target:macos_arm64 @5e5835ccaddc+wt
