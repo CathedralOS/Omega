@@ -9,11 +9,11 @@ normalization, and producer-visible witness checks. [proof.rs](src/proof.rs)
 owns certificate admission; its traversal uses explicit pending work rather than
 the host call stack at accepted proof depths.
 
-[admission/denotation.rs](src/admission/denotation.rs) owns supplied denotation
-certificate checking: select the recorded predicate conversion, then replay the
-certificate against the receiver's goal and premises.
-[certificate_search.rs](src/certificate_search.rs) separately owns bounded
-producer search and candidate construction.
+The supplied-certificate denotation check and the bounded producer search that
+lived in `admission/denotation.rs` and `certificate_search.rs` were removed with
+the PCC verifier and certificate stack in `9718604e847`. Admission keeps the
+evidence routes under `admission/` and re-decides what it is given; it does not
+run a search of its own.
 
 [closed_integer.rs](src/integer_rules/closed_integer.rs) owns exact signed mathematical integer
 denotation shared by primitive judgments and execution-time closed guard checks.

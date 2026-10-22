@@ -9,12 +9,11 @@
 //! term model and its independent checker for the reference predicative
 //! calculus with stratified relevant and strict universes.
 //!
-//! `certificate_search.rs` is separate producer machinery, not part of the
-//! checker: it runs the bounded denotation-lane search once at production
-//! time and emits nodes whose only authority is that the checker re-decides
-//! them. `admission/denotation.rs` owns replay of a supplied certificate under
-//! its recorded conversion. Verification consumes certificates; it never runs
-//! this search.
+//! The producer-side certificate search and the supplied-certificate denotation
+//! replay were removed with the PCC verifier and certificate stack in
+//! `9718604e847`. Verification no longer consumes certificates produced by a
+//! search inside this crate; `admission/` keeps the evidence routes and the
+//! checker still re-decides every judgment it is given.
 
 #![forbid(unsafe_code)]
 //!
