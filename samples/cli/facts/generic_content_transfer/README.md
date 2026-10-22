@@ -13,8 +13,10 @@ Run `omega run --both <place>/main.omg` for `local`, `field`, `parameter`,
 `target_body`. Each declares exit 0 and four hosted target bindings. Its
 `invalid/main.omg` changes only the transfer body: it drops the original region
 and returns a region containing 28. That must fail the conservation postcondition.
-The programs are mirrored under
-`tests/omega/{pass,fail}/facts/generic_content_transfer_<place>`.
+The nine place sources are pinned as
+`tests/omega/pass/facts/generic_content_transfer_through_<place>_exit` with
+the loss twins as
+`tests/omega/fail/facts/generic_content_transfer_through_<place>_rejected`.
 
 ## Requirements exercised
 
@@ -46,6 +48,13 @@ The original generic transfer rejected its copied `old` and `content` contracts
 as executable expressions. All nine positive places now run with native and
 Terminal exit 0; all nine loss twins reject. Callable checking contexts remain
 separate from callable theorem sources and cannot confer provider authority.
+
+Pinned for this host at base `c1c6bc8cb8ec`: 9/9 positives `checked` with
+`check-target:macos_arm64` and 9/9 loss twins `rejected` with
+`cannot prove ensures contract` in `corpus_outcomes.txt`, 9/9 native
+`built ... exit:0` rows in `corpus_native_macos_arm64.txt` and 9/9
+`exit:0 interpreter-exit:0 interpreter:agrees` rows in
+`corpus_both_macos_arm64.txt`.
 
 The parent still requires actual-backed vacancy, initialization, placed read,
 retirement and exact backing return, then allocator coexistence, failure

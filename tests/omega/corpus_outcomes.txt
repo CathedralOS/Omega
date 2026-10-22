@@ -3900,28 +3900,28 @@ fail/facts/generic_calling_policy/parameter_bound rejected 6389ms expected @164f
 	type parameter `Element [copy]` of `GenericPolicy` was instantiated with `Box<u64>`, which does not satisfy `[copy]`
 fail/facts/generic_calling_policy/target_helper_unranked rejected 6202ms expected @54e533003490
 	machine `GenericPolicy::plan$specialized$379586cb3eb1e05e$1` is not build-time admissible: machine call path `GenericPolicy::plan$specialized$379586cb3eb1e05e$1 -> value_plan` has no ordinary checked `Terminates` guarantee; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/facts/generic_calling_policy/through_call_result_rejected rejected 3203ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_const_name_rejected rejected 3216ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_field_rejected rejected 3228ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_local_rejected rejected 3340ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_match_join_rejected rejected 3470ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_other_machine_rejected rejected 3492ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_other_state_rejected rejected 3458ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_parameter_rejected rejected 3408ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/through_target_body_rejected rejected 3404ms expected @54e533003490
-	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy/unresolved_argument rejected 5477ms expected @164f21ca3402
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 4935ms expected @164f21ca3402
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
+fail/facts/generic_calling_policy_through_call_result_rejected rejected 3203ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_const_name_rejected rejected 3216ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_field_rejected rejected 3228ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_local_rejected rejected 3340ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_match_join_rejected rejected 3470ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_other_machine_rejected rejected 3492ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_other_state_rejected rejected 3458ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_parameter_rejected rejected 3408ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy_through_target_body_rejected rejected 3404ms expected @54e533003490
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_case_subject_through_call_result_rejected rejected 336ms expected @4a483c47c357+wt
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
 	case `Other::Value` has a payload; construct it with a case literal
@@ -3949,31 +3949,31 @@ fail/facts/generic_case_subject_through_parameter_rejected rejected 318ms expect
 fail/facts/generic_case_subject_through_target_body_rejected rejected 319ms expected @4a483c47c357+wt
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
 	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_content_transfer_call_result rejected 3883ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_call_result_rejected rejected 3883ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_const_name rejected 3890ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_const_name_rejected rejected 3890ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_field rejected 3876ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_field_rejected rejected 3876ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_local rejected 3889ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_local_rejected rejected 3889ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_match_join rejected 3904ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_match_join_rejected rejected 3904ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_other_machine rejected 3880ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_other_machine_rejected rejected 3880ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_other_state rejected 3890ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_other_state_rejected rejected 3890ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_parameter rejected 3863ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_parameter_rejected rejected 3863ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_target_body rejected 3775ms expected @4c6fa0c02bf5+wt
+fail/facts/generic_content_transfer_through_target_body_rejected rejected 3775ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
@@ -12108,15 +12108,15 @@ pass/facts/generic_calling_policy/inline_const_exit checked 20966ms check-target
 pass/facts/generic_calling_policy/literal_arguments_exit checked 34037ms check-target:linux_x86_64 @2220bcc69929
 pass/facts/generic_calling_policy/nested_argument_exit checked 21973ms check-target:linux_x86_64 @164f21ca3402
 pass/facts/generic_calling_policy/nested_data_const_exit checked 23258ms check-target:linux_x86_64 @164f21ca3402
-pass/facts/generic_calling_policy/through_call_result_exit checked 9407ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_const_name_exit checked 9404ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_field_exit checked 4706ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_local_exit checked 4697ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_match_join_exit checked 4299ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_other_machine_exit checked 4287ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_other_state_exit checked 3975ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_parameter_exit checked 3972ms check-target:macos_arm64 @54e533003490
-pass/facts/generic_calling_policy/through_target_body_exit checked 4161ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_call_result_exit checked 9407ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_const_name_exit checked 9404ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_field_exit checked 4706ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_local_exit checked 4697ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_match_join_exit checked 4299ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_other_machine_exit checked 4287ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_other_state_exit checked 3975ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_parameter_exit checked 3972ms check-target:macos_arm64 @54e533003490
+pass/facts/generic_calling_policy_through_target_body_exit checked 4161ms check-target:macos_arm64 @54e533003490
 pass/facts/generic_case_subject_through_call_result_exit checked 879ms check-target:macos_arm64 @4a483c47c357+wt
 pass/facts/generic_case_subject_through_const_name_exit checked 873ms check-target:macos_arm64 @4a483c47c357+wt
 pass/facts/generic_case_subject_through_field_exit checked 873ms check-target:macos_arm64 @4a483c47c357+wt
@@ -12126,15 +12126,15 @@ pass/facts/generic_case_subject_through_other_machine_exit checked 973ms check-t
 pass/facts/generic_case_subject_through_other_state_exit checked 883ms check-target:macos_arm64 @4a483c47c357+wt
 pass/facts/generic_case_subject_through_parameter_exit checked 882ms check-target:macos_arm64 @4a483c47c357+wt
 pass/facts/generic_case_subject_through_target_body_exit checked 877ms check-target:macos_arm64 @4a483c47c357+wt
-pass/facts/generic_content_transfer_call_result checked 8723ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_const_name checked 8744ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_field checked 8719ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_local checked 8708ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_match_join checked 8707ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_other_machine checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_other_state checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_parameter checked 8924ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/generic_content_transfer_target_body checked 8743ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_call_result_exit checked 8723ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_const_name_exit checked 8744ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_field_exit checked 8719ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_local_exit checked 8708ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_match_join_exit checked 8707ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_other_machine_exit checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_other_state_exit checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_parameter_exit checked 8924ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_through_target_body_exit checked 8743ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/guarded_line_loan_through_call_result_exit checked 86656ms check-target:macos_arm64 @0b53add5c5af
 pass/facts/guarded_line_loan_through_const_name_exit checked 85562ms check-target:macos_arm64 @0b53add5c5af
 pass/facts/guarded_line_loan_through_field_exit checked 88224ms check-target:macos_arm64 @0b53add5c5af

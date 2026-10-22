@@ -326,8 +326,11 @@ helper that passes does not close an item.
     nine places with native/Terminal exit 0 on Linux x86-64 and Width-4 reject
     twins. Ordinary target-scoped policy helpers retain their exact selected
     bodies through admission and execution. Matching Windows x86-64, macOS ARM64
-    and Linux ARM64 images validate the authored plan geometry; their native
-    execution and other policy/member kinds remain unqualified. Distinct
+    and Linux ARM64 images validate the authored plan geometry; macOS ARM64
+    native/Terminal execution now agrees for the eighteen pinned
+    `generic_calling_policy` place fixtures (base `c1c6bc8cb8ec`), while
+    Windows x86-64 and Linux ARM64 native execution and other policy/member
+    kinds remain unqualified. Distinct
     applications, canonical const projection and prior refusal controls remain
     pinned. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
