@@ -10,31 +10,59 @@ grid cell is selected by two runtime indices. The row cell is a field between
 two runtime indices. Exit 0 requires both observations. This witness does not
 depend on `source/library/std`.
 
+Every place copies that fact sentence and operation. Only the transport of the
+borrowed storage changes: a local, a record field, an explicit parameter, a
+call result, both match arms, the named bound, a successor state, a forwarding
+machine, and per-target bodies. The twin of each place stores 40 instead of 41
+at `grid[1][2]`, so the cell observation is false; indices, increment, and the
+row store stay.
+
 The corpus fixtures `runtime_double_indexed_rmw_exit`,
 `runtime_indexed_struct_field_rmw_exit`, and `runtime_hoisted_index_write_exit`
 keep their authored exits. On this host they stop at program-entry admission
 because `Build::depend` on std asks for an accepted `WindowsX86_64Application`
 binding. That wall is not this operation.
 
-| Place | Positive | Reject twin |
-| --- | --- | --- |
-| root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) |
+| Place | Positive | Reject twin | Transport |
+| --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) | the writing states borrow the entry machine's locals |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | both arrays stay locals of the entry machine |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | both arrays live in one record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | one machine receives both arrays as parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | both arrays arrive as call results |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms write and one successor observes |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named bounds supply both indices and both stores |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state writes and observes |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `Writer::run` writes through borrowed caller storage |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one `rmw` body per hosted target |
 
-The twin changes only the grid store from 41 to 40. The indices, the increment,
-and the row store stay. The grid observation is then false. Checking accepts
-that source. `invalid/expected_native_exit.txt` requires the trap:
-`STATUS_ILLEGAL_INSTRUCTION` on Windows x86-64.
+## Execution
+
+Every positive place and the root bind `ProgramEntry` for `windows_x86_64`,
+`linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares
+`Expected exit: 0`. Each twin keeps the same bindings and declares the trap.
 
 ```sh
 omega run --both samples/cli/facts/double_indexed_rmw/main.omg
-omega run --both samples/cli/facts/double_indexed_rmw/invalid/main.omg
+omega run --both samples/cli/facts/double_indexed_rmw/<place>/main.omg
 ```
 
-On Windows x86-64, opt-level 1, after rebasing onto
-`ff5d57b7c845c9e903bddba537b7a8688b70d079`: the positive witness reports
-native exit 0 and interpreter exit 0. The twin reports native exit
-`-1073741795` (`0xC000001D`) and interpreter crash `Trap`, and the host
-presentation agrees.
+Measured on this Intel macOS x86_64 host with an opt-level 1 producer built
+from `ce4681e434c` (the four authored hosted targets cannot execute here, so
+each scratch copy adds `macos_x86_64::ProgramEntry`, and `target_body` also
+gets an identical `macos_x86_64` body; no fact source was changed): all ten
+positives report native exit 0 and interpreter exit 0, and all ten twins report
+a native trap signal with interpreter `crash: Trap` and host presentation
+agreement. A Windows x86-64 host previously reported the same agreement for the
+root and its twin at `ff5d57b7c845`.
+
+## Pinned fixtures
+
+Pass fixtures `tests/omega/pass/facts/double_indexed_rmw_through_<place>_exit`
+copy the place program and record the native exit 0 oracle. Trap fixtures
+`tests/omega/run/facts/double_indexed_rmw_through_<place>_traps` copy the twin
+and record the `trap` oracle, following
+`tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps`.
 
 ## Requirements and evidence
 
@@ -46,10 +74,39 @@ presentation agrees.
 1. **Establishment:** the state that receives the borrowed array writes 41,
    then increments that same cell through the runtime indices. The following
    read is the observation. A later caller guard is not what establishes it.
+   Every place authors the same write-increment-observe body; no place
+   re-establishes the value in the caller.
 2. **Identity and lifetime:** `i` and `j` select the cell that the const write
-   named. The row tag is a sibling of the incremented field and stays 7.
+   named. The row tag is a sibling of the incremented field and stays 7. The
+   twins differ only in the stored grid value, so a wrong cell or a stale fold
+   still fails the observation.
 3. **Composition:** the borrowed grid and the borrowed row array are the
-   caller locals. The twin differs only in the stored grid value.
-4. **Soundness boundaries:** the false store must not complete as exit 0.
-5. **Checked-to-Terminal Psi and native execution:** `omega run --both` on
-   the positive witness. Record the host result in the claim note.
+   caller's storage through a local, a field, a parameter, a call result, both
+   match arms, the named bound, a successor state, a forwarding machine, and
+   four target bodies. The observation after each transport is the consuming
+   operation, and both engines agree on it.
+4. **Soundness boundaries:** the false store must not complete as exit 0. All
+   nine twins take their `crash Trap` route natively and in Terminal Psi
+   instead of reporting exit 0.
+5. **Checked-to-Terminal Psi lowering:** the RMW, both runtime indices, the
+   field-between-indices projection, and the exit choice lower into Terminal
+   Psi; `omega run --both` reports interpreter exit 0 for every positive place
+   and `crash: Trap` for every twin.
+6. **Provider settlement and layout:** each positive binds all four hosted
+   `ProgramEntry` values. `Row` is a tagged-field record over a two-element
+   `i32` array, and both arrays are locals whose addresses travel only as
+   loans to the writing machine or state.
+7. **Instruction selection and frames:** the Windows x86-64 and macOS x86-64
+   images execute the nested-index arithmetic, the field store between two
+   runtime indices, and the exit selection. The other authored targets are
+   checked through their entry bindings and, for `target_body`, through their
+   checked bodies; this host did not execute those images.
+8. **Encoding and emission:** the executed images agree with Terminal Psi,
+   including the trap presentation on the twins.
+
+### What remains open
+
+Native execution on the four authored hosted targets (this host pins
+`macos_x86_64`; `omega run --target` is compile-publication only, so it
+supplies no runtime claim). The rest of PLACED-ACCESS-NATIVE-OPS — placed MMIO
+access and the wider address-composition frontier — is not established here.
