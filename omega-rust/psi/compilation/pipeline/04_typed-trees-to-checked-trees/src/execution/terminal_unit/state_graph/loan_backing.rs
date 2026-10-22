@@ -276,7 +276,7 @@ fn retained_parents(
             capture,
             &crate::borrow::owner_place_segments(path),
             &ingress,
-        )
+        ) || ambient_shared_leaf(program, capture, path)
     }) {
         return Err("state loan parents: captured reference leaves have no resources");
     }
@@ -336,6 +336,27 @@ fn retained_parents(
         }
     }
     Ok((parents, operand_parents))
+}
+
+/// A shared leaf that no stored loan or ingress row supplies is ambient: its
+/// referent lives outside this activation's owned storage — intrinsic results
+/// and runtime-materialized views reach the capture only as descriptors, so
+/// the destination needs no parent. Exclusive leaves still demand coverage;
+/// custody cannot move without a named referent.
+fn ambient_shared_leaf(
+    program: &dyn validation::CheckingInput,
+    capture: &checked_trees::FlowOperandFact,
+    path: &[checked_trees::BorrowLoanOwnerSegment],
+) -> bool {
+    let Some(leaf_type) = validation::project_type_reference_from_segments(
+        program,
+        capture.type_reference,
+        &crate::borrow::owner_place_segments(path),
+    ) else {
+        return false;
+    };
+    validation::reference_shell(program, leaf_type)
+        .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared)
 }
 
 /// Reuse the completed assembly's child projection. An opaque child keeps its
