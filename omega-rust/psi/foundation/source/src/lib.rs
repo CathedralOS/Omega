@@ -2,7 +2,7 @@
 
 //! Loaded-source data and source-coordinate primitives owned by the Psi frontend.
 //!
-//! `SourceFile` and `SourceText` hold what was loaded and where it came from;
+//! `SourceFile` holds what was loaded and where it came from;
 //! `SourceId` and `SourceSpan` are the coordinates every token and diagnostic
 //! carries; start at `source_map.rs`, where `SourceMap` resolves them back to
 //! files and positions. Past resolution, source text is diagnostic and debug
@@ -27,7 +27,6 @@ mod source_file;
 mod source_file_system;
 mod source_map;
 mod source_snapshot;
-mod source_text;
 pub use source_bytes::SourceBytes;
 
 pub use captured_source_tree::{CapturedSourceNode, CapturedSourceTree};
@@ -41,7 +40,6 @@ pub use source_snapshot::{
     SourceSnapshot, SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata,
     SourceSnapshotStorage, source_snapshot_path_is_canonical,
 };
-pub use source_text::SourceText;
 
 /// Render exact literal bytes without assuming UTF-8. This is diagnostic text,
 /// never a semantic decoding step.

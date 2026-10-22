@@ -1,7 +1,8 @@
+use crate::FloatSpelling;
 use crate::identifier::Identifier;
 use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
 use numerics::literals::IntegerLiteral;
-use source::{SourceSpan, SourceText};
+use source::SourceSpan;
 
 mod display;
 #[cfg(test)]
@@ -236,7 +237,7 @@ pub enum ExpressionNode {
     Boolean(bool),
     Cast(TableCastExpression),
     Call(TableCallExpression),
-    Float(SourceText),
+    Float(FloatSpelling),
     /// Internal semantic value; no runtime representation or source spelling is implied.
     UndeterminedNaN(numerics::literals::FloatFormat),
     Indexed(TableIndexedExpression),

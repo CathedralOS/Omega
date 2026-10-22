@@ -189,11 +189,10 @@ pub(crate) fn validate_scalar_initializer(
             };
             let compatible = match initializer {
                 ExpressionNode::UndeterminedNaN(actual) => *actual == format,
-                ExpressionNode::Float(text) => {
-                    FloatLiteral::parse(text.as_str()).is_some_and(|literal| {
+                ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str(syntax))
+                    .is_some_and(|literal| {
                         literal.landing().is_none_or(|landing| landing == format)
-                    })
-                }
+                    }),
                 ExpressionNode::Integer(literal) => {
                     literal.landing().is_none() && literal.value_bignum().is_some()
                 }

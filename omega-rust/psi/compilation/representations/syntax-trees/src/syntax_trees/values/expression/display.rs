@@ -43,7 +43,7 @@ impl ExpressionNode {
             Self::Boolean(value) => value.to_string(),
             Self::Cast(cast) => cast.display_name(table),
             Self::Call(call) => call.display_name(table),
-            Self::Float(value) => value.to_string(),
+            Self::Float(value) => value.as_str(table).to_owned(),
             Self::UndeterminedNaN(format) => format!("<undetermined NaN {}>", format.name()),
             Self::Indexed(indexed) => {
                 format!(

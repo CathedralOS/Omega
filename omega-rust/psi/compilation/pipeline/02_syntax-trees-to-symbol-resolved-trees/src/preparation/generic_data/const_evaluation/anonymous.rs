@@ -57,7 +57,7 @@ pub(super) fn evaluate_anonymous_numeric_expression(
                     // The literal payload owns source normalization. Read its
                     // exact spelling, not raw grouped digits or a rounded host
                     // float, so integer landing sees the completed rational.
-                    let value = FloatLiteral::parse(text.as_str())
+                    let value = FloatLiteral::parse(text.as_str(syntax))
                         .and_then(|literal| BigRational::from_decimal_str(literal.text()))
                         .ok_or_else(|| "anonymous decimal literal has no exact value".to_owned())?;
                     if fractional.is_none() && value.to_integer_exact().is_none() {
@@ -365,7 +365,7 @@ pub(super) fn anonymous_numeric_expression(
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(literal) if literal.landing().is_none() => {}
             ExpressionNode::Float(text)
-                if FloatLiteral::parse(text.as_str())
+                if FloatLiteral::parse(text.as_str(syntax))
                     .is_some_and(|literal| literal.landing().is_none()) => {}
             // No authored spelling can select an operator here: neither
             // operand has a carrier until the completed value lands, the same

@@ -117,7 +117,6 @@ plain!(
     source::SourceSpan,
     source::Span,
     source::SourceId,
-    source::SourceText,
     source::SourceBytes
 );
 

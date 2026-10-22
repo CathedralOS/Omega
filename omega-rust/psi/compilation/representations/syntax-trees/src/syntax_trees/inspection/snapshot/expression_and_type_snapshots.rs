@@ -440,7 +440,7 @@ pub(crate) fn snapshot_expression_handle(
             format: format.name().to_owned(),
         },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {
-            text: value.as_str().to_owned(),
+            text: value.as_str(syntax_trees).to_owned(),
         },
         ExpressionNode::Indexed(indexed) => ExpressionSnapshot::Indexed {
             collection: Box::new(snapshot_expression_handle(syntax_trees, indexed.collection)),

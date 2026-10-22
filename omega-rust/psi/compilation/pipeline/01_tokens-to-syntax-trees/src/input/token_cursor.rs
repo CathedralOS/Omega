@@ -4,7 +4,8 @@ use crate::input::delimited::find_top_level_punctuation;
 use crate::input::literals::{parse_integer_literal, validate_float_literal};
 use arena::{Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
-use source::{SourceId, SourceSpan, SourceText, Span};
+use source::{SourceId, SourceSpan, Span};
+use syntax_trees::FloatSpelling;
 use syntax_trees::identifier::Identifier;
 use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText};
 
@@ -385,12 +386,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(crate) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
+    pub(crate) fn take_float_text(self) -> Result<(FloatSpelling, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {
             validate_float_literal(self.text(token).as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            Ok((self.source_text_from_token(token), rest))
+            Ok((
+                FloatSpelling::source_backed(self.source_owner, self.source_span(token)),
+                rest,
+            ))
         } else {
             Err(diagnostics::expected(self, token, "float literal"))
         }
@@ -564,11 +568,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Identifier::source_backed(self.source_owner, source_span)
     }
 
-    fn source_text_from_token(&self, token: &Token) -> SourceText {
-        let source_span = self.source_span(token);
-        SourceText::source_backed(self.retained_source.clone(), source_span)
-    }
-
     pub(crate) fn split_at_top_level_punctuation(
         self,
         delimiter: PunctuationKind,
@@ -653,7 +652,7 @@ mod storage_tests {
         drop(source);
         assert_eq!(name.as_str(&syntax), "name");
         assert_eq!(name.source_span().source_id, SourceId(77));
-        assert_eq!(float.as_str(), "1.5");
+        assert_eq!(float.as_str(&syntax), "1.5");
         assert_eq!(bytes.as_ref(), &[255]);
     }
 }

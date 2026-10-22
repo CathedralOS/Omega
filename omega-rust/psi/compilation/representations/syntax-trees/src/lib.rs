@@ -7,7 +7,7 @@
 //! Identifiers are spellings with spans, not symbols, and no expression carries
 //! a type; both are assigned by the stages that consume this shape.
 //!
-//! Each forest retains source pages once. Authored name occurrences use page
+//! Each forest retains source pages once. Authored name and float-spelling occurrences use page
 //! handles and spans; literal bytes share the lexer's decoded buffer through
 //! later representations. Cross-forest copies retain the referenced pages before
 //! copying nodes. Complete forest equality resolves names through both owners;
@@ -25,6 +25,7 @@ pub use syntax_trees::inspection::snapshot;
 pub use syntax_trees::names::identifier;
 pub use syntax_trees::type_system::types;
 pub use syntax_trees::values::expression;
+pub use syntax_trees::values::float_spelling::FloatSpelling;
 
 pub use language_core::operator_spelling;
 pub use snapshot::SyntaxTreesSnapshot;

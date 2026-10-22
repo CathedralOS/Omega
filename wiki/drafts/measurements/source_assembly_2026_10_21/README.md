@@ -95,3 +95,5 @@ probe totals, exits and source counts, plus runtime evidence and producer
 identities. Import-wave times are summed within each invocation. This record
 covers one macOS ARM64 workload only and does not reproduce the previous
 session's timing comparison or establish performance on other hosts.
+
+- [Forest-owned float spelling](../source_assembly_2026_10_22/float_spelling/README.md): remove per-occurrence float source owners; exact parser and runtime comparisons.

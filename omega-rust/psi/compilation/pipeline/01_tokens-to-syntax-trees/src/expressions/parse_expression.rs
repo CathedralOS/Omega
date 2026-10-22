@@ -1,7 +1,7 @@
 use crate::expressions::context::ExpressionContext;
 use crate::input::token_cursor::{Input, ParseResult};
 use numerics::literals::IntegerLiteral;
-use source::SourceText;
+use syntax_trees::FloatSpelling;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableUnaryExpression,
@@ -364,9 +364,9 @@ fn apply_unary_prefix(
             // Preserve literal folding and the existing 0 - value representation.
             let negated = match syntax_trees.expressions.expression(expression).clone() {
                 ExpressionNode::Integer(literal) => ExpressionNode::Integer(literal.negated()),
-                ExpressionNode::Float(text) => {
-                    ExpressionNode::Float(SourceText::generated(format!("-{}", text.as_str())))
-                }
+                ExpressionNode::Float(text) => ExpressionNode::Float(FloatSpelling::generated(
+                    format!("-{}", text.as_str(syntax_trees)),
+                )),
                 _ => {
                     let zero = syntax_trees
                         .expressions

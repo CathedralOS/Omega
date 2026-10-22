@@ -105,7 +105,7 @@ pub(super) fn literal(
                                 format!("{:?}f64", f64::from_bits(bits))
                             }
                         };
-                        ExpressionNode::Float(source::SourceText::new(spelling, reference))
+                        ExpressionNode::Float(syntax_trees::FloatSpelling::new(spelling, reference))
                     }
                     _ => {
                         return Err(

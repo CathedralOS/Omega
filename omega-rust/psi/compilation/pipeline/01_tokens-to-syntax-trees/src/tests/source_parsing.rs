@@ -269,3 +269,63 @@ fn syntax_names_remain_valid_after_all_token_and_source_rows_are_released() {
     drop(syntax);
     assert_eq!(retained_name.as_str(&retained_text), "Retained");
 }
+
+#[test]
+fn float_spellings_share_forest_custody_and_survive_cross_forest_copy() {
+    use syntax_trees::expression::ExpressionNode;
+    let source: Arc<str> = Arc::from(
+        "machine numbers() { let first: f32 = 1.25f32; let second: f64 = -2.5e-2f64; first }",
+    );
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .unwrap()
+        .retain_source(source.clone());
+    let syntax = crate::parse_syntax_trees(&tokens).unwrap();
+    drop(tokens);
+    assert_eq!(
+        Arc::strong_count(&source),
+        2,
+        "one forest owner, no literal owners"
+    );
+    let original = syntax
+        .expressions
+        .iter_expressions()
+        .filter_map(|(handle, node)| matches!(node, ExpressionNode::Float(_)).then_some(handle))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        original.len(),
+        3,
+        "positive, unsigned operand, folded negative"
+    );
+    let expected = original
+        .iter()
+        .map(|handle| {
+            (
+                syntax.display_expression_name(*handle),
+                syntax.expressions.source_span(*handle),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        expected
+            .iter()
+            .any(|(spelling, _)| spelling == "-2.5e-2f64")
+    );
+    let mut copied = SyntaxTrees::default();
+    let handles = original
+        .iter()
+        .map(|handle| copied.copy_expression_from(&syntax, *handle))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        Arc::strong_count(&source),
+        3,
+        "copies retain one page, not one owner per literal"
+    );
+    drop(syntax);
+    assert_eq!(Arc::strong_count(&source), 2);
+    drop(source);
+    for (handle, (spelling, span)) in handles.into_iter().zip(expected) {
+        assert_eq!(copied.display_expression_name(handle), spelling);
+        assert_eq!(copied.expressions.source_span(handle), span);
+    }
+}

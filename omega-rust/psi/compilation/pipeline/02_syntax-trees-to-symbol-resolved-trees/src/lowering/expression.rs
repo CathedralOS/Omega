@@ -341,10 +341,10 @@ fn lower_nonbinary_expression_node_into_table(
             Ok(expression_table(lowerer).insert(ExpressionNode::UndeterminedNaN(*format)))
         }
         syntax::expression::ExpressionNode::Float(value) => {
-            let Some(value) = FloatLiteral::parse(value.as_str()) else {
+            let Some(value) = FloatLiteral::parse(value.as_str(syntax_trees)) else {
                 return Err(Diagnostic::error(format!(
                     "invalid float literal `{}`",
-                    value.as_str()
+                    value.as_str(syntax_trees)
                 )));
             };
             Ok(expression_table(lowerer).insert(ExpressionNode::Float(value)))

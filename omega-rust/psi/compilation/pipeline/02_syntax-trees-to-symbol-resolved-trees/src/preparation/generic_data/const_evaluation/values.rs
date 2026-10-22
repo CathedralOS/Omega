@@ -1214,7 +1214,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
                 FloatFormat::F64
             };
             let literal = match syntax.expressions.expression(expression) {
-                ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str()),
+                ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str(syntax)),
                 ExpressionNode::Integer(integer) if integer.landing().is_none() => integer
                     .value_bignum()
                     .and_then(|value| FloatLiteral::parse(&value.to_string())),
