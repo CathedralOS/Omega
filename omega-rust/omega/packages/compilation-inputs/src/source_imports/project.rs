@@ -157,15 +157,6 @@ impl ProjectSourceSelection {
         &self.sources
     }
 
-    /// Drop the product companion root. A build handoff types the build entry
-    /// and the modules that entry imports; it does not type `main.omg`'s
-    /// product closure merely because the two files share a directory.
-    pub(crate) fn exclude_product_companion(&mut self) {
-        self.sources.retain(|(path, _)| {
-            path.file_name().and_then(|name| name.to_str()) != Some("main.omg")
-        });
-    }
-
     pub fn build_source_id(
         &self,
         storage: &SourceStorage,

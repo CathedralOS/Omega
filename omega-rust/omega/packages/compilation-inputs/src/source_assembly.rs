@@ -76,7 +76,6 @@ impl ImmutableSourceParseCheckpoint {
     pub fn prepare_from_sources(
         root_path: &Path,
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
-        build_source_only: bool,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
@@ -88,25 +87,16 @@ impl ImmutableSourceParseCheckpoint {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        Self::prepare(
-            root_path,
-            package_inputs.as_ref(),
-            build_source_only,
-            timings,
-        )
+        Self::prepare(root_path, package_inputs.as_ref(), timings)
     }
 
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
-        build_source_only: bool,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
-        let mut project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
-        if build_source_only {
-            project.exclude_product_companion();
-        }
+        let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         for (path, scope) in project.sources() {
             imports.seed(path.clone(), *scope);

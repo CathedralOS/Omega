@@ -1253,20 +1253,16 @@ fn dependency_requests(
         };
         let build = snapshot.join("build.omg");
         let main = snapshot.join("main.omg");
-        // The occurrence executes the dependency build and joins its generated
-        // source. Typing `main.omg`'s product closure here repeats the root
-        // product's own library check and is not an input to that build.
-        let build_source_only = build.is_file();
-        let entry = if build_source_only {
-            build
-        } else if main.is_file() {
-            main
-        } else {
-            build
-        };
+        // A dependency occurrence enters the same way package review compiles
+        // one: at the product companion when the package has one, else at its
+        // build entry. The companion is an input to that build, not an
+        // incidental root — a build entry selects its own package's product
+        // declarations (`Build::select_provider`, `select_representation`,
+        // `exclude_service`) through the build/product checked instance bridge,
+        // so typing it only the build file leaves those operands unresolvable.
+        let entry = if main.is_file() { main } else { build };
         requests.push(CheckedCompileRequest {
             package_inputs: Some(occurrence_inputs),
-            build_source_only,
             build_execution_profile: execution_profile,
             build_dir: Some(staging.join(format!(
                 "{}-{}",
