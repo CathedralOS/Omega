@@ -9389,13 +9389,13 @@ pass/build/sibling_module_service_exclusion_exit checked 9736ms check-target:mac
 pass/build/sibling_module_slot_family_rows_exit checked 10632ms check-target:macos_arm64 @9365eb0d537b+wt
 pass/build/static_assumed_binding_spelling_exit checked 8790ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/build/uefi_context_cleanup_entry checked 6263ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
-pass/build/uefi_entry_schema_same_leaf rejected 1650ms expected check-target:uefi_x86_64 native-rejection:match @6cd22386cbb5+wt
+pass/build/uefi_entry_schema_same_leaf rejected 1202ms expected check-target:uefi_x86_64 native-rejection:match @76e95b69b545+wt
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
 pass/build/uefi_image_residence_observation checked 8217ms check-target:uefi_x86_64 @8fd8af53161a+wt
-pass/build/uefi_os_handoff_invocation rejected 4872ms check-target:uefi_x86_64 @6cd22386cbb5+wt
+pass/build/uefi_os_handoff_invocation rejected 3012ms check-target:uefi_x86_64 @76e95b69b545+wt
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
-pass/build/uefi_provisioned_context_roots rejected 1668ms check-target:uefi_x86_64 @6cd22386cbb5+wt
+pass/build/uefi_provisioned_context_roots rejected 1145ms check-target:uefi_x86_64 @76e95b69b545+wt
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
 pass/build/uefi_selected_context_entry checked 6264ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/build/uefi_selected_context_target_entry checked 3463ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
@@ -10219,7 +10219,7 @@ pass/core/scoped_integer_call_exact_actual_requires_formation checked 7624ms che
 pass/core/scoped_integer_call_guarantees_composed_exit checked 7828ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation checked 8077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/self_read_only_receiver_compile checked 1631ms @a9ae30e1c334+wt
-pass/core/task_lifecycle_operations rejected 969ms check-target:macos_arm64 @6cd22386cbb5+wt
+pass/core/task_lifecycle_operations rejected 1103ms check-target:macos_arm64 @76e95b69b545+wt
 	no provider is selected for boundary requirement `Task::finish$specialized$f1a34b3b312b5f65$0`, which the program entry reaches on target `macos_arm64`
 pass/core/vacant_extent_partition_endpoints checked 2333ms @61fab13095e7+wt
 pass/core/zii_default_composite_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -13000,7 +13000,7 @@ pass/layouts/placed_primitive_aligned_backing checked 61089ms check-target:macos
 pass/layouts/placed_primitive_authored_name checked 20985ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback checked 49798ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/layouts/placed_primitive_generic_concrete checked 45204ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/layouts/placed_primitive_mixed_backing_rejected rejected 2644ms expected check-target:macos_arm64 native-rejection:match @6cd22386cbb5+wt
+pass/layouts/placed_primitive_mixed_backing_rejected rejected 1802ms expected check-target:macos_arm64 native-rejection:match @76e95b69b545+wt
 	native artifact fragment object publication failed: placed backing geometry at MachineId(2)/OperationId(20): actual backing does not meet the placed schema, extent or base congruence
 pass/layouts/placed_primitive_returned_backing checked 32866ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/layouts/placed_primitive_stored_backing checked 32881ms check-target:macos_arm64 @3b18b32f7117+wt
