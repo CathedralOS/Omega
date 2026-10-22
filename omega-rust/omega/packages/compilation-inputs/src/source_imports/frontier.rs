@@ -21,8 +21,8 @@ pub(crate) struct SourceStorage {
     default_package_identity: Option<PackageKeyIdentity>,
     package_roots: Vec<RegisteredPackageRoot>,
     toolchain_root: Option<PathBuf>,
-    toolchain_contract_roots: BTreeMap<PathBuf, PathBuf>,
-    toolchain_contract_dirs: Vec<PathBuf>,
+    // Import reconciliation borrows custody independently of its mutable results.
+    pub toolchain_contract_custody: ToolchainContractCustody,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,7 +120,7 @@ impl SourceStorage {
         path: PathBuf,
         contract_root: PathBuf,
     ) {
-        self.toolchain_contract_roots.insert(
+        self.toolchain_contract_custody.roots.insert(
             normalize_directory(path),
             normalize_directory(contract_root),
         );
@@ -132,9 +132,10 @@ impl SourceStorage {
     /// package identity it cannot have.
     pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
         let root = normalize_directory(root);
-        if !self.toolchain_contract_dirs.contains(&root) {
-            self.toolchain_contract_dirs.push(root);
-            self.toolchain_contract_dirs
+        if !self.toolchain_contract_custody.dirs.contains(&root) {
+            self.toolchain_contract_custody.dirs.push(root);
+            self.toolchain_contract_custody
+                .dirs
                 .sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
         }
     }
@@ -144,24 +145,7 @@ impl SourceStorage {
     /// origin and identity are fixed toolchain by registration, so loading it
     /// cannot launder package content into the compiled program.
     pub(crate) fn is_toolchain_contract_source(&self, path: &Path) -> bool {
-        self.toolchain_contract_root_for(path).is_some()
-    }
-
-    /// Snapshot toolchain contract custody for import reconciliation, where a
-    /// mutable `resolved_imports` borrow forbids retaining `&self`.
-    pub(crate) fn toolchain_contract_custody(&self) -> ToolchainContractCustody {
-        ToolchainContractCustody {
-            roots: self.toolchain_contract_roots.clone(),
-            dirs: self.toolchain_contract_dirs.clone(),
-        }
-    }
-
-    fn toolchain_contract_root_for(&self, path: &Path) -> Option<&Path> {
-        toolchain_contract_root_for(
-            &self.toolchain_contract_roots,
-            &self.toolchain_contract_dirs,
-            path,
-        )
+        self.toolchain_contract_custody.root_for(path).is_some()
     }
 
     fn register_package_source(
@@ -245,7 +229,7 @@ impl SourceStorage {
         path: &Path,
         origin_override: Option<SourceOrigin>,
     ) -> (PathBuf, Option<PackageKeyIdentity>, SourceOrigin) {
-        if let Some(contract_root) = self.toolchain_contract_root_for(path) {
+        if let Some(contract_root) = self.toolchain_contract_custody.root_for(path) {
             return (contract_root.to_path_buf(), None, SourceOrigin::Toolchain);
         }
         if origin_override == Some(SourceOrigin::Toolchain) {
@@ -308,20 +292,13 @@ pub(crate) struct ToolchainContractCustody {
 
 impl ToolchainContractCustody {
     pub(crate) fn root_for(&self, path: &Path) -> Option<&Path> {
-        toolchain_contract_root_for(&self.roots, &self.dirs, path)
+        self.roots.get(path).map(PathBuf::as_path).or_else(|| {
+            self.dirs
+                .iter()
+                .find(|dir| path.starts_with(dir.as_path()))
+                .map(PathBuf::as_path)
+        })
     }
-}
-
-fn toolchain_contract_root_for<'a>(
-    roots: &'a BTreeMap<PathBuf, PathBuf>,
-    dirs: &'a [PathBuf],
-    path: &Path,
-) -> Option<&'a Path> {
-    roots.get(path).map(PathBuf::as_path).or_else(|| {
-        dirs.iter()
-            .find(|dir| path.starts_with(dir.as_path()))
-            .map(PathBuf::as_path)
-    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

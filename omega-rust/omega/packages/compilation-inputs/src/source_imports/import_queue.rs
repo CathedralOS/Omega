@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::path::{Path, PathBuf};
 
 use source::DependencyScope;
@@ -9,7 +9,7 @@ use source::DependencyScope;
 /// source both purposes select loads a second time under its other scope.
 #[derive(Debug, Default)]
 pub struct ImportQueue {
-    seen: HashSet<(PathBuf, DependencyScope)>,
+    seen: HashMap<(PathBuf, DependencyScope), ()>,
     pending: VecDeque<(PathBuf, DependencyScope)>,
 }
 
@@ -33,7 +33,7 @@ impl ImportQueue {
     /// physical load — generated and injected sources are retained by their
     /// producer, not read from disk.
     pub fn mark_loaded(&mut self, path: &Path, scope: DependencyScope) {
-        self.seen.insert((path.to_path_buf(), scope));
+        self.seen.insert((path.to_path_buf(), scope), ());
     }
 
     pub fn has_pending(&self) -> bool {
@@ -47,8 +47,11 @@ impl ImportQueue {
     }
 
     fn push(&mut self, path: PathBuf, scope: DependencyScope) {
-        if self.seen.insert((path.clone(), scope)) {
-            self.pending.push_back((path, scope));
+        // Move the lookup key first; only a new checked instance needs a
+        // second owned path for its pending load. Entry avoids hashing twice.
+        if let Entry::Vacant(entry) = self.seen.entry((path, scope)) {
+            self.pending.push_back(entry.key().clone());
+            entry.insert(());
         }
     }
 }

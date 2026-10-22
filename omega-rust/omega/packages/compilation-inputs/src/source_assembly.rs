@@ -413,14 +413,13 @@ fn append_dependency_generated_sources_to_storage(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
-        let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = discover_imports_with_packages(
             &parsed,
             &source_storage.syntax_trees,
             package_inputs,
             Some(package),
             &mut source_storage.resolved_imports,
-            &contract_custody,
+            &source_storage.toolchain_contract_custody,
         )?;
         imports.enqueue(discovered)?;
         imports.enqueue(entry_base)?;
@@ -456,7 +455,6 @@ fn load_imports(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
-        let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = match package_inputs {
             Some(package_inputs) => {
                 let (discovered, mut requests) = discover_package_imports(
@@ -465,7 +463,7 @@ fn load_imports(
                     package_inputs,
                     phase,
                     &mut source_storage.resolved_imports,
-                    &contract_custody,
+                    &source_storage.toolchain_contract_custody,
                 )?;
                 retained_requests.append(&mut requests);
                 discovered
