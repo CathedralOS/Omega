@@ -106,17 +106,6 @@ impl TypedTrees {
         self.require_application_operand_bindings(arguments, lexical_owner, true, None)
     }
 
-    /// Materialized local static operands belong to the retained caller, not
-    /// the receiving trait's replacing telescope. Their owner tags retain any
-    /// captured declaration; lexical ownership grants no open static binder.
-    pub fn require_receiving_application_operands(
-        &self,
-        arguments: &[types::TypeReferenceHandle],
-        scope: &crate::trait_definition::AppliedTraitScope<'_>,
-    ) -> Result<(), &'static str> {
-        self.require_application_operand_bindings(arguments, scope.argument_owner, false, None)
-    }
-
     pub fn require_owned_application_operands(
         &self,
         arguments: &[types::TypeReferenceHandle],
