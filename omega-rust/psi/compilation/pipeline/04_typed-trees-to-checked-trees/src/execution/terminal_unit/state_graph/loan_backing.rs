@@ -681,6 +681,7 @@ impl Dependencies<'_> {
         ) else {
             return false;
         };
+        let mut opaque_referent = false;
         if root.as_symbol().is_some_and(|symbol| {
             self.program
                 .state_by_symbol(self.state)
@@ -693,14 +694,24 @@ impl Dependencies<'_> {
             // A borrowed parameter names its caller-supplied referent. Its
             // root permission is not a stored descriptor requiring a loan row;
             // only references inside that referent join the stored frontier.
-            let Some(carrier) =
-                validation::reference_result_custody::input_carrier_type(self.program, reference)
-            else {
-                return false;
-            };
-            reference = carrier;
+            // A readable borrowed parameter peels to its referent carrier.
+            // A write-only parameter carries no interior leaves into this
+            // state at all: checking publishes no trackers for them, so the
+            // referent is opaque storage with an empty stored frontier.
+            match validation::reference_result_custody::input_carrier_type(
+                self.program,
+                reference,
+            ) {
+                Some(carrier) => reference = carrier,
+                None if validation::reference_shell(self.program, reference).is_some() => {
+                    opaque_referent = true;
+                }
+                None => return false,
+            }
         }
-        let paths = if let Some((_, carrier)) = self
+        let paths = if opaque_referent {
+            Some(Vec::new())
+        } else if let Some((_, carrier)) = self
             .ingress_storage
             .iter()
             .find(|(owner, _)| *owner == root)
