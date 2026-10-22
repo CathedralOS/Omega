@@ -6948,7 +6948,8 @@ fail/generics/applied_payload_field_needs_case_membership rejected 3952ms expect
 fail/generics/applied_result_distinct_declaration_mismatch rejected 343ms expected @7c0518fd7afd+wt
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
 fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 148ms expected @d1fa4738e67a+wt
-fail/generics/captured_map_dynamic_open_method rejected 417ms expected @4730b1ac8a84
+fail/generics/captured_map_dynamic_open_method rejected 213ms expected @219803c2be61+wt
+	dynamic requirement call `Generic::code` supplies static machine arguments, but the requirement declares no finite family
 fail/generics/captured_map_foreign_nominal_region rejected 132ms expected @4730b1ac8a84
 fail/generics/captured_map_machine_contract_dependent_const rejected 334ms expected @4730b1ac8a84
 fail/generics/captured_map_machine_contract_dependent_type rejected 352ms expected @4730b1ac8a84

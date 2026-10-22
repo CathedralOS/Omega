@@ -288,7 +288,17 @@ pub fn validate_static_machine_bindings(
                 // dynamic selector checks already perform. A slot of another
                 // requirement is not this tuple's application.
                 if let Some(slot) = program.dynamic_slot_by_symbol(*target) {
-                    if slot.requirement != application.binding_declaration
+                    // A closed call publishes its instantiated requirement on
+                    // the slot, and a closed requirement instance retains its
+                    // authored template -- the declaration the tuple was
+                    // written against, which is exactly the identity the closed
+                    // arm below judges through `closed.template`. Reading that
+                    // published template keeps this comparison beside the other
+                    // three slot rejoinings.
+                    let requirement = program
+                        .closed_requirement_application(slot.requirement)
+                        .map_or(slot.requirement, |closed| closed.template);
+                    if requirement != application.binding_declaration
                         || selected.is_some_and(|previous| previous != slot.requirement)
                     {
                         valid = false;
