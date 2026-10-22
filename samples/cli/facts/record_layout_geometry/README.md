@@ -58,11 +58,23 @@ Exact subtraction `(s + a + extra) - 100u64` cannot be proved safe, rejecting at
 exact arithmetic may overflow
 ```
 
-specifically:
+specifically, measured at base `114906953e1` with the host target `macos_arm64`.
+Six of the nine places (`local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`) report ``machine `main` state `entry` local
+`diff` ``; `other_state` reports the same at state `step`; `other_machine`
+reports ``machine `runner` state `entry` terminal expression``; `target_body`
+reports ``machine `compute_geometry` state `entry` terminal expression``:
 
 ```
-error: exact arithmetic in machine `compute_geometry` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).
+error: machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `macos_arm64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 ```
+
+Each `invalid/expected.txt` pins the target-neutral tail
+(`bounds [-8, -8] lie outside [0, 18446744073709551615]`), so the fragment is
+satisfied under either wording. The shared corpus golden records the
+`linux_x86_64` wording, because the check leg realizes the first of
+`macos_arm64`, `linux_x86_64`, `windows_x86_64` that the fixture's own
+`build.omg` binds — here `linux_x86_64`.
 
 Restoring the array bound `[u64; 9]` restores clean compilation and zero exit.
 
@@ -79,8 +91,34 @@ Restoring the array bound `[u64; 9]` restores clean compilation and zero exit.
 1. **Establishment:** `size_of<PaddedFrame>()` (88u64), `align_of<PaddedFrame>()` (8u64), and `align_of<u32>()` (4u64) on structural `data PaddedFrame { tag: u8; word: u64; tail: [u64; 9]; }` establish the exact compile-time byte size, alignment, and internal padding (7 padding bytes following `tag: u8` before 8-byte aligned `word: u64` and fixed array `tail: [u64; 9]`), summing to exactly `100u64` directly without any post-hoc caller equality guard (`transition x == 100`).
 2. **Identity and lifetime:** The record layout geometry facts remain bound to the exact record type `PaddedFrame` and its scalar/array fields across all 9 places. Layout evaluations compute canonical target-neutral geometry values that retain their mathematical identities and static bounds across storage into locals, records, parameters, call boundaries, and state transitions.
 3. **Composition:** Record layout geometry (`size_of` / `align_of`) composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation `(s + a + extra) - 100u64`. Each positive `<place>/main.omg` differs from its `<place>/invalid/main.omg` reject twin strictly in the layout geometry bound (narrowing `tail: [u64; 9]` to `[u64; 8]`, producing 92u64 total geometry instead of 100u64).
-4. **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `exact arithmetic in machine ... may overflow \`u64\`` (`exact subtraction underflow`, bounds `[-8, -8] lie outside [0, 18446744073709551615]`) because `92u64 - 100u64` violates the unsigned range invariant. The compiler enforces that unverified exact arithmetic is rejected.
+4. **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `exact arithmetic may overflow`, naming the place's own machine and state and the target being checked, because `92u64 - 100u64` violates the unsigned range invariant (`bounds [-8, -8] lie outside [0, 18446744073709551615]`). The compiler enforces that unverified exact arithmetic is rejected.
 5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** `size_of` and `align_of` layout queries and record projections lower into canonical `PSITERM\0` constant representations and exact integer arithmetic operations while erasing proof-only obligations. The lowered representation executes in the Terminal Psi interpreter (`omega run --both`) agreeing with native execution at exit 0.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans evaluate and validate record field offsets (`tag` at offset 0, `word` at offset 8, `tail` at offset 16), alignment padding, and total size (88 bytes with 8-byte alignment). `CallPlan`/`StatePlan` lower carriers across registers and stack slots according to target calling conventions.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering materializes layout geometry constants (`88`, `8`, `4`), assigns register homes and disjoint stack-frame storage, selects native integer addition (`add`) and subtraction (`sub`) instructions, accounts for stack usage in worst-case stack usage (WCSU), and inserts machine entry prologues and epilogues.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and layout offsets resolve into native instructions, basic blocks and branch targets relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across host targets (`windows_x86_64` and `macos_arm64`).
+
+## Measured run record
+
+Producer: the factsr1 wave's read-only producer, `--build-profile` reporting
+`{"opt_level":"1"}`, built at revision `9ff26a8702`; host `macos_arm64`;
+measured tree base `114906953e11e283b8082f03d8da99fbf39dff7e`. No compiler
+repair was needed and no fixture, twin, or golden row was added.
+
+- Root plus nine places, `omega run --both`: ten `native exit 0` rows, each
+  with `interp exit: 0`.
+- All nine `<place>/invalid/main.omg` twins reject at `omega --check` with
+  exit 1 and the pinned fragment `bounds [-8, -8] lie outside [0, 18446744073709551615]`.
+  `git diff` per place shows the twin differing from its positive only in the
+  header comment plus the construct's own array bound (`tail: [u64; 9]` to
+  `[u64; 8]`, with the `match_join` scrutinee reading the narrowed size,
+  `match s == 88` to `match s == 80`).
+- `python3 tools/sample_native_gate.py --facts --filter
+  cli/facts/readonly_byte_literal_subslice,cli/facts/record_layout_geometry
+  --cli <producer> --jobs 1`: 20/20 samples meet their documented oracle on
+  `macos_arm64` (10 here: root plus the nine places), and 27/27
+  intended-invalid controls match their authored rejection (18 here: the nine
+  `<place>/invalid/` twins plus the nine byte-identical `invalid/<place>`
+  copies, which discovery reports as independent projects).
+- `python3 tools/sample_gate.py --cli <producer> --filter
+  facts/record_layout_geometry`: 28/28 checked with 18 intended-invalid
+  controls matched.

@@ -87,3 +87,30 @@ Measured on `macos_arm64` at `75bef93981f9` with the optimized producer
   non-literal slice views under content mutation, and inter-package dynamic
   slice provider composition under `CONSERVATION-CONTRACT`.
 
+### Re-verified at base 114906953e1
+
+Producer: the factsr1 wave's read-only producer, `--build-profile` reporting
+`{"opt_level":"1"}`, built at revision `9ff26a8702`; host `macos_arm64`;
+measured tree base `114906953e11e283b8082f03d8da99fbf39dff7e`. No compiler
+repair was needed and no fixture, twin, or golden row was added.
+
+- Root plus nine places, `omega run --both`: ten `native exit 0` rows, each
+  with `interp exit: 0`.
+- All nine `<place>/invalid/main.omg` twins reject at `omega --check` with
+  exit 1 and the pinned fragment ``may overflow `u64` ``.
+  Seven name ``machine `probe` state `entry` ``; `other_state` names
+  ``machine `probe` state `step` ``; `target_body` reports four diagnostics
+  naming ``machine `evaluate_window` state `entry` ``, one per target-scoped
+  body. `git diff` per place shows the twin differing from its positive only
+  in the header comment plus the construct's own subslice bound
+  (`[2u64..12u64]` to `[2u64..11u64]`), the named constant (`END: 12u64` to
+  `11u64`), and the `requires`/`ensures` values.
+- `python3 tools/sample_native_gate.py --facts --filter
+  cli/facts/readonly_byte_literal_subslice,cli/facts/record_layout_geometry
+  --cli <producer> --jobs 1`: 20/20 samples meet their documented oracle on
+  `macos_arm64` (10 here: root plus the nine places), and 27/27
+  intended-invalid controls match their authored rejection (9 here).
+- `python3 tools/sample_gate.py --cli <producer> --filter
+  facts/readonly_byte_literal_subslice`: 19/19 checked with 9 intended-invalid
+  controls matched.
+
