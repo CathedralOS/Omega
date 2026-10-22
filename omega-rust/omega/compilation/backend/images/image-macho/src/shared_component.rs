@@ -262,8 +262,15 @@ pub(super) fn validate_export_trie(
         .checked_add(count)
         .ok_or_else(|| invalid("export extent overflows"))?;
     let signed_end = signature.ok_or_else(|| invalid("missing signature interval"))?;
-    if offset != start
+    // The writer starts every LINKEDIT blob on an eight-byte boundary, so at
+    // most seven zero bytes may separate the fixup interval and the trie.
+    if offset < start
+        || offset - start >= 8
+        || !offset.is_multiple_of(8)
         || end > signed_end
+        || region(bytes, start, offset - start)?
+            .iter()
+            .any(|byte| *byte != 0)
         || region(bytes, end, signed_end - end)?
             .iter()
             .any(|byte| *byte != 0)

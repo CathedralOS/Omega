@@ -160,9 +160,12 @@ pub(crate) fn plan_macho_container(
     } else {
         text_offset + image.memory.text.len()
     };
+    // dyld refuses LINKEDIT blobs whose file offset is not eight-byte
+    // aligned, so each fixup stream starts on its own aligned boundary; the
+    // loader-side fixup checker accepts the zero padding between streams.
     let rebase_offset = align_to(unsigned_file_end, page_size);
-    let bind_offset = rebase_offset + rebase_size;
-    let export_offset = bind_offset + bind_size;
+    let bind_offset = align_to(rebase_offset + rebase_size, 8);
+    let export_offset = align_to(bind_offset + bind_size, 8);
     let code_signature_offset = align_to(export_offset + export_size, page_size);
     let code_signature_size =
         code_signature_size(code_signature_offset, code_signature_identifier, isa);
@@ -284,7 +287,7 @@ mod tests {
 
         assert!(plan.has_dyld_info);
         assert_eq!(plan.rebase_offset, PAGE_SIZE * 2);
-        assert_eq!(plan.bind_offset, plan.rebase_offset + 5);
+        assert_eq!(plan.bind_offset, plan.rebase_offset + 8);
         assert_eq!(plan.linkedit_offset, plan.rebase_offset);
         assert_eq!(plan.code_signature_offset, PAGE_SIZE * 3);
     }

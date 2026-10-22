@@ -390,8 +390,16 @@ pub(crate) fn validate_macho_loader_fixups_for_segment(
     let bind_offset = word(info, 16)? as usize;
     let bind_size = word(info, 20)? as usize;
     let fixup_end = bind_offset.checked_add(bind_size).ok_or_else(invalid)?;
+    // The writer starts each LINKEDIT blob on an eight-byte boundary; only
+    // zero padding may separate the rebase and bind streams.
+    let rebase_end = rebase_offset.checked_add(rebase_size).ok_or_else(invalid)?;
     if rebase_offset as u64 != linkedit_offset
-        || rebase_offset.checked_add(rebase_size) != Some(bind_offset)
+        || rebase_end > bind_offset
+        || bind_offset - rebase_end >= 8
+        || !bind_offset.is_multiple_of(8)
+        || region(bytes, rebase_end, bind_offset - rebase_end)?
+            .iter()
+            .any(|byte| *byte != 0)
         || fixup_end > signature.ok_or_else(invalid)?
         || fixup_end as u64 > linkedit_end
     {
