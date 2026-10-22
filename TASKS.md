@@ -5446,10 +5446,19 @@ wait for Cathedral's instruction coverage. The interpreter is
     qualification. A domain on an `f64` constant keeps
     the carrier's float encoding. Bodyless `float_comparison_route` stays
     on the comparison route (native exit 0, interpreter exit 0). A generic
-    comparison body that returns false is recorded on the call:
-    `samples/cli/facts/generic_comparison_body/local` exits 0 on both engines,
-    and the caller reads `direct == false`. Its twin changes only that body
-    to `true` and rejects. The other eight places of that sentence remain open.
+    comparison body that returns false is recorded on the call, and the caller
+    reads the record: all nine transport places now carry that sentence —
+    local, field, parameter, call result, match join, const name, another
+    state, another machine, and a target body — each with a reject twin, and
+    the eighteen fixtures
+    `tests/omega/{pass,fail}/facts/generic_comparison_body_through_*` are
+    pinned with recorded golden rows. Measured at `c1c6bc8cb8e` on macOS arm64
+    with the shared opt-level 1 producer built at `9ff26a87021`: nine of nine
+    positives run `native exit 0` with `interp exit: 0`, and nine of nine
+    twins reject `direct == false` with only the body's own `false`→`true`
+    line changed. Re-measured at `8d202634513` with a producer built from that
+    tree: identical verdicts (18 of 18 engine runs exit 0; nine of nine twins
+    reject).
     A call precondition that is a parameter projection is recorded on the
     call: `samples/cli/facts/projection_call_premise` exits 0 on both engines
     through all nine places, and the caller reads `direct == true`. Each twin
@@ -5459,11 +5468,18 @@ wait for Cathedral's instruction coverage. The interpreter is
     pinned with recorded golden rows (checked/rejected, native exit 0, and
     Terminal agreement).
     A call inside an abstract signature is the premise, and the signature
-    records that call's result:
-    `samples/cli/facts/abstract_signature_call/local` exits 0 on both engines,
-    and the caller reads `direct == true`. Its twin changes only that call's
-    result from `true` to `false` and rejects `premise(kept)`. The other eight
-    places of that sentence remain open.
+    records that call's result: all nine transport places now carry that
+    sentence — local, field, parameter, call result, match join, const name,
+    another state, another machine, and a target body — each with a reject
+    twin, and the eighteen fixtures
+    `tests/omega/{pass,fail}/facts/abstract_signature_call_through_*` are
+    pinned with recorded golden rows. Measured at `c1c6bc8cb8e` on macOS arm64
+    with the shared opt-level 1 producer built at `9ff26a87021`: nine of nine
+    positives run `native exit 0` with `interp exit: 0`, and nine of nine
+    twins reject the instantiated `premise(kept)` as structurally false, with
+    only the premise call's own `true`→`false` result changed. Re-measured at
+    `8d202634513` with a producer built from that tree: identical verdicts
+    (18 of 18 engine runs exit 0; nine of nine twins reject).
     A call premise that is a static evidence argument is recorded on the
     selected realization: `samples/cli/facts/static_evidence_premise` exits 0
     on both engines through all nine places, and the caller reads

@@ -1,0 +1,30 @@
+// A generic comparison body returns false. The call records that boolean,
+// and the caller reads the record.
+// Place: const_name.
+// Expected exit: 0
+machine same<T>(left: T, right: T) -> bool {
+    true
+}
+
+machine compare<T>(left: T, right: T) -> bool {
+    same<T>(left, right)
+}
+
+machine hold(direct: bool) -> bool
+requires direct == false
+{
+    true
+}
+
+const LEFT: u64 = 1u64;
+const RIGHT: u64 = 1u64;
+
+machine main() crashes Trap {
+    let direct: bool = compare<u64>(LEFT, RIGHT);
+    transition hold(direct) {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
