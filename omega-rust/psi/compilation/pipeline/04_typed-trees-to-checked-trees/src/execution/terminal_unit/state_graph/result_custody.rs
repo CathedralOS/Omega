@@ -292,20 +292,6 @@ pub(super) fn account<'calls>(
             trace.statement(Some(result.statement_index));
             return None;
         }
-        let permits_disposal = |statement: Option<u32>, continuation: bool| {
-            !retired_whole
-                && reference_releases == 0
-                && (deferred_reference_releases == 1
-                    || local_results::permits_disposal(
-                        program,
-                        facts,
-                        state,
-                        operation,
-                        operations,
-                        statement,
-                        continuation,
-                    ))
-        };
         // A selected source either moves whole on every arm, or retains an
         // exact residual with conditional normal disposal. Whole transfer
         // discharges linear storage too; only affine storage may rely on
@@ -502,6 +488,25 @@ pub(super) fn account<'calls>(
         // not an additional local Establish/Consume obligation.
         let release_owned_view = affine_view && owns_local_view_claim;
         let has_captured_view_loans = release_owned_view && has_captured_view_loans;
+        let permits_disposal = |statement: Option<u32>, continuation: bool| {
+            !retired_whole
+                && reference_releases == 0
+                // A scheduled loan release is the one checked disposition of
+                // an affine view: the same retirement the lexical disposal
+                // permit describes. Counting both books the state-exit
+                // Consume row and the disposal row as competing owners.
+                && view_releases == 0
+                && (deferred_reference_releases == 1
+                    || local_results::permits_disposal(
+                        program,
+                        facts,
+                        state,
+                        operation,
+                        operations,
+                        statement,
+                        continuation,
+                    ))
+        };
         if release_owned_view && successor_moves.iter().any(|(_, moves)| *moves > 1) {
             return None;
         }
