@@ -1922,7 +1922,8 @@ fail/drops/temporary_cleanup_nested_owner_contract rejected 1158ms expected @522
 fail/drops/temporary_cleanup_selected_operand rejected 1168ms expected @5224f3a25f86+wt
 fail/drops/temporary_cleanup_unmet_prerequisite rejected 1269ms expected @5224f3a25f86+wt
 fail/drops/transitive_state_loan_cleanup_prerequisite rejected 7721ms expected @753e7ce7a36e+wt
-fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 1530ms expected @a9ae30e1c334+wt
+fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 601ms expected @d5b3aea067bb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by OptionalReceipt::drop clause `owner.ready`
 fail/effects/boundary_empty_provider_hides_reach rejected 337ms expected @c5a7c1ce1957+wt
 fail/effects/boundary_explicit_capability_required rejected 334ms expected @c5a7c1ce1957+wt
 fail/effects/create_dir_all_requires_metadata_query rejected 5018ms expected @73f515379bec
@@ -7972,6 +7973,8 @@ fail/ownership/borrowed_content_partition_wrong_conservation rejected 859ms expe
 	construction value is not proven in domain `Region::Owned` in partition state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `rest` is not proven in domain `Region::Owned` in partition state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 fail/ownership/borrowed_detached_aggregate_missing_repair rejected 338ms expected @b5b743bb02aa+wt
+fail/ownership/borrowed_linear_case_store_requires_disposition rejected 504ms expected @d5b3aea067bb
+	cleanup effect dependency in `invalid` has no exact structural residual disposition in state `entry` at statement 0
 fail/ownership/borrowed_operand_later_read rejected 1239ms expected @a9ae30e1c334+wt
 fail/ownership/borrowed_storage_boundary_call rejected 1714ms expected @a9ae30e1c334+wt
 fail/ownership/borrowed_storage_missing_repair_on_branch rejected 1164ms expected @a9ae30e1c334+wt
@@ -7982,6 +7985,8 @@ fail/ownership/borrowed_window_crash_does_not_repair_return rejected 554ms expec
 fail/ownership/borrowed_window_mutable_selector_observes_hole rejected 1146ms expected @a9ae30e1c334+wt
 fail/ownership/borrowed_window_selector_alias_write rejected 1202ms expected @a9ae30e1c334+wt
 fail/ownership/boundary_cycle_reuses_consumed_owner rejected 600ms expected @8df1d091a810
+fail/ownership/captured_case_qualification_requires_issuer rejected 599ms expected @d5b3aea067bb
+	cannot prove requires contract for call value from invalid: __transition_subject#12::Held.token in Token::Issued in state `entry`
 fail/ownership/captured_cleanup_cannot_use_later_selector_value rejected 336ms expected @65a791f12e28+wt
 fail/ownership/cleanup_receiver_keeps_child_loan rejected 772ms expected @9365eb0d537b+wt
 	state `prepare` receives `counter` while local borrow `cleanup` is still active
@@ -7999,6 +8004,8 @@ fail/ownership/dispatch_payload_preserves_nominal_cleanup rejected 830ms expecte
 	cannot partially move a value of `Envelope<Leaf>` because `Envelope<Leaf>::drop` requires the whole value
 fail/ownership/duplicate_constructor_payload rejected 1352ms expected @a81c7e227ee2+wt
 	cannot use `choice::Present.value` in machine `duplicate` state `entry` (statement 1) after `choice::Present.value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `choice::Present.value` first
+fail/ownership/dynamic_collection_loan_after_element_move rejected 455ms expected @d5b3aea067bb
+	cannot use `inventory` in machine `invalid` state `entry` (statement 2) after `inventory.tokens[0]` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `inventory.tokens[0]` first
 fail/ownership/first_match_linear_frontier_mismatch rejected 250ms expected @dd6871ed0476
 fail/ownership/first_match_pattern_double_consumption rejected 345ms expected @a81c7e227ee2+wt
 	cannot use `held` in machine `selected` state `entry` (statement 1) after `held` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `held` first
@@ -8042,7 +8049,8 @@ fail/ownership/linear_state_parameter_scope_loss rejected 1601ms expected @a9ae3
 fail/ownership/linear_state_parameter_second_use rejected 1209ms expected @a9ae30e1c334+wt
 fail/ownership/linear_temporary_scalar_observation rejected 1645ms expected @a9ae30e1c334+wt
 fail/ownership/linear_transparent_record_member_scope_loss rejected 1582ms expected @a9ae30e1c334+wt
-fail/ownership/linear_zero_storage_not_established rejected 1656ms expected @a9ae30e1c334+wt
+fail/ownership/linear_zero_storage_not_established rejected 596ms expected @d5b3aea067bb
+	linear value `receipt` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
 fail/ownership/live_registration_cannot_drop rejected 1517ms expected @e74967d11875
 fail/ownership/live_registration_cannot_release rejected 461ms expected @e74967d11875
 fail/ownership/local_subslice_window_wrong_repair rejected 1219ms expected @a9ae30e1c334+wt
@@ -8061,9 +8069,13 @@ fail/ownership/owned_qualification_invalidated_field rejected 1310ms expected @e
 fail/ownership/owned_replacement_second_move_rejected rejected 1246ms expected @a9ae30e1c334+wt
 fail/ownership/owned_state_immutable_field_store rejected 857ms expected @a9ae30e1c334+wt
 fail/ownership/partial_carrier_whole_borrow rejected 264ms expected @e47dcb1ff6d8+wt
-fail/ownership/partial_carrier_whole_call rejected 265ms expected @e47dcb1ff6d8+wt
+fail/ownership/partial_carrier_whole_call rejected 451ms expected @d5b3aea067bb
+	cannot use `carrier` in machine `main` state `entry` (statement 3) after `carrier.part` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `carrier.part` first
 fail/ownership/partial_linear_record_cleanup_keeps_debt rejected 1592ms expected @a9ae30e1c334+wt
-fail/ownership/partial_nested_parameter_whole_call rejected 255ms expected @e47dcb1ff6d8+wt
+fail/ownership/partial_nested_parameter_whole_call rejected 460ms expected @d5b3aea067bb
+	cannot use `envelope.carrier` in machine `inspect` state `next` (statement 1) after `envelope.carrier.part` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `envelope.carrier.part` first
+fail/ownership/qualified_inventory_selection_requires_issuer rejected 602ms expected @d5b3aea067bb
+	cannot prove requires contract for call value from invalid: __transition_subject#13::Held.token in Token::Issued in state `entry`
 fail/ownership/read_after_conditional_move_in_statement rejected 342ms expected @a81c7e227ee2+wt
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 0) after `ticket` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
 fail/ownership/read_after_conditional_move_inside_arm rejected 344ms expected @a81c7e227ee2+wt
@@ -8125,6 +8137,17 @@ fail/ownership/whole_borrowed_shared_extraction rejected 1173ms expected @a9ae30
 fail/ownership/whole_borrowed_stale_observation rejected 1213ms expected @a9ae30e1c334+wt
 fail/ownership/whole_linear_parent_move_keeps_unique_custody rejected 509ms expected @e2a6d051c734
 	cannot use `original` in machine `main` state `entry` (statement 3) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
+fail/ownership/zero_case_active_linear_payload rejected 595ms expected @d5b3aea067bb
+	linear value `slot::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+fail/ownership/zero_case_generic_active_linear_payload rejected 597ms expected @d5b3aea067bb
+	linear value `inventory.cells[0].cells[0]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+	linear value `inventory.cells[0].cells[1]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+	linear value `inventory.cells[1].cells[0]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+	linear value `inventory.cells[1].cells[1]::Held.token` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+fail/ownership/zero_case_inventory_lost_token rejected 597ms expected @d5b3aea067bb
+	linear value `slots[1]::Held.token` reaches scope exit without being consumed or transferred
+fail/ownership/zero_case_tag_replaced rejected 587ms expected @d5b3aea067bb
+	cannot prove requires contract for call empty from invalid: inventory.slots[0] == constructor:4:Slot10:name:Empty (needs fact `slot == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/packages/indexed_contract_out_of_bounds rejected 1585ms expected @c4d3eedf9f1d+wt
 fail/packages/std_missing_dependency_rejected rejected 50ms expected @2cc7258c36bd+wt
 fail/packages/std_mount_path_rejected rejected 0ms expected @a9ae30e1c334+wt
@@ -13944,6 +13967,7 @@ pass/ownership/runtime_borrowed_captured_selector_exit checked 10886ms check-tar
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11584ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 11152ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 11412ms check-target:macos_arm64 @55ccf9be57c4
+pass/ownership/runtime_borrowed_case_inventory_insert_exit checked 2122ms check-target:macos_arm64 @d5b3aea067bb
 pass/ownership/runtime_borrowed_case_restore_variants_exit checked 13206ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_case_result_restore_exit checked 14042ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_content_partition_exit checked 1217ms check-target:macos_arm64 @ceb07da2eef4
@@ -13959,6 +13983,8 @@ pass/ownership/runtime_borrowed_sum_identity_restore_exit checked 10689ms check-
 pass/ownership/runtime_borrowed_sum_retag_exit checked 11555ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_window_crash_exit checked 11064ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_byte_destination_exit checked 2807ms check-target:macos_arm64 @096f2ecfd243+wt
+pass/ownership/runtime_captured_case_qualification_exit checked 2251ms check-target:macos_arm64 @d5b3aea067bb
+pass/ownership/runtime_captured_case_structural_call_exit checked 2539ms check-target:macos_arm64 @d5b3aea067bb
 pass/ownership/runtime_captured_construction_selector_exit checked 11041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_replacement_selector_exit checked 10842ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_selector_call_exit checked 11584ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -13986,6 +14012,7 @@ pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 23539ms
 pass/ownership/runtime_owned_parameter_restoration_exit checked 11625ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit checked 10927ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_projected_constructor_operands_exit checked 11655ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_qualified_inventory_selection_exit checked 6467ms check-target:macos_arm64 @d5b3aea067bb
 pass/ownership/runtime_referent_replacement_fact_transport_exit checked 10812ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 11003ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_replacement_call_child_snapshot_exit checked 11068ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -14003,6 +14030,7 @@ pass/ownership/runtime_view_parameter_element_window_exit checked 11550ms check-
 pass/ownership/runtime_whole_borrowed_transform_exit checked 12004ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 11009ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_linear_parent_move_exit checked 1348ms check-target:macos_arm64 @e2a6d051c734
+pass/ownership/runtime_zero_case_linear_inventory_exit checked 2202ms check-target:macos_arm64 @d5b3aea067bb
 pass/ownership/selected_constructor_fresh_field checked 11765ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/ownership/selected_constructor_swapped_fields checked 11720ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/ownership/selected_storage_join_backedge_exit checked 1198ms check-target:macos_arm64 @9e04918b1d1c
@@ -14022,6 +14050,8 @@ pass/ownership/two_member_loans_compile checked 1633ms @a9ae30e1c334+wt
 pass/ownership/view_param_subject_compile checked 1733ms @a9ae30e1c334+wt
 pass/ownership/view_reborrow_argument_compile checked 1745ms @a9ae30e1c334+wt
 pass/ownership/view_to_view_reborrow_compile checked 1762ms @a9ae30e1c334+wt
+pass/ownership/zero_case_generic_inventory checked 670ms @d5b3aea067bb
+pass/ownership/zero_case_qualified_inventory checked 663ms @d5b3aea067bb
 pass/packages/implementation_parent_review checked 5037ms @e989a71f345a+wt
 pass/packages/indexed_contract_field_review checked 4176ms check-target:macos_arm64 @c4d3eedf9f1d+wt
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 12305ms check-target:macos_arm64 @a9ae30e1c334+wt
