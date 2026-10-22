@@ -23,6 +23,7 @@ pub(super) fn adapt(
     slot_kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<DescriptorMachine> {
+    let scalar_expressions = super::payload_predicates::TerminalScalarExpressions::new(machine);
     let mut graph = DescriptorMachine {
         id: machine.id,
         returns: machine
@@ -104,9 +105,12 @@ pub(super) fn adapt(
         );
         for (index, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(index).ok()?);
-            if let Some(postconditions) =
-                super::scalar_contracts::terminal_postconditions(module, machine, operation)
-            {
+            if let Some(postconditions) = super::scalar_contracts::terminal_postconditions(
+                module,
+                machine,
+                operation,
+                &scalar_expressions,
+            ) {
                 graph
                     .payload_scalar_postconditions
                     .insert(position, postconditions.scalar);
@@ -139,7 +143,7 @@ pub(super) fn adapt(
             };
             if let Some((destination, path, field, value)) = scalar_store
                 && let Some(value) =
-                    super::payload_predicates::terminal_scalar_expression(machine, value)
+                    scalar_expressions.expression(value)
                 // Only an exact typed coordinate can capture stored contents.
                 // Runtime selectors retain their ordinary invalidation below.
                 && let Some(destination) = location(destination, path, field)
@@ -736,9 +740,7 @@ pub(super) fn adapt(
                 OperationKind::EstablishPrimitiveLocal { value, .. } => {
                     // A new home captures its actual initializer, not a
                     // receiving qualification or an equation for future reads.
-                    if let Some(value) =
-                        super::payload_predicates::terminal_scalar_expression(machine, *value)
-                    {
+                    if let Some(value) = scalar_expressions.expression(*value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
@@ -754,9 +756,7 @@ pub(super) fn adapt(
                             result.structural_type,
                             u64::try_from(ordinal).ok()?,
                         )?;
-                        if let Some(value) =
-                            super::payload_predicates::terminal_scalar_expression(machine, *value)
-                        {
+                        if let Some(value) = scalar_expressions.expression(*value) {
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
@@ -830,10 +830,7 @@ pub(super) fn adapt(
                             _ => location(result?.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
-                            && let Some(value) =
-                                super::payload_predicates::terminal_scalar_expression(
-                                    machine, *value,
-                                )
+                            && let Some(value) = scalar_expressions.expression(*value)
                         {
                             graph
                                 .scalar_payload_writes
@@ -1119,9 +1116,7 @@ pub(super) fn adapt(
                         .iter()
                         .zip(arguments)
                         .map(|(parameter, actual)| {
-                            let value = super::payload_predicates::terminal_scalar_expression(
-                                machine, *actual,
-                            )?;
+                            let value = scalar_expressions.expression(*actual)?;
                             (value.scalar_type() == parameter.scalar_type)
                                 .then_some((parameter.id, value))
                         })
@@ -1277,8 +1272,7 @@ pub(super) fn adapt(
             }
         }
         if let Terminator::Conditional { condition, .. } = &block.terminator
-            && let Some(term) =
-                super::payload_predicates::terminal_scalar_expression(machine, *condition)
+            && let Some(term) = scalar_expressions.expression(*condition)
         {
             graph.payload_edge_predicates.insert(
                 position,

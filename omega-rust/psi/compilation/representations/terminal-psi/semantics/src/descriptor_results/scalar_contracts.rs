@@ -97,6 +97,7 @@ pub(super) fn terminal_postconditions(
     module: &terminal_psi::TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
+    scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
 ) -> Option<TerminalPostconditions> {
     use terminal_psi::{OperationKind, OperationResult, StructuralAccess, TerminalMachineResult};
     let (callee, arguments, structural_arguments): (_, &[_], &[_]) = match &operation.kind {
@@ -162,10 +163,7 @@ pub(super) fn terminal_postconditions(
         {
             return None;
         }
-        bindings.push((
-            formal.id,
-            super::payload_predicates::terminal_scalar_expression(machine, *actual)?,
-        ));
+        bindings.push((formal.id, scalar_expressions.expression(*actual)?));
     }
     let mut storage = Vec::new();
     for (formal, actual) in callee

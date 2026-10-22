@@ -51,11 +51,26 @@ impl TypedTrees {
         crate::static_applications::StaticMachineApplicationHandle,
         &super::ClosedConformanceApplication,
     )> {
-        self.closed_conformance_application_sites_from_occurrences(
-            &self.live_conformance_occurrence_applications(),
-        )
+        self.closed_conformance_application_sites_matching(|_| true, None)
     }
 
+    /// The same live census restricted to exact supplying owners. Arena rows
+    /// only select candidate work; they never establish occurrence liveness.
+    /// Lowering can exclude unrelated owners before traversing source bodies.
+    pub fn closed_conformance_application_sites_for_owners(
+        &self,
+        owners: &[symbols::SymbolHandle],
+    ) -> Vec<(
+        super::ClosedConformanceApplicationSite,
+        symbols::SymbolHandle,
+        crate::static_applications::StaticMachineApplicationHandle,
+        &super::ClosedConformanceApplication,
+    )> {
+        self.closed_conformance_application_sites_matching(|owner| owners.contains(&owner), None)
+    }
+
+    /// Trait discovery already holds this immutable program's live census.
+    /// Reuse it rather than walking the same source roots again.
     pub(crate) fn closed_conformance_application_sites_from_occurrences(
         &self,
         occurrences: &[crate::static_applications::StaticMachineApplicationHandle],
@@ -65,8 +80,24 @@ impl TypedTrees {
         crate::static_applications::StaticMachineApplicationHandle,
         &super::ClosedConformanceApplication,
     )> {
+        self.closed_conformance_application_sites_matching(|_| true, Some(occurrences))
+    }
+
+    fn closed_conformance_application_sites_matching(
+        &self,
+        includes_owner: impl Fn(symbols::SymbolHandle) -> bool,
+        known_live: Option<&[crate::static_applications::StaticMachineApplicationHandle]>,
+    ) -> Vec<(
+        super::ClosedConformanceApplicationSite,
+        symbols::SymbolHandle,
+        crate::static_applications::StaticMachineApplicationHandle,
+        &super::ClosedConformanceApplication,
+    )> {
         let mut sites = Vec::new();
         for (s, receipt) in self.machine_specializations.iter().enumerate() {
+            if !includes_owner(receipt.instance) {
+                continue;
+            }
             for (a, application) in receipt.conformance_applications.iter().enumerate() {
                 sites.push((
                     super::ClosedConformanceApplicationSite::Invocation {
@@ -79,25 +110,53 @@ impl TypedTrees {
                 ));
             }
         }
-        for &handle in occurrences {
-            let source = self.expression_table.static_machine_application(handle);
-            if let Some(application) = source
-                .conformance_selection
-                .as_ref()
-                .and_then(|s| s.application.as_deref())
-            {
-                sites.push((
-                    super::ClosedConformanceApplicationSite::Occurrence(handle),
-                    source.lexical_owner,
-                    handle,
-                    application,
-                ));
+        // A discarded application can remain in the arena. First narrow the
+        // possible rows by owner and completed selection, then intersect with
+        // the ordinary live-source census only when there is work to retain.
+        // Both enumerations use arena order, preserving publication order.
+        let mut occurrences = self
+            .expression_table
+            .static_machine_applications()
+            .filter(|(_, source)| includes_owner(source.lexical_owner))
+            .filter_map(|(handle, source)| {
+                let application = source
+                    .conformance_selection
+                    .as_ref()?
+                    .application
+                    .as_deref()?;
+                Some((handle, source.lexical_owner, application))
+            })
+            .peekable();
+        if occurrences.peek().is_some() {
+            let discovered;
+            let live = match known_live {
+                Some(occurrences) => occurrences,
+                None => {
+                    discovered = self.live_conformance_occurrence_applications();
+                    &discovered
+                }
+            };
+            for (handle, owner, application) in occurrences {
+                if live
+                    .binary_search_by_key(&handle.arena_index(), |live| live.arena_index())
+                    .is_ok_and(|position| live[position] == handle)
+                {
+                    sites.push((
+                        super::ClosedConformanceApplicationSite::Occurrence(handle),
+                        owner,
+                        handle,
+                        application,
+                    ));
+                }
             }
         }
         for (handle, selected) in self.trait_implementation_applications.iter() {
             let source = self
                 .expression_table
                 .static_machine_application(selected.supplying_application);
+            if !includes_owner(source.lexical_owner) {
+                continue;
+            }
             sites.push((
                 super::ClosedConformanceApplicationSite::TraitArgument(handle),
                 source.lexical_owner,

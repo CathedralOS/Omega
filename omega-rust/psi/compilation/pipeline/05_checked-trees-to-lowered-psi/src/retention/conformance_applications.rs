@@ -28,12 +28,10 @@ pub(crate) fn lower_closed_conformance_applications(
     )],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
-    let carries_applications = checked
+    let selected_applications = checked
         .typed
-        .closed_conformance_application_sites()
-        .into_iter()
-        .any(|(_, owner, _, _)| source_machines.contains(&owner));
-    if !carries_applications {
+        .closed_conformance_application_sites_for_owners(source_machines);
+    if selected_applications.is_empty() {
         module.closed_conformance_applications.clear();
         return Ok(());
     }
@@ -80,12 +78,19 @@ pub(crate) fn lower_closed_conformance_applications(
         };
         callables.push((*source, TargetMachineCallable::Boundary(*boundary), result));
     }
-    module.closed_conformance_applications =
-        collect_closed_conformance_applications(identities, checked, &owners, &callables, &[])?;
+    module.closed_conformance_applications = collect_closed_conformance_applications(
+        identities,
+        checked,
+        &owners,
+        &callables,
+        selected_applications
+            .into_iter()
+            .map(|(_, owner, _, application)| (owner, application)),
+    )?;
     Ok(())
 }
 
-fn collect_closed_conformance_applications(
+fn collect_closed_conformance_applications<'checked>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     owners: &[(
@@ -98,18 +103,15 @@ fn collect_closed_conformance_applications(
         TargetMachineCallable,
         ClosedConformanceCallableResult,
     )],
-    excluded_sources: &[symbols::SymbolHandle],
+    selected_applications: impl IntoIterator<
+        Item = (
+            symbols::SymbolHandle,
+            &'checked typed_trees::typed_trees::ClosedConformanceApplication,
+        ),
+    >,
 ) -> Result<Vec<ClosedConformanceApplication>, LoweringError> {
     let mut applications = Vec::new();
-    let selected_applications = checked
-        .typed
-        .closed_conformance_application_sites()
-        .into_iter()
-        .map(|(_, owner, _, application)| (owner, application));
     for (source_owner, application) in selected_applications {
-        if excluded_sources.contains(&source_owner) {
-            continue;
-        }
         let Some((_, owner, _)) = owners.iter().find(|(source, _, _)| *source == source_owner)
         else {
             continue;

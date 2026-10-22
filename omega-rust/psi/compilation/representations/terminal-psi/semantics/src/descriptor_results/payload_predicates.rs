@@ -374,50 +374,64 @@ pub fn scalar_payload_expression(
     Some(term)
 }
 
-pub(super) fn terminal_scalar_expression(
-    machine: &terminal_psi::TerminalMachine,
-    value: semantic_vocabulary::ValueId,
-) -> Option<ScalarTerm> {
-    let types: std::collections::BTreeMap<_, _> = machine
-        .parameters
-        .iter()
-        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(
-            machine
+/// One immutable scalar namespace per descriptor-machine adaptation. Expanding
+/// each stored operand and edge predicate previously rebuilt the same complete
+/// type table. Retaining it here changes preparation, not expression expansion:
+/// literal recovery, definition order, failure and recursion budgets stay intact.
+pub(super) struct TerminalScalarExpressions<'machine> {
+    machine: &'machine terminal_psi::TerminalMachine,
+    types: std::collections::BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
+}
+
+impl<'machine> TerminalScalarExpressions<'machine> {
+    pub(super) fn new(machine: &'machine terminal_psi::TerminalMachine) -> Self {
+        let types: std::collections::BTreeMap<_, _> = machine
+            .parameters
+            .iter()
+            .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+            .chain(
+                machine
+                    .operations()
+                    .filter_map(|operation| operation.result.scalar_ref()),
+            )
+            .map(|value| (value.id, value.scalar_type))
+            .collect();
+        Self { machine, types }
+    }
+
+    pub(super) fn expression(&self, value: semantic_vocabulary::ValueId) -> Option<ScalarTerm> {
+        let machine = self.machine;
+        let types = &self.types;
+        scalar_payload_expression(value, &|value| {
+            let scalar_type = *types.get(&value)?;
+            if let Some(literal) = terminal_scalar_literal(machine, value) {
+                return Some((scalar_type, Some(literal)));
+            }
+            let denotation = machine
                 .operations()
-                .filter_map(|operation| operation.result.scalar_ref()),
-        )
-        .map(|value| (value.id, value.scalar_type))
-        .collect();
-    scalar_payload_expression(value, &|value| {
-        let scalar_type = *types.get(&value)?;
-        if let Some(literal) = terminal_scalar_literal(machine, value) {
-            return Some((scalar_type, Some(literal)));
-        }
-        let denotation = machine
-            .operations()
-            .find(|operation| {
-                operation
-                    .result
-                    .scalar_ref()
-                    .is_some_and(|result| result.id == value)
-            })
-            .and_then(|operation| {
-                crate::goal_free_scalar_leaf_semantics(operation, &types)
-                    .ok()
-                    .flatten()
-                    .map(|semantics| semantics.result_equation().clone())
-                    .or_else(|| {
-                        crate::proof_bearing_scalar_leaf_semantics(operation, &types)
-                            .ok()
-                            .flatten()
-                            .map(|semantics| semantics.result_equation().clone())
-                    })
-            })
-            .and_then(|equation| match equation {
-                Proposition::Equal(_, right) => Some(right),
-                _ => None,
-            });
-        Some((scalar_type, denotation))
-    })
+                .find(|operation| {
+                    operation
+                        .result
+                        .scalar_ref()
+                        .is_some_and(|result| result.id == value)
+                })
+                .and_then(|operation| {
+                    crate::goal_free_scalar_leaf_semantics(operation, types)
+                        .ok()
+                        .flatten()
+                        .map(|semantics| semantics.result_equation().clone())
+                        .or_else(|| {
+                            crate::proof_bearing_scalar_leaf_semantics(operation, types)
+                                .ok()
+                                .flatten()
+                                .map(|semantics| semantics.result_equation().clone())
+                        })
+                })
+                .and_then(|equation| match equation {
+                    Proposition::Equal(_, right) => Some(right),
+                    _ => None,
+                });
+            Some((scalar_type, denotation))
+        })
+    }
 }
