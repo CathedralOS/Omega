@@ -132,7 +132,6 @@ use calls::build_call_flow_fact;
 pub(crate) use calls::call_parameter_qualification_identities;
 pub(crate) use calls::call_result_qualification_identities;
 
-pub(crate) use calls::ensured_parameter_position;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,

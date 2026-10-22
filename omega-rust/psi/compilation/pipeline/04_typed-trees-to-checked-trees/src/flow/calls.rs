@@ -1072,7 +1072,7 @@ fn parameter_identity_rows(
 /// The non-self argument position an `ensures` membership subject names, or
 /// none when the subject is the reserved `result`, a projection, or no exact
 /// parameter of the callable.
-pub(crate) fn ensured_parameter_position(
+fn ensured_parameter_position(
     program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     value: typed_trees::expression::ExpressionHandle,
