@@ -21,6 +21,41 @@ pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
     ImageStorage,
 }
 
+/// The exact operation that introduced a reference interpretation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceViewFormation {
+    Expression(ExpressionHandle),
+    /// The sealed primitive lends external content, not its Extent descriptor.
+    /// Declaration authentication names the operation, not a grant or profile.
+    ExtentView(typed_trees::typed_trees::PlacementExecutionDeclaration),
+}
+
+impl ReferenceViewFormation {
+    /// Both ends come from the same authenticated primitive relation. This
+    /// describes a loan's presentation, not admission to external storage.
+    pub(crate) fn extent_view_types(
+        self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<(
+        typed_trees::types::TypeReferenceHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )> {
+        let Self::ExtentView(declaration) = self else {
+            return None;
+        };
+        super::super::result_origins::extent_view_types(program, declaration)
+    }
+
+    /// A primitive result has no authored reference-formation expression.
+    /// Zero is absence; consumers requiring an expression must decline it.
+    pub fn expression(self) -> ExpressionHandle {
+        match self {
+            Self::Expression(expression) => expression,
+            Self::ExtentView(_) => ExpressionHandle::invalid(),
+        }
+    }
+}
+
 /// One evaluated recast's source interpretation. This is a flat coordinate
 /// snapshot, not a recursively cloned origin graph. Later projections extend
 /// only the current view; they cannot rewrite this predecessor's selectors.
@@ -28,7 +63,7 @@ pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
 pub struct RecastSource {
     /// Exact formation occurrence in its original body. Call/state substitution
     /// rebases storage coordinates, never this issuer into the caller's syntax.
-    pub formation_expression: ExpressionHandle,
+    pub formation: ReferenceViewFormation,
     pub root: SymbolHandle,
     pub segments: Vec<PlaceSegment>,
     pub representation: Option<(typed_trees::types::TypeReferenceHandle, Vec<PlaceSegment>)>,
@@ -97,7 +132,7 @@ impl FrameSourcePlace {
         formation_expression: ExpressionHandle,
     ) {
         self.recasts.push(RecastSource {
-            formation_expression,
+            formation: ReferenceViewFormation::Expression(formation_expression),
             root: self.root,
             segments: self.segments.clone(),
             representation: self.representation.clone(),
@@ -222,7 +257,7 @@ impl FrameSourcePlace {
             };
             let rebased = base_coordinate.substitute_source(&predecessor, map_selector);
             result.recasts.push(RecastSource {
-                formation_expression: recast.formation_expression,
+                formation: recast.formation,
                 root: rebased.root,
                 segments: rebased.segments,
                 representation: rebased.representation,

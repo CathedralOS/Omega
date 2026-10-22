@@ -61,6 +61,78 @@ pub(in crate::flow) fn invocation_referent(
     })
 }
 
+/// Classify the address space, not the current value, of a transported write.
+/// Every incoming route must retain the same authenticated content formation
+/// and exact owner. Unknown/mixed routes keep the caller's conservative write.
+pub(in crate::flow) fn nonresident_content_region(
+    program: &dyn validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    place: &CanonicalPlace,
+) -> Option<crate::flow::mutation::StorageRegion> {
+    let place = crate::flow::rebase_exact_local_place(
+        program,
+        state.symbol,
+        statement_index,
+        place.clone(),
+        build.call_frames,
+    )?;
+    let root = place.root.as_symbol()?;
+    if program
+        .state_parameter_by_symbol(state, root)
+        .is_some_and(|parameter| {
+            reference_type(program, parameter.type_reference)
+                && !stable_parameter(program, machine, state, root)
+        })
+    {
+        return None;
+    }
+    let solved = build.storage_origins_at(machine.symbol)?;
+    let mut source = root_storage(program, root);
+    source.segments = place.segments;
+    let sources = entry_storage_origins(program, machine, state, &solved, &source)?;
+    let mut common = None;
+    for source in sources {
+        let first = source.recasts.first()?;
+        let validation::ReferenceViewFormation::ExtentView(declaration) = first.formation else {
+            return None;
+        };
+        if first.representation.is_some()
+            || first.root != source.root
+            || first
+                .segments
+                .iter()
+                .any(|segment| !crate::flow::place_segment_has_static_identity(segment))
+            || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+                program,
+                declaration.machine(),
+            )
+            .ok()??
+                != declaration
+            || declaration.operation()
+                != typed_trees::typed_trees::PlacementLifecycleOperation::View
+        {
+            return None;
+        }
+        let owner = CanonicalPlace {
+            root: invocation_referent(program, machine, first.root)
+                .unwrap_or(facts::PlaceRoot::Symbol(first.root)),
+            segments: first.segments.clone(),
+        };
+        let region = crate::flow::mutation::StorageRegion::NonresidentContent {
+            owner,
+            formation: declaration,
+        };
+        if common.as_ref().is_some_and(|common| common != &region) {
+            return None;
+        }
+        common = Some(region);
+    }
+    common
+}
+
 /// Known empty means private storage; unknown cannot prove disjointness. A
 /// recast's logical selectors are not declaration fields, so retain only its
 /// enclosing owner for may-write observations and decline it for exact proof.
@@ -160,19 +232,31 @@ pub(in crate::flow) fn extend_invocation_observations(
             place,
             false,
         ) {
-            Some(incoming) => projected.extend(incoming),
+            Some(incoming) => {
+                // Many physical field writes can observe the same enclosing
+                // invocation region. Collapse that projection before searching
+                // the original footprint: appending every duplicate here made
+                // an aggregate store perform one full footprint scan per leaf.
+                for place in incoming {
+                    if !projected.contains(&place) {
+                        projected.push(place);
+                    }
+                }
+            }
             None => {
                 if let Some(entry) = program.machine_states(machine).first() {
-                    projected.extend(program.state_parameters(entry).iter().filter_map(
-                        |parameter| {
-                            invocation_referent(program, machine, parameter.symbol).map(|root| {
-                                CanonicalPlace {
-                                    root,
-                                    segments: Vec::new(),
-                                }
-                            })
-                        },
-                    ));
+                    for parameter in program.state_parameters(entry) {
+                        if let Some(root) = invocation_referent(program, machine, parameter.symbol)
+                        {
+                            let place = CanonicalPlace {
+                                root,
+                                segments: Vec::new(),
+                            };
+                            if !projected.contains(&place) {
+                                projected.push(place);
+                            }
+                        }
+                    }
                 }
                 break;
             }

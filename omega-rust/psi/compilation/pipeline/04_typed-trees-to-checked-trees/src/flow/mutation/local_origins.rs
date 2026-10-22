@@ -362,6 +362,17 @@ pub(super) fn rebase_storage_region(
                 })
                 .collect()
         }
+        StorageRegion::NonresidentContent { owner, formation } => {
+            rebase_local_write_regions(program, state_symbol, statement_index, owner, call_frames)?
+                .into_iter()
+                .map(|region| {
+                    Some(StorageRegion::NonresidentContent {
+                        owner: region.into_declared()?,
+                        formation,
+                    })
+                })
+                .collect()
+        }
         region @ StorageRegion::UnresolvedContent { .. } => Some(vec![region]),
     }
 }
@@ -463,6 +474,7 @@ pub(super) fn rebase_local_write_regions(
             let canonical = match region {
                 StorageRegion::Declared(place) => place,
                 region @ (StorageRegion::ResidentContent { .. }
+                | StorageRegion::NonresidentContent { .. }
                 | StorageRegion::UnresolvedContent { .. }) => {
                     for rebased in rebase_storage_region(
                         program,

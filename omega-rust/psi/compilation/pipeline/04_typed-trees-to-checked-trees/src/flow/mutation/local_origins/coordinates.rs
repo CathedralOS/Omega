@@ -41,7 +41,7 @@ fn source_place(
     if let Some(first) = source.recasts.first() {
         for recast in &source.recasts {
             if matches!(
-                validation::reference_formation_source(program, recast.formation_expression)?
+                validation::reference_formation_source(program, recast.formation.expression())?
                     .interpretation,
                 validation::ReferenceFormationInterpretation::ResidentPlaced { .. }
             ) {
@@ -98,8 +98,37 @@ pub(in crate::flow::mutation) fn write_source_region(
         return None;
     }
     for recast in &source.recasts {
+        if let validation::ReferenceViewFormation::ExtentView(declaration) = recast.formation {
+            if recast.representation.is_some()
+                || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+                    program,
+                    declaration.machine(),
+                )
+                .ok()??
+                    != declaration
+                || declaration.operation()
+                    != typed_trees::typed_trees::PlacementLifecycleOperation::View
+            {
+                return None;
+            }
+            let backing = validation::LocalWriteSource {
+                root: recast.root,
+                segments: recast.segments.clone(),
+                recasts: Vec::new(),
+                representation: None,
+                ..source.clone()
+            };
+            let (owner, precision) = structural_origin(program, state, statement_index, &backing)?;
+            if precision != OriginPrecision::Exact {
+                return None;
+            }
+            return Some(StorageRegion::NonresidentContent {
+                owner,
+                formation: declaration,
+            });
+        }
         let formation =
-            validation::reference_formation_source(program, recast.formation_expression)?;
+            validation::reference_formation_source(program, recast.formation.expression())?;
         if !matches!(
             formation.interpretation,
             validation::ReferenceFormationInterpretation::ResidentPlaced { .. }
@@ -148,7 +177,7 @@ pub(in crate::flow::mutation) fn write_source_region(
         };
         return Some(StorageRegion::ResidentContent {
             owner,
-            formation: recast.formation_expression,
+            formation: recast.formation.expression(),
             granted,
             resident,
         });

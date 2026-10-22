@@ -16,7 +16,8 @@ use typed_trees::statement::TransitionExit;
 
 mod invocation_referents;
 pub(super) use invocation_referents::{
-    extend_invocation_observations, invocation_referent, project_invocation_place,
+    extend_invocation_observations, invocation_referent, nonresident_content_region,
+    project_invocation_place,
 };
 
 fn reference_type(

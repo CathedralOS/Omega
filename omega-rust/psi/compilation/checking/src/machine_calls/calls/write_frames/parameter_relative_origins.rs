@@ -130,9 +130,9 @@ fn parameter_relative_place_origins_in(
             )?;
             for origin in &mut origins {
                 if let Some(recast) = origin.place.source.recasts.last_mut()
-                    && recast.formation_expression == inner.target
+                    && recast.formation.expression() == inner.target
                 {
-                    recast.formation_expression = expression;
+                    recast.formation = crate::ReferenceViewFormation::Expression(expression);
                 }
             }
             origins

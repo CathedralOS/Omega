@@ -162,7 +162,7 @@ fn declaration_preserving_views(
         }
         reference_subjects::validate_owned_projection(program, root_type, &recast.segments)?;
         let backing = stored_origins::projected_type(program, root_type, &recast.segments)?;
-        let formation = crate::reference_formation_source(program, recast.formation_expression)?;
+        let formation = crate::reference_formation_source(program, recast.formation.expression())?;
         if formation.interpretation != crate::ReferenceFormationInterpretation::RepresentationView
             || !formation.view_type.is_valid()
             || formation.view_type != recast.target_type

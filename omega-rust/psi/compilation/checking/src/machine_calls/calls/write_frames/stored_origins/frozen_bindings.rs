@@ -100,7 +100,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
         precision: FramePathPrecision::Exact,
         source: Default::default(),
     });
-    let writes = call_written_paths(
+    let writes = call_binding_write_paths(
         program,
         machine,
         call.target_symbol,
@@ -110,6 +110,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
         inference,
     );
     (receiver_target_is_unresolved(program, call.target_symbol)
+        && !writes.as_ref().is_some_and(Vec::is_empty)
         && !super::super::boundary_calls::call_has_authority_receiver(
             program,
             machine,
@@ -180,7 +181,7 @@ fn expression_exposes(
     if let Some(call) = program.expression_table.call_node(expression) {
         let arguments = program.expression_table.expression_handles(call.arguments);
         let receiver = super::super::frame_place_path(program, call.receiver);
-        let mut call_writes = call_written_paths(
+        let mut call_writes = call_binding_write_paths(
             program,
             machine,
             call.target_symbol,
@@ -213,6 +214,7 @@ fn expression_exposes(
         }
         let writes = call_writes.as_deref();
         if receiver_target_is_unresolved(program, call.target_symbol)
+            && !writes.is_some_and(<[String]>::is_empty)
             // Routing authority is shared call input, not provider-object
             // storage. Its evaluation and every ordinary argument still run
             // through the operand traversal below.
@@ -256,6 +258,7 @@ fn expression_exposes(
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => {
             if borrow.access.is_exclusive()
+                && !writes.is_some_and(<[String]>::is_empty)
                 && if consumer_references_known {
                     target_replaces_case_binding(program, borrow.target, stored, aliases)
                         || target_replaces_untracked_origin(
@@ -390,10 +393,12 @@ fn writes_may_replace_binding(
 /// An exclusive operand grants a ceiling, not evidence that every slot is
 /// replaced. Use the same complete callee frame as ordinary effect checking.
 /// A write at or above a frozen slot may replace it; disjoint scalar writes
-/// preserve its identity. Opaque, external and recursive effects retain the
-/// full ceiling. These paths conservatively include both slot and referent
-/// writes, so they can prove disjointness but never a replacement's new origin.
-fn call_written_paths(
+/// preserve its identity. Unclassified opaque/external effects and recursive
+/// calls retain the full ceiling. This query is confined to descriptor/case
+/// replacement: a sealed scalar accessor uses its descriptor without replacing
+/// it. Its separate content-write frame still invalidates values (including
+/// ordinary RAM values); an empty answer here never means an empty effect.
+fn call_binding_write_paths(
     program: &dyn crate::CheckingInput,
     caller: &typed_trees::machine::Machine,
     target: symbols::SymbolHandle,
@@ -402,6 +407,24 @@ fn call_written_paths(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
+    if let Some(declaration) =
+        typed_trees::typed_trees::PlacedScalarAccessorDeclaration::authenticate(program, target)
+            .ok()?
+    {
+        let state = program.state_by_symbol(declaration.state())?;
+        let value = match declaration.operation() {
+            typed_trees::typed_trees::PlacedScalarAccessorOperation::Write => {
+                program.state_parameters(state).get(1)?.type_reference
+            }
+            typed_trees::typed_trees::PlacedScalarAccessorOperation::Read
+            | typed_trees::typed_trees::PlacedScalarAccessorOperation::Take => state.return_type,
+        };
+        // Authentication rejoins the exact generated field/access slot and
+        // scalar/Unit telescope. Do not generalize this to structural/opaque
+        // operations: they may replace slots inside their borrowed carrier.
+        program.primitive_type_reference(value)?;
+        return Some(Vec::new());
+    }
     let (machine, state) = super::super::machine_state_by_symbol(program, target)?;
     if !machine.supply_mode.is_checked_body()
         || !machine.body_is_present

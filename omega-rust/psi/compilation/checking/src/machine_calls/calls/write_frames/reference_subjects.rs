@@ -780,7 +780,31 @@ pub(super) fn validate_source_projection(
             }
             _ => return None,
         }
-        let formation = crate::reference_formation_source(program, recast.formation_expression)?;
+        if let super::ReferenceViewFormation::ExtentView(_) = recast.formation {
+            let (storage, view) = recast.formation.extent_view_types(program)?;
+            let endpoint = if let Some((reference, selectors)) = &recast.representation {
+                validate_owned_projection(program, *reference, selectors)?;
+                stored_origins::projected_type(program, *reference, selectors)?
+            } else {
+                let root = source_root_type(program, state, index, recast.root)?;
+                let root = carrier_storage_type(program, root)?;
+                validate_owned_projection(program, root, &recast.segments)?;
+                stored_origins::projected_type(program, root, &recast.segments)?
+            };
+            let storage = crate::reference_shell(program, storage)?.referee;
+            if program.normalized_type_identity(
+                program.type_reference_table.peeled_type_reference(endpoint),
+            ) != program.normalized_type_identity(
+                program.type_reference_table.peeled_type_reference(storage),
+            ) || program.normalized_type_identity(view)
+                != program.normalized_type_identity(recast.target_type)
+            {
+                return None;
+            }
+            presentation = Some(recast.target_type);
+            continue;
+        }
+        let formation = crate::reference_formation_source(program, recast.formation.expression())?;
         if !matches!(
             formation.interpretation,
             crate::ReferenceFormationInterpretation::RepresentationView

@@ -758,6 +758,15 @@ fn instantiate_call_relative_writes(
                             })
                         })
                         .collect::<Option<Vec<_>>>()?,
+                    StorageRegion::NonresidentContent { formation, .. } => regions
+                        .into_iter()
+                        .map(|region| {
+                            Some(StorageRegion::NonresidentContent {
+                                owner: region.into_declared()?,
+                                formation: *formation,
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>()?,
                     StorageRegion::UnresolvedContent { .. } => regions
                         .into_iter()
                         .map(|region| StorageRegion::UnresolvedContent {

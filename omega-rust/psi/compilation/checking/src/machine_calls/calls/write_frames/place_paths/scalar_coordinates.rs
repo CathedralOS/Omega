@@ -69,7 +69,7 @@ impl LocalWriteSource {
         for recast in self.recasts.iter().rev() {
             // A placed accessor is an operation capability, not an ordinary
             // scalar coordinate. Failed precision retains the backing footprint.
-            if crate::reference_formation_source(program, recast.formation_expression)?
+            if crate::reference_formation_source(program, recast.formation.expression())?
                 .interpretation
                 .is_placed()
             {

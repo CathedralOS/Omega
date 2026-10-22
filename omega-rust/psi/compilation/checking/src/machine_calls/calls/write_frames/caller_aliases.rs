@@ -4,7 +4,7 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
-pub use super::place_paths::RecastSource;
+pub use super::place_paths::{RecastSource, ReferenceViewFormation};
 use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,

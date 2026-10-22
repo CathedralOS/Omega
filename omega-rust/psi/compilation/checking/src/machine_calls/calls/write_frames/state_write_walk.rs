@@ -679,6 +679,21 @@ fn walk_state_write_prefix_body(
         let relation_complete = stored_call_transfer
             .as_ref()
             .is_some_and(|transfer| transfer.is_complete());
+        // Origin consumers need descriptor/slot transfer, not a representable
+        // footprint for unrelated content stores. The complete relation and
+        // exposure fences below own that transfer. Demanding a physical frame
+        // as well made an opaque scalar accessor erase its unchanged view.
+        // Complete/assignment queries still retain every physical write; wire
+        // codecs retain their independent whole-slot retirement below.
+        let origin_transfer_only = relation_complete
+            && !wire_codec_call
+            && matches!(
+                query,
+                Some(
+                    StateWriteQuery::OriginTransfer { .. }
+                        | StateWriteQuery::StatementPrefixes { .. }
+                )
+            );
         let stored_call_effects = stored_call_transfer.map(|transfer| transfer.effects);
         if !wire_codec_call && let Some(call) = statement.as_call() {
             stored_origins::retire_private_call_argument_cases(
@@ -888,6 +903,9 @@ fn walk_state_write_prefix_body(
             {
                 return None;
             }
+            if origin_transfer_only {
+                continue;
+            }
             let mut expression_writes = Vec::new();
             collect_expression_call_written_paths(
                 program,
@@ -1028,6 +1046,7 @@ fn walk_state_write_prefix_body(
                 // RHS effects. Install the final store after those effects.
                 assignment_replacement = replacement;
             }
+            StatementNode::Call(_) if origin_transfer_only => {}
             StatementNode::Call(nested_call) => {
                 let nested_receiver_members = program
                     .statement_table

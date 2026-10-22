@@ -1,10 +1,21 @@
 // Embedding oracle: update the second original external word from 41 to 73,
-// preserve the first word 17, and return the same Granted extent. No Resident
-// or Vacant is introduced, and mutation requires an exclusive storage loan.
+// preserve the first word 17, and return the same Granted & Vacant extent.
+// Vacancy is supplied on entry, never introduced by a scalar write. Mutation
+// requires an exclusive storage loan and preserves the issuer's registration.
 use omega::language::core::extent;
 use omega::language::core::layout;
 
 data TestMemory {}
+
+// A checked issuer qualifies this exact descriptor, not the external bytes.
+// Changing those bytes must neither manufacture nor lose this provenance.
+domain Extent::Registered established by register;
+
+machine register(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+ensures result in Registered
+{
+    storage
+}
 
 public data Words { entries: [u64; 2]; }
 public data WordPlacement {}
@@ -22,6 +33,8 @@ machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine update_existing(storage: &mut Extent in Granted) -> bool
+requires storage in Registered & Vacant
+ensures storage in Registered & Vacant
 reaches ResourceProfileSupply
 {
     transition Placed::view_extent_mut<WordPlacement, Words, TestMemory>(storage) {
@@ -32,12 +45,25 @@ reaches ResourceProfileSupply
         let first: u64 = placed_read(&view.entries[0]);
         let second: u64 = placed_read(&view.entries[1]);
         transition first == 17 && second == 41 {
-            true -> write(view)
+            true -> write(view, 0)
             _ -> false
         }
     }
-    state write(view: &mut Placed<WordPlacement, Words>) -> bool {
-        placed_write(&mut view.entries[1], 73u64);
+    state write(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
+    requires next <= 1
+    {
+        transition next < 1 {
+            true -> store(view, next)
+            _ -> verify(view)
+        }
+    }
+    state store(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
+    requires next < 1
+    {
+        placed_write(&mut view.entries[next + 1], 73u64);
+        transition { _ -> write(view, next + 1) }
+    }
+    state verify(view: &mut Placed<WordPlacement, Words>) -> bool {
         let first: u64 = placed_read(&view.entries[0]);
         let second: u64 = placed_read(&view.entries[1]);
         first == 17 && second == 73
@@ -65,29 +91,30 @@ MemorySupply satisfies ResourceProfileSupply<TestMemory> {
     }
 }
 
-machine attempt(storage: Extent in Granted) -> Extent in Granted
+machine attempt(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+ensures result in Registered
 reaches ResourceProfileSupply crashes Trap
 {
-    let mut retained: Extent in Granted = storage;
+    let mut retained: Extent in Granted & Vacant = register(storage);
     let written: bool = update_existing(&mut retained);
     transition written {
         true -> verify(retained)
         _ -> fail(retained)
     }
-    state verify(storage: Extent in Granted) -> Extent in Granted {
+    state verify(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant {
         let observed: bool = observe_existing(&storage);
         transition observed {
             true -> (storage)
             _ -> fail(storage)
         }
     }
-    state fail(storage: Extent in Granted) -> Extent in Granted { crash Trap; }
+    state fail(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant { crash Trap; }
 }
 
-machine observe_existing(storage: &Extent in Granted) -> bool
+machine observe_existing(storage: &Extent in Granted & Vacant) -> bool
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent<WordPlacement, Words, TestMemory>(storage) {
+    transition Placed::view_extent<WordPlacement, Words, TestMemory>(storage as &Extent in Granted) {
         PlacementOutcome::Ready { view } -> check(view)
         PlacementOutcome::Rejected { returned, reason } -> false
     }

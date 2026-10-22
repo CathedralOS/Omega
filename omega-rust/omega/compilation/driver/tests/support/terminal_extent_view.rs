@@ -100,6 +100,9 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
     let [parameter] = entry.structural_parameters else {
         panic!("one owned extent input");
     };
+    let terminal_psi::TerminalMachineResult::Structural(expected_result) = entry.result else {
+        panic!("one owned extent result");
+    };
     let StructuralTypeShape::Record { fields, .. } = &program
         .structural_type(parameter.structural_type)
         .unwrap()
@@ -250,7 +253,14 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             else {
                 panic!("qualified external access failed: {result:?}");
             };
-            assert_eq!(returned.value.qualifications, parameter.qualifications);
+            // The program may establish an additional descriptor qualification
+            // by a checked issuer. Compare the complete published result
+            // contract, not the input's weaker precondition. This still rejects
+            // missing qualifications or invented Resident/Vacant custody.
+            assert_eq!(
+                returned.value.qualifications,
+                expected_result.qualifications
+            );
             assert_eq!(
                 returned.claims.len(),
                 1,

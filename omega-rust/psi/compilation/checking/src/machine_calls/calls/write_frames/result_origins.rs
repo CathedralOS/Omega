@@ -1,4 +1,4 @@
-//! Body-derived reference leaves in a direct or owned helper result. A return type
+//! Body-derived and sealed-primitive reference leaves in a direct or owned helper result. A return type
 //! supplies structure, never a caller storage origin or permission to borrow it.
 //!
 //! Ordinary value arms are one state's own result routes; ordinary named edges
@@ -27,7 +27,9 @@ use typed_trees::statement::{TransitionExit, TransitionTargetHandle, TransitionT
 
 mod input_moves;
 mod input_sources;
+mod primitive_results;
 pub(super) use input_sources::instantiate_source;
+pub(super) use primitive_results::extent_view_types;
 mod state_equations;
 
 pub(super) fn call_result_origins(
@@ -49,9 +51,10 @@ pub(super) fn call_result_origins(
     // Reference-shaped operands include ordinary borrowed collection windows;
     // their type alone cannot decide whether a descriptor binding was exposed.
     // Instantiate the returned leaves against that same captured caller prefix.
-    let activation_origin = activation_borrow_result_origins(program, machine, state, expected);
+    let primitive_origin =
+        primitive_results::result_origins(program, machine, state, expected, include_shared);
     if inference.active_states.contains(&state.symbol)
-        || (activation_origin.is_none()
+        || (primitive_origin.is_none()
             && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !machine.body_is_present))
         || !program.machine_type_parameters(machine).is_empty()
@@ -62,7 +65,7 @@ pub(super) fn call_result_origins(
     {
         return None;
     }
-    let mut relative = if let Some(origin) = activation_origin {
+    let mut relative = if let Some(origin) = primitive_origin {
         origin
     } else {
         state_result_origins(
@@ -102,7 +105,8 @@ pub(super) fn state_result_origins<'program>(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<AggregateOrigins> {
-    if let Some(origin) = activation_borrow_result_origins(program, machine, state, expected_result)
+    if let Some(origin) =
+        primitive_results::result_origins(program, machine, state, expected_result, include_shared)
     {
         return Some(origin);
     }
@@ -946,54 +950,4 @@ fn instantiate_result_origins(
         }
     }
     Some(returned)
-}
-
-// The sealed accessor's result borrows the exact input grant's region. This
-// intrinsic relation substitutes the actual normally; a leaf spelling, return
-// type, address, or bodyless declaration supplies no such storage authority.
-// The extent/initialization and activation-local grant are checked separately
-// by establishment. A readable view never manufactures an independent grant.
-fn activation_borrow_result_origins(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expected: TypeReferenceHandle,
-) -> Option<AggregateOrigins> {
-    let contract = crate::exact_toolchain_activation_storage_contract(program, machine)?;
-    if contract.operation
-        != language_core::activation_storage::ActivationStorageOperation::BorrowBytes
-        || !super::isolation::aggregate_storage_types_match(program, state.return_type, expected)
-    {
-        return None;
-    }
-    let [entry] = program.machine_states(machine) else {
-        return None;
-    };
-    if entry.symbol != state.symbol {
-        return None;
-    }
-    let [parameter] = program.state_parameters(state) else {
-        return None;
-    };
-    Some(AggregateOrigins {
-        references: vec![ReferenceLeaf {
-            kind: super::stored_origins::StoredOriginKind::Reference(
-                language_semantics::ReferenceAccess::Mutable,
-            ),
-            local_suffix: String::new(),
-            local_segments: Vec::new(),
-            may_select: false,
-            lifetime_dependencies: Vec::new(),
-            origin: Some(FramePlaceOrigin {
-                path: parameter.name.as_str().to_owned(),
-                precision: FramePathPrecision::Exact,
-                source: super::FrameSourcePlace {
-                    root: parameter.symbol,
-                    builtin_coordinates: true,
-                    ..Default::default()
-                },
-            }),
-        }],
-        ..Default::default()
-    })
 }

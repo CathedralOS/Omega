@@ -888,6 +888,32 @@ impl Captures<'_> {
                 ));
                 selected = shell.referee;
             }
+            if let crate::ReferenceViewFormation::ExtentView(_) = recast.formation {
+                let (storage, view) = recast.formation.extent_view_types(self.program)?;
+                let storage = crate::reference_shell(self.program, storage)?.referee;
+                if self.program.normalized_type_identity(
+                    self.program
+                        .type_reference_table
+                        .peeled_type_reference(selected),
+                ) != self.program.normalized_type_identity(
+                    self.program
+                        .type_reference_table
+                        .peeled_type_reference(storage),
+                ) || self.program.normalized_type_identity(view)
+                    != self.program.normalized_type_identity(recast.target_type)
+                {
+                    return None;
+                }
+                // A sealed View has no authored reference expression. Its
+                // exact result relation keeps the descriptor's loan region
+                // separate from the accessor presentation, just as an authored
+                // placed formation does. Completion still checks the actual
+                // returned association; this is no codec or Extent projection.
+                placed_backing = selected;
+                extent = ReferenceOriginExtent::WithinRegion;
+                selected = recast.target_type;
+                continue;
+            }
             let mut formations =
                 self.facts
                     .values
@@ -895,7 +921,7 @@ impl Captures<'_> {
                     .nodes
                     .iter()
                     .filter_map(|(_, value)| {
-                        if value.expression != recast.formation_expression {
+                        if value.expression != recast.formation.expression() {
                             return None;
                         }
                         let CheckedStructuralValueKind::Reference {
@@ -910,7 +936,7 @@ impl Captures<'_> {
                     });
             let (formation, storage, backing_type) = formations.next()?;
             let authored =
-                crate::reference_formation_source(self.program, recast.formation_expression)?;
+                crate::reference_formation_source(self.program, recast.formation.expression())?;
             let expected_storage = if authored.interpretation.is_placed() {
                 let view = self.program.closed_data_definition(recast.target_type)?;
                 let mut plans = self

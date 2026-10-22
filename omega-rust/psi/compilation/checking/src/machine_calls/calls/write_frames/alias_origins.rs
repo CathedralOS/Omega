@@ -281,11 +281,11 @@ pub(crate) fn stable_alias_initializer_origins(
             )?;
             for origin in &mut origins {
                 if let Some(recast) = origin.source.recasts.last_mut()
-                    && recast.formation_expression == inner.target
+                    && recast.formation.expression() == inner.target
                 {
                     // The checked value owns the complete formation wrapper,
                     // not a second loan issued by its nested cast spelling.
-                    recast.formation_expression = expression;
+                    recast.formation = crate::ReferenceViewFormation::Expression(expression);
                 }
             }
             origins
@@ -517,9 +517,9 @@ fn stable_alias_expression_origins(
             )?;
             for origin in &mut origins {
                 if let Some(recast) = origin.source.recasts.last_mut()
-                    && recast.formation_expression == inner.target
+                    && recast.formation.expression() == inner.target
                 {
-                    recast.formation_expression = expression;
+                    recast.formation = crate::ReferenceViewFormation::Expression(expression);
                 }
             }
             origins

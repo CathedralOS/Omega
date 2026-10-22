@@ -16,7 +16,7 @@ pub use scalar_coordinates::ScalarStorageCoordinate;
 pub(super) use write_coordinates::project_write_path;
 
 pub(super) use source_places::FrameSourcePlace;
-pub use source_places::RecastSource;
+pub use source_places::{RecastSource, ReferenceViewFormation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FramePathPrecision {

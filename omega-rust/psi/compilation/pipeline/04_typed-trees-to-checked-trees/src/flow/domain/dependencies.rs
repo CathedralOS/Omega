@@ -18,6 +18,61 @@ pub(crate) struct DomainDependencyCacheEntry {
     pub(crate) dependencies: Vec<Vec<facts::PlaceSegment>>,
 }
 
+/// Content and descriptor coordinates are distinct. Only a complete nominal
+/// theory with no predicate/role contribution can be known independent of a
+/// content write without inspecting that content. The ordinary dependency
+/// roster's empty set is deliberately not this proof: it can mean unknown.
+pub(in crate::flow) fn qualification_is_identity_only(
+    program: &dyn validation::CheckingInput,
+    domain: SymbolHandle,
+) -> bool {
+    fn visit(
+        program: &dyn validation::CheckingInput,
+        symbol: SymbolHandle,
+        visiting: &mut Vec<SymbolHandle>,
+        completed: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if completed.contains(&symbol) {
+            return true;
+        }
+        if visiting.contains(&symbol) {
+            return false;
+        }
+        let Some(domain) = program.domain_definition(symbol) else {
+            return false;
+        };
+        if domain.predicate_body.is_present()
+            || domain.classification.is_some()
+            || !domain.semantic_roles.is_empty()
+            || !domain.operators.is_empty()
+        {
+            return false;
+        }
+        visiting.push(symbol);
+        let aliases = domain.alias.as_ref().is_none_or(|alias| {
+            !alias.constituents.is_empty()
+                && alias.constituents.iter().all(|constituent| {
+                    visit(program, constituent.domain_symbol, visiting, completed)
+                })
+        });
+        let facts = program.proof_facts(domain).iter().all(|fact| {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                return false;
+            };
+            typed_trees::domain::domain_subject_reference(program, domain, membership.value)
+                && visit(program, membership.domain_symbol, visiting, completed)
+        });
+        visiting.pop();
+        if aliases && facts {
+            completed.push(symbol);
+            true
+        } else {
+            false
+        }
+    }
+    visit(program, domain, &mut Vec::new(), &mut Vec::new())
+}
+
 pub(crate) fn build_domain_facts(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,

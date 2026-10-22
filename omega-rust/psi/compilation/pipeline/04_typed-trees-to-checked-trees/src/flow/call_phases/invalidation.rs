@@ -95,7 +95,7 @@ fn call_storage_mutations(
         build.call_frames,
     )?;
     let mut result = Vec::new();
-    for write in writes {
+    for mut write in writes {
         if matches!(
             write.region,
             crate::flow::mutation::StorageRegion::UnresolvedContent { .. }
@@ -119,8 +119,25 @@ fn call_storage_mutations(
             // Do not lose content aliases when the inventory cannot be
             // reconstructed. Unknown remains full invalidation.
             crate::flow::mutation::StorageRegion::ResidentContent { .. } => None,
+            crate::flow::mutation::StorageRegion::NonresidentContent { .. } => None,
             crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
         })?;
+        // Keep the current state's observation coordinates even when a
+        // transported view proves that the physical store is content, not
+        // descriptor replacement. Both namespaces must see invalidation.
+        if let crate::flow::mutation::StorageRegion::Declared(place) = &write.region {
+            if let Some(region) = crate::flow::entry_origins::nonresident_content_region(
+                program,
+                build,
+                machine,
+                state,
+                borrow_call.statement_index,
+                place,
+            ) {
+                observations.push(region.anchor().clone());
+                write.region = region;
+            }
+        }
         crate::flow::entry_origins::extend_invocation_observations(
             program,
             build,

@@ -203,6 +203,9 @@ pub fn reference_formation_source(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ReferenceFormationSource> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
     if let Some(call) = program.expression_table.call_node(expression) {
         let selected = program.machine_by_symbol(call.target_symbol).or_else(|| {
             crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)

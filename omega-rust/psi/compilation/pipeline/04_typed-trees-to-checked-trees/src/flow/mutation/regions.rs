@@ -1,6 +1,6 @@
 //! A mutation footprint is not always storage inside its loan anchor.
 //!
-//! Resident views lend separately owned content, not the bytes of the Extent
+//! Extent views lend separately backed content, not the bytes of the Extent
 //! descriptor. Keep that boundary through summary substitution and completion:
 //! a content store invalidates observations but does not replace the owner.
 //! These are may-write coordinates, never evidence establishing a resident.
@@ -25,6 +25,13 @@ pub(crate) enum StorageRegion {
         granted: language_semantics::SemanticDomainId,
         resident: language_semantics::SemanticDomainId,
     },
+    /// A nonresident interpretation lends content through an unchanged
+    /// descriptor. The authenticated operation identifies that address space;
+    /// it does not establish backing/profile authority or a qualification.
+    NonresidentContent {
+        owner: CanonicalPlace,
+        formation: typed_trees::typed_trees::PlacementExecutionDeclaration,
+    },
 }
 
 impl StorageRegion {
@@ -34,6 +41,7 @@ impl StorageRegion {
         match self {
             Self::Declared(place) => place,
             Self::ResidentContent { owner, .. } => owner,
+            Self::NonresidentContent { owner, .. } => owner,
             Self::UnresolvedContent { carrier } => carrier,
         }
     }
@@ -41,7 +49,9 @@ impl StorageRegion {
     pub(crate) fn into_declared(self) -> Option<CanonicalPlace> {
         match self {
             Self::Declared(place) => Some(place),
-            Self::ResidentContent { .. } | Self::UnresolvedContent { .. } => None,
+            Self::ResidentContent { .. }
+            | Self::NonresidentContent { .. }
+            | Self::UnresolvedContent { .. } => None,
         }
     }
 
@@ -58,6 +68,10 @@ impl StorageRegion {
             (self, other),
             (Self::Declared(_), Self::Declared(_))
                 | (Self::ResidentContent { .. }, Self::ResidentContent { .. })
+                | (
+                    Self::NonresidentContent { .. },
+                    Self::NonresidentContent { .. }
+                )
         )
     }
 
@@ -68,7 +82,9 @@ impl StorageRegion {
     }
 
     /// Ordinary normal-return writes through a borrowed resident preserve its
-    /// captured owner's qualifications. This only retains an existing fact at
+    /// captured owner's qualifications. A nonresident content write can retain
+    /// only an existing identity-only theory on the same descriptor. This
+    /// retains an existing fact at
     /// that exact owner: it neither issues a qualification nor restores content
     /// observations. Borrowed-content checking must still restore every hole.
     pub(crate) fn preserves_owner_qualification(
@@ -78,32 +94,50 @@ impl StorageRegion {
         fact: &facts::Fact,
         place: facts::PlaceHandle,
     ) -> bool {
-        let Self::ResidentContent {
-            owner,
-            granted,
-            resident,
-            ..
-        } = self
-        else {
-            return false;
-        };
-        let domain = match fact.payload {
+        let (domain_symbol, domain) = match fact.payload {
             facts::FactPayload::DomainMembership {
-                semantic_domain, ..
+                domain_symbol,
+                semantic_domain,
+                ..
             }
             | facts::FactPayload::ContractDomainMembership {
-                semantic_domain, ..
-            } => semantic_domain,
+                domain_symbol,
+                semantic_domain,
+                ..
+            } => (domain_symbol, semantic_domain),
             _ => return false,
         };
-        if domain != *granted && domain != *resident {
-            return false;
-        }
+        let owner = match self {
+            Self::ResidentContent {
+                owner,
+                granted,
+                resident,
+                ..
+            } if domain == *granted || domain == *resident => owner,
+            Self::NonresidentContent { owner, .. }
+                if domain.is_valid()
+                    && crate::flow::domain::qualification_is_identity_only(
+                        program,
+                        domain_symbol,
+                    ) =>
+            {
+                owner
+            }
+            _ => return false,
+        };
         crate::flow::canonical_place_from_semantic_place(
             program,
             semantic,
             semantic.places.get(place),
         )
-        .is_some_and(|place| place == *owner)
+        .is_some_and(|place| {
+            if place.segments != owner.segments {
+                return false;
+            }
+            place.root == owner.root || matches!((place.root, owner.root),
+                (facts::PlaceRoot::Symbol(actual), facts::PlaceRoot::InvocationReferent { parameter, .. })
+                | (facts::PlaceRoot::InvocationReferent { parameter, .. }, facts::PlaceRoot::Symbol(actual))
+                if actual == parameter)
+        })
     }
 }
