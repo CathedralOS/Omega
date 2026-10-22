@@ -190,3 +190,37 @@ fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements
     parse_expression("block()");
     parse_expression(&format!("{}value", "~".repeat(4096)));
 }
+
+#[test]
+fn long_operator_chains_keep_bounded_parser_stack_and_exact_prefix_order() {
+    let source = format!("{}value", "~".repeat(4096));
+    let (parsed, mut expression) = parse_expression(&source);
+    for offset in 0..4096 {
+        let span = parsed.expressions.source_span(expression).span;
+        assert_eq!((span.start, span.end), (offset, offset + 1));
+        let ExpressionNode::Unary(unary) = parsed.expressions.expression(expression) else {
+            panic!("each prefix retains its operand and source position");
+        };
+        assert_eq!(
+            unary.operator,
+            syntax_trees::expression::UnaryOperator::BitwiseNot
+        );
+        expression = unary.operand;
+    }
+    assert_eq!(parsed.display_expression_name(expression), "value");
+
+    // Each repeated group reaches all six pending integer levels before
+    // reducing. Equal-precedence operators keep the whole chain left-associative.
+    let source = std::iter::repeat_n("a | b ^ c & d << e + f * g", 1024)
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let (parsed, _) = parse_expression(&source);
+    assert_eq!(
+        parsed
+            .expressions
+            .iter_expressions()
+            .filter(|(_, expression)| { matches!(expression, ExpressionNode::Binary(_)) })
+            .count(),
+        7 * 1024 - 1,
+    );
+}

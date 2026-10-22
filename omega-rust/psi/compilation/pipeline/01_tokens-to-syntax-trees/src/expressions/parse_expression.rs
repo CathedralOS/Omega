@@ -89,7 +89,7 @@ fn parse_or_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
+    parse_binary_chain_handle::<4>(
         syntax_trees,
         input,
         context,
@@ -120,7 +120,7 @@ pub(crate) fn parse_bitwise_or_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_binary_chain_handle(
+    parse_binary_chain_handle::<6>(
         syntax_trees,
         input,
         context,
@@ -144,7 +144,7 @@ pub(crate) fn parse_bitwise_or_expression_handle<'tokens, 'source>(
     )
 }
 
-fn parse_binary_chain_handle<'tokens, 'source>(
+fn parse_binary_chain_handle<'tokens, 'source, const PRECEDENCE_LEVELS: usize>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
@@ -156,27 +156,39 @@ fn parse_binary_chain_handle<'tokens, 'source>(
     operators: &[(PunctuationKind, BinaryOperator, u8)],
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let (mut expression, mut input) = lower(syntax_trees, input, context)?;
-    let mut pending = Vec::new();
+    // Reducing every operator with equal or greater precedence leaves strictly
+    // increasing levels pending. Storage is bounded by the grammar's level
+    // count, not the source's operator count; arbitrarily long chains still fit.
+    let mut pending = [None; PRECEDENCE_LEVELS];
+    let mut pending_count = 0;
 
     while let Some((punctuation, operator, precedence)) = operators
         .iter()
         .find(|(punctuation, _, _)| input.at_punctuation(*punctuation))
         .copied()
     {
-        while pending
-            .last()
-            .is_some_and(|(_, _, pending_precedence, _)| *pending_precedence >= precedence)
-        {
-            let (left, operator, _, span) = pending.pop().expect("pending operator");
+        while pending_count != 0 {
+            let (_, _, pending_precedence, _) = pending[pending_count - 1]
+                .as_ref()
+                .expect("pending operator");
+            if *pending_precedence < precedence {
+                break;
+            }
+            pending_count -= 1;
+            let (left, operator, _, span) =
+                pending[pending_count].take().expect("pending operator");
             expression = insert_binary_expression(syntax_trees, left, operator, expression, span);
         }
         let operator_span = input.current_source_span();
         input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-        pending.push((expression, operator, precedence, operator_span));
+        pending[pending_count] = Some((expression, operator, precedence, operator_span));
+        pending_count += 1;
         (expression, input) = lower(syntax_trees, input, context)?;
     }
 
-    while let Some((left, operator, _, span)) = pending.pop() {
+    while pending_count != 0 {
+        pending_count -= 1;
+        let (left, operator, _, span) = pending[pending_count].take().expect("pending operator");
         expression = insert_binary_expression(syntax_trees, left, operator, expression, span);
     }
     Ok((expression, input))
@@ -218,7 +230,11 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    let mut input = input;
+    // Keep the common single prefix in this invocation. Only additional
+    // prefixes need growing scratch; no chain limit or recursive call is added.
+    let Some((first_prefix, mut input)) = take_unary_prefix(input)? else {
+        return parse_postfix_expression_handle(syntax_trees, input, context);
+    };
     let mut prefixes = Vec::new();
     while let Some((prefix, rest)) = take_unary_prefix(input)? {
         prefixes.push(prefix);
@@ -228,6 +244,7 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     while let Some(prefix) = prefixes.pop() {
         expression = apply_unary_prefix(syntax_trees, expression, prefix)?;
     }
+    expression = apply_unary_prefix(syntax_trees, expression, first_prefix)?;
     Ok((expression, rest))
 }
 

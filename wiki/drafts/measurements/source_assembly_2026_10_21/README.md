@@ -99,3 +99,7 @@ session's timing comparison or establish performance on other hosts.
 - [Forest-owned float spelling](../source_assembly_2026_10_22/float_spelling/README.md): remove per-occurrence float source owners; exact parser and runtime comparisons.
 
 - [Declaration lookahead storage](../source_assembly_2026_10_22/declaration_lookahead/README.md): reuse caller arena capacity for 14 ambiguous probes across three real fixtures; remove the obsolete cursor source-owner reference. Full parser observations match; timing remains inconclusive.
+
+## Expression scratch, 2026-10-22
+
+[Bounded binary storage and first-prefix retention](../source_assembly_2026_10_22/expression_scratch/README.md) remove 3,971 allocator requests on the original workload with exact syntax/diagnostics. Timing is inconclusive.
