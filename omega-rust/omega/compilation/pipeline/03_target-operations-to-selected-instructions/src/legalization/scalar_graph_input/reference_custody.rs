@@ -711,52 +711,6 @@ fn source_contract(
         .map(|leaf| leaf.contract.structural_type())
 }
 
-/// Resolve direct storage from its declared contract, rather than requiring
-/// that the owner originated in the machine's input telescope. Reference
-/// crossings still require the separately reconstructed live loan.
-/// Lending direct storage retains the owner's disposal claims. The source's
-/// multiplicity and qualifications do not change a loan's referent geometry.
-/// Access still constrains the projection; normalized_source separately
-/// retains exact live-loan custody. Source checking owns domain obligations.
-fn direct_storage_type(
-    function: &PsiOptimizationFunction,
-    types: &[StructuralTypeDeclaration],
-    source: &StructuralArgument,
-) -> Option<StructuralTypeId> {
-    if !source.path.iter().all(|segment| {
-        matches!(
-            segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::RuntimeIndex { .. }
-                | StructuralPathSegment::RepresentationView { .. }
-        )
-    }) {
-        return None;
-    }
-    let (structural_type, access) =
-        if let Some(parameter) = function.arrival_parameter(source.place) {
-            (parameter.structural_type, parameter.access)
-        } else {
-            let (_, result) = super::structural_case::source_result(function, source.place).ok()?;
-            (result.structural_type, StructuralAccess::Owned)
-        };
-    if !source.access.admits(access) {
-        return None;
-    }
-    if source.access == StructuralAccess::SharedBorrow
-        && let Some(observed) = terminal_semantics::borrowed_primitive_projection_declaration(
-            types.iter(),
-            structural_type,
-            &source.path,
-            None,
-        )
-    {
-        return Some(observed);
-    }
-    leaf_type(types, structural_type, &source.path)
-}
-
 /// The referent type an establishment or projection may name. An empty path
 /// names a whole ingress place, a trailing `Referent` dereferences a live
 /// carrier, and a field/fixed-index path names exact borrowed ingress storage.
