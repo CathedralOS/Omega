@@ -40,8 +40,14 @@ same complete non-writing call on the observed referent. Each twin adds only
 the overlapping store. On `8bd3d5732111`, these non-writing same-place sources
 wrongly refuse their saved equality; their former invalid labels do not justify
 treating permission as a store. Producer-bound baseline observations retain the
-original sources and diagnostics. Float call-result, other-machine and
-target-body transport remain open, including their no-loan equality gap.
+original sources and diagnostics.
+
+Float call result, other machine, and target body carry a saved observation
+that the kept float is 7 across an exclusive loan of the other float. The
+callee reads that saved record. Each twin stores through the loan of the kept
+float. Call result and target body reject `cannot prove requires contract`.
+Other machine rejects `cannot prove ensures contract` on the returned record.
+A non-writing loan of the kept float still keeps the equality.
 
 - **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
 - **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.
@@ -50,4 +56,4 @@ target-body transport remain open, including their no-loan equality gap.
 - **Checked-to-Terminal Psi.** The positive places execute in the Terminal Psi interpreter and agree with native execution. The reject twins fail checking, so they have no Terminal Psi product.
 - **Later realization.** Each positive binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. Current native/Terminal execution evidence is host-specific; bindings alone do not establish execution on the other hosts.
 
-This row covers complete non-writing frames over saved array-element observations, with actual overlapping-write twins. Case, generic and reference probes and six float places do not close their remaining transport obligations or the rest of `STATE-LOCAL-VALUE-FRONTIER`.
+This row covers complete non-writing frames over saved array-element observations, with actual overlapping-write twins. Case, generic and reference probes and the float places do not close the rest of `STATE-LOCAL-VALUE-FRONTIER`.

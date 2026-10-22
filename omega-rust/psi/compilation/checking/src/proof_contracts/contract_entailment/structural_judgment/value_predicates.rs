@@ -533,6 +533,65 @@ impl StructuralJudge<'_> {
         None
     }
 
+    /// A saved copy and a later read name one float subject. A recorded
+    /// equality to a completed literal classifies that subject: a non-NaN
+    /// value equals itself, and NaN stays unordered. This does not replace
+    /// either occurrence with the literal. A write retires the live read
+    /// before a new occurrence is formed, so the saved copy is not that read.
+    fn recorded_float_nan_classification(
+        &self,
+        subject: &StructuralTerm,
+        depth: usize,
+    ) -> Option<bool> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        for (predicate, truth) in self.rewrites.iter() {
+            if boolean_value(truth) != Some(true) {
+                continue;
+            }
+            let StructuralTerm::ScalarBinary {
+                operator: BinaryOperator::Equal,
+                meaning,
+                left,
+                right,
+                ..
+            } = predicate.semantic_value()
+            else {
+                continue;
+            };
+            let primitive = meaning[0].0;
+            if meaning[1].0 != primitive
+                || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+            {
+                continue;
+            }
+            let Some(left) = projected_meaning(program, primitive, left.as_ref().clone()) else {
+                continue;
+            };
+            let Some(right) = projected_meaning(program, primitive, right.as_ref().clone()) else {
+                continue;
+            };
+            let left = self.resolve_at(left, depth + 1);
+            let right = self.resolve_at(right, depth + 1);
+            let literal = if left == *subject {
+                &right
+            } else if right == *subject {
+                &left
+            } else {
+                continue;
+            };
+            let Some((_, exact)) = self.float_literal_endpoint(literal) else {
+                continue;
+            };
+            use numerics::float_semantics::{FloatMeaning, FloatSemantics};
+            let meaning = FloatMeaning::from_f64(exact.to_f64());
+            return Some(!FloatSemantics::equal(&meaning, &meaning));
+        }
+        None
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn observed_float_predicate_judgment(
         &self,
         predicate: &StructuralTerm,
@@ -639,16 +698,23 @@ impl StructuralJudge<'_> {
         };
         let left_nan = nan_truth(left);
         let right_nan = nan_truth(right);
+        // The explicit NaN predicate is one classification. A recorded
+        // equality to a completed literal is the other: it is how a saved
+        // field read and the live field stay the same non-NaN value.
+        let recorded_nan = (left == right)
+            .then(|| self.recorded_float_nan_classification(left, depth + 1))
+            .flatten();
+        let classified = left_nan.or(right_nan).or(recorded_nan);
         if super::super::struct_trace() {
             eprintln!(
-                "STRUCT ieee completed comparison={comparison:?} same_meaning={} left_nan={left_nan:?} right_nan={right_nan:?}",
+                "STRUCT ieee completed comparison={comparison:?} same_meaning={} left_nan={left_nan:?} right_nan={right_nan:?} recorded_nan={recorded_nan:?}",
                 left == right
             );
         }
         if left_nan == Some(true) || right_nan == Some(true) {
             Some(comparison.unordered_truth())
         } else if left == right {
-            comparison.same_meaning_truth(left_nan.or(right_nan))
+            comparison.same_meaning_truth(classified)
         } else {
             None
         }
