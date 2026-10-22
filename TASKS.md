@@ -1932,8 +1932,14 @@ defines the complete product bar.
   cannot narrow authored contracts.
 
   Current: `pass/operators/crash_routes` runs with exit 0 natively and
-  interpreted on macOS ARM64 and Linux x86-64 ([oracle](tests/omega/pass/operators/crash_routes/README.md));
-  `fail/operators/selected_crash_invocation` rejects. Named uses join the
+  interpreted on macOS ARM64, Linux x86-64, and Windows x86-64
+  ([oracle](tests/omega/pass/operators/crash_routes/README.md)).
+  Windows x86-64 was measured 2026-10-21 at `e93d31c786d7` with
+  `omega run --both`, stdin closed, on an opt-level 1 producer: native
+  exit 0 and interpreted exit 0. `fail/operators/selected_crash_invocation`
+  still rejects on that host; `omega --check` reports an ambiguous `==`
+  candidate (`Float::equal` twice) rather than the pinned
+  `uncovered Trap crash route` fragment. Named uses join the
   emitted `BoundaryCall` through one source-occurrence relation.
   `pass/contracts/ensures_{fact_list,wrapping_field_arithmetic,borrowed_parameter_field,named_parameter_arithmetic,saturating_field_arithmetic}_exit`
   and `pass/collections/runtime_fixed_vec_round_trip_exit` execute.

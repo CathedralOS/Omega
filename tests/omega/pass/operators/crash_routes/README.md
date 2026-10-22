@@ -17,6 +17,10 @@ On Linux x86-64, use `--target linux_x86_64` for package update, then run the
 same comparison command on that host. The target on `update` prepares review
 for that host; it does not claim that another host executed the program.
 
+On Windows x86-64 the same `omega run --both` command, with stdin closed,
+exits 0 natively and interpreted. Measured 2026-10-21 at
+`e93d31c786d7c61157b7157169baa8645b0a869b` with an opt-level 1 producer.
+
 The package has no external dependencies or authority choices. Package update
 prepares its local acceptance baseline. Native and interpreted exits must both
 be 0. The negative fixture `fail/operators/selected_crash_invocation` leaves a
