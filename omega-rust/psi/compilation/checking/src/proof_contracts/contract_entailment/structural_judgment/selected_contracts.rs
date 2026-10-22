@@ -1207,9 +1207,28 @@ pub(super) fn bound_term(
             super::super::structural_terms::structural_term(program, None, None, expression, None)
         }
         ExpressionNode::Binary(binary) => {
+            // A sealed primitive float comparison is an IEEE Boolean, not
+            // identity and not a reason to drop the substituted operands.
+            // Other non-builtin operators stay unbound here.
+            let sealed_float =
+                crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+                    binary.operator,
+                )
+                .and_then(|spelling| {
+                    let types = [binary.left, binary.right].map(|operand| {
+                        crate::parameter_expression_result_type_reference(
+                            program, scope, parameters, operand,
+                        )
+                    });
+                    super::super::structural_terms::sealed_primitive_float_operator(
+                        program, expression, spelling, &types,
+                    )
+                })
+                .is_some();
             if !crate::has_builtin_parameter_bound_expression_meaning(
                 program, scope, parameters, expression,
-            ) {
+            ) && !sealed_float
+            {
                 return None;
             }
             let left = bound_term(

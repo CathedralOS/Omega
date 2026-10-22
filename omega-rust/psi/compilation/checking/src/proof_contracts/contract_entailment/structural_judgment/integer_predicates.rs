@@ -220,7 +220,9 @@ impl StructuralJudge<'_> {
             super::value_predicates::boolean_term(true),
             depth + 1,
         ) {
-            StructuralJudgment::Unknown => self.observed_integer_predicate_judgment(&predicate),
+            StructuralJudgment::Unknown => self
+                .observed_float_predicate_judgment(&predicate, depth)
+                .unwrap_or_else(|| self.observed_integer_predicate_judgment(&predicate)),
             judgment => judgment,
         }
     }

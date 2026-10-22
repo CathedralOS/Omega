@@ -114,6 +114,20 @@ pub(crate) fn binary_term_in_scope(
             &references,
         )
     {
+        // The sealed primitive float comparison is the language's IEEE
+        // predicate. Record that Boolean over the substituted operands.
+        // A user operator with the same spelling stays an ordinary
+        // application and does not acquire this law.
+        if let Some(term) = sealed_primitive_float_scalar(
+            program,
+            expression,
+            spelling,
+            &references,
+            left.clone(),
+            right.clone(),
+        ) {
+            return Some(term);
+        }
         if references.iter().any(Option::is_none)
             || !typed_trees::operator::selected_trait_operator_meanings(
                 program,
@@ -192,6 +206,57 @@ pub(crate) fn binary_term_in_scope(
     Some(StructuralTerm::ScalarBinary {
         references,
         operator: binary.operator,
+        meaning,
+        left: Box::new(left),
+        right: Box::new(right),
+    })
+}
+
+/// The one sealed primitive float comparison selected by this expression.
+/// Several matches, a user operator, or a non-float carrier select nothing.
+pub(crate) fn sealed_primitive_float_operator(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    spelling: language_core::OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<BinaryOperator> {
+    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        operand_types,
+        program.expression_table.source_span(expression),
+    );
+    let [selected] = candidates.as_slice() else {
+        return None;
+    };
+    if !typed_trees::operator::is_sealed_toolchain_float_operator(program, selected.operator) {
+        return None;
+    }
+    let (operation, _) =
+        typed_trees::operator::primitive_float_binary_semantics(program, selected.operator)?;
+    let binary = program.expression_table.binary_node(expression)?;
+    (binary.operator == operation).then_some(operation)
+}
+
+fn sealed_primitive_float_scalar(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    spelling: language_core::OperatorSpelling,
+    references: &[Option<TypeReferenceHandle>; 2],
+    left: StructuralTerm,
+    right: StructuralTerm,
+) -> Option<StructuralTerm> {
+    let operation = sealed_primitive_float_operator(program, expression, spelling, references)?;
+    let [Some(left_type), Some(right_type)] = *references else {
+        return None;
+    };
+    let meaning = [
+        super::scalar_operand_meaning(program, left_type, &left)?,
+        super::scalar_operand_meaning(program, right_type, &right)?,
+    ];
+    Some(StructuralTerm::ScalarBinary {
+        references: [left_type, right_type],
+        operator: operation,
         meaning,
         left: Box::new(left),
         right: Box::new(right),

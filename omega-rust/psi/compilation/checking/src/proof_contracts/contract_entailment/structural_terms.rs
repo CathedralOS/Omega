@@ -23,7 +23,9 @@ mod equality;
 mod indexed;
 pub(super) use indexed::indexed_term_in_scope;
 mod scalar_operands;
-pub(super) use binary::{binary_term_in_scope, logical_not_term_in_scope};
+pub(super) use binary::{
+    binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
+};
 pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,

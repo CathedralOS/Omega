@@ -145,28 +145,31 @@ impl StructuralJudge<'_> {
                 )
             );
         }
+        let sealed_float = super::super::structural_terms::sealed_primitive_float_operator(
+            program,
+            expression,
+            spelling,
+            &references,
+        )
+        .is_some();
         if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
             || program.primitive_type_reference(right_type) != Some(primitive)
-            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            || (!typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
                 self.machine_symbol,
                 expression,
                 spelling,
                 &references,
-            )
+            ) && !sealed_float)
         {
             return None;
         }
-        let left = self.resolve(projected_meaning(
-            program,
-            primitive,
-            self.declaration_term(binary.left)?,
-        )?);
-        let right = self.resolve(projected_meaning(
-            program,
-            primitive,
-            self.declaration_term(binary.right)?,
-        )?);
+        let project = |operand| {
+            let term = self.declaration_term(operand)?;
+            Some(self.resolve(projected_meaning(program, primitive, term.clone()).unwrap_or(term)))
+        };
+        let left = project(binary.left)?;
+        let right = project(binary.right)?;
         let comparison = match binary.operator {
             BinaryOperator::Equal => FloatSemanticComparison::Equal,
             BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
@@ -354,7 +357,14 @@ impl StructuralJudge<'_> {
         numerics::literals::FloatFormat,
         numerics::bignum::ExactFloat,
     )> {
-        let (format, value) = self.float_projection(term)?;
+        // A completed literal already carries its format. Two such literals
+        // compare by IEEE value here; a projection application is the other
+        // way a sealed meaning supplies that same literal.
+        let (format, value) = if let StructuralTerm::Float(literal) = term.semantic_value() {
+            (literal.landing()?, term)
+        } else {
+            self.float_projection(term)?
+        };
         let StructuralTerm::Float(literal) = value.semantic_value() else {
             return None;
         };
@@ -447,6 +457,109 @@ impl StructuralJudge<'_> {
         None
     }
 
+    /// A selected float comparison that was already proved stays a Boolean
+    /// fact. Later consumers match that comparison; they do not replace one
+    /// float with the other.
+    fn recorded_float_comparison(
+        &self,
+        comparison: FloatSemanticComparison,
+        left: &StructuralTerm,
+        right: &StructuralTerm,
+        depth: usize,
+    ) -> Option<bool> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        for (predicate, truth) in self.rewrites.iter() {
+            if boolean_value(truth) != Some(true) {
+                continue;
+            }
+            let StructuralTerm::ScalarBinary {
+                operator,
+                meaning,
+                left: recorded_left,
+                right: recorded_right,
+                ..
+            } = predicate.semantic_value()
+            else {
+                continue;
+            };
+            let primitive = meaning[0].0;
+            if meaning[1].0 != primitive
+                || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+            {
+                continue;
+            }
+            let recorded = match operator {
+                BinaryOperator::Equal => FloatSemanticComparison::Equal,
+                BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
+                _ => continue,
+            };
+            if recorded != comparison {
+                continue;
+            }
+            let Some(recorded_left) =
+                projected_meaning(program, primitive, recorded_left.as_ref().clone())
+            else {
+                continue;
+            };
+            let Some(recorded_right) =
+                projected_meaning(program, primitive, recorded_right.as_ref().clone())
+            else {
+                continue;
+            };
+            let recorded_left = self.resolve_at(recorded_left, depth + 1);
+            let recorded_right = self.resolve_at(recorded_right, depth + 1);
+            let same_order = recorded_left == *left && recorded_right == *right;
+            let swapped = recorded_left == *right && recorded_right == *left;
+            if same_order || swapped {
+                return Some(true);
+            }
+        }
+        None
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn observed_float_predicate_judgment(
+        &self,
+        predicate: &StructuralTerm,
+        depth: usize,
+    ) -> Option<StructuralJudgment> {
+        let StructuralTerm::ScalarBinary {
+            operator,
+            meaning,
+            left,
+            right,
+            ..
+        } = predicate.semantic_value()
+        else {
+            return None;
+        };
+        let primitive = meaning[0].0;
+        if meaning[1].0 != primitive
+            || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+        {
+            return None;
+        }
+        let comparison = match operator {
+            BinaryOperator::Equal => FloatSemanticComparison::Equal,
+            BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
+            _ => return None,
+        };
+        let project = |operand: &StructuralTerm| {
+            projected_meaning(self.program, primitive, operand.clone())
+                .map(|term| self.resolve_at(term, depth + 1))
+                .unwrap_or_else(|| self.resolve_at(operand.clone(), depth + 1))
+        };
+        let left = project(left);
+        let right = project(right);
+        match self.float_comparison_truth(comparison, &left, &right, depth + 1) {
+            Some(true) => Some(StructuralJudgment::Proven),
+            Some(false) => Some(StructuralJudgment::Refuted),
+            None => None,
+        }
+    }
+
     fn float_comparison_truth(
         &self,
         comparison: FloatSemanticComparison,
@@ -460,6 +573,12 @@ impl StructuralJudge<'_> {
         if let Some(truth) =
             self.observed_float_comparison_truth(comparison, left, right, depth + 1)
         {
+            return Some(truth);
+        }
+        // A proved return or requires fact keeps its IEEE predicate. Matching
+        // that predicate proves the same comparison again. It does not
+        // substitute either operand for the other.
+        if let Some(truth) = self.recorded_float_comparison(comparison, left, right, depth + 1) {
             return Some(truth);
         }
         // IEEE equality and inequality are exact Boolean complements even
