@@ -24,6 +24,7 @@ pub enum PlacementResultContract<'module> {
         rejected: &'module StructuralCaseDeclaration,
         failures: &'module [StructuralCaseDeclaration; 3],
         carrier: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
     },
     Initialize {
         result: &'module BoundaryStructuralResultDeclaration,
@@ -57,7 +58,7 @@ pub fn placement_view_reference_slot(
     };
     let StructuralTypeShape::Reference {
         referent,
-        access: terminal_psi::StructuralAccess::SharedBorrow,
+        access: terminal_psi::reading_borrow_pair_pattern!(),
     } = terminal_psi::find_structural_type(types, field.field_type.as_structural()?)?.shape
     else {
         return None;
@@ -96,7 +97,12 @@ pub fn placement_result_contract<'module>(
             else {
                 return Err("borrowed placement Ready does not retain its reference carrier");
             };
-            if *access != terminal_psi::StructuralAccess::SharedBorrow
+            let storage = boundary
+                .structural_parameters
+                .first()
+                .ok_or("borrowed placement lost its exact storage parameter")?;
+            if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
+                || *access != storage.access
                 || !module.placed_view_plans.iter().any(|view| {
                     view.carrier == *referent
                         && view.schema == plan.schema
@@ -126,6 +132,7 @@ pub fn placement_result_contract<'module>(
                 rejected,
                 failures: failure_cases(module, reason)?,
                 carrier: *referent,
+                access: *access,
             })
         }
         TerminalPlacementLifecycleOperation::Initialize => {

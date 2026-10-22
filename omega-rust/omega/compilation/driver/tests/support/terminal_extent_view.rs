@@ -38,8 +38,11 @@ fn allocation(provenance: u64) -> Extent {
 }
 
 /// Host-side observations fail this fixture without aborting the corpus.
-pub(super) fn observe(artifact: &terminal_codec::CanonicalTerminalArtifact) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact))).map_err(
+pub(super) fn observe(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    writes: bool,
+) -> Result<(), String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact, writes))).map_err(
         |failure| {
             failure
                 .downcast_ref::<String>()
@@ -54,7 +57,7 @@ pub(super) fn observe(artifact: &terminal_codec::CanonicalTerminalArtifact) -> R
     )
 }
 
-fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
+fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) {
     let program = TerminalProgram::borrow(artifact.view());
     let module = program.module();
     let plan = module
@@ -104,13 +107,16 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
     else {
         panic!("extent record");
     };
-    for (second_word, compatible_transfer, bind_backing, crosswire) in [
-        (41_u64, true, true, false),
-        (99, true, true, false),
-        (41, false, true, false),
-        (41, true, false, false),
-        (41, true, true, true),
-    ] {
+    for (second_word, compatible_transfer, bind_backing, crosswire, writable) in [
+        (41_u64, true, true, false, writes),
+        (99, true, true, false, writes),
+        (41, false, true, false, writes),
+        (41, true, false, false, writes),
+        (41, true, true, true, writes),
+    ]
+    .into_iter()
+    .chain(writes.then_some((41, true, true, false, false)))
+    {
         let allocation = allocation(24);
         let profile = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(31).unwrap(),
@@ -127,7 +133,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
                 stable: StableCapability::None,
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Repeatable,
-                    write: false,
+                    write: writable,
                     transfers: vec![TransferRule {
                         width_bits: if compatible_transfer { 64 } else { 8 },
                         alignment_bytes: 8,
@@ -232,7 +238,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
                 format!("{result:?}").contains("placement extent has no actual provider backing"),
                 "{result:?}"
             );
-        } else if second_word != 41 || !compatible_transfer {
+        } else if second_word != 41 || !compatible_transfer || (writes && !writable) {
             assert!(
                 matches!(result, Ok(TerminalExecutionStatus::Crashed(_))),
                 "{result:?}"
@@ -242,7 +248,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
                 ref returned,
             ))) = result
             else {
-                panic!("qualified external read failed: {result:?}");
+                panic!("qualified external access failed: {result:?}");
             };
             assert_eq!(returned.value.qualifications, parameter.qualifications);
             assert_eq!(
@@ -252,7 +258,7 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
             );
         }
         eprintln!(
-            "external extent second_word={second_word}, transfer={compatible_transfer}, bound={bind_backing}: {result:?}"
+            "external extent second_word={second_word}, transfer={compatible_transfer}, bound={bind_backing}, writable={writable}: {result:?}"
         );
         // Neither success nor rejection manufactures vacancy for host handback.
         assert!(instance.take_returned_provider_storage(&[]).is_err());

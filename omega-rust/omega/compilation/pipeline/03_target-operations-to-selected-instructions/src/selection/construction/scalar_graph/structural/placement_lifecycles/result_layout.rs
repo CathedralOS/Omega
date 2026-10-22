@@ -86,12 +86,12 @@ impl ResultLayout {
                 if !matches!(
                     declaration(types, structural(ready_owner)?)?.shape,
                     StructuralTypeShape::Reference {
-                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                        access: terminal_psi::reading_borrow_pair_pattern!(),
                         ..
                     }
                 ) {
                     return Err(failure(
-                        "borrowed placement Ready must retain its shared reference",
+                        "borrowed placement Ready must retain its borrowed reference",
                     ));
                 }
             }

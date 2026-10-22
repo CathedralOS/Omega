@@ -122,7 +122,19 @@ pub fn placed_borrow_has_empty_write_frame(
         crate::machine_calls::calls::machine_state_by_symbol(program, target)
             .map(|(machine, _)| machine)
     });
-    machine.is_some_and(|machine| program.placed_borrow_factory(machine.symbol).is_some())
+    machine.is_some_and(|machine| {
+        program.placed_borrow_factory(machine.symbol).is_some()
+            || typed_trees::typed_trees::PlacementExecutionDeclaration::authenticate(
+                program,
+                machine.symbol,
+            )
+            .is_ok_and(|declaration| {
+                declaration.is_some_and(|declaration| {
+                    declaration.operation()
+                        == typed_trees::typed_trees::PlacementLifecycleOperation::View
+                })
+            })
+    })
 }
 
 impl ReferenceFormationInterpretation {

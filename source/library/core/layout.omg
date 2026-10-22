@@ -23,11 +23,11 @@ use omega::language::core::extent;
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, shape, and declared identity (-1 in the numeric mirror when
 // unnumbered). Recursively nested fixed arrays composed of supported primitive
-// elements are one Repeated field. The data predicates retain the pilot's
-// 4 KiB extent and nonzero alignment bounds. The compiler supplies established
-// fields by value, including valid inactive-tail placeholders; zeroed storage
+// elements are one Repeated field. Byte sizes retain their full u64 range;
+// allocation and placement consumers check their own geometry. The compiler
+// supplies established fields by value, including valid inactive-tail placeholders; zeroed storage
 // alone does not establish a SchemaField.
-public data SchemaField where size <= 4096, align >= 1, align <= 16 {
+public data SchemaField where align >= 1, align <= 16 {
     key: u64;
     size: u64;
     align: u64;
@@ -561,6 +561,28 @@ boundary machine Placed::view_from_profile<'storage, P, T>(
     profile: &ResourceProfile
 ) -> PlacementOutcome<
     &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+>;
+
+// The exclusive counterpart carries the same interpretation and original
+// profile occurrence. Its reference ceiling, not a second lifecycle or a
+// geometry-based permission, allows the placement's admitted writes.
+public machine Placed::view_extent_mut<'storage, P, T>(
+    storage: &'storage mut Extent in Granted
+) -> PlacementOutcome<
+    &'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply;
+{
+    let profile: ResourceProfile = ResourceProfileSupply::profile(storage);
+    Placed::view_mut_from_profile<P, T>(storage, &profile)
+}
+
+boundary machine Placed::view_mut_from_profile<'storage, P, T>(
+    storage: &'storage mut Extent in Granted,
+    profile: &ResourceProfile
+) -> PlacementOutcome<
+    &'storage mut Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
 >;
 
 // Dynamic incompatibility is ordinary data. Malformed admitted assertions,

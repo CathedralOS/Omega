@@ -1038,6 +1038,7 @@ pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1758ms exit:0 in
 pass/layouts/runtime_callee_owned_local_origins_exit built 2446ms exit:0 interpreter-exit:0 interpreter:agrees @9660dd146223
 pass/layouts/runtime_captured_encoded_reference_replacement_exit built 1862ms exit:0 interpreter-exit:0 interpreter:agrees @0234777c1cd7+wt
 pass/layouts/runtime_encoded_physical_view_exit built 1730ms exit:0 interpreter-exit:0 interpreter:agrees @d56a61c738bf
+pass/layouts/runtime_large_schema_field_exit built 808ms exit:0 interpreter-exit:0 interpreter:agrees @f85524ac2a1b+wt
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 1619ms exit:0 interpreter-exit:0 interpreter:agrees @89699170f158+wt
 pass/layouts/runtime_offset_encoded_reference_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @6282711b68c7
 pass/layouts/runtime_placed_outcome_array_read_exit built 1431ms exit:0 interpreter-exit:0 interpreter:agrees @a94178e1c015

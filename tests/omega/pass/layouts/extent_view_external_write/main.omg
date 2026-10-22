@@ -1,0 +1,97 @@
+// Embedding oracle: update the second original external word from 41 to 73,
+// preserve the first word 17, and return the same Granted extent. No Resident
+// or Vacant is introduced, and mutation requires an exclusive storage loan.
+use omega::language::core::extent;
+use omega::language::core::layout;
+
+public data Words { entries: [u64; 2]; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut fields: [FieldEntry; 64];
+    fields[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    let services: [u64; 32];
+    PlacementPlan {
+        layout: Plan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 },
+        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+            FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }),
+        reach: BoundaryReach { services: services, service_count: 0 },
+    }
+}
+
+machine update_existing(storage: &mut Extent in Granted) -> bool
+reaches ResourceProfileSupply
+{
+    transition Placed::view_extent_mut<WordPlacement, Words>(storage) {
+        PlacementOutcome::Ready { view } -> check(view)
+        PlacementOutcome::Rejected { returned, reason } -> false
+    }
+    state check(view: &mut Placed<WordPlacement, Words>) -> bool {
+        let first: u64 = placed_read(&view.entries[0]);
+        let second: u64 = placed_read(&view.entries[1]);
+        transition first == 17 && second == 41 {
+            true -> write(view)
+            _ -> false
+        }
+    }
+    state write(view: &mut Placed<WordPlacement, Words>) -> bool {
+        placed_write(&mut view.entries[1], 73u64);
+        let first: u64 = placed_read(&view.entries[0]);
+        let second: u64 = placed_read(&view.entries[1]);
+        first == 17 && second == 73
+    }
+}
+
+MemorySupply satisfies ResourceProfileSupply {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut transfers: [TransferRule; 16];
+        transfers[0] = TransferRule { width_bits: 64, alignment_bytes: 8 };
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::HostileShared,
+            stable: StableCapability::None,
+            external: ExternalCapability::Access {
+                read: ExternalReadBehavior::Repeatable, write: true,
+                transfers: TransferRules { entries: transfers, rule_count: 1 },
+            },
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+machine attempt(storage: Extent in Granted) -> Extent in Granted
+reaches ResourceProfileSupply crashes Trap
+{
+    let mut retained: Extent in Granted = storage;
+    let written: bool = update_existing(&mut retained);
+    transition written {
+        true -> verify(retained)
+        _ -> fail(retained)
+    }
+    state verify(storage: Extent in Granted) -> Extent in Granted {
+        let observed: bool = observe_existing(&storage);
+        transition observed {
+            true -> (storage)
+            _ -> fail(storage)
+        }
+    }
+    state fail(storage: Extent in Granted) -> Extent in Granted { crash Trap; }
+}
+
+machine observe_existing(storage: &Extent in Granted) -> bool
+reaches ResourceProfileSupply
+{
+    transition Placed::view_extent<WordPlacement, Words>(storage) {
+        PlacementOutcome::Ready { view } -> check(view)
+        PlacementOutcome::Rejected { returned, reason } -> false
+    }
+    state check(view: &Placed<WordPlacement, Words>) -> bool {
+        let first: u64 = placed_read(&view.entries[0]);
+        let second: u64 = placed_read(&view.entries[1]);
+        first == 17 && second == 73
+    }
+}

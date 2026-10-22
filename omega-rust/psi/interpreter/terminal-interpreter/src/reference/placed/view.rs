@@ -35,7 +35,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let result = operation.result.structural().ok_or_else(malformed)?;
-        if source.access != StructuralAccess::SharedBorrow
+        if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
             || profile_argument.access != StructuralAccess::SharedBorrow
             || !completion_receipts.is_empty()
             || !result.claims.is_empty()
@@ -56,12 +56,14 @@ impl TerminalExecution<'_> {
             rejected,
             failures,
             carrier,
+            access,
         } = terminal_semantics::placement_result_contract(&program.catalogs, plan)
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?
         else {
             return Err(malformed());
         };
-        if result.structural_type != declared.structural_type
+        if source.access != access
+            || result.structural_type != declared.structural_type
             || result.multiplicity != declared.multiplicity
             || result.qualifications != declared.qualifications
             || result.projected_qualifications != declared.projected_qualifications
@@ -110,7 +112,7 @@ impl TerminalExecution<'_> {
                         compatibility,
                     },
                     presentation,
-                    access: StructuralAccess::SharedBorrow,
+                    access,
                     selected_field: None,
                     projection: Vec::new(),
                     source: backing.clone(),

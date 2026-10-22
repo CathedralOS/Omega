@@ -174,7 +174,17 @@ fn bind_profile(
         _ => return Err("lifecycle lost its storage, value or profile input"),
     };
     let storage_access = if plan.operation == TerminalPlacementLifecycleOperation::View {
-        StructuralAccess::SharedBorrow
+        module
+            .boundary_machine(plan.boundary)
+            .and_then(|boundary| boundary.structural_parameters.first())
+            .filter(|parameter| {
+                matches!(
+                    parameter.access,
+                    terminal_psi::reading_borrow_pair_pattern!()
+                )
+            })
+            .ok_or("borrowed placement lost its declared storage loan")?
+            .access
     } else {
         StructuralAccess::Owned
     };

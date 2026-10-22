@@ -1,7 +1,8 @@
 //! Exact value operands of compiler-owned placement operations.
 //!
-//! A lifecycle consumes the original owner and borrows a completed profile;
-//! initialization additionally consumes its value. Keep those roles explicit
+//! Initialize/MoveOut consume the original owner; View retains its shared or
+//! exclusive loan. Each borrows a completed profile, and initialization also
+//! consumes its value. Keep those roles explicit
 //! through native lowering. This is operand transport, not backing admission or
 //! a claim that the profile is authoritative.
 
@@ -140,7 +141,7 @@ impl PlacementLifecycleOperands {
     ) -> Result<Self, &'static str> {
         match (operation, arguments) {
             (TerminalPlacementLifecycleOperation::View, [storage, profile])
-                if storage.access == StructuralAccess::SharedBorrow
+                if matches!(storage.access, terminal_psi::reading_borrow_pair_pattern!())
                     && profile.access == StructuralAccess::SharedBorrow =>
             {
                 Ok(Self::View {

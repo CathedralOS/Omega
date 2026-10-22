@@ -145,12 +145,12 @@ pub fn validate_placement_lifecycle_plans(module: &TerminalModule) -> Result<(),
                 let [storage, profile] = boundary.structural_parameters.as_slice() else {
                     return Err("borrowed placement lost its storage and profile inputs");
                 };
-                if storage.access != StructuralAccess::SharedBorrow
+                if !matches!(storage.access, terminal_psi::reading_borrow_pair_pattern!())
                     || profile.access != StructuralAccess::SharedBorrow
                     || Some(profile.structural_type) != profile_type
                 {
                     return Err(
-                        "borrowed placement must retain shared storage and original profile loans",
+                        "borrowed placement must retain its storage loan and original shared profile loan",
                     );
                 }
             }

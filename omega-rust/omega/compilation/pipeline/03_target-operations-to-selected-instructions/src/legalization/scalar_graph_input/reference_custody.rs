@@ -2018,7 +2018,11 @@ pub(in crate::legalization) fn apply(
             };
             let moved = call_arguments(function, types, custody, structural_arguments)?;
             if !moved.is_empty()
-                || source.access != StructuralAccess::SharedBorrow
+                || !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
+                || declaration
+                    .structural_parameters
+                    .first()
+                    .is_none_or(|parameter| parameter.access != source.access)
                 || custody
                     .leaves
                     .keys()

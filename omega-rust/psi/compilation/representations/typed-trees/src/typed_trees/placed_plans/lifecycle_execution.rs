@@ -151,7 +151,9 @@ impl PlacementExecutionDeclaration {
                 PlacementLifecycleOperation::Initialize
             }
             Some("toolchain::Placed::extract_resident") => PlacementLifecycleOperation::MoveOut,
-            Some("toolchain::Placed::view_from_profile") => PlacementLifecycleOperation::View,
+            Some(
+                "toolchain::Placed::view_from_profile" | "toolchain::Placed::view_mut_from_profile",
+            ) => PlacementLifecycleOperation::View,
             _ => return Ok(None),
         };
         let malformed = |reason| {
@@ -189,7 +191,10 @@ impl PlacementExecutionDeclaration {
         };
         if parameters.len() != expected
             || parameters.iter().any(|parameter| {
-                parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased()
+                // Mutable-reference parameters are marked mutable by the
+                // parser. Their access is part of the authenticated signature,
+                // not a mutable owned operand smuggled into the leaf.
+                parameter.is_const || parameter.relevance.is_erased()
             })
         {
             return Err(malformed("lost its complete operation parameter roster"));
