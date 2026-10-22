@@ -653,10 +653,12 @@ pub(super) fn structural_term(
                 });
             }
             let target = structural_call_target_in_frame(program, call, frame);
+            let realization = realized_requirement_state(call);
             if (!call.receiver.is_valid() || static_call_receiver_for_target(program, call, target))
                 && call.evidence_arguments.is_empty()
-                && call.static_requirement_dispatch.is_none()
+                && (call.static_requirement_dispatch.is_none() || realization.is_some())
             {
+                let target = realization.unwrap_or(target);
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
@@ -682,7 +684,11 @@ pub(super) fn structural_term(
                     return Some(StructuralTerm::Application {
                         result_type,
                         target,
-                        selections: call.machine_arguments.to_vec(),
+                        selections: if realization.is_some() {
+                            Vec::new()
+                        } else {
+                            call.machine_arguments.to_vec()
+                        },
                         machine: structural_call_machine_name(
                             call.target.as_str(),
                             &call.machine_arguments,
@@ -854,6 +860,18 @@ pub(super) fn static_call_receiver(
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     static_call_receiver_for_target(program, call, structural_call_target(program, call))
+}
+
+/// The selected conformance's entry, when this call already carries a closed
+/// static requirement dispatch. The public signature stays the contract
+/// owner; the realization is the body whose recorded result the caller reads.
+pub(super) fn realized_requirement_state(
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<symbols::SymbolHandle> {
+    call.static_requirement_dispatch
+        .as_ref()
+        .filter(|dispatch| dispatch.realization_state.is_valid())
+        .map(|dispatch| dispatch.realization_state)
 }
 
 fn static_call_receiver_for_target(

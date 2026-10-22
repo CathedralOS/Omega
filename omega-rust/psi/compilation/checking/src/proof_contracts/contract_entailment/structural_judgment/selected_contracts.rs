@@ -704,11 +704,17 @@ impl StructuralJudge<'_> {
                                 common = Some(*value);
                             }
                             ExpressionNode::Call(call) => {
-                                let callee = selected_call_contract(program, call)?;
-                                if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
-                                    return None;
+                                if let Some(realization) =
+                                    super::super::structural_terms::realized_requirement_state(call)
+                                {
+                                    pending_states.push(realization);
+                                } else {
+                                    let callee = selected_call_contract(program, call)?;
+                                    if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
+                                        return None;
+                                    }
+                                    pending_states.push(owner_symbol(&callee));
                                 }
-                                pending_states.push(owner_symbol(&callee));
                             }
                             _ => return None,
                         }
@@ -1252,6 +1258,7 @@ pub(super) fn bound_term(
                 );
             }
             let selected = selected_call_contract_for_parameters(program, call, scope, parameters)?;
+            let realization = super::super::structural_terms::realized_requirement_state(call);
             let arguments = program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -1275,8 +1282,12 @@ pub(super) fn bound_term(
             .unwrap_or_default();
             Some(StructuralTerm::Application {
                 result_type,
-                target: owner_symbol(&selected),
-                selections: call.machine_arguments.to_vec(),
+                target: realization.unwrap_or_else(|| owner_symbol(&selected)),
+                selections: if realization.is_some() {
+                    Vec::new()
+                } else {
+                    call.machine_arguments.to_vec()
+                },
                 machine: super::super::structural_terms::structural_call_machine_name(
                     call.target.as_str(),
                     &call.machine_arguments,

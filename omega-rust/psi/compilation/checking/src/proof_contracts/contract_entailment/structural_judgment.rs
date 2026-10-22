@@ -1994,7 +1994,8 @@ impl<'program> StructuralJudge<'program> {
                     || (call.receiver.is_valid()
                         && !super::structural_terms::static_call_receiver(program, call))
                     || !call.evidence_arguments.is_empty()
-                    || call.static_requirement_dispatch.is_some()
+                    || (call.static_requirement_dispatch.is_some()
+                        && super::structural_terms::realized_requirement_state(call).is_none())
                 {
                     return None;
                 }
@@ -2045,25 +2046,31 @@ impl<'program> StructuralJudge<'program> {
                         })
                     })
                     .unwrap_or_default();
+                let realization = super::structural_terms::realized_requirement_state(call);
                 Some(StructuralTerm::Application {
                     result_type,
-                    target: selected_target.map_or_else(
-                        || super::structural_terms::structural_call_target(program, call),
-                        |selected| selected.symbol,
-                    ),
-                    selections: call
-                        .machine_arguments
-                        .iter()
-                        .map(|argument| {
-                            machine_environment
-                                .iter()
-                                .find(|(symbol, _, _)| *symbol == argument.symbol)
-                                .map_or_else(
-                                    || argument.clone(),
-                                    |(_, _, selected)| selected.clone(),
-                                )
-                        })
-                        .collect(),
+                    target: realization.clone().unwrap_or_else(|| {
+                        selected_target.map_or_else(
+                            || super::structural_terms::structural_call_target(program, call),
+                            |selected| selected.symbol,
+                        )
+                    }),
+                    selections: if realization.is_some() {
+                        Vec::new()
+                    } else {
+                        call.machine_arguments
+                            .iter()
+                            .map(|argument| {
+                                machine_environment
+                                    .iter()
+                                    .find(|(symbol, _, _)| *symbol == argument.symbol)
+                                    .map_or_else(
+                                        || argument.clone(),
+                                        |(_, _, selected)| selected.clone(),
+                                    )
+                            })
+                            .collect()
+                    },
                     machine: structural_call_machine_name(
                         call.target.as_str(),
                         &call.machine_arguments,
