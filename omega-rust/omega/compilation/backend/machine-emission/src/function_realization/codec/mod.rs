@@ -5,7 +5,6 @@ mod decoding;
 mod encoding;
 mod error;
 mod post_allocation;
-mod rendering;
 mod target;
 
 use super::FunctionRelativeOptimizationRealizationManifest;
@@ -70,9 +69,5 @@ impl FunctionRelativeOptimizationRealizationManifest {
             );
         }
         Ok(manifest)
-    }
-
-    pub fn render_text(&self) -> String {
-        rendering::render_manifest(self)
     }
 }

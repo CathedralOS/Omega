@@ -56,21 +56,6 @@ pub(super) fn decode_target(
     })
 }
 
-pub(super) const fn architecture_name(architecture: Architecture) -> &'static str {
-    match architecture {
-        Architecture::Aarch64 => "aarch64",
-        Architecture::X86_64 => "x86_64",
-    }
-}
-
-pub(super) const fn object_format_name(object_format: ObjectFormat) -> &'static str {
-    match object_format {
-        ObjectFormat::Elf => "elf",
-        ObjectFormat::MachO => "macho",
-        ObjectFormat::Coff => "coff",
-    }
-}
-
 fn encode_usize(bytes: &mut Vec<u8>, value: usize) {
     bytes.extend_from_slice(
         &u64::try_from(value)

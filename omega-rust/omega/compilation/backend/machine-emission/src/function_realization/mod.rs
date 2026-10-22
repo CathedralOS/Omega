@@ -8,8 +8,7 @@
 //! whole-function exit contract, and seals the manifest defined here with its
 //! custody receipt (`assembly`, `carriers`). Its validator, kept for
 //! retained-artifact readers and tests, replays each of those joins against
-//! the same immutable inputs. `codec` encodes, decodes
-//! and renders the manifest.
+//! the same immutable inputs. `codec` encodes and decodes the manifest.
 
 mod assembly;
 mod carriers;
