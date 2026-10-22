@@ -8,18 +8,6 @@ use crate::typed_trees::declarations::operator::applications::{
 use crate::typed_trees::declarations::operator::{OperatorDefinition, declaration_by_symbol};
 use symbols::SymbolHandle;
 
-/// Resolve an ordinary checked machine's exact operator requirement. This is
-/// the PDI3 counterpart to the boundary-provider route: signature and path are
-/// identical, while `boundary_only` is deliberately false.
-pub fn resolve_satisfied_checked_operator<'program>(
-    program: &'program TypedTrees,
-    machine: &'program crate::machine::Machine,
-    namespace: &str,
-    requirement: &str,
-) -> Option<&'program OperatorDefinition> {
-    resolve_satisfied_operator(program, machine, namespace, requirement, false)
-}
-
 /// Conformance-aware counterpart to [`resolve_satisfied_boundary_operator`].
 ///
 /// Path plus signature are not package-qualified: two packages may each
@@ -36,7 +24,7 @@ pub fn resolve_satisfied_boundary_operator_for_conformance<'program>(
     resolve_satisfied_operator_for_conformance(program, machine, conformance, true)
 }
 
-/// Conformance-aware counterpart to [`resolve_satisfied_checked_operator`].
+/// Conformance-aware counterpart to the ordinary checked-operator route.
 /// See [`resolve_satisfied_boundary_operator_for_conformance`] for the exact
 /// join contract.
 pub fn resolve_satisfied_checked_operator_for_conformance<'program>(
@@ -96,8 +84,8 @@ fn resolve_satisfied_operator_for_conformance<'program>(
 /// Resolve a concrete generic checked-body specialization through the exact
 /// closed operator application retained by authoritative monomorphization.
 ///
-/// This is deliberately separate from [`resolve_satisfied_checked_operator`]:
-/// the latter proves the authored generic declaration relation, while this
+/// This is deliberately separate from the ordinary checked-operator route:
+/// that route proves the authored generic declaration relation, while this
 /// path proves one closed specialization and returns its retained application
 /// for category/bounds/commitment replay.
 pub fn resolve_specialized_checked_operator_application<'program>(
@@ -133,19 +121,6 @@ pub fn resolve_specialized_checked_operator_application<'program>(
         return None;
     }
     Some((operator, retained))
-}
-
-fn resolve_satisfied_operator<'program>(
-    program: &'program TypedTrees,
-    machine: &'program crate::machine::Machine,
-    namespace: &str,
-    requirement: &str,
-    boundary_only: bool,
-) -> Option<&'program OperatorDefinition> {
-    let mut candidates =
-        satisfied_operator_candidates(program, machine, namespace, requirement, boundary_only);
-    let selected = candidates.next()?;
-    candidates.next().is_none().then_some(selected)
 }
 
 /// Every operator declaration whose path and alpha-renamed signature the

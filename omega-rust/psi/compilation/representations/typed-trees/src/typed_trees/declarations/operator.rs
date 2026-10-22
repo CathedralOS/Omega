@@ -39,7 +39,7 @@ pub use primitive_float::{is_sealed_toolchain_float_operator, primitive_float_bi
 pub use primitive_integer::{builtin_integer_result_carrier, integer_peer_operand_carrier};
 pub use satisfied_operators::{
     boundary_operator_requirement_identity, resolve_satisfied_boundary_operator_for_conformance,
-    resolve_satisfied_checked_operator, resolve_satisfied_checked_operator_for_conformance,
+    resolve_satisfied_checked_operator_for_conformance,
     resolve_specialized_checked_operator_application,
 };
 pub use spellings::{
