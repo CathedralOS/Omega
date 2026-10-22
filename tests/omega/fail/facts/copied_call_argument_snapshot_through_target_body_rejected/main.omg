@@ -1,6 +1,6 @@
 // A copied first argument equal to 7 stays 7 when the second argument overwrites its former home with 9.
 // Place: target_body.
-// Expected exit: 0
+// The first copied operand is 9 and cannot establish the required 7.
 machine overwrite(slot: &mut u64) -> u64
 ensures slot == 9
 {
@@ -14,24 +14,28 @@ ensures result == 7
     value
 }
 windows_x86_64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
 }
 
 linux_x86_64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
 }
 
 macos_arm64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
 }
 
 linux_arm64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)

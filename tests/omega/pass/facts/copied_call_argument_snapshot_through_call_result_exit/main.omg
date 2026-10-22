@@ -17,6 +17,7 @@ machine echo(value: u64) -> u64
 ensures result == value
 { value }
 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     let saved: u64 = echo(first);

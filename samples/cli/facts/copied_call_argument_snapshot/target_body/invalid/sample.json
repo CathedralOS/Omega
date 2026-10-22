@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove requires contract"
+    "cannot prove requires contract for call receive"
   ]
 }

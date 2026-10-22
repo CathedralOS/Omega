@@ -14,24 +14,28 @@ ensures result == 7
     value
 }
 windows_x86_64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
 }
 
 linux_x86_64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
 }
 
 macos_arm64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
 }
 
 linux_arm64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
 ensures result == 7
 {
     seven(first)
