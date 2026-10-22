@@ -32,4 +32,5 @@ public const INVULNERABILITY_FRAMES: i32 = 60;
 public const ANIMATION_PERIOD: i32 = 3600;
 public const PURSUIT_INTERVAL: i32 = 3;
 public const MELEE_REACH: i32 = 26;
+public const KNOCKBACK_DISTANCE: i32 = 12;
 public const CONTACT_DISTANCE: i32 = 11;

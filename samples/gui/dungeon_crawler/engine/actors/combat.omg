@@ -1,6 +1,7 @@
 module actors::combat;
 
 use actors::state::Actor;
+use actors::state::Position;
 use actors::state::Countdown;
 use actors::state::damage;
 use actors::state::elapse;
@@ -9,6 +10,9 @@ use configuration::ATTACK_FRAMES;
 use configuration::INVULNERABILITY_FRAMES;
 use configuration::MELEE_REACH;
 use configuration::CONTACT_DISTANCE;
+use configuration::KNOCKBACK_DISTANCE;
+use configuration::ROOM_WIDTH;
+use configuration::ROOM_HEIGHT;
 
 public machine cooldowns<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>
 terminates;
@@ -46,13 +50,50 @@ requires Rooms >= 1 {
         let dy: i32 = victim.position.y - attacker.position.y;
         let forward: bool = (attacker.facing == 0 && dy < 0) || (attacker.facing == 1 && dx > 0) || (attacker.facing == 2 && dy > 0) || (attacker.facing == 3 && dx < 0);
         transition forward && dx >= -MELEE_REACH && dx <= MELEE_REACH && dy >= -MELEE_REACH && dy <= MELEE_REACH {
-            true -> hit(victim)
+            true -> hit(victim, attacker.facing)
             _ -> (victim)
         }
     }
-    state hit(mut victim: Actor<Rooms>) -> Actor<Rooms> {
+    state hit(mut victim: Actor<Rooms>, direction: i32) -> Actor<Rooms>
+    requires direction >= 0 && direction < 4 {
         victim.vitality = damage(victim.vitality);
+        victim.position = knock_back(victim.position, direction);
         victim
+    }
+}
+
+machine knock_back(position: Position, direction: i32) -> Position
+terminates;
+requires direction >= 0 && direction < 4 {
+    transition direction {
+        0 -> north(position)
+        1 -> east(position)
+        2 -> south(position)
+        _ -> west(position)
+    }
+    state north(position: Position) -> Position {
+        transition position.y >= KNOCKBACK_DISTANCE {
+            true -> (Position { x: position.x, y: position.y - KNOCKBACK_DISTANCE })
+            _ -> (Position { x: position.x, y: 0 })
+        }
+    }
+    state east(position: Position) -> Position {
+        transition position.x < ROOM_WIDTH - KNOCKBACK_DISTANCE {
+            true -> (Position { x: position.x + KNOCKBACK_DISTANCE, y: position.y })
+            _ -> (Position { x: ROOM_WIDTH - 1, y: position.y })
+        }
+    }
+    state south(position: Position) -> Position {
+        transition position.y < ROOM_HEIGHT - KNOCKBACK_DISTANCE {
+            true -> (Position { x: position.x, y: position.y + KNOCKBACK_DISTANCE })
+            _ -> (Position { x: position.x, y: ROOM_HEIGHT - 1 })
+        }
+    }
+    state west(position: Position) -> Position {
+        transition position.x >= KNOCKBACK_DISTANCE {
+            true -> (Position { x: position.x - KNOCKBACK_DISTANCE, y: position.y })
+            _ -> (Position { x: 0, y: position.y })
+        }
     }
 }
 
