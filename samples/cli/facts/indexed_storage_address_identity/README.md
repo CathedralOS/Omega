@@ -67,7 +67,7 @@ address-to-borrow conversion.
 
 The row is pinned by
 `tests/omega/{pass,fail}/facts/indexed_storage_address_identity_*` fixtures —
-nine `*_exit` positives, nine `*_held_element` twins, and the
+nine `*_exit` positives, nine `*_rejected` twins, and the
 `indexed_storage_address_identity_missing_bound` control. Every positive
 records native exit 0 with Terminal Psi agreement on the hosts that ran it;
 `corpus_{both,native}_macos_arm64.txt` carry the nine macOS AArch64 rows.

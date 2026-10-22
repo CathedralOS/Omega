@@ -4312,23 +4312,23 @@ fail/facts/indexed_element_mut_loan_through_target_body_rejected rejected 1232ms
 fail/facts/indexed_storage_address_identity_missing_bound rejected 2444ms expected @69725a85bb43+wt
 	cannot prove index `index` is within length 2 in probe::entry
 	cannot prove index `index` is within length 2 in probe::entry
-fail/facts/indexed_storage_address_identity_through_call_result_held_element rejected 2447ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_call_result_rejected rejected 2447ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_storage_address_identity_through_const_name_held_element rejected 3450ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_const_name_rejected rejected 3450ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_storage_address_identity_through_field_held_element rejected 3526ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_field_rejected rejected 3526ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_storage_address_identity_through_local_held_element rejected 3461ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_local_rejected rejected 3461ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_storage_address_identity_through_match_join_held_element rejected 2456ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_match_join_rejected rejected 2456ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/indexed_storage_address_identity_through_other_machine_held_element rejected 2428ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_other_machine_rejected rejected 2428ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/indexed_storage_address_identity_through_other_state_held_element rejected 2445ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_other_state_rejected rejected 2445ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/indexed_storage_address_identity_through_parameter_held_element rejected 2461ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_parameter_rejected rejected 2461ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/facts/indexed_storage_address_identity_through_target_body_held_element rejected 2526ms expected @69725a85bb43+wt
+fail/facts/indexed_storage_address_identity_through_target_body_rejected rejected 2526ms expected @69725a85bb43+wt
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
