@@ -1,0 +1,12 @@
+// A checked Ready write must retire the earlier zero-formed Empty observation.
+domain u64::PositiveSmall(value) requires value > 0 && value < 8;
+data Frame [copy] {
+    case Empty;
+    case Ready(value: u64 in PositiveSmall);
+}
+machine require_empty(frames: &[Frame; 2]) requires frames[1] in Frame::Empty {}
+machine main() {
+    let mut frames: [Frame; 2];
+    frames[1] = Frame::Ready { value: 3 };
+    require_empty(&frames);
+}
