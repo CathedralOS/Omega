@@ -239,6 +239,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         machine.symbol,
         state.symbol,
         Default::default(),
+        false,
         active_contexts,
         active_constraints,
     );

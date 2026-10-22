@@ -227,7 +227,14 @@ pub struct FlowExitFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
+    /// Invalid only for implicit completion or a final expression.
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    /// Which arm `transition_target` names: the transition's continuation
+    /// rather than its ordinary target. Checking records the arm position as
+    /// it walks the two arms, so a consumer joins an exit to its own arm
+    /// without reopening the authored transition. False for an implicit
+    /// completion or a final expression, which has no transition target.
+    pub is_continuation: bool,
     /// Exact completed value on this outgoing occurrence. Zero for named
     /// transfers and valueless completion; reference results retain live
     /// referents captured during evaluation rather than replaying selectors.

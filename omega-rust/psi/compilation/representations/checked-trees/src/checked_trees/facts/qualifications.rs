@@ -43,6 +43,11 @@ pub struct CheckedScalarReturnQualification {
     pub state: SymbolHandle,
     pub statement_index: usize,
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    /// Which arm `transition_target` names: the transition's continuation
+    /// rather than its ordinary target, copied from the checked exit row that
+    /// proved this decision. Lowering joins its own exit coordinate to this
+    /// arm position instead of reopening the authored transition.
+    pub is_continuation: bool,
     pub expression: ExpressionHandle,
     pub semantic_domain: SemanticDomainId,
     pub domain: SymbolHandle,

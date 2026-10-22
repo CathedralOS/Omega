@@ -1274,8 +1274,8 @@ impl OperationFrame<'_, '_> {
                     // pointer descriptor owns an affine lifetime obligation.
                     // Views retain their separate descriptor multiplicity.
                     parameter.multiplicity = crate::terminal_identities::structural_multiplicity(
-                        validation::reference_result_custody::result_multiplicity(
-                            &self.checked.typed,
+                        crate::reference_custody::result_multiplicity(
+                            self.checked,
                             formal.type_reference,
                         ),
                     );

@@ -53,6 +53,7 @@ pub(super) fn append_state_exit_facts(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     transition_target: typed_trees::statement::TransitionTargetHandle,
+    is_continuation: bool,
     active_contexts: arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: arena::HandleSpan<FlowConstraintRef>,
 ) -> arena::HandleSpan<FlowExitFact> {
@@ -160,6 +161,7 @@ pub(super) fn append_state_exit_facts(
                 state_symbol,
                 statement_index: contract_exit.statement_index,
                 transition_target,
+                is_continuation,
                 returned_value,
                 parameter_origins,
                 entry_semantic_contexts: entry_exit_contexts,
@@ -217,7 +219,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
     let guard_writes = execution.write_prefix();
     let guard_contexts = *active_contexts;
     let guard_constraints = *active_constraints;
-    for (region, target) in [(1, transition.target), (2, transition.continuation)] {
+    for (is_continuation, target) in [(false, transition.target), (true, transition.continuation)] {
         if !target.is_valid() {
             continue;
         }
@@ -239,7 +241,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
             statement_index,
             target,
             transition.guard,
-            region == 1,
+            !is_continuation,
             guard_writes.writes,
             guard_writes.unknown,
             &mut branch_contexts,
@@ -259,6 +261,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
             machine.symbol,
             state.symbol,
             target,
+            is_continuation,
             branch_contexts,
             branch_constraints,
         );

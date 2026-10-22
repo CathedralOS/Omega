@@ -164,6 +164,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                 state: exit.state_symbol,
                 statement_index: exit.statement_index,
                 transition_target: exit.transition_target,
+                is_continuation: exit.is_continuation,
                 expression: returned,
                 semantic_domain,
                 domain: domain_symbol,

@@ -286,7 +286,9 @@ pub(crate) fn retain_returns(
 
 /// Keep both outgoing alternatives of one source statement distinct. The
 /// cleanup schedule and checking judgment refer to the same immutable typed
-/// occurrence; this join translates its coordinate, not its proof.
+/// occurrence; this join translates its coordinate, not its proof. Which arm a
+/// decision belongs to is the checked exit row's own `is_continuation`, copied
+/// onto the decision; lowering does not reopen the authored transition.
 fn matches_exit(
     checked: &CheckedTrees,
     exit: &checked_trees::FlowClaimJoinExit,
@@ -302,22 +304,9 @@ fn matches_exit(
         | FlowClaimJoinExitKind::SelectionDecision { .. } => false,
         FlowClaimJoinExitKind::FinalExpression => !decision.transition_target.is_valid(),
         FlowClaimJoinExitKind::TransitionTarget | FlowClaimJoinExitKind::TransitionContinuation => {
-            let Some(state) = checked.typed.state_by_symbol(decision.state) else {
-                return false;
-            };
-            let Some(transition) = checked
-                .statement_table
-                .statement_at(state, decision.statement_index)
-                .and_then(|statement| statement.as_transition())
-            else {
-                return false;
-            };
             decision.transition_target.is_valid()
-                && decision.transition_target
-                    == match exit.kind {
-                        FlowClaimJoinExitKind::TransitionTarget => transition.target,
-                        _ => transition.continuation,
-                    }
+                && decision.is_continuation
+                    == matches!(exit.kind, FlowClaimJoinExitKind::TransitionContinuation)
         }
         FlowClaimJoinExitKind::CallResult { call_ordinal } => checked
             .facts
