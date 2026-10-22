@@ -724,6 +724,17 @@ fn bind_occurrences(
                             ),
                         })
                 }
+                ScopedArithmeticBinder::Occurrence(_)
+                    if validation::immutable_record_projection(program, occurrence).is_some() =>
+                {
+                    static_actuals
+                        .iter()
+                        .find(|binding| binding.binder == binder)
+                        .map(|binding| binding.value.clone())
+                        .or_else(|| {
+                            super::static_operands::projection_atom(program, occurrence, primitive)
+                        })?
+                }
                 _ => value(occurrence, primitive)?,
             },
         });

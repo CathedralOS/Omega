@@ -423,7 +423,22 @@ impl CallableApplication {
                     {
                         // The replacement belongs to the caller, not the
                         // declaration: copy it without applying this telescope.
-                        let replacement = Self::selected_value_expression(program, *argument)?;
+                        let argument = *argument;
+                        let carrier = program
+                            .data_type_parameter_by_symbol(path.head_symbol)
+                            .and_then(|parameter| match parameter.kind {
+                                crate::data::TypeParameterKind::Const { type_reference }
+                                | crate::data::TypeParameterKind::Value { type_reference } => {
+                                    Some(type_reference)
+                                }
+                                _ => None,
+                            });
+                        let carrier = match carrier {
+                            Some(carrier) => self.type_reference(program, carrier)?,
+                            None => types::TypeReferenceHandle::invalid(),
+                        };
+                        let replacement =
+                            Self::selected_value_expression(program, argument, carrier)?;
                         Some(program.expression_table.expression(replacement).clone())
                     } else {
                         None

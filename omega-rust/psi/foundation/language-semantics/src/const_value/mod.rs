@@ -14,6 +14,8 @@
 
 use numerics::literals::FloatFormat;
 
+mod encoding;
+
 const PREFIX: &str = "#omega-const:";
 const MAX_ENCODING_BYTES: usize = 64 * 1024;
 const MAX_DECODED_NODES: usize = 4_096;
@@ -109,6 +111,29 @@ impl CanonicalConstIdentity {
 }
 
 impl CanonicalConstValue {
+    pub const MAXIMUM_DEPTH: usize = MAX_DECODE_DEPTH;
+    pub const MAXIMUM_NODES: usize = MAX_DECODED_NODES;
+
+    /// Encode a structural value using the same framing and resource limits as
+    /// canonical replay. Resolved carriers and field order remain the typed
+    /// producer's obligations; encoded names never establish that authority.
+    pub fn from_decoded(
+        value: &DecodedCanonicalConstValue,
+        display: impl Into<String>,
+    ) -> Option<Self> {
+        let type_name = match value {
+            DecodedCanonicalConstValue::Integer { type_name, .. }
+            | DecodedCanonicalConstValue::Array { type_name, .. }
+            | DecodedCanonicalConstValue::Record { type_name, .. }
+            | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name.clone(),
+            DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+            DecodedCanonicalConstValue::Float { .. } => return None,
+        };
+        let encoding = encoding::encode(value)?;
+        let result = Self::new(type_name, encoding, display);
+        (result.decode_encoding().as_ref() == Some(value)).then_some(result)
+    }
+
     /// Construct the unique retained atom payload for one Boolean value.
     pub fn boolean(value: bool) -> Self {
         let spelling = value.to_string();
@@ -354,6 +379,19 @@ mod tests {
     fn decode(encoding: impl Into<String>) -> Option<DecodedCanonicalConstValue> {
         CanonicalConstValue::new("ignored outer carrier", encoding, "ignored display")
             .decode_encoding()
+    }
+
+    #[test]
+    fn structural_writer_preserves_existing_canonical_encoding() {
+        let integer = framed("integer", ["u64", "7"]);
+        let record = framed("record", ["Configuration", "minimum", integer.as_str()]);
+        let value = CanonicalConstValue::new("Configuration", record.clone(), "source")
+            .decode_encoding()
+            .expect("existing record encoding");
+        let written = CanonicalConstValue::from_decoded(&value, "different diagnostic display")
+            .expect("bounded structural writer");
+        assert_eq!(written.encoding.as_str(), record);
+        assert_eq!(written.decode_encoding(), Some(value));
     }
 
     #[test]

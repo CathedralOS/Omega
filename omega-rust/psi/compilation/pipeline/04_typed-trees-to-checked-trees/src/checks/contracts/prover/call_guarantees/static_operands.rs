@@ -2,6 +2,8 @@
 //! This joins retained operands, never infers a provider or rechecks a body.
 //! Runtime Value subjects keep their ordinary capture/preservation obligation.
 
+mod projections;
+
 use super::{Callable, Invocation, arithmetic};
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
@@ -148,6 +150,19 @@ pub(super) fn immutable(
     expression: ExpressionHandle,
 ) -> bool {
     const_symbol(program, expression).is_some()
+        || validation::immutable_record_projection(program, expression).is_some()
+}
+
+pub(super) fn projection_atom(
+    program: &dyn validation::CheckingInput,
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+) -> Option<ScopedArithmeticValue> {
+    projections::atom(
+        program,
+        &validation::immutable_record_projection(program, expression)?,
+        primitive,
+    )
 }
 
 fn is_invocation_formal(
@@ -205,6 +220,43 @@ pub(super) fn bindings(
     );
     let mut result = Vec::<ScopedArithmeticBinding>::new();
     for occurrence in occurrences {
+        if let Some(projection) = validation::immutable_record_projection(program, occurrence) {
+            let formal = is_invocation_formal(program, invocation, projection.root)?;
+            let binding = tuple.and_then(|tuple| {
+                tuple
+                    .iter()
+                    .find(|binding| binding.parameter == projection.root)
+            });
+            let value = if let Some(binding) = binding {
+                let StaticMachineBindingValue::Const(reference) = binding.value else {
+                    return None;
+                };
+                let primitive = invocation
+                    .callable
+                    .scalar_reference(program, occurrence)
+                    .and_then(|reference| program.primitive_type_reference(reference))?;
+                projections::value(
+                    program,
+                    facts,
+                    invocation,
+                    reference,
+                    &projection,
+                    primitive,
+                )?
+            } else {
+                // Missing invocation actuals never become a callee-local atom.
+                if formal {
+                    return None;
+                }
+                let primitive = program.primitive_type_reference(projection.carrier)?;
+                projections::atom(program, &projection, primitive)?
+            };
+            result.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Occurrence(occurrence),
+                value,
+            });
+            continue;
+        }
         let Some(symbol) = const_symbol(program, occurrence) else {
             continue;
         };

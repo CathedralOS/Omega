@@ -1,11 +1,12 @@
 //! Replay canonical const values against their independently declared types.
 
-use super::{DecodedCanonicalConstValue, IntegerLiteral, IntegerRadix, integer_value};
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use crate::TypedTrees;
+use crate::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
+use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use language_semantics::const_value::DecodedCanonicalConstValue;
+use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
 
-pub(super) fn materialize(
+pub(crate) fn materialize(
     program: &mut TypedTrees,
     declared_type: TypeReferenceHandle,
     value: &DecodedCanonicalConstValue,
@@ -35,7 +36,7 @@ pub(super) fn materialize(
             if *type_name != program.display_type_reference(declared_type) {
                 return None;
             }
-            let declared_type = validation::unwrapped_type_reference(program, declared_type)?;
+            let declared_type = program.unwrapped_type_reference(declared_type)?;
             let TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
@@ -76,7 +77,7 @@ fn record(
     case_name: Option<&str>,
     fields: &[(String, DecodedCanonicalConstValue)],
 ) -> Option<ExpressionNode> {
-    let declared_type = validation::unwrapped_type_reference(program, declared_type)?;
+    let declared_type = program.unwrapped_type_reference(declared_type)?;
     let symbol = &program
         .type_reference_table
         .type_reference(declared_type)
@@ -129,4 +130,34 @@ fn record(
     }
     literal.fields = program.expression_table.insert_struct_fields(materialized);
     Some(ExpressionNode::StructLiteral(literal))
+}
+
+fn integer_value(
+    program: &TypedTrees,
+    declared_type: TypeReferenceHandle,
+    literal: IntegerLiteral,
+) -> Option<ExpressionNode> {
+    let primitive = program.type_reference_table.primitive_type(declared_type)?;
+    let landed_type = primitive.landed_landing()?;
+    Some(ExpressionNode::Integer(
+        literal.with_landing(IntegerLanding {
+            landed_type,
+            domain: program
+                .type_reference_table
+                .arithmetic_domain(declared_type),
+        }),
+    ))
+}
+
+impl TypedTrees {
+    /// Schema-directed representation construction, not const admission or
+    /// execution. The caller supplies an independently resolved carrier and
+    /// checks the value's eligibility, predicates and selected source custody.
+    pub fn materialize_canonical_const_value(
+        &mut self,
+        carrier: TypeReferenceHandle,
+        value: &DecodedCanonicalConstValue,
+    ) -> Option<ExpressionNode> {
+        materialize(self, carrier, value)
+    }
 }

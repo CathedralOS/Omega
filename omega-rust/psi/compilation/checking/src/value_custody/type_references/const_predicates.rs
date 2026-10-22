@@ -21,7 +21,9 @@ pub(super) fn validate(
         let verdict = fact
             .as_expression()
             .ok_or("membership and proposition predicates need their own index-use proof")
-            .and_then(|expression| evaluate(program, definition, fields, values, *expression, 0))
+            .and_then(|expression| {
+                evaluate(program, definition.symbol, fields, values, *expression, 0)
+            })
             .and_then(|(value, _)| match value {
                 Scalar::Boolean(true) => Ok(()),
                 Scalar::Boolean(false) => Err("the required predicate is false"),
@@ -35,6 +37,19 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+/// Closed Boolean components use the same typed logical/comparison judgment as
+/// canonical data predicates, in the component's actual supplying owner.
+pub(super) fn closed_boolean(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    match evaluate(program, owner, &[], &[], expression, 0).ok()?.0 {
+        Scalar::Boolean(value) => Some(value),
+        Scalar::Integer(_) => None,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -53,7 +68,7 @@ fn scalar(value: &DecodedCanonicalConstValue) -> Option<Scalar> {
 
 fn evaluate(
     program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
+    owner: symbols::SymbolHandle,
     fields: &[&DataField],
     values: &[(String, DecodedCanonicalConstValue)],
     expression: ExpressionHandle,
@@ -65,7 +80,7 @@ fn evaluate(
     if !program.expression_table.expression_is_valid(expression) {
         return Err("closed scalar predicate has an invalid expression handle");
     }
-    let operand = |expression| evaluate(program, definition, fields, values, expression, depth + 1);
+    let operand = |expression| evaluate(program, owner, fields, values, expression, depth + 1);
     let boolean = |value| {
         let carrier = crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
             program,
@@ -138,7 +153,7 @@ fn evaluate(
                 )
                 && !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
-                    definition.symbol,
+                    owner,
                     expression,
                     spelling,
                     &[left_type, right_type],

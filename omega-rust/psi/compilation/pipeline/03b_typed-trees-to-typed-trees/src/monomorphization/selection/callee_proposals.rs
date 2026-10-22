@@ -61,7 +61,13 @@ pub(crate) fn collect_machine_proposals_for_callee(
                     const_index += 1;
                     continue;
                 }
-                None => {}
+                // A typed nonnumeric Const recipe occupies its value slot.
+                // It waits for caller substitution and canonical normalization;
+                // it never consumes an unrelated Type binder position.
+                None => {
+                    const_index += 1;
+                    continue;
+                }
             }
         }
         let runtime_expression = const_arguments::runtime_subject_expression(program, selected);

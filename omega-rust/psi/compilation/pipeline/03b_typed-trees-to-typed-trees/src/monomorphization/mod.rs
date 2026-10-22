@@ -212,6 +212,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_constructed_result_types(program);
+        // Source formation needs the normal typed operand/context inventory,
+        // but must precede tuple derivation and canonical const replacement.
+        validation::static_arguments::validate_source_const_recipes(program)?;
         trait_implementation_arguments::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()

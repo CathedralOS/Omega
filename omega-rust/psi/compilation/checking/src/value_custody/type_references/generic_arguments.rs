@@ -10,6 +10,9 @@ use typed_trees::data::{
 };
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod closed_expressions;
+pub use closed_expressions::normalize_closed_const_expression;
+
 pub(crate) fn validate_machine_data_argument(
     program: &dyn crate::CheckingInput,
     base_symbol: SymbolHandle,
@@ -664,8 +667,7 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
             type_reference_label(program, expected_type)
         ));
     }
-    let expected_name =
-        canonical_carrier_label(program, AppliedValueCarrier::ordinary(expected_type));
+    let expected_name = program.normalized_type_identity_text(expected_type);
     if value.type_name != expected_name {
         return Err(format!(
             "expected carrier `{expected_name}`, but the canonical atom names `{}`",
@@ -709,7 +711,7 @@ fn validate_exact_const_identity_in_carrier(
         TypeReferenceNode::FixedArray { .. }
     ) && exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new())
     {
-        canonical_carrier_label(program, carrier)
+        program.normalized_type_identity_text(expected_type)
     } else {
         let value = CanonicalConstValue::new(
             identity.type_name.clone(),
@@ -753,24 +755,12 @@ fn validate_exact_const_value_encoding_in_carrier(
     let decoded = CanonicalConstValue::new("", encoding, "")
         .decode_encoding()
         .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
-    let type_name = match decoded {
-        DecodedCanonicalConstValue::Float { .. } => {
-            return Err("floating declaration value is not a const index".into());
-        }
-        DecodedCanonicalConstValue::Integer { type_name, .. }
-        | DecodedCanonicalConstValue::Array { type_name, .. }
-        | DecodedCanonicalConstValue::Record { type_name, .. }
-        | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name,
-        DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
-    };
-    validate_exact_const_identity_in_carrier(
-        program,
-        carrier,
-        &CanonicalConstIdentity {
-            type_name,
-            encoding: encoding.to_owned(),
-        },
-    )
+    if !exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new()) {
+        return Err("the receiving carrier is outside the exact canonical const cohort".to_owned());
+    }
+    // This API receives only an encoding and an independently resolved carrier;
+    // it must not manufacture an outer type identity from an inner schema label.
+    validate_decoded_structured_const(program, carrier, &decoded, &mut Vec::new())
 }
 
 /// Canonical labels follow the independently resolved carrier declaration.
@@ -802,6 +792,20 @@ fn canonical_carrier_label(
         ),
         _ => type_reference_label(program, reference),
     }
+}
+
+/// The structural carrier judgment shared by open const recipes and closed
+/// canonical replay. Eligibility never discharges a data predicate or field
+/// obligation: those still belong to ordinary construction and value replay.
+pub(crate) fn exact_const_carrier_is_eligible(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    exact_structured_const_carrier_is_eligible(
+        program,
+        AppliedValueCarrier::ordinary(reference),
+        &mut Vec::new(),
+    )
 }
 
 fn exact_structured_const_data_carrier_is_eligible(

@@ -1,10 +1,7 @@
-//! Substituting fixed-array const and const index expression parameters.
-
-use validation::expression_traversal::collect_statement_expression_trees;
+//! Substituting exact const binders and normalizing closed const recipes.
 
 use crate::monomorphization::{
-    Candidate, ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeConstraintNode,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    Candidate, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use typed_trees::const_integer::{self, ConstIntegerExpression};
@@ -66,268 +63,88 @@ pub(crate) fn substitute_fixed_array_const_parameters(
     }
 }
 
+/// Only cloned type-expression roots belong to this specialization. Structural
+/// traversal reaches constructor fields, but never a callee's declaration body.
 pub(crate) fn substitute_const_index_expression_parameters(
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
-    type_start: Option<usize>,
-) {
-    let replacements = candidate
+    type_start: usize,
+) -> Result<(), String> {
+    let mut replacements = Vec::new();
+    for (index, ((parameter, _, carrier), binding)) in candidate
         .template
         .const_parameters
         .iter()
         .zip(candidate.const_bindings.iter())
         .enumerate()
-        .filter_map(
-            |(index, ((parameter_symbol, parameter_name, _), binding))| {
-                if candidate.runtime_value_bindings[index].is_some() {
-                    return None;
-                }
-                let TypeReferenceNode::Named { symbol, name } = program
-                    .type_reference_table
-                    .type_reference(binding.expect("complete const specialization"))
-                else {
-                    return None;
-                };
-                Some((
-                    *parameter_symbol,
-                    parameter_name.as_str().to_owned(),
-                    *symbol,
-                    name.clone(),
-                ))
-            },
-        )
-        .collect::<Vec<_>>();
-    if replacements.is_empty() {
-        return;
-    }
-
-    let expressions = if let Some(type_start) = type_start {
-        program
-            .type_reference_table
-            .const_expression_sites()
-            .into_iter()
-            .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
-            .map(|(_, expression)| expression)
-            .collect::<Vec<_>>()
-    } else {
-        candidate_const_index_expressions(program, candidate)
-    };
-    for expression in expressions {
-        substitute_const_index_expression(&mut program.expression_table, expression, &replacements);
-    }
-}
-
-pub(crate) fn candidate_const_index_expressions(
-    program: &dyn ::validation::CheckingInput,
-    candidate: &Candidate,
-) -> Vec<ExpressionHandle> {
-    let machine = &program.machines()[candidate.template.machine_index];
-    let mut roots = program
-        .machine_owned_data(machine)
-        .iter()
-        .map(|owned| owned.type_reference)
-        .collect::<Vec<_>>();
-    for state in program.machine_states(machine) {
-        roots.extend(
-            program
-                .state_parameters(state)
-                .iter()
-                .map(|parameter| parameter.type_reference),
-        );
-        roots.push(state.return_type);
-        roots.extend(
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .filter_map(|statement| match statement {
-                    StatementNode::LocalData(local) => Some(local.type_reference),
-                    _ => None,
-                }),
-        );
-    }
-
-    // Membership contracts retain their own instance arguments. They can be
-    // copied independently of the parameter type and must undergo the same
-    // computed-index substitution as signature and local type roots.
-    for contracts in std::iter::once(machine.contracts).chain(
-        program
-            .machine_states(machine)
-            .iter()
-            .map(|state| state.contracts),
-    ) {
-        for contract in program.signature_contracts.span_or_empty(contracts) {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let Some(membership) = fact.as_membership() {
-                    roots.extend(
-                        program
-                            .type_reference_table
-                            .type_reference_handles(membership.domain_arguments)
-                            .iter()
-                            .copied(),
-                    );
-                }
-            }
+    {
+        if candidate.runtime_value_bindings[index].is_some() {
+            continue;
         }
+        let binding = crate::monomorphization::copy_type_reference(
+            source,
+            program,
+            binding.expect("complete const specialization"),
+            &[],
+        );
+        let carrier = if let Some((index, _)) = candidate
+            .template
+            .type_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, (symbol, _))| {
+                matches!(source.unwrap_or(program).type_reference_table.type_reference(*carrier),
+                    TypeReferenceNode::Named { symbol: actual, .. } if actual == symbol)
+            }) {
+            crate::monomorphization::copy_type_reference(
+                source,
+                program,
+                candidate.type_bindings[index].expect("complete type specialization"),
+                &[],
+            )
+        } else {
+            crate::monomorphization::copy_type_reference(source, program, *carrier, &[])
+        };
+        replacements.push((*parameter, binding, carrier));
     }
-    let mut visited = Vec::new();
+    let roots = program
+        .type_reference_table
+        .const_expression_sites()
+        .into_iter()
+        .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
+        .map(|(_, expression)| expression)
+        .collect::<Vec<_>>();
     let mut expressions = Vec::new();
     for root in roots {
-        collect_const_index_expressions_from_type(
-            &program.type_reference_table,
-            root,
-            &mut visited,
-            &mut expressions,
-        );
+        validation::collect_expression_tree(program, root, &mut expressions);
     }
-
-    // Indexed qualification arguments live on cast expressions rather than
-    // in the machine signature/local type graph. They are still owned by the
-    // specialization and must receive the same const-binder substitution as
-    // retained expressions in declared types.
-    let mut body_expressions = Vec::new();
-    for state in program.machine_states(machine) {
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            collect_statement_expression_trees(program, statement, &mut body_expressions);
-        }
-    }
-    for handle in body_expressions {
-        let Some(cast) = program.expression_table.cast_node(handle) else {
+    for expression in expressions {
+        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
             continue;
         };
-        collect_const_index_expressions_from_type(
-            &program.type_reference_table,
-            cast.target_type,
-            &mut visited,
-            &mut expressions,
-        );
-        collect_const_index_expressions_from_type(
-            &program.type_reference_table,
-            cast.result_type,
-            &mut visited,
-            &mut expressions,
-        );
-        for argument in program
-            .type_reference_table
-            .type_reference_handles(cast.semantic_domain_arguments)
-        {
-            collect_const_index_expressions_from_type(
-                &program.type_reference_table,
-                *argument,
-                &mut visited,
-                &mut expressions,
-            );
-        }
+        let Some((_, binding, carrier)) = replacements
+            .iter()
+            .find(|(symbol, _, _)| path.symbol.is_valid() && path.symbol == *symbol)
+        else {
+            continue;
+        };
+        let value = crate::monomorphization::materialize_static_value(program, *binding, *carrier)
+            .ok_or_else(|| {
+                "const index binder has no exact canonical value under its declared carrier"
+                    .to_owned()
+            })?;
+        *program.expression_table.expression_mut(expression) = value;
     }
-    expressions
+    Ok(())
 }
 
-pub(crate) fn collect_const_index_expressions_from_type(
-    table: &typed_trees::types::TypeReferenceTable,
-    type_reference: TypeReferenceHandle,
-    visited: &mut Vec<TypeReferenceHandle>,
-    expressions: &mut Vec<ExpressionHandle>,
-) {
-    if !type_reference.is_valid() || visited.contains(&type_reference) {
-        return;
-    }
-    visited.push(type_reference);
-    match table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            collect_const_index_expressions_from_type(table, *referee, visited, expressions)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            collect_const_index_expressions_from_type(table, *base_type, visited, expressions);
-            for constraint in table.constraints(*constraints) {
-                let TypeConstraintNode::Domain(domain) = constraint else {
-                    continue;
-                };
-                for argument in &domain.arguments {
-                    collect_const_index_expressions_from_type(
-                        table,
-                        *argument,
-                        visited,
-                        expressions,
-                    );
-                }
-            }
-        }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            collect_const_index_expressions_from_type(table, *element_type, visited, expressions)
-        }
-        TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in table.type_reference_handles(*arguments) {
-                collect_const_index_expressions_from_type(table, *argument, visited, expressions);
-            }
-        }
-        TypeReferenceNode::ConstExpression(expression) => expressions.push(*expression),
-        TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Unit => {}
-    }
-}
-
-pub(crate) fn substitute_const_index_expression(
-    expressions: &mut typed_trees::expression::ExpressionTable,
-    expression: ExpressionHandle,
-    replacements: &[(
-        SymbolHandle,
-        String,
-        SymbolHandle,
-        typed_trees::name::Identifier,
-    )],
-) {
-    match expressions.expression(expression).clone() {
-        ExpressionNode::Name(path) => {
-            let members = expressions.name_path_members(path.members);
-            let [member] = members else {
-                return;
-            };
-            let Some((_, _, replacement_symbol, replacement_name)) =
-                replacements
-                    .iter()
-                    .find(|(parameter_symbol, parameter_name, _, _)| {
-                        (path.symbol.is_valid() && path.symbol == *parameter_symbol)
-                            || member.as_str() == parameter_name
-                    })
-            else {
-                return;
-            };
-            expressions.set_name_path_member_at_offset(path.members, 0, replacement_name.clone());
-            if !path.member_symbols.is_empty() {
-                expressions.set_name_path_member_symbol_at_offset(
-                    path.member_symbols,
-                    0,
-                    *replacement_symbol,
-                );
-            }
-            let ExpressionNode::Name(path) = expressions.expression_mut(expression) else {
-                unreachable!("open-index expression changed while substituting")
-            };
-            path.head_symbol = *replacement_symbol;
-            path.symbol = *replacement_symbol;
-        }
-        ExpressionNode::Binary(binary) => {
-            substitute_const_index_expression(expressions, binary.left, replacements);
-            substitute_const_index_expression(expressions, binary.right, replacements);
-        }
-        ExpressionNode::Unary(unary) => {
-            substitute_const_index_expression(expressions, unary.operand, replacements)
-        }
-        _ => {}
-    }
-}
-
-/// Replace a const-argument expression that closed under this specialization
-/// with the same decimal literal a source argument would have carried.
+/// Replace a closed const recipe with its existing canonical static argument.
+/// Scalar decimal arguments retain their established representation.
 ///
 /// `step<Degree - 1>` inside `power<2>` is `step<2 - 1>` after binder
 /// substitution. Leaving that tree as a type reference never selects `step<1>`.
-pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
+pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) -> Result<(), String> {
     let expression_handles = program
         .expression_table
         .iter_expressions()
@@ -336,12 +153,25 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
         })
         .collect::<Vec<_>>();
     for handle in expression_handles {
+        let application = program
+            .expression_table
+            .call_node(handle)
+            .expect("call roster")
+            .authored_machine_application;
+        let owner = if application.is_valid() {
+            program
+                .expression_table
+                .static_machine_application(application)
+                .lexical_owner
+        } else {
+            SymbolHandle::invalid()
+        };
         let mut native_query = program
             .expression_table
             .call_node(handle)
             .and_then(|call| call.native_code_layout.clone());
         if let Some(query) = &mut native_query
-            && fold_const_arguments(program, std::slice::from_mut(&mut query.operand))
+            && fold_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
             && let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
         {
             call.native_code_layout = native_query;
@@ -356,7 +186,7 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
                     .applications(),
             )
         };
-        if fold_const_arguments(program, &mut arguments) {
+        if fold_const_arguments(program, owner, &mut arguments)? {
             let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
                 continue;
             };
@@ -367,7 +197,7 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
                 .expression_table
                 .static_machine_application_arguments(application)
                 .to_vec();
-            if fold_const_arguments(program, &mut arguments) {
+            if fold_const_arguments(program, owner, &mut arguments)? {
                 program
                     .expression_table
                     .static_machine_application_arguments_mut(application)
@@ -394,6 +224,20 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
         }
     }
     for handle in statement_handles {
+        let application = program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .expect("call roster")
+            .authored_machine_application;
+        let owner = if application.is_valid() {
+            program
+                .expression_table
+                .static_machine_application(application)
+                .lexical_owner
+        } else {
+            SymbolHandle::invalid()
+        };
         let (mut arguments, applications) = {
             let Some(call) = program.statement_table.statement(handle).as_call() else {
                 continue;
@@ -403,7 +247,7 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
                 typed_trees::references::StaticArgumentCall::Statement(call).applications(),
             )
         };
-        if fold_const_arguments(program, &mut arguments) {
+        if fold_const_arguments(program, owner, &mut arguments)? {
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 continue;
             };
@@ -414,7 +258,7 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
                 .expression_table
                 .static_machine_application_arguments(application)
                 .to_vec();
-            if fold_const_arguments(program, &mut arguments) {
+            if fold_const_arguments(program, owner, &mut arguments)? {
                 program
                     .expression_table
                     .static_machine_application_arguments_mut(application)
@@ -422,9 +266,14 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
             }
         }
     }
+    Ok(())
 }
 
-fn fold_const_arguments(program: &mut TypedTrees, arguments: &mut [StaticMachineArgument]) -> bool {
+fn fold_const_arguments(
+    program: &mut TypedTrees,
+    owner: SymbolHandle,
+    arguments: &mut [StaticMachineArgument],
+) -> Result<bool, String> {
     let mut changed = false;
     for index in 0..arguments.len() {
         if arguments[index].application.is_some() {
@@ -434,7 +283,7 @@ fn fold_const_arguments(program: &mut TypedTrees, arguments: &mut [StaticMachine
                 .expect("nested static application")
                 .arguments
                 .clone();
-            if fold_const_arguments(program, &mut nested) {
+            if fold_const_arguments(program, owner, &mut nested)? {
                 arguments[index]
                     .application
                     .as_mut()
@@ -444,6 +293,20 @@ fn fold_const_arguments(program: &mut TypedTrees, arguments: &mut [StaticMachine
             }
         }
         let Some(value) = closed_const_argument(program, &arguments[index]) else {
+            if let Some(value) = closed_structural_argument(program, owner, &arguments[index])? {
+                let atom = value.atom();
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: Identifier::generated(atom.clone()),
+                    });
+                arguments[index] = StaticMachineArgument {
+                    path: vec![Identifier::generated(atom)].into_boxed_slice(),
+                    ..StaticMachineArgument::default()
+                };
+                changed = true;
+            }
             continue;
         };
         remember_integer_type(program, value);
@@ -453,7 +316,7 @@ fn fold_const_arguments(program: &mut TypedTrees, arguments: &mut [StaticMachine
         };
         changed = true;
     }
-    changed
+    Ok(changed)
 }
 
 fn closed_const_argument(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<i128> {
@@ -494,4 +357,39 @@ fn integer_literal(value: i128) -> IntegerLiteral {
     let digits = value.unsigned_abs().to_string();
     IntegerLiteral::from_parts(negative, IntegerRadix::Decimal, &digits)
         .expect("decimal digits of a closed const integer")
+}
+
+fn closed_structural_argument(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    argument: &StaticMachineArgument,
+) -> Result<Option<language_semantics::const_value::CanonicalConstValue>, String> {
+    if !argument.type_reference.is_valid() {
+        return Ok(None);
+    }
+    let TypeReferenceNode::ConstExpression(expression) = program
+        .type_reference_table
+        .type_reference(argument.type_reference)
+    else {
+        return Ok(None);
+    };
+    let carrier = match program.expression_table.expression(*expression) {
+        ExpressionNode::StructLiteral(literal) => {
+            let retained = program
+                .expression_table
+                .constructed_value_type_reference(*expression);
+            retained.is_valid().then_some(retained).or_else(|| {
+                program
+                    .type_reference_table
+                    .find_named_type_reference(literal.type_symbol)
+            })
+        }
+        _ => {
+            validation::parameter_expression_result_type_reference(program, owner, &[], *expression)
+        }
+    };
+    let Some(carrier) = carrier else {
+        return Ok(None);
+    };
+    validation::normalize_closed_const_expression(program, owner, *expression, carrier)
 }

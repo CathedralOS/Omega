@@ -9,7 +9,6 @@
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::const_integer;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
@@ -17,6 +16,59 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod requirement_predicates;
+
+/// Formation of authored const recipes precedes substitution/canonical erasure.
+/// Incomplete selections remain incomplete; this pass supplies no tuple or
+/// executable authority and never uses the called machine's ensures.
+pub fn validate_source_const_recipes(
+    program: &dyn crate::CheckingInput,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let scopes = requirement_predicates::CallScopes::build(program);
+    let expression_states = expression_call_states(program);
+    let mut validate = |call, context| {
+        let Some(state) = call_state(call, context, &expression_states) else {
+            return;
+        };
+        let Some(caller) = program.machine_holding_state(state.symbol) else {
+            return;
+        };
+        let Some((_, parameters)) = source_telescope(program, call.registration_operation(program))
+        else {
+            return;
+        };
+        crate::value_custody::const_expressions::validate_argument_recipes(
+            program,
+            caller,
+            state,
+            parameters,
+            call.arguments(program),
+            &mut diagnostics,
+        );
+    };
+    for (handle, expression) in program.expression_table.iter_expressions() {
+        if let ExpressionNode::Call(call) = expression {
+            validate(
+                StaticArgumentCall::Expression(handle, call),
+                scopes.context(handle),
+            );
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let Some(call) = statement.as_call() {
+                    validate(StaticArgumentCall::Statement(call), Some((machine, state)));
+                }
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
 
 pub fn validate_authored_static_arguments(
     program: &dyn crate::CheckingInput,
@@ -230,15 +282,23 @@ fn validate_call(
     if let Some((name, parameters)) =
         source_telescope(program, call.registration_operation(program))
         && !parameters.is_empty()
-        && let Err(error) = validate_arguments(
-            program,
-            name,
-            parameters,
-            arguments,
-            call_state(call, context, expression_states),
-        )
     {
-        diagnostics.push(error);
+        let state = call_state(call, context, expression_states);
+        if let Err(error) = validate_arguments(program, name, parameters, arguments, state) {
+            diagnostics.push(error);
+        }
+        if let Some(state) = state
+            && let Some(machine) = program.machine_holding_state(state.symbol)
+        {
+            crate::value_custody::const_expressions::validate_argument_recipes(
+                program,
+                machine,
+                state,
+                parameters,
+                arguments,
+                diagnostics,
+            );
+        }
     }
     let owner = call.lexical_owner(program);
     let caller = program
@@ -260,8 +320,11 @@ fn validate_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for argument in arguments {
+        // ConstExpression is a retained value recipe, not a type application.
+        // Its exact formal kind/carrier was judged by validate_arguments;
+        // retained tuple validation owns its formation obligations.
         if argument.type_reference.is_valid()
-            && !integer_const_argument(program, argument)
+            && const_expression_argument(program, argument).is_none()
             && !is_runtime_value_expression(program, argument)
         {
             if let Some(caller) = caller {
@@ -411,8 +474,18 @@ fn validate_arguments(
             );
         // `power<Degree - 1>` is a const value expression. Its type-reference
         // payload is only the retained tree; it does not select a type binder.
-        if integer_const_argument(program, argument) && const_parameters.get(const_index).is_some()
-        {
+        if const_parameters.get(const_index).is_some_and(|parameter| {
+            const_expression_argument(program, argument).is_some_and(|expression| {
+                crate::value_custody::const_expressions::has_carrier(
+                    program,
+                    expression,
+                    &parameter.kind,
+                    program
+                        .type_reference_table
+                        .operand_lifetime_owner(argument.type_reference),
+                )
+            })
+        }) {
             const_index += 1;
             continue;
         }
@@ -614,30 +687,4 @@ fn const_expression_argument(
         TypeReferenceNode::ConstExpression(expression) => Some(*expression),
         _ => None,
     }
-}
-
-fn integer_const_argument(
-    program: &dyn crate::CheckingInput,
-    argument: &StaticMachineArgument,
-) -> bool {
-    const_expression_argument(program, argument).is_some_and(|expression| {
-        const_integer::is_integer_expression(
-            &program.expression_table,
-            expression,
-            &|symbol, spelling| const_binder(program, symbol, spelling),
-        )
-    })
-}
-
-fn const_binder(program: &dyn crate::CheckingInput, symbol: SymbolHandle, spelling: &str) -> bool {
-    program.machines().iter().any(|machine| {
-        program
-            .machine_type_parameters(machine)
-            .iter()
-            .any(|parameter| {
-                parameter.kind.is_const_or_value()
-                    && ((symbol.is_valid() && parameter.symbol == symbol)
-                        || parameter.name.as_str() == spelling)
-            })
-    })
 }

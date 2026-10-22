@@ -8,7 +8,6 @@
 
 use super::*;
 use symbols::SymbolHandle;
-use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::StaticMachineArgument;
 
@@ -67,28 +66,15 @@ pub(crate) fn callable_type_arguments(
         // payload. That payload is not a type selection: `step<Degree - 1>`
         // occupies the const telescope, including while Degree is still open.
         let const_expression = selected.type_reference.is_valid()
-            && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(selected.type_reference),
-                typed_trees::types::TypeReferenceNode::ConstExpression(expression)
-                    if matches!(
-                        const_integer::classify(
-                            &program.expression_table,
-                            *expression,
-                            &|symbol, spelling| {
-                                program.machines().iter().any(|machine| {
-                                    program.machine_type_parameters(machine).iter().any(|parameter| {
-                                        parameter.kind.is_const_or_value()
-                                            && ((symbol.is_valid() && parameter.symbol == symbol)
-                                                || parameter.name.as_str() == spelling)
-                                    })
-                                })
-                            },
-                        ),
-                        Some(ConstIntegerExpression::Closed(_) | ConstIntegerExpression::Open)
-                    )
-            );
+            && const_parameters
+                .get(const_selections.len())
+                .is_some_and(|parameter| {
+                    matches!(program.type_reference_table.type_reference(selected.type_reference),
+                    typed_trees::types::TypeReferenceNode::ConstExpression(expression)
+                        if crate::value_custody::const_expressions::has_carrier(
+                            program, *expression, &parameter.kind, caller.symbol,
+                        ))
+                });
         let actual = if const_expression {
             None
         } else if selected.type_reference.is_valid() {

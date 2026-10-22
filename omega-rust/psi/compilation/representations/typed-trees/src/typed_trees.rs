@@ -31,6 +31,7 @@ pub(crate) use typed_tree_table;
 
 mod authored_targets;
 mod callable_applications;
+mod canonical_values;
 pub use callable_applications::{
     AppliedMachineCallable, CallableSubstitution, ClosedRequirementApplication,
 };
@@ -593,7 +594,15 @@ pub fn static_const_argument_spelling(
         );
         return Some(match value.decode_encoding()? {
             DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-            _ => value.atom(),
+            DecodedCanonicalConstValue::Boolean(value) => {
+                CanonicalConstValue::boolean(value).atom()
+            }
+            _ => CanonicalConstValue::new(
+                program.normalized_type_identity_text(declaration.declared_type),
+                value.encoding,
+                value.display,
+            )
+            .atom(),
         });
     }
     let [name] = argument.path.as_ref() else {

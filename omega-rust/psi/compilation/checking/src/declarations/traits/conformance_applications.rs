@@ -467,18 +467,15 @@ fn close_const_argument(
         // This is category/carrier closure, not arithmetic formation evidence.
         // The ordinary selected-expression checker still discharges each
         // operation under the supplying declaration's contracts.
-        if !typed_trees::const_integer::is_integer_expression(
-            &program.expression_table,
+        if !crate::value_custody::const_expressions::has_carrier(
+            program,
             *expression,
-            &|symbol, _| {
-                program
-                    .data_type_parameter_by_symbol(symbol)
-                    .is_some_and(|binder| {
-                        matches!(binder.kind, TypeParameterKind::Const { type_reference }
-                        if crate::value_custody::type_references::type_references_match(
-                            program, type_reference, parameter_carrier))
-                    })
+            &TypeParameterKind::Const {
+                type_reference: parameter_carrier,
             },
+            program
+                .type_reference_table
+                .operand_lifetime_owner(argument.type_reference),
         ) {
             return Err(category_error(conformance, parameter, "const", argument));
         }
@@ -490,6 +487,30 @@ fn close_const_argument(
                 expression: argument.type_reference,
             },
             identity,
+        ));
+    }
+    // Specialization atoms are compiler-owned canonical values. Their outer
+    // carrier is a declaration-owned type identity, and the entire encoding
+    // independently replays against the receiving parameter's exact schema.
+    if !argument.symbol.is_valid()
+        && !argument.type_reference.is_valid()
+        && argument.application.is_none()
+        && argument.evidence_projection.is_none()
+        && let [atom] = argument.path.as_ref()
+        && let Some(value) = CanonicalConstValue::from_atom(atom.as_str())
+    {
+        crate::value_custody::type_references::validate_exact_const_identity(
+            program, parameter_carrier, &value.identity(),
+        ).map_err(|reason| Diagnostic::error(format!(
+            "conformance `{conformance}` parameter `{parameter}` has an invalid canonical value: {reason}"
+        )))?;
+        return Ok((
+            ClosedConformanceConstArgument::Evaluated {
+                parameter_carrier,
+                declared_carrier: parameter_carrier,
+                value: value.identity(),
+            },
+            value.atom(),
         ));
     }
     if program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter {

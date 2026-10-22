@@ -120,12 +120,13 @@ pub(crate) fn substitute_cloned_type_parameters(
     let fixed_array_replacements =
         fixed_array_const_replacements(source.unwrap_or(program), candidate);
     substitute_fixed_array_const_parameters(program, &fixed_array_replacements, Some(type_start));
-    substitute_const_index_expression_parameters(program, candidate, Some(type_start));
+    substitute_const_index_expression_parameters(source, program, candidate, type_start)
+        .map_err(Diagnostic::error)?;
     substitute_machine_parameter_type_references(program, candidate, Some(type_start));
     // Binder substitution rewrites `Degree` to a decimal spelling inside the
     // cloned call. Fold that closed arithmetic before the next selection, or
     // `step<Degree - 1>` never becomes `step<1>`.
-    fold_closed_const_machine_arguments(program);
+    fold_closed_const_machine_arguments(program).map_err(Diagnostic::error)?;
     Ok(())
 }
 

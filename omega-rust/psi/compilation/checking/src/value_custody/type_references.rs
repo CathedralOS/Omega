@@ -43,9 +43,10 @@ mod generic_arguments;
 mod open_index_expressions;
 
 use constraint_validation::validate_type_constraints_node;
+pub use generic_arguments::normalize_closed_const_expression;
 pub(crate) use generic_arguments::{
     AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
-    validate_const_binder_carriers, validate_exact_const_identity,
+    exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
     validate_exact_typed_structured_const_argument,
 };
 use generic_arguments::{

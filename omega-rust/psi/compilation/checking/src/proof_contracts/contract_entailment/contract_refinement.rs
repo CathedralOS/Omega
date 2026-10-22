@@ -239,6 +239,49 @@ impl ContractFacts {
             "\0contract-result".to_owned(),
         );
         for contract in contracts {
+            // Captured immutable aggregate Consts share one exact value on
+            // both sides of refinement. Bind their field observations by the
+            // same binder map and exact field-symbol path. This does not merge
+            // runtime Value parameters or borrowed/storage observations.
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    continue;
+                };
+                let mut expressions = Vec::new();
+                crate::collect_expression_tree(program, *expression, &mut expressions);
+                for expression in expressions {
+                    let Some(projection) =
+                        crate::value_custody::const_expressions::immutable_record_projection(
+                            program, expression,
+                        )
+                    else {
+                        continue;
+                    };
+                    let Some((_, identity)) = generic
+                        .iter()
+                        .find(|(symbol, _)| *symbol == projection.root)
+                    else {
+                        continue;
+                    };
+                    let binder = ScopedArithmeticBinder::Occurrence(expression);
+                    if facts
+                        .bindings
+                        .iter()
+                        .any(|binding| binding.binder == binder)
+                    {
+                        continue;
+                    }
+                    facts.bind_integer(
+                        program,
+                        binder,
+                        projection.carrier,
+                        format!(
+                            "\0contract-generic:{identity}:fields:{:?}",
+                            projection.fields
+                        ),
+                    );
+                }
+            }
             let target = match contract.kind {
                 SignatureContractKind::Requires => &mut facts.requires,
                 SignatureContractKind::Ensures => &mut facts.ensures,

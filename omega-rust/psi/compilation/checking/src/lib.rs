@@ -571,3 +571,8 @@ pub use proof_contracts::arithmetic_domains::{
 
 /// Exact selected-call dependency availability for ordinary result refinements.
 pub use machine_calls::contract_dependencies::independent_call_application;
+pub use value_custody::type_references::normalize_closed_const_expression;
+
+pub use value_custody::const_expressions::{
+    ImmutableConstRecordProjection, immutable_record_projection,
+};

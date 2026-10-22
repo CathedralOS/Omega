@@ -96,6 +96,19 @@ pub(super) fn index_argument(
             if let Some(literal) = &argument.const_literal {
                 return index_integer(literal, context);
             }
+            // A compiler-created canonical value is a value-role operand even
+            // when it has no declaration symbol. Reuse the same index grammar
+            // as a retained Const binding; never reinterpret it as a Type.
+            if !argument.symbol.is_valid()
+                && argument.application.is_none()
+                && argument.evidence_projection.is_none()
+                && let [spelling] = argument.path.as_ref()
+                && CanonicalConstValue::from_atom(spelling.as_str())
+                    .and_then(|value| value.decode_encoding())
+                    .is_some()
+            {
+                return index_name(program, argument.symbol, spelling.as_str(), context);
+            }
             if let Some(identity) =
                 super::identity_context::static_type_argument_identity(program, argument, context)
             {
@@ -154,18 +167,26 @@ pub(super) fn index_name(
     if let Some(value) = boolean(program, symbol, spelling) {
         return atom("boolean", &value.to_string());
     }
-    if let Some(encoding) = program
-        .const_declaration_by_symbol(symbol)
-        .and_then(|declaration| declaration.evaluated_value.as_ref())
-        .and_then(|value| value.encoding())
-        && let Some(value) = CanonicalConstValue::new("", encoding, "").decode_encoding()
-        && let DecodedCanonicalConstValue::Array { type_name, .. }
-        | DecodedCanonicalConstValue::Record { type_name, .. }
-        | DecodedCanonicalConstValue::Variant { type_name, .. } = value
+    if let Some(declaration) = program.const_declaration_by_symbol(symbol)
+        && let Some(encoding) = declaration
+            .evaluated_value
+            .as_ref()
+            .and_then(|value| value.encoding())
+        && let Some(
+            DecodedCanonicalConstValue::Array { .. }
+            | DecodedCanonicalConstValue::Record { .. }
+            | DecodedCanonicalConstValue::Variant { .. },
+        ) = CanonicalConstValue::new("", encoding, "").decode_encoding()
     {
         return compound(
             "canonical-const",
-            [atom("type", &type_name), atom("encoding", encoding)],
+            [
+                atom(
+                    "type",
+                    &program.normalized_type_identity_text(declaration.declared_type),
+                ),
+                atom("encoding", encoding),
+            ],
         );
     }
     normalize_const_or_nominal_name(program, symbol, spelling, "const-name", context)

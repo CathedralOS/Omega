@@ -229,6 +229,7 @@ impl CallableApplication {
     pub(super) fn selected_value_expression(
         program: &mut TypedTrees,
         reference: types::TypeReferenceHandle,
+        carrier: types::TypeReferenceHandle,
     ) -> Result<expression::ExpressionHandle, &'static str> {
         if let Some(literal) = program.static_const_literal_from_type_reference(reference) {
             return Ok(program
@@ -250,15 +251,26 @@ impl CallableApplication {
                 // above; this does not admit the source argument or predicate.
                 let value =
                     language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-                        .and_then(|value| value.decode_encoding());
-                match value {
-                    Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(
-                        value,
-                    )) => Ok(program
+                        .ok_or("callable expression argument has no represented canonical value")?;
+                let decoded = value
+                    .decode_encoding()
+                    .ok_or("callable canonical value is malformed")?;
+                if let language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) =
+                    decoded
+                {
+                    return Ok(program
                         .expression_table
-                        .insert(expression::ExpressionNode::Boolean(value))),
-                    _ => Err("callable expression argument has no represented canonical value"),
+                        .insert(expression::ExpressionNode::Boolean(value)));
                 }
+                if !carrier.is_valid()
+                    || program.normalized_type_identity_text(carrier) != value.type_name
+                {
+                    return Err("callable canonical value lost its exact declared carrier");
+                }
+                let value = program
+                    .materialize_canonical_const_value(carrier, &decoded)
+                    .ok_or("callable canonical value does not match its declared schema")?;
+                Ok(program.expression_table.insert(value))
             }
             types::TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
                 if let Some(declaration) = program.const_declaration_by_symbol(symbol) {
@@ -315,15 +327,23 @@ impl CallableApplication {
             crate::typed_trees::static_const_argument_spelling(program, selected)
             && let Some(value) =
                 language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
-            && let Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) =
-                value.decode_encoding()
         {
-            let value = program
-                .expression_table
-                .insert(expression::ExpressionNode::Boolean(value));
-            return Ok(program
-                .type_reference_table
-                .insert(types::TypeReferenceNode::ConstExpression(value)));
+            let node = match value
+                .decode_encoding()
+                .ok_or("applied callable canonical value is malformed")?
+            {
+                language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
+                    let value = program
+                        .expression_table
+                        .insert(expression::ExpressionNode::Boolean(value));
+                    types::TypeReferenceNode::ConstExpression(value)
+                }
+                _ => types::TypeReferenceNode::Named {
+                    symbol: symbols::SymbolHandle::invalid(),
+                    name: crate::name::Identifier::generated(value.atom()),
+                },
+            };
+            return Ok(program.type_reference_table.insert(node));
         }
         if !selected.symbol.is_valid() || selected.evidence_projection.is_some() {
             return Err("applied callable has an unrepresented static type operand");

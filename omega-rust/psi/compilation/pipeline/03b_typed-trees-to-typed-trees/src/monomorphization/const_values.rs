@@ -10,8 +10,6 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-mod structured;
-
 pub(super) fn substitute(
     program: &mut TypedTrees,
     candidate: &Candidate,
@@ -114,10 +112,10 @@ pub(crate) fn value(
         let declaration = program.const_declaration_by_symbol(*symbol)?;
         let encoding = declaration.evaluated_value.as_ref()?.encoding()?.to_owned();
         let value = CanonicalConstValue::new("", encoding, "").decode_encoding()?;
-        return structured::materialize(program, declared_type, &value);
+        return program.materialize_canonical_const_value(declared_type, &value);
     }
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-        return structured::materialize(program, declared_type, &value.decode_encoding()?);
+        return program.materialize_canonical_const_value(declared_type, &value.decode_encoding()?);
     }
     let primitive = program.type_reference_table.primitive_type(declared_type)?;
     if primitive == PrimitiveType::Bool {
