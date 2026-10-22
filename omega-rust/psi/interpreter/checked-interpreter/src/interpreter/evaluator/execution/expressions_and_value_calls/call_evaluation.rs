@@ -553,24 +553,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     return Ok(value);
                 }
 
-                // Value-returning canonical FilesystemHost ops
-                // (assignment-position calls like
-                // `self.fd = self.fs.create(path, mode)`). Exact toolchain
-                // requirement identity selects authority before the readable
-                // leaf routes inside the provider.
-                if let Some(filesystem_operation) =
-                    self.exact_filesystem_host_operation(call.target_symbol)?
-                {
-                    let fs_args = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .to_vec();
-                    let value = self.try_filesystem_call(filesystem_operation, &fs_args, frame)?;
-                    self.host_boundary_touched = true;
-                    return Ok(value);
-                }
-
                 // A resolved boundary requirement the host serves (the
                 // bounded `Console::read_line(&mut line)`) runs by that
                 // identity, exactly like its statement-position twin. The

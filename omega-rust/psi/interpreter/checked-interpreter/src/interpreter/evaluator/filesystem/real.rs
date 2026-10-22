@@ -349,7 +349,7 @@ impl Drop for RealFs {
 }
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
-    /// Mirror of `try_filesystem_call` against the REAL filesystem. The match
+    /// Mirror of `serve_filesystem_call` against the REAL filesystem. The match
     /// exhaustively covers the same closed operation type as the virtual
     /// provider, so neither provider can silently omit a canonical operation.
     pub(in crate::interpreter::evaluator) fn try_real_filesystem_call(

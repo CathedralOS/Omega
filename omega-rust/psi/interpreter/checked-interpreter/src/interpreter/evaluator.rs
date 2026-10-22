@@ -293,9 +293,6 @@ pub(crate) struct Evaluator<'program> {
     /// Omega supplies this closed descriptor; Psi never receives target names
     /// or programmable-layout source.
     pub(super) filesystem_metadata_layout: FilesystemMetadataLayout,
-    /// Exact package-owned boundary selected by Omega consumer policy. `None`
-    /// retains standalone bundled-std compatibility only.
-    pub(super) filesystem_service_symbol: Option<SymbolHandle>,
     /// Open find-enumeration cursors (`find_first`/`find_next`/`find_close`,
     /// the windows dir-walk seam ops, fs rung 3a): handle -> the REMAINING
     /// entries (name bytes, is_dir), snapshotted at `find_first` exactly like

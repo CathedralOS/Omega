@@ -9,7 +9,7 @@ mod evaluator;
 use crate::{
     BuildEvaluationSponsor, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
     BuildTimeOperationEvaluation, EvaluationObservations, EvaluationUsage, FilesystemAccess,
-    FilesystemMetadataLayout, FilesystemServiceBinding, InterpretOutcome,
+    FilesystemMetadataLayout, InterpretOutcome,
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
 };
 use build_time_values::BuildTimeValue;
@@ -31,7 +31,6 @@ pub struct InterpretOptions<'bindings> {
     pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     pub filesystem: FilesystemAccess,
     pub filesystem_metadata_layout: FilesystemMetadataLayout,
-    pub filesystem_service_binding: Option<FilesystemServiceBinding>,
     /// The entry parameter occurrence the selected entry shape provisions
     /// with a zero-initialized context
     /// (wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge). The
@@ -600,12 +599,6 @@ fn evaluate_granted_arguments(
                         "runtime virtual wait bindings cannot enter build evaluation".to_owned(),
                     ));
                 }
-                if options.filesystem_service_binding.is_some() {
-                    return Err(BuildMachineEvaluationFailure::without_evidence(
-                        BuildMachineEvaluationFailureKind::Unsupported,
-                        "a checked-program filesystem service binding cannot enter typed build evaluation".to_owned(),
-                    ));
-                }
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
@@ -803,15 +796,6 @@ fn interpret_on_current_thread(
     }
     evaluator.virtual_clock_bindings = options.virtual_clock_bindings;
     evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
-    evaluator.filesystem_service_symbol = match options.filesystem_service_binding {
-        Some(binding) => match binding.declaration_symbol_for(checked) {
-            Ok(symbol) => Some(symbol),
-            Err(message) => {
-                return evaluator.error_outcome(message.to_owned());
-            }
-        },
-        None => None,
-    };
     match options.filesystem {
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {

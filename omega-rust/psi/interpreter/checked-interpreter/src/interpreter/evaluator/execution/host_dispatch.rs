@@ -94,10 +94,10 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Host boundary invocation, shared by statement and selected terminal calls.
-    /// Authority comes from the resolved target alone: an exact canonical
-    /// filesystem requirement, an exact compiler-intrinsic Console leaf, or a
-    /// requirement of a declared `boundary trait`. The receiver path is never
-    /// consulted; names route within a host boundary only after identity admits it.
+    /// Authority comes from the resolved target alone: an exact compiler-intrinsic
+    /// Console leaf, or a requirement of a declared `boundary trait`. The
+    /// receiver path is never consulted; names route within a host boundary only
+    /// after identity admits it.
     pub(in crate::interpreter::evaluator) fn try_host_invocation(
         &mut self,
         target_symbol: SymbolHandle,
@@ -108,31 +108,14 @@ impl<'program> Evaluator<'program> {
         if let Some(value) = self.try_virtual_clock_operation(target_symbol, arguments, frame)? {
             return Ok(Some(value));
         }
-        let filesystem_operation = self.exact_filesystem_host_operation(target_symbol)?;
-        let intrinsic_method = if filesystem_operation.is_none() {
-            self.exact_console_intrinsic_host_method(target_symbol)
-        } else {
-            None
-        };
-        if filesystem_operation.is_none()
-            && intrinsic_method.is_none()
-            && self.boundary_trait_requirement(target_symbol).is_none()
-        {
+        let intrinsic_method = self.exact_console_intrinsic_host_method(target_symbol);
+        if intrinsic_method.is_none() && self.boundary_trait_requirement(target_symbol).is_none() {
             return Ok(None);
         }
         // Any driven host-boundary call marks the run: the build-time
         // evaluation entry uses this as a DYNAMIC purity backstop (the static
         // effect surface does not fold host-authority audit facts in yet).
         self.host_boundary_touched = true;
-
-        // Filesystem authority is selected only by the exact canonical
-        // toolchain requirement symbol. The trusted requirement leaf routes
-        // within the provider after that selection; package-controlled names
-        // cannot enter this branch.
-        if let Some(filesystem_operation) = filesystem_operation {
-            let value = self.try_filesystem_call(filesystem_operation, arguments, frame)?;
-            return Ok(Some(value));
-        }
 
         let target = intrinsic_method.unwrap_or(target_name);
         let Some(operation) = HostOperation::from_name(target) else {

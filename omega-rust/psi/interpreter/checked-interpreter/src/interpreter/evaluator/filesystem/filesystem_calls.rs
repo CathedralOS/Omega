@@ -1,5 +1,5 @@
 //! Trying and serving one filesystem call: the entry the evaluator takes
-//! for every filesystem operation and the dispatch over each call kind.
+//! for every Build filesystem operation and the dispatch over each call kind.
 //!
 //! Every operation dispatches from `serve_filesystem_call` to its `serve_*`
 //! method in `descriptor_calls`, `path_calls` or `directory_calls`.
@@ -10,10 +10,10 @@ mod path_calls;
 
 use crate::interpreter::evaluator::Evaluator;
 use crate::interpreter::evaluator::{
-    EvalResult, ExpressionHandle, FilesystemEvaluationHaltKind, FilesystemHostOperation,
-    FilesystemHostResultKind, FilesystemObservationProvider, FilesystemOperationAttempt,
-    FilesystemOperationAttemptOutcome, FilesystemOperationResult, Frame, Halt,
-    MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, PreparedFilesystemCall, Value,
+    EvalResult, FilesystemEvaluationHaltKind, FilesystemHostOperation, FilesystemHostResultKind,
+    FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
+    FilesystemOperationResult, Halt, MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES,
+    PreparedFilesystemCall, Value,
 };
 
 /// Dispatch rows of a `PreparedFilesystemCall` match: every dispatch row runs
@@ -47,17 +47,6 @@ pub(crate) fn checked_observation_evidence_total(
 }
 
 impl<'program> Evaluator<'program> {
-    pub(crate) fn try_filesystem_call(
-        &mut self,
-        operation: FilesystemHostOperation,
-        arguments: &[ExpressionHandle],
-        frame: &mut Frame,
-    ) -> EvalResult<Value> {
-        self.evaluate_filesystem_operation(operation, |evaluator| {
-            evaluator.prepare_filesystem_call(operation, arguments, frame)
-        })
-    }
-
     /// Record one exact canonical operation in call-start order around the
     /// selected provider. The placeholder preserves nesting order if argument
     /// evaluation itself invokes another filesystem operation. Preparation

@@ -115,7 +115,6 @@ mod evaluation;
 mod filesystem_access;
 mod filesystem_observations;
 mod filesystem_operation_attempts;
-mod filesystem_service_binding;
 pub mod interpreter;
 mod value;
 
@@ -153,7 +152,6 @@ pub use filesystem_operation_attempts::{
     FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemEvaluationHaltKind,
     FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
 };
-pub use filesystem_service_binding::FilesystemServiceBinding;
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram, InterpretOptions,
     ProductEntryCompatibility, ProductEntryDeclaration, ProductEntrySignature,

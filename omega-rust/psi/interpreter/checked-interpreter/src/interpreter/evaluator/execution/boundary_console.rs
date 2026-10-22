@@ -1,77 +1,7 @@
-use crate::interpreter::evaluator::{
-    EvalResult, Evaluator, FilesystemHostOperation, Halt, SymbolHandle, Value,
-};
+use crate::interpreter::evaluator::{EvalResult, Evaluator, Halt, SymbolHandle, Value};
 use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::TraitDefinition;
 impl<'program> Evaluator<'program> {
-    /// Resolve one call target through an exact compiler-selected filesystem
-    /// boundary before any provider authority is touched. Package-aware
-    /// execution consumes Omega's accepted declaration symbol. Standalone
-    /// execution retains the exact bundled-std source fallback.
-    pub(in crate::interpreter::evaluator) fn exact_filesystem_host_operation(
-        &self,
-        target_symbol: SymbolHandle,
-    ) -> EvalResult<Option<FilesystemHostOperation>> {
-        if !target_symbol.is_valid() {
-            return Ok(None);
-        }
-        let package_binding = self.filesystem_service_symbol;
-        let Some(trait_definition) = self.program.traits().iter().find(|definition| {
-            definition.is_boundary
-                && match package_binding {
-                    Some(symbol) => definition.symbol == symbol,
-                    None => {
-                        definition.name.as_str() == "FilesystemHost"
-                            && self.symbol_has_exact_toolchain_source(
-                                definition.symbol,
-                                "filesystem_host.omg",
-                            )
-                    }
-                }
-        }) else {
-            return Ok(None);
-        };
-        let Some(signature) = self
-            .program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| {
-                signature.symbol == target_symbol
-                    && (package_binding.is_some()
-                        || self.symbol_has_exact_toolchain_source(
-                            signature.symbol,
-                            "filesystem_host.omg",
-                        ))
-            })
-        else {
-            return Ok(None);
-        };
-        let operation = FilesystemHostOperation::from_canonical_name(signature.name.as_str())
-            .ok_or_else(|| {
-                Halt::Unsupported(format!(
-                    "selected filesystem host operation `{}` has no compiler-owned identity",
-                    signature.name.as_str()
-                ))
-            })?;
-        Ok(Some(operation))
-    }
-
-    fn symbol_has_exact_toolchain_source(
-        &self,
-        symbol: SymbolHandle,
-        expected_source: &str,
-    ) -> bool {
-        self.program
-            .symbols
-            .symbol_source_span(symbol)
-            .and_then(|span| self.program.symbols.source_file(span))
-            .is_some_and(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new(expected_source))
-            })
-    }
-
     /// Validate the exact requirement's byte result before advancing input.
     /// A same-spelled declaration or invalid result symbol supplies no identity.
     pub(in crate::interpreter::evaluator) fn read_stdin_byte_value(
