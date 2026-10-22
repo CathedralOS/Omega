@@ -197,9 +197,11 @@ helper that passes does not close an item.
   u64 flags place and the following label reads that place;
   `samples/cli/facts/checked_asm_flag_restore` exits 0 on both Windows engines
   across its nine places, and a literal flags operand stays outside the
-  saved-flags u64 class. Other
-  ISA/register views, unmodeled flag production,
-  ranking-witness transport for promised termination, and checked hardware-effect
+  saved-flags u64 class. sub records the decreased register, and the
+  backedge reads that record; `samples/cli/facts/checked_asm_rank_decrease`
+  exits 0 on both Windows engines across its nine places, and the
+  false-fallthrough twin rejects the missing decrease. Other
+  ISA/register views, unmodeled flag production, and checked hardware-effect
   retirement of the exact linear obligation remain unfinished.
   Extend that control model rather than adding an opaque asm parser or verifier.
 
