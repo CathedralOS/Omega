@@ -92,7 +92,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 continue;
             }
             if input.at_punctuation(PunctuationKind::Semicolon) {
-                input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                input = take_invokes_clause_terminator(input)?;
                 // TPR2: the bare form authors the PUBLIC guarantee.
                 terminates_guarantee = true;
                 continue;
@@ -105,8 +105,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                      for the guarantee alone",
                 ));
             }
-            // Tolerated no-semicolon bare form (immediately before the body
-            // brace or another clause): still the authored public guarantee.
+            input = take_invokes_clause_terminator(input)?;
             terminates_guarantee = true;
             continue;
         }

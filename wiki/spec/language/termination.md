@@ -31,6 +31,11 @@ terminates by items -> Slice::Length;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
 ```
 
+Each termination clause requires its trailing semicolon, including before
+another header clause or an implementation body. Omitting it is a syntax error.
+On a bodyless declaration the final semicolon may also terminate the declaration;
+when more clauses follow, the termination clause still ends with its own semicolon.
+
 Bare `terminates;` authors the promise. Omission on a bodyless requirement or
 export publishes no guarantee, even when the current checked body is acyclic.
 An implementation satisfying a requirement inherits its guarantee and premises;

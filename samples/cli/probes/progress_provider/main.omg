@@ -63,7 +63,7 @@ data Main {
 
 machine Main::main(main: &mut Main)
 reaches Scheduler
-terminates
+terminates;
 {
     main.hits = 1;
     Scheduler::notify(&main.provider, 65);

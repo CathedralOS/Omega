@@ -7,6 +7,6 @@ data Token { value: u8; }
 machine Token::drop(token: &mut Token) reaches Wait {
     Wait::wait();
 }
-machine finish() terminates reaches Wait {
+machine finish() terminates; reaches Wait {
     let token: Token = Token { value: 1 };
 }

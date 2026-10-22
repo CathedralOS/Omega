@@ -10,7 +10,7 @@ where machine Read(index: Nat) -> Observation terminates;
     transition { _ -> observation.value }
 }
 
-machine literal(index: Nat) -> Observation terminates {
+machine literal(index: Nat) -> Observation terminates; {
     Observation { value: index, other: Nat::Zero }
 }
 

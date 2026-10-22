@@ -587,8 +587,16 @@ fail/borrows/same_initializer_reference_live_source_move rejected 1588ms expecte
 fail/borrows/scalar_call_stored_carrier_holds_backing rejected 439ms expected @dd6871ed0476
 fail/borrows/scalar_operand_consumes_reference_carrier_once rejected 249ms expected @dd6871ed0476
 fail/borrows/selected_primitive_reference_live_backing_write rejected 1770ms expected @a9ae30e1c334+wt
-fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 1654ms expected @527339c11257
-fail/borrows/selected_projected_state_keeps_residual_loan rejected 1691ms expected @c06ac7359406
+fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 634ms expected @cf5a1803718b+wt
+	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 9 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 9 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 9 and it is released at state exit)
+	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 9 and it is released at state exit)
+fail/borrows/selected_projected_state_keeps_residual_loan rejected 639ms expected @cf5a1803718b+wt
+	statement 6 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
+	statement 6 reads `output.value` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
 fail/borrows/selected_reference_alias_local_escape rejected 1890ms expected @a9ae30e1c334+wt
 fail/borrows/selected_reference_child_live_source_write rejected 1990ms expected @a9ae30e1c334+wt
 fail/borrows/selected_reference_field_wrong_arm_carrier rejected 891ms expected @a9ae30e1c334+wt
@@ -1169,6 +1177,22 @@ fail/contracts/slice_index_requirement_retires_mutated_contents rejected 344ms e
 	cannot prove requires contract for call need from stale: items[0] == before (needs fact `items[0] == before` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 2593ms expected @4a9ab33501da+wt
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
+fail/contracts/strict_clause_blocks_before_body rejected 1ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_blocks_before_body/main.omg:1:24: expected `;`, found punctuation `{`
+fail/contracts/strict_clause_invokes_before_body rejected 0ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_invokes_before_body/main.omg:1:33: expected `;`, found punctuation `{`
+fail/contracts/strict_clause_ranked_terminates_before_body rejected 1ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_ranked_terminates_before_body/main.omg:3:1: expected `;`, found punctuation `{`
+fail/contracts/strict_clause_signature_terminates_before_requires rejected 1ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_signature_terminates_before_requires/main.omg:4:5: expected `;`, found identifier `requires`
+fail/contracts/strict_clause_stack_before_body rejected 0ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_stack_before_body/main.omg:1:32: expected `;`, found punctuation `{`
+fail/contracts/strict_clause_suspends_before_body rejected 0ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_suspends_before_body/main.omg:1:26: expected `;`, found punctuation `{`
+fail/contracts/strict_clause_terminates_before_body rejected 0ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_terminates_before_body/main.omg:3:1: expected `;`, found punctuation `{`
+fail/contracts/strict_clause_terminates_before_requires rejected 0ms expected @cf5a1803718b+wt
+	tests/omega/fail/contracts/strict_clause_terminates_before_requires/main.omg:3:1: expected `;`, found identifier `requires`
 fail/contracts/target_family_recursive_guarantee rejected 1029ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
 	cannot prove ensures contract for exit from selected at statement 1: result == 7
@@ -1855,8 +1879,10 @@ fail/drops/selected_nominal_owner_keeps_cleanup_prerequisite rejected 1607ms exp
 fail/drops/selected_partial_cleanup_prerequisite rejected 1526ms expected @a9ae30e1c334+wt
 fail/drops/selected_partial_replacement_old_cleanup_prerequisite rejected 1570ms expected @a9ae30e1c334+wt
 fail/drops/selected_partial_requires_disposition rejected 1171ms expected @a9ae30e1c334+wt
-fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 1654ms expected @527339c11257
-fail/drops/selected_projected_state_cleanup_prerequisite rejected 1672ms expected @c06ac7359406
+fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 641ms expected @cf5a1803718b+wt
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
+fail/drops/selected_projected_state_cleanup_prerequisite rejected 641ms expected @cf5a1803718b+wt
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state finish after statement 0: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/drops/selected_replacement_old_cleanup_prerequisite rejected 1604ms expected @a9ae30e1c334+wt
 fail/drops/state_loan_alias_invalidates_nominal_cleanup_prerequisite rejected 1555ms expected @753e7ce7a36e+wt
 fail/drops/state_loan_invalidates_nominal_cleanup_prerequisite rejected 4494ms expected @753e7ce7a36e+wt
@@ -5030,18 +5056,18 @@ fail/facts/record_layout_geometry_unproved_parameter rejected 3940ms expected @4
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/record_layout_geometry_unproved_target_body rejected 3880ms expected @45cbafd80d9c
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 2771ms expected @bf08b7b9504b
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 642ms expected @cf5a1803718b+wt
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 9 and it is released at state exit)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 9 and it is released at state exit)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 9 and it is released at state exit)
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 9 and it is released at state exit)
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 7661ms expected @64fed27437de+wt
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 642ms expected @cf5a1803718b+wt
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1684ms expected @4030174fbc4e
+fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 635ms expected @cf5a1803718b+wt
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 3: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 1541ms expected @4030174fbc4e
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 7527ms expected @4e77584323e4
+fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 637ms expected @cf5a1803718b+wt
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_through_call_result_held_source rejected 3345ms expected @3424ad143d6e
 	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
@@ -7967,11 +7993,11 @@ fail/proofs/runtime_case_atomic_observations_are_distinct rejected 382ms expecte
 fail/proofs/runtime_case_guarantee_replaced_subject rejected 1516ms expected @a9ae30e1c334+wt
 fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 1578ms expected @a9ae30e1c334+wt
 fail/proofs/runtime_case_guarantee_wrong_return rejected 1515ms expected @a9ae30e1c334+wt
-fail/proofs/runtime_static_result_projection_effectful_citation rejected 23463ms expected @78f48cd3217e+wt
+fail/proofs/runtime_static_result_projection_effectful_citation rejected 2412ms expected @cf5a1803718b+wt
 	theorem citation `effectful_projection` must be effect-free; proof citations cannot declare or infer service reach, suspension, blocking, crashes, or mutable state
-fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 21460ms expected @78f48cd3217e+wt
+fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 2171ms expected @cf5a1803718b+wt
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
-fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 20934ms expected @78f48cd3217e+wt
+fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 506ms expected @cf5a1803718b+wt
 	recursive proof machine `nonterminating_projection` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
 fail/proofs/scalar_field_snapshot_after_alias_store rejected 2178ms expected @f22c0e54a812
 fail/proofs/scalar_field_snapshot_after_call rejected 2110ms expected @f22c0e54a812
@@ -8171,7 +8197,9 @@ fail/providers/operator_specialized_realization_selection_not_retained rejected 
 	machine `Provider$specialized$10334b0381d4aecf$0` operator realization `Policy::convert` does not retain the exact selected overload
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 fail/providers/portable_slot_cannot_lend_raw_binding rejected 1873ms expected @aebe0714a499+wt
-fail/providers/primitive_reference_contract_refinement rejected 997ms expected @f3014db3f225+wt
+fail/providers/primitive_reference_contract_refinement rejected 348ms expected @cf5a1803718b+wt
+	machine `NarrowReader::read` realizes `Reader::read` but requires `value <= 8`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `UnpromisedReader::read` realizes `Reader::read` but does not guarantee its `ensures result == value`; callers of the requirement assume it
 fail/providers/provider_reference_allocation_requires_nonnull rejected 1128ms expected @2a08673f9136
 fail/providers/provider_result_private_qualification rejected 2181ms expected @20ad71d6e3a6+wt
 fail/providers/provider_selection_fabricated_activation rejected 2725ms expected @a9ae30e1c334+wt
@@ -8532,9 +8560,17 @@ fail/termination/computed_measure_non_monotone_body rejected 1646ms expected @a9
 fail/termination/computed_measure_rank_range_overflow rejected 1757ms expected @a9ae30e1c334+wt
 fail/termination/computed_result_rank_alternative_results rejected 1578ms expected @a9ae30e1c334+wt
 fail/termination/computed_result_rank_arithmetic_policies rejected 541ms expected @3e63a17a5fea+wt
-fail/termination/computed_result_rank_intermediate_overflow rejected 871ms expected @a9ae30e1c334+wt
-fail/termination/computed_result_rank_missing_precondition rejected 1539ms expected @a9ae30e1c334+wt
-fail/termination/computed_result_rank_nondecreasing rejected 1637ms expected @a9ae30e1c334+wt
+fail/termination/computed_result_rank_intermediate_overflow rejected 213ms expected @cf5a1803718b+wt
+	exact arithmetic in machine `CheckedReader::observe` ensures contract may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `CheckedReader::observe` state `observe` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/termination/computed_result_rank_missing_precondition rejected 442ms expected @cf5a1803718b+wt
+	cannot prove requires contract for call observe from countdown: remaining > 0 && remaining <= 9 (needs fact `value > 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call countdown from countdown: RankReader.observe(remaining) >= 0 && RankReader.observe(remaining) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/computed_result_rank_nondecreasing rejected 436ms expected @cf5a1803718b+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/constrained_measure_parameter_domain rejected 1554ms expected @a9ae30e1c334+wt
 fail/termination/custom_ranking_order_unknown rejected 1641ms expected @a9ae30e1c334+wt
 fail/termination/default_order_ambiguous rejected 1658ms expected @a9ae30e1c334+wt
@@ -8549,7 +8585,8 @@ fail/termination/float_requirement_recursive_argument_changed rejected 1075ms ex
 fail/termination/float_requirement_stale_field_arrival rejected 1060ms expected @cf645a79ddb2+wt
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 fail/termination/identity_measure_call_component_mixed_view rejected 1555ms expected @a9ae30e1c334+wt
-fail/termination/implicit_cleanup_without_progress rejected 355ms expected @48173da96776+wt
+fail/termination/implicit_cleanup_without_progress rejected 359ms expected @cf5a1803718b+wt
+	cannot prove published termination for machine `finish`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/increasing_unbounded_rejected rejected 1602ms expected @a9ae30e1c334+wt
 fail/termination/joint_machine_call_cycle_stalled rejected 1581ms expected @a9ae30e1c334+wt
 fail/termination/joint_rankless_finish_reenters_component rejected 1560ms expected @a9ae30e1c334+wt
@@ -8567,8 +8604,14 @@ fail/termination/nested_field_without_predicate_cannot_bound_result rejected 418
 fail/termination/proof_joint_machine_cycle_nondecreasing rejected 865ms expected @a9ae30e1c334+wt
 fail/termination/proof_joint_machine_cycle_unmeasured rejected 873ms expected @a9ae30e1c334+wt
 fail/termination/quotient_result_rank_alternative_results rejected 1569ms expected @a9ae30e1c334+wt
-fail/termination/quotient_result_rank_missing_precondition rejected 1534ms expected @a9ae30e1c334+wt
-fail/termination/quotient_result_rank_nondecreasing rejected 1723ms expected @a9ae30e1c334+wt
+fail/termination/quotient_result_rank_missing_precondition rejected 446ms expected @cf5a1803718b+wt
+	cannot prove requires contract for call observe from countdown: remaining > 0 && remaining <= 9 (needs fact `value > 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call countdown from countdown: RankReader.observe(remaining) >= 0 && RankReader.observe(remaining) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/quotient_result_rank_nondecreasing rejected 442ms expected @cf5a1803718b+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/rank_arrival_formal_does_not_replace_subject rejected 1671ms expected @a9ae30e1c334+wt
 fail/termination/rank_arrival_missing_public_result_field_equation rejected 1706ms expected @a9ae30e1c334+wt
 fail/termination/rank_arrival_opaque_child_does_not_prove_subject_absent rejected 1740ms expected @a9ae30e1c334+wt
@@ -8609,13 +8652,25 @@ fail/termination/saved_boolean_replaced rejected 1808ms expected @ef97e2a38c91+w
 fail/termination/saved_rank_authored_operator_rejected rejected 1549ms expected @a9ae30e1c334+wt
 fail/termination/selected_requirement_rank_composed_prefix_write rejected 1803ms expected @a9ae30e1c334+wt
 fail/termination/selected_requirement_rank_prefix_write rejected 1707ms expected @a9ae30e1c334+wt
-fail/termination/selected_result_rank_arrival_missing_guarantee rejected 1492ms expected @a9ae30e1c334+wt
-fail/termination/selected_result_rank_arrival_nondecreasing rejected 1597ms expected @a9ae30e1c334+wt
-fail/termination/selected_result_rank_arrival_unguarded rejected 1696ms expected @a9ae30e1c334+wt
+fail/termination/selected_result_rank_arrival_missing_guarantee rejected 441ms expected @cf5a1803718b+wt
+	cannot prove requires contract for call countdown from countdown: RankReader.observe(remaining - 1) >= 0 && RankReader.observe(remaining - 1) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/selected_result_rank_arrival_nondecreasing rejected 439ms expected @cf5a1803718b+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/selected_result_rank_arrival_unguarded rejected 444ms expected @cf5a1803718b+wt
+	cannot prove requires contract for call observe from countdown: remaining - 1 >= 0 && remaining - 1 <= 9 (needs fact `value >= 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/self_call_rank_reset_before_descent rejected 625ms expected @1727c70d2f7e+wt
-fail/termination/shift_result_rank_mask_preserves rejected 445ms expected @f70cef10b430
+fail/termination/shift_result_rank_mask_preserves rejected 443ms expected @cf5a1803718b+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/shift_result_rank_replaced_count rejected 441ms expected @f70cef10b430
-fail/termination/shift_result_rank_zero_count rejected 448ms expected @f70cef10b430
+fail/termination/shift_result_rank_zero_count rejected 440ms expected @cf5a1803718b+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/shift_result_signed_field_floor rejected 448ms expected @f70cef10b430
 fail/termination/signed_rank_without_nonnegative_premise rejected 3073ms expected @c7d6c4482f2f
 	cannot prove the `terminates by` ranking for machine walk
@@ -8958,7 +9013,7 @@ pass/arrays/local_record_array_guard_exit checked 10371ms check-target:macos_arm
 pass/arrays/qualified_array_literal checked 9707ms @5041ef1af684+wt
 pass/arrays/qualified_array_literal_retains_element_policy_exit checked 10270ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arrays/record_array_literal checked 9777ms @5041ef1af684+wt
-pass/arrays/runtime_completed_array_window_replacement_exit checked 9479ms check-target:macos_arm64 @f334a04a60a7+wt
+pass/arrays/runtime_completed_array_window_replacement_exit checked 867ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
@@ -9028,7 +9083,7 @@ pass/borrow/runtime_signed_element_call_exit checked 19301ms check-target:linux_
 pass/borrow/runtime_signed_element_empty_exit checked 19250ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_inclusive_exit checked 18287ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_window_exit checked 17670ms check-target:linux_x86_64 @5acf32321f42+wt
-pass/borrow/runtime_static_callable_preserves_readonly_subject_exit checked 7135ms check-target:macos_arm64 @fedeee648fc7+wt
+pass/borrow/runtime_static_callable_preserves_readonly_subject_exit checked 747ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/borrow/runtime_write_only_affine_sum_exit checked 5635ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 5735ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 5689ms check-target:macos_arm64 @af6b0f221559+wt
@@ -10014,6 +10069,7 @@ pass/contracts/saved_call_case_guarantee_requires_exit checked 11049ms check-tar
 pass/contracts/saved_case_guarantee checked 9196ms @5041ef1af684+wt
 pass/contracts/selected_storage_contract_exit checked 885ms check-target:macos_arm64 @9e04918b1d1c
 pass/contracts/shared_field_current_arithmetic checked 1642ms @a9ae30e1c334+wt
+pass/contracts/strict_clause_terminated_headers checked 510ms @cf5a1803718b+wt
 pass/contracts/terminal_contract checked 9431ms @5041ef1af684+wt
 pass/control_flow/affine_call_result_state_transfer_exit checked 11599ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/affine_record_state_cycle_exit checked 11800ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10469,11 +10525,11 @@ pass/drops/case_subject_root_cleanup checked 9558ms @5041ef1af684+wt
 pass/drops/cleanup_machine_drop_shape checked 2087ms @a9ae30e1c334+wt
 pass/drops/cleanup_owner_identity_application checked 1769ms @a9ae30e1c334+wt
 pass/drops/conditional_return_cleanup checked 9528ms @5041ef1af684+wt
-pass/drops/conditional_structural_return_cleanup_exit checked 14625ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/contextual_cleanup_exit checked 12074ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/contextual_core_drop_exit checked 15485ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/conditional_structural_return_cleanup_exit checked 905ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/contextual_cleanup_exit checked 730ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/contextual_core_drop_exit checked 905ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/contextual_hook_cleanup checked 9420ms @5041ef1af684+wt
-pass/drops/contextual_receiver_drop_exit checked 11858ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/contextual_receiver_drop_exit checked 727ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/core_drop_explicit_consume checked 12957ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/core_drop_generic_chain checked 9551ms @5041ef1af684+wt
 pass/drops/core_drop_owner_hook checked 12727ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10486,7 +10542,7 @@ pass/drops/erased_record_initializer_exit checked 13281ms check-target:macos_arm
 pass/drops/lifetime_owner_drop_hook checked 1710ms @a9ae30e1c334+wt
 pass/drops/ordered_teardown_body checked 1787ms @a9ae30e1c334+wt
 pass/drops/owned_qualified_contextual_cleanup_exit checked 13947ms check-target:macos_arm64 @e74967d11875
-pass/drops/projected_case_subject_root_cleanup_exit checked 12228ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/projected_case_subject_root_cleanup_exit checked 733ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-target:macos_arm64 @c1d3bd9711c2+wt
 pass/drops/result_cleanup_implicit_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
@@ -10503,20 +10559,20 @@ pass/drops/runtime_case_selected_cleanup_continuations_exit checked 13091ms chec
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 11491ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_cleanup_case_evidence_exit checked 958ms check-target:macos_arm64 @7e8766123767
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 11650ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_composed_nominal_output_hook_exit checked 6036ms check-target:macos_arm64 @7c1edd43e7e4+wt
+pass/drops/runtime_composed_nominal_output_hook_exit checked 733ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_composed_nominal_return_hook_exit checked 11021ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_computed_call_owner_retirement_exit checked 11944ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 11381ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_empty_array_owner_cleanup_exit checked 12216ms check-target:macos_arm64 @a4f0ef6b6479+wt
 pass/drops/runtime_empty_array_owner_cleanup_sites_exit checked 12124ms check-target:macos_arm64 @a4f0ef6b6479+wt
 pass/drops/runtime_generic_cleanup_owner_telescope_exit checked 855ms check-target:macos_arm64 @794b4cd9f7e8+wt
-pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 13564ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 920ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 13406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_generic_reserved_construction_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_indexed_nominal_cleanup_exit checked 11471ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_indexed_nominal_cleanup_exit checked 745ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 11839ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_local_nominal_cleanup_exit checked 11483ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_local_nominal_return_exit checked 11250ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_local_nominal_cleanup_exit checked 725ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_local_nominal_return_exit checked 726ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_mixed_temporary_effects_continuation_exit checked 10913ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit checked 10873ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_named_linear_container_cleanup_exit checked 11166ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10534,7 +10590,7 @@ pass/drops/runtime_nominal_state_loan_alias_exit checked 846ms check-target:maco
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 846ms check-target:macos_arm64 @91cfec61d529+wt
 pass/drops/runtime_nominal_state_loan_crash_exit checked 13781ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_nominal_state_loan_nonlending_branch_exit checked 846ms check-target:macos_arm64 @91cfec61d529+wt
-pass/drops/runtime_nominal_successor_argument_order_exit checked 11518ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_nominal_successor_argument_order_exit checked 731ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_nominal_temporary_helper_closure_exit checked 13629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_owned_nominal_replacement_exit checked 10828ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_owned_record_replacement_exit checked 10608ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10542,23 +10598,23 @@ pass/drops/runtime_owned_replacement_composition_exit checked 10737ms check-targ
 pass/drops/runtime_owned_replacement_reestablishment_exit checked 10949ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_owner_scoped_generic_cleanup_exit checked 11164ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit checked 12449ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_projected_nominal_cleanup_exit checked 2204ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:unrequested terminal-inspections:match @59c80fdc820b
+pass/drops/runtime_projected_nominal_cleanup_exit checked 2087ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:unrequested terminal-inspections:match @cf5a1803718b+wt
 pass/drops/runtime_projected_nominal_core_exit checked 11489ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_projected_reference_siblings_exit checked 12483ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_projected_reference_transition_cleanup_exit checked 11394ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_projected_transition_cleanup_exit checked 13877ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_record_construction_cleanup_order_exit checked 860ms check-target:macos_arm64 @9e04918b1d1c
+pass/drops/runtime_record_construction_cleanup_order_exit checked 738ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_replaced_record_custody_transfer_exit checked 11188ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 11900ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 752ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 12259ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 12660ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/drops/runtime_selected_partial_owner_cleanup_exit checked 11353ms check-target:macos_arm64 @03d6ab4d9d4c
-pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 3570ms check-target:macos_arm64 @527339c11257
-pass/drops/runtime_selected_projected_state_cleanup_exit checked 3651ms check-target:macos_arm64 @c06ac7359406
-pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 10087ms check-target:macos_arm64 @03d6ab4d9d4c
-pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 10100ms check-target:macos_arm64 @03d6ab4d9d4c
-pass/drops/runtime_selected_transfer_nested_construction_exit checked 3451ms check-target:macos_arm64 @4030174fbc4e
+pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 933ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_selected_partial_owner_cleanup_exit checked 923ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 836ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_selected_projected_state_cleanup_exit checked 828ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 754ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 797ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/runtime_selected_transfer_nested_construction_exit checked 742ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_shared_nominal_state_loan_exit checked 13553ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_temporary_integer_capture_cleanup_exit checked 11211ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_temporary_nominal_integer_contract_exit checked 10850ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10573,7 +10629,7 @@ pass/drops/state_loan_restores_nominal_cleanup_prerequisite checked 14065ms chec
 pass/drops/statement_result_cleanup_without_expression_home_exit checked 6424ms check-target:macos_arm64 @1a31c8fa5439
 pass/drops/statically_skipped_claim_bearing_temporary checked 1671ms @a9ae30e1c334+wt
 pass/drops/structural_return_drop_local checked 9421ms @5041ef1af684+wt
-pass/drops/structural_return_drops_unreturned_local_exit checked 6406ms check-target:macos_arm64 @7c1edd43e7e4+wt
+pass/drops/structural_return_drops_unreturned_local_exit checked 733ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/transfer_cleanup_into_state checked 1708ms @a9ae30e1c334+wt
 pass/drops/transfer_cleanup_state checked 9624ms @5041ef1af684+wt
 pass/drops/wildcard_owned_structural_return_cleanup_exit checked 1771ms check-target:macos_arm64 @ba7501de3288+wt
@@ -10585,7 +10641,7 @@ pass/effects/checked_callback_provider_ceiling checked 1237ms @c5a7c1ce1957+wt
 pass/effects/exact_synchronous_callback_rows checked 1237ms @c5a7c1ce1957+wt
 pass/effects/finite_requirement_block_acknowledged_exit checked 9603ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/generic_callback_schema_reach checked 1651ms @a9ae30e1c334+wt
-pass/effects/nominal_callback_const_reach checked 1718ms @a9ae30e1c334+wt
+pass/effects/nominal_callback_const_reach checked 654ms @cf5a1803718b+wt
 pass/effects/nominal_callback_dependency checked 1598ms @a9ae30e1c334+wt
 pass/effects/reach_inferred_wrapper checked 9161ms @5041ef1af684+wt
 pass/effects/reach_through_machine_param checked 9378ms @5041ef1af684+wt
@@ -11888,9 +11944,9 @@ pass/facts/record_layout_geometry_through_other_state_exit checked 7803ms check-
 pass/facts/record_layout_geometry_through_parameter_exit checked 7757ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_target_body_exit checked 8326ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit checked 3371ms check-target:macos_arm64 @4030174fbc4e
-pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 3628ms check-target:macos_arm64 @4030174fbc4e
-pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 3624ms check-target:macos_arm64 @4030174fbc4e
-pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 3777ms check-target:macos_arm64 @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 818ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 810ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 811ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/facts/reference_arrival_handoff_through_call_result_exit checked 6956ms check-target:macos_arm64 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_const_name_exit checked 7151ms check-target:macos_arm64 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_field_exit checked 6893ms check-target:macos_arm64 @3424ad143d6e
@@ -13452,14 +13508,14 @@ pass/parameters/shared_and_mut_borrow_params_compile checked 1610ms @a9ae30e1c33
 pass/parser/deep_nesting_within_limit checked 1780ms @a9ae30e1c334+wt
 pass/parser/invariant_is_an_identifier checked 1626ms @a9ae30e1c334+wt
 pass/parser/move_named_state_transition_exit checked 7030ms check-target:macos_arm64 @379893891e38
-pass/progress/provider_receiver_progress_installation checked 11034ms check-target:linux_x86_64 @a9ae30e1c334+wt
+pass/progress/provider_receiver_progress_installation checked 692ms check-target:linux_x86_64 @cf5a1803718b+wt
 pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
 pass/proofs/borrowed_descriptor_bound_local_result_exit checked 3519ms check-target:macos_arm64 @b3d0b7396229+wt
 pass/proofs/captured_scalar_field_observations checked 12762ms check-target:macos_arm64 @f22c0e54a812
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
-pass/proofs/cauchy_predicates_compile checked 2759ms @fedeee648fc7+wt
+pass/proofs/cauchy_predicates_compile checked 910ms @cf5a1803718b+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
 pass/proofs/completed_qualified_membership_exit checked 17375ms check-target:macos_arm64 @ca117899bfe3+wt
@@ -13561,7 +13617,7 @@ pass/proofs/runtime_ranked_intermediary_accumulator_exit checked 6663ms check-ta
 pass/proofs/runtime_ranked_store_through_local_exit checked 6703ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/runtime_sequential_ranked_components_exit checked 11517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 11587ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/proofs/runtime_static_result_projection_citation_exit checked 32866ms check-target:macos_arm64 @78f48cd3217e+wt
+pass/proofs/runtime_static_result_projection_citation_exit checked 1089ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 6334ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/scalar_copy_guard_const_forwarding checked 9766ms @7912abbc354e
 pass/proofs/scalar_copy_guard_disjoint_write checked 40817ms check-target:macos_arm64 @7912abbc354e
@@ -13575,7 +13631,7 @@ pass/proofs/selected_specification_requires_renamed checked 5083ms @4ce1ff349782
 pass/proofs/selected_specification_requires_state checked 4678ms @4ce1ff349782+wt
 pass/proofs/separated_range_result_exit checked 3971ms check-target:macos_arm64 @84713d7e8be4+wt
 pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
-pass/proofs/static_machine_result_projection checked 1379ms @fedeee648fc7+wt
+pass/proofs/static_machine_result_projection checked 512ms @cf5a1803718b+wt
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3739ms check-target:macos_arm64 @93160ec7e266+wt
 pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target:macos_arm64 @fa48d7bba308+wt
@@ -14195,7 +14251,7 @@ pass/termination/external_result_ranked_arrival_compile checked 2460ms @a9ae30e1
 pass/termination/generic_owned_element_store_rank checked 20482ms @c0ec033db8e0+wt
 pass/termination/identity_measure_rank_range checked 1770ms @a9ae30e1c334+wt
 pass/termination/identity_measure_widths checked 10061ms @5041ef1af684+wt
-pass/termination/implicit_cleanup_with_progress checked 573ms @48173da96776+wt
+pass/termination/implicit_cleanup_with_progress checked 516ms @cf5a1803718b+wt
 pass/termination/increasing_to_range checked 9620ms @5041ef1af684+wt
 pass/termination/increasing_to_rank_range_compile checked 1589ms @a9ae30e1c334+wt
 pass/termination/inherited_acyclic_requirement_guarantee_compile checked 1613ms @a9ae30e1c334+wt
@@ -14271,7 +14327,7 @@ pass/termination/runtime_bounded_distance_loop_exit_state_exit checked 10478ms c
 pass/termination/runtime_bounded_distance_rankless_exit checked 10472ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_call_result_short_circuit_rank_exit checked 12008ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_computed_projected_measure_arrivals_exit checked 11351ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/runtime_computed_result_rank_arrivals_exit checked 11368ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_computed_result_rank_arrivals_exit checked 712ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/termination/runtime_distance_crossed_header_exit checked 10799ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_float_requirement_integer_rank_exit checked 6962ms check-target:macos_arm64 @cf645a79ddb2+wt
 pass/termination/runtime_joint_rank_computed_copy_exit checked 12381ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -14280,7 +14336,7 @@ pass/termination/runtime_nested_borrowed_rank_carrier_exit checked 12725ms check
 pass/termination/runtime_projected_element_rank_arrivals_exit checked 11715ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_projected_extent_fill_exit checked 5030ms check-target:macos_arm64 @0ab6a3e7fdb4+wt
 pass/termination/runtime_public_result_field_rank_arrivals_exit checked 11711ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/runtime_quotient_result_rank_arrivals_exit checked 11326ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_quotient_result_rank_arrivals_exit checked 751ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/termination/runtime_rank_arrival_field_premise_disjoint_write_exit checked 4465ms check-target:macos_arm64 @5135246a13ab+wt
 pass/termination/runtime_rank_range_state_call_exit checked 12758ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit checked 11734ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -14292,12 +14348,12 @@ pass/termination/runtime_record_measure_constructed_arrivals_exit checked 13486m
 pass/termination/runtime_same_pair_call_occurrence checked 1099ms check-target:macos_arm64 @acda888786a6
 pass/termination/runtime_saved_boolean_descent_exit checked 12797ms check-target:macos_arm64 @ef97e2a38c91+wt
 pass/termination/runtime_saved_rank_cycle_exit checked 12832ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/runtime_selected_boundary_requirement_identity_exit checked 12695ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_selected_boundary_requirement_identity_exit checked 703ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/termination/runtime_selected_requirement_rank_composed_prefix_exit checked 12682ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_selected_requirement_rank_prefix_exit checked 13013ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/runtime_selected_requirement_reference_identity_exit checked 12015ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/runtime_selected_result_ranked_arrival_exit checked 12009ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/termination/runtime_shift_result_rank_arrivals_exit checked 2943ms check-target:macos_arm64 @f70cef10b430
+pass/termination/runtime_selected_requirement_reference_identity_exit checked 703ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/termination/runtime_selected_result_ranked_arrival_exit checked 711ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/termination/runtime_shift_result_rank_arrivals_exit checked 846ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/termination/runtime_shrinking_slice_recursion_exit checked 13890ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit checked 12132ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_zero_local_rank_prefix_exit checked 18775ms check-target:macos_arm64 @3d664be0c918+wt

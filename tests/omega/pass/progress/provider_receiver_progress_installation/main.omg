@@ -54,7 +54,7 @@ data Main {
 machine Main::notify_fair(provider: &SchedulerProvider, handle: SchedulerHandle)
 reaches Scheduler
 requires handle in SchedulerHandle::WeakFair
-terminates
+terminates;
 {
     Scheduler::notify(provider, handle, 65);
 }

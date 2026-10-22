@@ -245,6 +245,8 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                      the witness that discharges it",
                 ));
             }
+            input =
+                take_invokes_signature_clause(input, allow_clauses_after_operational_separator)?;
             terminates_guarantee = true;
             continue;
         }

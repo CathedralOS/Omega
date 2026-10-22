@@ -9,7 +9,7 @@ public boundary trait Console {
 }
 public data ConsoleNativeProvider {}
 public NativeConsole satisfies Console {
-    machine write_byte(byte: i32) reaches Console terminates {
+    machine write_byte(byte: i32) reaches Console terminates; {
         ConsoleNativeProvider::write_byte(byte);
     }
 }

@@ -126,7 +126,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     exercise(false);
 }
 ConsoleNativeProviderConsoleImplementation satisfies Console {
-    machine write_byte(byte: i32) reaches Console terminates {
+    machine write_byte(byte: i32) reaches Console terminates; {
         ConsoleNativeProvider::write_byte(byte);
     }
 }

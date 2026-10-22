@@ -21,7 +21,7 @@ ensures
 {
 }
 
-machine literal(index: Nat) -> Observation terminates {
+machine literal(index: Nat) -> Observation terminates; {
     Observation { value: index, other: Nat::Zero }
 }
 
