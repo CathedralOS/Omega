@@ -122,8 +122,8 @@ pub use value_custody::content_conservation::{data_variant_name, push_structural
 pub use value_custody::dispatch_extraction::DispatchExtraction;
 pub use value_custody::field_domains;
 pub use value_custody::owned_value_source::{
-    affine_owned_value_source, linear_owned_value_source, ownership_source_expression,
-    plain_owned_value_source, value_preserving_cast_operand, whole_owned_value_source,
+    ownership_source_expression, plain_owned_value_source, value_preserving_cast_operand,
+    whole_owned_value_source,
 };
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::placed_atomic_observing_results;
@@ -517,10 +517,9 @@ pub use value_custody::places::{
     canonical_place_from_expression_in_state, canonical_place_source_type_application,
     canonical_place_type_reference, collection_element_type_reference,
     contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
-    effective_member_symbol, effective_member_symbol_from_type_symbol,
-    expression_place_type_reference, expression_root_symbol, expression_type_reference_in_state,
-    expression_type_symbol, first_valid_name_path_symbol, index_place_segment,
-    loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    effective_member_symbol, expression_place_type_reference, expression_root_symbol,
+    expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
+    index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
     nearest_scoped_local, observed_storage_type_references, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
     projected_statement_receiver_type_reference, push_field_place_segments, receiver_projections,

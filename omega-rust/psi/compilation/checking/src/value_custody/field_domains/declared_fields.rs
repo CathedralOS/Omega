@@ -11,25 +11,6 @@ use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::types::TypeReferenceHandle;
 
-/// All declared field rows beneath an established readable data value. Exact
-/// domain identities and evidence-only extent rows survive until each consumer
-/// selects the obligations it owns.
-pub fn declared_data_field_domain_rows(
-    program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-) -> Vec<FieldDomainRow> {
-    let mut rows = Vec::new();
-    collect_data_field_domain_rows(
-        program,
-        false,
-        data,
-        &mut Vec::new(),
-        &mut vec![data.symbol],
-        &mut rows,
-    );
-    rows
-}
-
 /// Seed the declared field domains of `data` below `path`. The recursion
 /// shares one path buffer and one visited stack, restoring both before it
 /// returns, so a parameter whose type nests many fields does not copy its

@@ -820,8 +820,7 @@ mod contextual_projection;
 pub use contextual_projection::contextual_canonical_place_from_expression;
 mod member_resolution;
 pub use member_resolution::{
-    effective_member_symbol, effective_member_symbol_from_type_symbol,
-    expression_place_type_reference, expression_type_symbol,
+    effective_member_symbol, expression_place_type_reference, expression_type_symbol,
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 mod projection_types;

@@ -21,8 +21,8 @@ use typed_trees::types::{
 
 mod declared_fields;
 pub use declared_fields::{
-    FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows,
-    declared_type_domain_rows, exact_declared_field, readable_slice_element,
+    FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_type_domain_rows, exact_declared_field,
+    readable_slice_element,
 };
 
 /// The declared type of an assignment destination, preserving domain and
@@ -50,25 +50,8 @@ pub fn assignment_target_type_reference(
     )
 }
 
-/// The predicate-domain refinements declared on an assignment destination.
-/// This is the common source for write checking and post-write flow
-/// establishment so a mutable parameter cannot regain domain facts unless the
-/// assigned value was checked against every predicate declaration in the
-/// conjunction.
-pub fn assignment_target_domain_symbols(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &typed_trees::state::State,
-    target: typed_trees::expression::ExpressionHandle,
-) -> Vec<SymbolHandle> {
-    assignment_target_domain_identities(program, machine, state, target)
-        .into_iter()
-        .map(|(symbol, _)| symbol)
-        .collect()
-}
-
-/// [`assignment_target_domain_symbols`] paired with each constraint's interned
-/// identity, for producers that seed provable membership facts.
+/// Each constraint's interned identity on an assignment destination, for
+/// producers that seed provable membership facts.
 pub fn assignment_target_domain_identities(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
