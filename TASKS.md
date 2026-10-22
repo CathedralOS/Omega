@@ -5274,12 +5274,26 @@ wait for Cathedral's instruction coverage. The interpreter is
     for equal carriers. Before the rewrite, `same` was selected and refused:
     body supply was not implemented for that position. After it,
     `samples/cli/facts/body_bearing_comparison` exits 0 on both engines (direct
-    comparison false, match result 11). The same sentence exits 0 on both
-    engines through field, parameter, call result, match join, const name,
-    another state, another machine, and a target body. The selected body's
-    boolean result is recorded on the comparison, and a direct `== false`
-    obligation reads it. Each twin changes only that body from `false` to
-    `true` and rejects `direct == false`. A domain on an `f64` constant keeps
+    comparison false, match result 11). All nine transport places now carry that
+    sentence — local (including a copied marked carrier), field, parameter, call
+    result, match join, const name, another state, another machine, and a target
+    body — each with a reject twin, and the eighteen fixtures
+    `tests/omega/{pass,fail}/facts/body_bearing_comparison_through_*` are pinned
+    with recorded golden rows. The selected body's boolean result is recorded on
+    the comparison, and a direct `== false` obligation reads it; the local place
+    compares at a local site whose operands are a copied marked local, and an
+    implicit weakening of that copy is refused (`implicit domain weakening …
+    local copy drops Marked`). Measured at `2ece6cb7889b` on Intel macOS x86_64:
+    nine of nine positives run `native exit 0` with `interp exit: 0`, nine of
+    nine twins reject the obligation, and every retained artifact carries zero
+    `IeeeFloatCompare`. Open: the retained artifacts of `field` and
+    `other_state` are refused by codec foundation validation with
+    `scalar field write lacks its required domain identity` (minimal
+    reproduction: a domain-qualified scalar record field constructed from a
+    literal), so those two artifacts cannot be re-ingested from bytes although
+    both engines agree in memory; the emitted `EstablishRecord` scalar member and
+    the state-transition argument store must carry the receiving field's declared
+    qualification. A domain on an `f64` constant keeps
     the carrier's float encoding. Bodyless `float_comparison_route` stays
     on the comparison route (native exit 0, interpreter exit 0). A generic
     comparison body that returns false is recorded on the call:

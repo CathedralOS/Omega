@@ -2240,6 +2240,27 @@ fail/facts/atomic_compare_exchange_once_wide_rejected rejected 31ms expected @7d
 	tests/omega/fail/facts/atomic_compare_exchange_once_wide_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
 fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 10692ms expected @7df3e6a600f1+wt
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/body_bearing_comparison_through_call_result_rejected rejected 11774ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_const_name_rejected rejected 11743ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_field_rejected rejected 9898ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_local_rejected rejected 7396ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_match_join_rejected rejected 7090ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_other_machine_rejected rejected 7060ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_other_state_rejected rejected 5472ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+fail/facts/body_bearing_comparison_through_parameter_rejected rejected 5478ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/body_bearing_comparison_through_target_body_rejected rejected 5504ms expected @2ece6cb7889b+wt
+	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/borrowed_content_partition_through_call_result rejected 1083ms expected @664463cccb82
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -11201,6 +11222,15 @@ pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 39678ms
 pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 33567ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 35071ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_wide_exit checked 34802ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/body_bearing_comparison_through_call_result_exit checked 15039ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_const_name_exit checked 15026ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_field_exit checked 15025ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_local_exit checked 15199ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_match_join_exit checked 15030ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_other_machine_exit checked 15035ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_other_state_exit checked 15028ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_parameter_exit checked 15050ms check-target:macos_arm64 @2ece6cb7889b+wt
+pass/facts/body_bearing_comparison_through_target_body_exit checked 15025ms check-target:macos_arm64 @2ece6cb7889b+wt
 pass/facts/borrowed_content_partition_through_call_result checked 1195ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_content_partition_through_const_name checked 1206ms check-target:macos_arm64 @664463cccb82
 pass/facts/borrowed_content_partition_through_field checked 1208ms check-target:macos_arm64 @664463cccb82
