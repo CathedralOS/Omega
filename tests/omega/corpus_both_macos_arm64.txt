@@ -467,6 +467,7 @@ pass/domains/runtime_constructor_ensured_membership_exit built 1736ms exit:0 int
 pass/domains/runtime_generic_exact_issuer_exit built 8770ms exit:0 interpreter-exit:0 interpreter:agrees @d761e1cfc099+wt
 pass/domains/runtime_nested_record_membership_transport_exit built 1646ms exit:0 interpreter-exit:0 interpreter:agrees @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @f20b8ea3bb8d
+pass/domains/runtime_qualified_case_state_copy_exit built 880ms exit:0 interpreter-exit:0 interpreter:agrees @76e95b69b545+wt
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 2494ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit built 873ms exit:0 interpreter-exit:0 interpreter:agrees @30104000a4c4+wt
 pass/domains/runtime_scalar_domain_generic_issuer_exit built 28628ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
@@ -1213,6 +1214,7 @@ pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit
 pass/recast/runtime_authored_toolchain_type_shadow_exit built 1662ms exit:0 interpreter-exit:0 interpreter:agrees @bf3bd23a63c0
 pass/recast/runtime_bool_representation_recast_exit built 1700ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/recast/runtime_boolean_view_decision_exit built 1649ms exit:0 interpreter-exit:0 interpreter:agrees @6e7bf42e4877
+pass/recast/runtime_captured_guard_conjunction_exit built 880ms exit:0 interpreter-exit:0 interpreter:agrees @76e95b69b545+wt
 pass/recast/runtime_field_precondition_capture_exit built 1832ms exit:70 interpreter-exit:70 interpreter:agrees @acbc628d0f2583bd98ee0217008c976c209d90b7+wt
 pass/recast/runtime_float_range_representation_recast_exit built 3039ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/recast/runtime_guarded_offset_recast_exit built 8282ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt

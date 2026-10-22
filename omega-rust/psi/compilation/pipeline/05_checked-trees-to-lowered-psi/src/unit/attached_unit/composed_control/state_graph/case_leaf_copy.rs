@@ -22,6 +22,7 @@ use terminal_psi::StructuralTypeDeclaration;
 pub(super) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &[StructuralTypeDeclaration],
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
     source: PlaceId,
     root_type: StructuralTypeId,
     subject_path: &[CheckedUnitStructuralPathSegment],
@@ -76,6 +77,34 @@ pub(super) fn emit(
     if target.multiplicity != Multiplicity::Unrestricted {
         return unsupported("case leaf observation requires copyable payload custody");
     }
+    // A payload's memberships are already carried under its selected case
+    // path. Relocate those exact source rows onto the new copy. The receiving
+    // parameter cannot supply them, and an empty result roster would erase
+    // them before the ordinary state-argument binder checks its contract.
+    let (whole, projected) = if let Some(parameter) = parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+    {
+        (
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        )
+    } else {
+        let result =
+            operations
+                .structural_result_contract(source)
+                .ok_or(LoweringError::Unsupported(
+                    "case leaf copy lost its source membership contract",
+                ))?;
+        (&result.qualifications, &result.projected_qualifications)
+    };
+    let storage_path =
+        terminal_semantics::canonical_structural_storage_path(types.iter(), root_type, &canonical)
+            .ok_or(LoweringError::Unsupported(
+                "case leaf copy lost its exact storage path",
+            ))?;
+    let (qualifications, projected_qualifications) =
+        terminal_psi::StructuralPathQualification::select(whole, projected, &storage_path);
     let producer = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
@@ -86,8 +115,8 @@ pub(super) fn emit(
             place: destination,
             structural_type: leaf,
             multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
+            qualifications,
+            projected_qualifications,
             claims: Vec::new(),
         }),
         kind: OperationKind::StructuralCaseLeafCopy {

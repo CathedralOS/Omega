@@ -1539,6 +1539,8 @@ fail/domains/captured_predicate_write_retires_membership rejected 587ms expected
 	cannot prove requires contract for call checked from producer: value.number in u64::Small in state `entry`
 fail/domains/case_child_membership_requires_issuance rejected 876ms expected @2ef2ab353498+wt
 fail/domains/case_payload_predicate_invalid_literal rejected 768ms expected @2ef2ab353498+wt
+fail/domains/case_state_copy_missing_membership rejected 490ms expected @76e95b69b545+wt
+	cannot prove requires contract for call consume from inspect: outcome::Ready.range in Range::Nonempty in state `entry`
 fail/domains/checked_provider_result_without_selection rejected 6477ms expected @308fbdc54ba0
 fail/domains/checked_provider_unissued_result rejected 2149ms expected @2ef2ab353498+wt
 fail/domains/completed_membership_before_later_guarantee rejected 679ms expected @38cd22fbfffe+wt
@@ -8236,6 +8238,8 @@ fail/recast/boundary_postcondition_nested_write rejected 1033ms expected @2430f4
 fail/recast/boundary_postcondition_reinterpreted_scalar rejected 1036ms expected @2430f497a77c+wt
 fail/recast/boundary_postcondition_wrong_backing_scalar rejected 982ms expected @2430f497a77c+wt
 fail/recast/byte_record_field_predicate rejected 598ms expected @e76af65b0403
+fail/recast/captured_guard_conjunction_missing_bound rejected 496ms expected @76e95b69b545+wt
+	cannot prove requires contract for call consume from inspect: offset <= 8 && bytes[offset].pages <= 4503599627370495 && bytes[offset].base <= 18446744073709551615 - bytes[offset].pages * 4096 (needs fact `offset <= 8 && descriptor.pages <= 4503599627370495 && descriptor.base <= 18446744073709551615 - descriptor.pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/field_precondition_call_invalidated_before_capture rejected 944ms expected @a9ae30e1c334+wt
 fail/recast/field_precondition_invalidated_before_capture rejected 896ms expected @a9ae30e1c334+wt
 fail/recast/incoming_offset_call_invalidated_before_capture rejected 909ms expected @a9ae30e1c334+wt
@@ -10407,6 +10411,7 @@ pass/domains/runtime_forwarded_borrowed_result_domain_exit checked 83689ms check
 pass/domains/runtime_generic_exact_issuer_exit checked 8325ms check-target:macos_arm64 @3893811dcbf0+wt
 pass/domains/runtime_nested_record_membership_transport_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/runtime_qualified_case_state_copy_exit checked 788ms check-target:macos_arm64 @76e95b69b545+wt
 pass/domains/runtime_qualified_ieee_field_read_exit checked 11525ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 4811ms check-target:macos_arm64 @9dd545defbc0
 pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -13771,6 +13776,7 @@ pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-ta
 pass/recast/runtime_bool_representation_recast_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_boolean_view_decision_exit checked 10913ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_byte_region_state_transfer_exit checked 4422ms check-target:macos_arm64 @8fd8af53161a+wt
+pass/recast/runtime_captured_guard_conjunction_exit checked 784ms check-target:macos_arm64 @76e95b69b545+wt
 pass/recast/runtime_encoded_record_view_loan_exit checked 3825ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/recast/runtime_field_precondition_capture_exit checked 11966ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_float_range_representation_recast_exit checked 14468ms check-target:macos_arm64 @9c4d1c444502

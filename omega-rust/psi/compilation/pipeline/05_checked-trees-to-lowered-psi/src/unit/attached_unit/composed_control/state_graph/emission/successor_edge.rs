@@ -520,6 +520,7 @@ impl StateGraphEmission<'_, '_> {
                             self.structural_places.push(case_leaf_copy::emit(
                                 identities,
                                 &self.catalogs.structural_types,
+                                state_parameters,
                                 source,
                                 root_type,
                                 &subject.path,

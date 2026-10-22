@@ -10,14 +10,19 @@ use typed_trees::statement::StatementNode;
 
 use crate::labels::semantic_fact_requirement_label;
 
-fn selected_transition_call<'program>(
+/// Recover the premise of this selected edge once, for both complete facts
+/// and their Boolean children. A computed transition subject is a captured
+/// predicate, not merely its generated truth-test binding. Its reads must
+/// survive both evaluation of the predicate and the arm's operands before any
+/// consumer can use that premise; splitting a conjunction changes no epoch.
+fn selected_transition_premise<'program>(
     program: &'program dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> Option<(
     validation::CallSite<'program>,
-    &'program typed_trees::machine::Machine,
-    &'program typed_trees::state::State,
     typed_trees::expression::ExpressionHandle,
 )> {
     let call_site = validation::find_call_site(
@@ -57,10 +62,32 @@ fn selected_transition_call<'program>(
         }
         validation::CallSite::Statement(_) => false,
     };
-    if !selects_this_call {
+    if !selects_this_call || !guard_preserves_values(machine, guard, call_frames) {
         return None;
     }
-    Some((call_site, machine, caller_state, guard))
+    let premise = if let Some(captured) =
+        captured_subject_predicate(program, caller_state, call_flow.statement_index, guard)
+    {
+        // Short-circuiting can leave effectful later conjuncts inside the
+        // captured expression. The generated truth test's empty write frame
+        // does not establish currentness of those earlier observations.
+        if !guard_preserves_values(machine, captured, call_frames)
+            || !super::super::guard_operands::premise_reads_survive_arm_operand_writes(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                captured,
+                call_frames,
+            )
+        {
+            return None;
+        }
+        captured
+    } else {
+        guard
+    };
+    Some((call_site, premise))
 }
 
 /// Query one original Boolean conjunct through the same selected-arm and
@@ -73,8 +100,8 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, machine, _, guard)) =
-        selected_transition_call(program, state_flow, call_flow)
+    let Some((call_site, guard)) =
+        selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
     else {
         return false;
     };
@@ -91,9 +118,6 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
         target_parameters,
         expression,
     );
-    if !guard_preserves_values(machine, guard, call_frames) {
-        return false;
-    }
     (guard_conjunct_matches(program, guard, &required_label)
         || super::guard_observations::conjunct_matches(
             program, facts, state_flow, call_flow, guard, expression,
@@ -185,28 +209,11 @@ pub(super) fn transition_guard_proves_requires(
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, machine, caller_state, guard)) =
-        selected_transition_call(program, state_flow, call_flow)
+    let Some((call_site, matching_guard)) =
+        selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
     else {
         return false;
     };
-    if !guard_preserves_values(machine, guard, call_frames) {
-        return false;
-    }
-    // A computed subject reaches the arms as its captured truth test, whose text
-    // carries none of the predicate the requirement must match. Match against
-    // the captured predicate instead, and below require that predicate's
-    // operands to survive the arm's own operand calls: the truth test says
-    // nothing about them.
-    let captured_premise =
-        captured_subject_predicate(program, caller_state, call_flow.statement_index, guard);
-    let matching_guard = captured_premise.unwrap_or(guard);
-    // Short-circuiting leaves a later conjunct's calls inside the capture.
-    // The truth test's empty frame cannot establish that the recovered
-    // predicate kept its earlier reads current through those calls.
-    if captured_premise.is_some() && !guard_preserves_values(machine, matching_guard, call_frames) {
-        return false;
-    }
     let Some(target_parameters) =
         validation::call_target_parameters(program, call_flow.target_symbol)
     else {
@@ -231,7 +238,12 @@ pub(super) fn transition_guard_proves_requires(
     let copied_guard_establishes = match fact.payload {
         FactPayload::ContractBooleanExpression { expression, .. } => {
             super::guard_observations::conjunct_matches(
-                program, facts, state_flow, call_flow, guard, expression,
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                matching_guard,
+                expression,
             )
         }
         _ => false,
@@ -260,22 +272,6 @@ pub(super) fn transition_guard_proves_requires(
             },
         );
     if !guard_establishes {
-        return false;
-    }
-    // A recovered predicate was read at the subject's evaluation, before every
-    // arm operand. An operand call that writes one of its operands would leave
-    // the requirement discharged from a value the jump no longer carries, and
-    // the truth test cannot see that.
-    if let Some(premise) = captured_premise
-        && !super::super::guard_operands::premise_reads_survive_arm_operand_writes(
-            program,
-            facts,
-            state_flow,
-            call_flow,
-            premise,
-            call_frames,
-        )
-    {
         return false;
     }
     // The guard was read before the arm's operands ran. An operand evaluated
