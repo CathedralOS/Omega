@@ -5199,12 +5199,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   Existing calls reaching native execution come first; broader algebra and
   retiring the `operator` introducer follow.
 
-  - Call-containing scalar requirements: the scalar graph route that refused
-    a clause such as `requires observe(left) == observe(right)` on a call
-    `restricted(saved, value)` (`covered_requires`, `graph_preparation.rs`)
-    is deleted; re-probe where the Unit route now refuses it. Lower it with interpreter/native agreement
-    against a clause-free control. Do not drop premises or execute the callee in
-    place of admission.
+  - Call-containing scalar requirements: `requires observe(left) == observe(right)`
+    on `restricted(saved, value)` already agrees on both engines (native exit 0,
+    interpreter exit 0) at `4ebd3b381f3`, and the clause-free control does too.
+    The unprovable twin (`saved = false`, `value = true`) still rejects: cannot
+    prove requires contract for call `restricted` from `caller`. Do not drop the
+    premise or execute the callee in place of admission.
   - Formation checks in
     `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs`
     and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`:
