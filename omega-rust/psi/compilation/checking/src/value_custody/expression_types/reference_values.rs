@@ -184,12 +184,12 @@ pub(super) fn value_carrier_matches_reference(
 /// obligations. This relation supplies neither membership nor a loan.
 fn shared_referee_matches(
     program: &dyn crate::CheckingInput,
-    mut actual: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    let (mut required, required_substitutions) =
+    let (required, required_substitutions) =
         substituted_required_reference(program, required, required_substitutions);
     if program.type_identity(TypeIdentityRequest {
         substitutions,
@@ -200,31 +200,10 @@ fn shared_referee_matches(
     }) {
         return true;
     }
-    actual = program
+    let actual = program
         .type_reference_table
         .unconstrained_type_reference(actual);
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(required)
-    {
-        // Declared domains become call contract facts. Other constraints
-        // (including compiler-owned carry/layout domains) do not all have
-        // that discharge route, so shape matching cannot introduce them.
-        if !program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .all(|constraint| {
-                matches!(constraint, TypeConstraintNode::Domain(domain)
-                if domain.symbol.is_valid()
-                    && domain.subject == typed_trees::types::DomainConstraintSubject::Declared)
-            })
-        {
-            break;
-        }
-        required = *base_type;
-    }
+    let required = declared_domain_base_reference(program, required);
     program.type_identity(TypeIdentityRequest {
         substitutions,
         ..TypeIdentityRequest::ordinary(actual)
@@ -244,6 +223,40 @@ fn shared_referee_matches(
         substitutions,
         required_substitutions,
     )
+}
+
+/// Remove the outer declared-domain requirements a call contract proves.
+///
+/// `T in D` and a bare `T` have one carrier: the qualification is a fact about
+/// the value, discharged by contract checking on the referent and invalidated
+/// by the ordinary fact rules when a write overlaps it. Both shared and
+/// exclusive access therefore compare the carrier after this removal; other
+/// constraints, including compiler-owned carry/layout domains, have no such
+/// discharge route and stay in the comparison.
+fn declared_domain_base_reference(
+    program: &dyn crate::CheckingInput,
+    mut required: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(required)
+    {
+        if !program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .all(|constraint| {
+                matches!(constraint, TypeConstraintNode::Domain(domain)
+                if domain.symbol.is_valid()
+                    && domain.subject == typed_trees::types::DomainConstraintSubject::Declared)
+            })
+        {
+            break;
+        }
+        required = *base_type;
+    }
+    required
 }
 
 /// A `const` binder in a fixed-array length is an inference slot, not a closed
@@ -487,7 +500,48 @@ pub(super) fn declared_value_matches_reference(
         )
 }
 
+/// An owned place lends its carrier to `&mut T` and to implicit shared views.
+///
+/// The completed value may carry a declared-domain qualification (`T in D`)
+/// that the place's own declaration does not mention: a parameter, a produced
+/// local or a call result all deliver the predicate beside the carrier.
+/// Requiring that predicate here rejects a valid exclusive loan before loan,
+/// carry and fact-invalidation checking can retain the qualification's
+/// obligations, so the same outer declared-domain requirements shared access
+/// defers are deferred here too. Element types, nested reference access,
+/// nominal identities, fixed extents and compiler-owned carry/layout domains
+/// still participate; this relation supplies neither membership nor a loan.
 pub(super) fn owned_value_matches_referee(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required_referee: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    if owned_referee_carrier_matches(
+        program,
+        actual,
+        required_referee,
+        substitutions,
+        required_substitutions,
+    ) {
+        return true;
+    }
+    let deferred_actual = program
+        .type_reference_table
+        .unconstrained_type_reference(actual);
+    let deferred_referee = declared_domain_base_reference(program, required_referee);
+    (deferred_actual != actual || deferred_referee != required_referee)
+        && owned_referee_carrier_matches(
+            program,
+            deferred_actual,
+            deferred_referee,
+            substitutions,
+            required_substitutions,
+        )
+}
+
+fn owned_referee_carrier_matches(
     program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required_referee: TypeReferenceHandle,

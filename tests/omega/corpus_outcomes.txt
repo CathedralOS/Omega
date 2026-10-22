@@ -1300,8 +1300,12 @@ fail/core/content_membership_return_unsupported_arm rejected 1768ms expected @06
 fail/core/content_membership_return_wrong_instance rejected 545ms expected @064c5aeb618a+wt
 	implicit domain weakening in machine `change` state `entry` drops `Resident<First, Value>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/core/content_partition_provider_changed_entry rejected 711ms expected @e7249344cccc
-fail/core/content_partition_provider_changed_entry_alias rejected 708ms expected @e7249344cccc
-fail/core/content_partition_provider_late_entry_read rejected 706ms expected @e7249344cccc
+fail/core/content_partition_provider_changed_entry_alias rejected 4650ms expected @6cd22386cbb5+wt
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_partition_provider_late_entry_read rejected 4634ms expected @6cd22386cbb5+wt
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_partition_provider_unconserved rejected 1476ms expected @e52673d2bcdb+wt
 fail/core/content_projected_duplicate_consumption rejected 287ms expected @7bd69d0648b7
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
@@ -2789,6 +2793,46 @@ fail/facts/content_interval_adjacency/target_body rejected 4551ms expected @f77f
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_reunion_through_call_result_rejected rejected 4591ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 11: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 11: Owned.content(old(&whole)) == Owned.content(&result)
+fail/facts/content_reunion_through_const_name_rejected rejected 4646ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
+fail/facts/content_reunion_through_field_rejected rejected 4644ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 9: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 9: Owned.content(old(&whole)) == Owned.content(&result)
+fail/facts/content_reunion_through_local_rejected rejected 3786ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 11: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 11: Owned.content(old(&whole)) == Owned.content(&result)
+fail/facts/content_reunion_through_match_join_rejected rejected 3809ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 8: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 8: result in Region::Owned
+fail/facts/content_reunion_through_other_machine_rejected rejected 3763ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from forward at statement 10: result in Region::Owned
+	cannot prove ensures contract for exit from forward at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
+fail/facts/content_reunion_through_other_state_rejected rejected 3130ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 8: result in Region::Owned
+fail/facts/content_reunion_through_parameter_rejected rejected 3296ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 11: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 11: Owned.content(old(&whole)) == Owned.content(&result)
+fail/facts/content_reunion_through_target_body_rejected rejected 3507ms expected @6cd22386cbb5
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
+	cannot prove default-domain field requirement for return from rejoin, state entry, at statement 10: Region requires Region::Owned
+	construction value is not proven in domain `Region::Owned` in rejoin state `entry` at statement 10; a construction value must establish the domain's predicates and any required provenance
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
+	cannot prove default-domain field requirement for return from rejoin, state entry, at statement 10: Region requires Region::Owned
+	construction value is not proven in domain `Region::Owned` in rejoin state `entry` at statement 10; a construction value must establish the domain's predicates and any required provenance
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
+	cannot prove default-domain field requirement for return from rejoin, state entry, at statement 10: Region requires Region::Owned
+	construction value is not proven in domain `Region::Owned` in rejoin state `entry` at statement 10; a construction value must establish the domain's predicates and any required provenance
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
+	cannot prove default-domain field requirement for return from rejoin, state entry, at statement 10: Region requires Region::Owned
+	construction value is not proven in domain `Region::Owned` in rejoin state `entry` at statement 10; a construction value must establish the domain's predicates and any required provenance
 fail/facts/correlated_invariant_store_through_call_result_rejected rejected 439ms expected @705856dc542f+wt
 	machine `advance` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/correlated_invariant_store_through_const_name_rejected rejected 436ms expected @705856dc542f+wt
@@ -11093,6 +11137,15 @@ pass/facts/content_interval_adjacency/other_machine checked 11742ms check-target
 pass/facts/content_interval_adjacency/other_state checked 11735ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/facts/content_interval_adjacency/parameter checked 11741ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/facts/content_interval_adjacency/target_body checked 11792ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_reunion_through_call_result_exit checked 5742ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_const_name_exit checked 5756ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_field_exit checked 5733ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_local_exit checked 5742ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_match_join_exit checked 5803ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_other_machine_exit checked 5753ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_other_state_exit checked 5735ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_parameter_exit checked 5736ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/content_reunion_through_target_body_exit checked 6081ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/correlated_invariant_store_through_call_result_exit checked 1234ms check-target:macos_arm64 @705856dc542f+wt
 pass/facts/correlated_invariant_store_through_const_name_exit checked 1159ms check-target:macos_arm64 @705856dc542f+wt
 pass/facts/correlated_invariant_store_through_field_exit checked 1233ms check-target:macos_arm64 @705856dc542f+wt
