@@ -527,8 +527,10 @@ fail/borrows/owned_carrier_writeonly_outer_pointer_read rejected 146ms expected 
 fail/borrows/owned_input_reference_escape rejected 1771ms expected @a9ae30e1c334+wt
 fail/borrows/owned_mutable_float_live_shared_loan rejected 1601ms expected @6bb9c1b51558
 fail/borrows/parent_use_before_disjoint_sibling_ends rejected 1677ms expected @a9ae30e1c334+wt
-fail/borrows/placed_helper_exclusive_alias_rejected rejected 7577ms expected @ce05f6f0788b
-fail/borrows/placed_shared_write_rejected rejected 4159ms expected @ce05f6f0788b
+fail/borrows/placed_helper_exclusive_alias_rejected rejected 334ms expected @fc1821419662
+	argument `view` for state `entry` is declared `&mut` (`&mut Placed<RegPlacement,Registers>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/placed_shared_write_rejected rejected 332ms expected @fc1821419662
+	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9ae30e1c334+wt
 fail/borrows/predicate_named_call_keeps_installed_loan rejected 999ms expected @4491cf553993+wt
 fail/borrows/primitive_aggregate_live_owner_read rejected 1701ms expected @a9ae30e1c334+wt
@@ -7500,7 +7502,8 @@ fail/layouts/callee_integer_at_rhs_exposes_origin rejected 1766ms expected @a9ae
 fail/layouts/callee_integer_at_stored_returned_reference_requires_fit rejected 4995ms expected @a9ae30e1c334+wt
 fail/layouts/callee_integer_at_write_requires_fit rejected 1655ms expected @a9ae30e1c334+wt
 fail/layouts/captured_encoded_reference_replacement_requires_fit rejected 1706ms expected @a9ae30e1c334+wt
-fail/layouts/closed_callback_contract_unproved_ram rejected 34646ms expected @c48489ea6ad6
+fail/layouts/closed_callback_contract_unproved_ram rejected 4960ms expected @fc1821419662
+	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(10), operation OperationId(168), boundary BoundaryMachineId(197), arguments [StructuralArgument { place: PlaceId(70), path: [Referent], access: SharedBorrow }])
 fail/layouts/data_layout_query_machine_operand rejected 69ms expected @a9ae30e1c334+wt
 fail/layouts/data_layout_query_value_argument rejected 37ms expected @a9ae30e1c334+wt
 fail/layouts/demanded_partial_target_layout rejected 5231ms expected @85e359099dcc+wt
@@ -7527,11 +7530,23 @@ fail/layouts/large_schema_field_outside_plan rejected 714ms expected @f85524ac2a
 fail/layouts/layout_arithmetic_cancellation_keeps_child_obligation rejected 10195ms expected @c48489ea6ad6
 fail/layouts/layout_arithmetic_overwritten_snapshot rejected 9218ms expected @c48489ea6ad6
 fail/layouts/layout_contract_selected_equality rejected 537ms expected @e63c4b1e202d+wt
+fail/layouts/placed_factory_child_blocks_parent rejected 593ms expected @fc1821419662
+	state `observe` receives `view` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/layouts/placed_factory_generic_preserves_source_predicate rejected 345ms expected @fc1821419662
+	placed write to schema field `transmit` does not preserve its source declaration predicate
+	placed write to schema field `transmit` does not preserve its source declaration predicate
 fail/layouts/placed_factory_parent_storage_conflict rejected 7334ms expected @287adceca130+wt
 	statement 2 reads `registers.status` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/layouts/placed_factory_requires_complete_source_guard rejected 2901ms expected @c48489ea6ad6
+fail/layouts/placed_factory_preserves_source_predicate rejected 345ms expected @fc1821419662
+	placed write to schema field `transmit` does not preserve its source declaration predicate
+fail/layouts/placed_factory_requires_complete_source_guard rejected 343ms expected @fc1821419662
+	placed write to schema field `transmit` requires a complete source declaration predicate guard
 fail/layouts/placed_factory_requires_exclusive_source rejected 6056ms expected @287adceca130+wt
 	argument `source` for state `view_mut` is declared `&mut` (`&mut Registers`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+fail/layouts/placed_factory_requires_initialized_descriptor rejected 348ms expected @fc1821419662
+	machine `bad` state `entry` uses reference local `source` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
+fail/layouts/placed_factory_result_cannot_upgrade_source rejected 344ms expected @fc1821419662
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 24ms expected @0855a204a2df+wt
 fail/layouts/placed_primitive_denied_write rejected 13088ms expected @3b18b32f7117+wt
@@ -7550,7 +7565,8 @@ fail/layouts/placed_primitive_unused_invalid rejected 9163ms expected @3b18b32f7
 	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
 fail/layouts/placed_primitive_wrong_value rejected 9006ms expected @3b18b32f7117+wt
 	placed read application: value type does not match the placed field's exact value type
-fail/layouts/placed_ram_mixed_callback rejected 40033ms expected @c48489ea6ad6
+fail/layouts/placed_ram_mixed_callback rejected 4899ms expected @fc1821419662
+	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(10), operation OperationId(168), boundary BoundaryMachineId(197), arguments [StructuralArgument { place: PlaceId(70), path: [Referent], access: SharedBorrow }])
 fail/layouts/placed_reference_results/overlapping_loans rejected 8297ms expected @ca1b6be3f607
 	state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `package_view` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
