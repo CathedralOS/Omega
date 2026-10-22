@@ -5224,13 +5224,18 @@ wait for Cathedral's instruction coverage. The interpreter is
     named-evidence calls exist. A supplied witness does not discharge Boolean
     premises; results and guarantees are formed only after admission, including
     erased/discarded uses. Keep constructor values distinct from tag-only facts.
-  - Extend `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/operators/call_binding.rs`
-    beyond binary/indexed expressions to open-ended ranges and body-bearing
-    match equality (the floating requirement comparison does not execute a
-    selected body). Keep [Equatable's sealed type-owned route](wiki/spec/language/conformances.md#core-equality-acquisition):
-    `machine == Card::same(..)` must not override it through visibility. Reuse
-    ordinary calls, receiver loans and once-only operands; no operator
-    interpreter, satisfier search or fallback arithmetic.
+  - `call_binding.rs` binds binary and indexed spellings, and a body-bearing
+    match equality, to an ordinary call. Open-ended ranges already executed the
+    selected body (`runtime_declared_open_range_evaluates_collection_once_exit`,
+    both engines exit 0). A body-bearing `==` on `f64 in Marked` returns false
+    for equal carriers. Before the rewrite, `same` was selected and refused:
+    body supply was not implemented for that position. After it,
+    `samples/cli/facts/body_bearing_comparison` exits 0 on both engines (direct
+    comparison false, match result 11). Bodyless `float_comparison_route` stays
+    on the comparison route (native exit 0, interpreter exit 0). Keep
+    [Equatable's sealed type-owned route](wiki/spec/language/conformances.md#core-equality-acquisition):
+    `machine == Card::same(..)` must not override it through visibility. No
+    operator interpreter, satisfier search, or fallback arithmetic.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence. Commutativity and

@@ -56,11 +56,12 @@
 //! Canonical floating comparisons already
 //! have a selected-comparison route, including arm-local match equality. A
 //! bodyless requirement keeps its exact occurrence and operands on that route:
-//! rewriting it to a bodyless call would erase the comparison computation,
-//! while reconstructing a match call would reevaluate its saved subject.
-//! Its provider still needs independent selection and realization. Body-bearing
-//! machines cannot use that route in place of executing their body. Other
-//! unsupported selections reject:
+//! rewriting it to a bodyless call would erase the comparison computation.
+//! Its provider still needs independent selection and realization. A
+//! body-bearing machine cannot stay on that route. Arm-local match equality
+//! becomes an ordinary call: the match subject and that arm's pattern are the
+//! call's arguments, and the match tests the call's boolean result. The match
+//! no longer evaluates the subject itself. Other unsupported selections reject:
 //! leaving a selection without executable supply could silently substitute
 //! builtin arithmetic, which the contract forbids.
 
@@ -72,8 +73,8 @@ use numerics::literals::IntegerLiteral;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
-    TableRangeExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableBinaryExpression,
+    TableCallExpression, TableMatchArm, TableMatchExpression, TableRangeExpression,
 };
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -115,6 +116,11 @@ pub(crate) fn bind_selected_operator_calls(
     let mut diagnostics = Vec::new();
     let mut bindings: Vec<(ExpressionHandle, SelectedOperatorCall, CheckedValueOrigin)> =
         Vec::new();
+    let mut match_calls: Vec<(
+        ExpressionHandle,
+        arena::Handle<TableMatchArm>,
+        SelectedOperatorCall,
+    )> = Vec::new();
     let mut occurrences = facts
         .uses
         .iter()
@@ -186,6 +192,15 @@ pub(crate) fn bind_selected_operator_calls(
                 continue;
             }
         };
+        if let Some(usage) = operator_use
+            && let CheckedOperatorOccurrence::MatchEquality { source_arm } = usage.occurrence
+            && program
+                .machine_by_symbol(selected)
+                .is_some_and(|machine| machine.body_is_present)
+        {
+            match_calls.push((expression, source_arm, target));
+            continue;
+        }
         let bindable = operator_use
             .is_none_or(|usage| usage.occurrence == CheckedOperatorOccurrence::Expression)
             && matches!(
@@ -203,7 +218,14 @@ pub(crate) fn bind_selected_operator_calls(
         bindings.push((expression, target, origin));
     }
 
-    let mut bound_count = bindings.len();
+    let match_count = match bind_body_bearing_match_equality(program, match_calls) {
+        Ok(count) => count,
+        Err(errors) => {
+            diagnostics.extend(errors);
+            0
+        }
+    };
+    let mut bound_count = bindings.len() + match_count;
     // Generic requirement calls already have exact typed destinations before
     // their closed-use facts exist. Normalize their namespace at that point;
     // specializing first changes the diagnostic leaf but not the authored
@@ -402,6 +424,186 @@ pub(crate) fn bind_selected_operator_calls(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Turn each body-bearing match-equality arm into an ordinary call.
+///
+/// The call receives the match subject and that arm's pattern. The match then
+/// tests the call's boolean result, so a bodyless floating comparison of the
+/// same carriers is not rewritten and a body cannot be skipped in favor of the
+/// builtin comparison. Arms after a wildcard are unreachable and stay out of
+/// the call.
+fn bind_body_bearing_match_equality(
+    program: &mut TypedTrees,
+    calls: Vec<(
+        ExpressionHandle,
+        arena::Handle<TableMatchArm>,
+        SelectedOperatorCall,
+    )>,
+) -> Result<usize, Vec<Diagnostic>> {
+    let mut by_expression: Vec<(
+        ExpressionHandle,
+        Vec<(arena::Handle<TableMatchArm>, SelectedOperatorCall)>,
+    )> = Vec::new();
+    for (expression, source_arm, target) in calls {
+        if let Some((_, supplied)) = by_expression
+            .iter_mut()
+            .find(|(handle, _)| *handle == expression)
+        {
+            supplied.push((source_arm, target));
+        } else {
+            by_expression.push((expression, vec![(source_arm, target)]));
+        }
+    }
+    let mut bound = 0;
+    let mut diagnostics = Vec::new();
+    for (expression, supplied) in by_expression {
+        match rewrite_match_equality(program, expression, supplied) {
+            Ok(count) => bound += count,
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(bound)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn rewrite_match_equality(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+    mut supplied: Vec<(arena::Handle<TableMatchArm>, SelectedOperatorCall)>,
+) -> Result<usize, Diagnostic> {
+    let dispatch = match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => *dispatch,
+        _ => {
+            return Err(Diagnostic::error(
+                "body-bearing match equality lost its match expression",
+            ));
+        }
+    };
+    let authored = program.expression_table.match_arms(dispatch.arms).to_vec();
+    let value_count = authored
+        .iter()
+        .position(|arm| matches!(arm.pattern, MatchPattern::Wildcard))
+        .unwrap_or(authored.len());
+    let reachable = supplied
+        .iter()
+        .filter(|(source_arm, _)| {
+            (0..value_count).any(|ordinal| {
+                u32::try_from(ordinal)
+                    .ok()
+                    .is_some_and(|ordinal| dispatch.arms.handle_at(ordinal) == *source_arm)
+            })
+        })
+        .count();
+    if reachable != value_count {
+        return Err(Diagnostic::error(
+            "a body-bearing match equality is missing a call for one of its value arms",
+        ));
+    }
+    let mut remainder = authored
+        .get(value_count)
+        .filter(|arm| matches!(arm.pattern, MatchPattern::Wildcard))
+        .map(|arm| arm.value);
+    for ordinal in (0..value_count).rev() {
+        let Some(ordinal_index) = u32::try_from(ordinal).ok() else {
+            return Err(Diagnostic::error(
+                "match equality arm index does not fit in u32",
+            ));
+        };
+        let source_arm = dispatch.arms.handle_at(ordinal_index);
+        let Some(position) = supplied
+            .iter()
+            .position(|(handle, _)| *handle == source_arm)
+        else {
+            return Err(Diagnostic::error(
+                "a body-bearing match equality is missing its selected call",
+            ));
+        };
+        let (_, target) = supplied.swap_remove(position);
+        let MatchPattern::Value(pattern) = authored[ordinal].pattern else {
+            return Err(Diagnostic::error(
+                "a body-bearing match equality arm has no pattern value",
+            ));
+        };
+        let Some(fallback) = remainder else {
+            return Err(Diagnostic::error(
+                "a body-bearing match equality has no following arm for a false result",
+            ));
+        };
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([dispatch.subject, pattern]);
+        let receiver = if target.binder.is_valid() {
+            let binder_name =
+                typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
+            crate::monomorphization::insert_subject_name(
+                &mut program.expression_table,
+                binder_name,
+                target.binder,
+            )
+        } else {
+            ExpressionHandle::invalid()
+        };
+        let call = program
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+            authored_machine_application: Default::default(),
+            requirement_application: Default::default(),
+            exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
+            receiver,
+            target_symbol: target.entry,
+            static_machine_parameter: SymbolHandle::invalid(),
+            target: target.name,
+            static_requirement_dispatch: target.dispatch,
+            machine_arguments: target.arguments,
+            quotient_operation: None,
+            private_layout_operation: None,
+            layout_query: None,
+            native_code_layout: None,
+            arguments,
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
+                origin:
+                    language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                ..Default::default()
+            },
+        }));
+        let truth = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let arms = program.expression_table.insert_match_arms([
+            TableMatchArm {
+                pattern: MatchPattern::Value(truth),
+                value: authored[ordinal].value,
+                source_span: authored[ordinal].source_span,
+            },
+            TableMatchArm {
+                pattern: MatchPattern::Wildcard,
+                value: fallback,
+                source_span: authored[ordinal].source_span,
+            },
+        ]);
+        remainder = Some(program.expression_table.insert(ExpressionNode::Match(
+            TableMatchExpression {
+                subject: call,
+                arms,
+            },
+        )));
+    }
+    let Some(remainder) = remainder else {
+        return Err(Diagnostic::error(
+            "body-bearing match equality produced no call",
+        ));
+    };
+    let node = std::mem::replace(
+        program.expression_table.expression_mut(remainder),
+        ExpressionNode::Boolean(false),
+    );
+    *program.expression_table.expression_mut(expression) = node;
+    Ok(value_count)
 }
 
 /// One ordinary call destination, whether supplied by a token machine or an
