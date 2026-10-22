@@ -376,10 +376,6 @@ impl TypeReferenceTable {
         self.nodes.type_references.len()
     }
 
-    pub fn constraint_count(&self) -> usize {
-        self.spans.constraints.len()
-    }
-
     pub fn insert_tree(
         &mut self,
         type_reference: &TypeReference,
@@ -746,10 +742,6 @@ impl PrimitiveType {
     /// except the two finite floats.
     pub fn accepts_integer_literal(self) -> bool {
         self.accepts_range_constraint() && !self.accepts_finite_constraint()
-    }
-
-    pub fn accepts_float_literal(self) -> bool {
-        matches!(self, Self::F32 | Self::F64)
     }
 
     pub fn accepts_range_constraint(self) -> bool {

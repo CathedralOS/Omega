@@ -1,7 +1,3 @@
-use diagnostics::comma_join_display;
-
-use arena::Arena;
-
 use crate::types::{ConstrainedTypeReference, TypeConstraint, TypeReference};
 
 impl TypeReference {
@@ -50,21 +46,6 @@ impl TypeReference {
                     1 => "1 constraint".to_owned(),
                     count => format!("{count} constraints"),
                 }
-            )
-        })
-    }
-
-    pub fn display_name_with_constraints(
-        &self,
-        type_constraints: &Arena<TypeConstraint>,
-    ) -> String {
-        self.display_name_with(|constrained| {
-            let constraints = type_constraints
-                .span(constrained.constraints)
-                .unwrap_or(&[]);
-            format!(
-                "<type>[{}]",
-                comma_join_display(constraints.iter(), TypeConstraint::display_name)
             )
         })
     }

@@ -925,14 +925,6 @@ impl SymbolResolvedTrees {
     pub fn snapshot(&self) -> snapshot::SymbolResolvedTreesSnapshot {
         snapshot::SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(self)
     }
-
-    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
-        self.snapshot().to_json()
-    }
-
-    pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
-        self.snapshot().to_json_pretty()
-    }
 }
 
 fn tree_statement_occurrences(
