@@ -68,3 +68,16 @@ Retain the unchanged implementation on its original bounded performance evidence
 and these fresh integrated correctness results. The shared-host batch does not
 justify a larger speedup claim or an unrelated optimization campaign before
 publication.
+
+## Subsequent sample-only main movement
+
+Main `4d917f5ebf6d5d2640395e0409a77b74a47b5dfe` added the unrelated
+double-indexed read-modify-write sample/fixture row and its golden records.
+The first reservation was released to inspect that delta. Git tree equality
+establishes unchanged `omega-rust`, `source/library`, and all 49 selected fixture
+directories against the measured main base. The length/subtraction sample inputs
+and every selected `corpus_outcomes.txt` record are unchanged too. Consequently
+the recorded producers, timings, diagnostics and runtime observations retain
+their original applicability; no observation is relabelled as a fresh execution.
+The implementation file hashes remain identical after rebase. Publication still
+requires the exact-candidate build receipt and full golden preservation guard.
