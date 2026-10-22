@@ -42,6 +42,8 @@ The index replacement is not the larger design intervention. Both variants
 leave repeated checking work, symbolic queries and all pass boundaries intact.
 The next question is the amount and lifetime of semantic work per compilation,
 not another unmeasured search-container substitution.
+The subsequent [PerfAware design review](../design_review.md) evaluates that
+question against current profiles and the existing checked-package-reuse task.
 
 ## Repeated ordinary CLI timings
 
