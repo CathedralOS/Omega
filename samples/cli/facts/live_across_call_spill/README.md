@@ -71,7 +71,7 @@ Restoring the true pre-call sum (`100u64`) restores clean compilation and zero e
 - **Ticket:** `7a9b4fb00e034587ad28fd21781dfc63`
 - **Pinned fixtures:**
   - Positive passes: `tests/omega/pass/facts/live_across_call_spill_through_<place>_exit/`
-  - Negative controls: `tests/omega/fail/facts/live_across_call_spill_unproved_<place>/`
+  - Negative controls: `tests/omega/fail/facts/live_across_call_spill_through_<place>_rejected/`
 
 ### Specification and Lowering Layers
 
