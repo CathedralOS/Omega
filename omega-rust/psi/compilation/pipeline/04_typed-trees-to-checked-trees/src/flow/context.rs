@@ -1,7 +1,8 @@
 //! `FlowBuildContext`, the mutable state of one flow build: the output fact arenas
-//! that `finish` publishes as `FlowFacts` and `discard_output` clears between
-//! sweeps, the incoming state values and dirty set that decide re-sweeps, and memo
-//! tables for lookups that depend only on the program, which survive between sweeps.
+//! that `take_output_pages` publishes as `FlowFacts` and `discard_output` clears
+//! between sweeps, the incoming state values and dirty set that decide re-sweeps,
+//! and memo tables for lookups that depend only on the program, which survive
+//! between sweeps.
 use crate::flow::StateMutationSummaryCache;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
@@ -365,17 +366,6 @@ impl<'plans> FlowBuildContext<'plans> {
         }
     }
 
-    pub(super) fn finish(self) -> FlowFacts {
-        FlowFacts::with_roots(
-            self.contexts,
-            self.invalidations,
-            self.borrow_lifetimes,
-            self.ownership,
-            self.boundaries,
-            self.control,
-        )
-    }
-
     fn symbol_index(&mut self, program: &dyn ::validation::CheckingInput) -> &SymbolIndex {
         self.symbol_index
             .get_or_insert_with(|| SymbolIndex::build(program))
@@ -712,8 +702,10 @@ impl<'plans> FlowBuildContext<'plans> {
     /// This is the former whole-context replacement boundary, not a partial
     /// rollback: all output rows must disappear together, before semantic
     /// restoration and before another transfer. No copied output handle may
-    /// survive reuse. Published output cannot be reset because finish consumes
-    /// the context. Preserve these constraints when adding a context field.
+    /// survive reuse. Published output has already left this context, because
+    /// `take_output_pages` takes the finished pages before this reset, so a
+    /// reset can only empty unpublished roots. Preserve these constraints when
+    /// adding a context field.
     pub(super) fn discard_output(&mut self) {
         self.assignment_observations.clear();
         // Every output arena, including ones only a few transfers write:
