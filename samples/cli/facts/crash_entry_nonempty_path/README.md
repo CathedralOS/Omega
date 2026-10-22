@@ -26,6 +26,12 @@ Windows x86-64 measured 2026-10-21 at `ba1d8505b883b1e956ad907068da2a34e8967bae`
 
 Each reject twin deletes only `requires packet.leaf.bits == 7` (or `== SEVEN`) and must reject with an uncovered Trap crash route.
 
+The local place also pins its writable carrier, because this row's consumer is the entry/call-substitution path that reads the shared entry-provenance local carrier rule: `pass/facts/crash_entry_nonempty_path_local_writable_exit` records the entry value in a writable local that is never written, and `fail/facts/crash_entry_nonempty_path_local_written_rejected` overwrites it with the caller's `replacement` before the call, so the guard is live and the route stays uncovered (`at statement 2 call 0`). Both were measured on the host's executing form: the positive reports native exit 0 and interp exit 0, and the written control rejects.
+
+This change also records the family's check-leg golden rows: the 18 existing fixtures and the two writable-carrier pins now carry 20 rows in `tests/omega/corpus_outcomes.txt` (pure addition, previously none).
+
+Known precision difference, shared with the view rows: a statement that reads a writable local as argument 0 and lends the same local `&mut` as argument 1 is admitted here (`maybe_zero(observed, &mut observed)` exits 0 natively and in Terminal Psi) while the three view routes refuse it at the call's own statement. Named arguments evaluate left to right ([expressions](../../../../wiki/spec/language/expressions.md#evaluation-schedule)), so the read precedes the lend; the admission is sound and is not produced by the shared local carrier rule. The same note sits in `crash_entry_boolean_view`'s README.
+
 ## Requirements and Evidence
 
 - **Establishment:** `requires packet.leaf.bits == 7` (or `== SEVEN`) establishes the nested entry value before `maybe_zero` consumes it. The twin omits only that path equality.

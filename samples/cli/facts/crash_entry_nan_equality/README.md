@@ -21,3 +21,5 @@ A const initializer cannot divide by the sealed float operator, so `const_name` 
 | `target_body` | `target_body/main.omg` | `target_body/one/main.omg` |
 
 Pinned under `tests/omega/pass/facts/crash_entry_nan_equality_<place>_exit` and `tests/omega/fail/facts/crash_entry_nan_equality_<place>_one_rejected`.
+
+The local place also pins its writable carrier, because the equality route reads the shared entry-provenance local carrier rule: `pass/facts/crash_entry_nan_equality_local_writable_exit` records the unordered entry in a writable local that is never written, and `fail/facts/crash_entry_nan_equality_local_written_rejected` overwrites it with `1.0`, which makes `value == value` true, so the route stays uncovered (`at statement 2 call 0`).

@@ -6,6 +6,8 @@ Fact: an entry `f32` equal to `-0.0` discharges `maybe_nonzero`'s `value != 0.0`
 
 The twin proves the entry equal to `1.0`. `1.0 != 0.0` stays true, so the uncovered Trap route remains.
 
+The local place also pins its writable carrier, because the equality route reads the shared entry-provenance local carrier rule: `pass/facts/crash_entry_signed_zero_local_writable_exit` records the entry equality in a writable local that is never written, and `fail/facts/crash_entry_signed_zero_local_written_rejected` overwrites it with `1.0`, which makes `value != 0.0` live, so the route stays uncovered (`at statement 2 call 0`).
+
 | Place | Positive | Twin |
 | --- | --- | --- |
 | `local` | `local/main.omg` | `local/one/main.omg` |
