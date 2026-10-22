@@ -177,7 +177,25 @@ pub(crate) fn declaration_call_dependencies(
         return Some((machine.symbol, dependencies));
     }
     let mut dependencies = Vec::new();
-    if let Some(definition) = program
+    // A selector call targets its instantiated slot, and the requirement that
+    // slot instantiates owns the call's contract -- `CalleeContract`,
+    // `contract_target_from_state_symbol` and `selected_contract_by_symbol`
+    // all resolve a slot that way. The requirement's declared contracts are
+    // therefore the call's proof sources: a selector's runtime candidate
+    // carries no guarantee beyond the requirement it satisfies, and the
+    // implementation roster is reached through the call's machine arguments
+    // when it is a retained selection. Keep the slot as graph owner so
+    // distinct slots do not collapse into the one requirement declaration.
+    if let Some(requirement) = program
+        .dynamic_slot_by_symbol(symbol)
+        .and_then(|slot| program.dynamic_slot_requirement(slot))
+    {
+        collect_contract_dependency_symbols(
+            program,
+            program.state_signature_contracts(requirement),
+            &mut dependencies,
+        );
+    } else if let Some(definition) = program
         .mathematical_definitions()
         .iter()
         .find(|definition| definition.symbol == symbol)
