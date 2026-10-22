@@ -3368,6 +3368,42 @@ code and preserve check/native behavior for the named customer slices.
   witness scope transport remains open. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
+- **STAGE-05-REFUSAL-REVALIDATIONS.** The 2026-10-04 ruling is incomplete in
+  stage 05: its own source guard
+  `lowering_refusals_do_not_revalidate_the_plan`
+  (`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/source_guards.rs`)
+  is red at `cdc409f3384` with 12 string literals in 8 files, each comparing the
+  plan against a value stage 05 recomputed or against its own bookkeeping.
+  `39640c7908e` removed 59 such sites and added the guard; 7 commits then
+  reintroduced these 12 (`4eedaeefe77`, `ee45e328070`, `c7ae4c207c2`,
+  `37fdcd5b398`, `eebd783fc78`, `c37802fa360`, `973e07db344`), all under
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/`.
+  Ruling: **stage 05 proceeds through; it does not refuse.** A stage never
+  re-validates what the same compile just produced
+  ([verification placement](omega-rust/pipeline.md#verification-placement)), and
+  a plan that breaks a stage 04 invariant is a stage 04 bug the corpus finds.
+  So the 12 are the regression and the guard stands. Nine are a standalone
+  comparison to delete or a read of the plan's own row:
+  `emission/formation_memberships.rs:30`,
+  `emission/operation_emission/expressions.rs:272`,
+  `emission/primitive_store.rs:190`,
+  `expression_preparation/qualifications/returns.rs:28`,
+  `scalar_lowering/contracts.rs:287`,
+  `scalar_lowering/contracts/indexed_theorems.rs:61`,
+  `unit/attached_unit/argument_evaluation/scalar_control.rs:89`,
+  `unit/attached_unit/operation_frame/boundary_calls.rs:99`,
+  `unit/attached_unit/structural_values/field_carrier.rs:51`.
+  Three read an invariant that must be **published where it is produced or
+  declared** first, the pattern `FlowExitFact::is_continuation` already uses:
+  `emission/primitive_store.rs:250` (the completed RHS carrier against the
+  destination's declared carrier has no second source for either),
+  `emission/formation_memberships.rs:30` (the fresh producer's carrier against
+  the caller's copy), and `unit/attached_unit/operation_frame/stores.rs:311,709`
+  (stage 05's recomputed physical root against the checked window capture's
+  root). No fixture under `tests/omega` names any of the 12 diagnostics.
+  Acceptance: the guard green, `mbx nextest run -p checked-trees-to-lowered-psi`
+  green, and a corpus leg that moves no row.
+
 ## Checker simplification
 
 Owner ruling 2026-10-04: remove the checker's re-checking, duplicate analyses,
