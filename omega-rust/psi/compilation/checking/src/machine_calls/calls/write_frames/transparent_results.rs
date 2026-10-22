@@ -56,6 +56,7 @@ pub(crate) fn transparent_call_result_origins(
     let arguments = program.expression_table.expression_handles(call.arguments);
     retain_reachable_transition_results(
         program,
+        callee_machine,
         callee_state,
         parameters,
         arguments,
@@ -278,15 +279,20 @@ struct ActualFrame<'a> {
 /// ordinary guard falls through. Literal actuals can refute that guard, which
 /// removes the unselected referent from the caller-visible candidate union.
 /// A helper that returns another helper's result substitutes the same actuals
-/// through the inner call.
+/// through the inner call, a named state, or a terminal call. Those are one
+/// substitution: the result's reachable inputs are replayed through the
+/// expressions that supplied them. An unresolved route leaves the union intact.
 fn retain_reachable_transition_results(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
     state: &State,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
     origins: &mut Vec<ParameterRelativeFrameOrigin>,
 ) {
-    let Some(reachable) = reachable_value_parameters(program, state, parameters, arguments) else {
+    let Some(reachable) =
+        reachable_value_parameters(program, machine, state, parameters, arguments)
+    else {
         return;
     };
     let filtered: Vec<_> = origins
@@ -303,6 +309,7 @@ fn retain_reachable_transition_results(
 
 fn reachable_value_parameters(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
     state: &State,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
@@ -310,6 +317,7 @@ fn reachable_value_parameters(
     let mut stack = Vec::new();
     reachable_value_parameters_in(
         program,
+        machine,
         state,
         ActualFrame {
             parameters,
@@ -322,6 +330,7 @@ fn reachable_value_parameters(
 
 fn reachable_value_parameters_in(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
     state: &State,
     current: ActualFrame<'_>,
     outer: &[ActualFrame<'_>],
@@ -331,13 +340,14 @@ fn reachable_value_parameters_in(
         return None;
     }
     stack.push(state.symbol);
-    let result = reachable_value_parameters_body(program, state, current, outer, stack);
+    let result = reachable_value_parameters_body(program, machine, state, current, outer, stack);
     stack.pop();
     result
 }
 
 fn reachable_value_parameters_body(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
     state: &State,
     current: ActualFrame<'_>,
     outer: &[ActualFrame<'_>],
@@ -364,7 +374,18 @@ fn reachable_value_parameters_body(
                                     program, state, current, outer, stack, *result,
                                 )?);
                             }
-                            TransitionTargetNode::Named { .. } => return None,
+                            // A named target is either an internal state jump or
+                            // the same machine invocation as an expression call.
+                            // Both substitute their result inputs through the
+                            // authored actuals. Leaving the target opaque kept
+                            // every input in the caller-visible union, so a
+                            // literal selector could not preserve a disjoint fact.
+                            TransitionTargetNode::Named { .. } => {
+                                saw_value = true;
+                                reachable.extend(contributed_named_target(
+                                    program, machine, state, current, outer, stack, edge,
+                                )?);
+                            }
                             TransitionTargetNode::Terminal => {}
                         }
                     }
@@ -372,7 +393,7 @@ fn reachable_value_parameters_body(
                     for edge in transition.targets() {
                         if matches!(
                             program.statement_table.transition_target(edge),
-                            TransitionTargetNode::Value(_)
+                            TransitionTargetNode::Value(_) | TransitionTargetNode::Named { .. }
                         ) {
                             saw_value = true;
                         }
@@ -427,35 +448,19 @@ fn contributed_parameters(
                 if call.receiver.is_valid() {
                     return None;
                 }
-                let (_, callee_state) =
-                    super::call_targets::machine_state_by_symbol(program, call.target_symbol)?;
-                let callee_parameters = program.state_parameters(callee_state);
+                let (callee_machine, callee_state) =
+                    machine_state_by_symbol(program, call.target_symbol)?;
                 let callee_arguments = program.expression_table.expression_handles(call.arguments);
-                let mut frames = Vec::with_capacity(outer.len() + 1);
-                frames.push(current);
-                frames.extend_from_slice(outer);
-                let inner = reachable_value_parameters_in(
+                return parameters_reached_through(
                     program,
-                    callee_state,
-                    ActualFrame {
-                        parameters: callee_parameters,
-                        arguments: callee_arguments,
-                    },
-                    &frames,
+                    callee_machine,
+                    state,
+                    current,
+                    outer,
                     stack,
-                )?;
-                let mut mapped = Vec::new();
-                for symbol in inner {
-                    let index = callee_parameters
-                        .iter()
-                        .position(|parameter| parameter.symbol == symbol)?;
-                    let actual = *callee_arguments.get(index)?;
-                    let parameter = value_parameter_symbol(program, current.parameters, actual)?;
-                    if !mapped.contains(&parameter) {
-                        mapped.push(parameter);
-                    }
-                }
-                return Some(mapped);
+                    callee_state,
+                    callee_arguments,
+                );
             }
             _ => return None,
         }
@@ -477,23 +482,88 @@ fn local_initializer(
         })
 }
 
-fn value_parameter_symbol(
+fn contributed_named_target(
     program: &dyn crate::CheckingInput,
-    parameters: &[StateParameter],
-    mut result: ExpressionHandle,
-) -> Option<SymbolHandle> {
-    loop {
-        match program.expression_table.expression(result) {
-            ExpressionNode::Borrow(borrow) => result = borrow.target,
-            ExpressionNode::Name(path) => {
-                return parameters
-                    .iter()
-                    .find(|parameter| parameter.symbol == path.symbol)
-                    .map(|parameter| parameter.symbol);
+    machine: &Machine,
+    state: &State,
+    current: ActualFrame<'_>,
+    outer: &[ActualFrame<'_>],
+    stack: &mut Vec<SymbolHandle>,
+    edge: typed_trees::statement::TransitionTargetHandle,
+) -> Option<Vec<SymbolHandle>> {
+    let TransitionTargetNode::Named {
+        arguments,
+        static_machine_parameter,
+        ..
+    } = program.statement_table.transition_target(edge)
+    else {
+        return None;
+    };
+    if static_machine_parameter.is_valid() {
+        return None;
+    }
+    let argument_handles = program.statement_table.expression_handles(*arguments);
+    let call_symbol = super::terminal_calls::target(program, machine, edge);
+    let (target_machine, target_state) = if call_symbol.is_valid() {
+        machine_state_by_symbol(program, call_symbol)?
+    } else {
+        (
+            machine,
+            super::transition_topology::named_transition_target_state(
+                program, machine, state, edge,
+            )?,
+        )
+    };
+    parameters_reached_through(
+        program,
+        target_machine,
+        state,
+        current,
+        outer,
+        stack,
+        target_state,
+        argument_handles,
+    )
+}
+
+fn parameters_reached_through(
+    program: &dyn crate::CheckingInput,
+    target_machine: &Machine,
+    host_state: &State,
+    host: ActualFrame<'_>,
+    outer: &[ActualFrame<'_>],
+    stack: &mut Vec<SymbolHandle>,
+    target_state: &State,
+    target_arguments: &[ExpressionHandle],
+) -> Option<Vec<SymbolHandle>> {
+    let target_parameters = program.state_parameters(target_state);
+    let mut frames = Vec::with_capacity(outer.len() + 1);
+    frames.push(host);
+    frames.extend_from_slice(outer);
+    let inner = reachable_value_parameters_in(
+        program,
+        target_machine,
+        target_state,
+        ActualFrame {
+            parameters: target_parameters,
+            arguments: target_arguments,
+        },
+        &frames,
+        stack,
+    )?;
+    let mut mapped = Vec::new();
+    for symbol in inner {
+        let index = target_parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)?;
+        let actual = *target_arguments.get(index)?;
+        for parameter in contributed_parameters(program, host_state, host, outer, stack, actual)? {
+            if !mapped.contains(&parameter) {
+                mapped.push(parameter);
             }
-            _ => return None,
         }
     }
+    Some(mapped)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

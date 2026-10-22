@@ -5690,12 +5690,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   grant borrow access. Extend the shared origin/fixpoint owners, not a
   recognizer per reference spelling.
 
-  Acceptance: the direct helper-choice row and the nested-helper row each keep
-  the disjoint index bound and exit 0 on both engines across the nine places,
-  and each overlapping twin rejects the stale bound. Remaining: named-state
-  results, codec arguments, and finite write cycles; parameter permutations
-  keep finite write sets; `omega --check tests/psi/parser/main.omg` still
-  converges. Reference-result transport stays with **MATCH-SELECTIVE-LOWERING**.
+  Acceptance: the direct helper-choice row, the nested-helper row, and the
+  named-state row each keep the disjoint index bound and exit 0 on both
+  engines across the nine places, and each overlapping twin rejects the stale
+  bound. Remaining: codec arguments and finite write cycles; parameter
+  permutations keep finite write sets; `omega --check tests/psi/parser/main.omg`
+  still converges. Reference-result transport stays with **MATCH-SELECTIVE-LOWERING**.
 
 - **TPR6.** Carry exact progress subjects through calls, state arrivals, private
   recursive components, exported contracts and provider evidence under

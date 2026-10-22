@@ -74,6 +74,15 @@ pass/facts/may_write_choice_through_other_machine_exit built 2130ms exit:0 inter
 pass/facts/may_write_choice_through_other_state_exit built 2188ms exit:0 interpreter-exit:0 interpreter:agrees @96673576ab49+wt
 pass/facts/may_write_choice_through_parameter_exit built 1804ms exit:0 interpreter-exit:0 interpreter:agrees @96673576ab49+wt
 pass/facts/may_write_choice_through_target_body_exit built 1840ms exit:0 interpreter-exit:0 interpreter:agrees @96673576ab49+wt
+pass/facts/may_write_named_state_through_call_result_exit built 1657ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_const_name_exit built 1588ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_field_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_local_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_match_join_exit built 1625ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_other_machine_exit built 1620ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_other_state_exit built 1497ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_parameter_exit built 1685ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
+pass/facts/may_write_named_state_through_target_body_exit built 1714ms exit:0 interpreter-exit:0 interpreter:agrees @b9060c9ca30d+wt
 pass/facts/may_write_nested_helper_through_call_result_exit built 3358ms exit:0 interpreter-exit:0 interpreter:agrees @d3f12beefc63+wt
 pass/facts/may_write_nested_helper_through_const_name_exit built 2634ms exit:0 interpreter-exit:0 interpreter:agrees @d3f12beefc63+wt
 pass/facts/may_write_nested_helper_through_field_exit built 2993ms exit:0 interpreter-exit:0 interpreter:agrees @d3f12beefc63+wt
