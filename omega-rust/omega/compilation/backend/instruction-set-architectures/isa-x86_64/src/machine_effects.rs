@@ -274,6 +274,7 @@ fn selected_keys(
         model_specific_read: Some(crate::X86_64_MODEL_SPECIFIC_READ),
         model_specific_write: Some(crate::X86_64_MODEL_SPECIFIC_WRITE),
         processor_halt: Some(crate::X86_64_PROCESSOR_HALT),
+        interrupt_control: Some(crate::X86_64_INTERRUPT_CONTROL),
         atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
         // LOCK is architectural on every x86-64 target; no feature custody
         // gates the family the way AArch64's LSE does.
@@ -644,6 +645,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
         | MachineSemanticKind::ProcessorHalt
+        | MachineSemanticKind::InterruptControl
         | MachineSemanticKind::ControlRegisterRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::SystemRegisterRead => {
@@ -997,6 +999,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         }
         MachineSemanticKind::AtomicFence => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::ProcessorHalt => MachineSizeKnowledge::ExactBytes(1),
+        MachineSemanticKind::InterruptControl => MachineSizeKnowledge::ExactBytes(1),
         MachineSemanticKind::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)
         }

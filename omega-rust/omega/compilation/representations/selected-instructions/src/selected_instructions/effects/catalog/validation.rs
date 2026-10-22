@@ -84,6 +84,7 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::ModelSpecificRead
                 | MachineSemanticKind::ModelSpecificWrite
                 | MachineSemanticKind::ProcessorHalt
+                | MachineSemanticKind::InterruptControl
                 | MachineSemanticKind::AtomicFence
                 | MachineSemanticKind::AtomicAccess(_)
                 | MachineSemanticKind::PlacedScalarAccess(_)
@@ -226,6 +227,7 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
         | MachineSemanticKind::ProcessorHalt
+        | MachineSemanticKind::InterruptControl
         | MachineSemanticKind::AtomicAccess(_)
         | MachineSemanticKind::PlacedScalarAccess(_) => {
             crate::MachineTrapBehavior::MayArchitecturalFaultV1
@@ -810,6 +812,7 @@ fn validate_encoded_effects(
                     | MachineSemanticKind::ModelSpecificRead
                     | MachineSemanticKind::ModelSpecificWrite
                     | MachineSemanticKind::ProcessorHalt
+                    | MachineSemanticKind::InterruptControl
                     | MachineSemanticKind::AtomicFence
                     | MachineSemanticKind::AtomicAccess(_)
                     | MachineSemanticKind::PlacedScalarAccess(_)

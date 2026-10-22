@@ -15,11 +15,14 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
         &physical,
     )
     .unwrap();
-    assert!(
-        crate::X86_64_REQUIRED_REGISTER_CONSTRAINTS
-            .windows(2)
-            .all(|pair| pair[0] < pair[1])
-    );
+    for pair in crate::X86_64_REQUIRED_REGISTER_CONSTRAINTS.windows(2) {
+        assert!(
+            pair[0] < pair[1],
+            "constraint inventory out of order: {:?} >= {:?}",
+            pair[0],
+            pair[1]
+        );
+    }
     let cases: [(NativeTarget, &[&str]); 2] = [
         (
             NativeTarget::linux_x64(),

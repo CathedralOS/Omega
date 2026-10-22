@@ -589,7 +589,7 @@ pub enum AsmMemoryOrdering {
     Fence(AsmFenceKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AsmInterruptControlKind {
     Disable,
     Enable,
@@ -1141,7 +1141,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::Rflags => {
                 unreachable!("rflags restore keeps the popfq contract")
             }
-            AsmSystemRegister::EsrEl1 | AsmSystemRegister::FarEl1 | AsmSystemRegister::Control(_) => {
+            AsmSystemRegister::EsrEl1
+            | AsmSystemRegister::FarEl1
+            | AsmSystemRegister::Control(_) => {
                 return None;
             }
         };

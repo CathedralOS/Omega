@@ -9,4 +9,4 @@
 # A `# context: {...}` line records the conditions of the --record run.
 pass/drops/runtime_projected_nominal_cleanup_exit checked 2364ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:match terminal-inspections:match @59c80fdc820b
 pass/layouts/extent_view_external_content checked 4129ms terminal-runtime.attempt:match terminal-inspections:match @d3f12beefc63+wt
-pass/layouts/extent_view_external_write checked 5144ms terminal-runtime.attempt:match terminal-inspections:match @f85524ac2a1b+wt
+pass/layouts/extent_view_external_write checked 6366ms terminal-runtime.attempt:match terminal-inspections:match @114906953e11

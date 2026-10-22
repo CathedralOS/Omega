@@ -561,11 +561,16 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | MachineSemanticKind::HostedExitProcessI32
             | MachineSemanticKind::TrappingInteger(_)
             | MachineSemanticKind::PortWrite
+            | MachineSemanticKind::SystemRegisterRead
+            | MachineSemanticKind::SystemRegisterWrite
+            | MachineSemanticKind::ControlRegisterRead
+            | MachineSemanticKind::ControlRegisterWrite
             | MachineSemanticKind::PortRegisterRead
             | MachineSemanticKind::PortRegisterWrite
             | MachineSemanticKind::ModelSpecificRead
             | MachineSemanticKind::ModelSpecificWrite
             | MachineSemanticKind::ProcessorHalt
+            | MachineSemanticKind::InterruptControl
             | MachineSemanticKind::AtomicFence
             | MachineSemanticKind::AtomicAccess(_)
             | MachineSemanticKind::PlacedScalarAccess(_) => MachineBarrier::ExternalEffect,

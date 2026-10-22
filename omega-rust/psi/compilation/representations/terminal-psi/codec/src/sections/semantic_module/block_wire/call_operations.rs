@@ -588,6 +588,9 @@ pub(super) fn decode_register_access(
         terminal_psi::RegisterOperation::ProcessorHalt => {
             terminal_psi::RegisterAccessEvent::ProcessorHalt
         }
+        terminal_psi::RegisterOperation::InterruptControl(kind) => {
+            terminal_psi::RegisterAccessEvent::InterruptControl { kind }
+        }
         terminal_psi::RegisterOperation::SystemRead(register) => {
             terminal_psi::RegisterAccessEvent::Read { register }
         }

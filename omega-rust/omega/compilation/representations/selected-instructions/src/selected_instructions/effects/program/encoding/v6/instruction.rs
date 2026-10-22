@@ -535,27 +535,34 @@ fn decode_alternative_for_version(
     allow_scalar_call: bool,
     allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    let family = match cursor.byte()? {
-        crate::PlacedScalarForm::FAMILY_TAG => MachineAlternativeFamily::PlacedScalarAccess(
-            crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
-                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-        ),
-        crate::FloatResultPolicyForm::FAMILY_TAG => MachineAlternativeFamily::FloatResultPolicy(
-            crate::FloatResultPolicyForm::from_machine_payload(cursor.byte()?)
-                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-        ),
-        crate::IeeeFloatArithmeticForm::FAMILY_TAG => {
+    let tag = cursor.u16()?;
+    // The legacy closed arithmetic form namespaces remain bytes. Conversion
+    // is checked before dispatch, so a new family above 255 cannot alias one.
+    let atomic = u8::try_from(tag)
+        .ok()
+        .and_then(crate::AtomicForm::from_machine_tag);
+    let trapping = u8::try_from(tag).ok().and_then(trapping_form);
+    let saturating = u8::try_from(tag).ok().and_then(saturating_kind);
+    let family = match tag {
+        tag if tag == u16::from(crate::PlacedScalarForm::FAMILY_TAG) => {
+            MachineAlternativeFamily::PlacedScalarAccess(
+                crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            )
+        }
+        tag if tag == u16::from(crate::FloatResultPolicyForm::FAMILY_TAG) => {
+            MachineAlternativeFamily::FloatResultPolicy(
+                crate::FloatResultPolicyForm::from_machine_payload(cursor.byte()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            )
+        }
+        tag if tag == u16::from(crate::IeeeFloatArithmeticForm::FAMILY_TAG) => {
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(
                 crate::IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             )
         }
-        tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
-            MachineAlternativeFamily::AtomicAccess(
-                crate::AtomicForm::from_machine_tag(tag)
-                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-            )
-        }
+        _ if atomic.is_some() => MachineAlternativeFamily::AtomicAccess(atomic.unwrap()),
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
         59 => MachineAlternativeFamily::CopyBytes,
@@ -573,6 +580,7 @@ fn decode_alternative_for_version(
         253 => MachineAlternativeFamily::ProcessorHalt,
         254 => MachineAlternativeFamily::ControlRegisterRead,
         255 => MachineAlternativeFamily::ControlRegisterWrite,
+        256 => MachineAlternativeFamily::InterruptControl,
 
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
@@ -637,10 +645,8 @@ fn decode_alternative_for_version(
         108 => MachineAlternativeFamily::ExactShiftLeftI64,
         109 => MachineAlternativeFamily::ExactShiftRightI64,
         110 => MachineAlternativeFamily::ExactShiftRightU64,
-        tag if trapping_form(tag).is_some() => {
-            MachineAlternativeFamily::TrappingInteger(trapping_form(tag).unwrap())
-        }
-        tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
+        _ if trapping.is_some() => MachineAlternativeFamily::TrappingInteger(trapping.unwrap()),
+        _ if saturating.is_some() => match saturating.unwrap() {
             (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
             (SaturatingOperation::Subtract, carrier) => {
                 MachineAlternativeFamily::SaturatingSubtract(carrier)
@@ -1100,13 +1106,39 @@ mod float_result_policy_tests {
             assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
             assert_eq!(cursor.remaining(), 0);
             for payload in (2..=5).chain(8..=u8::MAX) {
-                encoded[1] = payload;
+                encoded[2] = payload;
                 assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
                 assert!(decode_kind(&mut Cursor::new(&[231, payload]), true, true, true).is_err());
             }
         }
         assert!(decode_kind(&mut Cursor::new(&[231]), true, true, true).is_err());
         assert!(decode_alternative(&mut Cursor::new(&[231])).is_err());
+    }
+
+    #[test]
+    fn extended_family_round_trip_does_not_alias_low_byte_families() {
+        let alternative = MachineAlternative {
+            key: MachineAlternativeKey {
+                family: MachineSemanticKind::InterruptControl.into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(1),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded: MachineEncodedEffects::fallthrough_v1(vec![], vec![]),
+        };
+        let mut encoded = Vec::new();
+        encode_machine_alternative_identity(&mut encoded, &alternative);
+        assert_eq!(&encoded[..2], &[0, 1]);
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
+        assert_eq!(cursor.remaining(), 0);
+        // Neither truncating to the low byte nor accepting an unknown high
+        // family may reinterpret the event as a legacy arithmetic alternative.
+        for tag in [257_u16, u16::MAX] {
+            encoded[..2].copy_from_slice(&tag.to_le_bytes());
+            assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
+        }
     }
 }
 

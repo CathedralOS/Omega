@@ -7842,6 +7842,9 @@ fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 451ms expected @
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 1620ms expected @a9ae30e1c334+wt
+fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 596ms expected @114906953e11
+	cannot prove ensures contract for exit from corrupt at statement 2: storage in Extent::Registered
+	cannot prove default-domain field requirement for return from corrupt at statement 2: storage requires Extent::Granted
 fail/layouts/extent_view_exclusive_source_overlap rejected 568ms expected @f85524ac2a1b+wt
 	statement 1 reads `storage.length` while local borrow `outcome` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/layouts/extent_view_nested_record_predicate rejected 343ms expected @d3f12beefc63+wt
@@ -7860,6 +7863,9 @@ fail/layouts/large_schema_field_outside_plan rejected 714ms expected @f85524ac2a
 fail/layouts/layout_arithmetic_cancellation_keeps_child_obligation rejected 10195ms expected @c48489ea6ad6
 fail/layouts/layout_arithmetic_overwritten_snapshot rejected 9218ms expected @c48489ea6ad6
 fail/layouts/layout_contract_selected_equality rejected 537ms expected @e63c4b1e202d+wt
+fail/layouts/ordinary_placed_write_retires_owner_qualification rejected 774ms expected @114906953e11
+	cannot prove ensures contract for exit from corrupt at statement 2: words in Words::Registered
+	cannot prove ensures contract for exit from corrupt at statement 2: words.entries[1] == 41
 fail/layouts/placed_factory_child_blocks_parent rejected 593ms expected @fc1821419662
 	state `observe` receives `view` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/layouts/placed_factory_generic_preserves_source_predicate rejected 345ms expected @fc1821419662
@@ -13824,7 +13830,7 @@ pass/layouts/const_layout_query_compile checked 1842ms @a9ae30e1c334+wt
 pass/layouts/empty_cases_sum_layout_compile checked 1697ms @a9ae30e1c334+wt
 pass/layouts/empty_record_layout_queries_compile checked 1632ms @a9ae30e1c334+wt
 pass/layouts/extent_view_external_content checked 4083ms terminal-runtime.attempt:unrequested terminal-inspections:match @d3f12beefc63+wt
-pass/layouts/extent_view_external_write checked 5226ms terminal-runtime.attempt:unrequested terminal-inspections:match @f85524ac2a1b+wt
+pass/layouts/extent_view_external_write checked 6268ms terminal-runtime.attempt:unrequested terminal-inspections:match @114906953e11
 pass/layouts/five_element_array_layout_compile checked 1703ms @a9ae30e1c334+wt
 pass/layouts/float_member_layout_queries_compile checked 1639ms @a9ae30e1c334+wt
 pass/layouts/guarded_policy_state_premise checked 118645ms @d041496df109+wt

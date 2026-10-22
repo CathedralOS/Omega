@@ -266,7 +266,17 @@ pub fn x86_64_register_constraint_catalog(
         );
         row
     });
+    let mut interrupt_control = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_INTERRUPT_CONTROL,
+        Vec::new(),
+    );
+    // IF shares the architectural RFLAGS storage unit. Retain a conservative
+    // read/definition of that unit without claiming arithmetic-flag changes.
+    interrupt_control.implicit_uses = sorted_units(view("rflags").units.iter().copied());
+    interrupt_control.implicit_defs = interrupt_control.implicit_uses.clone();
     let mut constraints = vec![
+        interrupt_control,
         flags_snapshot,
         flags_restore,
         control_rows[0].clone(),

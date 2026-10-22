@@ -8,7 +8,7 @@ use crate::machine_code::identity_encoding::{encode_call_owner, encode_invocatio
 #[cfg(test)]
 use target::NativeTarget;
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v12";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v13";
 
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,

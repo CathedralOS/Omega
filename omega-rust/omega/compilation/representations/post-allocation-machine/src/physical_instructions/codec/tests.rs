@@ -34,9 +34,9 @@ const TARGET_OFFSET: usize = 236;
 const CHOICE_RULE_OFFSET: usize = 382;
 const MACHINE_OFFSET: usize = 391;
 const ALTERNATIVE_FAMILY_OFFSET: usize = 439;
-const OPERAND_ACCESS_OFFSET: usize = 540;
-const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 571;
-const WRITE_SEMANTICS_OFFSET: usize = 572;
+const OPERAND_ACCESS_OFFSET: usize = 541;
+const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 572;
+const WRITE_SEMANTICS_OFFSET: usize = 573;
 
 #[test]
 fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
@@ -383,7 +383,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
-        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 20);
+        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 21);
         assert_eq!(
             PostAllocationMachinePlan::decode(&encoded),
             Ok(source.clone())
@@ -450,7 +450,6 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
     for offset in [
         TARGET_OFFSET,
         CHOICE_RULE_OFFSET,
-        ALTERNATIVE_FAMILY_OFFSET,
         OPERAND_ACCESS_OFFSET,
         WRITE_SEMANTICS_PRESENCE_OFFSET,
         WRITE_SEMANTICS_OFFSET,
@@ -463,6 +462,22 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
             "closed field at byte {offset} was accepted"
         );
     }
+    let mut unknown_family = encoded.clone();
+    unknown_family[ALTERNATIVE_FAMILY_OFFSET..ALTERNATIVE_FAMILY_OFFSET + 2]
+        .copy_from_slice(&u16::MAX.to_le_bytes());
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&unknown_family),
+        Err(PostAllocationMachineDecodeError::InvalidField)
+    );
+    // 255 is an assigned family, not a malformed tag. Changing the payload
+    // to another valid family must still fail content authentication.
+    let mut substituted_family = encoded.clone();
+    substituted_family[ALTERNATIVE_FAMILY_OFFSET..ALTERNATIVE_FAMILY_OFFSET + 2]
+        .copy_from_slice(&255_u16.to_le_bytes());
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&substituted_family),
+        Err(PostAllocationMachineDecodeError::InvalidIdentity)
+    );
 
     let mut zero_machine = encoded.clone();
     zero_machine[MACHINE_OFFSET..MACHINE_OFFSET + 8].fill(0);

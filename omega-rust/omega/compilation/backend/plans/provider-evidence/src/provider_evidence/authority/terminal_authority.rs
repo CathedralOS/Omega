@@ -83,6 +83,12 @@ impl CompilerIntrinsicExecutionIdentity {
         use terminal_psi::{RegisterOperation as O, SystemRegister as R};
         let function = match operation {
             O::ProcessorHalt => B::AsmHlt,
+            O::InterruptControl(
+                language_core::inline_assembly::AsmInterruptControlKind::Disable,
+            ) => B::AsmDisableInterrupts,
+            O::InterruptControl(
+                language_core::inline_assembly::AsmInterruptControlKind::Enable,
+            ) => B::AsmEnableInterrupts,
             O::PortRead => B::AsmPortIn,
             O::PortWrite => B::AsmPortOut,
             O::ModelSpecificRead => B::AsmReadMsr,

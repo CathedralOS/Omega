@@ -74,4 +74,6 @@ const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 35 retains tagged internal call targets and immutable image owners.
 // Completion events retain the exact argument-relative ownership path.
 // Older envelopes contained claim IDs only and cannot be reinterpreted.
-const VERSION: u32 = 38;
+// Version 39 widens semantic alternative-family tags, not instruction-kind
+// tags or closed form payloads. Older one-byte families are never reinterpreted.
+const VERSION: u32 = 39;

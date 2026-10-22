@@ -43,7 +43,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v32\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v33\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -98,7 +98,7 @@ pub fn machine_effect_catalog_identity(
     }
     encode_len(&mut bytes, catalog.declarations.len());
     for declaration in &catalog.declarations {
-        bytes.push(semantic_kind_tag(declaration.semantic));
+        bytes.extend_from_slice(&semantic_kind_tag(declaration.semantic).to_le_bytes());
         bytes.extend(semantic_kind_payload(declaration.semantic));
         encode_constraint_key(&mut bytes, declaration.constraint);
         // Keep effect matches exhaustive so additions cannot silently collide
@@ -558,16 +558,16 @@ macro_rules! effect_tag_arms {
             $enum::WrappingRemainderI64 => 57,
             $enum::WrappingAddI64 => 58,
             $enum::SaturatingAdd(carrier) => {
-                saturating_family_tag(SaturatingOperation::Add, carrier)
+                saturating_family_tag(SaturatingOperation::Add, carrier) as u16
             }
             $enum::SaturatingSubtract(carrier) => {
-                saturating_family_tag(SaturatingOperation::Subtract, carrier)
+                saturating_family_tag(SaturatingOperation::Subtract, carrier) as u16
             }
             $enum::SaturatingDivide(carrier) => {
-                saturating_family_tag(SaturatingOperation::Divide, carrier)
+                saturating_family_tag(SaturatingOperation::Divide, carrier) as u16
             }
             $enum::SaturatingRemainder(carrier) => {
-                saturating_family_tag(SaturatingOperation::Remainder, carrier)
+                saturating_family_tag(SaturatingOperation::Remainder, carrier) as u16
             }
             $enum::ExactAddI64Immediate => 4,
             $enum::ExactSubtractI64 => 5,
@@ -600,9 +600,9 @@ macro_rules! effect_tag_arms {
             $enum::ExactDivideI64 => 112,
             $enum::ExactRemainderI64 => 113,
             $enum::SaturatingMultiply(carrier) => {
-                saturating_family_tag(SaturatingOperation::Multiply, carrier)
+                saturating_family_tag(SaturatingOperation::Multiply, carrier) as u16
             }
-            $enum::TrappingInteger(form) => trapping_family_tag(form),
+            $enum::TrappingInteger(form) => trapping_family_tag(form) as u16,
             $enum::PortWrite => 239,
             $enum::SystemRegisterRead => 247,
             $enum::SystemRegisterWrite => 248,
@@ -613,17 +613,18 @@ macro_rules! effect_tag_arms {
             $enum::ProcessorHalt => 253,
             $enum::ControlRegisterRead => 254,
             $enum::ControlRegisterWrite => 255,
+            $enum::InterruptControl => 256,
 
             $enum::AtomicFence => 238,
-            $enum::AtomicAccess(form) => form.machine_tag(),
-            $enum::PlacedScalarAccess(form) => form.machine_tag(),
-            $enum::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
-            $enum::FloatResultPolicy(form) => form.machine_tag(),
+            $enum::AtomicAccess(form) => form.machine_tag() as u16,
+            $enum::PlacedScalarAccess(form) => form.machine_tag() as u16,
+            $enum::NearestIeeeFloatArithmetic(form) => form.machine_tag() as u16,
+            $enum::FloatResultPolicy(form) => form.machine_tag() as u16,
         }
     };
 }
 
-pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
+pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u16 {
     effect_tag_arms!(MachineSemanticKind, kind)
 }
 
@@ -636,7 +637,7 @@ pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u
     }
 }
 
-pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
+pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u16 {
     effect_tag_arms!(MachineAlternativeFamily, family)
 }
 
@@ -668,14 +669,14 @@ mod tests;
 /// (add 63, subtract 71, divide 79, remainder 95, multiply 114). Tags are
 /// appended, never reused.
 /// The canonical identity encoding of a [`crate::MachineAlternativeKey`]: the
-/// family tag from [`alternative_family_tag`] followed by the little-endian
+/// little-endian u16 family tag from [`alternative_family_tag`] followed by the little-endian
 /// variant number. Machine-code fragment, layout, text-section, relaxation and
 /// encoding identities all hash exactly these bytes.
 pub fn encode_machine_alternative_key_identity<Sink: MachineIdentityBytes + ?Sized>(
     bytes: &mut Sink,
     key: crate::MachineAlternativeKey,
 ) {
-    bytes.identity_bytes(&[alternative_family_tag(key.family)]);
+    bytes.identity_bytes(&alternative_family_tag(key.family).to_le_bytes());
     if let Some(payload) = alternative_family_payload(key.family) {
         bytes.identity_bytes(&[payload]);
     }

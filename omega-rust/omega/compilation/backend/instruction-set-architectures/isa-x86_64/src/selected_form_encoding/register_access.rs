@@ -35,6 +35,7 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
         Operation::ModelSpecificWrite => Semantic::ModelSpecificWrite,
         Operation::ProcessorHalt => Semantic::ProcessorHalt,
+        Operation::InterruptControl(_) => Semantic::InterruptControl,
         Operation::SystemRead(selected_instructions::SystemRegister::Rflags) => {
             Semantic::SystemRegisterRead
         }
@@ -45,9 +46,10 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
     })
 }
 
-// Representative registers choose only a direction's shared effect/constraint
-// declaration. The selected instruction and its encoding retain the actual
-// register; this representative must never be used as its hardware selector.
+// Representatives choose only the shared effect/constraint shape, including
+// the common shape of both interrupt-control directions. The selected event
+// retains its exact operation/register; this representative is never a hardware
+// selector or a premise about the interrupt flag's value or enable delay.
 pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
     Some(match semantic {
         Semantic::ControlRegisterRead => {
@@ -61,6 +63,9 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
         Semantic::ModelSpecificWrite => Operation::ModelSpecificWrite,
         Semantic::ProcessorHalt => Operation::ProcessorHalt,
+        Semantic::InterruptControl => {
+            Operation::InterruptControl(selected_instructions::InterruptControlKind::Disable)
+        }
         Semantic::SystemRegisterRead => {
             Operation::SystemRead(selected_instructions::SystemRegister::Rflags)
         }
@@ -152,6 +157,13 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
             byte_count: 8,
         };
     }
+    if matches!(operation, Operation::InterruptControl(_)) {
+        let flags = physical
+            .view_named("rflags")
+            .expect("canonical flags register");
+        encoded.implicit_unit_uses = register_model::sorted_units(flags.units.iter().copied());
+        encoded.implicit_unit_defs = encoded.implicit_unit_uses.clone();
+    }
     encoded
 }
 
@@ -181,7 +193,10 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: if operation == Operation::ProcessorHalt {
+            size: if matches!(
+                operation,
+                Operation::ProcessorHalt | Operation::InterruptControl(_)
+            ) {
                 MachineSizeKnowledge::ExactBytes(1)
             } else {
                 MachineSizeKnowledge::EncoderResolved {
@@ -240,6 +255,16 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
             bytes.extend([0x41, 0x0f, 0x22, 0xc2 | (selector << 3)]); // MOV CRn, R10.
         }
         return Ok(bytes);
+    }
+    if let Operation::InterruptControl(kind) = operation {
+        return if registers.is_empty() {
+            Ok(vec![match kind {
+                selected_instructions::InterruptControlKind::Disable => 0xfa,
+                selected_instructions::InterruptControlKind::Enable => 0xfb,
+            }])
+        } else {
+            Err(Error::OperandCountMismatch)
+        };
     }
     if operation == Operation::ProcessorHalt {
         return if registers.is_empty() {
@@ -419,6 +444,17 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
                 cursor += 1;
                 continue;
             }
+            0xfa | 0xfb => {
+                decoded.push(Decoded::Physical(Operation::InterruptControl(
+                    if bytes[cursor] == 0xfa {
+                        selected_instructions::InterruptControlKind::Disable
+                    } else {
+                        selected_instructions::InterruptControlKind::Enable
+                    },
+                )));
+                cursor += 1;
+                continue;
+            }
             0xec | 0xee => {
                 decoded.push(Decoded::Physical(if bytes[cursor] == 0xec {
                     Operation::PortRead
@@ -539,11 +575,14 @@ fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option
             .then_some(())
         };
     }
-    if operation == Operation::ProcessorHalt {
+    if matches!(
+        operation,
+        Operation::ProcessorHalt | Operation::InterruptControl(_)
+    ) {
         return (registers.is_empty()
             && matches!(
                 decode(bytes)?.as_slice(),
-                [Decoded::Physical(Operation::ProcessorHalt)]
+                [Decoded::Physical(actual)] if *actual == operation
             ))
         .then_some(());
     }
@@ -721,8 +760,11 @@ pub(crate) fn footprint(
         } else {
             vec![]
         },
-        writes_rflags: operation
-            == Operation::SystemWrite(selected_instructions::SystemRegister::Rflags),
+        writes_rflags: matches!(
+            operation,
+            Operation::SystemWrite(selected_instructions::SystemRegister::Rflags)
+                | Operation::InterruptControl(_)
+        ),
         encoded: effects(operation),
     }
 }
@@ -913,6 +955,38 @@ mod tests {
             declaration.alternatives[0].size,
             MachineSizeKnowledge::ExactBytes(1)
         );
+    }
+
+    #[test]
+    fn interrupt_control_retains_direction_without_operands_or_hidden_effects() {
+        use selected_instructions::InterruptControlKind::{Disable, Enable};
+        for (kind, opcode, wrong) in [(Disable, 0xfa, 0xfb), (Enable, 0xfb, 0xfa)] {
+            let operation = Operation::InterruptControl(kind);
+            assert_eq!(encode(operation, &[]).unwrap(), [opcode]);
+            assert!(encode(operation, &[0]).is_err());
+            assert!(validate_bits(operation, &[], &[opcode]).is_some());
+            for bytes in [
+                &[][..],
+                &[wrong],
+                &[0x90],
+                &[opcode, opcode],
+                &[opcode, 0x90],
+                &[0xf4],
+            ] {
+                assert!(validate_bits(operation, &[], bytes).is_none());
+            }
+            assert!(validate_bits(operation, &[0], &[opcode]).is_none());
+            let encoded = effects(operation);
+            assert!(encoded.implicit_unit_clobbers.is_empty());
+            assert!(!encoded.implicit_unit_defs.is_empty());
+            assert_eq!(encoded.implicit_unit_uses, encoded.implicit_unit_defs);
+            let declaration = declaration(operation, crate::X86_64_INTERRUPT_CONTROL);
+            assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
+            assert_eq!(
+                declaration.alternatives[0].size,
+                MachineSizeKnowledge::ExactBytes(1)
+            );
+        }
     }
 
     #[test]

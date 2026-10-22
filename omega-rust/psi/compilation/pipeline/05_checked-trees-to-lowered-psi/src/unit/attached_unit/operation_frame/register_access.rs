@@ -74,6 +74,9 @@ impl OperationFrame<'_, '_> {
             (AsmRegisterOperation::ProcessorHalt, []) => {
                 terminal_psi::RegisterAccessEvent::ProcessorHalt
             }
+            (AsmRegisterOperation::InterruptControl(kind), []) => {
+                terminal_psi::RegisterAccessEvent::InterruptControl { kind }
+            }
             (AsmRegisterOperation::SystemRead(register), []) => {
                 terminal_psi::RegisterAccessEvent::Read { register }
             }

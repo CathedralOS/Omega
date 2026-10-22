@@ -5,7 +5,7 @@
 //! writes and operand-free processor control all remain observable. No event
 //! grants machine authority.
 
-use super::{AsmSystemRegister, AsmTargetApplicability};
+use super::{AsmInterruptControlKind, AsmSystemRegister, AsmTargetApplicability};
 
 /// Exact unsigned scalar carriers of physical register operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +40,7 @@ pub enum AsmRegisterOperation {
     /// Stop instruction execution until the architecture's admitted wake event.
     /// No value operand or result is implied; this is not an empty Unit call.
     ProcessorHalt,
+    InterruptControl(AsmInterruptControlKind),
     SystemRead(AsmSystemRegister),
     SystemWrite(AsmSystemRegister),
     PortRead,
@@ -54,6 +55,8 @@ impl AsmRegisterOperation {
     pub const fn catalog_tag(self) -> u16 {
         match self {
             Self::ProcessorHalt => 0x400,
+            Self::InterruptControl(AsmInterruptControlKind::Disable) => 0x401,
+            Self::InterruptControl(AsmInterruptControlKind::Enable) => 0x402,
             Self::SystemRead(register) => register.catalog_id() as u16,
             Self::SystemWrite(register) => 0x100 | register.catalog_id() as u16,
             Self::PortRead => 0x200,
@@ -66,6 +69,8 @@ impl AsmRegisterOperation {
     pub const fn from_catalog_tag(tag: u16) -> Option<Self> {
         match tag {
             0x400 => return Some(Self::ProcessorHalt),
+            0x401 => return Some(Self::InterruptControl(AsmInterruptControlKind::Disable)),
+            0x402 => return Some(Self::InterruptControl(AsmInterruptControlKind::Enable)),
             0x200 => return Some(Self::PortRead),
             0x201 => return Some(Self::PortWrite),
             0x300 => return Some(Self::ModelSpecificRead),
@@ -92,6 +97,9 @@ impl AsmRegisterOperation {
             "asm#wrmsr" => return Some(Self::ModelSpecificWrite),
             _ => {}
         }
+        if let Some(kind) = AsmInterruptControlKind::from_intrinsic_name(name) {
+            return Some(Self::InterruptControl(kind));
+        }
         AsmSystemRegister::from_read_intrinsic_name(name)
             .map(Self::SystemRead)
             .or_else(|| AsmSystemRegister::from_write_intrinsic_name(name).map(Self::SystemWrite))
@@ -112,7 +120,7 @@ impl AsmRegisterOperation {
     pub const fn input_carriers(self) -> &'static [AsmRegisterCarrier] {
         use AsmRegisterCarrier::*;
         match self {
-            Self::SystemRead(_) | Self::ProcessorHalt => &[],
+            Self::SystemRead(_) | Self::ProcessorHalt | Self::InterruptControl(_) => &[],
             Self::SystemWrite(_) => &[U64],
             Self::PortRead => &[U16],
             Self::PortWrite => &[U16, U8],
@@ -147,6 +155,7 @@ impl AsmRegisterOperation {
             | Self::PortWrite
             | Self::ModelSpecificRead
             | Self::ProcessorHalt
+            | Self::InterruptControl(_)
             | Self::ModelSpecificWrite => true,
             Self::SystemWrite(register) => register.write_intrinsic_name().is_some(),
         }
@@ -208,6 +217,18 @@ mod tests {
                 None,
             ),
             (
+                "asm#cli",
+                AsmRegisterOperation::InterruptControl(AsmInterruptControlKind::Disable),
+                &[][..],
+                None,
+            ),
+            (
+                "asm#sti",
+                AsmRegisterOperation::InterruptControl(AsmInterruptControlKind::Enable),
+                &[][..],
+                None,
+            ),
+            (
                 "asm#port_in",
                 AsmRegisterOperation::PortRead,
                 &[U16][..],
@@ -247,7 +268,7 @@ mod tests {
                 AsmTargetApplicability::X86_64
             );
         }
-        for tag in [0x202, 0x302, 0x401, u16::MAX] {
+        for tag in [0x202, 0x302, 0x403, u16::MAX] {
             assert_eq!(AsmRegisterOperation::from_catalog_tag(tag), None);
         }
     }

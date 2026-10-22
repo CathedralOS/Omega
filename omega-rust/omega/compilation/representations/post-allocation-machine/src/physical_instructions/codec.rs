@@ -1,10 +1,10 @@
-//! Version-19 post-allocation machine-plan framing and content authentication.
+//! Version-21 post-allocation machine-plan framing and content authentication.
 //!
 //! The entrance owns the wire marker/version, canonical content boundary,
 //! trailing-byte rejection, and final identity authentication. Ordered content,
 //! instruction vocabulary, cursor translation, and errors descend explicitly.
-//! Version 19 retains exact consumed claim identities on nominal cleanup effects
-//! and rejects earlier envelopes before decoding their claim-free records.
+//! Current framing retains u16 alternative-family identities and exact consumed
+//! cleanup claims, rejecting earlier envelopes before interpreting their bytes.
 
 mod cursor;
 mod error;
@@ -20,7 +20,8 @@ use crate::{
 use selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 20;
+// Version 21 retains the widened u16 alternative-family tags.
+const VERSION: u32 = 21;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,

@@ -49,13 +49,14 @@ fn keys() -> SelectedConstraintKeys {
         port_write: Some(instruction(803)),
         system_register_read: Some(instruction(804)),
         system_register_write: Some(instruction(805)),
-        control_register_read: None,
-        control_register_write: None,
+        control_register_read: Some(instruction(812)),
+        control_register_write: Some(instruction(813)),
         port_register_read: Some(instruction(806)),
         port_register_write: Some(instruction(807)),
         model_specific_read: Some(instruction(808)),
         model_specific_write: Some(instruction(809)),
         processor_halt: Some(instruction(810)),
+        interrupt_control: Some(instruction(811)),
         atomic_fence: Some(instruction(800)),
         placed_read: Some(instruction(806)),
         placed_write: Some(instruction(807)),
@@ -618,14 +619,14 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
             ),
         ] {
             let tag = saturating_family_tag(operation, carrier);
-            assert_eq!(semantic_kind_tag(semantic), tag);
-            assert_eq!(alternative_family_tag(family), tag);
+            assert_eq!(semantic_kind_tag(semantic), u16::from(tag));
+            assert_eq!(alternative_family_tag(family), u16::from(tag));
             assert_eq!(MachineAlternativeFamily::from(semantic), family);
             assert!(MachineSemanticKind::ALL.contains(&semantic));
             tags.push(tag);
         }
     }
-    let every_tag: std::collections::BTreeSet<(u8, Option<u8>)> = MachineSemanticKind::ALL
+    let every_tag: std::collections::BTreeSet<(u16, Option<u8>)> = MachineSemanticKind::ALL
         .iter()
         .map(|semantic| {
             (
@@ -796,7 +797,8 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 134] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 135] = [
+    (MachineAlternativeFamily::InterruptControl, 256),
     (MachineAlternativeFamily::PortWrite, 239),
     (MachineAlternativeFamily::SystemRegisterRead, 247),
     (MachineAlternativeFamily::SystemRegisterWrite, 248),
@@ -1089,7 +1091,7 @@ fn alternative_family_tag_is_pinned_for_every_family() {
 /// Sample Trapping tags: the block starts at 122, above every fixed and
 /// saturating tag, and advances by the form's dense ordinal (operation-major,
 /// carriers in `SaturatingCarrier::ALL` order).
-const PINNED_TRAPPING_FAMILY_TAGS: [(TrappingOperation, SaturatingCarrier, u8); 7] = [
+const PINNED_TRAPPING_FAMILY_TAGS: [(TrappingOperation, SaturatingCarrier, u16); 7] = [
     (TrappingOperation::Add, SaturatingCarrier::I8, 122),
     (TrappingOperation::Add, SaturatingCarrier::U64, 129),
     (TrappingOperation::Subtract, SaturatingCarrier::I8, 130),
@@ -1128,7 +1130,7 @@ fn trapping_family_tags_are_dense_distinct_and_pinned() {
         .collect::<std::collections::BTreeSet<_>>();
     for form in TrappingForm::ALL {
         let tag = alternative_family_tag(MachineAlternativeFamily::TrappingInteger(form));
-        assert_eq!(tag, 122 + form.ordinal());
+        assert_eq!(tag, 122 + u16::from(form.ordinal()));
         assert!(!fixed.contains(&tag), "{form:?} aliases a fixed family tag");
         assert!(MachineSemanticKind::ALL.contains(&MachineSemanticKind::TrappingInteger(form)));
     }
@@ -1150,11 +1152,11 @@ fn atomic_family_tags_and_encoded_widths_are_pinned() {
         let tag = 194 + u8::try_from(ordinal).unwrap();
         assert_eq!(
             alternative_family_tag(MachineAlternativeFamily::AtomicAccess(form)),
-            tag
+            u16::from(tag)
         );
         assert_eq!(
             semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)),
-            tag
+            u16::from(tag)
         );
         let encoded = pinned_effects(
             MachineEncodedMemoryEffect::AtomicPointerV1 {
@@ -1182,7 +1184,9 @@ fn machine_alternative_key_identity_bytes_are_pinned() {
                 variant: 0x0403_0201,
             },
         );
-        assert_eq!(bytes, vec![tag, 0x01, 0x02, 0x03, 0x04], "{family:?}");
+        let mut expected = tag.to_le_bytes().to_vec();
+        expected.extend([0x01, 0x02, 0x03, 0x04]);
+        assert_eq!(bytes, expected, "{family:?}");
     }
 }
 
@@ -1539,13 +1543,10 @@ fn machine_alternative_identity_bytes_are_pinned_for_every_variant() {
     ];
     for (applicability, applicability_bytes) in applicabilities {
         for (size, size_bytes) in sizes {
-            let mut expected = vec![
-                alternative_family_tag(MachineAlternativeFamily::CompareI64Zero),
-                0x01,
-                0x02,
-                0x03,
-                0x04,
-            ];
+            let mut expected = alternative_family_tag(MachineAlternativeFamily::CompareI64Zero)
+                .to_le_bytes()
+                .to_vec();
+            expected.extend([0x01, 0x02, 0x03, 0x04]);
             expected.extend_from_slice(applicability_bytes);
             expected.extend_from_slice(size_bytes);
             // Latency: the only knowledge variant.
@@ -1631,7 +1632,7 @@ fn float_forms_share_one_tag_and_pin_their_payload_ordinals() {
             variant: 0,
         },
     );
-    assert_eq!(bytes[..2], [230, 9]);
+    assert_eq!(bytes[..3], [230, 0, 9]);
 }
 
 #[test]
@@ -1654,7 +1655,7 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
             &mut bytes,
             MachineAlternativeKey { family, variant: 0 },
         );
-        assert_eq!(&bytes[..2], &[231, form.ordinal()]);
+        assert_eq!(&bytes[..3], &[231, 0, form.ordinal()]);
         identities.push(bytes);
         let expected = match form.policy {
             FloatResultPolicyKind::Trapping => selected_keys.float_result_trapping,

@@ -1,11 +1,16 @@
 //! Observable register and processor-control events with exact operand roles.
 
-use language_core::inline_assembly::{AsmRegisterOperation, AsmSystemRegister};
+use language_core::inline_assembly::{
+    AsmInterruptControlKind, AsmRegisterOperation, AsmSystemRegister,
+};
 use semantic_vocabulary::ValueId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegisterAccessEvent<Operand = ValueId> {
     ProcessorHalt,
+    InterruptControl {
+        kind: AsmInterruptControlKind,
+    },
     Read {
         register: AsmSystemRegister,
     },
@@ -33,6 +38,7 @@ impl<Operand> RegisterAccessEvent<Operand> {
     pub const fn operation(&self) -> AsmRegisterOperation {
         match self {
             Self::ProcessorHalt => AsmRegisterOperation::ProcessorHalt,
+            Self::InterruptControl { kind } => AsmRegisterOperation::InterruptControl(*kind),
             Self::Read { register } => AsmRegisterOperation::SystemRead(*register),
             Self::Write { register, .. } => AsmRegisterOperation::SystemWrite(*register),
             Self::PortRead { .. } => AsmRegisterOperation::PortRead,
@@ -44,7 +50,7 @@ impl<Operand> RegisterAccessEvent<Operand> {
 
     pub fn inputs(&self) -> impl Iterator<Item = &Operand> {
         match self {
-            Self::Read { .. } | Self::ProcessorHalt => [None, None],
+            Self::Read { .. } | Self::ProcessorHalt | Self::InterruptControl { .. } => [None, None],
             Self::Write { value, .. } => [Some(value), None],
             Self::PortRead { port } => [Some(port), None],
             Self::PortWrite { port, value } => [Some(port), Some(value)],
@@ -61,6 +67,9 @@ impl<Operand> RegisterAccessEvent<Operand> {
     ) -> Result<RegisterAccessEvent<Other>, Error> {
         Ok(match self {
             Self::ProcessorHalt => RegisterAccessEvent::ProcessorHalt,
+            Self::InterruptControl { kind } => {
+                RegisterAccessEvent::InterruptControl { kind: *kind }
+            }
             Self::Read { register } => RegisterAccessEvent::Read {
                 register: *register,
             },

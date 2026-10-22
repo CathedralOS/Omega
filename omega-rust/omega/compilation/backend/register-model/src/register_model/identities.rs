@@ -56,7 +56,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v26\0"
+    b"omega.target-register-environment-identity.v27\0"
 );
 
 pub(crate) fn physical_register_model_identity(
@@ -185,6 +185,7 @@ pub fn target_register_environment_identity(
         selected_keys.model_specific_read,
         selected_keys.model_specific_write,
         selected_keys.processor_halt,
+        selected_keys.interrupt_control,
         selected_keys.atomic_fence,
         selected_keys.atomic_load,
         selected_keys.placed_read,

@@ -241,6 +241,7 @@ machine_semantic_kinds! {
     { fixed ModelSpecificRead },
     { fixed ModelSpecificWrite },
     { fixed ProcessorHalt },
+    { fixed InterruptControl },
     { fixed ControlRegisterRead },
     { fixed ControlRegisterWrite },
 
@@ -330,6 +331,7 @@ pub enum MachineAlternativeFamily {
     ModelSpecificRead,
     ModelSpecificWrite,
     ProcessorHalt,
+    InterruptControl,
 
     AtomicFence,
     AtomicAccess(AtomicForm),
@@ -439,6 +441,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ModelSpecificRead => Self::ModelSpecificRead,
             MachineSemanticKind::ModelSpecificWrite => Self::ModelSpecificWrite,
             MachineSemanticKind::ProcessorHalt => Self::ProcessorHalt,
+            MachineSemanticKind::InterruptControl => Self::InterruptControl,
 
             MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,

@@ -22,7 +22,7 @@ use values::encode_target;
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v29\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v30\0")
 }
 
 fn identity_with_domain(

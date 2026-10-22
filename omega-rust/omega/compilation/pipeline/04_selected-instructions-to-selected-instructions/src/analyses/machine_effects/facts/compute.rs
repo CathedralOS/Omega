@@ -121,6 +121,7 @@ fn terminal_selected_keys(
         model_specific_read: keys.model_specific_read,
         model_specific_write: keys.model_specific_write,
         processor_halt: keys.processor_halt,
+        interrupt_control: keys.interrupt_control,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -343,6 +344,9 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
             }
             selected_instructions::RegisterOperation::ProcessorHalt => {
                 MachineSemanticKind::ProcessorHalt
+            }
+            selected_instructions::RegisterOperation::InterruptControl(_) => {
+                MachineSemanticKind::InterruptControl
             }
         },
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {

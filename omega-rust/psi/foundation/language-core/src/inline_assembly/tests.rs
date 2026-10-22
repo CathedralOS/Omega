@@ -283,15 +283,22 @@ fn register_move_contracts_delegate_operand_checking_to_the_assignment() {
 
 #[test]
 fn catalog_names_semantic_refusal_classes() {
+    // The checked scratch-CFG branch is an explicit modeled edge, not one
+    // of the hidden exits below. Keep this positive classification pinned.
+    let Some(AsmCatalogEntry::Contract(branch)) = asm_catalog_entry("jnz") else {
+        panic!("jnz retains its checked zero-flag edge");
+    };
+    assert_eq!(branch.shape, AsmInstructionShape::JumpNonZero);
+    assert_eq!(branch.flags_data_flow, AsmFlagsDataFlow::ZeroFlagBranch);
     for mnemonic in [
         "ret", "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd", "iretw",
         "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl", "br", "blr",
         "b", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab", "blraaz",
         "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz", "loop", "loope",
         "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1", "int3", "into", "je",
-        "jne", "jz", "jnz", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg", "jge",
-        "jl", "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp", "jpe", "jnp",
-        "jpo", "jc", "jnc",
+        "jne", "jz", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg", "jge", "jl",
+        "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp", "jpe", "jnp", "jpo",
+        "jc", "jnc",
     ] {
         assert_eq!(
             asm_catalog_entry(mnemonic),

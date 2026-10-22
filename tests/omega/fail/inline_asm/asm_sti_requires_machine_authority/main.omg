@@ -1,0 +1,4 @@
+// Listing reach does not supply authority over the host's interrupt state.
+use omega::language::core::assembly;
+
+machine main() reaches MachineControl { asm { sti } }
