@@ -32,6 +32,142 @@ pub(in crate::function_fragments::source) struct BackingGeometry<'a> {
     analysis: DescriptorAnalysis<'a>,
 }
 
+/// A selected machine call whose portable graph only kept the placed formation
+/// still owes that formation's actual arguments. View providers are chosen
+/// after the portable summary, so the summary has the formation and not the
+/// invocation. Recording the selected callee here lets every later consumer
+/// read the same actual referent.
+pub(in crate::function_fragments::source) fn record_selected_formation_calls(
+    abstracted: &AbstractOperationPlan,
+    targeted: &target_operations::TargetOperationPlan,
+    graph: &mut [DescriptorMachine],
+) {
+    for function in &targeted.functions {
+        for operation in function.graph.operations() {
+            let target_operations::TargetUnitOperation::Call {
+                psi_operation,
+                target: target_operations::NativeCallTarget::Machine(callee),
+                ..
+            } = operation
+            else {
+                continue;
+            };
+            let Some(caller) = graph.iter_mut().find(|row| row.id == function.machine) else {
+                continue;
+            };
+            if caller
+                .calls
+                .values()
+                .any(|call| call.operation == *psi_operation)
+            {
+                continue;
+            }
+            let position = caller.originations.iter().find_map(|(position, rows)| {
+                rows.iter()
+                    .any(|(_, origin)| {
+                        matches!(
+                            origin,
+                            DescriptorCallOrigin::PlacedFormation { operation, .. }
+                                if operation == psi_operation
+                        )
+                    })
+                    .then_some(*position)
+            });
+            let Some(source) = abstracted
+                .functions
+                .iter()
+                .find(|row| row.machine == function.machine)
+            else {
+                continue;
+            };
+            let position = position.or_else(|| {
+                source
+                    .block_entries
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, entry)| {
+                        let end = source
+                            .block_entries
+                            .get(index + 1)
+                            .map(|next| next.operation_offset)
+                            .unwrap_or(source.operations.len());
+                        source.operations[entry.operation_offset..end]
+                            .iter()
+                            .enumerate()
+                            .find_map(|(offset, operation)| {
+                                (operation.psi_operation() == Some(*psi_operation))
+                                    .then_some((entry.block, u32::try_from(offset).ok()?))
+                            })
+                    })
+            });
+            let Some(position) = position else {
+                continue;
+            };
+            let Some(arguments) = source
+                .operations
+                .iter()
+                .find_map(|operation| match operation {
+                    abstract_operations::AbstractOperation::BoundaryCall {
+                        psi_operation: operation_id,
+                        structural_arguments,
+                        ..
+                    } if operation_id == psi_operation => Some(structural_arguments.as_slice()),
+                    _ => None,
+                })
+            else {
+                continue;
+            };
+            let mut recorded = Vec::with_capacity(arguments.len());
+            let mut contents = Vec::with_capacity(arguments.len());
+            let mut complete = true;
+            for actual in arguments {
+                let Some(root) = caller.place_types.get(&actual.place).copied() else {
+                    complete = false;
+                    break;
+                };
+                let Some(location) = terminal_semantics::descriptor_lifetimes::descriptor_location(
+                    abstracted.structural_types.as_slice(),
+                    actual.place,
+                    root,
+                    &actual.path,
+                    None,
+                ) else {
+                    complete = false;
+                    break;
+                };
+                let Some(query) = terminal_semantics::descriptor_results::descriptor_contents_query(
+                    abstracted.structural_types.as_slice(),
+                    actual.place,
+                    root,
+                    &actual.path,
+                    None,
+                ) else {
+                    complete = false;
+                    break;
+                };
+                recorded.push(Some(location));
+                contents.push(Some(query));
+            }
+            if !complete {
+                continue;
+            }
+            caller.calls.insert(
+                position,
+                terminal_semantics::descriptor_results::DescriptorInvocation {
+                    operation: *psi_operation,
+                    target:
+                        terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
+                            *callee,
+                        ),
+                    arguments: recorded,
+                    argument_contents: contents,
+                    result: None,
+                },
+            );
+        }
+    }
+}
+
 pub(in crate::function_fragments::source) fn graph(
     source: &AbstractOperationPlan,
 ) -> Option<Vec<DescriptorMachine>> {

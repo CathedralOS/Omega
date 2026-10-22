@@ -5732,8 +5732,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   Owner: `omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/`,
   consumed by stage 04 flow mutation and range/progress checks.
   `CallFrameResolver` already shares call/expression summaries and transition
-  fixed points. Proven candidate unions must survive computed receivers, codec
-  arguments, nested results, state arrivals and stored-reference rebinds.
+  fixed points. Proven candidate unions must survive nested results, state
+  arrivals and stored-reference rebinds.
   Multi-input helpers need explicit output lifetimes:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/borrow/view_link.rs`
   keeps matching-input unions, but lifetime correspondence alone gives no
@@ -5745,10 +5745,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   recognizer per reference spelling.
 
   Acceptance: the direct helper-choice row, the nested-helper row, the
-  named-state row, and the codec-argument row each keep the disjoint index
-  bound and exit 0 on both engines across the nine places, and each
-  overlapping twin rejects the stale bound. The codec row's write is the
-  exclusive cursor of one synthesized `Schema::encode` call. Remaining:
+  named-state row, the codec-argument row, and the computed-receiver row
+  each keep the disjoint index bound and exit 0 on both engines across the
+  nine places, and each overlapping twin rejects the stale bound. The codec
+  row's write is the exclusive cursor of one synthesized `Schema::encode`
+  call. The computed-receiver row writes through the placed field selected
+  by `choose` of the two mutable inputs. Remaining:
   finite write cycles; parameter permutations keep finite write sets;
   `omega --check tests/psi/parser/main.omg` still converges.
   Reference-result transport stays with **MATCH-SELECTIVE-LOWERING**.
