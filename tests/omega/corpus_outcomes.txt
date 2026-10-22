@@ -5038,6 +5038,33 @@ fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected reje
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/record_const_implementation_bound_through_call_result rejected 511ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_const_name rejected 42ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_field rejected 500ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_local rejected 507ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_match_join rejected 499ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_other_machine rejected 531ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_other_state rejected 498ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_parameter rejected 505ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/record_const_implementation_bound_through_target_body rejected 502ms expected @972dd7c7ae28
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/record_layout_geometry_unproved_call_result rejected 3932ms expected @45cbafd80d9c
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/record_layout_geometry_unproved_const_name rejected 3954ms expected @45cbafd80d9c
@@ -7203,6 +7230,17 @@ fail/generics/qualified_closed_equation_nominal_conflict rejected 2593ms expecte
 fail/generics/qualified_closed_equation_open_constructor rejected 2735ms expected @a9ae30e1c334+wt
 fail/generics/qualified_closed_equation_value_operand rejected 2677ms expected @a9ae30e1c334+wt
 fail/generics/qualified_closed_equation_value_reconstruction rejected 2578ms expected @a9ae30e1c334+wt
+fail/generics/record_const_distinct_completed_calls rejected 1051ms expected @972dd7c7ae28
+	cannot prove ensures contract for exit from misplaced at statement 2: result >= 7
+fail/generics/record_const_foreign_nominal_carrier rejected 265ms expected @972dd7c7ae28
+	conformance `Selected` parameter `Setting` has an invalid canonical value: expected carrier `named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(Configuration\\)\\)))`, but the canonical atom names `named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(other::Configuration\\)\\)))`
+fail/generics/record_const_refinement_different_binder rejected 808ms expected @972dd7c7ae28
+	machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures result >= Setting.minimum`; callers of the requirement assume it
+fail/generics/record_const_refinement_different_field rejected 822ms expected @972dd7c7ae28
+	machine `Selected::read` realizes `Reading::read` but does not guarantee its `ensures result >= Setting.minimum`; callers of the requirement assume it
+fail/generics/record_unbounded_const_field rejected 510ms expected @972dd7c7ae28
+	exact arithmetic in machine `construct` const argument `Required` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in construction of `Configuration` field `minimum` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/returned_applied_field_does_not_widen_access rejected 168ms expected @d1fa4738e67a+wt
 fail/generics/returned_generic_result_parameter_mismatch rejected 254ms expected @6ef08ceefee0+wt
 fail/generics/runtime_difference_const_argument rejected 48ms expected @73e11f08dcbb+wt
@@ -11944,6 +11982,15 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 22317ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 22767ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 21843ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/record_const_implementation_through_call_result_exit checked 1270ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_const_name_exit checked 4900ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_field_exit checked 1220ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_local_exit checked 1264ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_match_join_exit checked 1250ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_other_machine_exit checked 1255ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_other_state_exit checked 1242ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_parameter_exit checked 1246ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/record_const_implementation_through_target_body_exit checked 1230ms check-target:macos_arm64 @972dd7c7ae28
 pass/facts/record_layout_geometry_through_call_result_exit checked 7952ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_const_name_exit checked 7761ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_field_exit checked 7941ms check-target:macos_arm64 @45cbafd80d9c
@@ -12900,6 +12947,7 @@ pass/generics/owned_member_applied_ceiling checked 1087ms check-target:macos_arm
 pass/generics/owned_member_applied_result checked 855ms check-target:macos_arm64 @3d64278a43eb+wt
 pass/generics/owned_member_static_type_operand checked 817ms check-target:macos_arm64 @3d64278a43eb+wt
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/record_const_named_literal_equivalence checked 1227ms check-target:macos_arm64 @972dd7c7ae28
 pass/generics/runtime_applied_implementation_qualifier_exit checked 4126ms check-target:macos_arm64 @097fbfdea595+wt
 pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_captured_map_borrowed_type checked 17222ms check-target:macos_arm64 @4730b1ac8a84

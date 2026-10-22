@@ -448,6 +448,15 @@ pass/facts/outcome_structural_evidence_target_body built 9164ms exit:0 stdout:ma
 pass/facts/quotient_closed_literal built 68630ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @0c3a7af296d8
 pass/facts/quotient_closed_literal_scalar_first built 37892ms exit:0 interpreter-exit:0 interpreter:agrees @0c3a7af296d8
 pass/facts/quotient_closed_literal_transport built 32777ms exit:0 interpreter-exit:0 interpreter:agrees @0c3a7af296d8
+pass/facts/record_const_implementation_through_call_result_exit built 1240ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_const_name_exit built 4832ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_field_exit built 1237ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_local_exit built 1250ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_match_join_exit built 1248ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_other_machine_exit built 1279ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_other_state_exit built 1237ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_parameter_exit built 1283ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
+pass/facts/record_const_implementation_through_target_body_exit built 1237ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
 pass/facts/returned_write_destination_through_call_result_exit built 7646ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit built 6783ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit built 7535ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
@@ -579,6 +588,7 @@ pass/generics/open_const_selected_unused_impure_member built 5988ms exit:0 inter
 pass/generics/open_const_shadowed_binder_positive built 1471ms exit:0 interpreter-exit:0 interpreter:agrees @863cf92cb2f3
 pass/generics/open_const_two_evidence_binders built 3793ms exit:0 interpreter-exit:0 interpreter:agrees @863cf92cb2f3
 pass/generics/open_const_unrelated_namespace built 5961ms exit:0 interpreter-exit:0 interpreter:agrees @863cf92cb2f3
+pass/generics/record_const_named_literal_equivalence built 1237ms exit:0 interpreter-exit:0 interpreter:agrees @972dd7c7ae28
 pass/generics/runtime_const_data_array_length_exit built 8700ms exit:70 interpreter-exit:70 interpreter:agrees @77cde1c51efd+wt
 pass/generics/runtime_const_data_machine_call_exit built 8647ms exit:70 interpreter-exit:70 interpreter:agrees @77cde1c51efd+wt
 pass/generics/runtime_const_extent_guard_floors_exit built 23702ms exit:0 interpreter-exit:0 interpreter:agrees @8a14e9db1e32
