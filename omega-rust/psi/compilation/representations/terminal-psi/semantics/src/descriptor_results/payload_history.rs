@@ -68,34 +68,7 @@ impl Snapshot {
     }
 
     fn restore(&self, contract: &mut PayloadMembershipContract) {
-        if self.common_requirements.is_empty() {
-            return;
-        }
-        if contract.scalar_requirements.is_empty() {
-            contract
-                .scalar_requirements
-                .clone_from(&self.common_requirements);
-            return;
-        }
-        let mut restored =
-            Vec::with_capacity(contract.scalar_requirements.len() + self.common_requirements.len());
-        let mut local = std::mem::take(&mut contract.scalar_requirements)
-            .into_iter()
-            .peekable();
-        let mut common = self.common_requirements.iter().peekable();
-        while let (Some(left), Some(right)) = (local.peek(), common.peek()) {
-            match left.cmp(right) {
-                std::cmp::Ordering::Less => restored.extend(local.next()),
-                std::cmp::Ordering::Greater => restored.extend(common.next().cloned()),
-                std::cmp::Ordering::Equal => {
-                    restored.extend(local.next());
-                    common.next();
-                }
-            }
-        }
-        restored.extend(local);
-        restored.extend(common.cloned());
-        contract.scalar_requirements = restored;
+        extend_canonical_premises(&mut contract.scalar_requirements, &self.common_requirements);
     }
 }
 
@@ -283,7 +256,27 @@ fn current_payload_contract_reusing(
                 retire_scalar_instances(&mut before, definitions);
             }
             let step = machine.flow.get(&current)?;
-            let mut after = before.clone();
+            // Only derivation actuals read the pre-write payloads below. Keep
+            // one immutable copy of each such root, not a second full state.
+            // Selectors and fallible backing checks still run in their original
+            // order, so simultaneous stores retain both snapshot semantics and
+            // diagnostic precedence. Unused roots move directly into `after`.
+            let mut source_values = BTreeMap::new();
+            for (actual, destination) in &step.derivations {
+                if machine.storage_derivations.contains(&(
+                    current,
+                    actual.clone(),
+                    destination.clone(),
+                )) {
+                    continue;
+                }
+                if let Some(contract) = before.values.get(&actual.root) {
+                    source_values
+                        .entry(actual.root)
+                        .or_insert_with(|| contract.clone());
+                }
+            }
+            let mut after = before;
             if let Some(writes) = machine.payload_invalidations.get(&current) {
                 for query in writes {
                     let targets = query
@@ -328,7 +321,7 @@ fn current_payload_contract_reusing(
                 {
                     continue;
                 }
-                let incoming = before.values.get(&actual.root).and_then(|contract| {
+                let incoming = source_values.get(&actual.root).and_then(|contract| {
                     select_payload_memberships(types, domains, contract, &actual.path)
                 });
                 failure = "structural store backing is unresolved";
@@ -383,6 +376,10 @@ fn current_payload_contract_reusing(
             if let Some(producer) = machine.payload_producers.get(&current) {
                 failure = "established payload contract is absent";
                 let mut produced = source(*producer)?;
+                // Source callbacks need not order their premises. Normalize at
+                // this boundary once; child composition and stores preserve it.
+                produced.scalar_requirements.sort();
+                produced.scalar_requirements.dedup();
                 // Constructors and copies snapshot their actual children before
                 // consuming them. A result annotation supplies no scalar content.
                 for (actual, destination) in &step.derivations {
@@ -395,7 +392,7 @@ fn current_payload_contract_reusing(
                     {
                         continue;
                     }
-                    if let Some(incoming) = before.values.get(&actual.root).and_then(|contract| {
+                    if let Some(incoming) = source_values.get(&actual.root).and_then(|contract| {
                         select_payload_memberships(types, domains, contract, &actual.path)
                     }) {
                         let path = descriptor_path(types, produced.carrier, &destination.path)?;
@@ -431,6 +428,7 @@ fn current_payload_contract_reusing(
                 }
                 after.values.insert(*producer, produced);
             }
+            drop(source_values);
             if let Some(writes) = machine.scalar_payload_writes.get(&current) {
                 for (destination, value) in writes {
                     // New result storage has no pre-operation backing. Every
@@ -494,18 +492,30 @@ fn current_payload_contract_reusing(
             after.scalar_requirements.sort();
             after.scalar_requirements.dedup();
             for contract in after.values.values_mut() {
-                contract
-                    .scalar_requirements
-                    .extend(after.scalar_requirements.iter().cloned());
-                contract.scalar_requirements.sort();
-                contract.scalar_requirements.dedup();
+                // Snapshot restoration, retirement, selected stores and the
+                // normalized producer preserve canonical payload rosters. Do
+                // not rescan every unchanged payload with sort/dedup per step.
+                extend_canonical_premises(
+                    &mut contract.scalar_requirements,
+                    &after.scalar_requirements,
+                );
                 super::payload_predicates::close(types, domains, contract);
             }
-            for (ordinal, edge) in step.successors.iter().enumerate() {
-                if !relevant.includes_edge(current, ordinal) {
-                    continue;
-                }
-                let mut arrival = after.clone();
+            // Only distinct arrivals need independent state. Move the completed
+            // transfer into the last relevant edge instead of cloning every
+            // payload's full scalar theory even on a straight-line step.
+            let mut successors = step
+                .successors
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| relevant.includes_edge(current, *ordinal))
+                .peekable();
+            while let Some((ordinal, edge)) = successors.next() {
+                let mut arrival = if successors.peek().is_some() {
+                    after.clone()
+                } else {
+                    std::mem::take(&mut after)
+                };
                 if let Some(Some(predicate)) = machine
                     .payload_edge_predicates
                     .get(&current)
@@ -525,21 +535,19 @@ fn current_payload_contract_reusing(
                         super::payload_predicates::close(types, domains, contract);
                     }
                 }
-                let edge_source = arrival.clone();
-                for parameter in &edge.parameters {
-                    arrival.values.remove(&parameter.root);
-                }
+                // Snapshot only actual binding results before retiring any
+                // formal. Loop edges can read and rebind the same root, so the
+                // entire binding batch must observe the pre-arrival state.
+                // The other payloads need no second full-state snapshot.
                 let mut bindings = Vec::new();
                 for (actual, parameter) in &edge.bindings {
                     failure = "edge formal is not a whole payload root";
                     if !parameter.path.is_empty() {
                         return None;
                     }
-                    if let Some(contract) =
-                        edge_source.values.get(&actual.root).and_then(|contract| {
-                            select_payload_memberships(types, domains, contract, &actual.path)
-                        })
-                    {
+                    if let Some(contract) = arrival.values.get(&actual.root).and_then(|contract| {
+                        select_payload_memberships(types, domains, contract, &actual.path)
+                    }) {
                         // Exact descriptor bindings also carry reference access
                         // conversions. Memberships are carrier-specific: an
                         // incompatible row supplies no evidence for that formal,
@@ -567,7 +575,7 @@ fn current_payload_contract_reusing(
                             let targets =
                                 analysis.arrival_payload_targets(identity, current, query)?;
                             payload_memberships(types, domains, targets, |root| {
-                                edge_source.values.get(&root).cloned()
+                                arrival.values.get(&root).cloned()
                             })
                         });
                         if let Some(contract) = contract {
@@ -580,6 +588,9 @@ fn current_payload_contract_reusing(
                             bindings.push((binding.parameter, contract));
                         }
                     }
+                }
+                for parameter in &edge.parameters {
+                    arrival.values.remove(&parameter.root);
                 }
                 for (parameter, contract) in bindings {
                     arrival.values.insert(parameter, contract);
@@ -608,11 +619,15 @@ fn current_payload_contract_reusing(
                     }
                 }
                 for contract in arrival.values.values_mut() {
-                    contract
-                        .scalar_requirements
-                        .extend(arrival.scalar_requirements.iter().cloned());
+                    // Edge predicates append before their intermediate closure
+                    // checks. Rebinding can retain that temporary order, so
+                    // arrivals still normalize here before snapshot publication.
                     contract.scalar_requirements.sort();
                     contract.scalar_requirements.dedup();
+                    extend_canonical_premises(
+                        &mut contract.scalar_requirements,
+                        &arrival.scalar_requirements,
+                    );
                     super::payload_predicates::close(types, domains, contract);
                 }
                 let changed = if let Some(snapshot) = snapshots.get_mut(&edge.target) {
@@ -641,12 +656,14 @@ fn current_payload_contract_reusing(
                         contract.scalar_observations.retain(|observation| {
                             incoming.scalar_observations.contains(observation)
                         });
-                        contract
-                            .qualifications
-                            .retain(|domain| incoming.qualifications.contains(domain));
-                        contract
-                            .projected_qualifications
-                            .retain(|row| incoming.projected_qualifications.contains(row));
+                        retain_common_memberships(
+                            &mut contract.qualifications,
+                            &incoming.qualifications,
+                        );
+                        retain_common_memberships(
+                            &mut contract.projected_qualifications,
+                            &incoming.projected_qualifications,
+                        );
                         changed |= previous_counts
                             != (
                                 contract.scalar_observations.len(),
@@ -713,6 +730,48 @@ fn current_payload_contract_reusing(
     result.ok_or(failure)
 }
 
+/// Union two sorted, unique premise rosters without cloning and then discarding
+/// every ambient premise already present in each live payload. Callers normalize
+/// newly produced or rebound contracts before this operation; retained snapshots
+/// already satisfy that invariant. Preserve the existing proposition on equality,
+/// just as stable append/sort/dedup did. No new proposition is established here.
+fn extend_canonical_premises(
+    retained: &mut Vec<semantic_vocabulary::Proposition>,
+    additional: &[semantic_vocabulary::Proposition],
+) {
+    let mut existing = retained.iter().peekable();
+    let introduces_premise = additional.iter().any(|premise| {
+        while existing
+            .peek()
+            .is_some_and(|candidate| *candidate < premise)
+        {
+            existing.next();
+        }
+        !existing
+            .peek()
+            .is_some_and(|candidate| *candidate == premise)
+    });
+    if !introduces_premise {
+        return;
+    }
+    let mut combined = Vec::with_capacity(retained.len() + additional.len());
+    let mut existing = std::mem::take(retained).into_iter().peekable();
+    let mut additional = additional.iter().peekable();
+    while let (Some(left), Some(right)) = (existing.peek(), additional.peek()) {
+        match left.cmp(right) {
+            std::cmp::Ordering::Less => combined.extend(existing.next()),
+            std::cmp::Ordering::Greater => combined.extend(additional.next().cloned()),
+            std::cmp::Ordering::Equal => {
+                combined.extend(existing.next());
+                additional.next();
+            }
+        }
+    }
+    combined.extend(existing);
+    combined.extend(additional.cloned());
+    *retained = combined;
+}
+
 /// Intersect canonical premise rosters without searching the whole arrival for
 /// every retained premise. The caller publishes sorted, unique snapshots.
 fn retain_common_premises(
@@ -733,6 +792,28 @@ fn retain_common_premises(
             .is_some_and(|candidate| *candidate == premise)
     });
     retained.len() != previous
+}
+
+/// A large qualified aggregate can carry thousands of projected memberships.
+/// Searching its complete incoming roster for every retained row makes every
+/// join quadratic. Source callbacks need not publish sorted rosters, so sort
+/// borrowed references once and leave both contracts' order and duplicates
+/// untouched. This computes exactly the old membership filter, not a stronger
+/// meet or a new canonicalization requirement on callers.
+fn retain_common_memberships<Membership: Ord>(
+    retained: &mut Vec<Membership>,
+    incoming: &[Membership],
+) {
+    if retained.is_empty() {
+        return;
+    }
+    if incoming.is_empty() {
+        retained.clear();
+        return;
+    }
+    let mut incoming_memberships: Vec<_> = incoming.iter().collect();
+    incoming_memberships.sort_unstable();
+    retained.retain(|membership| incoming_memberships.binary_search(&membership).is_ok());
 }
 
 fn retire(
@@ -796,11 +877,14 @@ fn append_scalar_observations(
     source: &PayloadMembershipContract,
     prefix: &[crate::descriptor_lifetimes::DescriptorPathSegment],
 ) {
-    for premise in &source.scalar_requirements {
-        if !destination.scalar_requirements.contains(premise) {
-            destination.scalar_requirements.push(premise.clone());
-        }
-    }
+    // Both sides have canonical premises: actual selection and presentation
+    // preserve snapshots, and a fresh destination is normalized at its source
+    // callback boundary. Composition needs neither repeated normalization nor
+    // a quadratic per-premise membership search.
+    extend_canonical_premises(
+        &mut destination.scalar_requirements,
+        &source.scalar_requirements,
+    );
     for observation in &source.scalar_observations {
         let mut path = prefix.to_vec();
         path.extend_from_slice(&observation.path);

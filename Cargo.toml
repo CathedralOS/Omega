@@ -149,6 +149,14 @@ opt-level = 1
 [profile.dev.package.proof-admission]
 opt-level = 3
 
+# Cathedral's fresh native build spent 171 seconds in Terminal lowering after
+# scratch-state copy and set-operation repairs. Its payload-history machinery
+# executes here; optimize that hot analysis without changing every development
+# crate's build profile. Tests inherit this package override, while development
+# assertions and overflow checks remain enabled.
+[profile.dev.package.terminal-semantics]
+opt-level = 3
+
 # Typed programs, checked plans, live ranges, allocation legality and homes
 # each carry a SHA-256 identity, and register allocation's spill recovery
 # recomputes the changed function's digests at every step. Unoptimized, sha2's
