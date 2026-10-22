@@ -30,8 +30,22 @@ pub(super) fn observe(
         } else {
             fixed_runtime_index_alternatives(types.catalog(), place, root, path)?
         };
-    let mut origins = Vec::new();
+    let mut candidates = Vec::with_capacity(locations.len());
     for location in locations {
+        // Borrowed arrivals can resolve an alias to its physical carrier.
+        // Demand-driven snapshots name the authored alias, but live residents
+        // still own the physical slots. Resolve each concrete alternative
+        // there before asking the source graph; never require a second
+        // snapshot under an address-equivalent spelling.
+        let selected_path = descriptor_path(types.catalog(), root, &location.path)?;
+        if let Some(leaf) = live.references.get(&(place, selected_path)) {
+            if leaf.carrier_type != carrier_type || leaf.referent != referent {
+                return None;
+            }
+            candidates.push(leaf.clone());
+            continue;
+        }
+        let mut origins = Vec::new();
         let current = live
             .stored_reference_effects
             .observations
@@ -106,16 +120,19 @@ pub(super) fn observe(
             };
             origins.push(origin);
         }
+        if origins.is_empty() {
+            return None;
+        }
+        origins.sort();
+        origins.dedup();
+        candidates.push(ReferenceStorage {
+            root: ReferenceRoot::Alternatives(origins),
+            carrier_type,
+            referent,
+            placed: None,
+        });
     }
-    if origins.is_empty() {
-        return None;
-    }
-    origins.sort();
-    origins.dedup();
-    Some(ReferenceStorage {
-        root: ReferenceRoot::Alternatives(origins),
-        carrier_type,
-        referent,
-        placed: None,
-    })
+    // An incomplete slot or incompatible interpretation declines the whole
+    // observation. This joins possible addresses, not permissions.
+    combine_alternatives(function, candidates).ok()
 }
