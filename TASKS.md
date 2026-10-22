@@ -5247,7 +5247,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     for equal carriers. Before the rewrite, `same` was selected and refused:
     body supply was not implemented for that position. After it,
     `samples/cli/facts/body_bearing_comparison` exits 0 on both engines (direct
-    comparison false, match result 11). Bodyless `float_comparison_route` stays
+    comparison false, match result 11). The same sentence exits 0 on both
+    engines through field, parameter, call result, match join, const name,
+    another state, another machine, and a target body. The selected body's
+    boolean result is recorded on the comparison, and a direct `== false`
+    obligation reads it. Each twin changes only that body from `false` to
+    `true` and rejects `direct == false`. A domain on an `f64` constant keeps
+    the carrier's float encoding. Bodyless `float_comparison_route` stays
     on the comparison route (native exit 0, interpreter exit 0). Keep
     [Equatable's sealed type-owned route](wiki/spec/language/conformances.md#core-equality-acquisition):
     `machine == Card::same(..)` must not override it through visibility. No

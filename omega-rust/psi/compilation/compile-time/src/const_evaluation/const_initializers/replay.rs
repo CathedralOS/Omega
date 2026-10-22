@@ -469,13 +469,11 @@ fn float_destination(
     program: &TypedTrees,
     destination: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let symbol = &program
-        .type_reference_table
-        .type_reference(destination)
-        .as_named_symbol()?;
-    match program.symbols.builtin_type_atom(*symbol)? {
-        symbols::BuiltinTypeAtom::F32 => Some(PrimitiveType::F32),
-        symbols::BuiltinTypeAtom::F64 => Some(PrimitiveType::F64),
+    // A domain on a float keeps that float's format. The domain is a proof
+    // constraint; it does not replace the carrier's encoding.
+    match program.type_reference_table.primitive_type(destination)? {
+        PrimitiveType::F32 => Some(PrimitiveType::F32),
+        PrimitiveType::F64 => Some(PrimitiveType::F64),
         _ => None,
     }
 }

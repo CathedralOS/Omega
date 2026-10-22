@@ -6,7 +6,8 @@
 
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_return_type,
-    owner_symbol, selected_call_contract_for_parameters, selected_contract_by_symbol,
+    owner_symbol, selected_call_contract, selected_call_contract_for_parameters,
+    selected_contract_by_symbol,
 };
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::machine_calls::contract_dependencies::independent_callee;
@@ -15,6 +16,37 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
+
+/// The value a state returns. The exit is a transition value, not a trailing
+/// expression statement. Distinct returned values record nothing.
+fn returned_value_expression(
+    program: &dyn crate::CheckingInput,
+    statements: &[typed_trees::statement::StatementNode],
+) -> Option<ExpressionHandle> {
+    if let Some(expression) = statements
+        .iter()
+        .rev()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+    {
+        return Some(expression);
+    }
+    for statement in statements {
+        let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        for target in transition.targets() {
+            if let typed_trees::statement::TransitionTargetNode::Value(expression) =
+                program.statement_table.transition_target(target)
+            {
+                return Some(*expression);
+            }
+        }
+    }
+    None
+}
 
 /// Exact selected carrier and denotational owner, without importing conclusions.
 struct SelectedApplicationCarrier<'program> {
@@ -351,7 +383,7 @@ impl StructuralJudge<'_> {
                     ProofFact::Proposition(_) => StructuralJudgment::Unknown,
                 };
                 if !matches!(judgment, StructuralJudgment::Proven) {
-                    return None;
+                    return self.unconditional_boolean_result(owner, result, depth);
                 }
             }
         }
@@ -375,7 +407,114 @@ impl StructuralJudge<'_> {
                 }
             }
         }
+        // A body that is a boolean literal, or a chain of single-expression
+        // calls that reaches one, records that literal on the result. The
+        // match and the direct use read this equation; an authored `ensures`
+        // is not required for a result the body already is.
+        if let Some(literal) = self.recorded_body_boolean(owner, depth + 1) {
+            let equation = (result.clone(), literal);
+            let present = equations.iter().any(|(left, right)| {
+                (left, right) == (&equation.0, &equation.1)
+                    || (left, right) == (&equation.1, &equation.0)
+            });
+            if !present {
+                equations.push(equation);
+            }
+        }
         Some(equations)
+    }
+
+    /// The selected entry's result when the body is exactly one boolean
+    /// literal, or exactly one call whose own body is. Argument-dependent
+    /// bodies are not literals and record nothing here.
+    /// A boolean literal body does not depend on entry premises this judge
+    /// could not see. Callers still read that recorded result.
+    fn unconditional_boolean_result(
+        &self,
+        owner: &SelectedCallContract<'_>,
+        result: &StructuralTerm,
+        depth: usize,
+    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+        let literal = self.recorded_body_boolean(owner, depth + 1)?;
+        Some(vec![(result.clone(), literal)])
+    }
+
+    fn recorded_body_boolean(
+        &self,
+        owner: &SelectedCallContract<'_>,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        match owner {
+            SelectedCallContract::Concrete(machine, state) => {
+                self.recorded_entry_boolean(machine, state, depth)
+            }
+            // A spelled operator or its signature view has no body. The
+            // literal result is on the concrete machine entry.
+            SelectedCallContract::Operator(operator) => {
+                self.recorded_symbol_boolean(operator.symbol, depth)
+            }
+            SelectedCallContract::Signature(signature) => {
+                self.recorded_symbol_boolean(signature.symbol, depth)
+            }
+            SelectedCallContract::DynamicSlot { .. } => None,
+        }
+    }
+
+    fn recorded_symbol_boolean(
+        &self,
+        symbol: SymbolHandle,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let machine = self
+            .program
+            .machine_by_symbol(symbol)
+            .or_else(|| self.program.machine_holding_state(symbol))?;
+        let state = self
+            .program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+            .or_else(|| self.program.machine_states(machine).first())?;
+        self.recorded_entry_boolean(machine, state, depth)
+    }
+
+    fn recorded_entry_boolean(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let entry = self.program.machine_states(machine).first()?;
+        if entry.symbol != state.symbol {
+            return None;
+        }
+        let statements = typed_trees::statement::reachable_state_statements(
+            self.program
+                .statement_table
+                .statements(state.statement_nodes),
+        );
+        let Some(expression) = returned_value_expression(self.program, statements) else {
+            return None;
+        };
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
+                data: "bool".to_owned(),
+                case: value.to_string(),
+                fields: Vec::new(),
+            }),
+            ExpressionNode::Call(call) => {
+                if let Some(callee) = selected_call_contract(self.program, call)
+                    && let Some(literal) = self.recorded_body_boolean(&callee, depth + 1)
+                {
+                    return Some(literal);
+                }
+                self.recorded_symbol_boolean(call.target_symbol, depth + 1)
+            }
+            _ => None,
+        }
     }
 
     /// Transport an exact declared membership over its still-live subject.
