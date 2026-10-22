@@ -28,6 +28,7 @@ impl TypedTrees {
     /// erased trait symbol and losing named-map or machine-region custody.
     /// This inventory does not select a provider or admit an open application.
     pub fn applied_trait_roots(&self) -> Vec<AppliedTraitScope<'_>> {
+        let occurrences = crate::references::collect_program_application_occurrences(self);
         self.machines()
             .iter()
             .flat_map(|machine| {
@@ -63,13 +64,19 @@ impl TypedTrees {
                     .map(AppliedTraitScope::abstract_scope),
             )
             .chain(
-                self.closed_conformance_application_sites()
-                    .into_iter()
-                    .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
+                self.closed_conformance_application_sites_from_occurrences(
+                    &occurrences.conformance_applications,
+                )
+                .into_iter()
+                .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
             )
-            .chain(source_fields::contract_application_roots(self))
+            .chain(source_fields::contract_application_roots(
+                self,
+                &occurrences.types,
+            ))
             .chain(
-                crate::references::collect_program_call_requirement_applications(self)
+                occurrences
+                    .requirement_applications
                     .into_iter()
                     .filter_map(|occurrence| {
                         self.applied_requirement_scope(

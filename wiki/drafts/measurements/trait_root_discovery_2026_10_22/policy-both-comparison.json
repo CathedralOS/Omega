@@ -1,0 +1,13 @@
+{
+  "losses": [],
+  "gains": [],
+  "fixtures": 17,
+  "diagnostics_changed": [],
+  "facts_changed": [],
+  "candidate_statuses": {
+    "built": 17
+  },
+  "expected_fragment_failures": [],
+  "baseline_failures": [],
+  "agreements": 10
+}

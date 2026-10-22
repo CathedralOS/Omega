@@ -443,3 +443,16 @@ is retained as inconclusive. All emitted native images are byte-identical,
 1,053 source-check outcomes/diagnostics are unchanged, and 21 native/Terminal
 cases agree at exit 0. Existing failures and host/tail limitations remain explicit.
 [Mechanism, raw comparisons, measurements and replay](compiler_throughput_2026_10_21/README.md).
+
+### Trait-root discovery census reuse — 2026-10-22
+
+Continues the local `1c2376d0575` field-inventory baseline. Empty retained-selection
+consumers omit five of 21 root queries; each remaining query retains the three
+occurrence lists already produced by one immutable traversal. Length goes from
+63 occurrence walks to 16, without reuse across mutations. A paired 12-round
+comparison on three fact workloads shows 0.91–1.98% lower full-compilation
+medians and lower median user CPU time. All 78 emitted images exit 0 and are
+byte-identical per subject across producers. All 1,090 source-check comparisons
+and 31 native/Terminal agreements are unchanged; known baseline failures remain.
+Retained as a small throughput improvement, with no universal/tail guarantee.
+[Mechanism, validation, raw observations and limits](trait_root_discovery_2026_10_22/README.md).

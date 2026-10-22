@@ -323,6 +323,11 @@ fn validate_retained_implementation_arguments(
 ) -> Result<(), String> {
     use typed_trees::static_applications::StaticMachineBindingValue;
     let typed = program.typed_program();
+    // This census is only consumed by retained selections; ordinary authored
+    // implementation arguments are checked separately by the caller.
+    if typed.trait_implementation_applications.is_empty() {
+        return Ok(());
+    }
     let roots = typed.applied_trait_roots();
     for (_, selected) in typed.trait_implementation_applications.iter() {
         let scope = selected

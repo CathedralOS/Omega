@@ -51,6 +51,20 @@ impl TypedTrees {
         crate::static_applications::StaticMachineApplicationHandle,
         &super::ClosedConformanceApplication,
     )> {
+        self.closed_conformance_application_sites_from_occurrences(
+            &self.live_conformance_occurrence_applications(),
+        )
+    }
+
+    pub(crate) fn closed_conformance_application_sites_from_occurrences(
+        &self,
+        occurrences: &[crate::static_applications::StaticMachineApplicationHandle],
+    ) -> Vec<(
+        super::ClosedConformanceApplicationSite,
+        symbols::SymbolHandle,
+        crate::static_applications::StaticMachineApplicationHandle,
+        &super::ClosedConformanceApplication,
+    )> {
         let mut sites = Vec::new();
         for (s, receipt) in self.machine_specializations.iter().enumerate() {
             for (a, application) in receipt.conformance_applications.iter().enumerate() {
@@ -65,7 +79,7 @@ impl TypedTrees {
                 ));
             }
         }
-        for handle in self.live_conformance_occurrence_applications() {
+        for &handle in occurrences {
             let source = self.expression_table.static_machine_application(handle);
             if let Some(application) = source
                 .conformance_selection
@@ -164,6 +178,11 @@ impl TypedTrees {
         let mut applications = arena::Arena::default();
         applications.insert_many(known_live);
         self.trait_implementation_applications = applications;
+        // Discovery serves only the surviving selections. An empty arena has
+        // no source-scope liveness obligations after the owner pruning above.
+        if self.trait_implementation_applications.is_empty() {
+            return;
+        }
         let roots = self.applied_trait_roots();
         let selected = self
             .trait_implementation_applications

@@ -258,16 +258,6 @@ pub struct TypeOccurrence {
     pub reference: TypeReferenceHandle,
 }
 
-/// Source application discovery uses the same declaration/body traversal as
-/// dependency collection. Arena capacity also contains discarded descriptors;
-/// scanning it would invent application roots with no supplying declaration.
-/// This inventory grants neither reachability nor execution authority.
-pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
-    let mut occurrences = TypeOccurrences::default();
-    visit_program(program, &mut occurrences);
-    occurrences.types
-}
-
 /// Exact authored call applications reached from retained declaration/body
 /// roots. This inventory creates neither execution reach nor admission.
 pub fn collect_program_conformance_occurrences(
@@ -275,21 +265,31 @@ pub fn collect_program_conformance_occurrences(
 ) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
     let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
-    program
-        .expression_table
-        .static_machine_applications()
-        .filter_map(|(handle, _)| occurrences.applications.contains(&handle).then_some(handle))
-        .collect()
+    occurrences.conformance_applications(program)
 }
 
-/// Applied trait qualifiers of `Requirement<Arguments>::operation(...)`
-/// calls reached from retained roots, each with its lexical owner. They are
-/// trait application roots in their own right: no field or bound need name
-/// the same application for its closed requirements to exist.
-pub fn collect_program_call_requirement_applications(program: &TypedTrees) -> Vec<TypeOccurrence> {
+/// Invocation-local source census shared by the consumers of one immutable
+/// program. Keep all three lists from the same walk, including lexical owners
+/// and source order; no census survives preparation or projection mutations.
+pub(crate) struct ProgramApplicationOccurrences {
+    /// Types reached from live declaration/body roots, never arena capacity.
+    pub types: Vec<TypeOccurrence>,
+    /// Exact trait qualifiers written before `::` at each supplying owner.
+    pub requirement_applications: Vec<TypeOccurrence>,
+    pub conformance_applications: Vec<crate::static_applications::StaticMachineApplicationHandle>,
+}
+
+pub(crate) fn collect_program_application_occurrences(
+    program: &TypedTrees,
+) -> ProgramApplicationOccurrences {
     let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
-    occurrences.requirement_applications
+    let conformance_applications = occurrences.conformance_applications(program);
+    ProgramApplicationOccurrences {
+        types: occurrences.types,
+        requirement_applications: occurrences.requirement_applications,
+        conformance_applications,
+    }
 }
 
 #[derive(Default)]
@@ -322,6 +322,19 @@ fn retain_scoped_occurrence<Element>(
     }
     seen[slot].push(occurrence);
     true
+}
+
+impl TypeOccurrences {
+    fn conformance_applications(
+        &self,
+        program: &TypedTrees,
+    ) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
+        program
+            .expression_table
+            .static_machine_applications()
+            .filter_map(|(handle, _)| self.applications.contains(&handle).then_some(handle))
+            .collect()
+    }
 }
 
 impl Extend<SymbolHandle> for TypeOccurrences {

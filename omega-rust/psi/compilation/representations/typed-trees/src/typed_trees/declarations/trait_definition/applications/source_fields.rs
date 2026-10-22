@@ -16,7 +16,10 @@ use crate::references::TypedReferences;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
-pub(super) fn contract_application_roots(program: &TypedTrees) -> Vec<AppliedTraitScope<'_>> {
+pub(super) fn contract_application_roots<'program>(
+    program: &'program TypedTrees,
+    occurrences: &[crate::references::TypeOccurrence],
+) -> Vec<AppliedTraitScope<'program>> {
     let mut discovery = SourceFields {
         program,
         roots: Vec::new(),
@@ -25,7 +28,7 @@ pub(super) fn contract_application_roots(program: &TypedTrees) -> Vec<AppliedTra
         field_inventories: Vec::new(),
         field_references: Vec::new(),
     };
-    for occurrence in crate::references::collect_program_type_occurrences(program) {
+    for occurrence in occurrences {
         discovery.visit(
             occurrence.lexical_owner,
             occurrence.reference,
