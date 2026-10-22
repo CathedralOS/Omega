@@ -6703,3 +6703,31 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   deterministic manifest of all transitive compiler/build inputs. Rust
   agreement is not bootstrap authority. Epsilon-written D and
   `omega0 -> omega` construction stay on `TASKS_BOOTSTRAP.md`.
+
+## Unreached-code wave (macw15): unfinished work its instruments found
+
+The 2026-10-22 macw15 wave proved 13 islands unreached (2731 net lines removed across 14 units,
+0 goldens or fixtures touched, every landing verified by ancestry and recomputed numstat). These are
+the findings that are **not** dead code. Each is unfinished work, deliberately left in place.
+
+- **CHECKER-CARRIES-OPERATION-DECISIONS.** Producer stage 05 and the constructor
+  `accept_source_checked_operation` exist with no receiver since `9718604e847`: an unbuilt route, not
+  dead code. Deleting either end would erase the evidence that the route was intended.
+- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** A documented route whose only executor is a
+  test and whose product consumer is absent.
+- **PROOF-SURFACE-DECLARED-NOT-BUILT.** `proof/boundary.rs` (265 lines) and `proof/proof_surface.rs`
+  (527 lines) are declared surfaces in `wiki/spec/proofs/classicality.md` reached only by their own
+  tests, with no non-test executor since creation. Deleting them would leave the specification
+  describing surfaces that no longer exist.
+- **CORPUS-ROUTE-BLIND-SPOTS.** Two routes measured with zero both-leg coverage while their
+  interpreter leg was retired or changed: `pass/filesystem` (0 both-leg rows against 37 native) and
+  the source-origin admission path behind `pass/targets/per_target_import_satisfies`. A gate that
+  never measured a route cannot see that route lost; the second was found only because a wave unit
+  ran a corpus group as a side effect of a deletion, and it had been checked→rejected on main since
+  `4ec65305238` (2026-10-18), repaired in `aad1c78c671`.
+- **IND19-SPECTRUM-VALIDATION-RED.** `ind19-spectrum-validation` is rc 101 with the same 10 E-errors
+  at `cb762bf3b0a` and at every candidate measured (driver API drift: `TerminalRuntimeRequest.x86_flags`,
+  `CheckedCompilation::into_program`). Red at the base, tracked nowhere, and no deleted name involved.
+- **RETIRE-EXPORTED-AUDIT-FACADE** (owner decision). `verify_target_operation_plan` is an exported
+  audit facade with no product consumer; retiring an exported trust surface is an owner call, so the
+  wave reported it rather than deciding.
