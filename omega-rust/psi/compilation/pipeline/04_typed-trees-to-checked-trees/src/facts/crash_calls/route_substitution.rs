@@ -314,6 +314,7 @@ pub(crate) fn call_argument_substitution<'program>(
                             ieee_equality_observation(
                                 program,
                                 semantic,
+                                machine,
                                 state,
                                 before_statement,
                                 &entry_contexts,
@@ -495,8 +496,12 @@ impl StructuralArgumentSubstitution<'_> {
 ///
 /// The view records that scalar observation. A local copy, a call whose
 /// result is ensured equal to an argument, and a match whose arms agree all
-/// read the same observation. The view does not become a total integer
-/// representation view, and a byte outside `{0, 1}` establishes no Boolean.
+/// read the same observation. A local copy carries it only while its storage
+/// still holds what its initializer recorded: a writable local is read across
+/// the same write window the entry-provenance law applies, so initializing a
+/// writable local and never writing it keeps the observation. The view does
+/// not become a total integer representation view, and a byte outside
+/// `{0, 1}` establishes no Boolean.
 fn boolean_view_observation(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -523,12 +528,19 @@ fn boolean_view_observation(
             {
                 return None;
             }
-            let Some((ordinal, local)) = program.state_local_declaration(state, path.symbol) else {
-                return None;
-            };
-            if ordinal >= before_statement || local.is_mutable || !local.initial_value.is_valid() {
-                return None;
-            }
+            // A writable local keeps the recorded observation only while its
+            // storage is pristine; an intervening write ends the carrier. The
+            // window rule lives with the rest of entry provenance, so this
+            // route and call-actual substitution agree on when a local still
+            // reads what its initializer recorded.
+            let initial_value =
+                crate::facts::crash_entry_values::local_initial_value_before_statement(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    before_statement,
+                    path.symbol,
+                )?;
             boolean_view_observation(
                 program,
                 operators,
@@ -538,7 +550,7 @@ fn boolean_view_observation(
                 before_statement,
                 entry_contexts,
                 caller_symbols,
-                local.initial_value,
+                initial_value,
                 depth + 1,
             )
         }
@@ -708,12 +720,18 @@ fn ieee_view_observation(
             {
                 return None;
             }
-            let Some((ordinal, local)) = program.state_local_declaration(state, path.symbol) else {
-                return None;
-            };
-            if ordinal >= before_statement || local.is_mutable || !local.initial_value.is_valid() {
-                return None;
-            }
+            // A writable local keeps the recorded observation only while its
+            // storage is pristine; an intervening write ends the carrier. The
+            // window rule lives with the rest of entry provenance, so every
+            // view route reads one answer.
+            let initial_value =
+                crate::facts::crash_entry_values::local_initial_value_before_statement(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    before_statement,
+                    path.symbol,
+                )?;
             ieee_view_observation(
                 program,
                 operators,
@@ -723,7 +741,7 @@ fn ieee_view_observation(
                 before_statement,
                 entry_contexts,
                 caller_symbols,
-                local.initial_value,
+                initial_value,
                 depth + 1,
             )
         }
@@ -848,6 +866,7 @@ fn ieee_view_observation(
 fn ieee_equality_observation(
     program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     before_statement: usize,
     entry_contexts: &[facts::FactContextHandle],
@@ -871,19 +890,26 @@ fn ieee_equality_observation(
             {
                 return None;
             }
-            let Some((ordinal, local)) = program.state_local_declaration(state, path.symbol) else {
-                return None;
-            };
-            if ordinal >= before_statement || local.is_mutable || !local.initial_value.is_valid() {
-                return None;
-            }
+            // A writable local keeps the recorded equality only while its
+            // storage is pristine; an intervening write ends the carrier. The
+            // window rule lives with the rest of entry provenance, so every
+            // view route reads one answer.
+            let initial_value =
+                crate::facts::crash_entry_values::local_initial_value_before_statement(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    before_statement,
+                    path.symbol,
+                )?;
             ieee_equality_observation(
                 program,
                 semantic,
+                machine,
                 state,
                 before_statement,
                 entry_contexts,
-                local.initial_value,
+                initial_value,
                 depth + 1,
             )
         }
@@ -893,6 +919,7 @@ fn ieee_equality_observation(
             ieee_equality_observation(
                 program,
                 semantic,
+                machine,
                 state,
                 before_statement,
                 entry_contexts,
@@ -905,6 +932,7 @@ fn ieee_equality_observation(
             ieee_equality_observation(
                 program,
                 semantic,
+                machine,
                 state,
                 before_statement,
                 entry_contexts,
@@ -918,6 +946,7 @@ fn ieee_equality_observation(
                 let Some(observed) = ieee_equality_observation(
                     program,
                     semantic,
+                    machine,
                     state,
                     before_statement,
                     entry_contexts,

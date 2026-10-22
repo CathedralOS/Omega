@@ -895,6 +895,70 @@ fn entry_operand_name_at(
     )
 }
 
+/// The initializer of `symbol`'s local declaration that a read before
+/// `before_statement` still provably observes, with the declaration's ordinal.
+/// A writable local — or one whose scalar storage observes borrowed contents —
+/// keeps its bound snapshot only while no statement in
+/// `[ordinal + 1, write_scan_end)` could have overwritten the read projection
+/// or lent it exclusive access. The caller supplies the exact end of that write
+/// window: an unscoped expression includes its containing statement, while a
+/// captured operand separately authenticates that statement's prefix. `None`
+/// means the read cannot claim the binding's value, never that it changed.
+fn local_read_initializer(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state: &typed_trees::state::State,
+    symbol: SymbolHandle,
+    before_statement: usize,
+    write_scan_end: usize,
+    field_path: &[PlaceSegment],
+) -> Option<(usize, ExpressionHandle)> {
+    let (ordinal, local) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < before_statement)?;
+    let mutable_storage =
+        observation_requires_write_scan(program, local.type_reference, field_path)?;
+    if (local.is_mutable || mutable_storage)
+        && !storage_holds_bound_value(
+            program,
+            machine_symbol,
+            state,
+            ordinal + 1,
+            write_scan_end,
+            local.symbol,
+            field_path,
+        )
+    {
+        return None;
+    }
+    Some((ordinal, local.initial_value))
+}
+
+/// The saved initializer a local read at `before_statement` still observes, for
+/// callers that read that value instead of the entry identity. The local
+/// carrier rule — including the write window for a writable binding — stays
+/// here, so call-actual substitution and guard admission cannot drift apart on
+/// when a mutable local still holds what its initializer recorded.
+pub(crate) fn local_initial_value_before_statement(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    symbol: SymbolHandle,
+) -> Option<ExpressionHandle> {
+    let (_, state) = validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
+    let (_, initial_value) = local_read_initializer(
+        program,
+        machine_symbol,
+        state,
+        symbol,
+        before_statement,
+        before_statement.saturating_add(1),
+        &[],
+    )?;
+    Some(initial_value)
+}
+
 /// Shared provenance for an already resolved binding. Expression callers
 /// validate their name syntax first; canonical places already retain the symbol.
 fn entry_operand_symbol_at(
@@ -912,40 +976,25 @@ fn entry_operand_symbol_at(
     }
     let (machine, state) =
         validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
-    if let Some((ordinal, local)) = program
-        .state_local_declaration(state, symbol)
-        .filter(|&(ordinal, _)| ordinal < before_statement)
-    {
-        let mutable_storage =
-            observation_requires_write_scan(program, local.type_reference, field_path)?;
-        if (local.is_mutable || mutable_storage)
-            && !storage_holds_bound_value(
-                program,
-                machine_symbol,
-                state,
-                ordinal + 1,
-                write_scan_end,
-                local.symbol,
-                field_path,
-            )
-        {
-            return None;
-        }
-        // This transports the bound value, not a current read of its
-        // storage. A mutable local is admitted only while no statement
-        // between its initializer and this read could have overwritten
-        // the read projection or lent it exclusive access. The caller supplies
-        // the exact end of the write window: an unscoped expression includes
-        // its containing statement, while a captured operand separately
-        // authenticates that statement's prefix. Initializer dependencies must
-        // independently be entry-relative. Decreasing the prefix also
-        // prevents recursive aliases.
+    // This transports the bound value, not a current read of its storage, so
+    // the initializer is the operand. Initializer dependencies must
+    // independently be entry-relative. Decreasing the prefix also prevents
+    // recursive aliases.
+    if let Some((ordinal, initial_value)) = local_read_initializer(
+        program,
+        machine_symbol,
+        state,
+        symbol,
+        before_statement,
+        write_scan_end,
+        field_path,
+    ) {
         return entry_operand_projected_at(
             program,
             machine_symbol,
             state_symbol,
             ordinal,
-            local.initial_value,
+            initial_value,
             field_path,
             depth + 1,
         );
