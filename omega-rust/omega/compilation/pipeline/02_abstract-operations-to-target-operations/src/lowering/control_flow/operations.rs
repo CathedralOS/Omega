@@ -661,6 +661,7 @@ pub(super) fn lower_operation(
                 operation,
                 function,
                 structural_types,
+                boundary_machines,
                 settlements,
                 live,
                 operations,

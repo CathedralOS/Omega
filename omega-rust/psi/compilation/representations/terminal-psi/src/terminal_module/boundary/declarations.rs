@@ -278,6 +278,7 @@ pub enum CheckedBoundaryExecution {
     Provider,
     PlacementInitialize,
     PlacementMoveOut,
+    PlacementView,
 }
 
 impl CheckedBoundaryExecution {
@@ -288,6 +289,7 @@ impl CheckedBoundaryExecution {
                 Some(crate::TerminalPlacementLifecycleOperation::Initialize)
             }
             Self::PlacementMoveOut => Some(crate::TerminalPlacementLifecycleOperation::MoveOut),
+            Self::PlacementView => Some(crate::TerminalPlacementLifecycleOperation::View),
         }
     }
 }

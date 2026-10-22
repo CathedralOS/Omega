@@ -82,6 +82,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(match operands.operation() {
                         terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
                         terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
+                        terminal_psi::TerminalPlacementLifecycleOperation::View => 2,
                     });
                     for argument in operands.arguments() {
                         super::structural_types::encode_structural_argument(bytes, argument);
@@ -406,6 +407,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                                 bytes.extend_from_slice(&identity.to_le_bytes());
                             }
                             bytes.extend_from_slice(&resident.placement_commitment);
+                        }
+                        abstract_operations::PlacedReferenceBacking::BorrowedExtent(backing) => {
+                            bytes.push(2);
+                            for identity in [
+                                backing.owner.get(),
+                                backing.schema.get(),
+                                backing.carrier.get(),
+                                backing.base.get(),
+                                backing.length.get(),
+                                backing.granted.get(),
+                            ] {
+                                bytes.extend_from_slice(&identity.to_le_bytes());
+                            }
+                            bytes.extend_from_slice(&backing.placement_commitment);
                         }
                     }
                     super::calling::encode_shape(bytes, *shape);

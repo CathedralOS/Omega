@@ -18,6 +18,10 @@ pub enum PlacementLifecycleOperands {
         storage: StructuralArgument,
         profile: StructuralArgument,
     },
+    View {
+        storage: StructuralArgument,
+        profile: StructuralArgument,
+    },
 }
 
 #[cfg(test)]
@@ -135,6 +139,15 @@ impl PlacementLifecycleOperands {
         arguments: &[StructuralArgument],
     ) -> Result<Self, &'static str> {
         match (operation, arguments) {
+            (TerminalPlacementLifecycleOperation::View, [storage, profile])
+                if storage.access == StructuralAccess::SharedBorrow
+                    && profile.access == StructuralAccess::SharedBorrow =>
+            {
+                Ok(Self::View {
+                    storage: storage.clone(),
+                    profile: profile.clone(),
+                })
+            }
             (TerminalPlacementLifecycleOperation::Initialize, [storage, value, profile])
                 if storage.access == StructuralAccess::Owned
                     && value.access == StructuralAccess::Owned
@@ -166,7 +179,9 @@ impl PlacementLifecycleOperands {
                 value,
                 profile,
             } => [Some(storage), Some(value), Some(profile)],
-            Self::MoveOut { storage, profile } => [Some(storage), Some(profile), None],
+            Self::MoveOut { storage, profile } | Self::View { storage, profile } => {
+                [Some(storage), Some(profile), None]
+            }
         }
         .into_iter()
         .flatten()
@@ -176,6 +191,7 @@ impl PlacementLifecycleOperands {
         match self {
             Self::Initialize { .. } => TerminalPlacementLifecycleOperation::Initialize,
             Self::MoveOut { .. } => TerminalPlacementLifecycleOperation::MoveOut,
+            Self::View { .. } => TerminalPlacementLifecycleOperation::View,
         }
     }
 }

@@ -1,0 +1,260 @@
+//! Borrowed nonresident access must use the exact admitted provider allocation.
+//! These are embedding inputs, not authority produced by numeric addresses.
+use access_plans::{
+    AtomicCapability, BoundaryReach, ExternalCapability, ExternalReadBehavior, PeerWritability,
+    ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
+    StableCapability, TransferRule,
+};
+use extents::{
+    AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
+    ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId,
+};
+use semantic_vocabulary::IntegerValue;
+use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{
+    ProviderInstallationSelection, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalInstanceError, TerminalProgram, TerminalProviderStorageInput,
+    TerminalRuntimeSupplyRequest, TerminalScalarValue, TerminalStructuralInputs,
+    TerminalStructuralScalarFieldValue, TerminalStructuralValue, admit_provider_installation,
+};
+use terminal_psi::StructuralTypeShape;
+
+fn allocation(provenance: u64) -> Extent {
+    ExtentRootGrant::from_admitted_provider(
+        ExtentProviderIssuance::from_normalized_identities([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+        ])
+        .unwrap(),
+        ExtentLineageId::from_normalized_identity(21).unwrap(),
+        AddressSpaceId::from_normalized_identity(22).unwrap(),
+        ExtentRights::from_normalized_identities([
+            ExtentRightId::from_normalized_identity(23).unwrap()
+        ]),
+        ExtentProvenanceId::from_normalized_identity(provenance).unwrap(),
+        MappingEraId::from_normalized_identity(25).unwrap(),
+    )
+    .mint(4096, 16)
+    .unwrap()
+}
+
+/// Host-side observations fail this fixture without aborting the corpus.
+pub(super) fn observe(artifact: &terminal_codec::CanonicalTerminalArtifact) -> Result<(), String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact))).map_err(
+        |failure| {
+            failure
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| {
+                    failure
+                        .downcast_ref::<&str>()
+                        .map(|message| (*message).to_owned())
+                })
+                .unwrap_or_else(|| "external extent view provision failed".to_owned())
+        },
+    )
+}
+
+fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact) {
+    let program = TerminalProgram::borrow(artifact.view());
+    let module = program.module();
+    let plan = module
+        .placement_lifecycle_plans
+        .iter()
+        .find(|plan| plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::View)
+        .expect("exact View operation retained");
+    assert_eq!(plan.storage.vacant, None);
+    assert_eq!(plan.storage.resident, None);
+    let selections = module
+        .provider_candidates
+        .iter()
+        .map(|candidate| ProviderInstallationSelection {
+            boundary: candidate.boundary,
+            provider_identity: module
+                .identities
+                .text(candidate.provider_identity)
+                .unwrap()
+                .to_owned(),
+            provider_declaration: module
+                .identities
+                .text(candidate.provider_declaration.identity())
+                .unwrap()
+                .to_owned(),
+            candidate: candidate.candidate,
+        })
+        .collect::<Vec<_>>();
+    let installed = admit_provider_installation(artifact.view(), &selections, &[]).unwrap();
+    let supplies = program
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            x86_flags: None,
+            entry: None,
+            installation: Some(&installed),
+            host_imports: &[],
+            target_machines: None,
+            target_layouts: None,
+        })
+        .unwrap();
+    let entry = program.entry().unwrap();
+    let [parameter] = entry.structural_parameters else {
+        panic!("one owned extent input");
+    };
+    let StructuralTypeShape::Record { fields, .. } = &program
+        .structural_type(parameter.structural_type)
+        .unwrap()
+        .shape
+    else {
+        panic!("extent record");
+    };
+    for (second_word, compatible_transfer, bind_backing, crosswire) in [
+        (41_u64, true, true, false),
+        (99, true, true, false),
+        (41, false, true, false),
+        (41, true, false, false),
+        (41, true, true, true),
+    ] {
+        let allocation = allocation(24);
+        let profile = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(31).unwrap(),
+            &allocation,
+            allocation.rights().clone(),
+            BoundaryReach::default(),
+        )
+        .unwrap()
+        .admit(ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 0,
+                length: 16,
+                peer: PeerWritability::HostileShared,
+                stable: StableCapability::None,
+                external: ExternalCapability::Access {
+                    read: ExternalReadBehavior::Repeatable,
+                    write: false,
+                    transfers: vec![TransferRule {
+                        width_bits: if compatible_transfer { 64 } else { 8 },
+                        alignment_bytes: 8,
+                    }],
+                },
+                atomic: AtomicCapability::None,
+                reach: BoundaryReach::default(),
+            }],
+        })
+        .unwrap();
+        let values = [TerminalStructuralValue {
+            opaque_identity: 100,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            projected_qualifications: parameter.projected_qualifications.clone(),
+            path: Vec::new(),
+        }];
+        let scalars = fields
+            .iter()
+            .map(|field| {
+                let coordinate = if field.id == plan.storage.base {
+                    4096_u64
+                } else {
+                    assert_eq!(field.id, plan.storage.length);
+                    16
+                };
+                TerminalStructuralScalarFieldValue {
+                    argument_index: 0,
+                    path: Vec::new(),
+                    field: field.id,
+                    value: TerminalScalarValue::Integer {
+                        scalar_type: field
+                            .field_type
+                            .scalar_type()
+                            .unwrap()
+                            .as_integer()
+                            .unwrap(),
+                        value: IntegerValue::Unsigned(coordinate.into()),
+                    },
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut instance = program
+            .instantiate_installed(
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &values,
+                    scalar_fields: &scalars,
+                    ..Default::default()
+                },
+                &supplies,
+            )
+            .unwrap();
+        if bind_backing {
+            let bytes = [17_u64.to_le_bytes(), second_word.to_le_bytes()].concat();
+            // Identical geometry and profile contents cannot authorize another
+            // issuance. Only the SDK input's provenance changes in this control.
+            let (supplied_allocation, matching_allocation) = if crosswire {
+                (self::allocation(124), Some(allocation))
+            } else {
+                (allocation, None)
+            };
+            let result = instance.bind_provider_storage(TerminalProviderStorageInput {
+                argument_index: 0,
+                path: Vec::new(),
+                extent: supplied_allocation,
+                profile,
+                bytes,
+            });
+            if crosswire {
+                let failure =
+                    result.expect_err("equal geometry cannot crosswire profile authority");
+                assert_eq!(
+                    failure.reason,
+                    "provider storage profile: extent provenance does not match admitted resource profile"
+                );
+                assert_eq!(
+                    failure.input.bytes,
+                    [17_u64.to_le_bytes(), second_word.to_le_bytes()].concat()
+                );
+                assert_eq!(
+                    (failure.input.extent.base(), failure.input.extent.length()),
+                    (4096, 16)
+                );
+                eprintln!("external extent crosswire refused: {}", failure.reason);
+                // Retry the returned unchanged profile and bytes with their
+                // original allocation. Refusal must not poison the instance.
+                let mut input = failure.input;
+                input.extent = matching_allocation.unwrap();
+                instance.bind_provider_storage(input).unwrap();
+            } else {
+                result.unwrap();
+            }
+        }
+        let result = instance.invoke(&mut TerminalFuelMeter::unbounded());
+        if !bind_backing {
+            assert!(
+                matches!(result, Err(TerminalInstanceError::Execution(_))),
+                "{result:?}"
+            );
+            assert!(
+                format!("{result:?}").contains("placement extent has no actual provider backing"),
+                "{result:?}"
+            );
+        } else if second_word != 41 || !compatible_transfer {
+            assert!(
+                matches!(result, Ok(TerminalExecutionStatus::Crashed(_))),
+                "{result:?}"
+            );
+        } else {
+            let Ok(TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
+                ref returned,
+            ))) = result
+            else {
+                panic!("qualified external read failed: {result:?}");
+            };
+            assert_eq!(returned.value.qualifications, parameter.qualifications);
+            assert_eq!(
+                returned.claims.len(),
+                1,
+                "original extent claim remains owned"
+            );
+        }
+        eprintln!(
+            "external extent second_word={second_word}, transfer={compatible_transfer}, bound={bind_backing}: {result:?}"
+        );
+        // Neither success nor rejection manufactures vacancy for host handback.
+        assert!(instance.take_returned_provider_storage(&[]).is_err());
+    }
+}

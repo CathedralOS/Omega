@@ -92,7 +92,13 @@ fn require_version(
     {
         return Err("payload query does not name a completed whole-value producer");
     }
-    require_unchanged_between(machine, analysis, producer, observation, payload)
+    require_unchanged_between(
+        machine,
+        analysis,
+        producer,
+        observation,
+        &DescriptorPayloadTarget::Storage(payload.clone()),
+    )
 }
 
 /// Preserve an existing storage occurrence after a completed observation.
@@ -107,7 +113,7 @@ pub fn require_unchanged_observed_storage(
     identity: MachineId,
     completed_observation: DescriptorPosition,
     use_position: DescriptorPosition,
-    storage: &DescriptorLocation,
+    storage: &DescriptorPayloadTarget,
 ) -> Result<(), &'static str> {
     let machine =
         descriptor_machine(graph, identity).ok_or("observed storage machine is absent")?;
@@ -129,19 +135,28 @@ fn require_unchanged_between(
     analysis: &mut DescriptorAnalysis<'_>,
     producer: DescriptorPosition,
     observation: DescriptorPosition,
-    payload: &DescriptorLocation,
+    payload: &DescriptorPayloadTarget,
 ) -> Result<(), &'static str> {
     let identity = machine.id;
     let relevant = super::payload_reachability::predecessors(machine, observation)
         .ok_or("produced payload observation has unresolved control flow")?;
+    // A symbolic incoming referent is not a local allocation or an address.
+    // Its exact query identifies the same borrowed payload at both uses. Keep
+    // the descriptor binding unchanged too; rebinding it would change which
+    // original storage the observation described. Unknown incoming aliases
+    // still invalidate the observation rather than proving disjointness.
+    let home = match payload {
+        DescriptorPayloadTarget::Storage(location) => location.clone(),
+        DescriptorPayloadTarget::Incoming(query) => DescriptorLocation::whole(query.root),
+    };
     let overlaps =
-        |location: &DescriptorLocation| payload.contains(location) || location.contains(payload);
+        |location: &DescriptorLocation| home.contains(location) || location.contains(&home);
     let unchanged = version_flow(
         &machine.flow,
         machine.entry,
         producer,
         observation,
-        payload,
+        &home,
         |position, ordinal| relevant.includes_edge(position, ordinal),
         |position, step| {
             if machine.unresolved_contents_writes.contains(&position) {
@@ -423,7 +438,7 @@ mod tests {
                 identity,
                 position(2),
                 position(5),
-                &payload(),
+                &DescriptorPayloadTarget::Storage(payload()),
             )
         };
         assert!(observe(&graph).is_ok());
@@ -445,7 +460,7 @@ mod tests {
                 identity,
                 position(2),
                 position(2),
-                &payload()
+                &DescriptorPayloadTarget::Storage(payload())
             )
             .is_err()
         );

@@ -55,6 +55,7 @@ use terminator::lower_terminator;
 #[derive(Clone)]
 struct ReferenceEdgeStorage {
     target: semantic_vocabulary::BlockId,
+    borrowed_sources: references::BorrowedSources,
     references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceStorage>,
     retired_reference_roots: BTreeSet<PlaceId>,
 }
@@ -120,6 +121,7 @@ impl LiveDefinitions {
     fn reference_edge_exit(&self, target: semantic_vocabulary::BlockId) -> ReferenceEdgeStorage {
         ReferenceEdgeStorage {
             target,
+            borrowed_sources: self.borrowed_reference_sources.clone(),
             references: self.references.clone(),
             retired_reference_roots: self.retired_reference_roots.clone(),
         }
@@ -158,6 +160,10 @@ impl LiveDefinitions {
         );
         for other in exits {
             let other = scoped(other.clone());
+            references::merge_borrowed_arrivals(
+                &mut arrival.borrowed_sources,
+                &other.borrowed_sources,
+            );
             references::merge_arrivals(function, &mut arrival.references, &other.references)?;
             arrival
                 .retired_reference_roots
@@ -472,6 +478,7 @@ pub(super) fn lower(
     }
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut reference_entries = vec![None; entries.len()];
+    let mut borrowed_entries = vec![None; entries.len()];
     let mut drained_entries = vec![None; entries.len()];
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
@@ -559,6 +566,10 @@ pub(super) fn lower(
                         deferred = true;
                         continue 'blocks;
                     }
+                    references::merge_borrowed_arrivals(
+                        &mut arrival.borrowed_sources,
+                        &other.borrowed_sources,
+                    );
                     arrival
                         .retired_reference_roots
                         .retain(|root| other.retired_reference_roots.contains(root));
@@ -567,16 +578,19 @@ pub(super) fn lower(
                 // Descriptor metadata comes from the actual incoming edges,
                 // not an overlay that could revive moved storage.
                 live.references = arrival.references;
+                live.borrowed_reference_sources = arrival.borrowed_sources;
                 live.retired_reference_roots = arrival.retired_reference_roots;
             }
             live.reference_edge_exits.clear();
             if reference_entries[position].as_ref() == Some(&live.references)
+                && borrowed_entries[position].as_ref() == Some(&live.borrowed_reference_sources)
                 && drained_entries[position].as_ref() == Some(&live.retired_reference_roots)
             {
                 continue;
             }
             changed = true;
             reference_entries[position] = Some(live.references.clone());
+            borrowed_entries[position] = Some(live.borrowed_reference_sources.clone());
             drained_entries[position] = Some(live.retired_reference_roots.clone());
             if position != entry_position {
                 transfers::enter(&entries[position], &mut live);
@@ -736,9 +750,16 @@ pub(super) fn lower(
         };
         let mut arrival = first?;
         for other in arrivals {
-            references::merge_arrivals(function, &mut arrival.references, &other?.references)?;
+            let other = other?;
+            references::merge_arrivals(function, &mut arrival.references, &other.references)?;
+            references::merge_borrowed_arrivals(
+                &mut arrival.borrowed_sources,
+                &other.borrowed_sources,
+            );
         }
-        if reference_entries[position].as_ref() != Some(&arrival.references) {
+        if reference_entries[position].as_ref() != Some(&arrival.references)
+            || borrowed_entries[position].as_ref() != Some(&arrival.borrowed_sources)
+        {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }

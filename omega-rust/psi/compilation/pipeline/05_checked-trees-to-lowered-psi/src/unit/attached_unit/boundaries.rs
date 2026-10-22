@@ -168,6 +168,8 @@ pub(crate) fn lower_declarations(
                                 terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
                             typed_trees::typed_trees::PlacementLifecycleOperation::MoveOut =>
                                 terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
+                            typed_trees::typed_trees::PlacementLifecycleOperation::View =>
+                                terminal_psi::CheckedBoundaryExecution::PlacementView,
                         },
                     },
                     method_arguments:

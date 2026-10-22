@@ -657,14 +657,23 @@ impl Execution<'_, '_, '_> {
     pub(super) fn capture_returned_retention(
         &mut self,
         expression: ExpressionHandle,
+        destination: typed_trees::types::TypeReferenceHandle,
         call: &typed_trees::expression::TableCallExpression,
         inputs: &[(ExpressionHandle, FlowOperandFact)],
         retention: &mut Option<Handle<FlowOperandRetention>>,
     ) {
         let target = validation::call_target_symbol(self.program, call);
-        let Some(returned) = self
-            .context
-            .expression_result_type_at(self.program, self.machine, self.state, expression)
+        let Some(returned) = destination
+            .is_valid()
+            .then_some(destination)
+            .or_else(|| {
+                self.context.expression_result_type_at(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                )
+            })
             .or_else(|| validation::call_target_return_type(self.program, target))
         else {
             return;
@@ -679,7 +688,23 @@ impl Execution<'_, '_, '_> {
         };
         let mut outputs: Vec<(Vec<PlaceSegment>, Vec<PlaceRoot>, bool)> = Vec::new();
         for source in sources {
-            let path = crate::borrow::owner_place_segments(&source.owner_path);
+            // The declaration supplies the lifetime relation, but the completed
+            // value belongs to its contextual carrier. Generic preparation can
+            // give those carriers different member symbols. Translate through
+            // their declaration selectors once, just as returned loans do;
+            // raw symbol equality would discard a valid leaf after storage.
+            let Some(path) = crate::borrow::structural_owner_path(self.program, &source.owner_path)
+                .and_then(|path| {
+                    validation::reference_result_custody::loan_place_segments(
+                        self.program,
+                        returned,
+                        &path,
+                    )
+                })
+            else {
+                *retention = Some(Handle::invalid());
+                return;
+            };
             let position = outputs
                 .iter()
                 .position(|(candidate, _, _)| *candidate == path)

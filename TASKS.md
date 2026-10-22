@@ -5010,7 +5010,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     installers also need returned-loan provenance and correct table-result
     ownership.
   - Multi-page loops need **TERMINATION-RANKING-CHECKS**; demand-grown tables
-    need **BUMP-ALLOCATOR-CANARY**, placed read-back **PLAN-LAID-VIEWS**, range
+    need **BUMP-ALLOCATOR-CANARY**; firmware-root read-back needs admitted
+    qualified extents and retention of the full reachable table closure, not
+    merely a snapshot of newly prepared page memory. External entry/retirement
+    remains **PLAN-LAID-VIEWS**; range
     migration **CANONICALIZE-SCALAR-RANGE-CONTRACTS**; boot integration needs
     **UEFI-PHYSICAL-SEMANTIC-ENTRY** / **UEFI-OS-HANDOFF**.
   - `FRAME_MASK` is `0x000FFFFFFFFFF000` (bits 12..51); verify geometry and

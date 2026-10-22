@@ -29,6 +29,30 @@ fn produce(machine: &str) -> CanonicalTerminalArtifact {
         .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
 }
 
+fn accessor_writes(
+    module: &terminal_psi::TerminalModule,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> bool {
+    let mut operations = module
+        .placed_view_plans
+        .iter()
+        .flat_map(|plan| &plan.fields)
+        .flat_map(|field| &field.operations)
+        .filter(|operation| operation.boundary == boundary);
+    let operation = operations
+        .next()
+        .expect("import names a retained placed operation");
+    assert!(
+        operations.next().is_none(),
+        "placed operation is unambiguous"
+    );
+    match operation.kind {
+        terminal_psi::TerminalPlacedAccessorKind::Read => false,
+        terminal_psi::TerminalPlacedAccessorKind::Write => true,
+        _ => panic!("fixture exercises only read and write"),
+    }
+}
+
 #[derive(Debug)]
 struct Registers {
     status: u32,
@@ -125,19 +149,13 @@ fn qualify_helper(machine: &str, writes: bool) {
         referent: backing,
     };
     if machine == "delegate" {
-        let error = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
+        terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
             &artifact,
             target::TargetProfile::host(),
             module.entry,
             std::slice::from_ref(&establishment),
         )
-        .err()
-        .expect("native subordinate custody remains gated");
-        assert!(
-            format!("{error:?}").contains("PlacedViewInputsRequireCustodyLowering"),
-            "{error:?}"
-        );
-        eprintln!("native placed helper refusal: {error:?}");
+        .expect("native input retains the exact placed entry establishment");
     }
     assert!(matches!(
         program.instantiate(
@@ -176,9 +194,7 @@ fn qualify_helper(machine: &str, writes: bool) {
             .iter()
             .find(|declaration| declaration.id == boundary)
             .unwrap();
-        let identity = module.identities.text(declaration.identity).unwrap();
-        let write = identity.ends_with("::write");
-        assert!(write || identity.ends_with("::read"));
+        let write = accessor_writes(module, boundary);
         instance
             .bind_import(
                 boundary,
@@ -516,12 +532,7 @@ fn mixed_parameters_rejoin_checked_dense_coordinate() {
             .iter()
             .find(|row| row.id == boundary)
             .unwrap();
-        let write = artifact
-            .semantic_module()
-            .identities
-            .text(declaration.identity)
-            .unwrap()
-            .ends_with("::write");
+        let write = accessor_writes(artifact.semantic_module(), boundary);
         instance
             .bind_import(
                 boundary,

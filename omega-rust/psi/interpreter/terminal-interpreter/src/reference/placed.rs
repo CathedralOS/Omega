@@ -19,6 +19,8 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralTypeShape,
 };
 
+mod view;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlacedReference {
     storage: PlacedStorage,
@@ -48,13 +50,21 @@ enum PlacedStorage {
         owner: StructuralRuntimePlace,
         binding: crate::provider_storage::ProviderStorageBinding,
     },
+    External {
+        carrier: semantic_vocabulary::StructuralTypeId,
+        owner: StructuralRuntimePlace,
+        binding: crate::provider_storage::ProviderStorageBinding,
+        compatibility: access_plans::PlacementResourceCompatibility,
+    },
 }
 
 impl PlacedReference {
     pub(crate) fn carrier(&self) -> semantic_vocabulary::StructuralTypeId {
         match &self.storage {
             PlacedStorage::Ram { correspondence, .. } => correspondence.carrier,
-            PlacedStorage::Resident { carrier, .. } => *carrier,
+            PlacedStorage::Resident { carrier, .. } | PlacedStorage::External { carrier, .. } => {
+                *carrier
+            }
         }
     }
 }
@@ -118,7 +128,8 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let home = match &captured.storage {
             PlacedStorage::Ram { home, .. } => home,
-            PlacedStorage::Resident { owner, binding, .. } => {
+            PlacedStorage::Resident { owner, binding, .. }
+            | PlacedStorage::External { owner, binding, .. } => {
                 return if self.provider_storage.descriptors.get(owner) == Some(binding)
                     && self.is_live_provider_descriptor(owner, binding)
                 {
@@ -555,9 +566,12 @@ impl TerminalExecution<'_> {
         if source.structural_type != initialized.storage.carrier
             || !source.qualifications.contains(&roles.granted)
             || !source.qualifications.contains(&roles.resident)
-            || source.qualifications.contains(&initialized.storage.vacant)
+            || initialized
+                .storage
+                .vacant
+                .is_some_and(|vacant| source.qualifications.contains(&vacant))
             || initialized.storage.granted != roles.granted
-            || initialized.storage.resident != roles.resident
+            || initialized.storage.resident != Some(roles.resident)
             || initialized.storage.base != roles.base
             || initialized.storage.length != roles.length
             || initialized.schema != plan.schema
@@ -816,8 +830,25 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let returned = match &ram.storage {
-            PlacedStorage::Resident { binding, .. } => self.execute_resident_field(
+            PlacedStorage::Resident { binding, .. } => self.execute_provider_field(
                 *binding,
+                crate::provider_storage::field_access::ProviderFieldContent::Resident,
+                plan,
+                field,
+                &ram.projection,
+                kind,
+                ram.access,
+                arguments,
+            )?,
+            PlacedStorage::External {
+                binding,
+                compatibility,
+                ..
+            } => self.execute_provider_field(
+                *binding,
+                crate::provider_storage::field_access::ProviderFieldContent::Borrowed(
+                    compatibility,
+                ),
                 plan,
                 field,
                 &ram.projection,

@@ -22,10 +22,16 @@ use terminal_psi::{
     TerminalPlacedFieldPlan, TerminalPlacedViewPlan,
 };
 
+pub(crate) enum ProviderFieldContent<'view> {
+    Resident,
+    Borrowed(&'view access_plans::PlacementResourceCompatibility),
+}
+
 impl TerminalExecution<'_> {
-    pub(crate) fn execute_resident_field(
+    pub(crate) fn execute_provider_field(
         &mut self,
         binding: ProviderStorageBinding,
+        content: ProviderFieldContent<'_>,
         plan: &TerminalPlacedViewPlan,
         field: &TerminalPlacedFieldPlan,
         projection: &[StructuralPathSegment],
@@ -96,46 +102,61 @@ impl TerminalExecution<'_> {
         }
         .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
         let descriptor = authorized.descriptor();
-        if descriptor.observation() != ObservationModel::Stable {
+        if matches!(content, ProviderFieldContent::Resident)
+            && descriptor.observation() != ObservationModel::Stable
+        {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "resident scalar events require Stable observation",
             ));
         }
-        let ResidentStorageSlot::Live {
-            initialized_by,
-            custody,
-            compatibility,
-            ..
-        } = self.provider_storage.residents.get(binding.resident)
-        else {
-            return Err(malformed());
+        let (compatibility, initialized, custody, content_bytes) = match content {
+            ProviderFieldContent::Borrowed(compatibility) => {
+                (compatibility, None, None, binding.length)
+            }
+            ProviderFieldContent::Resident => {
+                let ResidentStorageSlot::Live {
+                    initialized_by,
+                    custody,
+                    compatibility,
+                    ..
+                } = self.provider_storage.residents.get(binding.resident)
+                else {
+                    return Err(malformed());
+                };
+                let initialized = self
+                    .program
+                    .catalogs
+                    .placement_lifecycle_plans
+                    .iter()
+                    .find(|row| row.boundary == *initialized_by)
+                    .ok_or_else(malformed)?;
+                if initialized.placement != plan.placement
+                    || initialized.schema != plan.schema
+                    || initialized.policy_identity != plan.policy_identity
+                    || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
+                    || initialized.schema_identity != plan.schema_identity
+                    || custody.value.structural_type != plan.schema
+                {
+                    return Err(TerminalInterpretError::ContentTransformationMismatch(
+                        "resident event changed its initialization contract",
+                    ));
+                }
+                (
+                    compatibility.placement(),
+                    Some(initialized),
+                    Some(custody),
+                    compatibility.byte_length(),
+                )
+            }
         };
-        let initialized = self
-            .program
-            .catalogs
-            .placement_lifecycle_plans
-            .iter()
-            .find(|row| row.boundary == *initialized_by)
-            .ok_or_else(malformed)?;
-        if initialized.placement != plan.placement
-            || initialized.schema != plan.schema
-            || initialized.policy_identity != plan.policy_identity
-            || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
-            || initialized.schema_identity != plan.schema_identity
-            || custody.value.structural_type != plan.schema
-        {
-            return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "resident event changed its initialization contract",
-            ));
-        }
         let supply = compatibility
-            .placement()
             .fields()
             .iter()
             .find(|row| row.key() == entry.key());
         let footprint = descriptor.effect_footprint();
         let supplied = if let Some(supply) = supply {
-            supply.kind() == EffectiveSupplyKind::Stable
+            (descriptor.observation() != ObservationModel::Stable
+                || supply.kind() == EffectiveSupplyKind::Stable)
                 && supply.offset() == footprint.byte_offset()
                 && u64::from(supply.width_bits())
                     == footprint
@@ -143,20 +164,13 @@ impl TerminalExecution<'_> {
                         .checked_mul(8)
                         .ok_or_else(malformed)?
         } else {
-            compatibility
-                .placement()
-                .field_regions()
-                .iter()
-                .any(|region| {
-                    region.key() == entry.key()
-                        && footprint.byte_offset() >= region.byte_offset()
-                        && footprint.end() <= region.byte_offset() + region.byte_length()
-                })
+            compatibility.field_regions().iter().any(|region| {
+                region.key() == entry.key()
+                    && footprint.byte_offset() >= region.byte_offset()
+                    && footprint.end() <= region.byte_offset() + region.byte_length()
+            })
         };
-        if !supplied
-            || footprint.end() > compatibility.byte_length()
-            || footprint.end() > binding.length
-        {
+        if !supplied || footprint.end() > content_bytes || footprint.end() > binding.length {
             return Err(malformed());
         }
         let StructuralTypeShape::Record { fields, .. } = &self
@@ -172,7 +186,9 @@ impl TerminalExecution<'_> {
             .iter()
             .find(|row| row.identity == field.schema_field)
             .ok_or_else(malformed)?;
-        if initialized.image_fields.get(field.access_slot as usize) != Some(&source_field.id) {
+        if initialized.is_some_and(|initialized| {
+            initialized.image_fields.get(field.access_slot as usize) != Some(&source_field.id)
+        }) {
             return Err(malformed());
         }
         let value_type = projected.map_or_else(
@@ -196,7 +212,9 @@ impl TerminalExecution<'_> {
             }
             _ => return Err(malformed()),
         };
-        if write.is_some() {
+        if write.is_some()
+            && let Some(custody) = custody
+        {
             let mut path = vec![StructuralPathSegment::Field(source_field.identity)];
             path.extend_from_slice(projection);
             if !custody.value.qualifications.is_empty()
@@ -242,16 +260,25 @@ impl TerminalExecution<'_> {
         let actual = profile
             .restrict_to_loan(&loan)
             .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
-        access_plans::require_stable_region_supply(
-            &actual,
-            footprint.byte_offset(),
-            footprint.length_bytes(),
-            needs_read,
-            write.is_some(),
-            plan.placement.reach(),
-            "resident field event",
-        )
-        .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        // Resident mutation still requires Stable supply. External views use
+        // the separately captured complete plan/profile compatibility and may
+        // not synthesize a read-patch-write operation from a write permission.
+        if descriptor.observation() == ObservationModel::Stable {
+            access_plans::require_stable_region_supply(
+                &actual,
+                footprint.byte_offset(),
+                footprint.length_bytes(),
+                needs_read,
+                write.is_some(),
+                plan.placement.reach(),
+                "resident field event",
+            )
+            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        } else if write.is_some() && needs_read {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "external field write cannot synthesize an unadmitted read-patch-write",
+            ));
+        }
         let start = binding
             .offset
             .checked_add(footprint.byte_offset())

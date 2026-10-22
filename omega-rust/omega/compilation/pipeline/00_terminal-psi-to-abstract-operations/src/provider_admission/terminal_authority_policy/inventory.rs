@@ -9,7 +9,7 @@ use effects::{
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
 
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 577;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 578;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
     ArithmeticDomain::Exact,
@@ -34,6 +34,7 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
         [
             terminal_psi::TerminalPlacementLifecycleOperation::Initialize,
             terminal_psi::TerminalPlacementLifecycleOperation::MoveOut,
+            terminal_psi::TerminalPlacementLifecycleOperation::View,
         ]
         .map(CompilerIntrinsicExecutionIdentity::PlacementLifecycle),
     );

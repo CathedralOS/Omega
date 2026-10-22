@@ -44,6 +44,81 @@ pub fn validate_backing(
                 return Err("resident placed backing aliased its qualification roles");
             }
         }
+        PlacedReferenceBacking::BorrowedExtent(backing) => {
+            if backing.placement_commitment != plan.placement.content_interpretation().commitment()
+            {
+                return Err("borrowed placed backing changed its complete placement");
+            }
+            let owner = terminal_psi::find_structural_type(types, backing.owner)
+                .ok_or("borrowed placed backing lost its owner declaration")?;
+            terminal_semantics::validate_resident_owner_fields(
+                owner,
+                backing.base,
+                backing.length,
+            )?;
+        }
     }
     Ok(())
+}
+
+/// Derive only the Ready leaf of the exact compiler-owned View occurrence.
+/// Reuse this relation for body replay and direct result registration. It
+/// retains interpretation, not a pointer, grant, loan or successful case tag.
+pub fn borrowed_view_formation(
+    types: &abstract_operations::StructuralTypeCatalog,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    result: &terminal_psi::StructuralOperationResult,
+) -> Option<(
+    Vec<terminal_psi::StructuralPathSegment>,
+    PlacedReferenceBacking,
+)> {
+    if declaration
+        .declaration
+        .as_ref()?
+        .execution
+        .placement_operation()
+        != Some(terminal_psi::TerminalPlacementLifecycleOperation::View)
+    {
+        return None;
+    }
+    let terminal_psi::BoundaryMachineResult::Structural(declared) = &declaration.result else {
+        return None;
+    };
+    if declared.structural_type != result.structural_type {
+        return None;
+    }
+    let plan = types
+        .placement_lifecycles()
+        .iter()
+        .find(|plan| plan.boundary == declaration.id)?;
+    if plan.operation != terminal_psi::TerminalPlacementLifecycleOperation::View
+        || plan.storage.vacant.is_some()
+        || plan.storage.resident.is_some()
+    {
+        return None;
+    }
+    let (path, carrier) =
+        terminal_semantics::placement_view_reference_slot(types, result.structural_type)?;
+    let placed = types
+        .placed_views()
+        .iter()
+        .find(|placed| placed.carrier == carrier)?;
+    if placed.schema != plan.schema
+        || placed.policy_identity != plan.policy_identity
+        || placed.placement != plan.placement
+    {
+        return None;
+    }
+    Some((
+        path,
+        PlacedReferenceBacking::BorrowedExtent(abstract_operations::BorrowedExtentBacking {
+            owner: plan.storage.carrier,
+            schema: plan.schema,
+            carrier,
+            base: plan.storage.base,
+            length: plan.storage.length,
+            granted: plan.storage.granted,
+            placement_commitment: plan.placement.content_interpretation().commitment(),
+        }),
+    ))
 }

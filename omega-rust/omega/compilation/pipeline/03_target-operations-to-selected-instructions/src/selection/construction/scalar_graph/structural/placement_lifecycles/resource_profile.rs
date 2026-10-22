@@ -63,7 +63,7 @@ impl Emission<'_> {
         left: VirtualRegisterId,
         right: VirtualRegisterId,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        super::initialization::compare(builder, self.row, self.scratch.place, left, right, kind)
+        super::outcome::compare(builder, self.row, self.scratch.place, left, right, kind)
     }
 
     fn equal(

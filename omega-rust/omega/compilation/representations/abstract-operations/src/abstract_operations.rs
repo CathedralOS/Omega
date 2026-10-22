@@ -70,7 +70,9 @@ impl AbstractOperationPlan {
 pub mod ownership;
 mod placed_references;
 mod placement_lifecycles;
-pub use placed_references::{PlacedReferenceBacking, ResidentReferenceBacking};
+pub use placed_references::{
+    BorrowedExtentBacking, PlacedReferenceBacking, ResidentReferenceBacking,
+};
 pub use placement_lifecycles::PlacementLifecycleOperands;
 mod structural_type_catalog;
 pub use ownership::CompletionClaimSource;

@@ -25,6 +25,10 @@ impl TerminalExecution<'_> {
         boundary: &BoundaryMachineDeclaration,
         plan: &TerminalPlacementLifecyclePlan,
     ) -> Result<(), TerminalInterpretError> {
+        let (vacant, resident_domain) = plan
+            .storage
+            .owned_content()
+            .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
         let OperationKind::BoundaryCall {
             structural_arguments,
             completion_receipts,
@@ -78,8 +82,8 @@ impl TerminalExecution<'_> {
         )?;
         if extent.claim_paths.as_slice() != [Vec::<StructuralPathSegment>::new()]
             || !extent.value.qualifications.contains(&plan.storage.granted)
-            || !extent.value.qualifications.contains(&plan.storage.resident)
-            || extent.value.qualifications.contains(&plan.storage.vacant)
+            || !extent.value.qualifications.contains(&resident_domain)
+            || extent.value.qualifications.contains(&vacant)
         {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
@@ -248,8 +252,8 @@ impl TerminalExecution<'_> {
         extent
             .value
             .qualifications
-            .retain(|domain| *domain != plan.storage.resident);
-        extent.value.qualifications.push(plan.storage.vacant);
+            .retain(|domain| *domain != resident_domain);
+        extent.value.qualifications.push(vacant);
         extent.value.qualifications.sort();
         StructuralPathQualification::append_under(
             &extent.value.qualifications,

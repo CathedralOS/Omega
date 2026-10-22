@@ -11,8 +11,7 @@
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use terminal_psi::{
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::descriptor_path;
@@ -35,7 +34,8 @@ pub struct ResultSlot {
 /// separately from the projection of its referent. A record field containing a
 /// whole view is not a projection into that view's backing.
 pub fn summarize<'operation>(
-    types: &[StructuralTypeDeclaration],
+    types: &abstract_operations::StructuralTypeCatalog,
+    boundaries: &[terminal_psi::BoundaryMachineDeclaration],
     parameters: &[StructuralParameterDeclaration],
     result_type: StructuralTypeId,
     slots: &[DescriptorResultSlot],
@@ -65,12 +65,34 @@ pub fn summarize<'operation>(
                         if projection != &Projection::new(&[]) || *carrier != referent {
                             return None;
                         }
+                        let formation = formation(*machine, *operation)?;
+                        if let AbstractOperation::BoundaryCall {
+                            psi_operation,
+                            boundary,
+                            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                            ..
+                        } = formation
+                        {
+                            let declaration = boundaries.iter().find(|row| row.id == *boundary)?;
+                            let (_, backing) = crate::placed_references::borrowed_view_formation(
+                                types,
+                                declaration,
+                                result,
+                            )?;
+                            if psi_operation != operation
+                                || result.place != *place
+                                || backing.carrier() != *carrier
+                            {
+                                return None;
+                            }
+                            return Some(Some(Source::Captured(backing)));
+                        }
                         let AbstractOperation::EstablishPlacedReference {
                             psi_operation,
                             result,
                             correspondence,
                             ..
-                        } = formation(*machine, *operation)?
+                        } = formation
                         else {
                             return None;
                         };

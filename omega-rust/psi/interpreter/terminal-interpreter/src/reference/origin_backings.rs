@@ -279,6 +279,22 @@ impl TerminalExecution<'_> {
         actual: &ReferenceReferent,
         access: StructuralAccess,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
+        // A newly formed placed interpretation can borrow an exact captured
+        // owner without interpreting that owner's descriptor bytes as storage.
+        // The forming operation already retained the live physical binding;
+        // joining it requires complete source equality, not equal addresses or
+        // merely an input lifetime. Partial inline regions continue below.
+        if let Some(captured) = &actual.placed {
+            self.retain_returned_placed_interpretation(
+                &mut region,
+                actual,
+                captured.carrier(),
+                access,
+            )?;
+            if region.placed.as_ref() == Some(captured) && region.value == actual.view {
+                return Ok(Some(region));
+            }
+        }
         if let Some(view) = captured_view {
             if !access_covers(view.access(), access) {
                 return Err(malformed());

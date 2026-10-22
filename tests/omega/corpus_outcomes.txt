@@ -619,6 +619,8 @@ fail/borrows/state_transfer_shared_carrier_mutable_leaf rejected 393ms @fa10277f
 fail/borrows/state_transfer_write_only_carrier_pointer rejected 408ms @fa10277fce92
 fail/borrows/static_subject_delayed_loan rejected 1613ms expected @a9ae30e1c334+wt
 fail/borrows/static_whole_record_field_overlap rejected 1676ms expected @a9ae30e1c334+wt
+fail/borrows/stored_case_reference_state_widening rejected 227ms expected @d3f12beefc63+wt
+	argument `value` for state `read` is declared `&mut` (`&mut Cell`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/stored_fixed_array_shared_write rejected 688ms expected @eb99d04ef2f5+wt
 fail/borrows/stored_fixed_array_write_only_read rejected 147ms expected @c4c0ab7a5d11
 fail/borrows/stored_primitive_reference_backing_write rejected 1748ms expected @a9ae30e1c334+wt
@@ -7285,6 +7287,14 @@ fail/layouts/encoded_foreign_view_requires_same_geometry rejected 906ms expected
 fail/layouts/encoded_integer_requires_total_decode rejected 116ms expected @a9ae30e1c334+wt
 fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 1603ms expected @7becf2fe91a5+wt
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 1620ms expected @a9ae30e1c334+wt
+fail/layouts/extent_view_nested_record_predicate rejected 343ms expected @d3f12beefc63+wt
+	nonresident placement View cannot establish record predicates for `Inner`; independent content-validity evidence is required
+fail/layouts/extent_view_unproved_field_domain rejected 341ms expected @d3f12beefc63+wt
+	nonresident placement View cannot establish field qualifications; independent content-validity evidence is required
+fail/layouts/extent_view_unproved_record_predicate rejected 609ms expected @d3f12beefc63+wt
+	nonresident placement View cannot establish record predicates for `Word`; independent content-validity evidence is required
+fail/layouts/extent_view_unrelated_result_lifetime rejected 1091ms expected @d3f12beefc63+wt
+	machine `attempt` returns a view borrowing input `right`, which is not permitted by the declared result lifetime relation
 fail/layouts/false_constant_layout_contract rejected 2683ms expected @e63c4b1e202d+wt
 fail/layouts/layout_arithmetic_cancellation_keeps_child_obligation rejected 10195ms expected @c48489ea6ad6
 fail/layouts/layout_arithmetic_overwritten_snapshot rejected 9218ms expected @c48489ea6ad6
@@ -12962,6 +12972,7 @@ pass/layouts/byte_wide_byte_byte_layout_compile checked 1669ms @a9ae30e1c334+wt
 pass/layouts/const_layout_query_compile checked 1842ms @a9ae30e1c334+wt
 pass/layouts/empty_cases_sum_layout_compile checked 1697ms @a9ae30e1c334+wt
 pass/layouts/empty_record_layout_queries_compile checked 1632ms @a9ae30e1c334+wt
+pass/layouts/extent_view_external_content checked 4083ms terminal-runtime.attempt:unrequested terminal-inspections:match @d3f12beefc63+wt
 pass/layouts/five_element_array_layout_compile checked 1703ms @a9ae30e1c334+wt
 pass/layouts/float_member_layout_queries_compile checked 1639ms @a9ae30e1c334+wt
 pass/layouts/guarded_policy_state_premise checked 118645ms @d041496df109+wt
@@ -14503,6 +14514,7 @@ run/borrows/shared_local_borrow checked 11726ms check-target:macos_arm64 @a9ae30
 run/borrows/shared_recast_borrow checked 11426ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_record_loan_member_read checked 11292ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_runtime_index_borrow checked 11802ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/stored_case_reference_state checked 722ms check-target:macos_arm64 @d3f12beefc63+wt
 run/borrows/stored_subview_identity checked 6293ms check-target:macos_arm64 @3224bdead711
 run/borrows/stored_subview_nested_call_result checked 6293ms check-target:macos_arm64 @3224bdead711
 run/borrows/stored_subview_repeated_updates checked 6293ms check-target:macos_arm64 @3224bdead711

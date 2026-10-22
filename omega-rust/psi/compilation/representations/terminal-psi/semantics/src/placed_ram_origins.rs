@@ -24,9 +24,10 @@ pub struct PlacedRamFormation {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PlacedRamOrigin {
     Formation(PlacedRamFormation),
-    /// This formation borrows retained provider content, not descriptor RAM.
-    /// Consumers must support resident events or retain an unsatisfied demand.
-    ResidentFormation(PlacedRamFormation),
+    /// This formation borrows admitted provider backing, not descriptor RAM.
+    /// Actual events still require the original live allocation and either
+    /// resident custody or the checked nonresident View compatibility.
+    ProviderFormation(PlacedRamFormation),
     /// Conditional entry root; consumers must retain checked typed construction
     /// and actual physical/invocation lending custody for this exact row.
     PrivateEntry {
@@ -37,7 +38,7 @@ pub enum PlacedRamOrigin {
 impl PlacedRamOrigin {
     fn carrier(&self) -> StructuralTypeId {
         match self {
-            Self::Formation(formation) | Self::ResidentFormation(formation) => formation.carrier,
+            Self::Formation(formation) | Self::ProviderFormation(formation) => formation.carrier,
             Self::PrivateEntry { carrier, .. } => *carrier,
         }
     }
@@ -172,7 +173,7 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
         let formations = self.resolve(machine, position, location, &mut Vec::new())?;
         if formations
             .iter()
-            .any(|origin| !matches!(origin, PlacedRamOrigin::ResidentFormation(_)))
+            .any(|origin| !matches!(origin, PlacedRamOrigin::ProviderFormation(_)))
         {
             crate::placed_ram_plan_correspondence(
                 &self.module.structural_types,
@@ -232,28 +233,46 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                         .iter()
                         .flat_map(|block| block.operations.iter())
                         .find(|row| row.id == operation)?;
-                    let OperationKind::EstablishPlacedReference { resident, .. } = source.kind
-                    else {
-                        return None;
-                    };
                     let result = source.result.structural()?;
-                    if result.place != place
-                        || !self.module.structural_types.iter().any(|ty| {
-                            ty.id == result.structural_type
-                                && matches!(ty.shape,
-                            StructuralTypeShape::Reference { referent, .. } if referent == carrier)
-                        })
-                    {
+                    if result.place != place {
                         return None;
                     }
+                    let provider_backing = match source.kind {
+                        OperationKind::EstablishPlacedReference { resident, .. } => {
+                            if !matches!(self.module.structural_type(result.structural_type)?.shape,
+                                StructuralTypeShape::Reference { referent, .. } if referent == carrier)
+                            {
+                                return None;
+                            }
+                            resident.is_some()
+                        }
+                        OperationKind::BoundaryCall { boundary, .. } => {
+                            let plan = self
+                                .module
+                                .placement_lifecycle_plans
+                                .iter()
+                                .find(|plan| plan.boundary == boundary)?;
+                            let crate::PlacementResultContract::View {
+                                carrier: formed, ..
+                            } = crate::placement_result_contract(self.module, plan).ok()?
+                            else {
+                                return None;
+                            };
+                            if formed != carrier {
+                                return None;
+                            }
+                            true
+                        }
+                        _ => return None,
+                    };
                     let formation = PlacedRamFormation {
                         machine,
                         operation,
                         place,
                         carrier,
                     };
-                    complete.insert(if resident.is_some() {
-                        PlacedRamOrigin::ResidentFormation(formation)
+                    complete.insert(if provider_backing {
+                        PlacedRamOrigin::ProviderFormation(formation)
                     } else {
                         PlacedRamOrigin::Formation(formation)
                     });

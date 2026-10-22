@@ -60,8 +60,23 @@ impl TerminalExecution<'_> {
             .completed_profiles
             .get(&StructuralRuntimePlace::from(profile))
             .ok_or(TerminalInterpretError::ContentTransformationMismatch(
-                "initialization profile is not an unchanged selected-provider result",
+                "placement profile is not an unchanged selected-provider result",
             ))?;
+        let content = match plan.operation {
+            terminal_psi::TerminalPlacementLifecycleOperation::Initialize => Some(
+                plan.storage
+                    .owned_content()
+                    .map_err(TerminalInterpretError::ContentTransformationMismatch)?
+                    .0,
+            ),
+            terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => Some(
+                plan.storage
+                    .owned_content()
+                    .map_err(TerminalInterpretError::ContentTransformationMismatch)?
+                    .1,
+            ),
+            terminal_psi::TerminalPlacementLifecycleOperation::View => None,
+        };
         if profile.structural_type != *profile_type
             || completion.result_type != *profile_type
             || completion.boundary != requirement.boundary
@@ -71,15 +86,10 @@ impl TerminalExecution<'_> {
                 ))
             || storage.structural_type != plan.storage.carrier
             || !storage.qualifications.contains(&plan.storage.granted)
-            || !storage.qualifications.contains(&match plan.operation {
-                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
-                    plan.storage.vacant
-                }
-                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => plan.storage.resident,
-            })
+            || content.is_some_and(|content| !storage.qualifications.contains(&content))
         {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "initialization lost its exact profile provider, result, or vacant grant",
+                "placement lost its exact profile provider, result, or required grant",
             ));
         }
         let home = StructuralRuntimePlace::from(storage);
@@ -89,15 +99,22 @@ impl TerminalExecution<'_> {
             .get(&home)
             .copied()
             .ok_or(TerminalInterpretError::ContentTransformationMismatch(
-                "initialization extent has no actual provider backing",
+                "placement extent has no actual provider backing",
             ))?;
         if completion.backing != Some(binding)
-            || (binding.resident == arena::Handle::default())
-                != (plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::Initialize)
+            || match plan.operation {
+                terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
+                    binding.resident != arena::Handle::default()
+                }
+                terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
+                    binding.resident == arena::Handle::default()
+                }
+                terminal_psi::TerminalPlacementLifecycleOperation::View => false,
+            }
             || !self.is_live_provider_descriptor(&home, &binding)
         {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "initialization profile belongs to a different or retired allocation window",
+                "placement profile belongs to a different or retired allocation window",
             ));
         }
         let super::ProviderStorageSlot::Live { allocation, .. } =
@@ -112,7 +129,7 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
         if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length) {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "initialization descriptor changed its captured allocation geometry",
+                "placement descriptor changed its captured allocation geometry",
             ));
         }
         let supplied = super::profile_values::read(self, profile)?;

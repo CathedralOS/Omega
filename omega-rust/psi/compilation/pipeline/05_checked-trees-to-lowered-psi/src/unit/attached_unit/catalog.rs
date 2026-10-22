@@ -483,6 +483,27 @@ pub(super) fn lower_unit_structural_types_including(
     }
     for (boundary, _) in boundaries {
         roots.extend(boundary.attachment_type_identity);
+        for (_, operation) in checked.typed.placement_lifecycle_plans.iter() {
+            if matches!(operation, typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated { callable, .. }
+                if *callable == boundary.machine || *callable == boundary.state)
+            {
+                for definition in operation
+                    .storage_definitions(&checked.typed)
+                    .map_err(LoweringError::Unsupported)?
+                {
+                    let identity = match definition.generic_instance {
+                        Some(application) => checked.typed.normalized_type_identity(application),
+                        None => checked
+                            .typed
+                            .normalized_nominal_type_identity(definition.symbol)
+                            .ok_or(LoweringError::Unsupported(
+                                "placement storage lost its nominal type identity",
+                            ))?,
+                    };
+                    roots.push(identity);
+                }
+            }
+        }
         for parameter in &boundary.structural_parameters {
             projection_types::collect_parameter(plans, parameter, &mut roots)?;
         }

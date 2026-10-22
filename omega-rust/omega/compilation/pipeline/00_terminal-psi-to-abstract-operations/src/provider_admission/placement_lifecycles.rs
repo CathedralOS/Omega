@@ -18,7 +18,7 @@ use terminal_psi::{
     TerminalPlacementLifecycleExecution, TerminalPlacementLifecycleOperation,
     TerminalPlacementLifecyclePlan,
 };
-use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPosition};
+use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
 use terminal_semantics::descriptor_results::{
     self, DescriptorAnalysis, DescriptorMachine, DescriptorPayloadTarget,
 };
@@ -166,12 +166,20 @@ fn bind_profile(
     };
     let (storage, profile) = match (plan.operation, arguments) {
         (TerminalPlacementLifecycleOperation::Initialize, [storage, _, profile])
-        | (TerminalPlacementLifecycleOperation::MoveOut, [storage, profile]) => (storage, profile),
+        | (
+            TerminalPlacementLifecycleOperation::MoveOut
+            | TerminalPlacementLifecycleOperation::View,
+            [storage, profile],
+        ) => (storage, profile),
         _ => return Err("lifecycle lost its storage, value or profile input"),
     };
-    if storage.access != StructuralAccess::Owned || profile.access != StructuralAccess::SharedBorrow
-    {
-        return Err("lifecycle must own storage and borrow its original profile");
+    let storage_access = if plan.operation == TerminalPlacementLifecycleOperation::View {
+        StructuralAccess::SharedBorrow
+    } else {
+        StructuralAccess::Owned
+    };
+    if storage.access != storage_access || profile.access != StructuralAccess::SharedBorrow {
+        return Err("placement operation lost its storage access or original profile borrow");
     }
     let query = argument_query(module, graph, caller, profile)?;
     let original = descriptor_results::unchanged_payload_producer(
@@ -284,7 +292,7 @@ fn argument_storage(
     caller: MachineId,
     position: DescriptorPosition,
     argument: &StructuralArgument,
-) -> Result<DescriptorLocation, &'static str> {
+) -> Result<DescriptorPayloadTarget, &'static str> {
     let targets = analysis
         .payload_targets(
             caller,
@@ -292,8 +300,8 @@ fn argument_storage(
             &argument_query(module, graph, caller, argument)?,
         )
         .ok_or("profile extent input has unresolved backing")?;
-    let [DescriptorPayloadTarget::Storage(storage)] = targets.as_slice() else {
-        return Err("profile extent input has ambiguous or incoming descriptor backing");
+    let [storage] = targets.as_slice() else {
+        return Err("profile extent input has ambiguous descriptor backing");
     };
     Ok(storage.clone())
 }

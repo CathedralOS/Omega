@@ -13,6 +13,7 @@ use crate::borrow::loans::borrowed_initializers;
 use crate::borrow::loans::call_view_return_contract;
 use crate::borrow::loans::owner_path_matches;
 use crate::borrow::loans::reference_borrow_access_kind;
+use crate::borrow::structural_owner_path;
 use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
@@ -300,27 +301,6 @@ fn stored_source_covers(
         validation::project_type_reference_from_segments(program, carrier, &selected[..prefix])
             .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
     })
-}
-
-fn structural_owner_path(
-    program: &dyn ::validation::CheckingInput,
-    path: &[BorrowOwnerSegment],
-) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
-    use checked_trees::CheckedUnitStructuralPathSegment as StructuralSegment;
-    path.iter()
-        .map(|segment| match segment {
-            BorrowOwnerSegment::Field(symbol) => Some(StructuralSegment::Field(
-                program.any_field_owner(*symbol)?.1.member_identity(),
-            )),
-            BorrowOwnerSegment::Case(symbol) => Some(StructuralSegment::Case(
-                program.variant_owner(*symbol)?.1.member_identity(),
-            )),
-            BorrowOwnerSegment::FixedIndex(index) => {
-                Some(StructuralSegment::FixedIndex(u64::try_from(*index).ok()?))
-            }
-            BorrowOwnerSegment::DynamicIndex => None,
-        })
-        .collect()
 }
 
 /// Follow finite call operands without collapsing carried source leaves into

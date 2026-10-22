@@ -44,6 +44,7 @@ pub(super) fn encode(
     writer.u8(match plan.operation {
         TerminalPlacementLifecycleOperation::Initialize => 0,
         TerminalPlacementLifecycleOperation::MoveOut => 1,
+        TerminalPlacementLifecycleOperation::View => 2,
     });
     match &plan.execution {
         TerminalPlacementLifecycleExecution::SelectedProvider => writer.u8(0),
@@ -73,8 +74,18 @@ pub(super) fn encode(
     writer.id(plan.storage.base);
     writer.id(plan.storage.length);
     writer.id(plan.storage.granted);
-    writer.id(plan.storage.vacant);
-    writer.id(plan.storage.resident);
+    if plan.operation == TerminalPlacementLifecycleOperation::View {
+        if plan.storage.vacant.is_some() || plan.storage.resident.is_some() {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
+    } else {
+        let (vacant, resident) = plan
+            .storage
+            .owned_content()
+            .map_err(|_| CodecError::NonCanonicalEncoding)?;
+        writer.id(vacant);
+        writer.id(resident);
+    }
     for identity in [
         plan.policy_identity,
         plan.policy_plan_machine_identity,
@@ -92,6 +103,7 @@ pub(super) fn decode(
     let operation = match reader.u8()? {
         0 => TerminalPlacementLifecycleOperation::Initialize,
         1 => TerminalPlacementLifecycleOperation::MoveOut,
+        2 => TerminalPlacementLifecycleOperation::View,
         tag => return Err(CodecError::InvalidTag("placement lifecycle operation", tag)),
     };
     let execution = match reader.u8()? {
@@ -132,8 +144,16 @@ pub(super) fn decode(
         base: reader.id("placement extent base field")?,
         length: reader.id("placement extent length field")?,
         granted: reader.id("placement extent grant domain")?,
-        vacant: reader.id("placement extent vacant domain")?,
-        resident: reader.id("placement extent resident domain")?,
+        vacant: if operation == TerminalPlacementLifecycleOperation::View {
+            None
+        } else {
+            Some(reader.id("placement extent vacant domain")?)
+        },
+        resident: if operation == TerminalPlacementLifecycleOperation::View {
+            None
+        } else {
+            Some(reader.id("placement extent resident domain")?)
+        },
     };
     let policy_identity = TerminalIdentityIndex(reader.u32()?);
     let policy_plan_machine_identity = TerminalIdentityIndex(reader.u32()?);

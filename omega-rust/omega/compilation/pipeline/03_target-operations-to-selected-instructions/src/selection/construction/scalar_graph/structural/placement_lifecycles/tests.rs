@@ -924,8 +924,8 @@ fn image_fixture() -> (
             base: StructuralFieldId::new(5).unwrap(),
             length: StructuralFieldId::new(6).unwrap(),
             granted: StructuralDomainId::new(1).unwrap(),
-            vacant: StructuralDomainId::new(2).unwrap(),
-            resident: StructuralDomainId::new(3).unwrap(),
+            vacant: Some(StructuralDomainId::new(2).unwrap()),
+            resident: Some(StructuralDomainId::new(3).unwrap()),
         },
         schema,
         image_fields,
@@ -1255,10 +1255,10 @@ fn decide_constants(
     modulus: u64,
     residue: u64,
     supply: VirtualRegisterId,
-) -> Result<initialization::InitializationDecision, SelectedInstructionError> {
+) -> Result<outcome::PlacementDecision, SelectedInstructionError> {
     let modulus = fragmented_scalar::constant(builder, row, owner, modulus)?;
     let residue = fragmented_scalar::constant(builder, row, owner, residue)?;
-    initialization::decide(
+    outcome::decide(
         builder,
         row,
         owner,

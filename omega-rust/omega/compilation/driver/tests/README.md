@@ -275,3 +275,14 @@ OMEGA_CORPUS_HOST_PROVISIONS=1 python3 tools/corpus_gate.py \
 
 Other hosts can execute the portable provision but remain unqualified by this
 host's record. Ordinary source/native goldens retain the opt-out observation.
+
+`runtime portable external-extent-view` supplies one admitted external allocation
+to the source-authored `extent_view_external_content::attempt` inspection. It
+observes the two original words, a wrong-word trap, incompatible transfer rejection,
+missing-backing refusal, and an identical-geometry/different-provenance profile
+crosswire refusal followed by a successful retry with the original allocation.
+The returned extent retains its original grant; no observation grants vacancy
+or resident custody. This uses the public SDK, not compiler-internal mutation.
+Run with `OMEGA_CORPUS_HOST_PROVISIONS=1` and filter
+`pass/layouts/extent_view_external_content`; without opt-in it records
+`unrequested`. Cathedral's QEMU boot supplies the separate native observation.

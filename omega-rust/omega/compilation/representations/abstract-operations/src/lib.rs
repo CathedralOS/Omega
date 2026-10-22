@@ -27,4 +27,6 @@ pub use abstract_operations::{
 
 pub use abstract_operations::PlacementLifecycleOperands;
 pub use abstract_operations::quotients;
-pub use abstract_operations::{PlacedReferenceBacking, ResidentReferenceBacking};
+pub use abstract_operations::{
+    BorrowedExtentBacking, PlacedReferenceBacking, ResidentReferenceBacking,
+};

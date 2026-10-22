@@ -536,6 +536,33 @@ public data PlacementReturn<Source, Custody> {
     custody: Custody;
 }
 
+// A borrowed view moves no storage into the operation. Rejection releases its
+// loan; this ordinary empty record carries no grant or content qualification.
+public data PlacementBorrowReturn {}
+
+// View already-established external content without manufacturing Resident or
+// Vacant. The selected call supplies compatibility for this exact qualified
+// range, while the result retains the original storage loan. A numeric address
+// or a constructed ResourceProfile is not a substitute for either input.
+public machine Placed::view_extent<'storage, P, T>(
+    storage: &'storage Extent in Granted
+) -> PlacementOutcome<
+    &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply;
+{
+    let profile: ResourceProfile = ResourceProfileSupply::profile(storage);
+    Placed::view_from_profile<P, T>(storage, &profile)
+}
+
+boundary machine Placed::view_from_profile<'storage, P, T>(
+    storage: &'storage Extent in Granted,
+    profile: &ResourceProfile
+) -> PlacementOutcome<
+    &'storage Placed<P, T>, PlacementBorrowReturn, PlacementInitializationFailure
+>;
+
 // Dynamic incompatibility is ordinary data. Malformed admitted assertions,
 // physical faults and missing static custody are not recoverable cases here.
 public data PlacementInitializationFailure {

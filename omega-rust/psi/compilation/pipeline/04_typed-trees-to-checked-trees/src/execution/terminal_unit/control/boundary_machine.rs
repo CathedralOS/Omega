@@ -31,6 +31,17 @@ pub(crate) fn build_boundary_machine(
         return Err("boundary declaration requires one signature state");
     };
     let binders = machine_binders(program, machine);
+    for (_, operation) in program.placement_lifecycle_plans.iter() {
+        if matches!(operation, typed_trees::typed_trees::PlacementLifecyclePlan::Evaluated { callable, .. }
+            if *callable == machine.symbol || *callable == state.symbol)
+        {
+            for definition in operation.storage_definitions(program.typed_program())? {
+                shapes
+                    .add_attached_data(definition, &binders)
+                    .ok_or("placement operation storage has no retained shape")?;
+            }
+        }
+    }
     let result = boundary_result_plan(program, shapes, state.return_type, &binders, &[])
         .ok_or("boundary result has no runtime signature")?;
     if !program

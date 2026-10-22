@@ -197,6 +197,7 @@ pub(in crate::lowering) fn catalog(
             let result = function.result.structural()?;
             optimization_unit_semantics::descriptor_results::placed_results::summarize(
                 types.catalog(),
+                boundaries,
                 &function.structural_parameters,
                 result.structural_type,
                 &analysis.result_slots(machine.id)?,

@@ -22,92 +22,11 @@ use terminal_psi::{
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
-/// Exact incoming addresses for borrowed state parameters. The module query
-/// runs once, then each lowering frontier shares its immutable function roster.
-pub(in crate::lowering) type BorrowedSources =
-    std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>;
-
-pub(in crate::lowering) fn borrowed_source_catalog(
-    functions: &BTreeMap<semantic_vocabulary::MachineId, &AbstractFunction>,
-    boundary_machines: &[terminal_psi::BoundaryMachineDeclaration],
-    types: &StructuralTypeLookup<'_>,
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
-) -> BTreeMap<semantic_vocabulary::MachineId, BorrowedSources> {
-    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
-    use terminal_semantics::descriptor_results::DescriptorAnalysis;
-    let mut rosters = BTreeMap::new();
-    for function in functions.values() {
-        let mut sources = BTreeMap::new();
-        for parameter in function.block_structural_parameters() {
-            if parameter.access != StructuralAccess::Owned
-                && !terminal_semantics::descriptor_results::is_descriptor(
-                    types.values().copied(),
-                    parameter.structural_type,
-                )
-            {
-                sources.insert(parameter.place, None);
-            }
-        }
-        if !sources.is_empty() {
-            rosters.insert(function.machine, sources);
-        }
-    }
-    if rosters.is_empty() {
-        return BTreeMap::new();
-    }
-    if let Some(graph) = optimization_unit_semantics::descriptor_results::abstract_catalog_graph(
-        functions.values().copied(),
-        boundary_machines,
-        types.catalog(),
-        dynamic_dispatch,
-    ) {
-        let mut analysis = DescriptorAnalysis::new(types.catalog(), &graph);
-        for function in functions.values() {
-            let Some(sources) = rosters.get_mut(&function.machine) else {
-                continue;
-            };
-            let Some(current) = terminal_semantics::descriptor_results::descriptor_machine(
-                &graph,
-                function.machine,
-            ) else {
-                continue;
-            };
-            for entry in &function.block_entries {
-                for parameter in &entry.structural_parameters {
-                    let Some(slot) = sources.get_mut(&parameter.place) else {
-                        continue;
-                    };
-                    *slot = analysis
-                        .storage_origins(
-                            function.machine,
-                            (entry.block, 0),
-                            &DescriptorLocation::whole(parameter.place),
-                        )
-                        .and_then(|origins| {
-                            origins
-                                .into_iter()
-                                .map(|origin| {
-                                    Some(StructuralArgument {
-                                        place: origin.root,
-                                        path: descriptor_path(
-                                            types.catalog(),
-                                            *current.place_types.get(&origin.root)?,
-                                            &origin.path,
-                                        )?,
-                                        access: parameter.access,
-                                    })
-                                })
-                                .collect()
-                        });
-                }
-            }
-        }
-    }
-    rosters
-        .into_iter()
-        .map(|(machine, sources)| (machine, std::sync::Arc::new(sources)))
-        .collect()
-}
+mod borrowed_arrivals;
+pub(in crate::lowering) use borrowed_arrivals::{BorrowedSources, borrowed_source_catalog};
+pub(super) use borrowed_arrivals::{
+    capture as capture_borrowed_arrivals, merge as merge_borrowed_arrivals,
+};
 
 /// Metadata for a descriptor at its current carrier location. Permission and
 /// disposal identities remain with Psi, not a second native ownership model.
@@ -659,13 +578,57 @@ fn storage_projection(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
-    let carrier = source_contract(function, live, source.place)?;
+    let (carrier, path) = if let Some(crossing) = source
+        .path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        // An inline-storage query cannot cross a pointer. Resolve the exact
+        // live descriptor first, then project within its declared referent.
+        // Its backing owner may have an entirely different representation.
+        let leaf = reference_leaf(
+            function,
+            live,
+            types,
+            source.place,
+            &source.path[..crossing],
+        )?;
+        let StructuralTypeShape::Reference { referent, access } =
+            types.get(&leaf.carrier_type)?.shape
+        else {
+            return None;
+        };
+        if referent != leaf.referent || !access_covers(access, source.access) {
+            return None;
+        }
+        (referent, &source.path[crossing + 1..])
+    } else {
+        (
+            source_contract(function, live, source.place)?,
+            source.path.as_slice(),
+        )
+    };
     optimization_unit_semantics::structural_borrowed_storage_projection(
         types.values().copied(),
         carrier,
-        &source.path,
+        path,
         source.access,
     )
+}
+
+fn reference_leaf<'live>(
+    function: &AbstractFunction,
+    live: &'live LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<std::borrow::Cow<'live, ReferenceStorage>> {
+    live.references
+        .get(&(place, path.to_vec()))
+        .map(std::borrow::Cow::Borrowed)
+        .or_else(|| {
+            observations::observe(function, live, types, place, path).map(std::borrow::Cow::Owned)
+        })
 }
 
 /// Preserve a captured interpretation only when the source crosses the exact
@@ -829,17 +792,32 @@ pub(super) fn normalized_source(
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut candidates = Vec::with_capacity(origins.len());
     for origin in origins {
-        let mut resolved = origin.clone();
-        resolved.path.extend_from_slice(&source.path);
-        resolved.access = source.access;
-        // Rebinding may change the carrier's presentation, never a window's
-        // original backing or exact interval. Keep every possible origin.
-        if !storage_projection(function, live, types, &resolved)
-            .is_some_and(|actual| actual.matches(types.values().copied(), expected))
-        {
+        if !source.access.admits(origin.access) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        candidates.push(normalized_direct_source(function, live, types, &resolved)?);
+        if source.path.contains(&StructuralPathSegment::Referent) {
+            for resolved in borrowed_arrivals::storage_sources(function, live, types, origin)? {
+                let mut resolved = resolved;
+                resolved.path.extend_from_slice(&source.path);
+                resolved.access = source.access;
+                let actual = storage_projection(function, live, types, &resolved);
+                if !actual.is_some_and(|actual| actual.matches(types.values().copied(), expected)) {
+                    return Err(LoweringError::BorrowedSourceProjectionMismatch {
+                        machine: function.machine,
+                        source: source.clone(),
+                        origin: resolved.clone(),
+                        expected,
+                        actual,
+                        origin_carrier: source_contract(function, live, resolved.place),
+                    });
+                }
+                candidates.push(normalized_direct_source(function, live, types, &resolved)?);
+            }
+        } else {
+            // The edge captured the pointer before disposal. Project through
+            // its receiving type without rereading its former descriptor slot.
+            candidates.push(origin.root.projected(&source.path));
+        }
     }
     combine_candidate_origins(function, candidates)
 }
@@ -857,14 +835,7 @@ fn normalized_direct_source(
     {
         let carrier_path = &source.path[..crossing];
         let suffix = &source.path[crossing + 1..];
-        let observed;
-        let leaf = match live.references.get(&(source.place, carrier_path.to_vec())) {
-            Some(leaf) => Some(leaf),
-            None => {
-                observed = observations::observe(function, live, types, source.place, carrier_path);
-                observed.as_ref()
-            }
-        };
+        let leaf = reference_leaf(function, live, types, source.place, carrier_path);
         let Some(leaf) = leaf else {
             // The member leaf of a carrier never held as a live reference
             // borrows that carrier's own storage; only a non-reference member
@@ -1164,6 +1135,40 @@ pub(super) fn establish_placed(
         correspondence,
     });
     provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
+/// Record a descriptor leaf formed by the validated lifecycle operation.
+/// Its pointer is produced by that operation, not recomputed from this origin.
+pub(super) fn retain_placed_result(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &mut LiveDefinitions,
+    result: &StructuralOperationResult,
+    source: &StructuralArgument,
+    path: Vec<StructuralPathSegment>,
+    backing: abstract_operations::PlacedReferenceBacking,
+) -> Result<(), LoweringError> {
+    let root = normalized_source(function, live, types, source)?;
+    let carrier_type = leaf_type(types, result.structural_type, &path)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    if live
+        .references
+        .insert(
+            (result.place, path),
+            ReferenceStorage {
+                root,
+                carrier_type,
+                referent: backing.carrier(),
+                placed: Some(target_operations::TargetPlacedInterpretation::Captured(
+                    backing,
+                )),
+            },
+        )
+        .is_some()
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
     Ok(())
 }
 

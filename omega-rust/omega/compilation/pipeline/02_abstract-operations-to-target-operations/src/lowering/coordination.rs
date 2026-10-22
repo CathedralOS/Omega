@@ -124,9 +124,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     )?;
     let borrowed_reference_sources = super::control_flow::references::borrowed_source_catalog(
         &functions_by_machine,
-        &plan.boundary_machines,
         &structural_types,
-        &plan.dynamic_dispatch,
     );
     let stored_reference_effects = super::control_flow::references::stored_effect_catalog(
         &functions_by_machine,

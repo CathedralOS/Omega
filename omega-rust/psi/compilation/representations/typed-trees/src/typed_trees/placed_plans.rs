@@ -35,6 +35,48 @@ pub enum PlacementLifecyclePlan {
 pub enum PlacementLifecycleOperation {
     Initialize,
     MoveOut,
+    View,
+}
+
+impl PlacementLifecyclePlan {
+    /// Geometry consumed by the operation independently of pointer transport.
+    /// View checks a complete placed interpretation even when its caller never
+    /// reads a field. Stored references alone must not recursively demand their
+    /// referents; this finite evaluated operation supplies the storage demand.
+    pub fn storage_definitions<'program>(
+        &self,
+        program: &'program crate::TypedTrees,
+    ) -> Result<Vec<&'program crate::data::DataDefinition>, &'static str> {
+        let Self::Evaluated {
+            operation,
+            policy,
+            schema,
+            ..
+        } = self
+        else {
+            return Ok(Vec::new());
+        };
+        let mut definitions = vec![
+            program
+                .data_definition_by_symbol(*schema)
+                .ok_or("placement operation lost its schema storage declaration")?,
+        ];
+        if *operation == PlacementLifecycleOperation::View {
+            let mut views = program
+                .placed_view_plans
+                .iter()
+                .filter(|view| view.policy_symbol == *policy && view.schema_symbol == *schema);
+            let (Some(view), None) = (views.next(), views.next()) else {
+                return Err("placement View lost its unique policy/schema interpretation");
+            };
+            definitions.push(
+                program
+                    .data_definition_by_symbol(view.data_symbol)
+                    .ok_or("placement View lost its storage declaration")?,
+            );
+        }
+        Ok(definitions)
+    }
 }
 
 impl crate::TypedTrees {

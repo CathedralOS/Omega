@@ -163,6 +163,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
             bytes[1] = match operation {
                 terminal_psi::TerminalPlacementLifecycleOperation::Initialize => 0,
                 terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => 1,
+                terminal_psi::TerminalPlacementLifecycleOperation::View => 2,
             };
         }
         CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {

@@ -18,6 +18,13 @@ use terminal_psi::{
 /// Borrowed declarations of the exact core result application, not a second
 /// portable catalog and not an authorization token.
 pub enum PlacementResultContract<'module> {
+    View {
+        result: &'module BoundaryStructuralResultDeclaration,
+        ready: &'module StructuralCaseDeclaration,
+        rejected: &'module StructuralCaseDeclaration,
+        failures: &'module [StructuralCaseDeclaration; 3],
+        carrier: StructuralTypeId,
+    },
     Initialize {
         result: &'module BoundaryStructuralResultDeclaration,
         ready: &'module StructuralCaseDeclaration,
@@ -29,6 +36,36 @@ pub enum PlacementResultContract<'module> {
         result: &'module BoundaryStructuralResultDeclaration,
         moved: &'module StructuralCaseDeclaration,
     },
+}
+
+/// Locate the Ready descriptor in the canonical borrowed outcome. This is a
+/// structural role query, not authority: callers must already select the
+/// authenticated View declaration or its retained lifecycle plan.
+pub fn placement_view_reference_slot(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    result: StructuralTypeId,
+) -> Option<(Vec<StructuralPathSegment>, StructuralTypeId)> {
+    let shape = &terminal_psi::find_structural_type(types, result)?.shape;
+    let StructuralTypeShape::Sum { cases } = shape else {
+        return None;
+    };
+    let [ready, _] = cases.as_slice() else {
+        return None;
+    };
+    let [field] = ready.fields.as_slice() else {
+        return None;
+    };
+    let StructuralTypeShape::Reference {
+        referent,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+    } = terminal_psi::find_structural_type(types, field.field_type.as_structural()?)?.shape
+    else {
+        return None;
+    };
+    Some((
+        terminal_psi::structural_case_initializer_path(shape, ready.id, 0, field.id)?,
+        referent,
+    ))
 }
 
 pub fn placement_result_contract<'module>(
@@ -46,7 +83,53 @@ pub fn placement_result_contract<'module>(
     }
     let cases = sum_cases(module, result.structural_type)?;
     match plan.operation {
+        TerminalPlacementLifecycleOperation::View => {
+            let [ready, rejected] = cases else {
+                return Err("borrowed placement requires exactly Ready and Rejected outcomes");
+            };
+            let [view] = ready.fields.as_slice() else {
+                return Err("borrowed placement Ready must carry one reference");
+            };
+            let Some(StructuralTypeShape::Reference { referent, access }) = module
+                .structural_type(structural_type(view)?)
+                .map(|declaration| &declaration.shape)
+            else {
+                return Err("borrowed placement Ready does not retain its reference carrier");
+            };
+            if *access != terminal_psi::StructuralAccess::SharedBorrow
+                || !module.placed_view_plans.iter().any(|view| {
+                    view.carrier == *referent
+                        && view.schema == plan.schema
+                        && view.policy_identity == plan.policy_identity
+                        && view.placement == plan.placement
+                })
+            {
+                return Err("borrowed placement Ready changed its exact placed interpretation");
+            }
+            let [returned, reason] = rejected.fields.as_slice() else {
+                return Err("borrowed placement Rejected must retain its empty return and reason");
+            };
+            let returned = module
+                .structural_type(structural_type(returned)?)
+                .ok_or("borrowed placement return record is absent")?;
+            if returned.owns_linear_claim
+                || !matches!(&returned.shape, StructuralTypeShape::Record { fields, .. } if fields.is_empty())
+                || !result.projected_qualifications.is_empty()
+            {
+                return Err(
+                    "borrowed placement must not manufacture returned storage or qualifications",
+                );
+            }
+            Ok(PlacementResultContract::View {
+                result,
+                ready,
+                rejected,
+                failures: failure_cases(module, reason)?,
+                carrier: *referent,
+            })
+        }
         TerminalPlacementLifecycleOperation::Initialize => {
+            let (vacant, resident_domain) = plan.storage.owned_content()?;
             let [ready, rejected] = cases else {
                 return Err(
                     "placement initialization requires exactly Ready and Rejected outcomes",
@@ -72,34 +155,7 @@ pub fn placement_result_contract<'module>(
                 .map_err(|_| "placement rejection must return exactly storage and value")?;
             require_type(&returned[0], plan.storage.carrier)?;
             require_type(&returned[1], plan.schema)?;
-            let failures: &[StructuralCaseDeclaration; 3] =
-                sum_cases(module, structural_type(reason)?)?
-                    .try_into()
-                    .map_err(|_| "placement rejection lost its three core failure cases")?;
-            let [range, alignment, incompatible] = failures;
-            for case in [range, alignment] {
-                let [first, second] = case.fields.as_slice() else {
-                    return Err("placement failure must carry its two unsigned coordinates");
-                };
-                for field in [first, second] {
-                    if field.relevance.is_erased()
-                        || field
-                            .field_type
-                            .scalar_type()
-                            .and_then(|scalar| scalar.as_integer())
-                            .is_none_or(|integer| {
-                                integer.is_address()
-                                    || integer.sign() != IntegerSign::Unsigned
-                                    || integer.bits() != 64
-                            })
-                    {
-                        return Err("placement failure coordinate is not a represented u64");
-                    }
-                }
-            }
-            if !incompatible.fields.is_empty() {
-                return Err("incompatible placement supply must have an empty payload");
-            }
+            let failures = failure_cases(module, reason)?;
             storage_qualifications(
                 result,
                 &[
@@ -107,7 +163,7 @@ pub fn placement_result_contract<'module>(
                     StructuralPathSegment::Field(resident.identity),
                 ],
                 plan.storage.granted,
-                plan.storage.resident,
+                resident_domain,
             )?;
             storage_qualifications(
                 result,
@@ -117,7 +173,7 @@ pub fn placement_result_contract<'module>(
                     StructuralPathSegment::Field(returned[0].identity),
                 ],
                 plan.storage.granted,
-                plan.storage.vacant,
+                vacant,
             )?;
             // A field's structural carrier does not include its occurrence's
             // domain contract. Rejection returns the exact value input rather
@@ -147,6 +203,7 @@ pub fn placement_result_contract<'module>(
             })
         }
         TerminalPlacementLifecycleOperation::MoveOut => {
+            let (vacant, _) = plan.storage.owned_content()?;
             // This declaration constrains the extracted value; it does not
             // establish it. Execution must recover actual memberships from
             // the original resident's retained custody and join them here.
@@ -165,11 +222,45 @@ pub fn placement_result_contract<'module>(
                     StructuralPathSegment::Field(storage.identity),
                 ],
                 plan.storage.granted,
-                plan.storage.vacant,
+                vacant,
             )?;
             Ok(PlacementResultContract::MoveOut { result, moved })
         }
     }
+}
+
+fn failure_cases<'module>(
+    module: &'module TerminalModule,
+    reason: &StructuralFieldDeclaration,
+) -> Result<&'module [StructuralCaseDeclaration; 3], &'static str> {
+    let failures: &[StructuralCaseDeclaration; 3] = sum_cases(module, structural_type(reason)?)?
+        .try_into()
+        .map_err(|_| "placement rejection lost its three core failure cases")?;
+    let [range, alignment, incompatible] = failures;
+    for case in [range, alignment] {
+        let [first, second] = case.fields.as_slice() else {
+            return Err("placement failure must carry its two unsigned coordinates");
+        };
+        for field in [first, second] {
+            if field.relevance.is_erased()
+                || field
+                    .field_type
+                    .scalar_type()
+                    .and_then(|scalar| scalar.as_integer())
+                    .is_none_or(|integer| {
+                        integer.is_address()
+                            || integer.sign() != IntegerSign::Unsigned
+                            || integer.bits() != 64
+                    })
+            {
+                return Err("placement failure coordinate is not a represented u64");
+            }
+        }
+    }
+    if !incompatible.fields.is_empty() {
+        return Err("incompatible placement supply must have an empty payload");
+    }
+    Ok(failures)
 }
 
 fn sum_cases(

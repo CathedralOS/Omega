@@ -49,6 +49,9 @@ pub fn retain_placement_lifecycle_plans(
         let schema_definition = program
             .data_definition_by_symbol(schema)
             .ok_or_else(|| diagnostic("resident lifecycle lost its schema declaration".into()))?;
+        if demand.operation == PlacementLifecycleOperation::View {
+            validate_nonresident_schema(&program, schema).map_err(diagnostic)?;
+        }
         let retained_placement = program
             .placed_view_plans
             .iter()
@@ -103,6 +106,58 @@ pub fn retain_placement_lifecycle_plans(
             });
     }
     Ok(program.into())
+}
+
+/// A profile establishes access, not predicates about bytes. Record-wide
+/// predicates are erased before Terminal publication, so reject them here,
+/// including predicates nested inside represented records and array elements.
+/// Terminal independently checks the remaining total-decoding shape. Borrowing
+/// an affine schema does not create an owned value; only its represented fields
+/// must be copyable, since reading them cannot manufacture content custody.
+fn validate_nonresident_schema(program: &TypedTrees, schema: SymbolHandle) -> Result<(), String> {
+    let mut records = vec![schema];
+    let mut visited = Vec::new();
+    while let Some(symbol) = records.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let Some(data) = program.data_definition_by_symbol(symbol) else {
+            continue;
+        };
+        if !data.where_facts.is_empty() || data.zero_gated {
+            return Err(format!(
+                "nonresident placement View cannot establish record predicates for `{}`; independent content-validity evidence is required",
+                program.symbols.name(symbol),
+            ));
+        }
+        let mut represented_types = Vec::new();
+        for field in program.live_data_fields(program.data_members(data)) {
+            if program.type_multiplicity(field.type_reference)
+                != language_semantics::Multiplicity::Unrestricted
+            {
+                return Err(format!(
+                    "nonresident placement View cannot acquire non-copy field `{}`; initialization or existing resident custody is required",
+                    field.name,
+                ));
+            }
+            represented_types.push(field.type_reference);
+        }
+        while let Some(type_reference) = represented_types.pop() {
+            use typed_trees::types::TypeReferenceNode;
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Named { symbol, .. } => records.push(*symbol),
+                TypeReferenceNode::FixedArray { element_type, .. } => {
+                    represented_types.push(*element_type);
+                }
+                TypeReferenceNode::Constrained { .. } => {
+                    return Err("nonresident placement View cannot establish field qualifications; independent content-validity evidence is required".into());
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Retained language judgments do not retain the current package permissions.

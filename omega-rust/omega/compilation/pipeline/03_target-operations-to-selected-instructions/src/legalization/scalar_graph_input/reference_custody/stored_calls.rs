@@ -171,6 +171,7 @@ pub(super) fn prepare(
                 let result = function.result.structural()?;
                 optimization_unit_semantics::descriptor_results::placed_results::summarize(
                     types,
+                    &unit.boundary_machines,
                     &function.structural_parameters,
                     result.structural_type,
                     &analysis.result_slots(machine.id)?,

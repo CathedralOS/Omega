@@ -151,6 +151,7 @@ impl PlacementExecutionDeclaration {
                 PlacementLifecycleOperation::Initialize
             }
             Some("toolchain::Placed::extract_resident") => PlacementLifecycleOperation::MoveOut,
+            Some("toolchain::Placed::view_from_profile") => PlacementLifecycleOperation::View,
             _ => return Ok(None),
         };
         let malformed = |reason| {
@@ -161,7 +162,8 @@ impl PlacementExecutionDeclaration {
         };
         if machine.body_is_present
             || machine.supply_mode != MachineSupplyMode::Boundary
-            || !machine.lifetime_parameters.is_empty()
+            || machine.lifetime_parameters.len()
+                != usize::from(operation == PlacementLifecycleOperation::View)
             || machine.spelling.is_some()
             || machine.suspends
             || machine.blocks
@@ -183,14 +185,14 @@ impl PlacementExecutionDeclaration {
         let parameters = program.state_parameters(state);
         let expected = match operation {
             PlacementLifecycleOperation::Initialize => 3,
-            PlacementLifecycleOperation::MoveOut => 2,
+            PlacementLifecycleOperation::MoveOut | PlacementLifecycleOperation::View => 2,
         };
         if parameters.len() != expected
             || parameters.iter().any(|parameter| {
                 parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased()
             })
         {
-            return Err(malformed("lost its complete owned parameter roster"));
+            return Err(malformed("lost its complete operation parameter roster"));
         }
         Ok(Some(Self {
             operation,

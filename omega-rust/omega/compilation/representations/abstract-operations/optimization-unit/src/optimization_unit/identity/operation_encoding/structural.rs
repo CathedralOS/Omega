@@ -386,6 +386,16 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.id(resident.roles.resident);
                     bytes.bytes(&resident.placement_commitment);
                 }
+                abstract_operations::PlacedReferenceBacking::BorrowedExtent(backing) => {
+                    bytes.u8(2);
+                    bytes.id(backing.owner);
+                    bytes.id(backing.schema);
+                    bytes.id(backing.carrier);
+                    bytes.id(backing.base);
+                    bytes.id(backing.length);
+                    bytes.id(backing.granted);
+                    bytes.bytes(&backing.placement_commitment);
+                }
             }
         }
         O::EstablishReference {

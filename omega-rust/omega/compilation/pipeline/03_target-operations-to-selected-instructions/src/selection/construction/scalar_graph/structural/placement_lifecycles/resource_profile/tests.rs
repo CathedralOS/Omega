@@ -842,7 +842,7 @@ fn runtime_profile_compatibility_matches_normalized_coverage_and_congruence() {
                     .map(|base| {
                         let backing =
                             fragmented_scalar::constant(builder, row, place, base).unwrap();
-                        let decision = super::super::initialization::decide(
+                        let decision = super::super::outcome::decide(
                             builder,
                             row,
                             place,

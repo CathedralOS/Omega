@@ -12,7 +12,9 @@ use terminal_psi::{
 };
 
 mod result_contract;
-pub use result_contract::{PlacementResultContract, placement_result_contract};
+pub use result_contract::{
+    PlacementResultContract, placement_result_contract, placement_view_reference_slot,
+};
 
 pub fn validate_placement_lifecycle_plans(module: &TerminalModule) -> Result<(), &'static str> {
     // Check the mandatory direction too: omitting a row never demotes a
@@ -139,6 +141,19 @@ pub fn validate_placement_lifecycle_plans(module: &TerminalModule) -> Result<(),
             }
         };
         match plan.operation {
+            TerminalPlacementLifecycleOperation::View => {
+                let [storage, profile] = boundary.structural_parameters.as_slice() else {
+                    return Err("borrowed placement lost its storage and profile inputs");
+                };
+                if storage.access != StructuralAccess::SharedBorrow
+                    || profile.access != StructuralAccess::SharedBorrow
+                    || Some(profile.structural_type) != profile_type
+                {
+                    return Err(
+                        "borrowed placement must retain shared storage and original profile loans",
+                    );
+                }
+            }
             TerminalPlacementLifecycleOperation::Initialize => {
                 let parameters = boundary.structural_parameters.as_slice();
                 let expected = if profile_type.is_some() { 3 } else { 2 };
@@ -179,6 +194,9 @@ pub fn validate_placement_lifecycle_plans(module: &TerminalModule) -> Result<(),
             }
         }
         validate_storage(module, plan)?;
+        if plan.operation == TerminalPlacementLifecycleOperation::View {
+            validate_placement_view_content(module, plan)?;
+        }
         placement_result_contract(module, plan)?;
         validate_image_fields(module, plan)?;
         for view in module.placed_view_plans.iter().filter(|view| {
@@ -216,7 +234,13 @@ pub fn validate_placement_lifecycle_plans(module: &TerminalModule) -> Result<(),
         {
             if earlier.schema != plan.schema
                 || earlier.image_fields != plan.image_fields
-                || earlier.storage != plan.storage
+                || earlier.storage.carrier != plan.storage.carrier
+                || earlier.storage.base != plan.storage.base
+                || earlier.storage.length != plan.storage.length
+                || earlier.storage.granted != plan.storage.granted
+                || (earlier.operation != TerminalPlacementLifecycleOperation::View
+                    && plan.operation != TerminalPlacementLifecycleOperation::View
+                    && earlier.storage.owned_content()? != plan.storage.owned_content()?)
                 || earlier.policy_plan_machine_identity != plan.policy_plan_machine_identity
                 || earlier.placement != plan.placement
             {
@@ -225,6 +249,69 @@ pub fn validate_placement_lifecycle_plans(module: &TerminalModule) -> Result<(),
         }
     }
     Ok(())
+}
+
+/// Nonresident View supplies no validation or custody evidence. Its represented
+/// leaves therefore need total decoding without reference, tag or refinement
+/// fabrication. External bytes may change between observations, so a one-time
+/// inspection could not justify stronger read predicates either.
+pub fn validate_placement_view_content(
+    module: &TerminalModule,
+    plan: &terminal_psi::TerminalPlacementLifecyclePlan,
+) -> Result<(), &'static str> {
+    fn scalar(value: semantic_vocabulary::ScalarType) -> Result<(), &'static str> {
+        match value {
+            semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address() => Ok(()),
+            _ => Err("nonresident placement View requires total scalar decoding evidence"),
+        }
+    }
+    fn visit(
+        module: &TerminalModule,
+        identity: semantic_vocabulary::StructuralTypeId,
+        active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    ) -> Result<(), &'static str> {
+        if active.contains(&identity) {
+            return Err("nonresident placement View cannot decode cyclic inline content");
+        }
+        let declaration = module
+            .structural_type(identity)
+            .ok_or("nonresident placement View lost its exact content declaration")?;
+        if declaration.owns_linear_claim
+            || declaration.quotient_carrier.is_some()
+            || declaration.scalar_restriction.is_some()
+        {
+            return Err("nonresident placement View requires content validity or custody evidence");
+        }
+        active.push(identity);
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(value) => scalar(*value)?,
+            StructuralTypeShape::FixedArray { element, .. } => visit(module, *element, active)?,
+            StructuralTypeShape::Record { fields, .. } => {
+                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                    match field.field_type {
+                        terminal_psi::StructuralFieldType::Scalar(value) => scalar(value)?,
+                        terminal_psi::StructuralFieldType::IeeeFloat(_) => {}
+                        terminal_psi::StructuralFieldType::Structural(child) => {
+                            visit(module, child, active)?
+                        }
+                        _ => {
+                            return Err(
+                                "nonresident placement View requires total field decoding evidence",
+                            );
+                        }
+                    }
+                }
+            }
+            _ => {
+                return Err(
+                    "nonresident placement View requires explicit content validity or custody evidence",
+                );
+            }
+        }
+        active.pop();
+        Ok(())
+    }
+    visit(module, plan.schema, &mut Vec::new())
 }
 
 fn validate_image_fields(
@@ -278,10 +365,30 @@ fn validate_storage(
         storage.base,
         storage.length,
     )?;
-    let domains = [storage.granted, storage.vacant, storage.resident];
-    if storage.granted == storage.vacant
-        || storage.granted == storage.resident
-        || storage.vacant == storage.resident
+    let mut domains = vec![storage.granted];
+    let content = match plan.operation {
+        TerminalPlacementLifecycleOperation::View => {
+            if storage.vacant.is_some() || storage.resident.is_some() {
+                return Err("borrowed placement cannot declare owned content qualification roles");
+            }
+            None
+        }
+        operation => {
+            let (vacant, resident) = storage.owned_content()?;
+            domains.extend([vacant, resident]);
+            Some(
+                if operation == TerminalPlacementLifecycleOperation::Initialize {
+                    vacant
+                } else {
+                    resident
+                },
+            )
+        }
+    };
+    if domains
+        .iter()
+        .enumerate()
+        .any(|(position, identity)| domains[..position].contains(identity))
         || domains.iter().any(|identity| {
             !module
                 .structural_domains
@@ -298,14 +405,19 @@ fn validate_storage(
         .structural_parameters
         .first()
         .ok_or("placement extent input is absent")?;
-    let content = match plan.operation {
-        TerminalPlacementLifecycleOperation::Initialize => storage.vacant,
-        TerminalPlacementLifecycleOperation::MoveOut => storage.resident,
+    let input_multiplicity = match plan.operation {
+        TerminalPlacementLifecycleOperation::View => {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        }
+        TerminalPlacementLifecycleOperation::Initialize
+        | TerminalPlacementLifecycleOperation::MoveOut => {
+            terminal_psi::StructuralMultiplicity::Linear
+        }
     };
     if parameter.structural_type != storage.carrier
-        || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        || parameter.multiplicity != input_multiplicity
         || !parameter.qualifications.contains(&storage.granted)
-        || !parameter.qualifications.contains(&content)
+        || content.is_some_and(|content| !parameter.qualifications.contains(&content))
     {
         return Err("placement extent input does not retain its exact grant and content");
     }

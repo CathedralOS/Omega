@@ -71,6 +71,11 @@ impl<'a> BackingGeometry<'a> {
     ) -> Result<(), &'static str> {
         let required = match required {
             abstract_operations::PlacedReferenceBacking::OrdinaryRam(required) => required,
+            abstract_operations::PlacedReferenceBacking::BorrowedExtent(_) => {
+                // View publishes its pointer only after the lifecycle's runtime
+                // checks. It cannot authorize unconditional reference formation.
+                return Err("borrowed extent requires a successful View lifecycle");
+            }
             abstract_operations::PlacedReferenceBacking::Resident(resident) => {
                 // Size/alignment were established when live content was
                 // introduced, not when this loan was formed. Requiring a local

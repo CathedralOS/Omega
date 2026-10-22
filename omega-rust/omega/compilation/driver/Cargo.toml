@@ -60,6 +60,8 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+access-plans = { path = "../../../psi/foundation/access-plans" }
+extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }

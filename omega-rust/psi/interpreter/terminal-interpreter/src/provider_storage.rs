@@ -16,12 +16,13 @@ use extents::Extent;
 
 mod entry;
 mod extraction;
-mod field_access;
+pub(crate) mod field_access;
 pub(crate) mod initialization;
 mod lifecycle;
 mod profile_values;
 pub(crate) mod profiles;
 pub(crate) mod value_image;
+pub(crate) mod view;
 pub use entry::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };
@@ -33,8 +34,11 @@ pub(crate) struct ProviderStorageBinding {
     pub(crate) allocation: arena::Handle<ProviderStorageSlot>,
     pub(crate) offset: u64,
     pub(crate) length: u64,
-    /// Zero denotes vacant content. Relocation carries this handle unchanged;
-    /// neither an address nor a source qualification can discover its payload.
+    /// Zero denotes no retained resident payload, not a vacancy proof.
+    /// Initialization separately requires the source's exact Vacant contract;
+    /// external views establish neither vacancy nor resident custody.
+    /// Relocation carries this handle unchanged; neither an address nor a
+    /// source qualification can discover its payload.
     pub(crate) resident: arena::Handle<ResidentStorageSlot>,
 }
 

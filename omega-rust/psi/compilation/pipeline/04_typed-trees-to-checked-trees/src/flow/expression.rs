@@ -1261,7 +1261,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     );
                     self.record_operand_writes(writes);
                 }
-                self.capture_returned_retention(expression, call, &captured, retention);
+                self.capture_returned_retention(
+                    expression,
+                    destination,
+                    call,
+                    &captured,
+                    retention,
+                );
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for (index, value) in self

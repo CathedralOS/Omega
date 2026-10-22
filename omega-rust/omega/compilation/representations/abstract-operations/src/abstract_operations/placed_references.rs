@@ -12,6 +12,20 @@ use terminal_psi::{PlacedRamCorrespondence, ResidentReferenceSource};
 pub enum PlacedReferenceBacking {
     OrdinaryRam(PlacedRamCorrespondence),
     Resident(ResidentReferenceBacking),
+    /// Produced only by the successful leaf of a checked View boundary.
+    /// This is not an unconditional EstablishPlacedReference operation.
+    BorrowedExtent(BorrowedExtentBacking),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorrowedExtentBacking {
+    pub owner: StructuralTypeId,
+    pub schema: StructuralTypeId,
+    pub carrier: StructuralTypeId,
+    pub base: semantic_vocabulary::StructuralFieldId,
+    pub length: semantic_vocabulary::StructuralFieldId,
+    pub granted: semantic_vocabulary::StructuralDomainId,
+    pub placement_commitment: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,15 +47,20 @@ impl PlacedReferenceBacking {
         types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Option<terminal_psi::StructuralArgument> {
         let mut address = source.clone();
-        if let Self::Resident(resident) = self {
-            let declaration = terminal_psi::find_structural_type(types, resident.owner)?;
+        let extent = match self {
+            Self::OrdinaryRam(_) => None,
+            Self::Resident(backing) => Some((backing.owner, backing.roles.base)),
+            // The successful View already contains the backing pointer. Its
+            // interpretation must not emit a second load from an Extent record.
+            Self::BorrowedExtent(_) => return None,
+        };
+        if let Some((owner, base)) = extent {
+            let declaration = terminal_psi::find_structural_type(types, owner)?;
             let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape
             else {
                 return None;
             };
-            let field = fields
-                .iter()
-                .find(|field| field.id == resident.roles.base)?;
+            let field = fields.iter().find(|field| field.id == base)?;
             address
                 .path
                 .push(terminal_psi::StructuralPathSegment::Field(field.identity));
@@ -53,6 +72,7 @@ impl PlacedReferenceBacking {
         match self {
             Self::OrdinaryRam(backing) => backing.schema,
             Self::Resident(backing) => backing.owner,
+            Self::BorrowedExtent(backing) => backing.owner,
         }
     }
 
@@ -60,6 +80,7 @@ impl PlacedReferenceBacking {
         match self {
             Self::OrdinaryRam(backing) => backing.schema,
             Self::Resident(backing) => backing.schema,
+            Self::BorrowedExtent(backing) => backing.schema,
         }
     }
 
@@ -67,12 +88,13 @@ impl PlacedReferenceBacking {
         match self {
             Self::OrdinaryRam(backing) => backing.carrier,
             Self::Resident(backing) => backing.carrier,
+            Self::BorrowedExtent(backing) => backing.carrier,
         }
     }
 
     pub fn resident_source(&self) -> Option<ResidentReferenceSource> {
         match self {
-            Self::OrdinaryRam(_) => None,
+            Self::OrdinaryRam(_) | Self::BorrowedExtent(_) => None,
             Self::Resident(backing) => Some(backing.roles),
         }
     }

@@ -24,9 +24,11 @@ pub(in super::super) fn storage_regions(
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let mut cursors = Vec::with_capacity(sources.len());
         for candidate in sources {
-            let cursor = (candidate.place, candidate.path.clone());
-            if !cursors.contains(&cursor) {
-                cursors.push(cursor);
+            for storage in borrowed_arrivals::storage_sources(function, live, types, candidate)? {
+                let cursor = (storage.place, storage.path);
+                if !cursors.contains(&cursor) {
+                    cursors.push(cursor);
+                }
             }
         }
         cursors
@@ -89,7 +91,7 @@ pub(in super::super) fn storage_regions(
 /// Ingress custody names the incoming descriptor, while a storage cursor
 /// names its pointee. Only an exact descriptor in a declared parameter's owned
 /// payload supplies that implicit crossing; retained target origins stay intact.
-fn storage_cursor(
+pub(super) fn storage_cursor(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,

@@ -575,6 +575,14 @@ pub(crate) fn validate_structural_root_operations(
                     source,
                     correspondence,
                 } => {
+                    // Borrowed provider content is formed only by a fallible
+                    // View boundary, never this unconditional reference opcode.
+                    if matches!(
+                        correspondence,
+                        abstract_operations::PlacedReferenceBacking::BorrowedExtent(_)
+                    ) {
+                        return Err(catalog_mismatch(function));
+                    }
                     let actual = crate::unit_validation::references::reference_source_type(
                         function,
                         structural_types,

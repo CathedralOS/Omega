@@ -498,12 +498,12 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .map_err(TerminalInstanceError::Execution)
     }
 
-    pub fn bind_vacant_provider_storage(
+    pub fn bind_provider_storage(
         &mut self,
         input: crate::TerminalProviderStorageInput,
     ) -> Result<(), crate::TerminalProviderStorageRejection> {
         match self.execution.as_mut() {
-            Some(execution) => execution.bind_vacant_provider_storage(input),
+            Some(execution) => execution.bind_provider_storage(input),
             None => Err(crate::TerminalProviderStorageRejection {
                 input,
                 reason: "provider storage cannot bind a closed instance".into(),

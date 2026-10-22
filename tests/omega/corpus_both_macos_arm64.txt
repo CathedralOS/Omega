@@ -69,7 +69,7 @@ pass/borrows/fixed_array_reference_backing_exit built 3555ms exit:0 interpreter-
 pass/borrows/fixed_array_reference_results_exit built 5592ms exit:0 interpreter-exit:0 interpreter:agrees @c772928b87e3+wt
 pass/borrows/indexed_record_field_replacement_exit built 6044ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8134ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
-pass/borrows/later_state_reference_field_loan_exit built 5216ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
+pass/borrows/later_state_reference_field_loan_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @d3f12beefc63+wt
 pass/borrows/linear_call_result_shared_observation_exit built 1729ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
 pass/borrows/linear_owner_materialized_mutable_projection_exit built 1668ms exit:70 interpreter-exit:70 interpreter:agrees @566fa91d7f0d+wt
 pass/borrows/linear_owner_materialized_shared_reference_exit built 1668ms exit:70 interpreter-exit:70 interpreter:agrees @566fa91d7f0d+wt
@@ -1399,6 +1399,7 @@ run/borrows/runtime_index_bounded_borrow built 4784ms exit:0 interpreter-exit:0 
 run/borrows/shared_indexed_read built 5703ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/borrows/shared_local_borrow built 5331ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/borrows/shared_record_loan_member_read built 5382ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
+run/borrows/stored_case_reference_state built 735ms exit:0 interpreter-exit:0 interpreter:agrees @d3f12beefc63+wt
 run/borrows/stored_subview_identity built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @3224bdead711
 run/borrows/stored_subview_nested_call_result built 5958ms exit:0 interpreter-exit:0 interpreter:agrees @3224bdead711
 run/borrows/stored_subview_repeated_updates built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @3224bdead711

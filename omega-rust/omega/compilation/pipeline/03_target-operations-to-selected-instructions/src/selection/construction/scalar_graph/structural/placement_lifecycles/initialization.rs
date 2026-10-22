@@ -14,7 +14,10 @@ use super::{
 };
 use crate::SelectedInstructionError;
 
-mod result_layout;
+use super::{
+    outcome::{PlacementDecision, decide, write_word},
+    result_layout,
+};
 
 /// Realize the exact private Initialize operation. Source admission still owns
 /// selected-profile provenance, encoding obligations and backing authority.
@@ -62,6 +65,13 @@ pub(super) fn emit(
         .ok_or_else(|| failure("initialization lost its structural signature"))?
         .structural_types;
     let layout = result_layout::ResultLayout::derive(types, result.structural_type, plan)?;
+    let result_layout::ReturnedLayout::Owned {
+        owner: returned_owner,
+        value: returned_value,
+    } = layout.returned
+    else {
+        return Err(failure("initialization lost its owned rejection payloads"));
+    };
     let mut remaining = indices.as_slice();
     let storage_indices = operand_indices(storage, &mut remaining)?;
     let value_indices = operand_indices(value, &mut remaining)?;
@@ -79,8 +89,8 @@ pub(super) fn emit(
         byte_offset: 0,
     };
     for (argument, selectors, field) in [
-        (storage, storage_indices, layout.returned_owner),
-        (value, value_indices, layout.returned_value),
+        (storage, storage_indices, returned_owner),
+        (value, value_indices, returned_value),
     ] {
         leaf_copy::copy_operand(
             source,
@@ -98,7 +108,7 @@ pub(super) fn emit(
         )?;
     }
     let owner_home = ImageHome {
-        byte_offset: layout.returned_owner.byte_offset,
+        byte_offset: returned_owner.byte_offset,
         ..result_home
     };
     let base = owner_word(types, row, builder, plan, owner_home, plan.storage.base)?;
@@ -136,7 +146,7 @@ pub(super) fn emit(
         ..scratch
     };
     let value_home = ImageHome {
-        byte_offset: layout.returned_value.byte_offset,
+        byte_offset: returned_value.byte_offset,
         ..result_home
     };
     stage_image(types, builder, row, plan, value_home, staged)?;
@@ -152,41 +162,16 @@ pub(super) fn emit(
         assessment.compatible,
     )?;
 
-    // Fill only the selected reason's payload. IncompatibleSupply has none;
-    // a success subsequently overwrites the owner alternative and outer tag.
-    write_word(
+    let required = fragmented_scalar::constant(builder, row, result.place, image_length)?;
+    super::outcome::write_failure(
         builder,
         row,
         result_home,
-        layout.failure_tag,
-        4,
-        decision.failure_tag,
+        &layout,
+        &decision,
+        [required, available],
+        [assessment.modulus, assessment.residue],
     )?;
-    let required = fragmented_scalar::constant(builder, row, result.place, image_length)?;
-    for (ordinal, coordinates, words) in [
-        (0, layout.range, [required, available]),
-        (
-            1,
-            layout.alignment,
-            [assessment.modulus, assessment.residue],
-        ),
-    ] {
-        let ordinal = fragmented_scalar::constant(builder, row, result.place, ordinal)?;
-        let selected = compare(
-            builder,
-            row,
-            result.place,
-            decision.failure_tag,
-            ordinal,
-            SelectedInstructionKind::MaterializeBooleanEqual,
-        )?;
-        operation_control::when_nonzero(builder, row, selected, |builder| {
-            for (coordinate, word) in coordinates.into_iter().zip(words) {
-                write_word(builder, row, result_home, coordinate, 8, word)?;
-            }
-            Ok(())
-        })?;
-    }
     let image_pointer =
         super::super::transport_register(builder, result.place, staged.byte_offset)?;
     builder.emit_address_offset(
@@ -241,30 +226,6 @@ pub(super) fn emit(
         .pointers
         .push((result.place, result_pointer));
     Ok(())
-}
-
-fn write_word(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    home: ImageHome,
-    byte_offset: u32,
-    width: u32,
-    value: VirtualRegisterId,
-) -> Result<(), SelectedInstructionError> {
-    super::ScalarImageCodec::Bytes {
-        byte_offset,
-        width,
-        signed: false,
-    }
-    .write(builder, row, home, value)
-}
-
-/// Physical result coordinates, never an admitted source-level token.
-pub(super) struct InitializationDecision {
-    pub(super) ready: VirtualRegisterId,
-    pub(super) outcome_tag: VirtualRegisterId,
-    pub(super) failure_tag: VirtualRegisterId,
-    pub(super) copy_length: VirtualRegisterId,
 }
 
 /// Initialize every staged byte, then encode the complete value. Both homes
@@ -328,209 +289,6 @@ pub(super) fn stage_image(
     )
 }
 
-/// `supply_compatible` is a Boolean produced from the complete immutable
-/// selected profile and actual backing. It is not an ordinary caller flag.
-/// Rejection order matches lifecycle execution: range, supply, alignment.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn decide(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    owner: PlaceId,
-    base: VirtualRegisterId,
-    available: VirtualRegisterId,
-    image_length: u64,
-    modulus: VirtualRegisterId,
-    residue: VirtualRegisterId,
-    supply_compatible: VirtualRegisterId,
-) -> Result<InitializationDecision, SelectedInstructionError> {
-    let required = fragmented_scalar::constant(builder, row, owner, image_length)?;
-    let range = compare(
-        builder,
-        row,
-        owner,
-        required,
-        available,
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-    )?;
-    let one = fragmented_scalar::constant(builder, row, owner, 1)?;
-    let zero = fragmented_scalar::constant(builder, row, owner, 0)?;
-    let modulus_mask = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingSubtractI64,
-        modulus,
-        one,
-    )?;
-    // Congruence comes from the complete runtime compatibility calculation,
-    // not a compile-time guess at provider alignment. Even malformed physical
-    // inputs must not accidentally enable a write; the lifecycle caller owns
-    // invalid-assertion termination separately from ordinary rejection.
-    let present = compare(
-        builder,
-        row,
-        owner,
-        one,
-        modulus,
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-    )?;
-    let low_bits = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        modulus,
-        modulus_mask,
-    )?;
-    let power_of_two = compare(
-        builder,
-        row,
-        owner,
-        low_bits,
-        zero,
-        SelectedInstructionKind::MaterializeBooleanEqual,
-    )?;
-    let bounded_residue = compare(
-        builder,
-        row,
-        owner,
-        residue,
-        modulus_mask,
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-    )?;
-    let valid_modulus = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        present,
-        power_of_two,
-    )?;
-    let valid_congruence = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        valid_modulus,
-        bounded_residue,
-    )?;
-    let actual_residue = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        base,
-        modulus_mask,
-    )?;
-    let aligned = compare(
-        builder,
-        row,
-        owner,
-        actual_residue,
-        residue,
-        SelectedInstructionKind::MaterializeBooleanEqual,
-    )?;
-    // Normalize the predicate at this boundary too: only exact Boolean true
-    // enables a write. No arbitrary nonzero register may scale the byte count.
-    let supplied = compare(
-        builder,
-        row,
-        owner,
-        supply_compatible,
-        one,
-        SelectedInstructionKind::MaterializeBooleanEqual,
-    )?;
-    let supplied = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        supplied,
-        valid_congruence,
-    )?;
-    let range_and_supply = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        range,
-        supplied,
-    )?;
-    let ready = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        range_and_supply,
-        aligned,
-    )?;
-    let outcome_tag = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseXorI64,
-        one,
-        ready,
-    )?;
-    // RangeTooSmall=0, Misaligned=1, IncompatibleSupply=2. The failure
-    // payload is unobservable on Ready, but its bits remain deterministic.
-    let two = fragmented_scalar::constant(builder, row, owner, 2)?;
-    let supply_failure = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingSubtractI64,
-        two,
-        supplied,
-    )?;
-    let failure_tag = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingMultiplyI64,
-        range,
-        supply_failure,
-    )?;
-    let copy_length = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingMultiplyI64,
-        required,
-        ready,
-    )?;
-    Ok(InitializationDecision {
-        ready,
-        outcome_tag,
-        failure_tag,
-        copy_length,
-    })
-}
-
-pub(super) fn compare(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    owner: PlaceId,
-    left: VirtualRegisterId,
-    right: VirtualRegisterId,
-    result_kind: SelectedInstructionKind,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let output = super::super::transport_register(builder, owner, 0)?;
-    builder.emit(
-        SelectedInstructionKind::CompareI64,
-        builder.constraints.keys.compare_i64,
-        &[left, right],
-        super::super::provenance(row),
-    )?;
-    builder.emit(
-        result_kind,
-        builder.constraints.keys.materialize_boolean,
-        &[output],
-        super::super::provenance(row),
-    )?;
-    Ok(output)
-}
-
 /// Commit one complete staged image, or no bytes on rejection. The owner
 /// records the exact scratch-read and possible backing-write footprint before
 /// calling; this instruction neither selects a profile nor creates a claim.
@@ -540,7 +298,7 @@ pub(super) fn commit(
     owner: PlaceId,
     staged: VirtualRegisterId,
     backing: VirtualRegisterId,
-    decision: &InitializationDecision,
+    decision: &PlacementDecision,
 ) -> Result<(), SelectedInstructionError> {
     let cursor = super::super::transport_register(builder, owner, 0)?;
     let byte = super::super::transport_register(builder, owner, 0)?;

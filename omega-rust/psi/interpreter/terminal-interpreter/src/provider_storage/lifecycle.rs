@@ -37,6 +37,10 @@ impl TerminalExecution<'_> {
         plan: &TerminalPlacementLifecyclePlan,
         prepared: PreparedProviderImage,
     ) -> Result<(), TerminalInterpretError> {
+        let (vacant, resident_domain) = plan
+            .storage
+            .owned_content()
+            .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
         let OperationKind::BoundaryCall {
             structural_arguments,
             completion_receipts,
@@ -113,14 +117,11 @@ impl TerminalExecution<'_> {
                 .value
                 .qualifications
                 .contains(&plan.storage.granted)
-            || !retained_extent
-                .value
-                .qualifications
-                .contains(&plan.storage.vacant)
+            || !retained_extent.value.qualifications.contains(&vacant)
             || retained_extent
                 .value
                 .qualifications
-                .contains(&plan.storage.resident)
+                .contains(&resident_domain)
         {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
@@ -175,11 +176,8 @@ impl TerminalExecution<'_> {
         retained_extent
             .value
             .qualifications
-            .retain(|domain| *domain != plan.storage.vacant);
-        retained_extent
-            .value
-            .qualifications
-            .push(plan.storage.resident);
+            .retain(|domain| *domain != vacant);
+        retained_extent.value.qualifications.push(resident_domain);
         retained_extent.value.qualifications.sort();
         terminal_psi::StructuralPathQualification::append_under(
             &retained_extent.value.qualifications,

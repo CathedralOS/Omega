@@ -352,6 +352,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .find(|plan| plan.boundary == boundary)
                 .ok_or_else(malformed)?;
             match placement_operation {
+                terminal_psi::TerminalPlacementLifecycleOperation::View => {
+                    self.establish_placement_view(operation, plan)?;
+                    return Ok(OperationFlow::Advance);
+                }
                 terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
                     let [storage_argument, value, profile_argument] =
                         structural_arguments.as_slice()

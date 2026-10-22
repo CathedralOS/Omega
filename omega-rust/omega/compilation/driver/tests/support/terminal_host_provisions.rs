@@ -1,5 +1,7 @@
 #[path = "terminal_cleanup_resume.rs"]
 mod cleanup_resume;
+#[path = "terminal_extent_view.rs"]
+mod extent_view;
 
 /// Portable provisions supply semantic test sinks, never native host services.
 pub(super) fn observe_portable(
@@ -8,6 +10,7 @@ pub(super) fn observe_portable(
 ) -> Result<(), String> {
     match words {
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
+        ["external-extent-view"] => extent_view::observe(artifact),
         _ => Err("unknown portable Terminal fixture provision".to_owned()),
     }
 }

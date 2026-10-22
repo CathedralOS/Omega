@@ -10,6 +10,14 @@ pub use terminal_psi_to_abstract_operations::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    BorrowedSourceProjectionMismatch {
+        machine: MachineId,
+        source: terminal_psi::StructuralArgument,
+        origin: terminal_psi::StructuralArgument,
+        expected: optimization_unit_semantics::StructuralStorageProjection,
+        actual: Option<optimization_unit_semantics::StructuralStorageProjection>,
+        origin_carrier: Option<StructuralTypeId>,
+    },
     InvalidPlacementLifecycle {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,

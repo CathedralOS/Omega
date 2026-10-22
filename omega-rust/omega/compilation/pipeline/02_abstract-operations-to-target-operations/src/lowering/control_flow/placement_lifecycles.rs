@@ -24,6 +24,7 @@ pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
+    boundaries: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
@@ -85,7 +86,8 @@ pub(super) fn lower(
         terminal_psi::TerminalPlacementLifecycleOperation::Initialize => {
             [Some(plan.storage.carrier), Some(plan.schema), *profile_type]
         }
-        terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
+        terminal_psi::TerminalPlacementLifecycleOperation::MoveOut
+        | terminal_psi::TerminalPlacementLifecycleOperation::View => {
             [Some(plan.storage.carrier), *profile_type, None]
         }
     };
@@ -105,6 +107,24 @@ pub(super) fn lower(
     let AbstractBoundaryResult::Structural(result) = result else {
         return Err(invalid("native lifecycle lost its structural result"));
     };
+    if plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::View {
+        let declaration = boundaries
+            .get(boundary)
+            .ok_or_else(|| invalid("borrowed View lost its exact boundary declaration"))?;
+        let (path, backing) =
+            optimization_unit_semantics::placed_references::borrowed_view_formation(
+                types.catalog(),
+                declaration,
+                result,
+            )
+            .ok_or_else(|| invalid("borrowed View lost its Ready interpretation"))?;
+        let PlacementLifecycleOperands::View { storage, .. } = &operands else {
+            return Err(invalid("borrowed View lost its storage operand"));
+        };
+        super::references::retain_placed_result(
+            function, types, live, result, storage, path, backing,
+        )?;
+    }
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if live
         .structural_homes

@@ -45,7 +45,8 @@ pub use placed_scalar_boundaries::{
     PlacedScalarBoundaryDemand, placed_region_projection, placed_scalar_boundary_demand,
 };
 pub use placement_lifecycles::{
-    PlacementResultContract, placement_result_contract, validate_placement_lifecycle_plans,
+    PlacementResultContract, placement_result_contract, placement_view_reference_slot,
+    validate_placement_lifecycle_plans, validate_placement_view_content,
 };
 mod placed_view_referent;
 pub use placed_view_plans::{

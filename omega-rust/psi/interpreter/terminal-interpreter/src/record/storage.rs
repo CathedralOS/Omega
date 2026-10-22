@@ -460,6 +460,19 @@ impl ConstructorStorage {
         self.bytes.insert(destination, bytes);
     }
 
+    /// Stage a descriptor whose producer has already captured its live source.
+    /// This records transport only; no referent or access is inferred here.
+    pub(crate) fn stage_reference(
+        &mut self,
+        destination: StructuralRuntimePlace,
+        referent: crate::reference::ReferenceReferent,
+    ) -> Result<(), TerminalInterpretError> {
+        if self.references.insert(destination, referent).is_some() {
+            return Err(malformed());
+        }
+        Ok(())
+    }
+
     pub(crate) fn stage_byte_array(&mut self, destination: StructuralRuntimePlace, bytes: Vec<u8>) {
         // Byte arrays have one backing, never duplicate primitive cells. This
         // uses the same publication shape as constructor array establishment.

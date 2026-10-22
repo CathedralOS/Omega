@@ -705,24 +705,30 @@ pub(in super::super) fn assess(
         emission.write_scratch(builder, COMPATIBLE, contained)?;
         let alignment = emission.constant(builder, placement.layout().align)?;
         emission.write_scratch(builder, MODULUS, alignment)?;
-        emission.write_scratch(builder, COVERED, zero)?;
-        extend_coverage(
-            emission,
-            builder,
-            &layout,
-            pointer,
-            count,
-            length,
-            CoverageDemand::Stable {
-                read: operation == terminal_psi::TerminalPlacementLifecycleOperation::MoveOut,
-                write: operation == terminal_psi::TerminalPlacementLifecycleOperation::Initialize,
-            },
-            placement.reach(),
-            [WALK, CANDIDATE],
-        )?;
-        let covered = emission.read_scratch(builder, COVERED)?;
-        let complete = emission.at_most(builder, length, covered)?;
-        intersect(emission, builder, COMPATIBLE, complete)?;
+        // View performs no whole-image read or write. Its access plan below
+        // describes the only transfers it may expose; padding and inaccessible
+        // fields must not demand Stable supply merely to form a borrow.
+        if operation != terminal_psi::TerminalPlacementLifecycleOperation::View {
+            emission.write_scratch(builder, COVERED, zero)?;
+            extend_coverage(
+                emission,
+                builder,
+                &layout,
+                pointer,
+                count,
+                length,
+                CoverageDemand::Stable {
+                    read: operation == terminal_psi::TerminalPlacementLifecycleOperation::MoveOut,
+                    write: operation
+                        == terminal_psi::TerminalPlacementLifecycleOperation::Initialize,
+                },
+                placement.reach(),
+                [WALK, CANDIDATE],
+            )?;
+            let covered = emission.read_scratch(builder, COVERED)?;
+            let complete = emission.at_most(builder, length, covered)?;
+            intersect(emission, builder, COMPATIBLE, complete)?;
+        }
         for descriptor in placement.access().field_descriptors() {
             let access = placement
                 .access()

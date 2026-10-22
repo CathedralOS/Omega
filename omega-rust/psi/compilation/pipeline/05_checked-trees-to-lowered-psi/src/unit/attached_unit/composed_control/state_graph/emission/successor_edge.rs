@@ -908,8 +908,9 @@ impl StateGraphEmission<'_, '_> {
                 // authored arrival, including a hidden affine readonly home.
                 self.loan_chains
                     .declare(target, target_index as u32, &mut capture);
+                let endpoint = capture.structural_type;
                 capture_parameters.push(capture);
-                structural_arguments.push(StructuralArgument {
+                let mut argument = StructuralArgument {
                     place,
                     path: argument_path,
                     // The arrival retains its exact permission, except for
@@ -941,7 +942,37 @@ impl StateGraphEmission<'_, '_> {
                             StructuralAccess::SharedBorrow
                         }
                     },
-                });
+                };
+                // State and call operands use the same published geometry:
+                // a copied descriptor still requires a crossing to lend its
+                // referent. Complete after ownership handoffs, not according
+                // to which source expression happened to create the value.
+                if argument.access != StructuralAccess::Owned {
+                    let root = edge_evaluation
+                        .structural_root_parameters()
+                        .find(|parameter| parameter.place == place)
+                        .map(|parameter| parameter.structural_type)
+                        .or_else(|| {
+                            operations
+                                .structural_result_contract(place)
+                                .map(|result| result.structural_type)
+                        })
+                        .or_else(|| {
+                            self.structural_places
+                                .iter()
+                                .chain(&self.catalogs.temporary_places)
+                                .find(|declaration| declaration.id == place)
+                                .and_then(|declaration| declaration.kind.produced_structural_type())
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "state argument lost its published source declaration",
+                        ))?;
+                    crate::expression_preparation::bindings::structural_paths::complete_emitted_argument_path(
+                        root, &mut argument.path, endpoint, argument.access,
+                        &self.catalogs.structural_types,
+                    )?;
+                }
+                structural_arguments.push(argument);
                 continue;
             }
             if let Some((scalar_position, _)) = target_state

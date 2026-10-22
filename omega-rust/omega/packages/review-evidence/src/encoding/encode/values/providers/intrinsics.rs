@@ -16,6 +16,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
                     terminal_psi::TerminalPlacementLifecycleOperation::MoveOut => {
                         encoder.tag("move_out", 1)
                     }
+                    terminal_psi::TerminalPlacementLifecycleOperation::View => {
+                        encoder.tag("view", 2)
+                    }
                 }
                 Ok(())
             })?;

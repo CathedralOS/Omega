@@ -1320,6 +1320,37 @@ fn adapt(
                     completion_receipts,
                     ..
                 } => {
+                    if slot_kind == kernel::DescriptorSlotKind::References
+                        && let abstract_operations::AbstractBoundaryResult::Structural(result) =
+                            result
+                        && let Some(declaration) = boundaries.iter().find(|row| row.id == *boundary)
+                        && declaration.declaration.as_ref().is_some_and(|head| {
+                            head.execution.placement_operation()
+                                == Some(terminal_psi::TerminalPlacementLifecycleOperation::View)
+                        })
+                        && let Some((path, carrier)) =
+                            terminal_semantics::placement_view_reference_slot(
+                                types,
+                                result.structural_type,
+                            )
+                    {
+                        graph.originations.entry(position).or_default().push((
+                            descriptor_location(
+                                types,
+                                result.place,
+                                result.structural_type,
+                                &path,
+                                None,
+                            )?,
+                            kernel::DescriptorCallOrigin::PlacedFormation {
+                                machine: function.machine,
+                                operation: operation.psi_operation()?,
+                                place: result.place,
+                                carrier,
+                                projection: Projection::new(&[]),
+                            },
+                        ));
+                    }
                     // The same completion judgment Terminal's descriptor flow
                     // applies: a declared, receipt-free call returning no
                     // descriptor custody cannot retain or replace a lent view.
@@ -1384,6 +1415,11 @@ fn adapt(
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
                         && !declaration.reference_outputs.is_empty()
                         && slot_kind != kernel::DescriptorSlotKind::PlacedOrigins
+                        && !(slot_kind == kernel::DescriptorSlotKind::References
+                            && declaration.declaration.as_ref().is_some_and(|head| {
+                                head.execution.placement_operation()
+                                    == Some(terminal_psi::TerminalPlacementLifecycleOperation::View)
+                            }))
                     {
                         graph.calls.insert(
                             position,

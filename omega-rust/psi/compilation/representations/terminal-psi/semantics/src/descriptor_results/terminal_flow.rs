@@ -994,6 +994,40 @@ pub(super) fn adapt(
                     structural_arguments,
                     ..
                 } => {
+                    // A checked View creates only its Ready reference leaf.
+                    // Preserve that formation through ordinary result/case
+                    // transport; the extent descriptor itself is not RAM.
+                    if slot_kind == DescriptorSlotKind::PlacedOrigins
+                        && let Some(plan) = module.placement_lifecycle_plans.iter().find(|plan| {
+                            plan.boundary == *boundary
+                                && plan.operation
+                                    == terminal_psi::TerminalPlacementLifecycleOperation::View
+                        })
+                    {
+                        let crate::PlacementResultContract::View { ready, carrier, .. } =
+                            crate::placement_result_contract(module, plan).ok()?
+                        else {
+                            return None;
+                        };
+                        let result = result?;
+                        let shape = &module.structural_type(result.structural_type)?.shape;
+                        let path = terminal_psi::structural_case_initializer_path(
+                            shape,
+                            ready.id,
+                            0,
+                            ready.fields.first()?.id,
+                        )?;
+                        graph.originations.entry(position).or_default().push((
+                            location(result.place, &path, None)?,
+                            DescriptorCallOrigin::PlacedFormation {
+                                machine: machine.id,
+                                operation: operation.id,
+                                place: result.place,
+                                carrier,
+                                projection: Projection::new(&[]),
+                            },
+                        ));
+                    }
                     let preserves_placed_token = slot_kind == DescriptorSlotKind::PlacedOrigins
                         && module.placed_view_plans.iter().any(|plan|
                             module.placed_view_plans.iter().filter(|other| other.carrier == plan.carrier).count() == 1

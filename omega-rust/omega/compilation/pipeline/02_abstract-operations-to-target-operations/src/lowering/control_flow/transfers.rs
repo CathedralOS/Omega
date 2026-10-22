@@ -46,6 +46,8 @@ pub(super) fn re_home_bound_references(
     if bindings.len() != parameters.len() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    let borrowed_sources =
+        references::capture_borrowed_arrivals(function, live, types, bindings, parameters)?;
     let mut captured = Vec::new();
     let mut selected_sources = BTreeSet::new();
     let mut destinations = BTreeSet::new();
@@ -139,6 +141,7 @@ pub(super) fn re_home_bound_references(
         storage.carrier_type = carrier_type;
         live.references.insert(destination, storage);
     }
+    live.borrowed_reference_sources = borrowed_sources;
     Ok(())
 }
 
@@ -325,7 +328,21 @@ pub(super) fn validate_successors(
                             parameter,
                         )
                     {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                        return Err(LoweringError::StructuralStateBindingMismatch {
+                            machine: function.machine,
+                            reason: format!(
+                                "borrowed address edge to {target:?}: binding {binding:?} does not satisfy {parameter:?}; live home {:?}; address arrival {}",
+                                live.structural_homes
+                                    .get(&binding.argument.place)
+                                    .map(|home| (
+                                        home.structural_type(),
+                                        home.access(),
+                                        home.multiplicity(),
+                                        home.has_claims(),
+                                    )),
+                                live.address_joins.contains(&binding.argument.place),
+                            ),
+                        });
                     }
                     continue;
                 }

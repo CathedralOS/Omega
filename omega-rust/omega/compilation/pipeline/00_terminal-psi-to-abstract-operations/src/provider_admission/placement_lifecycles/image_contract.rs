@@ -14,6 +14,9 @@ pub(super) fn require(
     module: &TerminalModule,
     plan: &TerminalPlacementLifecyclePlan,
 ) -> Result<(), &'static str> {
+    if plan.operation == terminal_psi::TerminalPlacementLifecycleOperation::View {
+        return terminal_semantics::validate_placement_view_content(module, plan);
+    }
     let declaration = module
         .structural_type(plan.schema)
         .ok_or("native lifecycle schema is absent")?;

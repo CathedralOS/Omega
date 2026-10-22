@@ -213,20 +213,58 @@ fn complete_lent_path<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     mut path: Vec<PreparedStructuralPathSegment>,
-    mut tip: PreparedArgumentTip<'a>,
+    tip: PreparedArgumentTip<'a>,
     endpoint: typed_trees::type_identity::TypeIdentityId,
     access: StructuralAccess,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     let expected = identities.intern(&checked.type_identity_text(endpoint).unwrap_or_default());
+    let tip = match tip {
+        PreparedArgumentTip::Declaration(declaration) => Some(declaration),
+        _ => None,
+    };
+    complete_reference_endpoint(tip, expected, access, types, |segment| {
+        path.push(PreparedStructuralPathSegment::Static(segment));
+    })?;
+    Ok(path)
+}
+
+/// Complete an emitted edge against its receiving declaration, independently
+/// of which operation materialized the incoming value. Copying a reference
+/// copies its descriptor; lending its referent still needs an explicit crossing.
+/// Already referent-presented parameters and owned descriptor transfers retain
+/// their paths. Admission separately checks the endpoint, live loan and bounds.
+pub(crate) fn complete_emitted_argument_path(
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &mut Vec<StructuralPathSegment>,
+    endpoint: semantic_vocabulary::StructuralTypeId,
+    access: StructuralAccess,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
+    let expected = terminal_psi::find_structural_type(types, endpoint).ok_or(
+        LoweringError::Unsupported("state argument lost its receiving declaration"),
+    )?;
+    let tip = terminal_semantics::runtime_structural_path_tip(types.iter(), root, path);
+    complete_reference_endpoint(tip, expected.identity, access, types, |segment| {
+        path.push(segment);
+    })
+}
+
+fn complete_reference_endpoint<'a>(
+    mut tip: Option<&'a terminal_psi::StructuralTypeDeclaration>,
+    expected: terminal_psi::TerminalIdentityIndex,
+    access: StructuralAccess,
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
+    mut append: impl FnMut(StructuralPathSegment),
+) -> Result<(), LoweringError> {
     // A call lends its declared endpoint. A stored reference is a carrier for
     // that endpoint; preserve every crossing instead of passing its wrapper.
     // Owned transport keeps the descriptor itself and never performs this read.
     if access == StructuralAccess::Owned {
-        return Ok(path);
+        return Ok(());
     }
     let mut crossed = Vec::new();
-    while let PreparedArgumentTip::Declaration(declaration) = tip {
+    while let Some(declaration) = tip {
         if declaration.identity == expected {
             break;
         }
@@ -239,20 +277,16 @@ fn complete_lent_path<'a>(
         };
         if !structural_access_can_supply(supplied, access) || crossed.contains(&declaration.id) {
             return Err(LoweringError::Unsupported(
-                "call argument crosses an unreadable or cyclic reference",
+                "borrowed argument crosses an unreadable or cyclic reference",
             ));
         }
         crossed.push(declaration.id);
-        tip = PreparedArgumentTip::Declaration(
-            terminal_psi::find_structural_type(types, referent).ok_or(
-                LoweringError::Unsupported("call argument reference lost its referent declaration"),
-            )?,
-        );
-        path.push(PreparedStructuralPathSegment::Static(
-            StructuralPathSegment::Referent,
-        ));
+        tip = Some(terminal_psi::find_structural_type(types, referent).ok_or(
+            LoweringError::Unsupported("borrowed argument reference lost its referent declaration"),
+        )?);
+        append(StructuralPathSegment::Referent);
     }
-    Ok(path)
+    Ok(())
 }
 
 fn prepare_structural_argument_projection<'a>(

@@ -95,7 +95,7 @@ pub(crate) fn retain(
         let policy_identity = identity(*policy)?;
         let policy_plan_machine_identity = identity(*policy_machine)?;
         let schema_identity = identity(*schema)?;
-        let storage = storage_contract(identities, checked, module, *callable)?;
+        let storage = storage_contract(identities, checked, module, *callable, *operation)?;
         let image_fields = image_fields(
             identities,
             checked,
@@ -126,6 +126,7 @@ pub(crate) fn retain(
                     PlacementLifecycleOperation::MoveOut => {
                         TerminalPlacementLifecycleOperation::MoveOut
                     }
+                    PlacementLifecycleOperation::View => TerminalPlacementLifecycleOperation::View,
                 },
                 execution: execution.clone(),
                 schema: schema_type,
@@ -233,7 +234,10 @@ fn execution_contract(
             let parameters = checked.typed.state_parameters(state);
             let profile = match (declaration.operation(), parameters) {
                 (PlacementLifecycleOperation::Initialize, [_, _, profile])
-                | (PlacementLifecycleOperation::MoveOut, [_, profile]) => profile,
+                | (
+                    PlacementLifecycleOperation::MoveOut | PlacementLifecycleOperation::View,
+                    [_, profile],
+                ) => profile,
                 _ => {
                     return Err(LoweringError::Unsupported(
                         "placement primitive profile input is absent",
@@ -381,6 +385,7 @@ fn storage_contract(
     checked: &CheckedTrees,
     module: &terminal_psi::TerminalModule,
     callable: symbols::SymbolHandle,
+    operation: PlacementLifecycleOperation,
 ) -> Result<terminal_psi::TerminalPlacementStorage, LoweringError> {
     let typed = &checked.typed;
     let (parameters, return_type) =
@@ -486,8 +491,16 @@ fn storage_contract(
         base,
         length,
         granted: domain("Granted")?,
-        vacant: domain("Vacant")?,
-        resident: domain("Resident")?,
+        vacant: if operation == PlacementLifecycleOperation::View {
+            None
+        } else {
+            Some(domain("Vacant")?)
+        },
+        resident: if operation == PlacementLifecycleOperation::View {
+            None
+        } else {
+            Some(domain("Resident")?)
+        },
     })
 }
 

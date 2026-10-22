@@ -1986,6 +1986,72 @@ pub(in crate::legalization) fn apply(
         .unwrap_or(&node.operation);
     let types = &plan.structural_types[..];
     match operation {
+        AbstractOperation::BoundaryCall {
+            psi_operation,
+            boundary,
+            structural_arguments,
+            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            ..
+        } if plan
+            .structural_types
+            .placement_lifecycles()
+            .iter()
+            .any(|row| {
+                row.boundary == *boundary
+                    && row.operation == terminal_psi::TerminalPlacementLifecycleOperation::View
+            }) =>
+        {
+            let declaration = unit
+                .boundary_machines
+                .iter()
+                .find(|row| row.id == *boundary)
+                .ok_or_else(invalid)?;
+            let (path, interpretation) =
+                optimization_unit_semantics::placed_references::borrowed_view_formation(
+                    &plan.structural_types,
+                    declaration,
+                    result,
+                )
+                .ok_or_else(invalid)?;
+            let [source, _profile] = structural_arguments.as_slice() else {
+                return Err(invalid());
+            };
+            let moved = call_arguments(function, types, custody, structural_arguments)?;
+            if !moved.is_empty()
+                || source.access != StructuralAccess::SharedBorrow
+                || custody
+                    .leaves
+                    .keys()
+                    .any(|(carrier, _)| *carrier == result.place)
+            {
+                return Err(invalid());
+            }
+            let (root, parents) = normalized_source(function, custody, types, source)?;
+            let (backing, backing_parents) = descriptor_backing::capture(
+                function,
+                custody,
+                types,
+                source,
+                *psi_operation,
+                &root,
+            )?;
+            let mut leaf = Leaf::formed(
+                (result.place, path.clone()),
+                root,
+                parents,
+                *psi_operation,
+                result,
+                interpretation.carrier(),
+            );
+            leaf.backing = backing;
+            leaf.parents.extend(backing_parents);
+            leaf.parents.sort();
+            leaf.parents.dedup();
+            leaf.placed = Some(target_operations::TargetPlacedInterpretation::Captured(
+                interpretation,
+            ));
+            custody.leaves.insert((result.place, path), leaf);
+        }
         AbstractOperation::StructuralLeafCopy {
             psi_operation,
             result,

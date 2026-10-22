@@ -434,6 +434,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "artifacts",
  "backend-plan",
@@ -449,6 +450,7 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "extents",
  "image-emission",
  "installation-evidence",
  "libc",

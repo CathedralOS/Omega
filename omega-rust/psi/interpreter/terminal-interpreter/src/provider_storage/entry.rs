@@ -1,7 +1,7 @@
 //! Bind an explicit provider allocation to an already admitted entry claim.
-//! Entry values supply the host-established Granted/Vacant premises; this
+//! Entry values supply their host-established extent premises; this
 //! operation only joins their exact descriptor with actual storage. It cannot
-//! add either qualification to a value.
+//! add a qualification or establish resident content.
 
 use super::{ProviderByteAllocation, ProviderStorageBinding, ProviderStorageSlot};
 use crate::execution::TerminalExecution;
@@ -12,7 +12,8 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 
 /// Owned storage supplied by the embedding provider for an exact entry
 /// occurrence. Scalar geometry remains in the ordinary structural inputs.
-/// The embedding host owes the entry's vacancy premise independently of bytes.
+/// The embedding host owes the entry's declared premises independently of bytes.
+/// A Granted-only input does not become Vacant or Resident by being bound.
 #[derive(Debug)]
 pub struct TerminalProviderStorageInput {
     pub argument_index: u32,
@@ -73,7 +74,10 @@ impl TerminalExecution<'_> {
             .find(|plan| {
                 plan.storage.carrier == value.structural_type
                     && value.qualifications.contains(&plan.storage.granted)
-                    && value.qualifications.contains(&plan.storage.vacant)
+                    && plan
+                        .storage
+                        .vacant
+                        .is_some_and(|vacant| value.qualifications.contains(&vacant))
             })
             .map(|plan| &plan.storage)
             .ok_or("provider storage handback requires the returned Granted/Vacant extent")?;
@@ -201,7 +205,7 @@ impl TerminalExecution<'_> {
     /// Supply actual backing after ordinary entry binding and before execution.
     /// A refusal leaves the execution unchanged and returns every owned input.
     /// This low-level embedding operation does not select a lifecycle provider.
-    pub fn bind_vacant_provider_storage(
+    pub fn bind_provider_storage(
         &mut self,
         input: TerminalProviderStorageInput,
     ) -> Result<(), TerminalProviderStorageRejection> {
@@ -313,7 +317,7 @@ impl TerminalExecution<'_> {
             other.base != storage.base
                 || other.length != storage.length
                 || other.granted != storage.granted
-                || other.vacant != storage.vacant
+                || matches!((other.vacant, storage.vacant), (Some(left), Some(right)) if left != right)
         }) {
             return Err("provider storage has conflicting retained extent roles".into());
         }
@@ -322,11 +326,15 @@ impl TerminalExecution<'_> {
             &parameter.projected_qualifications,
             &input.path,
         );
-        if ![storage.granted, storage.vacant]
-            .iter()
-            .all(|domain| declared.contains(domain) && value.qualifications.contains(domain))
+        // Backing admission retains this input's already checked contract.
+        // A different input's lifecycle demand cannot require vacancy here;
+        // initialization checks that qualification at its own use.
+        if !declared.contains(&storage.granted)
+            || !declared
+                .iter()
+                .all(|domain| value.qualifications.contains(domain))
         {
-            return Err("provider storage entry lacks its declared Granted/Vacant premises".into());
+            return Err("provider storage entry lacks its declared granted extent premises".into());
         }
         if !self
             .live_claims

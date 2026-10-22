@@ -24,7 +24,7 @@ enum InputProjection {
     Indexed,
 }
 
-fn call_plan() -> CallPlan {
+pub(super) fn call_plan() -> CallPlan {
     CallPlan {
         policy: CallingPolicy::MicrosoftX64,
         parameters: vec![],
@@ -114,8 +114,8 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
             base: StructuralFieldId::new(3).unwrap(),
             length: StructuralFieldId::new(2).unwrap(),
             granted: StructuralDomainId::new(1).unwrap(),
-            vacant: StructuralDomainId::new(2).unwrap(),
-            resident: StructuralDomainId::new(3).unwrap(),
+            vacant: Some(StructuralDomainId::new(2).unwrap()),
+            resident: Some(StructuralDomainId::new(3).unwrap()),
         },
         schema,
         image_fields: vec![StructuralFieldId::new(1).unwrap()],

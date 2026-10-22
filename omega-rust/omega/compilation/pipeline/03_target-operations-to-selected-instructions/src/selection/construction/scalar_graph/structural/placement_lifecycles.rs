@@ -25,9 +25,12 @@ use terminal_psi::{
 };
 
 mod initialization;
+mod outcome;
 mod resource_profile;
+mod result_layout;
 #[cfg(test)]
 mod tests;
+mod view;
 
 fn failure(reason: &'static str) -> SelectedInstructionError {
     SelectedInstructionError::custody_because(reason)
@@ -68,8 +71,12 @@ pub(super) fn emit(
         .iter()
         .find(|plan| plan.boundary == *boundary && plan.operation == operands.operation())
         .ok_or_else(|| failure("resident extraction lost its exact retained lifecycle"))?;
-    let PlacementLifecycleOperands::MoveOut { storage, profile } = operands else {
-        return initialization::emit(source, row, builder, plan);
+    let (storage, profile) = match operands {
+        PlacementLifecycleOperands::Initialize { .. } => {
+            return initialization::emit(source, row, builder, plan);
+        }
+        PlacementLifecycleOperands::View { .. } => return view::emit(source, row, builder, plan),
+        PlacementLifecycleOperands::MoveOut { storage, profile } => (storage, profile),
     };
     let terminal_psi::TerminalPlacementLifecycleExecution::CompilerPrimitive {
         profile_type: Some(profile_type),
@@ -191,7 +198,7 @@ pub(super) fn emit(
     // No recoverable failure case is declared for extraction. Missing read
     // supply traps before touching backing or publishing vacancy; Resident
     // alone supplies neither this physical read nor a replacement claim.
-    let decision = initialization::decide(
+    let decision = outcome::decide(
         builder,
         row,
         result.place,

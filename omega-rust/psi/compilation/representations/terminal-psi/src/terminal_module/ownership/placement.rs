@@ -86,11 +86,11 @@ pub struct TerminalPlacementLifecyclePlan {
 pub enum TerminalPlacementLifecycleExecution {
     SelectedProvider,
     CompilerPrimitive {
-        /// Exact third input of initialization; absent for extraction. This
+        /// Exact selected-profile input of View or initialization; absent for extraction. This
         /// describes the signature, not an admitted profile-call receipt.
         profile_type: Option<semantic_vocabulary::StructuralTypeId>,
         /// Exact core ResourceProfileSupply requirement whose completed call
-        /// may supply initialization. A matching result type is not this role.
+        /// may supply placement. A matching result type is not this role.
         profile_requirement: Option<TerminalPlacementProfileRequirement>,
     },
 }
@@ -116,8 +116,27 @@ pub struct TerminalPlacementStorage {
     pub base: semantic_vocabulary::StructuralFieldId,
     pub length: semantic_vocabulary::StructuralFieldId,
     pub granted: semantic_vocabulary::StructuralDomainId,
-    pub vacant: semantic_vocabulary::StructuralDomainId,
-    pub resident: semantic_vocabulary::StructuralDomainId,
+    /// Owned lifecycle roles are absent for a nonresident borrowed View. An
+    /// absent content role is not vacancy and cannot authorize initialization.
+    pub vacant: Option<semantic_vocabulary::StructuralDomainId>,
+    pub resident: Option<semantic_vocabulary::StructuralDomainId>,
+}
+
+impl TerminalPlacementStorage {
+    pub fn owned_content(
+        &self,
+    ) -> Result<
+        (
+            semantic_vocabulary::StructuralDomainId,
+            semantic_vocabulary::StructuralDomainId,
+        ),
+        &'static str,
+    > {
+        match (self.vacant, self.resident) {
+            (Some(vacant), Some(resident)) => Ok((vacant, resident)),
+            _ => Err("owned placement lifecycle lost its exact content qualification roles"),
+        }
+    }
 }
 
 /// Checked roles on the owner lent to a resident interpretation. This describes
@@ -137,6 +156,7 @@ pub struct ResidentReferenceSource {
 pub enum TerminalPlacementLifecycleOperation {
     Initialize,
     MoveOut,
+    View,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

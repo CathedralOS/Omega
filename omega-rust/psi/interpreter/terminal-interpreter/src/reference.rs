@@ -1854,7 +1854,9 @@ impl TerminalExecution<'_> {
                         .map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Reference { .. })
                 ) {
-                Err(malformed())
+                Err(TerminalInterpretError::ContentTransformationMismatch(
+                    "returned reference has no declared source association",
+                ))
             } else {
                 Ok(())
             };
@@ -1876,7 +1878,9 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         if expected_reference_backings.len() != signature.reference_sources.len() {
-            return Err(malformed());
+            return Err(TerminalInterpretError::ContentTransformationMismatch(
+                "returned reference source roster differs from the captured call",
+            ));
         }
         // Authenticate case guards before resolving the physical descriptor
         // path (which omits Case). Every active slot must have its captured
@@ -1909,7 +1913,11 @@ impl TerminalExecution<'_> {
             let descriptor =
                 project_structural_value(&self.program.structural_types(), carrier, &origin.path)?;
             let key = StructuralRuntimePlace::from(&descriptor);
-            let actual = self.reference_referents.get(&key).ok_or_else(malformed)?;
+            let actual = self.reference_referents.get(&key).ok_or(
+                TerminalInterpretError::ContentTransformationMismatch(
+                    "returned reference leaf has no captured backing",
+                ),
+            )?;
             if let Some(ram) = &actual.placed {
                 self.validate_placed_backing(ram)?;
             }
@@ -1963,11 +1971,15 @@ impl TerminalExecution<'_> {
                 }
             }
             if !matched {
-                return Err(malformed());
+                return Err(TerminalInterpretError::ContentTransformationMismatch(
+                    "returned reference does not match any captured source backing",
+                ));
             }
         }
         if active_count != resident_count {
-            return Err(malformed());
+            return Err(TerminalInterpretError::ContentTransformationMismatch(
+                "returned reference carrier has missing or undeclared descriptor leaves",
+            ));
         }
         Ok(())
     }

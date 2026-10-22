@@ -49,6 +49,7 @@ pub(crate) fn encode_boundary_machine(
             terminal_psi::CheckedBoundaryExecution::Provider => 0,
             terminal_psi::CheckedBoundaryExecution::PlacementInitialize => 1,
             terminal_psi::CheckedBoundaryExecution::PlacementMoveOut => 2,
+            terminal_psi::CheckedBoundaryExecution::PlacementView => 3,
         });
     }
     writer.u32(declaration.identity.0);
@@ -276,6 +277,7 @@ pub(crate) fn decode_boundary_machine(
                     0 => terminal_psi::CheckedBoundaryExecution::Provider,
                     1 => terminal_psi::CheckedBoundaryExecution::PlacementInitialize,
                     2 => terminal_psi::CheckedBoundaryExecution::PlacementMoveOut,
+                    3 => terminal_psi::CheckedBoundaryExecution::PlacementView,
                     tag => return Err(CodecError::InvalidTag("checked boundary execution", tag)),
                 },
             })
