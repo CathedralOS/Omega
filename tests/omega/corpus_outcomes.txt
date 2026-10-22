@@ -4093,31 +4093,31 @@ fail/facts/ieee_guard_i32_from_f64_target_body_invalid rejected 3775ms expected 
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/facts/independent_call_result_bound_through_call_result rejected 911ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_call_result_rejected rejected 911ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_const_name rejected 1001ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_const_name_rejected rejected 1001ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_field rejected 1134ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_field_rejected rejected 1134ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_local rejected 1057ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_local_rejected rejected 1057ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_match_join rejected 1068ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_match_join_rejected rejected 1068ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_other_machine rejected 1068ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_other_machine_rejected rejected 1068ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_other_state rejected 1073ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_other_state_rejected rejected 1073ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_parameter rejected 1068ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_parameter_rejected rejected 1068ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_call_result_bound_through_target_body rejected 1028ms expected @4a483c47c357+wt
+fail/facts/independent_call_result_bound_through_target_body_rejected rejected 1028ms expected @4a483c47c357+wt
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
 fail/facts/independent_content_partition_through_call_result rejected 4134ms expected @61fab13095e7+wt
