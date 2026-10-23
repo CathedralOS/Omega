@@ -2,7 +2,8 @@
 
 Fact: 16-bit signed wrapping subtraction lhs -% rhs with bounded interval 200i16 <= diff <= 450i16 establishes 200i16 <= diff <= 450i16 across all nine places so exact subtractions 450i16 - diff and diff - 200i16 are safe.
 
-Owning Task: `NUMERIC-SCALARS` / `CONSERVATION-CONTRACT` (`TASKS.md`)
+Owning board item: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `ARITHMETIC-POLICY-REALIZATION` (`TASKS.md`).
+Exact requirement: the interval fact `200i16 <= diff <= 450i16` established where a bounded wrapping subtraction is formed transports unchanged through parameters, locals, record fields, helper call results, match joins, named constants, successor states, forwarding machines and target-scoped bodies into the consuming exact subtractions; each place carries a reject twin that still refuses.
 
 Every positive place and reject twin tests 16-bit signed wrapping subtraction (`i16 in Wrapping`).
 When bounded operands `lhs >= 300i16 && lhs <= 500i16` and `rhs >= 50i16 && rhs <= 100i16` are cast into the Wrapping arithmetic domain (`lhs as i16 in Wrapping` and `rhs as i16 in Wrapping`), their modular subtraction `wl - wr` produces a bounded result in `[200, 450]`.
@@ -45,13 +46,15 @@ omega run --both samples/cli/facts/signed_16bit_wrapping_subtraction_bound/targe
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
 
+Measured at `4c23cc3391c2e539d4065563ac95de7b18f2fc67` with the `gen-4c23cc3391c` producer (`opt-level 1`, macOS arm64, 2026-10-23): all ten positive programs report `native exit 0` and `interp exit: 0`.
+
 ### The oracle discriminates
 
 In each positive place, evaluating `probe(400i16, 80i16)` computes `diff = 400i16 -% 80i16 = 320i16`.
 Because `lhs in [300, 500]` and `rhs in [50, 100]`, wrapping subtraction statically establishes `diff in [200, 450]`.
 Subsequent exact subtractions in `verify_diff` (`headroom = 450i16 - diff = 130i16` and `margin = diff - 200i16 = 120i16`) evaluate to `130i16 + 120i16 = 250i16`.
 The transition guard `combined == 250i16` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-If wrapping subtraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+If wrapping subtraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255; measured on the guard-corruption probe, both engines report the Trap outcome (`native signal 5` / `interp crash: Trap (host presentation agrees)`) rather than a false success.
 
 ### Invalid controls and reject twins
 
@@ -81,4 +84,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent 2-byte `i16` in its stored width (`IntegerAt 2-byte`) across all four hosted ABI calling conventions (CL on `windows_x86_64`, DIL on `linux_x86_64`, W0 on `macos_arm64` and `linux_arm64`), returning 16-bit signed results in AX / W0.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 16-bit modular subtraction instructions: `sub ax, cx` on `x86_64` and `sub w0, w0, w1` on `arm64`, followed by exact subtractions `sub ...`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection, and the eighteen fixtures are pinned under [`tests/omega/pass/facts`](../../../tests/omega/pass/facts) and [`tests/omega/fail/facts`](../../../tests/omega/fail/facts) with their corpus rows recorded.

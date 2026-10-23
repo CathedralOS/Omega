@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from choose_quotient at statement 0: result >= 40 && result <= 40

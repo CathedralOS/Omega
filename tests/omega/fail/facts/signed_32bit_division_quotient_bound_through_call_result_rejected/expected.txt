@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from divide at statement 0: result >= 40 && result <= 40

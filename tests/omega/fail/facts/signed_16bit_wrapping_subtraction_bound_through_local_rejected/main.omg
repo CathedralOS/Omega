@@ -1,0 +1,30 @@
+// Fact: 16-bit signed wrapping subtraction lhs -% rhs with bounded interval 200i16 <= diff <= 450i16 establishes 200i16 <= diff <= 450i16 across all nine places so exact subtractions 450i16 - diff and diff - 200i16 are safe.
+
+machine verify_diff(value: i16) -> i16
+    requires value >= 200i16 && value <= 450i16
+{
+    let headroom: i16 = 450i16 - value;
+    let margin: i16 = value - 200i16;
+    headroom + margin
+}
+
+machine probe(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300i16 && lhs <= 520i16 && rhs >= 50i16 && rhs <= 100i16
+{
+    let wl: i16 in Wrapping = lhs as i16 in Wrapping;
+    let wr: i16 in Wrapping = rhs as i16 in Wrapping;
+    let wd: i16 in Wrapping = wl - wr;
+    let diff: i16 = wd as i16;
+    let local_diff: i16 = diff;
+    verify_diff(local_diff)
+}
+
+machine main() crashes Trap {
+    let combined: i16 = probe(400i16, 80i16);
+    transition combined == 250i16 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

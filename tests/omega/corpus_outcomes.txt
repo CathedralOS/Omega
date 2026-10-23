@@ -7658,6 +7658,27 @@ fail/facts/signed_16bit_wrapping_multiplication_bound_through_target_body_reject
 	cannot prove requires contract for call exercise from main: prod >= 50 && prod <= 200 (needs fact `val >= 50 && val <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: prod >= 50 && prod <= 200 (needs fact `val >= 50 && val <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: prod >= 50 && prod <= 200 (needs fact `val >= 50 && val <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_call_result_rejected rejected 37072ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from wrap_sub at statement 3: result >= 200 && result <= 450
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_const_name_rejected rejected 28590ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from probe: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_field_rejected rejected 27258ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from probe: holder.diff >= 200 && holder.diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_local_rejected rejected 43408ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from probe: local_diff >= 200 && local_diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_match_join_rejected rejected 36935ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call choose from probe: diff >= 200 && diff <= 450 && 320 >= 200 && 320 <= 450 (needs fact `first >= 200 && first <= 450 && second >= 200 && second <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_other_machine_rejected rejected 35169ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call forward_diff from probe: diff >= 200 && diff <= 450 (needs fact `mid >= 200 && mid <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_other_state_rejected rejected 35157ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call consume from probe: diff >= 200 && diff <= 450 (needs fact `forwarded >= 200 && forwarded <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_parameter_rejected rejected 40840ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call consume_diff from probe: diff >= 200 && diff <= 450 (needs fact `forwarded >= 200 && forwarded <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_wrapping_subtraction_bound_through_target_body_rejected rejected 43561ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from target_probe: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from target_probe: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from target_probe: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from target_probe: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_bitwise_and_mask_bound_through_call_result_rejected rejected 23140ms expected @a54647670a7e+wt
 	cannot prove ensures contract for exit from mask_op at statement 0: result >= 40 && result <= 63
 fail/facts/signed_32bit_bitwise_and_mask_bound_through_const_name_rejected rejected 22115ms expected @a54647670a7e+wt
@@ -7721,6 +7742,27 @@ fail/facts/signed_32bit_bitwise_xor_bound_through_target_body_rejected rejected 
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+fail/facts/signed_32bit_division_quotient_bound_through_call_result_rejected rejected 20758ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from divide at statement 0: result >= 40 && result <= 40
+fail/facts/signed_32bit_division_quotient_bound_through_const_name_rejected rejected 25764ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_quotient from probe: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_quotient_bound_through_field_rejected rejected 23876ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_quotient from compute_field: holder.quotient >= 40 && holder.quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_quotient_bound_through_local_rejected rejected 23918ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_quotient from divide_local: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_quotient_bound_through_match_join_rejected rejected 24631ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from choose_quotient at statement 0: result >= 40 && result <= 40
+fail/facts/signed_32bit_division_quotient_bound_through_other_machine_rejected rejected 29130ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call forward from compute_forward: dividend / divisor >= 40 && dividend / divisor <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_quotient_bound_through_other_state_rejected rejected 38897ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call step from verify_state: dividend / divisor >= 40 && dividend / divisor <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_quotient_bound_through_parameter_rejected rejected 22347ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_parameter from compute_param: dividend / divisor >= 40 && dividend / divisor <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_quotient_bound_through_target_body_rejected rejected 34427ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_quotient from verify_target: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_quotient from verify_target: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_quotient from verify_target: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_quotient from verify_target: quotient >= 40 && quotient <= 40 (needs fact `quotient >= 40 && quotient <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_division_remainder_bound_through_call_result_rejected rejected 14730ms expected @3045ef49d634+wt
 	cannot prove ensures contract for exit from remainder at statement 0: result >= 0 && result <= 15
 fail/facts/signed_32bit_division_remainder_bound_through_const_name_rejected rejected 14306ms expected @3045ef49d634+wt
@@ -15922,6 +15964,15 @@ pass/facts/signed_16bit_wrapping_multiplication_bound_through_other_machine_exit
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_other_state_exit checked 10052ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_parameter_exit checked 11245ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_target_body_exit checked 11851ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_call_result_exit checked 20164ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_const_name_exit checked 15176ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_field_exit checked 21484ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_local_exit checked 16128ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_match_join_exit checked 20765ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_other_machine_exit checked 18519ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_other_state_exit checked 18256ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_parameter_exit checked 19238ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_wrapping_subtraction_bound_through_target_body_exit checked 31434ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_call_result_exit checked 44450ms check-target:macos_arm64 @a54647670a7e+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_const_name_exit checked 46721ms check-target:macos_arm64 @a54647670a7e+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_field_exit checked 52938ms check-target:macos_arm64 @a54647670a7e+wt
@@ -15949,6 +16000,15 @@ pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit checked 459
 pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit checked 44866ms check-target:macos_arm64 @dcfab1e4eda9
 pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit checked 44687ms check-target:macos_arm64 @dcfab1e4eda9
 pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit checked 43056ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_division_quotient_bound_through_call_result_exit checked 14800ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_const_name_exit checked 15315ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_field_exit checked 15445ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_local_exit checked 15944ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_match_join_exit checked 13366ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_other_machine_exit checked 12543ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_other_state_exit checked 11923ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_parameter_exit checked 13086ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_32bit_division_quotient_bound_through_target_body_exit checked 12873ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_32bit_division_remainder_bound_through_call_result_exit checked 39056ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_const_name_exit checked 45869ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_field_exit checked 45560ms check-target:macos_arm64 @3045ef49d634+wt
