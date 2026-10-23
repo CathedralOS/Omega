@@ -306,6 +306,8 @@ fail/borrow/nested_borrow_carrying_local_escape rejected 1613ms expected @a9ae30
 fail/borrow/opaque_write_only_boundary rejected 831ms expected @a9ae30e1c334+wt
 fail/borrow/persistent_borrow_storage_requires_outlives rejected 1580ms expected @a9ae30e1c334+wt
 fail/borrow/qualified_return_does_not_restore_other_writer rejected 1182ms expected @308fbdc54ba0
+fail/borrow/qualified_write_only_record_observation rejected 275ms expected @61f89705e5ff
+	machine `observe` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/borrow/recast_selector_retires_entry_bound rejected 479ms expected @b9060c9ca30d+wt
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/recursive_terminal_exclusive_alias rejected 937ms expected @5acf32321f42+wt
@@ -373,7 +375,10 @@ fail/borrow/write_only_reference_aggregate_replacement_detached_loan rejected 32
 fail/borrow/write_only_reference_aggregate_replacement_new_loan rejected 322ms expected @992d27dd3135+wt
 fail/borrow/write_only_state_readable_widening rejected 828ms expected @a9ae30e1c334+wt
 fail/borrow/write_only_stored_pointer_observation rejected 133ms expected @992d27dd3135+wt
-fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected @992d27dd3135+wt
+fail/borrow/write_only_stored_reference_constraint_loss rejected 275ms expected @61f89705e5ff
+	machine `replace` state `entry` lends `slot.value` of type `i32[in Bounded]` as `&write` to a parameter declared `&write i32`; a write-only subloan requires compatible stored carriers without changing scalar storage constraints or nested reference access
+	machine `capture` state `entry` captures `slot.value` of type `i32[in Bounded]` as `&write i32`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected
+	argument `value` for state `entry` expects `&write i32`, got `member access`
 fail/borrow/write_only_stored_shared_widening rejected 116ms expected @992d27dd3135+wt
 fail/borrows/affine_array_projection_copy rejected 504ms expected @c9eefa9130a0+wt
 fail/borrows/affine_record_copy_handoff rejected 1237ms expected @a9ae30e1c334+wt
@@ -1879,6 +1884,12 @@ fail/domains/unit_membership_postcondition_unestablished rejected 1497ms expecte
 fail/domains/vacuous_tag_argument_other_domain rejected 189ms expected @2012446ad74a+wt
 fail/domains/view_field_store_literal_outside_domain rejected 1611ms expected @a9ae30e1c334+wt
 fail/domains/view_local_qualified_store_unproven rejected 5197ms expected @a9ae30e1c334+wt
+fail/domains/write_only_bare_helper_cannot_erase_field_default rejected 1039ms expected @61f89705e5ff
+	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before
+fail/domains/write_only_declared_field_domain_requires_restoration rejected 782ms expected @61f89705e5ff
+	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before
+fail/domains/write_only_stored_reference_requires_qualification rejected 736ms expected @61f89705e5ff
+	construction of `Holder` field `cell` is not proven in domain `Cell::Before` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/domains/zero_array_active_payload_unestablished rejected 539ms expected @febcad4dcb18
 	cannot prove default-domain field requirement for call consume from main::entry: parameter frames[1]::Ready.value requires u64::PositiveSmall
 fail/domains/zero_case_tag_replaced_rejected rejected 535ms expected @febcad4dcb18
@@ -2062,6 +2073,26 @@ fail/facts/abi_multi_arg_spill_through_target_body_rejected rejected 3119ms expe
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/additional_input_domain_mutation_requires_entry rejected 967ms expected @61f89705e5ff
+	cannot prove requires contract for call overwrite from observed_exit: cell in Cell::Before in state `entry`
+fail/facts/additional_input_domain_mutation_through_call_result_rejected rejected 911ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_const_name_rejected rejected 1014ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_field_rejected rejected 1007ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_local_rejected rejected 1007ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_match_join_rejected rejected 1009ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_other_machine_rejected rejected 1006ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_other_state_rejected rejected 1007ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_parameter_rejected rejected 1003ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
+fail/facts/additional_input_domain_mutation_through_target_body_rejected rejected 1006ms expected @61f89705e5ff
+	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
 fail/facts/address_count_partition_through_call_result_rejected rejected 701ms expected @f14e4badbb2d
 	exact arithmetic in construction of `Region` field `base` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in construction of `Region` field `length` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -12551,6 +12582,7 @@ pass/domains/policy_plan_shapes checked 9261ms @5041ef1af684+wt
 pass/domains/predicate_domain_param checked 9737ms @5041ef1af684+wt
 pass/domains/progress_domain_provider checked 18456ms @3b422f31da30+wt
 pass/domains/qualified_mutable_field_exit checked 10906ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/qualified_mutable_scalar_input_domain_expires checked 1206ms @61f89705e5ff
 pass/domains/qualified_owned_array_scalar_control_exit checked 889ms check-target:macos_arm64 @65641cea7412+wt
 pass/domains/qualified_record_capture_after_mutation checked 2791ms @868a854ecd4d+wt
 pass/domains/qualified_record_capture_before_mutation checked 2882ms @868a854ecd4d+wt
@@ -12847,6 +12879,15 @@ pass/facts/abi_multi_arg_spill_through_other_machine_exit checked 9504ms check-t
 pass/facts/abi_multi_arg_spill_through_other_state_exit checked 9062ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/abi_multi_arg_spill_through_parameter_exit checked 9589ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/abi_multi_arg_spill_through_target_body_exit checked 22080ms check-target:macos_arm64 @45cbafd80d9c
+pass/facts/additional_input_domain_mutation_through_call_result_exit checked 1332ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_const_name_exit checked 1329ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_field_exit checked 1329ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_local_exit checked 1329ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_match_join_exit checked 1336ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_other_machine_exit checked 1330ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_other_state_exit checked 1331ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_parameter_exit checked 1332ms check-target:macos_arm64 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_target_body_exit checked 1333ms check-target:macos_arm64 @61f89705e5ff
 pass/facts/address_count_partition_through_call_result_exit checked 17606ms check-target:macos_arm64 @f14e4badbb2d
 pass/facts/address_count_partition_through_const_name_exit checked 17764ms check-target:macos_arm64 @f14e4badbb2d
 pass/facts/address_count_partition_through_field_exit checked 17661ms check-target:macos_arm64 @f14e4badbb2d

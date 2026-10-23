@@ -1337,6 +1337,15 @@ pass/facts/abi_multi_arg_spill_through_other_machine_exit built 27549ms exit:0 @
 pass/facts/abi_multi_arg_spill_through_other_state_exit built 26305ms exit:0 @0d6aec34caa1
 pass/facts/abi_multi_arg_spill_through_parameter_exit built 27719ms exit:0 @0d6aec34caa1
 pass/facts/abi_multi_arg_spill_through_target_body_exit built 48884ms exit:0 @0d6aec34caa1
+pass/facts/additional_input_domain_mutation_through_call_result_exit built 1123ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_const_name_exit built 1204ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_field_exit built 1204ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_local_exit built 1191ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_match_join_exit built 1182ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_other_machine_exit built 1199ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_other_state_exit built 1191ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_parameter_exit built 1204ms exit:0 @61f89705e5ff
+pass/facts/additional_input_domain_mutation_through_target_body_exit built 1177ms exit:0 @61f89705e5ff
 pass/facts/address_count_partition_through_call_result_exit built 31798ms exit:0 @9d27f400f753
 pass/facts/address_count_partition_through_const_name_exit built 31906ms exit:0 @9d27f400f753
 pass/facts/address_count_partition_through_field_exit built 31845ms exit:0 @9d27f400f753
