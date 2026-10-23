@@ -946,6 +946,49 @@ fn storage_access_conflicts(
     })
 }
 
+/// As [`storage_access_conflicts`], ignoring the leaves that spell the access
+/// path itself rather than an independent borrow of it. Handing one place and
+/// path to a call must not conflict with the argument's own permission leaf
+/// (keyed at exactly that location), nor with an owned arrival alias of the
+/// same storage (`CarrierContract::Parameter` with owned access, the shape a
+/// state's own data parameter arrives as, whose backing names the storage
+/// place directly). A reference-bearing leaf — a second loan, a child
+/// projection, a surviving reference carrier — still refuses here.
+fn storage_access_conflicts_beneath_argument(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    argument: &StructuralArgument,
+) -> bool {
+    custody
+        .leaves
+        .iter()
+        .any(|((leaf_place, leaf_path), reference)| {
+            let own_key = *leaf_place == argument.place && leaf_path.as_slice() == argument.path;
+            let owned_alias = leaf_path.as_slice() == argument.path
+                && matches!(
+                    &reference.contract,
+                    CarrierContract::Parameter(parameter)
+                        if parameter.access == StructuralAccess::Owned
+                )
+                && reference
+                    .backing
+                    .iter()
+                    .all(|backing| matches!(backing, descriptor_backing::Backing::Source(Root::Place(_))));
+            !own_key
+                && !owned_alias
+                && leaf_storage_access_conflicts(
+                    function,
+                    custody,
+                    types,
+                    reference,
+                    argument.place,
+                    &argument.path,
+                    argument.access,
+                )
+        })
+}
+
 /// Interference is a property of retained backing, not the path spelling used
 /// to type a captured incoming value. Each caller separately handles exact
 /// parent traversal and the occurrence it is consuming.
@@ -1271,15 +1314,13 @@ fn call_arguments(
         }
         // Descriptor-free storage can still be the parent of a live borrow.
         // Normalizing its origin alone must not restore access while a child
-        // survives; shared access remains compatible with shared descendants.
-        if storage_access_conflicts(
-            function,
-            custody,
-            types,
-            argument.place,
-            &argument.path,
-            argument.access,
-        ) {
+        // survives; shared access is compatible with shared descendants. Two
+        // spellings of the argument itself are not an independent child: the
+        // permission leaf keyed at exactly this place and path, and an owned
+        // arrival alias of the same storage (a state's own data parameter,
+        // which names the place this access path resolves to). A genuinely
+        // distinct overlapping leaf still refuses here.
+        if storage_access_conflicts_beneath_argument(function, custody, types, argument) {
             return Err(invalid());
         }
         let (root, _) = normalized_source(function, custody, types, argument)?;
