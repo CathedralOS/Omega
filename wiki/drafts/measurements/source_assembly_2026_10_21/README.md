@@ -109,3 +109,5 @@ session's timing comparison or establish performance on other hosts.
 - [Uniform arena slot metadata](../source_assembly_2026_10_22/arena_slot_metadata/README.md): eliminate uniform per-row metadata and compact cold ownership; first-retirement tradeoff measured.
 
 - [Borrowed expression reads](../source_assembly_2026_10_22/expression_reads/README.md): remove temporary whole-node and name-path clones; exact parser and assembly observations preserved.
+
+- [Direct worker publication](../source_assembly_2026_10_22/worker_publication/README.md): keep forests in final slots; compare complete ownership, allocation and consumer timing.

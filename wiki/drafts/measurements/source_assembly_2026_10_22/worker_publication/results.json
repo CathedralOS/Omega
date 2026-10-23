@@ -1,0 +1,330 @@
+{
+  "baseline": "e6763695cf69d3c388a650795c0662093fbd936f",
+  "source": {
+    "source_hashes": {
+      "omega-rust/psi/compilation/driver/src/source_parsing/batches.rs": "4297e40b2b4640e19416a316585b4261bc7cd037214be5cd497941ecdfbfcb23"
+    }
+  },
+  "decision": {
+    "verdict": "Retain final-slot worker ownership and inline single-page metadata for measured allocation/data-movement reduction with preserved outputs and ownership.",
+    "timing_interpretation": "All32 runs reached their quiet window. On the final456-source append comparison, minima and paired minima are mixed and pooled median/mean are essentially neutral; no reliable append-latency gain is established. Independent-unit minima favor the candidate in three of four rounds, with lower pooled median/mean. The valid and rejected single-source paths have lower candidate minima in all four rounds and lower pooled median/mean. These are scoped parser-consumer observations under continuing host activity, not a whole-compilation speedup or a universal bound. Retention is supported by removed work/storage, with the single-source timing corroborating that mechanism.",
+    "source_hashes": {
+      "omega-rust/psi/compilation/driver/src/source_parsing/batches.rs": "4297e40b2b4640e19416a316585b4261bc7cd037214be5cd497941ecdfbfcb23"
+    },
+    "remaining": "Page adoption and the larger numeric/name/root/source representation inventory remain open."
+  },
+  "owner": {
+    "cases": 70,
+    "differences": []
+  },
+  "assembly": {
+    "unique": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 4762324,
+        "requested_bytes": 2044117753
+      },
+      "candidate": {
+        "allocation_requests": 4761827,
+        "requested_bytes": 1974876697
+      }
+    },
+    "shared": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 4820855,
+        "requested_bytes": 2050420780
+      },
+      "candidate": {
+        "allocation_requests": 4820358,
+        "requested_bytes": 1981179724
+      }
+    }
+  },
+  "timing": {
+    "base": "e6763695cf69d3c388a650795c0662093fbd936f",
+    "binary_hashes": {
+      "baseline-all_threads": "053a556fa3ca23ab26fd2cc7d306488bbdb58f92c835447519b316754871bf89",
+      "baseline-owner_probe": "c96ce75fe9b5903b2782dc502f2f506dfce16efceaf5a32f542a1742a356b843",
+      "baseline-fused_timing": "2fd0c318736cd4924315d2440b057a1b0ad9901782837de3aa06133cea172bb7",
+      "baseline-single_timing": "4a52f0cc55bc3c43414a7f8d8689a7816ee527437cdb17f8c35a32f854aa880b",
+      "candidate-all_threads": "aee8b56f4f6809e919fa7772def870fe846c18e51b2191c53c813b9f2fc3e0b6",
+      "candidate-owner_probe": "147ae49e55d9e79cb62faa9b161043c15145bef1ff27a4caf8ec2a0a4b63da8e",
+      "candidate-fused_timing": "574f81eab7e82407d19086dbff1c8f6437ae5dec6e73d7d141a42186f56634af",
+      "candidate-single_timing": "17eb973c976930a08c2a0c699f5890870d8a03afcc353aa65082e0978feb6303"
+    },
+    "summary": {
+      "append": {
+        "baseline": {
+          "min_ms": 7.135375,
+          "median_ms": 8.868770999999999,
+          "mean_ms": 9.08493257785179,
+          "max_ms": 37.039291,
+          "trials": 2402,
+          "round_minima_ms": [
+            7.135375,
+            7.398416,
+            7.471917,
+            7.378292
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 7.104209,
+          "median_ms": 8.884125,
+          "mean_ms": 9.155872524910118,
+          "max_ms": 45.966625,
+          "trials": 1947,
+          "round_minima_ms": [
+            7.104209,
+            7.626083,
+            7.406875,
+            7.396292
+          ],
+          "all_quiet": true
+        }
+      },
+      "units": {
+        "baseline": {
+          "min_ms": 8.727292,
+          "median_ms": 11.7302915,
+          "mean_ms": 13.127706624813154,
+          "max_ms": 65.906459,
+          "trials": 1338,
+          "round_minima_ms": [
+            8.727292,
+            8.946583,
+            9.442,
+            10.296083
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 8.406125,
+          "median_ms": 11.53525,
+          "mean_ms": 12.437279344354017,
+          "max_ms": 57.595667,
+          "trials": 1966,
+          "round_minima_ms": [
+            8.406125,
+            8.9605,
+            8.803041,
+            9.736042
+          ],
+          "all_quiet": true
+        }
+      },
+      "single-valid": {
+        "baseline": {
+          "min_ms": 0.018833,
+          "median_ms": 0.044416,
+          "mean_ms": 0.05713784654259122,
+          "max_ms": 10.570791,
+          "trials": 328671,
+          "round_minima_ms": [
+            0.018833,
+            0.018917,
+            0.018833,
+            0.019041
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 0.016166,
+          "median_ms": 0.03775,
+          "mean_ms": 0.04593575842006494,
+          "max_ms": 12.2195,
+          "trials": 323988,
+          "round_minima_ms": [
+            0.016166,
+            0.016375,
+            0.016209,
+            0.016458
+          ],
+          "all_quiet": true
+        }
+      },
+      "single-invalid": {
+        "baseline": {
+          "min_ms": 0.007667,
+          "median_ms": 0.019208,
+          "mean_ms": 0.021071865055227467,
+          "max_ms": 10.02275,
+          "trials": 835816,
+          "round_minima_ms": [
+            0.00775,
+            0.007791,
+            0.007875,
+            0.007667
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 0.006,
+          "median_ms": 0.015,
+          "mean_ms": 0.018102209223623007,
+          "max_ms": 10.396209,
+          "trials": 773297,
+          "round_minima_ms": [
+            0.006,
+            0.006084,
+            0.006042,
+            0.006125
+          ],
+          "all_quiet": true
+        }
+      }
+    }
+  },
+  "binary_hashes": {
+    "baseline-all_threads": "053a556fa3ca23ab26fd2cc7d306488bbdb58f92c835447519b316754871bf89",
+    "baseline-owner_probe": "c96ce75fe9b5903b2782dc502f2f506dfce16efceaf5a32f542a1742a356b843",
+    "baseline-fused_timing": "2fd0c318736cd4924315d2440b057a1b0ad9901782837de3aa06133cea172bb7",
+    "baseline-single_timing": "4a52f0cc55bc3c43414a7f8d8689a7816ee527437cdb17f8c35a32f854aa880b",
+    "candidate-all_threads": "aee8b56f4f6809e919fa7772def870fe846c18e51b2191c53c813b9f2fc3e0b6",
+    "candidate-owner_probe": "147ae49e55d9e79cb62faa9b161043c15145bef1ff27a4caf8ec2a0a4b63da8e",
+    "candidate-fused_timing": "574f81eab7e82407d19086dbff1c8f6437ae5dec6e73d7d141a42186f56634af",
+    "candidate-single_timing": "17eb973c976930a08c2a0c699f5890870d8a03afcc353aa65082e0978feb6303"
+  },
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "load": [
+      19.32470703125,
+      26.99658203125,
+      39.0390625
+    ],
+    "commands": {
+      "sysctl hw.memsize hw.logicalcpu hw.physicalcpu machdep.cpu.brand_string vm.swapusage": {
+        "exit": 0,
+        "stdout": "hw.memsize: 17179869184\nhw.logicalcpu: 10\nhw.physicalcpu: 10\nmachdep.cpu.brand_string: Apple M4\nvm.swapusage: total = 5120.00M  used = 3835.94M  free = 1284.06M  (encrypted)\n",
+        "stderr": ""
+      },
+      "rustc -Vv": {
+        "exit": 0,
+        "stdout": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1\n",
+        "stderr": ""
+      },
+      "mbx --version": {
+        "exit": 0,
+        "stdout": "mbx 1.25.0\n",
+        "stderr": ""
+      }
+    }
+  },
+  "input_selection": {
+    "prior_base": "ceabbdf5779c66a5a09b3c7e3409d441aafb1e0c",
+    "base": "e6763695cf69d3c388a650795c0662093fbd936f",
+    "corpora": {
+      "batch": {
+        "count": 456,
+        "exact_renames": {},
+        "removed": []
+      },
+      "assembly": {
+        "count": 289,
+        "exact_renames": {},
+        "removed": []
+      }
+    }
+  },
+  "strict_clippy_attribution": {
+    "same_dependency_objects": {
+      "baseline": "3f3a9941d2c5f57b75538f90883bbd3204e86d24",
+      "candidate": "3f3a9941d2c5f57b75538f90883bbd3204e86d24"
+    },
+    "baseline_exit": 101,
+    "finding": "optimization_selections.rs:152 useless conversion to [u8;32]",
+    "normal_required_check": "mbx clippy -p psi-compiler --lib"
+  },
+  "baseline_compiler": {
+    "accepted": 4,
+    "refused": 26,
+    "pass_fixture_admission_refusals": [
+      "tests/omega/pass/calls/borrowed_case_dispatch_member_leaf_reads/main.omg",
+      "tests/omega/pass/calls/computed_case_subject_slice_operands_exit/main.omg",
+      "tests/omega/pass/calls/cyclic_affine_call_result_exit/main.omg",
+      "tests/omega/pass/calls/cyclic_mutable_borrow_block_parameter_call/main.omg",
+      "tests/omega/pass/calls/cyclic_projected_borrow_call_exit/main.omg",
+      "tests/omega/pass/calls/cyclic_scalar_query_reborrow_exit/main.omg",
+      "tests/omega/pass/calls/local_fixed_byte_array_loan_exit/main.omg",
+      "tests/omega/pass/calls/mutable_output_host_call/main.omg",
+      "tests/omega/pass/calls/named_target_payload_dispatch/main.omg",
+      "tests/omega/pass/calls/runtime_boolean_result_across_console_exit/main.omg",
+      "tests/omega/pass/calls/runtime_float_result_across_call_exit/main.omg",
+      "tests/omega/pass/calls/runtime_mutable_call_before_transition_args_exit/main.omg",
+      "tests/omega/pass/calls/runtime_mutable_call_empty_input_exit/main.omg",
+      "tests/omega/pass/calls/runtime_mutable_call_short_input_exit/main.omg",
+      "tests/omega/pass/calls/static_state_context_field_window_exit/main.omg"
+    ]
+  },
+  "per_project_summary": {
+    "unique": {
+      "request_increases": 0,
+      "byte_increases": 0,
+      "requests_removed": 497,
+      "requested_bytes_removed": 69241056
+    },
+    "shared": {
+      "request_increases": 0,
+      "byte_increases": 0,
+      "requests_removed": 497,
+      "requested_bytes_removed": 69241056
+    }
+  },
+  "preceding_variants": {
+    "initial": {
+      "unique": {
+        "files": 289,
+        "different": [],
+        "baseline": {
+          "allocation_requests": 4762324,
+          "requested_bytes": 2044117753
+        },
+        "candidate": {
+          "allocation_requests": 4762331,
+          "requested_bytes": 1975893217
+        }
+      },
+      "shared": {
+        "files": 289,
+        "different": [],
+        "baseline": {
+          "allocation_requests": 4820855,
+          "requested_bytes": 2050420780
+        },
+        "candidate": {
+          "allocation_requests": 4820862,
+          "requested_bytes": 1982196244
+        }
+      }
+    },
+    "exact-capacity": {
+      "unique": {
+        "files": 289,
+        "different": [],
+        "baseline": {
+          "allocation_requests": 4762324,
+          "requested_bytes": 2044117753
+        },
+        "candidate": {
+          "allocation_requests": 4762331,
+          "requested_bytes": 1975050073
+        }
+      },
+      "shared": {
+        "files": 289,
+        "different": [],
+        "baseline": {
+          "allocation_requests": 4820855,
+          "requested_bytes": 2050420780
+        },
+        "candidate": {
+          "allocation_requests": 4820862,
+          "requested_bytes": 1981353100
+        }
+      }
+    }
+  }
+}

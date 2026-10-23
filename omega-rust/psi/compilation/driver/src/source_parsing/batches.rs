@@ -7,8 +7,7 @@ use rayon::prelude::*;
 use source::{LoadedSource, LoadedSources, SourcePosition};
 use syntax_trees::{ParsedSource, ParsedSources, SyntaxTrees};
 
-struct ParsedPage {
-    syntax: SyntaxTrees,
+struct ParsedPageSources {
     sources: Vec<ParsedSource>,
     lexical_error: Option<Diagnostic>,
     parse_error: Option<Diagnostic>,
@@ -29,42 +28,61 @@ pub(super) fn parse(
             .max(1)
     };
     let chunk_size = count.max(1).div_ceil(desired_pages);
-    let mut pages = tokens_to_syntax_trees::parser::with_parse_workers(|| {
-        sources
-            .par_chunks_mut(chunk_size)
-            .enumerate()
-            .map(|(index, sources)| {
-                let generation = u32::try_from(index)
-                    .ok()
-                    .and_then(|index| first_page.checked_add(index))
-                    .filter(|generation| *generation != 0)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "parser exhausted its source-page directory",
-                        )]
-                    })?;
-                Ok(parse_page(sources, generation))
-            })
-            .collect::<Vec<Result<ParsedPage, Vec<Diagnostic>>>>()
-    })
-    .into_iter()
-    .collect::<Result<Vec<_>, _>>()?;
-    for page in &mut pages {
+    let page_count = count.div_ceil(chunk_size);
+    // Check the complete identity interval before constructing any page. The
+    // empty batch consumes no generation, including when first_page is zero.
+    if page_count != 0
+        && (first_page == 0
+            || u32::try_from(page_count - 1)
+                .ok()
+                .and_then(|last| first_page.checked_add(last))
+                .is_none())
+    {
+        return Err(vec![Diagnostic::error(
+            "parser exhausted its source-page directory",
+        )]);
+    }
+    let mut trees: Vec<_> = sources
+        .chunks(chunk_size)
+        .enumerate()
+        .map(|(index, chunk)| {
+            SyntaxTrees::new_with_generation(chunk[0].source_id, first_page + index as u32)
+        })
+        .collect();
+    // The forest header stays in its final allocation. Workers return only
+    // source/error metadata; source order still fixes page and diagnostic order.
+    let mut pages = Vec::with_capacity(if page_count == 1 { 0 } else { page_count });
+    // A single page needs no metadata vector or parallel collection. It still
+    // parses on the dedicated pool's stack, just like larger source batches.
+    let mut single_page_sources = tokens_to_syntax_trees::parser::with_parse_workers(|| {
+        if let [syntax] = trees.as_mut_slice() {
+            Some(parse_page(sources, syntax))
+        } else {
+            sources
+                .par_chunks_mut(chunk_size)
+                .zip_eq(trees.par_iter_mut())
+                .map(|(sources, syntax)| parse_page(sources, syntax))
+                .collect_into_vec(&mut pages);
+            None
+        }
+    });
+    for page in single_page_sources.iter_mut().chain(&mut pages) {
         if let Some(error) = page.lexical_error.take() {
             return Err(vec![error]);
         }
     }
-    for page in &mut pages {
+    for page in single_page_sources.iter_mut().chain(&mut pages) {
         if let Some(error) = page.parse_error.take() {
             return Err(vec![error]);
         }
     }
     let mut parsed = Arena::with_capacity(count);
-    let mut trees = Vec::with_capacity(pages.len());
-    let batch = parsed.insert_many(pages.into_iter().flat_map(|page| {
-        trees.push(page.syntax);
-        page.sources
-    }));
+    let batch = parsed.insert_many(
+        single_page_sources
+            .into_iter()
+            .chain(pages)
+            .flat_map(|page| page.sources),
+    );
     Ok((
         trees,
         ParsedSources {
@@ -74,9 +92,8 @@ pub(super) fn parse(
     ))
 }
 
-fn parse_page(sources: &mut [LoadedSource], generation: u32) -> ParsedPage {
-    let mut page = ParsedPage {
-        syntax: SyntaxTrees::new_with_generation(sources[0].source_id, generation),
+fn parse_page(sources: &mut [LoadedSource], syntax: &mut SyntaxTrees) -> ParsedPageSources {
+    let mut page = ParsedPageSources {
         sources: Vec::with_capacity(sources.len()),
         lexical_error: None,
         parse_error: None,
@@ -93,7 +110,7 @@ fn parse_page(sources: &mut [LoadedSource], generation: u32) -> ParsedPage {
             }
         };
         if page.parse_error.is_none() {
-            match tokens_to_syntax_trees::parse(&mut page.syntax, source.source_id, &tokens) {
+            match tokens_to_syntax_trees::parse(syntax, source.source_id, &tokens) {
                 Ok(roots) => page.sources.push(ParsedSource {
                     source_id: source.source_id,
                     path: std::mem::take(&mut source.path),
@@ -161,7 +178,11 @@ mod tests {
         // Several sources share one page; a preceding parse failure must not
         // prevent the task from discovering a later lexical failure.
         let mut same_page = loaded(&["machine", "\"unterminated"]);
-        let page = parse_page(same_page.sources.span_mut_or_empty(same_page.batch), 1);
+        let mut syntax = SyntaxTrees::new_with_generation(SourceId(0), 1);
+        let page = parse_page(
+            same_page.sources.span_mut_or_empty(same_page.batch),
+            &mut syntax,
+        );
         assert!(page.lexical_error.is_some());
         assert!(page.parse_error.is_some());
         let input = loaded(&["machine", "data"]);
