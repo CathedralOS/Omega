@@ -27,6 +27,12 @@ Subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the extracted 64-bit variant payload |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing payload extraction and verification |
 
+Match the fact sentence beside every place: each positive place is pinned as
+`tests/omega/pass/facts/twentyone_variant_enum_payload_bound_through_<place>_exit` and
+each reject twin as
+`tests/omega/fail/facts/twentyone_variant_enum_payload_bound_through_<place>_rejected`,
+byte-equal to the place and `invalid/` programs beside them.
+
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
@@ -34,16 +40,16 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/twenty-oneone_variant_enum_payload_bound/target_body/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/local/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/field/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/parameter/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/call_result/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/match_join/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/const_name/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/other_state/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/other_machine/main.omg
+omega run --both samples/cli/facts/twentyone_variant_enum_payload_bound/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
@@ -67,7 +73,7 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 41: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
@@ -84,4 +90,5 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 21-variant tagged enum `TwentyOneChoice` with a 1-byte discriminant tag (`u8` range 0..20) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 21-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
+- **Recorded evidence (macOS arm64, producer revision `9b001b8f6afa`, generation `gen-9b001b8f6af`)**: `omega run --both` exits 0 with `native exit 0` and `interp exit: 0` for the root and all nine places (10/10), and each of the nine `<place>/invalid` twins exits 1 at checking carrying its authored fragment (`cannot prove requires contract ...`; `call_result` reads `cannot prove ensures contract for exit from extract_payload at statement 41: result >= 40 && result <= 80`). `git diff` positive vs twin changes only the header oracle lines and the widened `V21` bound (`v >= 40u64` to `v >= 39u64`). Pinned record at `9b001b8f6afa+wt` with the generation runner at `OMEGA_CORPUS_JOBS=3`: nine `checked` rows with `check-target:macos_arm64` and nine `rejected ... expected` rows carrying their own diagnostic continuation lines in `corpus_outcomes.txt` (+60 lines, 0 deleted); nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail fixtures that did not reject.
 - **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
