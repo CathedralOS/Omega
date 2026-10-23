@@ -15,7 +15,8 @@ use target::compatibility_fingerprint::Fnv1a;
 use super::super::checked::{self, CandidateValidationError};
 use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT};
 use crate::dynamic_executable::checked::{
-    checked_product, checked_sum, read_u32, read_u64, require,
+    DecodedElf64SectionHeader, checked_product, checked_sum, decode_section_header_rows, field_mut,
+    read_u64, require,
 };
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
@@ -110,20 +111,6 @@ struct Candidate {
     non_authoritative_placed_compatibility_fingerprint: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DecodedElf64SectionHeader {
-    name_offset: u32,
-    section_type: u32,
-    flags: u64,
-    address: u64,
-    file_offset: u64,
-    payload_size: u64,
-    link: u32,
-    info: u32,
-    alignment: u64,
-    entry_size: u64,
-}
-
 /// Copy the retained section-header template and apply its exact resolved
 /// address and file-offset values in little-endian form.
 pub(crate) fn apply_elf_section_header_placements(
@@ -189,7 +176,12 @@ fn derive_contents(
             fixup.byte_width == ELF64_PLACEMENT_FIELD_SIZE,
             "ELF section-header placement width is not eight bytes",
         )?;
-        let field = field_mut(&mut bytes, fixup.byte_offset, fixup.byte_width)?;
+        let field = field_mut(
+            &mut bytes,
+            fixup.byte_offset,
+            fixup.byte_width,
+            "section-header placement field",
+        )?;
         require(
             field.iter().all(|byte| *byte == 0),
             "ELF section-header placement input is not an exact zero placeholder",
@@ -333,7 +325,7 @@ fn validate_contents(
     )?;
     validate_application_coverage(contents.bytes.len(), &contents.applications)?;
 
-    let decoded = decode_rows(&contents.bytes)?;
+    let decoded = decode_section_header_rows(&contents.bytes, SECTION_COUNT)?;
     let mut address_by_row = [None; SECTION_COUNT];
     let mut offset_by_row = [None; SECTION_COUNT];
     for application in &contents.applications {
@@ -390,30 +382,6 @@ fn validate_decoded_row(
     )
 }
 
-fn decode_rows(bytes: &[u8]) -> Result<Vec<DecodedElf64SectionHeader>, Diagnostic> {
-    require(
-        bytes.len() == SECTION_COUNT * ELF64_SECTION_HEADER_SIZE,
-        "placed ELF section-header table has a truncated row or trailing bytes",
-    )?;
-    let mut rows = Vec::with_capacity(SECTION_COUNT);
-    for index in 0..SECTION_COUNT {
-        let offset = checked_product(index, ELF64_SECTION_HEADER_SIZE, "decoded section row")?;
-        rows.push(DecodedElf64SectionHeader {
-            name_offset: read_u32(bytes, offset, "Elf64_Shdr.sh_name")?,
-            section_type: read_u32(bytes, offset + 4, "Elf64_Shdr.sh_type")?,
-            flags: read_u64(bytes, offset + 8, "Elf64_Shdr.sh_flags")?,
-            address: read_u64(bytes, offset + 16, "Elf64_Shdr.sh_addr")?,
-            file_offset: read_u64(bytes, offset + 24, "Elf64_Shdr.sh_offset")?,
-            payload_size: read_u64(bytes, offset + 32, "Elf64_Shdr.sh_size")?,
-            link: read_u32(bytes, offset + 40, "Elf64_Shdr.sh_link")?,
-            info: read_u32(bytes, offset + 44, "Elf64_Shdr.sh_info")?,
-            alignment: read_u64(bytes, offset + 48, "Elf64_Shdr.sh_addralign")?,
-            entry_size: read_u64(bytes, offset + 56, "Elf64_Shdr.sh_entsize")?,
-        });
-    }
-    Ok(rows)
-}
-
 fn validate_application_coverage(
     byte_count: usize,
     applications: &[ElfAppliedSectionHeaderPlacement],
@@ -441,13 +409,6 @@ fn validate_application_coverage(
         }
     }
     Ok(())
-}
-
-fn field_mut(bytes: &mut [u8], offset: usize, width: u8) -> Result<&mut [u8], Diagnostic> {
-    let end = checked_sum(offset, usize::from(width), "section-header placement end")?;
-    bytes
-        .get_mut(offset..end)
-        .ok_or_else(|| Diagnostic::error("section-header placement exceeds the template"))
 }
 
 fn non_authoritative_placed_compatibility_fingerprint(

@@ -10,8 +10,11 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::constants::{
+    ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_DYNAMIC_VALUE_SIZE,
+};
 use crate::dynamic_executable::checked::{
-    checked_product, checked_sum, read_i64, read_u64, require,
+    checked_product, checked_sum, decode_dynamic_rows, field_mut, read_u64, require,
 };
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
@@ -30,9 +33,6 @@ use crate::dynamic_executable::section_headers::section_payload_roster::{
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
-const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
-const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
-const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
 const DYNAMIC_SECTION_INDEX: u32 = 12;
 const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; 9] = [
     ElfDynamicAddressApplicationTarget::ProcedureGot,
@@ -200,12 +200,6 @@ pub(crate) struct ElfResolvedDynamicTableContents {
     pub(crate) applications: Vec<ElfAppliedDynamicAddress>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DecodedElfDynamicRow {
-    tag: i64,
-    value: u64,
-}
-
 struct Candidate {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     contents: ElfResolvedDynamicTableContents,
@@ -262,7 +256,12 @@ fn derive_contents(
             application.target == expected_target,
             "indexed ELF dynamic address targets are not in canonical order",
         )?;
-        let field = field_mut(&mut bytes, application.byte_offset, application.byte_width)?;
+        let field = field_mut(
+            &mut bytes,
+            application.byte_offset,
+            application.byte_width,
+            "dynamic address field",
+        )?;
         require(
             field.iter().all(|byte| *byte == 0),
             "indexed ELF dynamic address is not an exact zero placeholder",
@@ -471,7 +470,7 @@ fn validate_contents(
         }
     }
 
-    let decoded = decode_rows(&contents.bytes, semantic.rows.len())?;
+    let decoded = decode_dynamic_rows(&contents.bytes, semantic.rows.len())?;
     for (ordinal, (decoded, row)) in decoded.iter().zip(&semantic.rows).enumerate() {
         let application = contents
             .applications
@@ -603,41 +602,6 @@ const fn target_tag(target: ElfDynamicAddressApplicationTarget) -> ElfDynamicTag
         }
         ElfDynamicAddressApplicationTarget::GeneralRelocation => ElfDynamicTag::Rela,
     }
-}
-
-fn decode_rows(
-    bytes: &[u8],
-    expected_count: usize,
-) -> Result<Vec<DecodedElfDynamicRow>, Diagnostic> {
-    let expected_size = checked_product(
-        expected_count,
-        ELF64_DYNAMIC_ROW_SIZE,
-        "resolved Elf64_Dyn payload size",
-    )?;
-    require(
-        bytes.len() == expected_size,
-        "resolved Elf64_Dyn payload has a truncated row or trailing bytes",
-    )?;
-    let mut rows = Vec::with_capacity(expected_count);
-    for ordinal in 0..expected_count {
-        let offset = checked_product(ordinal, ELF64_DYNAMIC_ROW_SIZE, "resolved Elf64_Dyn row")?;
-        rows.push(DecodedElfDynamicRow {
-            tag: read_i64(bytes, offset, "resolved Elf64_Dyn.d_tag")?,
-            value: read_u64(
-                bytes,
-                checked_sum(offset, ELF64_DYNAMIC_VALUE_OFFSET, "resolved d_un offset")?,
-                "resolved Elf64_Dyn.d_un",
-            )?,
-        });
-    }
-    Ok(rows)
-}
-
-fn field_mut(bytes: &mut [u8], offset: usize, width: u8) -> Result<&mut [u8], Diagnostic> {
-    let end = checked_sum(offset, usize::from(width), "dynamic address field end")?;
-    bytes
-        .get_mut(offset..end)
-        .ok_or_else(|| Diagnostic::error("dynamic address fixup exceeds its storage"))
 }
 
 fn non_authoritative_resolved_compatibility_fingerprint(

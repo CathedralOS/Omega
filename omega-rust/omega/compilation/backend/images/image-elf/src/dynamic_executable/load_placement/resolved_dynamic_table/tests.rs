@@ -4,10 +4,11 @@ use super::{
     Candidate, EXPECTED_TARGETS, ElfAppliedDynamicAddress, ElfDynamicAddressApplicationKind,
     ElfDynamicAddressApplicationTarget, ElfPlacedDynamicSectionKind,
     ValidatedElfPlacedSectionHeaderTable, apply_elf_dynamic_address_fixups, checked_product,
-    checked_sum, decode_rows, derive_contents, dynamic_row, field_mut, indexed_payloads,
-    non_authoritative_resolved_compatibility_fingerprint, read_i64, read_u64, validate_candidate,
+    checked_sum, decode_dynamic_rows, derive_contents, dynamic_row, field_mut, indexed_payloads,
+    non_authoritative_resolved_compatibility_fingerprint, read_u64, validate_candidate,
 };
 use crate::apply_elf_section_header_placements;
+use crate::dynamic_executable::checked::read_i64;
 use arena::Handle;
 use image::{FinalImage, FinalImageMemory};
 use target::TargetProfile;
@@ -271,6 +272,6 @@ fn bounds_helpers_reject_without_panicking() {
     assert!(checked_sum(usize::MAX, 8, "sum").is_err());
     assert!(read_i64(&[0; 7], 0, "sxword").is_err());
     assert!(read_u64(&[0; 7], 0, "xword").is_err());
-    assert!(field_mut(&mut [0; 7], 0, 8).is_err());
-    assert!(decode_rows(&[], usize::MAX).is_err());
+    assert!(field_mut(&mut [0; 7], 0, 8, "test address field").is_err());
+    assert!(decode_dynamic_rows(&[], usize::MAX).is_err());
 }

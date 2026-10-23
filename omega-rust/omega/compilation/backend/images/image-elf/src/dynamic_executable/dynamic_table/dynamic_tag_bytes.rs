@@ -13,8 +13,11 @@ use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::write_u64;
+use crate::constants::{
+    ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_DYNAMIC_VALUE_SIZE,
+};
 use crate::dynamic_executable::checked::{
-    checked_product, checked_sum, read_i64, read_u64, require,
+    checked_product, checked_sum, decode_dynamic_rows, read_u64, require,
 };
 use crate::dynamic_executable::dynamic_table::dynamic_tags::{
     ElfDynamicAddressTarget, ElfDynamicTagContents, ElfDynamicValue, ValidatedElfDynamicTagPlan,
@@ -22,9 +25,6 @@ use crate::dynamic_executable::dynamic_table::dynamic_tags::{
 };
 use diagnostics::Diagnostic;
 
-const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
-const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
-const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
 /// Independently decoded and replayed ELF64-LSB `.dynamic` bytes.
 ///
 /// The exact semantic tag plan remains owned by this non-clone carrier. Every
@@ -108,12 +108,6 @@ pub(crate) struct ElfDynamicPayloadAddressFixup {
     pub(crate) byte_width: u8,
     pub(crate) kind: ElfDynamicPayloadFixupKind,
     pub(crate) target: ElfDynamicAddressTarget,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DecodedElfDynamicRow {
-    tag: i64,
-    value: u64,
 }
 
 struct Candidate {
@@ -220,7 +214,7 @@ fn validate_contents(
     contents: &ElfDynamicTablePayloadContents,
 ) -> Result<(), Diagnostic> {
     let semantic = plan.contents();
-    let decoded = decode_rows(&contents.bytes, semantic.rows.len())?;
+    let decoded = decode_dynamic_rows(&contents.bytes, semantic.rows.len())?;
     require(
         decoded.len() == semantic.rows.len(),
         "decoded Elf64_Dyn row count drifted from the semantic plan",
@@ -232,34 +226,6 @@ fn validate_contents(
         )?;
     }
     validate_fixups(&contents.bytes, semantic, &contents.address_fixups)
-}
-
-fn decode_rows(
-    bytes: &[u8],
-    expected_count: usize,
-) -> Result<Vec<DecodedElfDynamicRow>, Diagnostic> {
-    let expected_size = checked_product(
-        expected_count,
-        ELF64_DYNAMIC_ROW_SIZE,
-        "decoded Elf64_Dyn payload size",
-    )?;
-    require(
-        bytes.len() == expected_size,
-        "Elf64_Dyn payload has a truncated row or trailing bytes",
-    )?;
-    let mut rows = Vec::with_capacity(expected_count);
-    for index in 0..expected_count {
-        let offset = checked_product(index, ELF64_DYNAMIC_ROW_SIZE, "decoded Elf64_Dyn row")?;
-        rows.push(DecodedElfDynamicRow {
-            tag: read_i64(bytes, offset, "Elf64_Dyn.d_tag")?,
-            value: read_u64(
-                bytes,
-                checked_sum(offset, ELF64_DYNAMIC_VALUE_OFFSET, "Elf64_Dyn.d_un offset")?,
-                "Elf64_Dyn.d_un",
-            )?,
-        });
-    }
-    Ok(rows)
 }
 
 fn validate_fixups(
@@ -359,11 +325,12 @@ mod tests {
     use super::{
         Candidate, ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ElfDynamicAddressTarget,
         ElfDynamicPayloadAddressFixup, ElfDynamicPayloadFixupKind, ElfDynamicValue,
-        ValidatedElfDynamicTagPlan, checked_product, checked_sum, decode_rows, encode_contents,
-        non_authoritative_payload_compatibility_fingerprint, read_i64, read_u64,
+        ValidatedElfDynamicTagPlan, checked_product, checked_sum, decode_dynamic_rows,
+        encode_contents, non_authoritative_payload_compatibility_fingerprint, read_u64,
         serialize_elf_dynamic_table, validate_candidate, validate_contents,
         validate_fixup_coverage,
     };
+    use crate::dynamic_executable::checked::read_i64;
     use target::TargetProfile;
 
     const IMPORTS: [crate::test_support::DynamicImportFixture; 2] =
@@ -643,9 +610,9 @@ mod tests {
     fn decoder_and_fixup_checks_reject_overflow_and_malformed_inputs_without_panicking() {
         assert!(checked_product(usize::MAX, 16, "product").is_err());
         assert!(checked_sum(usize::MAX, 8, "sum").is_err());
-        assert!(decode_rows(&[], usize::MAX).is_err());
-        assert!(decode_rows(&[0; 15], 1).is_err());
-        assert!(decode_rows(&[0; 17], 1).is_err());
+        assert!(decode_dynamic_rows(&[], usize::MAX).is_err());
+        assert!(decode_dynamic_rows(&[0; 15], 1).is_err());
+        assert!(decode_dynamic_rows(&[0; 17], 1).is_err());
         assert!(read_i64(&[], usize::MAX, "tag").is_err());
         assert!(read_u64(&[0; 7], 0, "value").is_err());
 

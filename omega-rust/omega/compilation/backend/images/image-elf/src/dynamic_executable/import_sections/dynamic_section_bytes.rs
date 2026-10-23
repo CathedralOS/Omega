@@ -17,7 +17,9 @@ use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u16, write_u32, write_u64};
-use crate::dynamic_executable::checked::require;
+use crate::dynamic_executable::checked::{
+    checked_sum, read_u8, read_u16, read_u32, read_u64, require,
+};
 use crate::dynamic_executable::import_sections::dynamic_sections::{
     ElfDynamicSectionContents, ElfDynamicSymbol, ElfGnuHash, ElfSysvHash, ElfVersionNeed,
     ElfVersionNeedAuxiliary, ValidatedElfDynamicSectionPlan,
@@ -216,13 +218,13 @@ fn encode_payloads(
         4,
         "GNU hash chain payload size",
     )?;
-    let gnu_hash_size = checked_add(16, gnu_hash_bloom_size, "GNU hash bloom payload end")?;
-    let gnu_hash_size = checked_add(
+    let gnu_hash_size = checked_sum(16, gnu_hash_bloom_size, "GNU hash bloom payload end")?;
+    let gnu_hash_size = checked_sum(
         gnu_hash_size,
         gnu_hash_bucket_size,
         "GNU hash bucket payload end",
     )?;
-    let gnu_hash_size = checked_add(
+    let gnu_hash_size = checked_sum(
         gnu_hash_size,
         gnu_hash_chain_size,
         "GNU hash chain payload end",
@@ -502,7 +504,7 @@ fn decode_gnu_hash(bytes: &[u8], dynamic_symbol_count: usize) -> Result<ElfGnuHa
         4,
         "GNU hash decoded chain byte count",
     )?;
-    let expected_size = checked_add(16, bloom_bytes, "GNU hash decoded bloom end")?
+    let expected_size = checked_sum(16, bloom_bytes, "GNU hash decoded bloom end")?
         .checked_add(bucket_bytes)
         .and_then(|size| size.checked_add(chain_bytes))
         .ok_or_else(|| Diagnostic::error("GNU hash decoded payload size overflow"))?;
@@ -613,7 +615,7 @@ fn decode_verneed(bytes: &[u8], need_count: usize) -> Result<Vec<ElfVersionNeed>
         )?
         .checked_add(ELF64_VERSION_NEED_SIZE)
         .ok_or_else(|| Diagnostic::error("GNU version requirement group size overflow"))?;
-        let group_end = checked_add(
+        let group_end = checked_sum(
             need_offset,
             canonical_group_size,
             "GNU version requirement group end",
@@ -622,7 +624,7 @@ fn decode_verneed(bytes: &[u8], need_count: usize) -> Result<Vec<ElfVersionNeed>
             group_end <= bytes.len(),
             "GNU version requirement count exceeds the remaining payload bytes",
         )?;
-        let mut auxiliary_cursor = checked_add(
+        let mut auxiliary_cursor = checked_sum(
             need_offset,
             auxiliary_offset as usize,
             "GNU version auxiliary offset",
@@ -648,14 +650,14 @@ fn decode_verneed(bytes: &[u8], need_count: usize) -> Result<Vec<ElfVersionNeed>
                 next_offset: auxiliary_next,
             });
             if !last_auxiliary {
-                auxiliary_cursor = checked_add(
+                auxiliary_cursor = checked_sum(
                     auxiliary_cursor,
                     auxiliary_next as usize,
                     "GNU next version auxiliary offset",
                 )?;
             }
         }
-        consumed_end = checked_add(
+        consumed_end = checked_sum(
             auxiliary_cursor,
             ELF64_VERSION_AUXILIARY_SIZE,
             "GNU version requirement consumed byte count",
@@ -675,7 +677,7 @@ fn decode_verneed(bytes: &[u8], need_count: usize) -> Result<Vec<ElfVersionNeed>
             auxiliaries,
         });
         if !last_need {
-            need_offset = checked_add(
+            need_offset = checked_sum(
                 need_offset,
                 next_offset as usize,
                 "GNU next version requirement offset",
@@ -699,42 +701,6 @@ fn referenced_string(bytes: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
         .position(|byte| *byte == 0)
         .ok_or_else(|| Diagnostic::error("ELF dynamic string reference lacks a NUL terminator"))?;
     Ok(&suffix[..end])
-}
-
-fn read_u8(bytes: &[u8], offset: usize, context: &'static str) -> Result<u8, Diagnostic> {
-    bytes
-        .get(offset)
-        .copied()
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
-}
-
-fn read_u16(bytes: &[u8], offset: usize, context: &'static str) -> Result<u16, Diagnostic> {
-    Ok(u16::from_le_bytes(read_array(bytes, offset, context)?))
-}
-
-fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    Ok(u32::from_le_bytes(read_array(bytes, offset, context)?))
-}
-
-fn read_u64(bytes: &[u8], offset: usize, context: &'static str) -> Result<u64, Diagnostic> {
-    Ok(u64::from_le_bytes(read_array(bytes, offset, context)?))
-}
-
-fn read_array<const N: usize>(
-    bytes: &[u8],
-    offset: usize,
-    context: &'static str,
-) -> Result<[u8; N], Diagnostic> {
-    let end = checked_add(offset, N, context)?;
-    bytes
-        .get(offset..end)
-        .and_then(|slice| slice.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
-}
-
-fn checked_add(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflow")))
 }
 
 fn non_authoritative_payload_compatibility_fingerprint(

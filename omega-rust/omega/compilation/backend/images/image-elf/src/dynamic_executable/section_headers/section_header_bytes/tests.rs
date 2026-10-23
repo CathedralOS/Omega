@@ -3,11 +3,11 @@
 use super::{
     Candidate, ELF64_SECTION_HEADER_SIZE, ElfDynamicRosterSectionKind,
     ElfSectionHeaderPlacementFixup, ElfSectionHeaderPlacementFixupKind, SECTION_COUNT,
-    ValidatedElfDynamicSectionRoster, checked_product, checked_sum, decode_rows, encode_contents,
-    non_authoritative_template_compatibility_fingerprint, read_u32, read_u64,
-    serialize_elf_section_header_table, validate_candidate, validate_contents,
-    validate_fixup_coverage,
+    ValidatedElfDynamicSectionRoster, checked_product, checked_sum, encode_contents,
+    non_authoritative_template_compatibility_fingerprint, serialize_elf_section_header_table,
+    validate_candidate, validate_contents, validate_fixup_coverage,
 };
+use crate::dynamic_executable::checked::{decode_section_header_rows, read_u32, read_u64};
 use crate::plan_elf_dynamic_section_roster;
 use target::TargetProfile;
 
@@ -53,7 +53,7 @@ fn both_targets_serialize_exact_rows_and_twenty_five_zero_fixups() {
         assert_eq!(template.placement_fixup_count(), 25);
         assert_eq!(row(&template.contents.bytes, 0), &[0; 64]);
 
-        let decoded = decode_rows(&template.contents.bytes, 14).unwrap();
+        let decoded = decode_section_header_rows(&template.contents.bytes, 14).unwrap();
         assert_eq!(decoded[3].name_offset, 17);
         assert_eq!(decoded[3].section_type, 11);
         assert_eq!(decoded[3].flags, 2);
@@ -256,9 +256,9 @@ fn independent_replay_rejects_every_fixup_field_length_order_and_identity_corrup
 fn decoder_fixup_bounds_and_arithmetic_reject_without_panicking() {
     assert!(checked_product(usize::MAX, 64, "product").is_err());
     assert!(checked_sum(usize::MAX, 8, "sum").is_err());
-    assert!(decode_rows(&[], usize::MAX).is_err());
-    assert!(decode_rows(&[0; 63], 1).is_err());
-    assert!(decode_rows(&[0; 65], 1).is_err());
+    assert!(decode_section_header_rows(&[], usize::MAX).is_err());
+    assert!(decode_section_header_rows(&[0; 63], 1).is_err());
+    assert!(decode_section_header_rows(&[0; 65], 1).is_err());
     assert!(read_u32(&[0; 3], 0, "word").is_err());
     assert!(read_u64(&[0; 7], 0, "xword").is_err());
 

@@ -2,11 +2,12 @@
 
 use super::{
     Candidate, ElfDynamicRosterSectionKind, ElfIndexedProcedureFixupStorage,
-    ValidatedElfSectionHeaderTableTemplate, checked_sum, checked_u32, derive_contents,
+    ValidatedElfSectionHeaderTableTemplate, checked_u32, derive_contents,
     non_authoritative_payload_roster_compatibility_fingerprint, plan_elf_indexed_section_payloads,
     procedure_target_section, procedure_templates, read_field, upstream_payload,
     validate_candidate, validate_contents,
 };
+use crate::dynamic_executable::checked::checked_sum;
 use crate::plan_elf_dynamic_link_inputs;
 use arena::Handle;
 use image::{FinalImage, FinalImageMemory};
@@ -274,7 +275,7 @@ fn row_fixup_constraint_and_identity_corruption_reject_recoverably() {
 fn malformed_bounds_widths_and_arithmetic_reject_without_panicking() {
     assert!(checked_sum(usize::MAX, 8, "sum").is_err());
     assert!(checked_u32(usize::MAX, "word").is_err());
-    assert!(read_field(&[], usize::MAX, 8).is_err());
-    assert!(read_field(&[0; 3], 0, 4).is_err());
-    assert!(read_field(&[0; 8], 0, 3).is_err());
+    assert!(read_field(&[], usize::MAX, 8, "test fixup field").is_err());
+    assert!(read_field(&[0; 3], 0, 4, "test fixup field").is_err());
+    assert!(read_field(&[0; 8], 0, 3, "test fixup field").is_err());
 }

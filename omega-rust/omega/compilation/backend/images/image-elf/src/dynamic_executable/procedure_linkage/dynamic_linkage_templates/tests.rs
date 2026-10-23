@@ -12,9 +12,9 @@ use image::{
 };
 use target::normalize_elf_interpreter_plan;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
-use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{read_field, read_u32, validate_candidate, validate_contents, validate_fixup_coverage};
+use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{validate_candidate, validate_contents, validate_fixup_coverage};
 use target::TargetProfile;
-use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, read_u64};
+use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, read_field, read_u32, read_u64};
 
 use crate::test_support::{IMPORTS, ImportFixture, import_fixture_interpreter_path};
 
@@ -302,7 +302,7 @@ fn malformed_lengths_offsets_masks_and_arithmetic_reject_without_panicking() {
     assert!(checked_u32(usize::MAX, "word").is_err());
     assert!(read_u32(&[], usize::MAX, "u32").is_err());
     assert!(read_u64(&[0; 7], 0, "u64").is_err());
-    assert!(read_field(&[0; 8], 0, 3).is_err());
+    assert!(read_field(&[0; 8], 0, 3, "test fixup field").is_err());
 
     let overflowing = ElfProcedureLinkageFixup {
         storage: ElfProcedureLinkageFixupStorage::Plt,

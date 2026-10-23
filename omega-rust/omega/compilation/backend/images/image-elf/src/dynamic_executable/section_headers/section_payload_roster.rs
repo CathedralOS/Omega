@@ -9,7 +9,7 @@ use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
 use crate::constants::SECTION_COUNT;
-use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
+use crate::dynamic_executable::checked::{checked_u32, read_field, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
 };
@@ -390,7 +390,12 @@ fn validate_procedure_fixups(
             "indexed procedure fixup drifted from the upstream template",
         )?;
         let storage = procedure_storage_bytes(section_headers, contents, indexed.storage)?;
-        let field = read_field(storage, indexed.byte_offset, indexed.byte_width)?;
+        let field = read_field(
+            storage,
+            indexed.byte_offset,
+            indexed.byte_width,
+            "indexed procedure fixup field",
+        )?;
         require(
             field & indexed.mutable_mask == 0,
             "indexed procedure fixup does not select an exact zero placeholder",
@@ -456,27 +461,16 @@ fn validate_dynamic_fixups(
             "indexed dynamic fixup drifted from the serialized .dynamic payload",
         )?;
         require(
-            read_field(&storage.bytes, indexed.byte_offset, indexed.byte_width)? == 0,
+            read_field(
+                &storage.bytes,
+                indexed.byte_offset,
+                indexed.byte_width,
+                "indexed dynamic fixup field",
+            )? == 0,
             "indexed dynamic fixup does not select an exact zero placeholder",
         )?;
     }
     Ok(())
-}
-
-fn read_field(bytes: &[u8], offset: usize, width: u8) -> Result<u64, Diagnostic> {
-    let end = checked_sum(offset, usize::from(width), "indexed fixup end")?;
-    let field = bytes
-        .get(offset..end)
-        .ok_or_else(|| Diagnostic::error("indexed fixup exceeds its storage"))?;
-    match width {
-        4 => Ok(u64::from(u32::from_le_bytes(field.try_into().map_err(
-            |_| Diagnostic::error("invalid four-byte indexed fixup"),
-        )?))),
-        8 => Ok(u64::from_le_bytes(field.try_into().map_err(|_| {
-            Diagnostic::error("invalid eight-byte indexed fixup")
-        })?)),
-        _ => Err(Diagnostic::error("unsupported indexed fixup width")),
-    }
 }
 
 fn non_authoritative_payload_roster_compatibility_fingerprint(

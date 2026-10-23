@@ -2,13 +2,14 @@
 
 use super::{
     Candidate, DecodedElf64SectionHeader, ELF64_SECTION_HEADER_SIZE,
-    ElfAppliedSectionHeaderPlacement, ElfSectionPlacementResolutionKind, SECTION_NAME_TABLE_INDEX,
-    ValidatedElfDynamicLoadLayout, apply_elf_section_header_placements, checked_product,
-    checked_sum, decode_rows, derive_contents, field_mut,
-    non_authoritative_placed_compatibility_fingerprint, read_u32, read_u64,
-    validate_application_coverage, validate_candidate, validate_contents,
+    ElfAppliedSectionHeaderPlacement, ElfSectionPlacementResolutionKind, SECTION_COUNT,
+    SECTION_NAME_TABLE_INDEX, ValidatedElfDynamicLoadLayout, apply_elf_section_header_placements,
+    checked_product, checked_sum, decode_section_header_rows, derive_contents, field_mut,
+    non_authoritative_placed_compatibility_fingerprint, validate_application_coverage,
+    validate_candidate, validate_contents,
 };
 use crate::ElfPlacedDynamicSectionKind;
+use crate::dynamic_executable::checked::{read_u32, read_u64};
 use arena::Handle;
 use image::{FinalImage, FinalImageMemory};
 use target::TargetProfile;
@@ -153,7 +154,7 @@ fn ledger_has_exact_field_split_and_file_only_section_name_table() {
         application.row_index() == SECTION_NAME_TABLE_INDEX as u32
             && application.kind() == ElfSectionPlacementResolutionKind::VirtualAddress
     }));
-    let decoded = decode_rows(placed.bytes()).unwrap();
+    let decoded = decode_section_header_rows(placed.bytes(), SECTION_COUNT).unwrap();
     assert_eq!(
         decoded[0],
         DecodedElf64SectionHeader {
@@ -254,7 +255,7 @@ fn bounds_helpers_reject_without_panicking() {
     assert!(checked_sum(usize::MAX, 8, "sum").is_err());
     assert!(read_u32(&[0; 3], 0, "word").is_err());
     assert!(read_u64(&[0; 7], 0, "xword").is_err());
-    assert!(field_mut(&mut [0; 7], 0, 8).is_err());
+    assert!(field_mut(&mut [0; 7], 0, 8, "test placement field").is_err());
 
     let application = ElfAppliedSectionHeaderPlacement {
         row_index: u32::MAX,

@@ -395,28 +395,6 @@ pub(crate) fn storage_bytes_mut(
     }
 }
 
-pub(crate) fn read_field(bytes: &[u8], offset: usize, width: u8) -> Result<u64, Diagnostic> {
-    let end = crate::dynamic_executable::checked::checked_sum(
-        offset,
-        usize::from(width),
-        "procedure fixup field end",
-    )?;
-    let field = bytes
-        .get(offset..end)
-        .ok_or_else(|| Diagnostic::error("procedure fixup field exceeds its exact storage"))?;
-    match width {
-        4 => Ok(u64::from(u32::from_le_bytes(
-            field.try_into().expect("four-byte slice"),
-        ))),
-        8 => Ok(u64::from_le_bytes(
-            field.try_into().expect("eight-byte slice"),
-        )),
-        _ => Err(Diagnostic::error(
-            "procedure fixup has an unsupported field width",
-        )),
-    }
-}
-
 pub(crate) fn write_field(
     bytes: &mut [u8],
     offset: usize,

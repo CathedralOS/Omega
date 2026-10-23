@@ -16,7 +16,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
-use crate::dynamic_executable::checked::require;
+use crate::dynamic_executable::checked::{read_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
 
@@ -549,17 +549,6 @@ fn validate_cross_payloads(
         version_requirement.info as usize == payloads.plan().required_version_object_count(),
         "ELF GNU version requirement sh_info does not match the Verneed count",
     )
-}
-
-fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    let end = offset
-        .checked_add(4)
-        .ok_or_else(|| Diagnostic::error(format!("{context} offset overflow")))?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|slice| slice.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u32::from_le_bytes(value))
 }
 
 fn non_authoritative_descriptor_compatibility_fingerprint(

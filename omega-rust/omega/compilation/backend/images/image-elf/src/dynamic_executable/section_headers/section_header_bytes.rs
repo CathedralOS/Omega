@@ -15,7 +15,7 @@ use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u32, write_u64};
 use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT, SHF_ALLOC};
 use crate::dynamic_executable::checked::{
-    checked_product, checked_sum, read_u32, read_u64, require,
+    checked_product, checked_sum, decode_section_header_rows, read_u64, require,
 };
 use crate::dynamic_executable::section_headers::section_roster::{
     ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor, ValidatedElfDynamicSectionRoster,
@@ -119,20 +119,6 @@ pub(crate) struct ElfSectionHeaderPlacementFixup {
     pub(crate) byte_offset: usize,
     pub(crate) byte_width: u8,
     pub(crate) kind: ElfSectionHeaderPlacementFixupKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DecodedElf64SectionHeader {
-    name_offset: u32,
-    section_type: u32,
-    flags: u64,
-    address: u64,
-    file_offset: u64,
-    payload_size: u64,
-    link: u32,
-    info: u32,
-    alignment: u64,
-    entry_size: u64,
 }
 
 struct Candidate {
@@ -266,7 +252,7 @@ fn validate_contents(
         roster.section_count() == SECTION_COUNT,
         "ELF section-header serialization requires the exact thirteen-row roster",
     )?;
-    let decoded = decode_rows(&contents.bytes, roster.section_count())?;
+    let decoded = decode_section_header_rows(&contents.bytes, roster.section_count())?;
     require(
         decoded.len() == SECTION_COUNT,
         "decoded ELF section-header row count is not exact",
@@ -295,78 +281,6 @@ fn validate_contents(
         &roster.contents().rows,
         &contents.placement_fixups,
     )
-}
-
-fn decode_rows(
-    bytes: &[u8],
-    expected_count: usize,
-) -> Result<Vec<DecodedElf64SectionHeader>, Diagnostic> {
-    let expected_size = checked_product(
-        expected_count,
-        ELF64_SECTION_HEADER_SIZE,
-        "decoded ELF64 section-header table size",
-    )?;
-    require(
-        bytes.len() == expected_size,
-        "ELF64 section-header table has a truncated row or trailing bytes",
-    )?;
-    let mut rows = Vec::with_capacity(expected_count);
-    for index in 0..expected_count {
-        let offset = checked_product(
-            index,
-            ELF64_SECTION_HEADER_SIZE,
-            "decoded ELF64 section-header row",
-        )?;
-        rows.push(DecodedElf64SectionHeader {
-            name_offset: read_u32(bytes, offset, "Elf64_Shdr.sh_name")?,
-            section_type: read_u32(
-                bytes,
-                checked_sum(offset, 4, "Elf64_Shdr.sh_type offset")?,
-                "Elf64_Shdr.sh_type",
-            )?,
-            flags: read_u64(
-                bytes,
-                checked_sum(offset, 8, "Elf64_Shdr.sh_flags offset")?,
-                "Elf64_Shdr.sh_flags",
-            )?,
-            address: read_u64(
-                bytes,
-                checked_sum(offset, 16, "Elf64_Shdr.sh_addr offset")?,
-                "Elf64_Shdr.sh_addr",
-            )?,
-            file_offset: read_u64(
-                bytes,
-                checked_sum(offset, 24, "Elf64_Shdr.sh_offset offset")?,
-                "Elf64_Shdr.sh_offset",
-            )?,
-            payload_size: read_u64(
-                bytes,
-                checked_sum(offset, 32, "Elf64_Shdr.sh_size offset")?,
-                "Elf64_Shdr.sh_size",
-            )?,
-            link: read_u32(
-                bytes,
-                checked_sum(offset, 40, "Elf64_Shdr.sh_link offset")?,
-                "Elf64_Shdr.sh_link",
-            )?,
-            info: read_u32(
-                bytes,
-                checked_sum(offset, 44, "Elf64_Shdr.sh_info offset")?,
-                "Elf64_Shdr.sh_info",
-            )?,
-            alignment: read_u64(
-                bytes,
-                checked_sum(offset, 48, "Elf64_Shdr.sh_addralign offset")?,
-                "Elf64_Shdr.sh_addralign",
-            )?,
-            entry_size: read_u64(
-                bytes,
-                checked_sum(offset, 56, "Elf64_Shdr.sh_entsize offset")?,
-                "Elf64_Shdr.sh_entsize",
-            )?,
-        });
-    }
-    Ok(rows)
 }
 
 fn validate_fixups(

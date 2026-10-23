@@ -15,6 +15,7 @@ use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
 use crate::constants::SECTION_COUNT;
+use crate::dynamic_executable::checked::checked_u32;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
     ValidatedElfResolvedProcedureLinkage,
@@ -817,10 +818,6 @@ fn hash_fragment_kind(hash: &mut Fnv1a, kind: ElfDynamicFileFragmentKind) {
         }
         ElfDynamicFileFragmentKind::SectionHeaderTable => hash.byte(5),
     }
-}
-
-fn checked_u32(value: usize, context: &str) -> Result<u32, Diagnostic> {
-    u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds u32")))
 }
 
 #[cfg(test)]

@@ -8,9 +8,8 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{Va
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, CandidateValidationError, derive_constraints, derive_fixups, fixup_field, target};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::{non_authoritative_template_compatibility_fingerprint};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageFixupStorage, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes, ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy};
-use crate::dynamic_executable::checked::{require};
+use crate::dynamic_executable::checked::{read_field, read_u32, read_u64, require};
 use super::super::super::checked;
-pub(super) use crate::dynamic_executable::checked::{read_u32, read_u64};
 
 pub(crate) fn validate_candidate(
     candidate: Candidate,
@@ -265,7 +264,12 @@ fn validate_fixup_placeholders(
             ElfProcedureLinkageFixupStorage::RelaPlt => &contents.bytes.rela_plt,
             ElfProcedureLinkageFixupStorage::RelaDyn => &contents.bytes.rela_dyn,
         };
-        let field = read_field(storage, fixup.byte_offset, fixup.byte_width)?;
+        let field = read_field(
+            storage,
+            fixup.byte_offset,
+            fixup.byte_width,
+            "procedure-linkage fixup field",
+        )?;
         require(
             field & fixup.mutable_mask == 0,
             "ELF procedure-linkage fixup field is not an exact zero placeholder",
@@ -337,14 +341,4 @@ pub(crate) fn validate_fixup_coverage(
         }
     }
     Ok(())
-}
-
-pub(crate) fn read_field(bytes: &[u8], offset: usize, width: u8) -> Result<u64, Diagnostic> {
-    match width {
-        4 => Ok(u64::from(read_u32(bytes, offset, "32-bit fixup field")?)),
-        8 => read_u64(bytes, offset, "64-bit fixup field"),
-        _ => Err(Diagnostic::error(
-            "ELF procedure-linkage fixup has an unsupported field width",
-        )),
-    }
 }

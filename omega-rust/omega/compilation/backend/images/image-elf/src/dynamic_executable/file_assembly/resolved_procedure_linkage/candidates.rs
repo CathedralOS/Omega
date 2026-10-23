@@ -6,8 +6,8 @@ use crate::dynamic_executable::section_headers::section_roster::{ElfDynamicRoste
 use diagnostics::{Diagnostic};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageStorage, ValidatedElfResolvedProcedureLinkage};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::{non_authoritative_resolved_linkage_compatibility_fingerprint};
-use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::storage_fields::{ decode_rejoins_target, encode_field, indexed_payloads, indexed_row_bytes, load_layout, public_kind, public_storage, public_target, read_field, semantic_target_address, storage_address, storage_bytes, storage_bytes_mut, upstream_storage_bytes, write_field};
-use crate::dynamic_executable::checked::{checked_u32, require};
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::storage_fields::{ decode_rejoins_target, encode_field, indexed_payloads, indexed_row_bytes, load_layout, public_kind, public_storage, public_target, semantic_target_address, storage_address, storage_bytes, storage_bytes_mut, upstream_storage_bytes, write_field};
+use crate::dynamic_executable::checked::{checked_u32, read_field, require};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::image_local_relocations::{ElfImageLocalRelocatedMemory, relocate_image_local_memory};
 use super::super::super::checked::{self, CandidateValidationError};
 
@@ -90,6 +90,7 @@ fn derive_application(
         storage_bytes(contents, storage),
         fixup.byte_offset,
         fixup.byte_width,
+        "procedure-linkage fixup field",
     )?;
     require(
         original & fixup.mutable_mask == 0,
@@ -204,6 +205,7 @@ fn validate_contents(
             upstream_storage_bytes(envelope, &relocated, application.storage)?,
             application.byte_offset,
             application.byte_width,
+            "procedure-linkage fixup field",
         )?;
         require(
             original & application.mutable_mask == 0,
@@ -220,6 +222,7 @@ fn validate_contents(
             storage_bytes(contents, application.storage),
             application.byte_offset,
             application.byte_width,
+            "procedure-linkage fixup field",
         )?;
         require(
             application.encoded_field == expected_field && actual_field == expected_field,
