@@ -483,6 +483,8 @@ fail/borrows/dynamic_window_result_keeps_backing_loan rejected 652ms expected @e
 fail/borrows/dynamic_window_result_recast_backing rejected 627ms expected @ea7b63644a0a+wt
 fail/borrows/dynamic_window_result_requires_bounds rejected 610ms expected @ea7b63644a0a+wt
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1543ms expected @a9ae30e1c334+wt
+fail/borrows/exclusive_reference_array_copy rejected 595ms expected @007086c4fb46
+	machine `invalid` returns a view whose access cannot be supplied by matching input `rows`
 fail/borrows/expression_stored_carrier_requires_complete_relation rejected 440ms expected @dd6871ed0476
 fail/borrows/fixed_array_return_depth_bound rejected 964ms expected @b7c17b88b59d
 fail/borrows/fixed_array_return_live_parent_write rejected 1300ms expected @b7c17b88b59d
@@ -3475,6 +3477,34 @@ fail/facts/descriptor_payload_exclusive_loan_through_target_body_rejected reject
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/descriptor_replacement_order_escaping_local_rejected rejected 803ms expected @007086c4fb46
+	machine `finish` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/descriptor_replacement_order_moved_parent_rejected rejected 637ms expected @007086c4fb46
+	cannot store into `selected.entries[0].first` in machine `main` state `entry` (statement 7) after `selected.entries[0]` was transferred or consumed at statement 6: assign a whole value to `selected.entries[0]` to re-establish it
+	cannot use `selected` in machine `main` state `entry` (statement 8) after `selected.entries[0]` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected.entries[0]` first
+fail/facts/descriptor_replacement_order_noncopy_carrier_rejected rejected 639ms expected @007086c4fb46
+	cannot use `bundle.entries[0].first` in machine `replace` state `entry` (statement 1) after `bundle` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first
+	cannot use `bundle` in machine `replace` state `entry` (statement 3) after `bundle` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first
+	cannot store into `bundle.entries[0].first` in machine `replace` state `entry` (statement 3) after `bundle` was transferred or consumed at statement 0: assign a whole value to `bundle` to re-establish it
+	cannot use `bundle` in machine `replace` state `entry` (statement 4) after `bundle` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first
+fail/facts/descriptor_replacement_order_through_call_result_rejected rejected 661ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_const_name_rejected rejected 643ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_field_rejected rejected 640ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 7) after `selected` was transferred or consumed at statement 7: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_local_rejected rejected 644ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_match_join_rejected rejected 645ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_other_machine_rejected rejected 739ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_other_state_rejected rejected 788ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
+fail/facts/descriptor_replacement_order_through_parameter_rejected rejected 711ms expected @007086c4fb46
+	cannot use `bundle.entries[0].first` in machine `main` state `entry` (statement 5) after `bundle` was transferred or consumed at statement 5: it holds no value; read what is needed before the transfer or assign a whole value to `bundle` first
+fail/facts/descriptor_replacement_order_through_target_body_rejected rejected 664ms expected @007086c4fb46
+	cannot use `selected.entries[0].first` in machine `main` state `entry` (statement 6) after `selected` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `selected` first
 fail/facts/disjoint_field_borrow_windows_through_call_result_rejected rejected 9017ms expected @8f970335dca4+wt
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/disjoint_field_borrow_windows_through_const_name_rejected rejected 9150ms expected @8f970335dca4+wt
@@ -17029,6 +17059,22 @@ pass/facts/descriptor_payload_exclusive_loan_through_other_machine_exit checked 
 pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit checked 6795ms check-target:macos_arm64 @699198b1be35+wt
 pass/facts/descriptor_payload_exclusive_loan_through_parameter_exit checked 7653ms check-target:macos_arm64 @699198b1be35+wt
 pass/facts/descriptor_payload_exclusive_loan_through_target_body_exit checked 6479ms check-target:macos_arm64 @699198b1be35+wt
+pass/facts/descriptor_replacement_order_borrow_first_array_exit checked 997ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_captured_selector_exit checked 996ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_copied_carrier_exit checked 961ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_local_carrier_exit checked 956ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_original_exit checked 980ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_owned_first_array_exit checked 990ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_reordered_state_exit checked 986ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_call_result_exit checked 972ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_const_name_exit checked 957ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_field_exit checked 957ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_local_exit checked 956ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_match_join_exit checked 956ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_other_machine_exit checked 948ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_other_state_exit checked 948ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_parameter_exit checked 962ms check-target:macos_arm64 @007086c4fb46
+pass/facts/descriptor_replacement_order_through_target_body_exit checked 966ms check-target:macos_arm64 @007086c4fb46
 pass/facts/disjoint_field_borrow_windows_through_call_result_exit checked 35522ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/disjoint_field_borrow_windows_through_const_name_exit checked 35701ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/disjoint_field_borrow_windows_through_field_exit checked 39737ms check-target:macos_arm64 @8f970335dca4+wt
@@ -17149,6 +17195,7 @@ pass/facts/exact_sub_guard_through_other_machine_exit checked 4093ms check-targe
 pass/facts/exact_sub_guard_through_other_state_exit checked 3828ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/exact_sub_guard_through_parameter_exit checked 4132ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/exact_sub_guard_through_target_body_exit checked 3826ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/exclusive_descriptor_array_access_exit checked 940ms check-target:macos_arm64 @007086c4fb46
 pass/facts/exclusive_match_arm_through_call_result_exit checked 2489ms check-target:macos_arm64 @bd3c83daeef4+wt
 pass/facts/exclusive_match_arm_through_const_name_exit checked 2211ms check-target:macos_arm64 @bd3c83daeef4+wt
 pass/facts/exclusive_match_arm_through_field_exit checked 2179ms check-target:macos_arm64 @bd3c83daeef4+wt
