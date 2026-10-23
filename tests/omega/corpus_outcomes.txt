@@ -6735,6 +6735,27 @@ fail/facts/nine_arg_stack_calling_plan_through_target_body_rejected rejected 803
 	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_variant_enum_payload_bound_through_call_result_rejected rejected 14625ms expected @595562a958b4+wt
+	cannot prove ensures contract for exit from extract_payload at statement 17: result >= 40 && result <= 80
+fail/facts/nine_variant_enum_payload_bound_through_const_name_rejected rejected 7726ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_field_rejected rejected 8103ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_local_rejected rejected 8534ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_match_join_rejected rejected 9145ms expected @595562a958b4+wt
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_other_machine_rejected rejected 8708ms expected @595562a958b4+wt
+	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_other_state_rejected rejected 9358ms expected @595562a958b4+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_parameter_rejected rejected 9380ms expected @595562a958b4+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nine_variant_enum_payload_bound_through_target_body_rejected rejected 7645ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8513ms expected @d698b30fd9ab+wt
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 9112ms expected @d698b30fd9ab+wt
@@ -7532,6 +7553,27 @@ fail/facts/selected_scalar_initializer_through_parameter_rejected rejected 1205m
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/selected_scalar_initializer_through_target_body_rejected rejected 1232ms expected @a0ebcac9edda+wt
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/seven_variant_enum_payload_bound_through_call_result_rejected rejected 7596ms expected @595562a958b4+wt
+	cannot prove ensures contract for exit from extract_payload at statement 13: result >= 40 && result <= 80
+fail/facts/seven_variant_enum_payload_bound_through_const_name_rejected rejected 7969ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_field_rejected rejected 7805ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_local_rejected rejected 7733ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_match_join_rejected rejected 9657ms expected @595562a958b4+wt
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_other_machine_rejected rejected 9662ms expected @595562a958b4+wt
+	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_other_state_rejected rejected 8017ms expected @595562a958b4+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_parameter_rejected rejected 7406ms expected @595562a958b4+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seven_variant_enum_payload_bound_through_target_body_rejected rejected 7742ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/shared_borrow_field_projection_through_call_result_rejected rejected 11000ms expected @8f970335dca4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/shared_borrow_field_projection_through_const_name_rejected rejected 10859ms expected @8f970335dca4+wt
@@ -15671,6 +15713,15 @@ pass/facts/nine_arg_stack_calling_plan_through_other_machine_exit checked 1373ms
 pass/facts/nine_arg_stack_calling_plan_through_other_state_exit checked 1336ms check-target:macos_arm64 @50abcdce8fe6+wt
 pass/facts/nine_arg_stack_calling_plan_through_parameter_exit checked 1929ms check-target:macos_arm64 @50abcdce8fe6+wt
 pass/facts/nine_arg_stack_calling_plan_through_target_body_exit checked 2449ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_variant_enum_payload_bound_through_call_result_exit checked 13271ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_const_name_exit checked 13306ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_field_exit checked 16110ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_local_exit checked 16559ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_match_join_exit checked 13029ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_other_machine_exit checked 12778ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_other_state_exit checked 16138ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_parameter_exit checked 16071ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_variant_enum_payload_bound_through_target_body_exit checked 12790ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 19461ms check-target:macos_arm64 @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 19457ms check-target:macos_arm64 @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 19596ms check-target:macos_arm64 @d698b30fd9ab+wt
@@ -15994,6 +16045,15 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit checked 7877ms
 pass/facts/selected_scalar_initializer_through_other_state_exit checked 7880ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/selected_scalar_initializer_through_parameter_exit checked 7923ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/selected_scalar_initializer_through_target_body_exit checked 8126ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/seven_variant_enum_payload_bound_through_call_result_exit checked 12509ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_const_name_exit checked 8864ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_field_exit checked 8795ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_local_exit checked 7999ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_match_join_exit checked 10224ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_other_machine_exit checked 7151ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_other_state_exit checked 8482ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_parameter_exit checked 16570ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seven_variant_enum_payload_bound_through_target_body_exit checked 23484ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/shared_borrow_field_projection_through_call_result_exit checked 63075ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_const_name_exit checked 56162ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_field_exit checked 65366ms check-target:macos_arm64 @8f970335dca4+wt
