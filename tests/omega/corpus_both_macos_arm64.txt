@@ -1240,6 +1240,15 @@ pass/facts/nested_five_level_record_field_bound_through_other_machine_exit built
 pass/facts/nested_five_level_record_field_bound_through_other_state_exit built 14878ms exit:0 interpreter-exit:0 interpreter:agrees @317bacd12b0a+wt
 pass/facts/nested_five_level_record_field_bound_through_parameter_exit built 15069ms exit:0 interpreter-exit:0 interpreter:agrees @317bacd12b0a+wt
 pass/facts/nested_five_level_record_field_bound_through_target_body_exit built 13583ms exit:0 interpreter-exit:0 interpreter:agrees @317bacd12b0a+wt
+pass/facts/nested_four_level_record_field_bound_through_call_result_exit built 1659ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_const_name_exit built 1381ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_field_exit built 1471ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_local_exit built 1202ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_match_join_exit built 1271ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_other_machine_exit built 1184ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_other_state_exit built 1568ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_parameter_exit built 1269ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_four_level_record_field_bound_through_target_body_exit built 1620ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
 pass/facts/nested_result_extent_after_disjoint_write_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @cbdcc23565fb
 pass/facts/nested_result_extent_captured_scalar_exit built 3640ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_call_result_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
@@ -1260,6 +1269,15 @@ pass/facts/nested_six_level_record_field_bound_through_other_machine_exit built 
 pass/facts/nested_six_level_record_field_bound_through_other_state_exit built 13691ms exit:0 interpreter-exit:0 interpreter:agrees @317bacd12b0a+wt
 pass/facts/nested_six_level_record_field_bound_through_parameter_exit built 13327ms exit:0 interpreter-exit:0 interpreter:agrees @317bacd12b0a+wt
 pass/facts/nested_six_level_record_field_bound_through_target_body_exit built 10694ms exit:0 interpreter-exit:0 interpreter:agrees @317bacd12b0a+wt
+pass/facts/nested_three_level_record_field_bound_through_call_result_exit built 1625ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_const_name_exit built 1413ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_field_exit built 1373ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_local_exit built 1356ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_match_join_exit built 1257ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_other_machine_exit built 1360ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_other_state_exit built 1494ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_parameter_exit built 1417ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/nested_three_level_record_field_bound_through_target_body_exit built 1146ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 10955ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 10601ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit built 11124ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
