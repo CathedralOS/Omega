@@ -582,6 +582,15 @@ pass/expressions/runtime_nested_record_field_call_exit built 1043ms exit:0 inter
 pass/expressions/runtime_nested_record_field_reads_exit built 1814ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/expressions/runtime_temporary_record_field_call_exit built 851ms exit:0 interpreter-exit:0 interpreter:agrees @f70a22c80ac3
 pass/expressions/sequential_fresh_linear_selection built 9040ms exit:0 interpreter-exit:0 interpreter:agrees @61fab13095e7+wt
+pass/facts/abi_multi_arg_spill_through_call_result_exit built 5407ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_const_name_exit built 5591ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_field_exit built 5772ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_local_exit built 5657ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_match_join_exit built 4027ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_other_machine_exit built 3649ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_other_state_exit built 3188ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_parameter_exit built 4822ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/abi_multi_arg_spill_through_target_body_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/address_count_partition_through_call_result_exit built 4026ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/facts/address_count_partition_through_const_name_exit built 4008ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/facts/address_count_partition_through_field_exit built 4048ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
@@ -591,6 +600,15 @@ pass/facts/address_count_partition_through_other_machine_exit built 4098ms exit:
 pass/facts/address_count_partition_through_other_state_exit built 4185ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/facts/address_count_partition_through_parameter_exit built 4166ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/facts/address_count_partition_through_target_body_exit built 4182ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/aggregate_struct_return_abi_through_call_result_exit built 2776ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_const_name_exit built 2646ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_field_exit built 2849ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_local_exit built 2957ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_match_join_exit built 2965ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_other_machine_exit built 2989ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_other_state_exit built 2830ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_parameter_exit built 2840ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/aggregate_struct_return_abi_through_target_body_exit built 2772ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/as_slice_views_through_call_result_exit built 4161ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/facts/as_slice_views_through_const_name_exit built 4244ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/facts/as_slice_views_through_field_exit built 4805ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
