@@ -1,0 +1,34 @@
+// Fact: a 16-bit signed i16 arithmetic right shift of a bounded input (val >= 480i16 && val <= 480i16) by 2u32 bits establishes shifted >= 120i16 && shifted <= 120i16 so exact 16-bit signed subtraction shifted - 120i16 is proved overflow-free across all nine places.
+// Place: match_join. Both match arms yield the arithmetic right-shifted result so the joined binding preserves the bounds.
+// Expected exit: 0
+machine verify_shifted(shifted: i16) -> i32
+    requires shifted >= 120 && shifted <= 120
+{
+    let sub: i16 = shifted - 120;
+    sub as i32
+}
+
+machine compute_match_join(val: i16, flag: bool) -> i32
+    requires val >= 480 && val <= 480
+{
+    let shifted: i16 = val >> 2u32;
+    let joined: i16 = match flag {
+        true -> shifted
+        false -> shifted
+    };
+    verify_shifted(joined)
+}
+
+machine evaluate() -> i32 {
+    compute_match_join(480, true)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

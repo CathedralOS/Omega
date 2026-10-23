@@ -70,9 +70,19 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_16bit_shift_right_bound_through_*` and
-`tests/omega/fail/facts/signed_16bit_shift_right_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned by eighteen fixtures: nine positives under
+`tests/omega/pass/facts/signed_16bit_shift_right_bound_through_*_exit` and nine
+reject twins under
+`tests/omega/fail/facts/signed_16bit_shift_right_bound_through_*_rejected`. Every
+positive is a byte-for-byte copy of its place program and binds `ProgramEntry`
+for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`); every twin is a byte-for-byte copy of its place's
+`invalid/main.omg` and pins the compiler's complete rejection diagnostic in
+`expected.txt`. Recorded on three legs: `corpus_outcomes.txt` (nine `checked`
+positives carrying `check-target:macos_arm64` and nine `rejected ... expected`
+twins), `corpus_native_macos_arm64.txt` (nine `built ... exit:0`) and
+`corpus_both_macos_arm64.txt` (nine `built ... exit:0 interpreter-exit:0
+interpreter:agrees`).
 
 ## Requirements and Evidence
 

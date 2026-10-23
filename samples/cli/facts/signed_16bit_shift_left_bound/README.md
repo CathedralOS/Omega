@@ -24,9 +24,24 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned Fixtures
+
+The row is pinned by eighteen fixtures: nine positives under
+`tests/omega/pass/facts/signed_16bit_shift_left_bound_through_*_exit` and nine
+reject twins under
+`tests/omega/fail/facts/signed_16bit_shift_left_bound_through_*_rejected`. Every
+positive is a byte-for-byte copy of its place program and binds `ProgramEntry`
+for all four hosted targets; every twin is a byte-for-byte copy of its place's
+`invalid/main.omg` and pins the compiler's complete rejection diagnostic in
+`expected.txt`. Recorded on three legs: `corpus_outcomes.txt` (nine `checked`
+positives carrying `check-target:macos_arm64` and nine `rejected ... expected`
+twins), `corpus_native_macos_arm64.txt` (nine `built ... exit:0`) and
+`corpus_both_macos_arm64.txt` (nine `built ... exit:0 interpreter-exit:0
+interpreter:agrees`).
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `CONSERVATION-CONTRACT` ([TASKS.md](../../../../TASKS.md)).
 - **Requirement established:** 16-bit signed integer exact left shift bounds proof and realization (`Psi 05–07` / `Omega 00–09`), verifying that shifting bounded `i16` value (`val >= 30i16 && val <= 30i16`) left by `2u32` bits establishes the interval `shifted >= 120i16 && shifted <= 120i16`, which proves that exact signed subtraction `shifted - 120i16 == 0i16` is provably overflow-free across all nine standard places.
 
 Full 8-layer specification and lowering evidence:

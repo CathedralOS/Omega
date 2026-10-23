@@ -8087,6 +8087,48 @@ fail/facts/signed_16bit_saturating_subtraction_bound_through_target_body_rejecte
 	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_call_result_rejected rejected 9968ms expected @6fc7e67fb463+wt
+	cannot prove ensures contract for exit from produce_shifted at statement 0: result >= 120 && result <= 120
+fail/facts/signed_16bit_shift_left_bound_through_const_name_rejected rejected 10797ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from main: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_field_rejected rejected 10244ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from main: carrier.shifted >= 120 && carrier.shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_local_rejected rejected 8571ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from main: local_shifted >= 120 && local_shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_match_join_rejected rejected 6652ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from main: joined >= 120 && joined <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_other_machine_rejected rejected 7537ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call runner from main: shifted >= 120 && shifted <= 120 (needs fact `val >= 120 && val <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_other_state_rejected rejected 9320ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from main: forwarded >= 120 && forwarded <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_shift_left_bound_through_parameter_rejected rejected 7902ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call check_param from main: shifted >= 120 && shifted <= 120 (needs fact `val >= 120 && val <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_left_bound_through_target_body_rejected rejected 7349ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call exercise from main: shifted >= 120 && shifted <= 120 (needs fact `val >= 120 && val <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: shifted >= 120 && shifted <= 120 (needs fact `val >= 120 && val <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: shifted >= 120 && shifted <= 120 (needs fact `val >= 120 && val <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: shifted >= 120 && shifted <= 120 (needs fact `val >= 120 && val <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_call_result_rejected rejected 7416ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_call_result: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_const_name_rejected rejected 10157ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_const: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_field_rejected rejected 9237ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_field: c.shifted >= 120 && c.shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_local_rejected rejected 6883ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_local: transported >= 120 && transported <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_match_join_rejected rejected 6376ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_match_join: joined >= 120 && joined <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_other_machine_rejected rejected 7124ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_other_machine: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_other_state_rejected rejected 7458ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_other_state: s >= 120 && s <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_shift_right_bound_through_parameter_rejected rejected 5702ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_parameter: transported >= 120 && transported <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_shift_right_bound_through_target_body_rejected rejected 5655ms expected @6fc7e67fb463+wt
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 120 && shifted <= 120 (needs fact `shifted >= 120 && shifted <= 120` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_rejected rejected 10471ms expected @4c23cc3391c2+wt
 	cannot prove requires contract for call verify_sum from compute_call_result: transported >= 350 && transported <= 600 (needs fact `value >= 350 && value <= 600` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_rejected rejected 10723ms expected @4c23cc3391c2+wt
@@ -16996,6 +17038,24 @@ pass/facts/signed_16bit_saturating_subtraction_bound_through_other_machine_exit 
 pass/facts/signed_16bit_saturating_subtraction_bound_through_other_state_exit checked 45505ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_saturating_subtraction_bound_through_parameter_exit checked 45595ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_saturating_subtraction_bound_through_target_body_exit checked 43955ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_shift_left_bound_through_call_result_exit checked 7940ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_const_name_exit checked 7871ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_field_exit checked 10939ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_local_exit checked 11054ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_match_join_exit checked 12585ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_other_machine_exit checked 15763ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_other_state_exit checked 11089ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_parameter_exit checked 13173ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_left_bound_through_target_body_exit checked 13676ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_call_result_exit checked 13474ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_const_name_exit checked 10929ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_field_exit checked 9810ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_local_exit checked 12647ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_match_join_exit checked 13987ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_other_machine_exit checked 12920ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_other_state_exit checked 12241ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_parameter_exit checked 11921ms check-target:macos_arm64 @6fc7e67fb463+wt
+pass/facts/signed_16bit_shift_right_bound_through_target_body_exit checked 11079ms check-target:macos_arm64 @6fc7e67fb463+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_exit checked 11941ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_exit checked 11960ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_field_exit checked 11913ms check-target:macos_arm64 @4c23cc3391c2+wt
