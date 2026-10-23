@@ -33,21 +33,16 @@ pub(crate) fn project_native_callback_arguments(
         let Some(materialization) = placement.private_materialization.as_ref() else {
             return Ok(None);
         };
-        let application = materialization
-            .destination_parameter_application()
-            .map_err(|error| callback_error(error.0))?;
-        if occurrence.destination_parameter_application() != Some(application) {
-            return Err(callback_error(
-                "callback occurrence parameter application drifted from its retained registrar materialization",
-            ));
-        }
+        // The retained placement owns the registrar telescope row its
+        // destination selected; the occurrence only names that placement.
+        let application = materialization.destination_application.application();
         admitted.push(crate::NativeCallbackArgumentProposal {
             registrar_invokes_callback: materialization.registrar_invokes_callback,
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
             destination: materialization.destination.clone(),
-            field_byte_offset: materialization.field_byte_offset,
+            field_byte_offset: materialization.destination_application.byte_offset(),
             application: application.clone(),
             registrar_boundary_entry_plan: materialization.registrar_boundary_entry_plan.clone(),
             registrar_context: materialization.context.clone(),

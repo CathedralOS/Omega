@@ -88,12 +88,15 @@ impl TerminalCallbackThunkArtifact {
 /// The thunk retains its portable declaration identity. Native
 /// admission projects the executable, ABI inputs and private function identity,
 /// without a source-side receipt.
+///
+/// `placement_index` reaches the retained placement that owns the registrar
+/// plan and the private destination application; this join does not re-carry
+/// that application as an independent copy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
     application_index: u32,
     terminal_operation: semantic_vocabulary::OperationId,
-    destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
     callback_thunk_identity: function_identity::MachineFunctionIdentity,
     callback_thunk_artifact: TerminalCallbackThunkArtifact,
     boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
@@ -105,7 +108,6 @@ impl TerminalCallbackOccurrenceProposal {
         placement_index: usize,
         application_index: u32,
         terminal_operation: semantic_vocabulary::OperationId,
-        destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
         callback_thunk_identity: function_identity::MachineFunctionIdentity,
         callback_thunk_artifact: TerminalCallbackThunkArtifact,
         boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
@@ -115,7 +117,6 @@ impl TerminalCallbackOccurrenceProposal {
             placement_index,
             application_index,
             terminal_operation,
-            destination_parameter_application,
             callback_thunk_identity,
             callback_thunk_artifact,
             boundary_entry_plan,
@@ -129,15 +130,6 @@ impl TerminalCallbackOccurrenceProposal {
 
     pub const fn terminal_operation(&self) -> semantic_vocabulary::OperationId {
         self.terminal_operation
-    }
-
-    /// The parameter application the callback's destination binds: the
-    /// callback's own telescope row for a direct parameter destination, or
-    /// the root record parameter for a field destination.
-    pub const fn destination_parameter_application(
-        &self,
-    ) -> Option<&calling_conventions::NativeParameterApplication> {
-        self.destination_parameter_application.as_ref()
     }
 
     pub const fn callback_thunk_identity(&self) -> function_identity::MachineFunctionIdentity {

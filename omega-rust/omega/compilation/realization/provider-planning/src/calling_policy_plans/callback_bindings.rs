@@ -666,12 +666,16 @@ fn bound_private_callback_materialization(
             matching_demands.len()
         ));
     };
-    let direct_registrar_parameter_application = match row.destination {
+    // One registrar telescope row carries the slot: the callback parameter
+    // itself for a direct destination, the root record parameter plus the
+    // named layout entry's offset for a field destination. Resolve it once
+    // here, in the same match that reads the destination kind.
+    let destination_application = match &row.destination {
         NativePlace::Parameter(parameter) => {
             let matching_parameters = registrar
                 .native_parameters
                 .iter()
-                .filter(|candidate| candidate.identity == parameter)
+                .filter(|candidate| candidate.identity == *parameter)
                 .collect::<Vec<_>>();
             let [native_parameter] = matching_parameters.as_slice() else {
                 return Err(format!(
@@ -714,17 +718,15 @@ fn bound_private_callback_materialization(
                         .to_owned(),
                 );
             }
-            Some(calling_conventions::NativeParameterApplication {
-                parameter,
-                native_ordinal: native_parameter.native_ordinal,
-                shape,
-                placement: placement.clone(),
-            })
+            backend_plan::PrivateCallbackDestinationApplication::Direct {
+                application: calling_conventions::NativeParameterApplication {
+                    parameter: *parameter,
+                    native_ordinal: native_parameter.native_ordinal,
+                    shape,
+                    placement: placement.clone(),
+                },
+            }
         }
-        NativePlace::Field { .. } => None,
-    };
-    let (root_parameter_application, field_byte_offset) = match &row.destination {
-        NativePlace::Parameter(_) => (None, None),
         NativePlace::Field { parameter, .. } => {
             let matching_parameters = registrar
                 .native_parameters
@@ -762,15 +764,15 @@ fn bound_private_callback_materialization(
                     "field callback root parameter ordinal is absent from the exact registrar plan"
                         .to_owned()
                 })?;
-            (
-                Some(calling_conventions::NativeParameterApplication {
+            backend_plan::PrivateCallbackDestinationApplication::Field {
+                root: calling_conventions::NativeParameterApplication {
                     parameter: *parameter,
                     native_ordinal: native_parameter.native_ordinal,
                     shape: placement.shape,
                     placement: placement.clone(),
-                }),
-                Some(layout_entry.composed_offset()),
-            )
+                },
+                byte_offset: layout_entry.composed_offset(),
+            }
         }
     };
     let application_commitment = commitment.as_bytes();
@@ -783,9 +785,7 @@ fn bound_private_callback_materialization(
         registrar_application_report_fingerprint: application_report_fingerprint,
         registrar_application_commitment: application_commitment,
         registrar_application: registrar.native_application()?,
-        direct_registrar_parameter_application,
-        root_parameter_application,
-        field_byte_offset,
+        destination_application,
         context,
         registrar_invokes_callback: registrar
             .synchronous_callback_binders

@@ -464,12 +464,6 @@ fn project_callback_occurrences(
                 placement_index,
                 placement.application_index,
                 application.registrar,
-                placement
-                    .private_materialization
-                    .as_ref()
-                    .map(|materialization| materialization.destination_parameter_application().cloned())
-                    .transpose()
-                    .map_err(|error| vec![Diagnostic::error(error.0)])?,
                 callback_thunk_identity,
                 callback_thunk_artifact.clone(),
                 placement.boundary_entry_plan.clone(),

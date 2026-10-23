@@ -18,6 +18,7 @@ pub use callback_artifacts::{
 };
 pub use callback_placements::{
     BoundCallbackPrivateMaterialization, NativeCallbackEntryParameter, NativeCallbackPlacement,
+    PrivateCallbackDestinationApplication,
 };
 pub use target_providers::{
     TerminalTargetProviderPlan, TerminalTargetProviderProposal, TerminalTargetProviderSelection,

@@ -2,7 +2,7 @@
 
 use calling_conventions::{
     BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
-    NativeParameterApplication, NativePlace, PlanDiagnostic, StaticMachineBinderId,
+    NativeParameterApplication, NativePlace, StaticMachineBinderId,
 };
 
 /// Target-owned ABI recipe for one portable Terminal callback application.
@@ -26,6 +26,50 @@ pub struct NativeCallbackPlacement {
 pub struct NativeCallbackEntryParameter {
     pub application: NativeParameterApplication,
     pub origin: calling_conventions::BoundaryNativeParameterOrigin,
+}
+
+/// The registrar telescope row that carries one private callback slot, in the
+/// custody its destination kind owns. The variant is exactly the producer's
+/// destination match, so a consumer reads which row is live instead of
+/// re-deriving custody from independent optional fields.
+///
+/// This is neither the destination place nor the registrar's outbound
+/// telescope; [`BoundCallbackPrivateMaterialization::destination`] stays
+/// beside it, and the native lowerer replays the plan join independently.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrivateCallbackDestinationApplication {
+    /// A direct parameter destination: the private slot occupies the callback
+    /// parameter's own location.
+    Direct {
+        application: NativeParameterApplication,
+    },
+    /// A field destination: the slot occupies `byte_offset` bytes into the
+    /// record reached through the root record parameter's location.
+    Field {
+        root: NativeParameterApplication,
+        byte_offset: usize,
+    },
+}
+
+impl PrivateCallbackDestinationApplication {
+    /// The application the destination binds: the callback parameter itself
+    /// for a direct destination, the root record parameter for a field one.
+    pub fn application(&self) -> &NativeParameterApplication {
+        match self {
+            Self::Direct { application } => application,
+            Self::Field { root, .. } => root,
+        }
+    }
+
+    /// The private slot's byte offset inside the bound record. A direct
+    /// destination's slot is the parameter's own location and names no
+    /// interior offset.
+    pub fn byte_offset(&self) -> Option<usize> {
+        match self {
+            Self::Direct { .. } => None,
+            Self::Field { byte_offset, .. } => Some(*byte_offset),
+        }
+    }
 }
 
 /// Complete address-free context and selected row for one private callback
@@ -53,84 +97,9 @@ pub struct BoundCallbackPrivateMaterialization {
     pub registrar_application_report_fingerprint: u64,
     pub registrar_application_commitment: [u8; 32],
     pub registrar_application: calling_conventions::BoundaryCallingApplication,
-    /// Exact target-closed registrar telescope row selected by a direct
-    /// parameter destination. Field destinations retain `None`: their root
-    /// semantic parameter is not itself a compiler-private callback argument.
-    pub direct_registrar_parameter_application: Option<NativeParameterApplication>,
-    /// For a field destination, the exact telescope row and evaluated
-    /// placement of the record parameter whose pointee receives the private
-    /// slot. Direct parameter destinations retain `None`.
-    pub root_parameter_application: Option<NativeParameterApplication>,
-    /// For a field destination, the private slot's byte offset inside the
-    /// root parameter's record. Direct parameter destinations retain `None`.
-    pub field_byte_offset: Option<usize>,
+    /// The exact registrar telescope row carrying this private slot, resolved
+    /// by the producer from the target-closed registrar telescope it retains
+    /// in `registrar_boundary_entry_plan`.
+    pub destination_application: PrivateCallbackDestinationApplication,
     pub context: CallbackMaterializationContext,
-}
-
-impl BoundCallbackPrivateMaterialization {
-    /// Borrow the destination's exact registrar parameter application.
-    ///
-    /// Direct destinations apply the callback parameter; field destinations
-    /// apply the root record parameter and require a retained byte offset.
-    /// Reject mixed or missing custody and identity, ordinal, shape or placement
-    /// drift. This does not authenticate the field layout or application
-    /// commitment, or replace independent ABI-plan and callback-context replay.
-    pub fn destination_parameter_application(
-        &self,
-    ) -> Result<&NativeParameterApplication, PlanDiagnostic> {
-        let (parameter, application) = match &self.destination {
-            NativePlace::Parameter(parameter) => {
-                if self.root_parameter_application.is_some() || self.field_byte_offset.is_some() {
-                    return Err(PlanDiagnostic(
-                        "direct callback destination retains field-destination custody".to_owned(),
-                    ));
-                }
-                let application = self.direct_registrar_parameter_application.as_ref().ok_or_else(|| {
-                    PlanDiagnostic("direct callback destination lost its exact native parameter application".to_owned())
-                })?;
-                (parameter, application)
-            }
-            NativePlace::Field { parameter, .. } => {
-                if self.direct_registrar_parameter_application.is_some()
-                    || self.field_byte_offset.is_none()
-                {
-                    return Err(PlanDiagnostic(
-                        "field callback destination lacks or mixes parameter-destination custody"
-                            .to_owned(),
-                    ));
-                }
-                let application = self.root_parameter_application.as_ref().ok_or_else(|| {
-                    PlanDiagnostic(
-                        "field callback destination lost its exact root parameter application"
-                            .to_owned(),
-                    )
-                })?;
-                (parameter, application)
-            }
-        };
-        let placement = usize::try_from(application.native_ordinal)
-            .ok()
-            .and_then(|ordinal| {
-                self.registrar_boundary_entry_plan
-                    .call
-                    .parameters
-                    .get(ordinal)
-            })
-            .ok_or_else(|| {
-                PlanDiagnostic(
-                    "callback registrar native telescope ordinal is absent from its exact plan"
-                        .to_owned(),
-                )
-            })?;
-        if application.parameter != *parameter
-            || application.shape != application.placement.shape
-            || application.placement != *placement
-        {
-            return Err(PlanDiagnostic(
-                "callback registrar native telescope identity, shape, or placement drifted"
-                    .to_owned(),
-            ));
-        }
-        Ok(application)
-    }
 }
