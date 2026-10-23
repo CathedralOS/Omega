@@ -6550,6 +6550,27 @@ fail/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_rejected 
 	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 100 (needs fact `val >= 40 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 100 (needs fact `val >= 40 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 100 (needs fact `val >= 40 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_call_result_rejected rejected 4036ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_const_name_rejected rejected 4180ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_field_rejected rejected 4795ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_local_rejected rejected 4981ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_match_join_rejected rejected 5391ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_other_machine_rejected rejected 6309ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from forward: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_other_state_rejected rejected 6224ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `perform_shift`
+fail/facts/signed_arithmetic_shift_right_through_parameter_rejected rejected 5475ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_arithmetic_shift_right_through_target_body_rejected rejected 5664ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_division_quotient_unproved_call_result rejected 2405ms expected @45cbafd80d9c
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_division_quotient_unproved_const_name rejected 2403ms expected @45cbafd80d9c
@@ -6804,6 +6825,27 @@ fail/facts/state_transition_ranking_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/static_evidence_premise_through_call_result_rejected rejected 1598ms expected @9d9ba4fb6251+wt
+	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_const_name_rejected rejected 2061ms expected @9d9ba4fb6251+wt
+	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_field_rejected rejected 1779ms expected @9d9ba4fb6251+wt
+	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_local_rejected rejected 1966ms expected @9d9ba4fb6251+wt
+	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_match_join_rejected rejected 1920ms expected @9d9ba4fb6251+wt
+	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_other_machine_rejected rejected 2489ms expected @9d9ba4fb6251+wt
+	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_other_state_rejected rejected 1481ms expected @9d9ba4fb6251+wt
+	machine `main` state `check` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_parameter_rejected rejected 1364ms expected @9d9ba4fb6251+wt
+	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_target_body_rejected rejected 1533ms expected @9d9ba4fb6251+wt
+	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8b8e7e035fdc
 	cannot prove requires contract for call extended from trial: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `transfer`
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
@@ -13427,6 +13469,15 @@ pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_machine_exit ch
 pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_state_exit checked 38764ms check-target:macos_arm64 @7b770f2baf0d+wt
 pass/facts/signed_64bit_wrapping_subtraction_bound_through_parameter_exit checked 39489ms check-target:macos_arm64 @7b770f2baf0d+wt
 pass/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_exit checked 38725ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_arithmetic_shift_right_through_call_result_exit checked 3866ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_const_name_exit checked 3240ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_field_exit checked 3607ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_local_exit checked 3705ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_match_join_exit checked 4121ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_other_machine_exit checked 4337ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_other_state_exit checked 8327ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_parameter_exit checked 8377ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_arithmetic_shift_right_through_target_body_exit checked 7532ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_division_quotient_through_call_result_exit checked 7575ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_const_name_exit checked 7742ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_field_exit checked 7695ms check-target:macos_arm64 @45cbafd80d9c
@@ -13519,6 +13570,15 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit checked 106
 pass/facts/state_transition_ranking_bound_through_other_state_exit checked 15738ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/state_transition_ranking_bound_through_parameter_exit checked 15422ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/state_transition_ranking_bound_through_target_body_exit checked 13374ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_call_result_exit checked 4794ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_const_name_exit checked 3622ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_field_exit checked 5109ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_local_exit checked 3965ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_match_join_exit checked 3178ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_other_machine_exit checked 2368ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_other_state_exit checked 1917ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_parameter_exit checked 2124ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/static_evidence_premise_through_target_body_exit checked 3560ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
 pass/facts/target_recursive_bound_through_call_result_exit checked 1816ms check-target:macos_arm64 @e2a6d051c734+wt
 pass/facts/target_recursive_bound_through_const_name_exit checked 1815ms check-target:macos_arm64 @e2a6d051c734+wt

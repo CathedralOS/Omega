@@ -1,0 +1,40 @@
+// An arithmetic right shift (`>>`) on a bounded signed `i64` value (`value >= 400i64 && value <= 400i64`) by a bounded shift count (`shift >= 2u32 && shift <= 2u32`) preserves sign and establishes the exact post-shift interval (`shifted >= 100i64 && shifted <= 100i64`), discharging exact subtraction `shifted - 100i64` with exit code `0`.
+// Place: another state. A successor state receives the operands and shifts there.
+// Expected exit: 0
+
+machine consume(diff: i64) -> i64
+    requires diff >= 0i64 && diff <= 0i64
+{
+    diff
+}
+
+machine shift_right(val: i64, shift: u32) -> i64
+    requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
+{
+    transition { _ -> perform_shift(val, shift) }
+    state perform_shift(v: i64, s: u32)
+        requires v >= 400i64 && v <= 400i64 && s >= 2u32 && s <= 2u32
+    {
+        let shifted: i64 = v >> s;
+        let diff: i64 = shifted - 100i64;
+        consume(diff)
+    }
+}
+
+machine probe(val: i64, shift: u32) -> i64
+    requires val >= 400i64 && val <= 400i64 && shift >= 2u32 && shift <= 2u32
+{
+    shift_right(val, shift)
+}
+
+machine main() crashes Trap {
+    let val: i64 = 400i64;
+    let shift: u32 = 2u32;
+    let res: i64 = probe(val, shift);
+    transition res == 0i64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

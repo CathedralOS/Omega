@@ -32,6 +32,8 @@ Each place has an `invalid/` twin that weakens the signed operand bound to `val 
 
 Check a twin with `omega --check samples/cli/facts/signed_arithmetic_shift_right/<place>/invalid/main.omg`.
 
+Each twin carries an authored `sample.json` intended-invalid identity (`"role": "intended-invalid"`, `"rejection_contains": [...]`) and a pinned `tests/omega/fail/facts/signed_arithmetic_shift_right_through_<place>_rejected` fixture.
+
 | Place | Reject Twin | Authored diagnostic fragment |
 | --- | --- | --- |
 | local | [local/invalid/main.omg](local/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
@@ -43,6 +45,10 @@ Check a twin with `omega --check samples/cli/facts/signed_arithmetic_shift_right
 | other_state | [other_state/invalid/main.omg](other_state/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
 | other_machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `cannot prove requires contract for call consume from forward: diff >= 0 && diff <= 0` |
 | target_body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
+
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/signed_arithmetic_shift_right_through_*` fixtures — nine pass fixtures (each a byte-identical copy of its place program plus `expected_native_exit.txt` `0`) and nine fail fixtures (each a byte-identical copy of its place twin plus the pinned `expected.txt` fragment). The sample and the fixtures cannot drift apart.
 
 ## Requirements and Evidence
 
@@ -63,7 +69,7 @@ Check a twin with `omega --check samples/cli/facts/signed_arithmetic_shift_right
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/signed_arithmetic_shift_right`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
-- Discrimination: corrupting the shift expectation (`transition res == 0i64` to `transition res == 1i64`) triggers the `bad()` state and traps with `crash Trap`, proving the exit 0 oracle actively discriminates computation errors.
+- Measured 2026-10-22 on macOS arm64 at `9d9ba4fb625` with the shared generation producer (`build/swarm/factsr1/producers/gen-9d9ba4fb625/omega`, sha256 `5a2fde4a3a91`): the root `main.omg` and all nine positive places run `omega run --both` — ten of ten report `native exit 0` and `interp exit: 0`; all nine `invalid/` twins reject with their authored fragment (`cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0`, and `from forward` at the other_machine place), nine of nine.
+- The eighteen pinned fixtures reproduce that behavior under the corpus gate (check leg `checked` with `check-target:macos_arm64`, native leg `built` with `exit:0`, both leg `built` with `exit:0 interpreter-exit:0 interpreter:agrees`).
 - Remaining open: signed arithmetic right shift interval reductions over non-constant dynamic bounds, and cross-carrier signed shift reduction proofs under `CONSERVATION-CONTRACT`.
 
