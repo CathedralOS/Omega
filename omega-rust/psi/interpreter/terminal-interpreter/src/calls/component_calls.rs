@@ -12,12 +12,12 @@ use crate::results::{TerminalExecutionResult, TerminalExecutionStatus};
 use crate::values::TerminalScalarValue;
 
 impl<'artifact> TerminalExecution<'artifact> {
-    pub(crate) fn execute_component_call<'host>(
+    pub(crate) fn execute_component_call(
         &mut self,
         operation: &terminal_psi::Operation,
         arguments: &[TerminalScalarValue],
         meter: &mut TerminalFuelMeter,
-        components: Option<&mut ComponentBindings<'host, 'artifact>>,
+        components: &mut ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let reject = |reason| TerminalInterpretError::EffectRejected {
             operation: operation.id,
@@ -40,13 +40,12 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .to_owned(),
             ));
         }
-        let binding = components
-            .and_then(|bindings| bindings.get_mut(boundary))
-            .ok_or_else(|| {
-                reject(
-                    "component invocation has no established producing instance binding".to_owned(),
-                )
-            })?;
+        // Dispatch reaches this lane only under an admitted installation
+        // supply, so this roster is the receiving host's — the raw lane
+        // carries an empty one and can never select a component provider.
+        let binding = components.get_mut(boundary).ok_or_else(|| {
+            reject("component invocation has no established producing instance binding".to_owned())
+        })?;
         let selected = binding.selected();
         let expected_supply = AdmittedBoundarySupply::ComponentProvider {
             provider: selected.provider(),

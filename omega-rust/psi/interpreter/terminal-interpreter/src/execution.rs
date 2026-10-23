@@ -711,19 +711,26 @@ impl<'artifact> TerminalExecution<'artifact> {
             .find(|entry| entry.place == place)
     }
 
+    /// Drive this execution's loop with no component roster: the raw lane.
+    /// It admits no installation supply, so no boundary in it can carry a
+    /// component provider and the empty roster is this lane's exact roster.
     pub fn resume(
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-        self.resume_with_components(meter, handler, None)
+        self.resume_with_components(
+            meter,
+            handler,
+            &mut crate::instance::ComponentBindings::new(),
+        )
     }
 
-    pub(crate) fn resume_with_components<'host>(
+    pub(crate) fn resume_with_components(
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
-        components: Option<&mut crate::instance::ComponentBindings<'host, 'artifact>>,
+        components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         self.entry_storage_open = false;
         self.resume_operations(meter, handler, components)
@@ -749,11 +756,11 @@ impl<'artifact> TerminalExecution<'artifact> {
             })
     }
 
-    fn resume_operations<'host>(
+    fn resume_operations(
         &mut self,
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
-        mut components: Option<&mut crate::instance::ComponentBindings<'host, 'artifact>>,
+        components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         if let Some(completion) = &self.external_completion {
             return Ok(TerminalExecutionStatus::ExternalCompletion(
@@ -805,17 +812,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                 // A component call already paid its parent operation before
                 // entering the retained child. Only the child's next step is
                 // charged after suspension; neither effects nor call fuel replay.
-                let pending_component = components.as_deref().is_some_and(|bindings| {
-                    if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } =
-                        operation.kind
-                    {
-                        bindings
-                            .get(&boundary)
+                let pending_component = matches!(
+                    &operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { boundary, .. }
+                        if components
+                            .get(boundary)
                             .is_some_and(|binding| binding.pending_at(operation.id))
-                    } else {
-                        false
-                    }
-                });
+                );
                 if !pending_component && let Err(error) = meter.charge_operation(operation) {
                     return meter_status(error);
                 }
@@ -864,7 +867,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         OperationFlow::Advance
                                     }
                                     OperationKind::BoundaryCall { .. } => {
-                                        self.execute_boundary_call(operation, handler, meter, components.as_deref_mut())?
+                                        self.execute_boundary_call(operation, handler, meter, components)?
                                     }
                                     OperationKind::PortWrite { .. } => {
                                         self.execute_port_write(operation, handler)?

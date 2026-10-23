@@ -470,7 +470,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                 &mut ImportDispatch {
                     bindings: &mut self.bindings,
                 },
-                Some(&mut self.components),
+                &mut self.components,
             )
             .map_err(TerminalInstanceError::Execution)
     }
@@ -598,6 +598,24 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
             })?
             .adapter)
     }
+
+    /// The adapter this effect routes to: only a boundary call is a host
+    /// effect request. A component completion receipt and a port write both
+    /// reject here, before any host code runs, for every handler entry.
+    fn adapter_for(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<&mut (dyn TerminalImportAdapter + 'host), TerminalEffectRejection> {
+        match effect {
+            TerminalEffect::BoundaryCall { boundary, .. } => self.adapter_at(*boundary),
+            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
+                "a component completion receipt is not a host effect request",
+            )),
+            TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
+                "port output requires an admitted target-environment provider",
+            )),
+        }
+    }
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
@@ -613,31 +631,12 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        match effect {
-            TerminalEffect::BoundaryCall { boundary, .. } => self
-                .adapter_at(*boundary)?
-                .handle_effect_with_buffers(effect, byte_buffers, storage_buffers),
-            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
-                "a component completion receipt is not a host effect request",
-            )),
-            TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
-                "port output requires an admitted target-environment provider",
-            )),
-        }
+        self.adapter_for(effect)?
+            .handle_effect_with_buffers(effect, byte_buffers, storage_buffers)
     }
 
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        match effect {
-            TerminalEffect::BoundaryCall { boundary, .. } => {
-                self.adapter_at(*boundary)?.handle_effect(effect)
-            }
-            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
-                "a component completion receipt is not a host effect request",
-            )),
-            TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
-                "port output requires an admitted target-environment provider",
-            )),
-        }
+        self.adapter_for(effect)?.handle_effect(effect)
     }
 
     fn handle_effect_with_byte_buffers(
@@ -645,33 +644,14 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        match effect {
-            TerminalEffect::BoundaryCall { boundary, .. } => self
-                .adapter_at(*boundary)?
-                .handle_effect_with_byte_buffers(effect, byte_buffers),
-            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
-                "a component completion receipt is not a host effect request",
-            )),
-            TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
-                "port output requires an admitted target-environment provider",
-            )),
-        }
+        self.adapter_for(effect)?
+            .handle_effect_with_byte_buffers(effect, byte_buffers)
     }
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        match effect {
-            TerminalEffect::BoundaryCall { boundary, .. } => {
-                self.adapter_at(*boundary)?.handle_effect_result(effect)
-            }
-            TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
-                "a component completion receipt is not a host effect request",
-            )),
-            TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
-                "port output requires an admitted target-environment provider",
-            )),
-        }
+        self.adapter_for(effect)?.handle_effect_result(effect)
     }
 }

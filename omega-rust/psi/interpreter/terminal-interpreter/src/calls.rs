@@ -315,12 +315,12 @@ impl<'artifact> TerminalExecution<'artifact> {
         Ok(OperationFlow::Redispatch)
     }
 
-    pub(crate) fn execute_boundary_call<'host>(
+    pub(crate) fn execute_boundary_call(
         &mut self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
         meter: &mut terminal_fuel::TerminalFuelMeter,
-        components: Option<&mut crate::instance::ComponentBindings<'host, 'artifact>>,
+        components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let OperationKind::BoundaryCall {
             boundary,
