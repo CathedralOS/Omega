@@ -14,29 +14,32 @@ data Outer [copy] {
     mid: Middle;
 }
 
-machine choose_outer(flag: bool) -> Outer
+machine choose_outer(first: Outer, second: Outer, flag: bool) -> Outer
+requires first.mid.inner.val >= 40 && first.mid.inner.val <= 81
+    && second.mid.inner.val >= 40 && second.mid.inner.val <= 81
 ensures result.mid.inner.val >= 40 && result.mid.inner.val <= 81
 {
     match flag {
-        true -> Outer { mid: Middle { inner: Inner { val: 81u64 } } },
-        false -> Outer { mid: Middle { inner: Inner { val: 50u64 } } },
+        true -> first
+        false -> second
     }
 }
 
-machine check_match_join() -> u64 {
-    let outer: Outer = choose_outer(true);
+machine probe(first: Outer, second: Outer, flag: bool) -> u64
+requires first.mid.inner.val >= 40 && first.mid.inner.val <= 81
+    && second.mid.inner.val >= 40 && second.mid.inner.val <= 81
+{
+    let outer: Outer = choose_outer(first, second, flag);
     let res: u64 = outer.mid.inner.val;
     let headroom: u64 = 80u64 - res;
     let margin: u64 = res - 40u64;
     headroom + margin
 }
 
-machine probe() -> u64 {
-    check_match_join()
-}
-
 machine main() crashes Trap {
-    transition probe() == 40 {
+    let o1: Outer = Outer { mid: Middle { inner: Inner { val: 60u64 } } };
+    let o2: Outer = Outer { mid: Middle { inner: Inner { val: 50u64 } } };
+    transition probe(o1, o2, true) == 40 {
         true -> done()
         _ -> bad()
     }

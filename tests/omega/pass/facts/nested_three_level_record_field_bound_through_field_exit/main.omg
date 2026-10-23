@@ -1,0 +1,50 @@
+// Fact: a 3-level nested structural record Outer { mid: Middle { inner: Inner { val: u64 } } } preserves the leaf field bound 40u64 <= outer.mid.inner.val <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Place: field. The 3-level nested record is stored in a container record field before leaf projection and interval discharge.
+// Expected exit: 0
+
+data Inner [copy] {
+    val: u64;
+}
+
+data Middle [copy] {
+    inner: Inner;
+}
+
+data Outer [copy] {
+    mid: Middle;
+}
+
+data Holder [copy] {
+    record: Outer;
+}
+
+machine check_field(holder: Holder) -> u64
+requires holder.record.mid.inner.val >= 40 && holder.record.mid.inner.val <= 80
+{
+    let res: u64 = holder.record.mid.inner.val;
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    headroom + margin
+}
+
+machine probe() -> u64 {
+    let holder: Holder = Holder {
+        record: Outer {
+            mid: Middle {
+                inner: Inner {
+                    val: 60u64,
+                },
+            },
+        },
+    };
+    check_field(holder)
+}
+
+machine main() crashes Trap {
+    transition probe() == 40 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
