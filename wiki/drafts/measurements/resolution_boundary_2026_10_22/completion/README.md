@@ -18,8 +18,9 @@ investigation](../normalization/research.md).
 The diagnostic producer is based on
 `4c23cc3391c2e539d4065563ac95de7b18f2fc67`. It compares the complete successor
 against the old normalizer source read directly from that Git revision, and
-first asserts that both seeded tables still equal the predecessor. Existing
-carrier equality excludes only resolution lookup caches. Each process then
+first asserts that both seeded tables still equal the predecessor. The comparison uses existing
+carrier equality, which ignores lookup caches and integer-literal landing metadata;
+see the [equality limits](equality-limits.md). Each process then
 consumes either the frozen clone-based result or the transfer result.
 
 All **100 comparisons** matched across the two accepted 14-input runs.
@@ -83,3 +84,33 @@ can coexist with the separate layer-0 session.
 Scoped source validation on the integrated candidate: `Summary [   0.061s] 30 tests run: 30 passed, 0 skipped`.
 Crate-scoped Clippy (including test targets), formatting and patch whitespace
 checks pass; existing unrelated warnings remain in the logs.
+
+## Qualified production result
+
+The clean production compiler at `60c36e25e468fe7b10767006f09f385fcb590b2f` integrates main
+`05580b165045143fb36176fe424470f53a7d5d51`. Seven frozen native images execute with exit 0; all seven
+programs also produce native exit 0 and Terminal exit 0 through `run --both`.
+The machine-constant check passes. Five invalid controls and the pre-existing
+computed-constant refusal preserve exact baseline diagnostics. Pinned
+qualification exits 0 with no capture invalidations.
+
+The 30 passing crate tests and scoped Clippy retain their actual observation at
+`db1367c3d94414b765562f5f0db97304c1f7682e`. The later incoming changes are in
+downstream checking/lowering and application examples; the tested resolver,
+representation, parser/foundation dependencies and build configuration are
+unchanged. Production was rebuilt and replayed for those downstream changes.
+Formatting and whitespace checks pass. Existing warnings remain in the logs.
+
+The earlier production capture remains under [integrated](integrated/production-observations.json);
+the final one is under [production](production/production-observations.json),
+with its [producer receipt](production/candidate-producer.json),
+[native products](production/products.json) and
+[qualification summary](production/qualification-summary.json). The active warm
+lane qualification uses the supported history-preserving amendment protocol:
+the prior published outcome keeps its immutable receipts, and this outcome has
+a distinct check ID and fresh executions. An earlier superseded production
+build was interrupted before publishing an executable; its record is retained.
+
+Retain this change for the measured removal of duplicate table copies. The next
+performance decision should use a fresh whole-compile profile after upstream
+work settles; these row counts do not establish the dominant remaining cost.

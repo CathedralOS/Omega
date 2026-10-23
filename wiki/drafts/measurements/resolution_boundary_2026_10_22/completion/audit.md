@@ -34,7 +34,6 @@ question or changed API requires repeating that search.
 
 Reject the candidate if either retained table differs before append, or if the
 complete normalized carrier differs from the frozen clone-based normalizer.
-Diagnostics compare all fields via existing carrier equality (which excludes
-only resolution lookup caches). Native/Terminal observations and exact refusal
+Diagnostics compare all fields via existing carrier equality (with the repository's existing equality semantics; see equality-limits.md). Native/Terminal observations and exact refusal
 outputs independently check the real consumers. Counts are live main rows,
 not allocation bytes, RAM or whole-compiler time.
