@@ -152,6 +152,12 @@ pub(crate) fn check_callable(
             continue;
         }
 
+        // Ordinary checked bodies transfer established values and their loan
+        // frontiers. A direct foreign-backing recipe is not their authority.
+        if checked_body {
+            continue;
+        }
+
         if owned_sources.is_empty() && !borrowed_sources.is_empty() {
             match lifetime_bound_borrow_custody(
                 program,
@@ -176,10 +182,6 @@ pub(crate) fn check_callable(
                 }
                 Err(BorrowCustodyFailure::RequiresOwnedCustody) => {}
             }
-        }
-
-        if checked_body {
-            continue;
         }
 
         let result_name = domain_name(program, result_domain.symbol);

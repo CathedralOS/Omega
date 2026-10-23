@@ -311,6 +311,7 @@ pub(super) fn returned_value_loans(
                             continue;
                         };
                         vec![ViewReturnFieldSource {
+                            lifetime_only: false,
                             source: validation::borrow_contracts::ViewReturnInputSource::Referent,
                             owner_path: Vec::new(),
                             source_path: Vec::new(),

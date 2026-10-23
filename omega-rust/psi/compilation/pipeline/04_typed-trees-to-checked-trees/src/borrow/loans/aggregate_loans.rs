@@ -390,6 +390,9 @@ pub(super) fn result_source_loans(
                 super::returned_carriers::attenuate(&mut loans, &field.kind);
                 for loan in &mut loans {
                     loan.owner_path = owner_path.clone();
+                    if field.lifetime_only {
+                        loan.lineage = checked_trees::BorrowLoanLineage::LifetimeDependency;
+                    }
                     loan.retained_operand
                         .get_or_insert(checked_trees::BorrowRetainedOperand {
                             formation_expression: Default::default(),
@@ -457,7 +460,11 @@ pub(super) fn result_source_loans(
                         } else {
                             Vec::new()
                         },
-                        lineage: retained_reference_lineage(program, argument, source, &rebased),
+                        lineage: if field.lifetime_only {
+                            checked_trees::BorrowLoanLineage::LifetimeDependency
+                        } else {
+                            retained_reference_lineage(program, argument, source, &rebased)
+                        },
                         kind: field.kind.clone(),
                         call_result: false,
                     }

@@ -249,6 +249,12 @@ fn check_program(
         .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_selected_attached_method_bounds(&program)?;
+    let declared_content = checks::prepare_retained_content_custody(
+        &program,
+        crate::facts::build_content_facts(&program),
+    )?;
+    let program = program
+        .with_retained_borrow_custodies(declared_content.retained_borrow_custodies.clone().into());
     let mut validated = phase_profile::scope("05.d.2.prepare_typed_program", || {
         prepare_typed_program(&program, &opaque_property_receipts, admits_pending_inputs)
     })?;
@@ -277,6 +283,7 @@ fn check_program(
         build_check_facts(
             &program,
             &validated.proof_plan,
+            declared_content,
             &validated.integer_assignments,
             validated.operational,
             validated.service_reaches,

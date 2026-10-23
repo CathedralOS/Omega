@@ -31,6 +31,10 @@ pub fn returned_sources(
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
     )
     .ok_or("public result has no complete reference carrier roster")?;
+    // Nonspatial lifetime dependencies have no executable pointer descriptor.
+    if result_leaves.is_empty() {
+        return Ok(Vec::new());
+    }
     let fields = match relation {
         ViewReturnSource::Fields { fields } => fields,
         ViewReturnSource::Parameter { parameter_index } => {
@@ -38,6 +42,7 @@ pub fn returned_sources(
                 return Err("public single-input relation has multiple result leaves");
             };
             vec![crate::borrow_contracts::ViewReturnFieldSource {
+                lifetime_only: false,
                 owner_path: loan_owner_path(program, return_type, &leaf.path)
                     .ok_or("public result leaf has no loan owner path")?,
                 source_path: Vec::new(),
@@ -89,7 +94,7 @@ pub fn returned_sources(
         }
     };
     let mut output = Vec::new();
-    for field in fields {
+    for field in fields.into_iter().filter(|field| !field.lifetime_only) {
         let parameter = parameters
             .get(field.parameter_index)
             .ok_or("public result field names no parameter")?;

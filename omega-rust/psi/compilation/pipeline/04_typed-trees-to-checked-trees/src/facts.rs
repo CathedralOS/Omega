@@ -79,9 +79,7 @@ use crate::facts::machine_facts::{
 use crate::facts::placed_views_and_uses::{
     build_checked_placed_view_inputs, build_nominal_machine_use_facts,
 };
-use crate::facts::qualification_facts::{
-    build_content_facts, build_qualification_facts, build_service_reach_facts,
-};
+use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
 use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
 use crate::flow::{build_domain_facts, build_flow_facts};
 use crate::operators::bind_boundary_operator_application_demands;
@@ -132,6 +130,7 @@ fn project_operational_rows(
 pub(crate) fn build_check_facts(
     program_context: &::validation::CheckingContext<'_>,
     proof_plan: &ProofPlan<'_>,
+    content: checked_trees::ContentProjectionFacts,
     integer_assignments: &[proof::checker::CheckedIntegerAssignment],
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
@@ -218,7 +217,7 @@ pub(crate) fn build_check_facts(
         domains,
         operators,
         qualifications: checked_trees::QualificationFacts {
-            content: build_content_facts(program),
+            content,
             ..Default::default()
         },
         ..CheckFacts::default()
@@ -584,3 +583,5 @@ pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
         .validate_resource_envelopes()
         .expect("checked resource envelopes must survive independent post-validation replay");
 }
+
+pub(crate) use qualification_facts::build_content_facts;

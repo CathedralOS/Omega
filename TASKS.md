@@ -4813,6 +4813,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   retention and unknown/stale/out-of-range/excess-rights backing reject.
   Registration leases follow the [authored lifecycle](wiki/spec/build/private_callbacks.md#registration-and-lifetime).
 
+  The direct shared fixed-record rung has a source/native witness in
+  `samples/cli/facts/foreign_retained_shared_borrow`: nine loan transports,
+  active-write/escape/owned-redemption controls and generation-checked capacity.
+  Linux x86-64 native execution is covered; its custom foreign provider has no
+  default Terminal adapter, so Terminal agreement and this capability remain open.
+
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Consuming non-byte `&[T]` calls and state transfers are incomplete under
   [view custody](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views).

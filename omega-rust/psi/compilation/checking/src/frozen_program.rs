@@ -41,6 +41,12 @@ mod sealed {
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
 
+    /// Checked declaration dependencies constrain loan flow even when their
+    /// carrier has no runtime reference field. Bare trees grant no such row.
+    fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
+        &[]
+    }
+
     /// One universally checked layout alternative, never a deployment choice.
     /// Bare inputs cannot supply concrete geometry for a target family.
     fn layout_target(&self) -> Option<&str> {
@@ -148,6 +154,10 @@ impl CheckingInput for typed_trees::FrozenTypedTrees {
 }
 
 impl CheckingInput for checked_trees::CheckedTrees {
+    fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
+        &self.facts.qualifications.content.retained_borrow_custodies
+    }
+
     fn typed_program(&self) -> &TypedTrees {
         &self.typed
     }
@@ -165,6 +175,7 @@ impl CheckingInput for checked_trees::CheckedTrees {
 /// or nesting contexts preserves memos without installing ambient state.
 pub struct CheckingContext<'program> {
     program: &'program TypedTrees,
+    retained_borrows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
     prepared_mathematics:
@@ -176,9 +187,22 @@ pub struct CheckingContext<'program> {
 }
 
 impl<'program> CheckingContext<'program> {
+    /// Change the explicit declaration input before any flow-dependent memo is
+    /// built. These dependencies constrain lifetimes; they supply no address.
+    pub fn with_retained_borrow_custodies(
+        mut self,
+        rows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
+    ) -> Self {
+        self.retained_borrows = rows;
+        self.memos = CheckingMemos::default();
+        self.call_frame_tables = OnceLock::new();
+        self
+    }
+
     pub fn new(program: &'program TypedTrees) -> Self {
         Self {
             program,
+            retained_borrows: Arc::from([]),
             finalized_selections: None,
             prepared_effects: None,
             prepared_mathematics: None,
@@ -225,6 +249,7 @@ impl<'program> CheckingContext<'program> {
         }
         CheckingContext {
             program: self.program,
+            retained_borrows: self.retained_borrows.clone(),
             finalized_selections: self.finalized_selections,
             prepared_effects: Some(plans),
             prepared_mathematics: self.prepared_mathematics,
@@ -256,7 +281,6 @@ impl<'program> CheckingContext<'program> {
         self.memos = self.memos.retain_typed_tree_memos();
         self
     }
-
 }
 
 impl fmt::Debug for CheckingContext<'_> {
@@ -277,6 +301,10 @@ impl Deref for CheckingContext<'_> {
 }
 
 impl CheckingInput for CheckingContext<'_> {
+    fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
+        &self.retained_borrows
+    }
+
     fn typed_program(&self) -> &TypedTrees {
         self.program
     }
@@ -349,7 +377,6 @@ impl<'input> CheckingProjection<'input> {
             projected
         })
     }
-
 }
 
 impl Deref for CheckingProjection<'_> {
@@ -361,6 +388,10 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
+        self.original.retained_borrow_custodies()
+    }
+
     fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {
         match &self.projected {
             Some(projected) => projected.proof_only_classification(),

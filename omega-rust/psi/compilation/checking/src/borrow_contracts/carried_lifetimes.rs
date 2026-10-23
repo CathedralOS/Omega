@@ -9,6 +9,8 @@ use checked_trees::BorrowLoanOwnerSegment as BorrowOwnerSegment;
 
 #[derive(Clone)]
 pub(super) struct CarriedLifetime {
+    pub(super) lifetime_only: bool,
+    pub(super) retained_contract: bool,
     pub(super) reference: TypeReferenceHandle,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) lifetime: Option<RegionIdentity>,
@@ -522,6 +524,8 @@ fn collect_type(
                 return false;
             }
             output.push(CarriedLifetime {
+                lifetime_only: false,
+                retained_contract: false,
                 reference,
                 owner_path: owner_path.to_vec(),
                 lifetime: lifetime.as_ref().map(|lifetime| {
@@ -577,17 +581,38 @@ fn collect_type(
             }
             complete
         }
-        TypeReferenceNode::Constrained { base_type, .. } => collect_type(
-            program,
-            *base_type,
-            lifetimes,
-            types,
-            owner_path,
-            visiting,
-            output,
-            whole_elided_contract,
-            template,
-        ),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let first = output.len();
+            let complete = collect_type(
+                program,
+                *base_type,
+                lifetimes,
+                types,
+                owner_path,
+                visiting,
+                output,
+                whole_elided_contract,
+                template,
+            );
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                    && program
+                        .retained_borrow_custodies()
+                        .iter()
+                        .any(|custody| custody.retained_semantic_domain == domain.semantic_id)
+                {
+                    for leaf in &mut output[first..] {
+                        if leaf.lifetime_only && leaf.owner_path == owner_path {
+                            leaf.retained_contract = true;
+                        }
+                    }
+                }
+            }
+            complete
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length,
@@ -638,6 +663,8 @@ fn collect_type(
                     path.push(BorrowOwnerSegment::FixedIndex(element_index));
                     path.extend_from_slice(&leaf.owner_path);
                     output.push(CarriedLifetime {
+                        lifetime_only: leaf.lifetime_only,
+                        retained_contract: leaf.retained_contract,
                         reference: leaf.reference,
                         owner_path: path,
                         lifetime: leaf.lifetime.clone(),
@@ -690,6 +717,36 @@ fn collect_type(
         } => {
             if whole_elided_contract {
                 return false;
+            }
+            // A checked retained nominal carrier constrains its source lifetime
+            // without containing a pointer. A phantom lifetime alone does not.
+            if template.frontier != LifetimeFrontier::WriteOnlyAuthority
+                && let Some(custody) = program
+                    .retained_borrow_custodies()
+                    .iter()
+                    .find(|custody| custody.result_data == *base_symbol)
+                && let Some(lifetime) =
+                    lifetime_arguments.get(custody.result_lifetime_argument_ordinal as usize)
+            {
+                output.push(CarriedLifetime {
+                    lifetime_only: true,
+                    retained_contract: false,
+                    reference,
+                    owner_path: owner_path.to_vec(),
+                    lifetime: Some(
+                        lifetimes
+                            .iter()
+                            .rev()
+                            .find_map(|(parameter, actual)| {
+                                (parameter == lifetime.as_str()).then_some(actual.clone())
+                            })
+                            .unwrap_or_else(|| {
+                                RegionIdentity::Declared(lifetime.as_str().to_owned())
+                            }),
+                    ),
+                    access: language_semantics::ReferenceAccess::Shared,
+                    source: super::ViewReturnInputSource::Stored,
+                });
             }
             // Preparation owns the nominal field substitution. Its fields
             // already live in the application's supplying scope: retain the
@@ -836,6 +893,24 @@ fn collect_type(
                 }
                 return false;
             };
+            // Erasing a nominal application's region at a binding preserves
+            // its obligation; the initializer still supplies the exact source.
+            if template.frontier != LifetimeFrontier::WriteOnlyAuthority
+                && program
+                    .retained_borrow_custodies()
+                    .iter()
+                    .any(|custody| custody.result_data == definition.symbol)
+            {
+                output.push(CarriedLifetime {
+                    lifetime_only: true,
+                    retained_contract: false,
+                    reference,
+                    owner_path: owner_path.to_vec(),
+                    lifetime: None,
+                    access: language_semantics::ReferenceAccess::Shared,
+                    source: super::ViewReturnInputSource::Stored,
+                });
+            }
             if whole_elided_contract
                 && (!definition.type_parameters.is_empty()
                     || !definition.lifetime_parameters.is_empty())

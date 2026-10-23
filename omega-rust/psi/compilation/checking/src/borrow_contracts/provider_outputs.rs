@@ -95,7 +95,7 @@ pub fn resolve_provider_outputs(
             subject: format!("input `{}`", parameter.name),
         })?;
         template_dependent |= leaves.template_dependent;
-        for leaf in leaves.leaves {
+        for leaf in leaves.leaves.into_iter().filter(|leaf| !leaf.lifetime_only) {
             inputs.push((parameter_index, parameter, leaf));
         }
     }
@@ -109,7 +109,7 @@ pub fn resolve_provider_outputs(
         )
         .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure { subject })?;
         template_dependent |= leaves.template_dependent;
-        for leaf in leaves.leaves {
+        for leaf in leaves.leaves.into_iter().filter(|leaf| !leaf.lifetime_only) {
             let matching: Vec<_> = inputs
                 .iter()
                 .filter(|(_, _, input)| {

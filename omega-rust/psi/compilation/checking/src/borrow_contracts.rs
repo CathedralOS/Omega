@@ -60,6 +60,8 @@ pub enum ViewReturnSource {
 
 #[derive(Debug, Clone)]
 pub struct ViewReturnFieldSource {
+    /// A retained lifetime obligation, never a runtime pointer or access grant.
+    pub lifetime_only: bool,
     pub owner_path: Vec<BorrowOwnerSegment>,
     pub source_path: Vec<BorrowOwnerSegment>,
     pub source: ViewReturnInputSource,
@@ -181,6 +183,32 @@ pub fn resolve_applied_signature_view_return_source(
     scope_starts: &[usize],
     argument_owner: SymbolHandle,
 ) -> ViewReturnSource {
+    // An admitted foreign retention contract is the producer of a logical
+    // loan. A nominal lifetime slot alone cannot borrow an unrelated input.
+    if let Some(custody) = program
+        .retained_borrow_custodies()
+        .iter()
+        .find(|custody| custody.callable == signature.symbol)
+        && let language_semantics::content::ContentPlaceRoot::Parameter { position, .. } =
+            &custody.source.root
+        && custody.source.segments.is_empty()
+        && custody.result.segments.is_empty()
+        && let Some(parameter) = program
+            .state_signature_parameters(signature)
+            .get(*position as usize)
+    {
+        return ViewReturnSource::Fields {
+            fields: vec![ViewReturnFieldSource {
+                lifetime_only: true,
+                owner_path: Vec::new(),
+                source_path: Vec::new(),
+                source: ViewReturnInputSource::Referent,
+                source_type: parameter.type_reference,
+                parameter_index: *position as usize,
+                kind: checked_trees::BorrowAccessKind::Read,
+            }],
+        };
+    }
     if signature.lifetime_parameters.is_empty() {
         return resolve_substituted_view_return_source(
             program,
@@ -276,7 +304,11 @@ fn structural_frontier_return_source(
 ) -> ViewReturnSource {
     // Retain historical source-free output handling. A carrier input containing
     // one reference is now the same single-source elision case as a bare ref.
-    if inputs.is_empty() && outputs.iter().all(|output| output.lifetime.is_none()) {
+    if inputs.is_empty()
+        && outputs
+            .iter()
+            .all(|output| output.lifetime_only || output.lifetime.is_none())
+    {
         return ViewReturnSource::NotApplicable;
     }
     let mut fields = Vec::new();
@@ -284,13 +316,23 @@ fn structural_frontier_return_source(
         let matching = inputs
             .iter()
             .filter(|(_, _, input)| {
-                output
+                (if output.lifetime_only {
+                    input.lifetime_only || output.retained_contract
+                } else {
+                    !input.lifetime_only
+                }) && output
                     .lifetime
                     .as_ref()
                     .is_none_or(|lifetime| input.lifetime.as_ref() == Some(lifetime))
             })
             .collect::<Vec<_>>();
         let Some(first) = matching.first() else {
+            // A nominal lifetime slot describes where an actual retained loan
+            // would travel. It does not create one for a raw constructed value.
+            // Body escape checking still inspects every captured returned loan.
+            if output.lifetime_only {
+                continue;
+            }
             return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
                 lifetime: match output.lifetime {
                     Some(carried_lifetimes::RegionIdentity::Declared(name)) => name,
@@ -322,6 +364,7 @@ fn structural_frontier_return_source(
         }
         for (index, parameter, input) in matching {
             fields.push(ViewReturnFieldSource {
+                lifetime_only: output.lifetime_only,
                 owner_path: output.owner_path.clone(),
                 source_path: input.owner_path.clone(),
                 source: input.source,
@@ -426,7 +469,7 @@ pub(crate) fn input_write_only_access(
 }
 
 /// Every structural projection within `type_reference` that carries a
-/// reference. Persistent-storage checking uses this frontier to prove that a
+/// reference or nonspatial lifetime dependency. Persistent-storage checking uses this frontier to prove that a
 /// place copied as a whole is backed only by static storage even when its
 /// borrowed leaves were established by separate field writes.
 ///
@@ -467,4 +510,19 @@ fn data_definition(
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     program.data_definition_by_symbol(symbol)
+}
+
+/// Nonspatial obligations retained by an admitted nominal carrier. Incomplete
+/// frontiers remain incomplete and must not be interpreted as a pointer roster.
+pub fn retained_lifetime_owner_paths(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<Vec<BorrowOwnerSegment>>> {
+    carried_lifetimes(program, reference).map(|leaves| {
+        leaves
+            .into_iter()
+            .filter(|leaf| leaf.lifetime_only)
+            .map(|leaf| leaf.owner_path)
+            .collect()
+    })
 }

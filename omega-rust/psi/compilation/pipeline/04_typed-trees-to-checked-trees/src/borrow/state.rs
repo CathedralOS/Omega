@@ -379,6 +379,47 @@ fn append_incoming_reference_trackers(
         .iter()
         .filter(|parameter| !parameter.is_const && !parameter.relevance.is_erased())
     {
+        // A retained token's ingress identity carries a region, not a pointer.
+        // Generic incomplete frontiers keep their ordinary deferred admission;
+        // each closed execution body establishes its complete loan frontier.
+        if let Some(paths) = validation::borrow_contracts::retained_lifetime_owner_paths(
+            program,
+            parameter.type_reference,
+        ) {
+            for owner_path in paths {
+                let path = arenas
+                    .owner_segments
+                    .insert_many(owner_path.iter().copied());
+                let incoming_reference =
+                    arenas
+                        .incoming_references
+                        .append(checked_trees::IncomingReferenceIdentity {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            origin: checked_trees::IncomingReferenceOrigin::Parameter {
+                                symbol: parameter.symbol,
+                            },
+                            carrier_type: parameter.type_reference,
+                            owner_path: path,
+                        });
+                trackers.push(StateLoanTracker {
+                    handle: arena::Handle::invalid(),
+                    owner_symbol: parameter.symbol,
+                    storage_owner: facts::PlaceRoot::Symbol(parameter.symbol),
+                    owner_name: parameter.name.clone(),
+                    kind: checked_trees::BorrowAccessKind::Read,
+                    lineage: checked_trees::BorrowLoanLineage::LifetimeDependency,
+                    call_result: false,
+                    owner_path,
+                    retained_operand: None,
+                    place: checked_trees::CapturedPlace {
+                        incoming_reference,
+                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                        segments: Vec::new(),
+                    },
+                });
+            }
+        }
         // The root reference's permission is the existing borrowed parameter
         // contract. Its referent may also contain independently carried leaves.
         let Some(carrier) = validation::reference_result_custody::input_carrier_type(

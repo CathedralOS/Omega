@@ -25,6 +25,10 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
+        self.input.retained_borrow_custodies()
+    }
+
     fn typed_program(&self) -> &TypedTrees {
         self.input.typed_program()
     }

@@ -420,6 +420,52 @@ pub(super) fn proves_composed_exit(
         })
 }
 
+/// Admit declaration-level foreign retention before building the caller loan
+/// graph. Completion, conservation and actual call facts remain later checks.
+pub(crate) fn prepare_retained_content_custody(
+    program: &dyn ::validation::CheckingInput,
+    content: checked_trees::ContentProjectionFacts,
+) -> Result<checked_trees::ContentProjectionFacts, Vec<Diagnostic>> {
+    let mut facts = CheckFacts {
+        qualifications: checked_trees::QualificationFacts {
+            content,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut rows = Vec::new();
+    let mut diagnostics = Vec::new();
+    for definition in program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+    {
+        for signature in program.trait_machine_signatures(definition) {
+            let contracts = program
+                .state_signature_contracts(signature)
+                .iter()
+                .collect::<Vec<_>>();
+            check_callable(
+                program,
+                &facts,
+                &format!("{}::{}", definition.name, signature.name),
+                signature.symbol,
+                &signature.lifetime_parameters,
+                program.state_signature_parameters(signature),
+                signature.return_type,
+                &contracts,
+                &mut diagnostics,
+                &mut rows,
+            );
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    facts.qualifications.content.retained_borrow_custodies = rows;
+    Ok(facts.qualifications.content)
+}
+
 pub(crate) fn check_retained_content_custody(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
@@ -448,18 +494,20 @@ pub(crate) fn check_retained_content_custody(
                 .state_signature_contracts(signature)
                 .iter()
                 .collect::<Vec<_>>();
-            check_callable(
-                program,
-                facts,
-                &format!("{}::{}", trait_definition.name, signature.name),
-                signature.symbol,
-                &signature.lifetime_parameters,
-                program.state_signature_parameters(signature),
-                signature.return_type,
-                &contracts,
-                &mut diagnostics,
-                &mut retained_borrow_custodies,
-            );
+            {
+                check_callable(
+                    program,
+                    facts,
+                    &format!("{}::{}", trait_definition.name, signature.name),
+                    signature.symbol,
+                    &signature.lifetime_parameters,
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    &contracts,
+                    &mut diagnostics,
+                    &mut retained_borrow_custodies,
+                );
+            }
             if trait_definition.is_boundary {
                 check_boundary_partition_results(
                     program,
@@ -506,6 +554,8 @@ pub(crate) fn check_retained_content_custody(
     });
 
     if diagnostics.is_empty() {
+        // Repeat the declaration judgment with the admitted retention frontier:
+        // a retained input can no longer masquerade as independent owned supply.
         facts.qualifications.content.retained_borrow_custodies = retained_borrow_custodies;
         Ok(())
     } else {

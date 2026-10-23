@@ -51,16 +51,18 @@ pub(super) fn completed_sources(
     target: SymbolHandle,
     fields: Vec<ViewReturnFieldSource>,
 ) -> Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
-    match completed_field_sources(program, target, &fields, None) {
+    let (dependencies, fields): (Vec<_>, Vec<_>) =
+        fields.into_iter().partition(|field| field.lifetime_only);
+    let mut sources = match completed_field_sources(program, target, &fields, None) {
         Some(Ok(sources)) => sources,
-        // A contradictory body is rejected by the mandatory declaration check.
-        // It must not manufacture loans from the signature fallback meanwhile.
         Some(Err(_)) => Vec::new(),
         None => fields
             .into_iter()
             .map(|field| (field, Vec::new()))
             .collect(),
-    }
+    };
+    sources.extend(dependencies.into_iter().map(|field| (field, Vec::new())));
+    sources
 }
 
 /// Compare actual normal-return captures with the declaration's lifetime
@@ -75,6 +77,7 @@ pub(crate) fn returned_body_source_mismatch(
     let fields = match resolve_view_return_source(program, state) {
         ViewReturnSource::Fields { fields } => fields,
         ViewReturnSource::Parameter { parameter_index } => vec![ViewReturnFieldSource {
+            lifetime_only: false,
             source: validation::borrow_contracts::ViewReturnInputSource::Referent,
             owner_path: Vec::new(),
             source_path: Vec::new(),
@@ -515,7 +518,9 @@ pub(super) fn relative_result_loans(
                 retained.formation_expression = expression;
             }
             loan.call_result = true;
-            loan.lineage = if loan.source_owner_symbol.is_valid() {
+            loan.lineage = if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
+                checked_trees::BorrowLoanLineage::LifetimeDependency
+            } else if loan.source_owner_symbol.is_valid() {
                 checked_trees::BorrowLoanLineage::UnretainedDerived
             } else {
                 checked_trees::BorrowLoanLineage::DirectRoot

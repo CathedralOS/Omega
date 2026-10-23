@@ -301,3 +301,5 @@ pub(crate) fn arithmetic_spelling(operator: BinaryOperator) -> Option<OperatorSp
         _ => None,
     }
 }
+
+pub(crate) use content::prepare_retained_content_custody;

@@ -318,6 +318,8 @@ fn frontier_sources(
                     ordinal,
                     parameter,
                     CarriedLifetime {
+                        lifetime_only: leaf.lifetime_only,
+                        retained_contract: leaf.retained_contract,
                         reference: leaf.reference,
                         owner_path: leaf.owner_path.clone(),
                         lifetime: leaf.lifetime.clone(),
