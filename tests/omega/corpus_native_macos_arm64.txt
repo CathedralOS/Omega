@@ -2266,6 +2266,15 @@ pass/facts/stack_frame_slot_isolation_through_other_machine_exit built 12924ms e
 pass/facts/stack_frame_slot_isolation_through_other_state_exit built 12927ms exit:0 @952bc99fb970
 pass/facts/stack_frame_slot_isolation_through_parameter_exit built 12885ms exit:0 @952bc99fb970
 pass/facts/stack_frame_slot_isolation_through_target_body_exit built 12978ms exit:0 @952bc99fb970
+pass/facts/state_transition_ranking_bound_through_call_result_exit built 3787ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_const_name_exit built 3991ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_field_exit built 4518ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_local_exit built 2445ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_match_join_exit built 2138ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_other_machine_exit built 2481ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_other_state_exit built 2926ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_parameter_exit built 5002ms exit:0 @9d9ba4fb6251+wt
+pass/facts/state_transition_ranking_bound_through_target_body_exit built 4753ms exit:0 @9d9ba4fb6251+wt
 pass/facts/target_recursive_bound_through_call_result_exit built 1994ms exit:0 @e2a6d051c734+wt
 pass/facts/target_recursive_bound_through_const_name_exit built 1738ms exit:0 @e2a6d051c734+wt
 pass/facts/target_recursive_bound_through_field_exit built 2141ms exit:0 @e2a6d051c734+wt
