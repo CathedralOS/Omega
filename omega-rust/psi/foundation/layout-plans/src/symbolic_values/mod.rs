@@ -259,7 +259,7 @@ impl SymbolicFieldValue {
 /// complete compiler-derived plan, or one conventional sum's tag/case
 /// overlay — pure or mixed common-field/case. A nested record's member
 /// offsets and a conventional sum's case/payload geometry are
-/// compiler-derived interior geometry shared with typed-owned encoding, not
+/// compiler-derived interior geometry shared with value encoding, not
 /// policy-chosen placements, so the flat outer [`LayoutPlanReport`]
 /// deliberately carries neither. The kind of interior the field stores is
 /// data on the carrier, not a separate carrier family.

@@ -51,7 +51,6 @@ mod placed_plans;
 pub(crate) mod retained_prefix;
 mod selection_exclusions;
 pub use selection_exclusions::AuthoredSelectionExclusions;
-pub mod sum_reachability;
 mod trait_and_machine_tables;
 mod type_reference_queries;
 pub mod type_system;

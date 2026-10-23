@@ -515,7 +515,7 @@ impl ConstantCalls for Invocation<'_> {
             {
                 // The interpreter carries floats in f64 storage, but that is
                 // not permission to round an incorrectly landed f32 result.
-                // As in ConstMaterializable, NaN needs exact realization
+                // As in literal materialization, NaN needs exact realization
                 // custody before an evaluator choice can enter image bytes.
                 if value.is_nan() {
                     return Err(
