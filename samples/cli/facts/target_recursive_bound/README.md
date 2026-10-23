@@ -13,12 +13,37 @@ bodies share the contract; all four must check in every compilation.
 Each positive binds all four hosted `ProgramEntry` targets and has exit 0 as its
 oracle. Each `invalid/` twin changes only the supplied bound from 60 to 61 and
 must reject the required `value <= 60` fact. The pass/fail copies under
-`tests/omega/{pass,fail}/facts/target_recursive_bound_through_*` pin the same row.
+`tests/omega/pass/facts/target_recursive_bound_through_<place>_exit` and
+`tests/omega/fail/facts/target_recursive_bound_through_<place>_rejected` pin
+the same row, byte-identical to the place programs.
 
-On the fresh e2a6d051c734 baseline, all nine positives reject with the same
-NON-TAIL self-recursion diagnostic. Target-neutral copies of the same recursion
-check; target-scoped copies do not. The failure is premature normalization before
-calls bind to the exact target-body declaration, not a new source-language rule.
+## Measured run record
+
+Host macOS arm64 (Jarod's Mac mini), worktree base `9d9ba4fb625`, shared
+generation producer `build/swarm/factsr1/producers/gen-9d9ba4fb625` (omega
+sha256 `5a2fde4a3a91`, corpus_runner sha256 `98a455599b4d`, opt_level 1):
+
+- All nine positives, `omega run --both <place>/main.omg`: `native exit 0` and
+  `interp exit: 0`.
+- All nine twins, `omega --check <place>/invalid/main.omg`: exit 1 with the
+  authored `expected.txt` fragments `violates required fact` and
+  `value <= 60`.
+- Corpus legs recorded at `9d9ba4fb625+wt`: nine `checked` rows carrying
+  `check-target:macos_arm64`, nine `rejected` rows carrying the diagnostics
+  above, nine native `built ... exit:0` rows, and nine both-leg rows with
+  `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
+
+The nine reject fixture families were renamed from the bare
+`target_recursive_bound_through_<place>` shape to the canonical
+`target_recursive_bound_through_<place>_rejected` names; fixture bytes are
+unchanged.
+
+On the fresh `e2a6d051c734` baseline, all nine positives rejected with the same
+NON-TAIL self-recursion diagnostic while target-neutral copies of the same
+recursion checked: recursive-tail normalization ran before calls bound to the
+exact target-body declaration. The repair (`8fa2ea70ef0`, one normalization
+phase after final binding) is in this row's history; all nine places have
+checked and executed at native and Terminal exit 0 since.
 
 ## Contracts and evidence
 

@@ -26,13 +26,36 @@ obligation. It does not demonstrate physical initialization or retirement.
 Each twin changes only the `Observed` alias from `Issued` to the independently
 routed `Other`. It must reject with `cannot mint routed provenance` at the view,
 not because an issuer declaration, import or entry binding is malformed.
-Fixtures are pinned under `tests/omega/{pass,fail}/facts/shared_qualification_erasure_*`.
+Fixtures are pinned as
+`tests/omega/pass/facts/shared_qualification_erasure_through_<place>_exit`
+(byte-identical to `<place>/main.omg`) and
+`tests/omega/fail/facts/shared_qualification_erasure_through_<place>_rejected`
+(byte-identical to `<place>/invalid/main.omg`).
 
 Run each positive with `omega run --both <place>/main.omg` and each twin with
 `omega --check <place>/invalid/main.omg`. All four hosted targets have entry
 bindings; the recorded native/Terminal executions are on macOS arm64. Bindings
 alone do not establish execution on the other hosts. Producer identities and
 observations belong in the qualification/claim record.
+
+## Measured run record
+
+Host macOS arm64 (Jarod's Mac mini), worktree base `9d9ba4fb625`, shared
+generation producer `build/swarm/factsr1/producers/gen-9d9ba4fb625` (omega
+sha256 `5a2fde4a3a91`, corpus_runner sha256 `98a455599b4d`, opt_level 1):
+
+- All nine positives, `omega run --both <place>/main.omg`: `native exit 0` and
+  `interp exit: 0`.
+- All nine twins, `omega --check <place>/invalid/main.omg`: exit 1 with
+  `a qualification reference view must retain existing source qualifications; as cannot mint routed provenance` at the view.
+- Corpus legs recorded at `9d9ba4fb625+wt`: nine `checked` rows carrying
+  `check-target:macos_arm64`, nine `rejected` rows carrying the diagnostic
+  above, nine native `built ... exit:0` rows, and nine both-leg rows with
+  `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
+
+The fixture families were renamed from the bare `<fact>_<place>` shape to the
+canonical `<fact>_through_<place>_{exit,rejected}` names; fixture bytes are
+unchanged.
 
 ## Requirements and evidence
 
