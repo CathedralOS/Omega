@@ -1,0 +1,38 @@
+// Fact: 8-bit unsigned wrapping subtraction lhs -% rhs with bounded interval 60u8 <= diff <= 160u8 establishes 60u8 <= diff <= 160u8 across all nine places so exact subtractions 160u8 - diff and diff - 60u8 are safe.
+// Place: call result (invalid twin). The lhs upper bound is widened to 181u8 so diff reaches 161u8, causing contract verification for verify_diff to fail closed.
+// Expected diagnostic: cannot prove requires contract for call verify_diff
+
+machine verify_diff(value: u8) -> u8 requires value >= 60u8 && value <= 160u8 {
+    let headroom: u8 = 160u8 - value;
+    let margin: u8 = value - 60u8;
+    headroom + margin
+}
+
+machine produce_diff(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 181 && rhs >= 20 && rhs <= 40
+{
+    let a: u8 in Wrapping = lhs as u8 in Wrapping;
+    let b: u8 in Wrapping = rhs as u8 in Wrapping;
+    let wrap_diff: u8 in Wrapping = a - b;
+    wrap_diff as u8
+}
+
+machine wrap_call_result(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 181 && rhs >= 20 && rhs <= 40
+{
+    let diff: u8 = produce_diff(lhs, rhs);
+    verify_diff(diff)
+}
+
+machine probe() -> u8 {
+    wrap_call_result(140u8, 30u8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

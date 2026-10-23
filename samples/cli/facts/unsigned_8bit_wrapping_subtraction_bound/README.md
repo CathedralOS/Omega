@@ -64,6 +64,24 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call`).
 
+## Pinned Corpus Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_<place>_exit`
+and
+`tests/omega/fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_<place>_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`, the
+place's `build.omg` (binding `ProgramEntry` for all four hosted targets) and
+`expected_native_exit.txt` (`0`); it records native exit 0 with Terminal Psi
+agreement. Each reject twin is a byte-identical copy of its
+`<place>/invalid/main.omg` and `build.omg`; the twin widens only the `lhs` upper
+bound (`<= 180u8` -> `<= 181u8`, so `diff` can reach `161u8 > 160u8`) and pins
+`cannot prove requires contract for call` in `expected.txt`, the common prefix of
+the nine corpus-runner-emitted diagnostics (`verify_diff` for local, field,
+call result, match join, const name and another target body; `consume_param` for
+the parameter place; `step` for another state; `forward_wrap` for another
+machine).
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
@@ -74,7 +92,7 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Establishment:** Compile-time interval analysis synthesizes the exact range `[60, 160]` for `wrap_diff = a - b` in domain `u8 in Wrapping` from input intervals `[100, 180]` and `[20, 40]`. The synthesized bounds prove `diff >= 60u8` and `diff <= 160u8` unconditionally and guarantee difference fits within `u8` (`>= 0 && <= 255`), discharging the precondition of `verify_diff` and forming exact subtractions `160u8 - diff` and `diff - 60u8` directly without requiring post-hoc caller equality guards.
   - **Identity and lifetime:** The 8-bit unsigned minuend, subtrahend, and wrapping difference interval bounds retain their precision, unsigned representation, domain tag, and interval invariants across copies into local variables, record fields (`WrapPacket`, `DiffBox`), explicit machine parameters, helper call returns, match join arms, named constants, state transitions, forwarding machines, and target-scoped bodies.
   - **Composition:** The 8-bit unsigned wrapping subtraction composes through all 9 fact places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming verification operation, evaluating to `100u8` across all 9 places. In every place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ strictly in the operand bound (`lhs <= 180u8` vs `lhs <= 181u8`).
-  - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed during compile-time proof obligation checking when `lhs <= 181u8`: interval synthesis establishes `diff in [60, 161]`, so precondition `value <= 160` on the consuming call fails proof. Compilation strictly rejects with `cannot prove requires contract for call`. No unproved out-of-contract call reaches native execution.
+  - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed during compile-time proof obligation checking when `lhs <= 181u8`: interval synthesis establishes `diff in [60, 161]`, so precondition `value <= 160` on the consuming call fails proof. The corpus check route records each of the nine as `rejected` with the pinned `cannot prove requires contract for call` fragment satisfied, and `omega run --both` refuses at checking (exit 200). No unproved out-of-contract call reaches native execution.
   - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Target-neutral 8-bit unsigned wrapping subtraction and exact subtraction contracts lower into canonical target-neutral Terminal Psi (`PSITERM\0`), materializing explicit `WrappingIntegerSubtract` operations while certifying exact integer arithmetic certificates. All 10 positive entries execute in the Terminal Psi interpreter (`omega run --both`), agreeing with native exit 0.
   - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) through companion build declarations without reopening source. The 8-bit stored width (1 byte, align 1) for `u8` and record layouts (`WrapPacket` size 2, align 1; `DiffBox` size 1, align 1) validate against target layout plans. Target `CallPlan`/`StatePlan` assign 8-bit arguments and return values to 8-bit register lanes or stack slots per platform ABI.
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA 8-bit wrapping subtraction sequences (`sub r8, r8` / `sub al, cl` with modulo 256 byte truncation on `x86_64`, `sub w, w, w` with 8-bit zero-extension mask `uxtb` on `arm64`), register allocators assign homes and activation spill slots, and entry prologues and epilogues honor the `StatePlan` ceiling.

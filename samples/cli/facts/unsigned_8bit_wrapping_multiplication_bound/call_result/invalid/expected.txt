@@ -1,1 +1,1 @@
-rejection: compile-error
+cannot prove ensures contract for exit from produce_prod

@@ -1,0 +1,35 @@
+// Fact: 8-bit unsigned wrapping subtraction lhs -% rhs with bounded interval 60u8 <= diff <= 160u8 establishes 60u8 <= diff <= 160u8 across all nine places so exact subtractions 160u8 - diff and diff - 60u8 are safe.
+// Place: local. The 8-bit operands are copied into locals before wrapping subtraction and verification.
+// Expected exit: 0
+
+machine verify_diff(value: u8) -> u8 requires value >= 60u8 && value <= 160u8 {
+    let headroom: u8 = 160u8 - value;
+    let margin: u8 = value - 60u8;
+    headroom + margin
+}
+
+machine wrap_local(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let local_lhs: u8 = lhs;
+    let local_rhs: u8 = rhs;
+    let a: u8 in Wrapping = local_lhs as u8 in Wrapping;
+    let b: u8 in Wrapping = local_rhs as u8 in Wrapping;
+    let wrap_diff: u8 in Wrapping = a - b;
+    let diff: u8 = wrap_diff as u8;
+    let loc: u8 = diff;
+    verify_diff(loc)
+}
+
+machine probe() -> u8 {
+    wrap_local(140u8, 30u8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
