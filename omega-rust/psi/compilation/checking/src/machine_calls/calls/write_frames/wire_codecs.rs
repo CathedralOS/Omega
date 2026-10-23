@@ -1,16 +1,16 @@
 //! Write frames of compiler-synthesized wire codec calls.
 //!
 //! `Schema::encode(&value, &mut out, &mut written)` and
-//! `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` have no
-//! machine body to walk and no parameter list to instantiate: a wire schema
-//! exposes only the two entry names (`WIRE_ENCODE_MACHINE_NAME` and
+//! `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` may reach
+//! checking before a generated body is available. Their schema contract
+//! exposes the two entry names (`WIRE_ENCODE_MACHINE_NAME` and
 //! `WIRE_DECODE_MACHINE_NAME`), and the custody validator pins the argument
 //! contract. The type-name receiver is a declaration, not storage, so the
 //! ownership floor's receiver-poisoning fallback would name `Schema` as a
 //! written place and make the whole state frame opaque. This leaf derives the
-//! frame from each argument's authored access instead: every exclusively
-//! borrowed place is written, a shared borrow reads only, and any other
-//! argument spelling stays opaque rather than guessed.
+//! frame from declared access and proven reference origins. Every exclusive
+//! referent is written; shared references read only. The caller closes symbolic
+//! paths over retained binding history, and unknown origins stay opaque.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::inference::FrameInference;
@@ -33,10 +33,9 @@ pub(super) fn is_wire_codec_call(program: &dyn crate::CheckingInput, call: &Tabl
 
 /// The caller-visible places a synthesized codec call may write: the target
 /// of every exclusively borrowed argument and the proven referent set of
-/// every bound exclusive-reference argument, in argument order, deduplicated.
-/// `None` is opaque: an argument that is not a borrowed place or a bound
-/// exclusive reference, or whose referent set cannot be spelled, is outside
-/// the contract this leaf models.
+/// every exclusive-reference value, in argument order, deduplicated.
+/// `None` is opaque: type evidence without proven reference origins cannot
+/// establish non-interference.
 pub(super) fn known_wire_codec_call_written_paths(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -60,76 +59,62 @@ pub(super) fn known_wire_codec_call_written_paths(
                     written.push(path);
                 }
             }
-            // A bound reference moved into the codec writes through its
-            // referents only when the binding's declared access is exclusive;
-            // a shared reference reads without writing. The referents come
-            // from the same finite candidate set ordinary calls substitute
-            // with, so an unproven binding keeps the call opaque rather than
-            // guessing. A member or indexed spelling stays out: an interior
-            // reference load needs its own load evidence, not the enclosing
-            // carrier's path.
-            ExpressionNode::Name(_) => {
+            // A reference value has the same write footprint in a binding,
+            // an owned field/array, or a helper result. Declarations establish
+            // access; the shared resolver establishes the stored reference
+            // leaf and its origins. Loads behind another reference still
+            // require separate evidence and remain opaque.
+            _ => {
                 let (state, _, _) = caller_statement_at_site(
                     program,
                     current_machine,
                     symbols,
                     CallerWriteSite::Call(call),
                 )?;
-                let access = crate::value_custody::places::declared_reference_access(
-                    program,
-                    declared_place_type_raw(program, current_machine, Some(state), *argument)?,
-                )?;
-                if !access.is_exclusive() {
+                let access =
+                    declared_place_type_raw(program, current_machine, Some(state), *argument)
+                        .and_then(|reference| {
+                            crate::value_custody::places::declared_reference_access(
+                                program, reference,
+                            )
+                        });
+                if access.is_some_and(|access| !access.is_exclusive()) {
                     continue;
                 }
-                for origin in stable_alias_place_origins(
-                    program,
-                    *argument,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    true,
-                )? {
+                // A stable binding may carry a finite union in the caller's
+                // prefix. Projections use the shared declared-leaf resolver.
+                let binding = program
+                    .expression_table
+                    .name_path_node(*argument)
+                    .is_some_and(|name| program.expression_table.name_path_is_single_member(name));
+                let origins = (binding && access.is_some_and(|access| access.is_exclusive()))
+                    .then(|| {
+                        stable_alias_place_origins(
+                            program,
+                            *argument,
+                            parameters,
+                            isolated_local_roots,
+                            aliases,
+                            divergent_aliases,
+                            true,
+                        )
+                    })
+                    .flatten()
+                    .or_else(|| {
+                        super::reference_origins::exclusive_reference_origins(
+                            program,
+                            current_machine,
+                            *argument,
+                            symbols,
+                            inference,
+                        )
+                    })?;
+                for origin in origins {
                     if !written.contains(&origin.path) {
                         written.push(origin.path);
                     }
                 }
             }
-            // A helper result standing between the binding and the argument
-            // is the same finite candidate set, reached one hop later. Defer
-            // to the shared reference-origin resolver rather than teaching
-            // this leaf another spelling: its `Call` arm composes the callee's
-            // result through `transparent_call_result_origins`, which keeps
-            // the exact union across arms and leaves the whole result opaque
-            // when any route cannot be resolved.
-            //
-            // Only this arm is added. A member or indexed spelling still falls
-            // through: an interior reference load needs its own load evidence,
-            // not the enclosing carrier's path.
-            // A match argument is the same finite set spelled inline instead of
-            // through a helper. The shared resolver's `Match` arm unions its
-            // arms and recurses per arm, so each arm gets the treatment its own
-            // spelling earns -- including `carried_reference_origin`, which
-            // resolves a member or indexed arm only when its ROOT is an owned
-            // carrier with a declared reference leaf and refuses a load behind
-            // another reference. That is the load evidence this leaf requires,
-            // so reaching it through the shared resolver is not a way around
-            // the exclusion below.
-            ExpressionNode::Call(_) | ExpressionNode::Match(_) => {
-                for origin in super::reference_origins::exclusive_reference_origins(
-                    program,
-                    current_machine,
-                    *argument,
-                    symbols,
-                    inference,
-                )? {
-                    if !written.contains(&origin.path) {
-                        written.push(origin.path);
-                    }
-                }
-            }
-            _ => return None,
         }
     }
     Some(written)

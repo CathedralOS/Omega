@@ -5291,6 +5291,32 @@ fail/facts/may_write_codec_argument_through_target_body_overlapping rejected 211
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_codec_through_call_result_overlapping rejected 2865ms expected @d6cf554fd1cb+wt
+	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_through_const_name_overlapping rejected 3421ms expected @d6cf554fd1cb+wt
+	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_through_field_overlapping rejected 3447ms expected @d6cf554fd1cb+wt
+	cannot prove index `bounds.other` is within length 4 in main::entry
+fail/facts/may_write_codec_through_local_overlapping rejected 3479ms expected @d6cf554fd1cb+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_codec_through_match_join_overlapping rejected 3504ms expected @d6cf554fd1cb+wt
+	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_through_other_machine_overlapping rejected 2967ms expected @d6cf554fd1cb+wt
+	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_through_other_state_overlapping rejected 3079ms expected @d6cf554fd1cb+wt
+	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_through_parameter_overlapping rejected 2992ms expected @d6cf554fd1cb+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_codec_through_target_body_overlapping rejected 4072ms expected @d6cf554fd1cb+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
 fail/facts/may_write_computed_receiver_through_call_result_overlapping rejected 7301ms expected @8128744a9d77
 	cannot prove requires contract for call kept_index from main: other.held < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/may_write_computed_receiver_through_const_name_overlapping rejected 7295ms expected @8128744a9d77
@@ -10663,6 +10689,11 @@ fail/types/storage_address_not_portable_constant rejected 47ms expected @78d7769
 fail/types/unknown_data_binder_carrier rejected 2716ms expected @a9ae30e1c334+wt
 fail/types/unknown_machine_binder_carrier rejected 2890ms expected @a9ae30e1c334+wt
 fail/types/usize_rejected rejected 2644ms expected @a9ae30e1c334+wt
+fail/wire/codec_reference_array_overlapping rejected 2598ms expected @d6cf554fd1cb+wt
+	cannot prove index `index` is within length 4 in main::entry
+fail/wire/codec_shared_cursor rejected 1073ms expected @d6cf554fd1cb+wt
+	machine `Packet::encode` state `encode_finish` assignment cannot write `written` because it is not mutable in this state (if `written` is undeclared -- a typo -- no such field or local exists)
+	machine `Packet::encode` state `encode_overflow` assignment cannot write `written` because it is not mutable in this state (if `written` is undeclared -- a typo -- no such field or local exists)
 fail/wire/field_reuses_reserved_number rejected 4ms expected @a9ae30e1c334+wt
 fail/wire/layout_domain_on_stored_bytes rejected 2890ms expected @a9ae30e1c334+wt
 fail/wire/proof_only_wire_field_rejected rejected 2725ms expected @a9ae30e1c334+wt
@@ -13812,6 +13843,15 @@ pass/facts/may_write_codec_argument_through_other_machine_exit checked 3593ms ch
 pass/facts/may_write_codec_argument_through_other_state_exit checked 2999ms check-target:macos_arm64 @60171e6cb5bb+wt
 pass/facts/may_write_codec_argument_through_parameter_exit checked 3357ms check-target:macos_arm64 @60171e6cb5bb+wt
 pass/facts/may_write_codec_argument_through_target_body_exit checked 3122ms check-target:macos_arm64 @60171e6cb5bb+wt
+pass/facts/may_write_codec_through_call_result_exit checked 3496ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_const_name_exit checked 3484ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_field_exit checked 3513ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_local_exit checked 3681ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_match_join_exit checked 4305ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_other_machine_exit checked 3513ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_other_state_exit checked 4248ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_parameter_exit checked 3490ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/may_write_codec_through_target_body_exit checked 3472ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/facts/may_write_computed_receiver_through_call_result_exit checked 9765ms check-target:macos_arm64 @8128744a9d77
 pass/facts/may_write_computed_receiver_through_const_name_exit checked 9702ms check-target:macos_arm64 @8128744a9d77
 pass/facts/may_write_computed_receiver_through_field_exit checked 8852ms check-target:macos_arm64 @8128744a9d77
@@ -17061,6 +17101,8 @@ pass/types/shared_borrow_retains_carrier_exit checked 10887ms check-target:linux
 pass/types/storage_address_core_name_shadowed_exit checked 13153ms check-target:linux_x86_64 @78d7769c4441
 pass/versioning/migration_generic_trait checked 7651ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/versioning/runtime_version_migration_exit checked 12425ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/wire/codec_reference_array_exit checked 3148ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/wire/codec_state_local_types_exit checked 3406ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/wire/fixed_vec_member_through_qualified_path checked 1358ms @2e35ca81c22d
 pass/wire/fixed_vec_wire_member checked 9596ms @5041ef1af684+wt
 pass/wire/numbered_case_identities checked 1594ms @a9ae30e1c334+wt

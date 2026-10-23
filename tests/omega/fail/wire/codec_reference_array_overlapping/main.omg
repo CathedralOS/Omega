@@ -1,0 +1,22 @@
+// Encoding through an owned reference field preserves a disjoint index bound.
+// Expected exit: 0
+
+data Packet { #0 value: u64; }
+data Value { value: u64; }
+data Counter<'a> { slot: &'a mut u64; }
+
+machine main() crashes Trap {
+    let mut written: u64 = 0;
+    let mut index: u64 = 1;
+    let items: [u8; 4] = [4, 7, 8, 9];
+    let sample: Value = Value { value: 200 };
+    let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let counters: [Counter; 1] = [Counter { slot: &mut index }];
+    Packet::encode(&sample, &mut buffer, counters[0].slot);
+    transition written == 4 && items[index] == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

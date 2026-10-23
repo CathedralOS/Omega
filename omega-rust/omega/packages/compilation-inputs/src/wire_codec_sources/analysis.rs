@@ -619,7 +619,20 @@ pub(super) fn collect_call_sites(
 ) {
     for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
         let state = syntax_trees.tables.items.state(*state_handle);
+        let mut bindings = HashMap::new();
+        for parameter_handle in syntax_trees.tables.items.state_parameters(state.parameters) {
+            let parameter = syntax_trees.tables.items.state_parameter(*parameter_handle);
+            bindings.insert(
+                parameter.name.as_str(syntax_trees),
+                parameter.type_reference,
+            );
+        }
         for statement_handle in syntax_trees.tables.items.statements(state.statements) {
+            if let StatementNode::LocalData(local) =
+                syntax_trees.tables.statements.statement(*statement_handle)
+            {
+                bindings.insert(local.name.as_str(syntax_trees), local.type_reference);
+            }
             let StatementNode::Call(call) =
                 syntax_trees.tables.statements.statement(*statement_handle)
             else {
@@ -641,11 +654,11 @@ pub(super) fn collect_call_sites(
                 "decode" => "decode",
                 _ => continue,
             };
-            let Some(mut arguments) =
-                render_argument_types(syntax_trees, machine, data_fields, call.arguments)
-            else {
-                continue;
-            };
+            // Unknown sites participate in agreement; omitting one could attach
+            // a signature inferred from another, unrelated occurrence.
+            let mut arguments =
+                render_argument_types(syntax_trees, &bindings, data_fields, call.arguments)
+                    .unwrap_or_default();
             // The codec's buffer position accepts any fixed byte array: the
             // intrinsic contract validates `&[u8; N]` with the decoder
             // bounds-checking reads at runtime, so the generated signature
@@ -664,60 +677,100 @@ pub(super) fn collect_call_sites(
     }
 }
 
-/// Render each call argument as the parameter type it must bind: a borrow of a
-/// named local (`&sample` -> `&BlobSample` via its `let` type), a field of a
-/// named data parameter (`&mut main.buffer` -> `&mut [u8; 64]` via
-/// `main: &mut Main`), or the declared exclusive-reference result of one
-/// same-source machine call (`choose(...) -> &mut u64`). Anything else
-/// declines so no machine binds a guessed signature.
-pub(super) fn render_argument_types(
+/// Render from declarations visible at this occurrence. Whether an operand
+/// borrows storage now or transports an existing reference does not change its
+/// parameter type. The generated callee still undergoes ordinary checking;
+/// declaration types grant neither a loan nor a storage-origin relation.
+fn render_argument_types(
     syntax_trees: &SyntaxTrees,
-    machine: &Machine,
+    bindings: &HashMap<&str, TypeReferenceHandle>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
     arguments: HandleSpan<ExpressionHandle>,
 ) -> Option<Vec<String>> {
-    let mut rendered = Vec::new();
-    for argument in syntax_trees.tables.statements.expression_handles(arguments) {
-        match syntax_trees.tables.expressions.expression(*argument) {
-            ExpressionNode::Borrow(borrow) => {
-                let access = if borrow.access.is_exclusive() {
-                    "&mut "
-                } else {
-                    "&"
-                };
-                let target = syntax_trees.tables.expressions.expression(borrow.target);
-                let base_type = match target {
-                    ExpressionNode::Name(path) => local_type(
-                        syntax_trees,
-                        machine,
-                        sole_member_name(syntax_trees, *path)?,
-                    )?,
-                    ExpressionNode::Member(member) => {
-                        // A named `&mut Data` parameter (`main.buffer` in
-                        // `main: &mut Main`) carries the field's declaration.
-                        let data_name =
-                            match syntax_trees.tables.expressions.expression(member.receiver) {
-                                ExpressionNode::Name(path) => parameter_data_name(
-                                    syntax_trees,
-                                    machine,
-                                    sole_member_name(syntax_trees, *path)?,
-                                )?,
-                                _ => return None,
-                            };
-                        let fields = data_fields.get(data_name.as_str())?;
-                        *fields.get(member.member.as_str(syntax_trees))?
-                    }
-                    _ => return None,
-                };
-                rendered.push(format!("{access}{}", type_text(syntax_trees, base_type)?));
-            }
-            ExpressionNode::Call(call) => {
-                rendered.push(exclusive_call_result_type(syntax_trees, call)?);
-            }
-            _ => return None,
+    syntax_trees
+        .tables
+        .statements
+        .expression_handles(arguments)
+        .iter()
+        .map(
+            |argument| match syntax_trees.tables.expressions.expression(*argument) {
+                ExpressionNode::Borrow(borrow) => {
+                    let target =
+                        expression_type(syntax_trees, bindings, data_fields, borrow.target)?;
+                    let access = if borrow.access.is_exclusive() {
+                        "&mut "
+                    } else {
+                        "&"
+                    };
+                    Some(format!("{access}{}", type_text(syntax_trees, target)?))
+                }
+                ExpressionNode::Call(call) => exclusive_call_result_type(syntax_trees, call),
+                _ => type_text(
+                    syntax_trees,
+                    expression_type(syntax_trees, bindings, data_fields, *argument)?,
+                ),
+            },
+        )
+        .collect()
+}
+
+/// Follow declared projections without consulting initial values or guessing
+/// storage origins. State-local bindings keep sibling and later declarations
+/// from choosing a codec signature for this occurrence.
+fn expression_type(
+    syntax_trees: &SyntaxTrees,
+    bindings: &HashMap<&str, TypeReferenceHandle>,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    match syntax_trees.tables.expressions.expression(expression) {
+        ExpressionNode::Name(path) => bindings
+            .get(sole_member_name(syntax_trees, *path)?)
+            .copied(),
+        ExpressionNode::Member(member) => {
+            let receiver = expression_type(syntax_trees, bindings, data_fields, member.receiver)?;
+            let name = syntax_trees
+                .tables
+                .type_references
+                .type_reference(projection_type(syntax_trees, receiver))
+                .as_named()?;
+            data_fields
+                .get(name.as_str(syntax_trees))?
+                .get(member.member.as_str(syntax_trees))
+                .copied()
         }
+        ExpressionNode::Indexed(indexed) => {
+            let collection =
+                expression_type(syntax_trees, bindings, data_fields, indexed.collection)?;
+            match syntax_trees
+                .tables
+                .type_references
+                .type_reference(projection_type(syntax_trees, collection))
+            {
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+                _ => None,
+            }
+        }
+        _ => None,
     }
-    Some(rendered)
+}
+
+fn projection_type(
+    syntax_trees: &SyntaxTrees,
+    mut reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    loop {
+        reference = match syntax_trees
+            .tables
+            .type_references
+            .type_reference(reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+            _ => return reference,
+        };
+    }
 }
 
 /// The parameter type of an exclusive reference returned by one root machine
@@ -770,75 +823,17 @@ pub(super) fn buffer_view(rendered: &str) -> Option<String> {
     None
 }
 
-/// The data declaration a named machine parameter carries when its type is a
-/// reference (`main: &mut Main` -> `Main`) or a bare named data (`m: Main` ->
-/// `Main`). Anything else — a scalar, slice, generic, or absent name — has no
-/// field map to render against and declines.
 /// The sole member of a single-segment identifier path — `None` for an
 /// empty or multi-segment path.
-pub(super) fn sole_member_name<'a>(
-    syntax_trees: &'a SyntaxTrees,
+pub(super) fn sole_member_name(
+    syntax_trees: &SyntaxTrees,
     path: HandleSpan<Identifier>,
-) -> Option<&'a str> {
+) -> Option<&str> {
     let members = syntax_trees
         .tables
         .expressions
         .identifier_path_members(path);
     (members.len() == 1).then(|| members[0].as_str(syntax_trees))
-}
-
-pub(super) fn parameter_data_name(
-    syntax_trees: &SyntaxTrees,
-    machine: &Machine,
-    name: &str,
-) -> Option<String> {
-    for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
-        let state = syntax_trees.tables.items.state(*state_handle);
-        for parameter_handle in syntax_trees.tables.items.state_parameters(state.parameters) {
-            let parameter = syntax_trees.tables.items.state_parameter(*parameter_handle);
-            if parameter.name.as_str(syntax_trees) != name {
-                continue;
-            }
-            let mut type_reference = parameter.type_reference;
-            if let TypeReferenceNode::Reference { referee, .. } = syntax_trees
-                .tables
-                .type_references
-                .type_reference(type_reference)
-            {
-                type_reference = *referee;
-            }
-            let named = syntax_trees
-                .tables
-                .type_references
-                .type_reference(type_reference)
-                .as_named()?;
-            return Some(named.as_str(syntax_trees).to_string());
-        }
-    }
-    None
-}
-
-/// The declared type of a `let`/`let mut` local anywhere in the machine —
-/// codec arguments are conventionally `let`-bound before the call.
-pub(super) fn local_type(
-    syntax_trees: &SyntaxTrees,
-    machine: &Machine,
-    name: &str,
-) -> Option<TypeReferenceHandle> {
-    for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
-        let state = syntax_trees.tables.items.state(*state_handle);
-        for statement_handle in syntax_trees.tables.items.statements(state.statements) {
-            let StatementNode::LocalData(local) =
-                syntax_trees.tables.statements.statement(*statement_handle)
-            else {
-                continue;
-            };
-            if local.name.as_str(syntax_trees) == name {
-                return Some(local.type_reference);
-            }
-        }
-    }
-    None
 }
 
 pub(super) fn type_text(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<String> {
