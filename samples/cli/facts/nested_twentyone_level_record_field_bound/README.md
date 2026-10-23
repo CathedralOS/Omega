@@ -69,10 +69,17 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/nested_twentyone_level_record_field_bound_through_*`: nine `_exit` fixtures and nine `_rejected` twins. Every fixture is a byte-identical copy of the place it pins — `main.omg`, `build.omg`, and the place's own `expected_native_exit.txt` (`0`) or `expected.txt` (`may overflow \`u64\``) — so the sample and the fixture cannot drift apart. Each twin differs from its positive in the declared leaf bound alone (`val <= 80u64` to `val <= 81u64`), plus the const name's leaf constant (`VAL_LEAF = 60u64` to `81u64`) and the call-result place's `ensures` bound.
+
+Recorded with the shared opt-level 1 producer `gen-4c23cc3391c` (omega sha256 `83c7ae2a4544...`, corpus_runner sha256 `a1de848f1bac...`, macos_arm64, jobs 3): check leg 18 fixtures — 9 `checked` with `check-target:macos_arm64` and 9 `rejected` carrying their own `may overflow \`u64\`` fragment, 0 fail fixtures that did not reject and 0 lost successes; native leg 9 `built ... exit:0`; both leg 9 `interpreter-exit:0 interpreter:agrees`. The two nested-record rows landed together as pure row additions: 30/0 lines per row in `corpus_outcomes.txt` (60/0 together), 9/0 per row in `corpus_native_macos_arm64.txt` (18/0), 9/0 per row in `corpus_both_macos_arm64.txt` (18/0), stamped `@4c23cc3391c2+wt`.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Fixture pin and landing ticket:** `4e4128ad8df4483a811a11eb86f3cdae` (factsr1-pins-ct).
 - **Requirement established:** Target-neutral compile-time multi-level nested record projection bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, projecting the leaf field of a 21-level nested structural record `RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { l6: Level6 { l7: Level7 { l8: Level8 { l9: Level9 { l10: Level10 { l11: Level11 { l12: Level12 { l13: Level13 { l14: Level14 { l15: Level15 { l16: Level16 { l17: Level17 { l18: Level18 { l19: Level19 { l20: Level20 { val: u64 } } } } } } } } } } } } } } } } } } } }` preserves the static leaf interval bound (`root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.val >= 40u64 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.val <= 80u64`), discharging exact 64-bit unsigned subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
