@@ -8,6 +8,24 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 11.76, "load1_start": 11.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/facts/nested_eight_level_record_field_bound_through_call_result_exit built 1912ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_const_name_exit built 1830ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_field_exit built 1716ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_local_exit built 1729ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_match_join_exit built 1904ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_other_machine_exit built 1928ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_other_state_exit built 1904ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_parameter_exit built 1772ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eight_level_record_field_bound_through_target_body_exit built 1836ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_call_result_exit built 2709ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_const_name_exit built 1917ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_field_exit built 1856ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_local_exit built 2127ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_match_join_exit built 1979ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_other_machine_exit built 2129ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_other_state_exit built 1782ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_parameter_exit built 1907ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_eighteen_level_record_field_bound_through_target_body_exit built 2322ms exit:0 @4c23cc3391c2+wt
 pass/facts/twenty_variant_enum_payload_bound_through_call_result_exit built 2203ms exit:0 @ec3119fdcb11+wt
 pass/facts/twenty_variant_enum_payload_bound_through_const_name_exit built 2266ms exit:0 @ec3119fdcb11+wt
 pass/facts/twenty_variant_enum_payload_bound_through_field_exit built 2203ms exit:0 @ec3119fdcb11+wt
