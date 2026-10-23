@@ -68,10 +68,19 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/nested_thirty_level_record_field_bound_through_*` fixtures; every positive records `built ... exit:0` and `interpreter-exit:0 interpreter:agrees`. The nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart.
+
+Recorded with the shared opt-level 1 producer `gen-4c23cc3391c` (omega sha256 `83c7ae2a4544...`, corpus_runner sha256 `a1de848f1bac...`, macos_arm64): check leg 36 fixtures — 18 `checked` with `check-target:macos_arm64` and 18 `rejected` carrying their own `may overflow \`u64\`` fragment, 0 fail fixtures that did not reject and 0 lost successes; native leg 18 `built ... exit:0`, 18 executed; both leg 18 `interpreter-exit:0 interpreter:agrees`. All three legs are pure additions against the tip they land on (+60/0, +18/0, +18/0) and every row is stamped `@81102164a96b+wt`. The wave's host floors (`safe_record.sh`: load < 60, >= 1.2 GB free) were sampled every ~2 minutes for over an hour without opening (free 70–125 MB, swap 91% used), so the legs ran serialized on the host-wide record slot at `OMEGA_CORPUS_JOBS=1` with the 900 s per-fixture ceiling and the no-timeout, golden-changed and LOST-against-origin/main guards — the same disclosed deviation the sibling pin slots record under.
+
+The call-result twin widens the returned leaf value itself (`val: 81u64` with its contract upper bound widened to `81u64`), not the contract bound alone. The first authoring widened only the contract while the callee body still returned the literal `60u64`; the checker proves that call result by the callee body in `check_call_result`, so the twin was correctly accepted and pinned nothing. The other eight twins widen only the declared bound.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Fixture pin and landing ticket:** `8d82b4009ee34b029226bd7cd597aaa7` (factsr1-pins-cl).
 - **Requirement established:** Target-neutral compile-time multi-level nested record projection bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, projecting the leaf field of a 30-level nested structural record `RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { l6: Level6 { l7: Level7 { l8: Level8 { l9: Level9 { l10: Level10 { l11: Level11 { l12: Level12 { l13: Level13 { l14: Level14 { l15: Level15 { l16: Level16 { l17: Level17 { l18: Level18 { l19: Level19 { l20: Level20 { l21: Level21 { l22: Level22 { l23: Level23 { l24: Level24 { l25: Level25 { l26: Level26 { l27: Level27 { l28: Level28 { l29: Level29 { val: u64 } } } } } } } } } } } } } } } } } } } } } } } } } } } } }` preserves the static leaf interval bound (`root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.l24.l25.l26.l27.l28.l29.val >= 40u64 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.l24.l25.l26.l27.l28.l29.val <= 80u64`), discharging exact 64-bit unsigned subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
