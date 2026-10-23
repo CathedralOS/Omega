@@ -61,7 +61,7 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 ## Pinned Fixtures
 
 The row is pinned by `tests/omega/pass/facts/signed_division_quotient_through_*_exit` and
-`tests/omega/fail/facts/signed_division_quotient_unproved_*` fixtures; every positive
+`tests/omega/fail/facts/signed_division_quotient_through_*_rejected` fixtures; every positive
 records native exit 0 and Terminal Psi execution agreement.
 
 ## Rounding discrimination
