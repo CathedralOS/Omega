@@ -3,8 +3,8 @@ machine build(builder: &mut Build) {
     Build::artifact_only(builder);
     let source_path: BuildPath = BuildSource::resolve(&builder.source, "asset.txt");
     let reader: i32 = BuildSource::open(&builder.source, source_path, 0);
-    let mut bytes: [u8; 28];
-    _ = BuildSource::read(&builder.source, reader, &mut bytes, 28);
+    let mut bytes: [u8; 31];
+    _ = BuildSource::read(&builder.source, reader, &mut bytes, 31);
     _ = BuildSource::close(&builder.source, reader);
     let obligation: RequiredOutput = BuildOutput::require(&mut builder.output, "generated.omg");
     let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");

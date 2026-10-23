@@ -759,9 +759,12 @@ fail/build/explicit_lifetime_entry_context_shared rejected 5462ms expected @a9ae
 fail/build/explicit_lifetime_entry_context_unestablished_reference rejected 20803ms expected @a9ae30e1c334+wt
 fail/build/generated_resolution_source_location rejected 321ms expected @67191f681c81+wt
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
-fail/build/generated_scalar_constant_range_refused rejected 5522ms expected published:none @a9ae30e1c334+wt
-fail/build/generated_source_base_reference_refused rejected 5456ms expected published:none @a9ae30e1c334+wt
-fail/build/generated_source_undeclared_call_refused rejected 2929ms expected published:none @ca002ac106ad+wt
+fail/build/generated_scalar_constant_range_refused rejected 618ms expected published:none @79972ff7f4c8+wt
+	scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
+fail/build/generated_source_base_reference_refused rejected 10887ms expected published:none @79972ff7f4c8+wt
+	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/build/generated_source_undeclared_call_refused rejected 1721ms expected published:none @79972ff7f4c8+wt
+	machine `generated_check` state `later`: value call `generated_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/build/generated_source_unsealed_handoff_refused rejected 8048ms expected published:none @a9ae30e1c334+wt
 fail/build/generic_const_zero_context_requires_establishment rejected 960ms expected @e7a4cfaa3c51+wt
 fail/build/generic_zero_context_requires_establishment rejected 961ms expected @e7a4cfaa3c51+wt
