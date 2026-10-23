@@ -2789,6 +2789,35 @@ fail/facts/checked_asm_register_contract_bound_through_target_body_rejected reje
 	exact arithmetic in machine `exercise` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/checked_asm_zero_branch_call_result_exit rejected 3189ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_const_name_exit rejected 3149ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from main$assembly$portable$4$entry: ((asm#scratch#2#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_false_backedge rejected 3358ms expected @79972ff7f4c8
+	cannot prove requires contract for call repeat from main$assembly$portable$5$entry: ((asm#scratch#2#eax as ) - (1 as ) as ) == 0 (needs fact `asm#scratch#2#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call loop from main$assembly$portable$5$entry: asm#scratch#2#eax > 0 (needs fact `asm#scratch#2#eax > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `repeat`
+fail/facts/checked_asm_zero_branch_field_exit rejected 2680ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#3#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_invented_clobber rejected 1ms expected @79972ff7f4c8
+	tests/omega/fail/facts/checked_asm_zero_branch_invented_clobber/main.omg:18:2: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rbx`
+fail/facts/checked_asm_zero_branch_local_exit rejected 2608ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#2#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_match_join_exit rejected 2686ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: ((asm#scratch#32#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#32#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_missing_clobber rejected 8ms expected @79972ff7f4c8
+	tests/omega/fail/facts/checked_asm_zero_branch_missing_clobber/main.omg:18:2: asm where `clobbers` must exactly match the realized instruction contract: missing `rflags`
+fail/facts/checked_asm_zero_branch_other_machine_exit rejected 2503ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_other_state_exit rejected 2476ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from main$assembly$portable$4$next: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_parameter_exit rejected 2363ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_target_body_exit rejected 2463ms expected @79972ff7f4c8
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#50#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#50#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#93#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#93#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_zero_branch_uninitialized_flag rejected 1418ms expected @79972ff7f4c8
+	assembly label `entry` jz reads uninitialized ZF
 fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
@@ -13054,6 +13083,15 @@ pass/facts/checked_asm_register_contract_bound_through_other_machine_exit checke
 pass/facts/checked_asm_register_contract_bound_through_other_state_exit checked 6732ms check-target:macos_arm64 @b24be450e4c2+wt
 pass/facts/checked_asm_register_contract_bound_through_parameter_exit checked 6655ms check-target:macos_arm64 @b24be450e4c2+wt
 pass/facts/checked_asm_register_contract_bound_through_target_body_exit checked 6630ms check-target:macos_arm64 @b24be450e4c2+wt
+pass/facts/checked_asm_zero_branch_call_result_exit checked 4087ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_const_name_exit checked 4031ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_field_exit checked 3996ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_local_exit checked 4056ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_match_join_exit checked 3267ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_other_machine_exit checked 4136ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_other_state_exit checked 3466ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_parameter_exit checked 3387ms check-target:linux_x86_64 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_target_body_exit checked 3392ms check-target:linux_x86_64 @79972ff7f4c8
 pass/facts/compound_guard_through_call_result_compile checked 1913ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_const_name_compile checked 1881ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_field_compile checked 1863ms @2ef2ab353498+wt

@@ -1645,6 +1645,15 @@ pass/facts/bound_through_other_machine_exit built 6125ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_other_state_exit built 6283ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit built 6041ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit built 6208ms exit:0 @3b422f31da30+wt
+pass/facts/checked_asm_zero_branch_call_result_exit built 5223ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_const_name_exit built 5212ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_field_exit built 5362ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_local_exit built 4520ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_match_join_exit built 3725ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_other_machine_exit built 3546ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_other_state_exit built 3985ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_parameter_exit built 4040ms exit:0 @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_target_body_exit built 3359ms exit:0 @79972ff7f4c8
 pass/facts/data_where_standing_through_call_result_exit built 9916ms exit:0 @07f1c64be9c1
 pass/facts/data_where_standing_through_const_name_exit built 9912ms exit:0 @07f1c64be9c1
 pass/facts/data_where_standing_through_field_exit built 11490ms exit:0 @07f1c64be9c1

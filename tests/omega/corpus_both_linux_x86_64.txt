@@ -283,6 +283,15 @@ pass/facts/as_slice_views_through_other_state_exit built 17640ms exit:0 interpre
 pass/facts/as_slice_views_through_parameter_exit built 18887ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit built 14271ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/checked_asm_flag_snapshot_stack_functions built 22360ms exit:0 interpreter-exit:0 interpreter:agrees @a151d1a59ef2
+pass/facts/checked_asm_zero_branch_call_result_exit built 6146ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_const_name_exit built 6079ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_field_exit built 5401ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_local_exit built 6642ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_match_join_exit built 4235ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_other_machine_exit built 4139ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_other_state_exit built 5663ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_parameter_exit built 3833ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
+pass/facts/checked_asm_zero_branch_target_body_exit built 3258ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
 pass/facts/computed_constant_array_extent_exit built 20162ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit built 23994ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_call_result_exit built 22116ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
