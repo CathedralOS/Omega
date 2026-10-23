@@ -194,3 +194,12 @@ one more full-tree backup. All 15 complete-result comparisons passed, including
 four rejection results; five native/Terminal positives and five invalid controls
 remain unchanged. The original workloads now make three full expression-arena
 copies, versus eight before the two retained changes. Timings remain inconclusive.
+
+
+## Current-main integration
+
+[The integration record](integration/README.md) validates the two retained storage
+changes together with newer parser, arena, checking and backend changes: 25 tests,
+five native/interpreter agreements and five unchanged rejection controls pass.
+Five native images remain byte-identical. The [discovery audit](integration/discovery-audit.md)
+records the call-selection dependencies and the next falsifiable comparison.

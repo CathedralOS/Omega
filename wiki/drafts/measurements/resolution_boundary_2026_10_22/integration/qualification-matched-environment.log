@@ -1,0 +1,41 @@
+{
+  "schema": "omega-qualification-summary-v1",
+  "state": "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolution-integration-final/qualification.json",
+  "revision": 11,
+  "base": "595562a958b4d026652d51f35d4f921220252e34",
+  "qualification_revision": "886df83704dd8c4153ec36c92f3fa6c1ad518142",
+  "running": null,
+  "source_ref": "refs/qualification/bff0368ada4ca7488e0abfab/886df83704dd8c4153ec36c92f3fa6c1ad518142",
+  "latest_run": {
+    "id": "0db3edd7dcf64eadbd02d78994147669",
+    "check": "resolved-storage-integration",
+    "revision": "4bf4f360f71bdaab57316e000d435a6c3309e611",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 34.259489375,
+    "receipt": {
+      "path": "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolution-integration-final/qualification.records/0db3edd7dcf64eadbd02d78994147669.json",
+      "sha256": "77f4df773d5112b4eeb3444004af0471fc09db9cdbf7aed1a71c0dd67425ab92"
+    }
+  },
+  "latest_assessment": {
+    "candidate": "4bf4f360f71bdaab57316e000d435a6c3309e611",
+    "base": "595562a958b4d026652d51f35d4f921220252e34",
+    "checks": [
+      {
+        "check": "resolved-storage-integration",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "0db3edd7dcf64eadbd02d78994147669",
+        "observed_revision": "4bf4f360f71bdaab57316e000d435a6c3309e611"
+      }
+    ],
+    "canonical_context": [],
+    "incoming_paths": [],
+    "duration_seconds": 1.6925712500000003,
+    "reused": 1,
+    "invalidated": 0
+  }
+}
