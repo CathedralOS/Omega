@@ -1033,6 +1033,15 @@ pass/facts/integer_multiple_remainder_through_other_machine_exit built 1757ms ex
 pass/facts/integer_multiple_remainder_through_other_state_exit built 1683ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
 pass/facts/integer_multiple_remainder_through_parameter_exit built 1917ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
 pass/facts/integer_multiple_remainder_through_target_body_exit built 1889ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/lexical_generic_bound_through_call_result_exit built 2191ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_const_name_exit built 2105ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_field_exit built 2097ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_local_exit built 2453ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_match_join_exit built 2232ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_other_machine_exit built 2285ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_other_state_exit built 2498ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_parameter_exit built 2873ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/facts/lexical_generic_bound_through_target_body_exit built 2723ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
 pass/facts/linear_routed_label_through_call_result_exit built 19109ms exit:0 interpreter-exit:0 interpreter:agrees @d012ed8f0bae+wt
 pass/facts/linear_routed_label_through_const_name_exit built 19041ms exit:0 interpreter-exit:0 interpreter:agrees @d012ed8f0bae+wt
 pass/facts/linear_routed_label_through_field_exit built 19171ms exit:0 interpreter-exit:0 interpreter:agrees @d012ed8f0bae+wt
@@ -1795,6 +1804,8 @@ pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 in
 pass/generics/contextual_static_machine_const_scopes_exit built 3451ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/contextual_static_machine_open_const_exit built 3537ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/generic_case_subject_sibling_bounds_exit built 873ms exit:0 interpreter-exit:0 interpreter:agrees @4a483c47c357+wt
+pass/generics/lexical_requirement_member_shadows_owner_exit built 2052ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
+pass/generics/lexical_requirement_value_parameter_precedence_exit built 1547ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f
 pass/generics/open_computed_quantity_result built 17044ms exit:70 interpreter-exit:70 interpreter:agrees @7b786cd56594+wt
 pass/generics/owned_member_applied_ceiling built 2935ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb+wt
 pass/generics/owned_member_applied_result built 919ms exit:0 interpreter-exit:0 interpreter:agrees @3d64278a43eb+wt

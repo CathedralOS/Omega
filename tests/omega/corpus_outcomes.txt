@@ -4780,6 +4780,24 @@ fail/facts/length_through_target_body_rejected rejected 2231ms expected @a83618f
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+fail/facts/lexical_generic_bound_through_call_result_rejected rejected 806ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_const_name_rejected rejected 675ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_field_rejected rejected 653ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_local_rejected rejected 659ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_match_join_rejected rejected 650ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_other_machine_rejected rejected 629ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_other_state_rejected rejected 633ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_parameter_rejected rejected 639ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/lexical_generic_bound_through_target_body_rejected rejected 639ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Units`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/linear_claim_retirement_through_call_result_rejected rejected 2519ms expected @45cbafd80d9c
 	cannot use `token` in machine `probe` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/linear_claim_retirement_through_const_name_rejected rejected 2587ms expected @45cbafd80d9c
@@ -9085,6 +9103,10 @@ fail/generics/inferred_machine_array_equation_result_conflict_rejected rejected 
 	generic machine `same` where type equation has conflicting element types
 fail/generics/inferred_machine_array_equation_underdetermined_rejected rejected 2648ms expected @cd657b07c6e2+wt
 	generic machine `capacity` cannot determine `Length` from its where equations; supply the argument explicitly
+fail/generics/lexical_requirement_cannot_substitute_owner rejected 621ms expected @f67ca304996f
+	machine `Selected::value` realizes `Bounded::value` but requires `input <= Outer`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/generics/lexical_requirement_value_parameter_bound rejected 313ms expected @f67ca304996f
+	machine `selected$specialized$fb86dd39383d152d$0` state `entry` value call to `Selected::value` violates required fact `Units <= 7`: the instantiated fact is structurally false (`8 <= 7`)
 fail/generics/local_generic_result_parameter_mismatch rejected 250ms expected @6ef08ceefee0+wt
 fail/generics/local_slice_result_element_mismatch rejected 225ms expected @6ef08ceefee0+wt
 fail/generics/machine_bound_violated_at_call rejected 750ms expected @a9ae30e1c334+wt
@@ -13872,6 +13894,15 @@ pass/facts/length_through_other_machine_exit checked 16026ms check-target:macos_
 pass/facts/length_through_other_state_exit checked 15944ms check-target:macos_arm64 @a83618fd2cb1
 pass/facts/length_through_parameter_exit checked 15926ms check-target:macos_arm64 @a83618fd2cb1
 pass/facts/length_through_target_body_exit checked 15967ms check-target:macos_arm64 @a83618fd2cb1
+pass/facts/lexical_generic_bound_through_call_result_exit checked 960ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_const_name_exit checked 960ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_field_exit checked 915ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_local_exit checked 904ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_match_join_exit checked 1004ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_other_machine_exit checked 992ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_other_state_exit checked 1021ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_parameter_exit checked 1020ms check-target:macos_arm64 @f67ca304996f
+pass/facts/lexical_generic_bound_through_target_body_exit checked 1100ms check-target:macos_arm64 @f67ca304996f
 pass/facts/linear_claim_retirement_through_call_result_exit checked 8038ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_const_name_exit checked 7984ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_field_exit checked 8047ms check-target:macos_arm64 @45cbafd80d9c
@@ -15729,6 +15760,8 @@ pass/generics/inferred_machine_array_equation_nested_field_exit checked 13145ms 
 pass/generics/inferred_machine_array_equation_partial_exit checked 12219ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/generics/inferred_machine_array_equation_result_exit checked 13349ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/generics/inferred_machine_array_equation_values_exit checked 15106ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/lexical_requirement_member_shadows_owner_exit checked 1100ms check-target:macos_arm64 @f67ca304996f
+pass/generics/lexical_requirement_value_parameter_precedence_exit checked 1045ms check-target:macos_arm64 @f67ca304996f
 pass/generics/machine_bound_satisfied_at_call checked 3528ms @a9ae30e1c334+wt
 pass/generics/machine_indexed_stream_dispatch checked 8234ms @0acd49d4fea4+wt
 pass/generics/machine_type_equations checked 1760ms @a9ae30e1c334+wt

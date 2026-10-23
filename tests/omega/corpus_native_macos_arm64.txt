@@ -1891,6 +1891,15 @@ pass/facts/length_through_other_machine_exit built 14332ms exit:0 @a83618fd2cb1
 pass/facts/length_through_other_state_exit built 14246ms exit:0 @a83618fd2cb1
 pass/facts/length_through_parameter_exit built 14136ms exit:0 @a83618fd2cb1
 pass/facts/length_through_target_body_exit built 14230ms exit:0 @a83618fd2cb1
+pass/facts/lexical_generic_bound_through_call_result_exit built 2265ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_const_name_exit built 2171ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_field_exit built 2094ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_local_exit built 1877ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_match_join_exit built 2358ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_other_machine_exit built 2114ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_other_state_exit built 2428ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_parameter_exit built 2759ms exit:0 @f67ca304996f
+pass/facts/lexical_generic_bound_through_target_body_exit built 3178ms exit:0 @f67ca304996f
 pass/facts/linear_claim_retirement_through_call_result_exit built 45368ms exit:0 @cc2f948d148e
 pass/facts/linear_claim_retirement_through_const_name_exit built 45782ms exit:0 @cc2f948d148e
 pass/facts/linear_claim_retirement_through_field_exit built 45226ms exit:0 @cc2f948d148e
@@ -2991,6 +3000,8 @@ pass/generics/generic_result_parameter_receipt checked 2268ms @6ef08ceefee0+wt
 pass/generics/generic_seq_consuming_map_filter checked 3001ms @fcc053dc7014+wt
 pass/generics/generic_seq_map_filter checked 9944ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 9641ms @5041ef1af684+wt
+pass/generics/lexical_requirement_member_shadows_owner_exit built 2648ms exit:0 @f67ca304996f
+pass/generics/lexical_requirement_value_parameter_precedence_exit built 1611ms exit:0 @f67ca304996f
 pass/generics/machine_bound_satisfied_at_call checked 224ms
 pass/generics/machine_indexed_stream_dispatch checked 8295ms @0acd49d4fea4+wt
 pass/generics/machine_type_equations checked 190ms
