@@ -5411,7 +5411,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     call: `samples/cli/facts/projection_call_premise` exits 0 on both engines
     through all nine places, and the caller reads `direct == true`. Each twin
     changes only that projected value from `true` to `false` and rejects the
-    missing projection fact.
+    missing projection fact. All eighteen fixtures
+    `tests/omega/{pass,fail}/facts/projection_call_premise_through_*` are
+    pinned with recorded golden rows (checked/rejected, native exit 0, and
+    Terminal agreement).
     A call inside an abstract signature is the premise, and the signature
     records that call's result:
     `samples/cli/facts/abstract_signature_call/local` exits 0 on both engines,

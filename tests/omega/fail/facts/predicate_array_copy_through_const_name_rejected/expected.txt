@@ -1,0 +1,1 @@
+cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail`

@@ -5509,28 +5509,57 @@ fail/facts/placed_stable_write_through_parameter_rejected rejected 1675ms expect
 	placed write application: the placement plan does not permit this operation
 fail/facts/placed_stable_write_through_target_body_rejected rejected 4048ms expected @c9ff081e1359
 	placed write application: the placement plan does not permit this operation
-fail/facts/predicate_array_copy_through_call_result rejected 527ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_call_result_rejected rejected 3439ms expected @94247f983231+wt
 	cannot prove default-domain field requirement for return from produce, state entry, at statement 3: values requires [u16; N]::ZeroTail
-fail/facts/predicate_array_copy_through_const_name rejected 527ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_const_name_rejected rejected 3410ms expected @94247f983231+wt
 	cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail`; an annotation cannot establish routed qualification
-fail/facts/predicate_array_copy_through_field rejected 458ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_field_rejected rejected 1868ms expected @94247f983231+wt
 	cannot prove requires contract for call consume from main: envelope.values in [u16; N]::ZeroTail in state `entry`
 	construction of `Envelope` field `values` is not proven in domain `[u16; N]::ZeroTail` in main state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/predicate_array_copy_through_local rejected 260ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_local_rejected rejected 713ms expected @94247f983231+wt
 	exact arithmetic in machine `main` state `entry` local `answer` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/predicate_array_copy_through_match_join rejected 442ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_match_join_rejected rejected 1792ms expected @94247f983231+wt
 	cannot prove initializer of `captured` in choose is in domain `[u16; N]::ZeroTail`; an annotation cannot establish routed qualification
-fail/facts/predicate_array_copy_through_other_machine rejected 456ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_other_machine_rejected rejected 1800ms expected @94247f983231+wt
 	cannot prove requires contract for call qualify from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/predicate_array_copy_through_other_state rejected 442ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_other_state_rejected rejected 1735ms expected @94247f983231+wt
 	cannot prove requires contract for call accept from main: values in [u16; N]::ZeroTail in state `entry`
-fail/facts/predicate_array_copy_through_parameter rejected 440ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_parameter_rejected rejected 1580ms expected @94247f983231+wt
 	cannot prove requires contract for call consume from main: values in [u16; N]::ZeroTail in state `entry`
-fail/facts/predicate_array_copy_through_target_body rejected 446ms expected @e34cad686b12
+fail/facts/predicate_array_copy_through_target_body_rejected rejected 1860ms expected @94247f983231+wt
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/projection_call_premise_through_call_result_rejected rejected 1712ms expected @94247f983231+wt
+	cannot prove ensures contract for exit from produced at statement 0: result.kept
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/projection_call_premise_through_const_name_rejected rejected 688ms expected @94247f983231+wt
+	machine `main` state `entry` value call to `project` violates required fact `mark.kept`: the instantiated fact is structurally false
+fail/facts/projection_call_premise_through_field_rejected rejected 2103ms expected @94247f983231+wt
+	cannot prove requires contract for call project from main: holder.mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/projection_call_premise_through_local_rejected rejected 2319ms expected @94247f983231+wt
+	cannot prove requires contract for call project from main: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/projection_call_premise_through_match_join_rejected rejected 2572ms expected @94247f983231+wt
+	cannot prove requires contract for call project from main: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/projection_call_premise_through_other_machine_rejected rejected 2168ms expected @94247f983231+wt
+	cannot prove requires contract for call relay from main: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/projection_call_premise_through_other_state_rejected rejected 1759ms expected @94247f983231+wt
+	cannot prove requires contract for call project from main: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+fail/facts/projection_call_premise_through_parameter_rejected rejected 523ms expected @94247f983231+wt
+	machine `main` state `entry` value call to `observe` violates required fact `mark.kept`: the instantiated fact is structurally false
+fail/facts/projection_call_premise_through_target_body_rejected rejected 2969ms expected @94247f983231+wt
+	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from observe: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/qualified_field_capacity_through_call_result_mismatch rejected 4780ms expected @ca117899bfe3+wt
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/qualified_field_capacity_through_const_name_mismatch rejected 4825ms expected @ca117899bfe3+wt
@@ -12862,6 +12891,15 @@ pass/facts/predicate_array_copy_through_other_machine_exit checked 617ms check-t
 pass/facts/predicate_array_copy_through_other_state_exit checked 611ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_parameter_exit checked 637ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_target_body_exit checked 637ms check-target:macos_arm64 @e34cad686b12
+pass/facts/projection_call_premise_through_call_result_exit checked 3391ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_const_name_exit checked 2805ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_field_exit checked 3139ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_local_exit checked 2722ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_match_join_exit checked 2318ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_other_machine_exit checked 2416ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_other_state_exit checked 2210ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_parameter_exit checked 2183ms check-target:macos_arm64 @94247f983231+wt
+pass/facts/projection_call_premise_through_target_body_exit checked 1998ms check-target:macos_arm64 @94247f983231+wt
 pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/qualified_field_capacity_through_call_result_exit checked 17493ms check-target:macos_arm64 @ca117899bfe3+wt
 pass/facts/qualified_field_capacity_through_const_name_exit checked 17487ms check-target:macos_arm64 @ca117899bfe3+wt

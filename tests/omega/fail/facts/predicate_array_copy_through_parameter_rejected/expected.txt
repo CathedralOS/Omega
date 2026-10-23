@@ -1,0 +1,1 @@
+cannot prove requires contract for call consume from main: values in [u16; N]::ZeroTail
