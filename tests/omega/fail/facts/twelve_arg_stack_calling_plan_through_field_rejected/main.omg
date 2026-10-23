@@ -1,0 +1,61 @@
+// Fact: a 12-argument calling plan across register and stack slots preserves the 12th stack argument bound 40u64 <= a12 <= 80u64 to justify 80u64 - res and res - 40u64.
+// Place: field (invalid twin).
+// Expected diagnostic: exact subtraction underflow
+
+data Held {
+    res: u64;
+}
+
+machine pick12(
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    a7: u64,
+    a8: u64,
+    a9: u64,
+    a10: u64,
+    a11: u64,
+    a12: u64
+) -> u64
+requires
+    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 &&
+    a5 == 5u64 && a6 == 6u64 && a7 == 7u64 && a8 == 8u64 &&
+    a9 == 9u64 && a10 == 10u64 && a11 == 11u64 &&
+    a12 >= 40u64 && a12 <= 81u64
+ensures
+    result >= 40u64 && result <= 81u64 && result == a12
+{
+    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11;
+    (prefix - 66u64) + a12
+}
+
+machine probe() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let held: Held = Held { res: pick12(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 81) };
+    let headroom: u64 = 80u64 - held.res;
+    let margin: u64 = held.res - 40u64;
+    let diff: u64 = (headroom + margin) - 40u64;
+    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok() {
+        0i32
+    }
+    state bad() {
+        crash Trap;
+    }
+}
+
+machine main() crashes Trap {
+    transition probe() == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -67,6 +67,23 @@ omega --check samples/cli/facts/thirteen_arg_stack_calling_plan/<place>/invalid/
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow `u64`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow `u64`` |
 
+## Pinned Fixtures
+
+The nine positive places are pinned under
+`tests/omega/pass/facts/thirteen_arg_stack_calling_plan_through_<place>_exit/`,
+each carrying `main.omg` and `build.omg` byte-identical to its place program
+(including the app name) and `expected_native_exit.txt` declaring `0`.
+
+The nine reject twins are pinned under
+`tests/omega/fail/facts/thirteen_arg_stack_calling_plan_through_<place>_rejected/`,
+each carrying the twin's `main.omg` and `build.omg` and `expected.txt` carrying
+`may overflow \`u64\``.
+
+Every fixture binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). `git diff` of
+a positive place against its twin shows only the 13th argument value
+(`60u64` -> `81u64`) and its contract bounds (`80u64` -> `81u64`) changed.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS-STACK-BOUNDS` / `THIRTEEN-ARG-STACK-CALLING-PLAN` (`TASKS.md`)
@@ -85,6 +102,32 @@ omega --check samples/cli/facts/thirteen_arg_stack_calling_plan/<place>/invalid/
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/thirteen_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow `u64``).
+Fresh, measured on the macOS arm64 host in worktree `factsr1-pins-bj` with the
+shared generation producer `gen-317bacd12b0` (revision
+`317bacd12b0a572178294c90856b33c96ca4da0b`, omega sha256
+`ecbd667e4dbae1b559f1f08f30dc10e3dbc369b8c8630327560227d06058a805`):
+
+- `omega run --both` on the root and the nine positive places: 10/10 report
+  `native exit 0` with `interp exit: 0`; no compiler repair was needed.
+- `omega --check` on the nine `<place>/invalid/main.omg` twins: 9/9 exit 1 with
+  `exact arithmetic in machine ... local \`headroom\` may overflow \`u64\``
+  (decision 17).
+- `corpus_gate.py --runner <generation>/corpus_runner`, scoped to this fact:
+  check leg 18 rows (9 `checked` carrying `check-target:macos_arm64`, 9
+  `rejected` carrying the twins' diagnostics with their `expected.txt` fragment
+  satisfied; 0 rejected without their expected fragment, 0 fail fixtures that
+  did not reject); native leg 9 rows `built` with `exit:0`; both leg 9 rows
+  `exit:0 interpreter-exit:0 interpreter:agrees`. This fact's golden diff against
+  origin/main is a pure addition (30 / 9 / 9 lines, 0 deletions; the two rows
+  added 60 / 18 / 18 in total).
+- `sample_gate.py --cli`, filtered to both calling-plan fact directories:
+  38/38 projects checked (10 positives and 9 controls per row), 18 of them
+  matched their intended rejection controls.
+
+Retained from the authoring session (`windows_x86_64`):
+`sample_native_gate.py --filter cli/facts/thirteen_arg_stack_calling_plan`
+reported 10/10 samples meeting their documented oracle with 9/9 intended-invalid
+controls matched.
+
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
-- What remains open: multi-argument calls exceeding 16+ arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
+- What remains open: multi-argument calls exceeding 13+ arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
