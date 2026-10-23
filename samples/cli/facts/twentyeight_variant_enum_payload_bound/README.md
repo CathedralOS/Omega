@@ -74,6 +74,25 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twentyeight_variant_enum_payload_bound_through_*_exit` and
+`tests/omega/fail/facts/twentyeight_variant_enum_payload_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and pins
+the full `cannot prove requires contract` diagnostic line its place produces.
+
+Corpus golden rows (`tests/omega/corpus_outcomes.txt`,
+`tests/omega/corpus_native_macos_arm64.txt`,
+`tests/omega/corpus_both_macos_arm64.txt`) were recorded with the shared
+generation producer `gen-9b001b8f6af` (revision 9b001b8f6af, omega sha256
+6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74, runner
+sha256 cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e).
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V28(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all twenty-eight tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
@@ -84,4 +103,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 28-variant tagged enum `TwentyEightChoice` with a 1-byte discriminant tag (`u8` range 0..27) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 28-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all nine places, the root witness and the nine reject twins under `<place>/invalid/` pass both native and interpreter gates with documented exit 0 and verified negative control rejection.

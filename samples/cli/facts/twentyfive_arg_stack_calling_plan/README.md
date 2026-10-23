@@ -24,6 +24,28 @@ Only the transport mechanism of the 25-argument calling plan and its bounded sta
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives arguments and invokes the 25-argument calling plan |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies invoke the 25-argument calling plan and consume the bounded result on each hosted target |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twentyfive_arg_stack_calling_plan_through_*_exit` and
+`tests/omega/fail/facts/twentyfive_arg_stack_calling_plan_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and pins
+the `may overflow `u64`` fragment of the exact-arithmetic diagnostic.
+
+Corpus golden rows (`tests/omega/corpus_outcomes.txt`,
+`tests/omega/corpus_native_macos_arm64.txt`,
+`tests/omega/corpus_both_macos_arm64.txt`) were recorded with the shared
+generation producer `gen-9b001b8f6af` (revision 9b001b8f6af, omega sha256
+6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74, runner
+sha256 cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e):
+nine `checked ... check-target:macos_arm64` rows, nine `rejected ... expected`
+rows carrying the twins' diagnostics, nine `built ... exit:0` native rows and
+nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` both-leg rows.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)), governing specifications at [wiki/spec/build/calling_plans.md](../../../../wiki/spec/build/calling_plans.md) and [wiki/spec/resources/activation_storage.md](../../../../wiki/spec/resources/activation_storage.md).
@@ -41,6 +63,12 @@ Only the transport mechanism of the 25-argument calling plan and its bounded sta
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Stack displacements and call instructions encode into valid PE/ELF/Mach-O binaries that natively execute and agree with Terminal Psi (`omega run --both` exit 0) across all hosted targets.
 
 ### Verification Evidence
+
+- Generation producer `gen-9b001b8f6af` on macos_arm64 (revision 9b001b8f6af):
+  root + 9 places pass `omega run --both` with `native exit 0` and
+  `interp exit: 0`; 9/9 `<place>/invalid/main.omg` twins reject at compile time
+  (exit 200, `native compile FAILED`) with the exact-arithmetic diagnostic
+  containing `may overflow `u64``.
 
 - `sample_native_gate.py --filter cli/facts/twentyfive_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
