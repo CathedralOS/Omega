@@ -69,6 +69,10 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`underflow`).
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/live_across_twentyfour_calls_preservation_bound_through_<place>_exit` (nine positives: `main.omg`, `build.omg`, `expected_native_exit.txt`) and `tests/omega/fail/facts/live_across_twentyfour_calls_preservation_bound_through_<place>_rejected` (nine reject twins: `main.omg`, `build.omg`, `expected.txt` carrying the authored `underflow` fragment). Every fixture is a byte-identical copy of its place program, so the sample and the fixture cannot drift apart. The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declare `Expected exit: 0`. Producer evidence at anchor `ec5cf878ecb`, measured with the shared opt-level 1 generation producer `gen-4c23cc3391c` (omega sha256 `83c7ae2a4544`, runner sha256 `a1de848f1b`) on macOS arm64: 10/10 positive entries (root plus nine places) run `omega run --both` with `native exit 0` and `interp exit: 0`; 18/18 twins refuse at checked compilation with `exact arithmetic in machine ... local underflow may overflow u64`. The three goldens gain 30 / 9 / 9 lines and lose 0: `corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows with their own diagnostic line, `corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
