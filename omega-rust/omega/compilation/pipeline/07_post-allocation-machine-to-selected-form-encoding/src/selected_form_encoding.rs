@@ -18,8 +18,7 @@ pub use error::OptimizedSelectedFormEncodingError;
 use crate::validation;
 use machine_code::{
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormMachineOptimizationCustody,
-    SelectedFormMovnOptimizationCustody,
+    SelectedFormEncodingRow,
 };
 use physical_instructions::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
@@ -79,14 +78,6 @@ impl StagedOptimizedSelectedFormEncoding {
         &self,
     ) -> Option<PostAllocationMachineOptimizationCustody> {
         self.program.post_allocation_machine_optimization
-    }
-
-    pub fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
-        self.program.machine_optimization()
-    }
-
-    pub fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
-        self.program.movn_optimization()
     }
 
     pub fn identity(&self) -> SelectedFormEncodingIdentity {

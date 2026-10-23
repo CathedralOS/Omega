@@ -68,7 +68,6 @@ pub use machine_code::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormImageAddressFixup,
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
-    SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody,
     SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
     SelectedFormNormalizedForeignCallFixupState, SelectedFunctionLayoutPolicy,
     SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair, StackProbePlan,

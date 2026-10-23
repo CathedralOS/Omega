@@ -39,10 +39,7 @@ pub use text_section::{
     relocation_free_text_section_identity,
 };
 
-use crate::{SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody};
-use optimization_core::Optimization;
 use physical_instructions::PostAllocationMachineOptimizationCustody;
-use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use target::NativeTarget;
 
 use crate::SelectedFormEncodingIdentity;
@@ -71,42 +68,6 @@ impl ResolvedMachineLayout {
 
     pub fn pre_layout(&self) -> SelectedFormEncodingIdentity {
         self.pre_layout
-    }
-
-    pub fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
-        match self.post_allocation_machine_optimization {
-            Some(custody)
-                if matches!(
-                    custody.optimization(),
-                    Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-                ) =>
-            {
-                Some(SelectedFormMachineOptimizationCustody::from_parts(
-                    custody.selections(),
-                    custody.post_allocation_machine_selections(),
-                    Aarch64CbnzFusionIdentity::from_bytes(custody.artifact_identity()),
-                ))
-            }
-            _ => None,
-        }
-    }
-
-    pub fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
-        match self.post_allocation_machine_optimization {
-            Some(custody)
-                if matches!(
-                    custody.optimization(),
-                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-                ) =>
-            {
-                Some(SelectedFormMovnOptimizationCustody::from_parts(
-                    custody.selections(),
-                    custody.post_allocation_machine_selections(),
-                    Aarch64MovnMaterializationIdentity::from_bytes(custody.artifact_identity()),
-                ))
-            }
-            _ => None,
-        }
     }
 
     pub fn post_allocation_machine_optimization(

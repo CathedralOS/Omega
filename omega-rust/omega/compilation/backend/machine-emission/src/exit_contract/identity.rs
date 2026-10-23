@@ -5,7 +5,6 @@ pub(super) use machine_code::whole_function_exit_contract_identity as contract_i
 #[cfg(test)]
 mod tests {
     use optimization_core::Optimization;
-    use physical_instructions::Aarch64MovnMaterializationIdentity;
     use register_model::RegisterViewId;
     use selected_instructions::SelectedInstructionPlanIdentity;
     use target::NativeTarget;
@@ -71,24 +70,20 @@ mod tests {
             },
         );
         let movn = contract_with_custody(
-            WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-                materialization: Aarch64MovnMaterializationIdentity::from_bytes([8; 32]),
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                artifact_identity: [8; 32],
             },
         );
         let another_movn = contract_with_custody(
-            WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-                materialization: Aarch64MovnMaterializationIdentity::from_bytes([9; 32]),
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                artifact_identity: [9; 32],
             },
         );
         let generic_xor = contract_with_custody(
             WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
                 optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
-                artifact_identity: [8; 32],
-            },
-        );
-        let another_generic_rule = contract_with_custody(
-            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-                optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
                 artifact_identity: [8; 32],
             },
         );
@@ -112,7 +107,7 @@ mod tests {
         assert_ne!(relaxed.identity, movn.identity);
         assert_ne!(movn.identity, another_movn.identity);
         assert_ne!(baseline.identity, generic_xor.identity);
-        assert_ne!(generic_xor.identity, another_generic_rule.identity);
+        assert_ne!(generic_xor.identity, movn.identity);
         assert_ne!(generic_xor.identity, another_generic_leaf.identity);
         assert_ne!(baseline.identity, framed.identity);
         let mut windows = framed.clone();

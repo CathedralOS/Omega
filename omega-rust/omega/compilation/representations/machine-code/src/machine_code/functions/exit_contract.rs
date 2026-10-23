@@ -4,7 +4,6 @@ mod identity;
 pub use identity::whole_function_exit_contract_identity;
 
 use optimization_core::Optimization;
-use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use register_model::{RegisterUnitId, RegisterViewId};
 use selected_instructions::{
     MachineEncodedTrapBehavior, SelectedBlockId, SelectedInstructionId,
@@ -72,16 +71,6 @@ pub enum WholeFunctionExitLayoutCustody {
     PostAllocationMachineOptimizationV1 {
         optimization: Optimization,
         artifact_identity: [u8; 32],
-    },
-    /// Compatibility custody for the named CBNZ realization route. New
-    /// generic callers must use `PostAllocationMachineOptimizationV1`.
-    Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
-        fusion: Aarch64CbnzFusionIdentity,
-    },
-    /// Compatibility custody for the named MOVN realization route. New
-    /// generic callers must use `PostAllocationMachineOptimizationV1`.
-    Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-        materialization: Aarch64MovnMaterializationIdentity,
     },
 }
 

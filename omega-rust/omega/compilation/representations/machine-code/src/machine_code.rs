@@ -50,7 +50,6 @@ pub use encoding::{
     SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
-    SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody,
 };
 pub use fragments::{
     FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,

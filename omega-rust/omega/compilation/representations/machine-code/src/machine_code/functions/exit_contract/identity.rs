@@ -33,18 +33,6 @@ pub fn whole_function_exit_contract_identity(
             hasher.byte(optimization as u8);
             hasher.raw(&artifact_identity);
         }
-        WholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
-            fusion,
-        } => {
-            hasher.byte(4);
-            hasher.raw(&fusion.bytes());
-        }
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization,
-        } => {
-            hasher.byte(5);
-            hasher.raw(&materialization.bytes());
-        }
     }
     hasher.raw(&contract.target.wire_identity_bytes());
     hasher.byte(exit_policy_tag(contract.policy));

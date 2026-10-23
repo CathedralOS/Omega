@@ -1,13 +1,9 @@
 //! Current layout-independent instruction bytes, call templates and evidence.
 
-mod custody;
 mod identity;
 mod rows;
 #[cfg(test)]
 mod tests;
-pub use custody::{SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody};
-use optimization_core::Optimization;
-use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use physical_instructions::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
 };
@@ -48,48 +44,6 @@ impl SelectedFormEncoding {
         &self,
     ) -> Option<PostAllocationMachineOptimizationCustody> {
         self.post_allocation_machine_optimization
-    }
-
-    /// Compatibility projection for layout routes that still name CBNZ.
-    pub const fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
-        match self.post_allocation_machine_optimization {
-            Some(custody)
-                if matches!(
-                    custody.optimization(),
-                    Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-                ) =>
-            {
-                Some(SelectedFormMachineOptimizationCustody {
-                    selections: custody.selections(),
-                    post_allocation_machine_selections: custody
-                        .post_allocation_machine_selections(),
-                    fusion: Aarch64CbnzFusionIdentity::from_bytes(custody.artifact_identity()),
-                })
-            }
-            _ => None,
-        }
-    }
-
-    /// Compatibility projection for layout routes that still name MOVN.
-    pub const fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
-        match self.post_allocation_machine_optimization {
-            Some(custody)
-                if matches!(
-                    custody.optimization(),
-                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-                ) =>
-            {
-                Some(SelectedFormMovnOptimizationCustody {
-                    selections: custody.selections(),
-                    post_allocation_machine_selections: custody
-                        .post_allocation_machine_selections(),
-                    materialization: Aarch64MovnMaterializationIdentity::from_bytes(
-                        custody.artifact_identity(),
-                    ),
-                })
-            }
-            _ => None,
-        }
     }
 
     pub const fn identity(&self) -> SelectedFormEncodingIdentity {

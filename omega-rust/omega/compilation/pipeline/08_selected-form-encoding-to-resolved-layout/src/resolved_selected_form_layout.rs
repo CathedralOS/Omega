@@ -11,14 +11,11 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use machine_code::ResolvedMachineLayout;
+use machine_code::SelectedFormEncodingIdentity;
 pub use machine_code::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
     ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
     ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
-};
-use machine_code::{
-    SelectedFormEncodingIdentity, SelectedFormMachineOptimizationCustody,
-    SelectedFormMovnOptimizationCustody,
 };
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
@@ -79,14 +76,6 @@ impl StagedOptimizedResolvedSelectedFormLayout {
 
     pub fn pre_layout(&self) -> SelectedFormEncodingIdentity {
         self.program.pre_layout
-    }
-
-    pub fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
-        self.program.machine_optimization()
-    }
-
-    pub fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
-        self.program.movn_optimization()
     }
 
     pub fn post_allocation_machine_optimization(
