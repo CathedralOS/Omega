@@ -9316,6 +9316,48 @@ fail/facts/signed_8bit_saturating_multiplication_bound_through_target_body_rejec
 	cannot prove requires contract for call verify_prod from sat_target: prod >= 40 && prod <= 96 (needs fact `value >= 40 && value <= 96` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_prod from sat_target: prod >= 40 && prod <= 96 (needs fact `value >= 40 && value <= 96` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_prod from sat_target: prod >= 40 && prod <= 96 (needs fact `value >= 40 && value <= 96` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_call_result_rejected rejected 1023ms expected @d3b0020bf6a7+wt
+	cannot prove ensures contract for exit from produce_diff at statement 1: result >= 40 && result <= 90
+fail/facts/signed_8bit_saturating_subtraction_bound_through_const_name_rejected rejected 1011ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_diff from main: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_field_rejected rejected 1005ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_diff from main: carrier.diff >= 40 && carrier.diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_local_rejected rejected 1040ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_diff from main: local_diff >= 40 && local_diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_match_join_rejected rejected 1022ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_diff from main: joined >= 40 && joined <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_other_machine_rejected rejected 1050ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call runner from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_other_state_rejected rejected 989ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_diff from main: forwarded >= 40 && forwarded <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_parameter_rejected rejected 1009ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call check_param from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_saturating_subtraction_bound_through_target_body_rejected rejected 1047ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_call_result_rejected rejected 1023ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_const_name_rejected rejected 983ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_field_rejected rejected 1062ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_local_rejected rejected 1045ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_match_join_rejected rejected 1028ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_other_machine_rejected rejected 1012ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_other_state_rejected rejected 1000ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: s >= 100 && s <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_shift_left_bound_through_parameter_rejected rejected 990ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from check_shifted: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_shift_left_bound_through_target_body_rejected rejected 955ms expected @d3b0020bf6a7+wt
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i8_shifted from exercise: shifted >= 100 && shifted <= 100 (needs fact `s >= 100 && s <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_shift_right_bound_through_call_result_rejected rejected 8825ms expected @644a492d2c3b+wt
 	cannot prove ensures contract for exit from shift_right at statement 0: result >= 25 && result <= 25
 fail/facts/signed_8bit_shift_right_bound_through_const_name_rejected rejected 7657ms expected @644a492d2c3b+wt
@@ -18913,6 +18955,24 @@ pass/facts/signed_8bit_saturating_multiplication_bound_through_other_machine_exi
 pass/facts/signed_8bit_saturating_multiplication_bound_through_other_state_exit checked 23413ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_saturating_multiplication_bound_through_parameter_exit checked 22904ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_saturating_multiplication_bound_through_target_body_exit checked 24887ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_call_result_exit checked 1928ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_const_name_exit checked 1926ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_field_exit checked 1931ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_local_exit checked 1828ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_match_join_exit checked 1845ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_other_machine_exit checked 1811ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_other_state_exit checked 1761ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_parameter_exit checked 1803ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_saturating_subtraction_bound_through_target_body_exit checked 1798ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_call_result_exit checked 1824ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_const_name_exit checked 1697ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_field_exit checked 1788ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_local_exit checked 1706ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_match_join_exit checked 2213ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_other_machine_exit checked 1759ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_other_state_exit checked 1621ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_parameter_exit checked 1594ms check-target:macos_arm64 @d3b0020bf6a7+wt
+pass/facts/signed_8bit_shift_left_bound_through_target_body_exit checked 1476ms check-target:macos_arm64 @d3b0020bf6a7+wt
 pass/facts/signed_8bit_shift_right_bound_through_call_result_exit checked 3316ms check-target:macos_arm64 @644a492d2c3b+wt
 pass/facts/signed_8bit_shift_right_bound_through_const_name_exit checked 3486ms check-target:macos_arm64 @644a492d2c3b+wt
 pass/facts/signed_8bit_shift_right_bound_through_field_exit checked 3752ms check-target:macos_arm64 @644a492d2c3b+wt
