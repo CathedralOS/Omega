@@ -10086,6 +10086,48 @@ fail/facts/thirtyfour_variant_enum_payload_bound_through_target_body_rejected re
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_call_result_rejected rejected 2121ms expected @9b001b8f6afa+wt
+	cannot prove ensures contract for exit from extract_payload at statement 77: result >= 40 && result <= 80
+fail/facts/thirtynine_variant_enum_payload_bound_through_const_name_rejected rejected 1486ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_field_rejected rejected 1352ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_local_rejected rejected 1486ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_match_join_rejected rejected 2320ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_other_machine_rejected rejected 1861ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_other_state_rejected rejected 1275ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_parameter_rejected rejected 1386ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtynine_variant_enum_payload_bound_through_target_body_rejected rejected 1376ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/thirtyone_arg_stack_calling_plan_through_call_result_rejected rejected 2652ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_const_name_rejected rejected 3110ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_field_rejected rejected 4865ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_local_rejected rejected 4588ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_match_join_rejected rejected 13423ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_other_machine_rejected rejected 9102ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `forward_check` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_other_state_rejected rejected 8333ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `probe` state `step` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_parameter_rejected rejected 9964ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `consume` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/thirtyone_arg_stack_calling_plan_through_target_body_rejected rejected 64366ms expected @9b001b8f6afa+wt
+	exact arithmetic in machine `evaluate31` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `evaluate31` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `evaluate31` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `evaluate31` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/thirtyone_variant_enum_payload_bound_through_call_result_rejected rejected 14329ms expected @9b001b8f6afa+wt
 	cannot prove ensures contract for exit from extract_payload at statement 61: result >= 40 && result <= 80
 fail/facts/thirtyone_variant_enum_payload_bound_through_const_name_rejected rejected 11178ms expected @9b001b8f6afa+wt
@@ -18818,6 +18860,24 @@ pass/facts/thirtyfour_variant_enum_payload_bound_through_other_machine_exit chec
 pass/facts/thirtyfour_variant_enum_payload_bound_through_other_state_exit checked 35484ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/thirtyfour_variant_enum_payload_bound_through_parameter_exit checked 28891ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/thirtyfour_variant_enum_payload_bound_through_target_body_exit checked 30999ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_call_result_exit checked 7352ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_const_name_exit checked 7394ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_field_exit checked 10336ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_local_exit checked 8139ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_match_join_exit checked 8586ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_other_machine_exit checked 9676ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_other_state_exit checked 11495ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_parameter_exit checked 11300ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtynine_variant_enum_payload_bound_through_target_body_exit checked 12606ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_call_result_exit checked 223057ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_const_name_exit checked 206896ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_field_exit checked 206434ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_local_exit checked 54549ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_match_join_exit checked 207672ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_other_machine_exit checked 55745ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_other_state_exit checked 60104ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_parameter_exit checked 61343ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/thirtyone_arg_stack_calling_plan_through_target_body_exit checked 433628ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/thirtyone_variant_enum_payload_bound_through_call_result_exit checked 26468ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/thirtyone_variant_enum_payload_bound_through_const_name_exit checked 25026ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/thirtyone_variant_enum_payload_bound_through_field_exit checked 24844ms check-target:macos_arm64 @9b001b8f6afa+wt
