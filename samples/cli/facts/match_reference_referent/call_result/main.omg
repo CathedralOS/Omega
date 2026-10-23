@@ -1,0 +1,46 @@
+// A match selects one of two references, the join records that reference, and the consumer reads through the recorded reference.
+// Place: call_result.
+// Expected exit: 0
+
+machine choose() -> bool
+ensures result == true
+{
+    true
+}
+
+machine read_through(place: &i64) -> i64
+requires place == 17
+{
+    place
+}
+
+machine measure_chosen() -> i64
+ensures result == 17
+{
+    17
+}
+
+machine measure_spare() -> i64
+ensures result == 5
+{
+    5
+}
+
+machine main() crashes Trap {
+    let chosen: i64 = measure_chosen();
+    let spare: i64 = measure_spare();
+    let chosen_ref: &i64 = &chosen;
+    let spare_ref: &i64 = &spare;
+    let joined: &i64 = match choose() {
+        true -> chosen_ref
+        false -> spare_ref
+    };
+    let observed: i64 = read_through(joined);
+    transition observed == 17 {
+        true -> done()
+        false -> wrong()
+    }
+
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,41 @@
+// A match selects one of two references, the join records that reference, and the consumer reads through the recorded reference.
+// Place: other_machine.
+// The twin selects the other reference.
+
+machine choose() -> bool
+ensures result == true
+{
+    true
+}
+
+machine read_through(place: &i64) -> i64
+requires place == 17
+{
+    place
+}
+
+machine apply(chosen: &i64, spare: &i64) -> i64 {
+    let joined: &i64 = match choose() {
+        true -> spare
+        false -> chosen
+    };
+
+    read_through(joined)
+}
+
+machine forward(chosen: &i64, spare: &i64) -> i64 {
+    apply(chosen, spare)
+}
+
+machine main() crashes Trap {
+    let chosen: i64 = 17;
+    let spare: i64 = 5;
+    let observed: i64 = forward(&chosen, &spare);
+    transition observed == 17 {
+        true -> done()
+        false -> wrong()
+    }
+
+    state done() {}
+    state wrong() { crash Trap; }
+}
