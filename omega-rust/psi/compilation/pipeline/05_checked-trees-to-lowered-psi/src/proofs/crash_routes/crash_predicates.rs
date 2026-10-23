@@ -127,7 +127,7 @@ pub(super) fn checked_boolean_proposition_with_budget(
             let mut leaves = Vec::new();
             flatten_checked_boolean_connective(left, conjunction, &mut leaves);
             flatten_checked_boolean_connective(right, conjunction, &mut leaves);
-            let mut propositions = leaves
+            let propositions = leaves
                 .into_iter()
                 .map(|leaf| {
                     checked_boolean_proposition_with_budget(
@@ -138,32 +138,8 @@ pub(super) fn checked_boolean_proposition_with_budget(
                         depth + 1,
                     )
                 })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .map(|proposition| {
-                    terminal_codec::canonical_proposition_order_key(&proposition)
-                        .map(|key| (key, proposition))
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "scalar crash connective is not canonically encodable",
-                            )
-                        })
-                })
                 .collect::<Result<Vec<_>, _>>()?;
-            propositions.sort_by(|left, right| left.0.cmp(&right.0));
-            propositions.dedup_by(|left, right| left.0 == right.0);
-            if propositions.len() == 1 {
-                return Ok(propositions.pop().expect("one distinct crash predicate").1);
-            }
-            let propositions = propositions
-                .into_iter()
-                .map(|(_, proposition)| proposition)
-                .collect();
-            Ok(if conjunction {
-                Proposition::Conjunction(propositions)
-            } else {
-                Proposition::Disjunction(propositions)
-            })
+            crate::proofs::contract_predicates::canonical_connectives(propositions, conjunction)
         }
         expression => {
             let mut left = checked_boolean_scalar_term(identities, expression, values, &[])?;
@@ -256,50 +232,20 @@ fn checked_boolean_connective_polarity(
         | CheckedBooleanExpression::Or { left, right } => {
             let conjunction =
                 matches!(expression, CheckedBooleanExpression::And { .. }) == positive;
-            let mut flattened = Vec::new();
-            for operand in [left.as_ref(), right.as_ref()] {
-                let proposition = checked_boolean_connective_polarity(
-                    identities,
-                    operand,
-                    values,
-                    positive,
-                    remaining,
-                    depth + 1,
-                )?;
-                match proposition {
-                    Proposition::Conjunction(children) if conjunction => flattened.extend(children),
-                    Proposition::Disjunction(children) if !conjunction => {
-                        flattened.extend(children)
-                    }
-                    proposition => flattened.push(proposition),
-                }
-            }
-            let mut keyed = flattened
+            let propositions = [left.as_ref(), right.as_ref()]
                 .into_iter()
-                .map(|proposition| {
-                    terminal_codec::canonical_proposition_order_key(&proposition)
-                        .map(|key| (key, proposition))
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "scalar crash connective is not canonically encodable",
-                            )
-                        })
+                .map(|operand| {
+                    checked_boolean_connective_polarity(
+                        identities,
+                        operand,
+                        values,
+                        positive,
+                        remaining,
+                        depth + 1,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            keyed.sort_by(|left, right| left.0.cmp(&right.0));
-            keyed.dedup_by(|left, right| left.0 == right.0);
-            if keyed.len() == 1 {
-                return Ok(keyed.pop().expect("one distinct crash predicate").1);
-            }
-            let children = keyed
-                .into_iter()
-                .map(|(_, proposition)| proposition)
-                .collect();
-            Ok(if conjunction {
-                Proposition::Conjunction(children)
-            } else {
-                Proposition::Disjunction(children)
-            })
+            crate::proofs::contract_predicates::canonical_connectives(propositions, conjunction)
         }
         _ => checked_boolean_atom_polarity(
             identities,

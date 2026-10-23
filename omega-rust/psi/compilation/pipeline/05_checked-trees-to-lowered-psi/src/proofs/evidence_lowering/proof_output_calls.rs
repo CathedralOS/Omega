@@ -1,6 +1,8 @@
 //! Proof-output calls, static requirement dispatch and runtime calls.
 
-use crate::proofs::evidence_lowering::evidence_terms::lower_evidence_interface;
+use crate::proofs::evidence_lowering::evidence_terms::{
+    evidence_term_index, lower_evidence_interface,
+};
 use crate::proofs::evidence_lowering::{
     checked_evidence_machine_identity, checked_evidence_requirement_identity,
     checked_requirement_schema, checked_static_conformance_rows, evidence_projection_identity,
@@ -133,10 +135,7 @@ pub(crate) fn lower_proof_output_calls(
                             .output
                             .map(|output| {
                                 term_ids
-                                    .get(
-                                        usize::try_from(output.arena_index() - 1)
-                                            .expect("arena indices fit the host address space"),
-                                    )
+                                    .get(evidence_term_index(output))
                                     .copied()
                                     .flatten()
                                     .ok_or(LoweringError::Unsupported(
@@ -438,10 +437,7 @@ pub(crate) fn terminal_evidence_term_id(
     error: &'static str,
 ) -> Result<EvidenceTermId, LoweringError> {
     term_ids
-        .get(
-            usize::try_from(handle.arena_index() - 1)
-                .expect("arena indices fit the host address space"),
-        )
+        .get(evidence_term_index(handle))
         .copied()
         .flatten()
         .ok_or(LoweringError::Unsupported(error))

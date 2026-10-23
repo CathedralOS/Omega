@@ -14,6 +14,12 @@ use crate::proofs::{
     PropositionEvidence, PropositionId, proposition_id,
 };
 
+/// The host index of one checked evidence-term arena handle. Every reader of
+/// that arena addresses rows by this index, so the conversion lives once.
+pub(super) fn evidence_term_index<T>(handle: arena::Handle<T>) -> usize {
+    usize::try_from(handle.arena_index() - 1).expect("arena indices fit the host address space")
+}
+
 fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
     while parents[index] != index {
         let parent = parents[index];
@@ -104,8 +110,7 @@ pub(crate) fn lower_proposition_vocabulary(
             .evidence_terms
             .iter()
             .filter_map(|(handle, term)| {
-                let index = usize::try_from(handle.arena_index() - 1)
-                    .expect("arena indices fit the host address space");
+                let index = evidence_term_index(handle);
                 term_ids
                     .get(index)
                     .copied()
@@ -131,8 +136,7 @@ pub(crate) fn lower_proposition_vocabulary(
         let mut belongs_to_emitted_bodies = true;
         for argument in &application.binder_arguments {
             let evidence_projection = if let Some(projection) = &argument.evidence_projection {
-                let index = usize::try_from(projection.term.arena_index() - 1)
-                    .expect("arena indices fit the host address space");
+                let index = evidence_term_index(projection.term);
                 let Some(term) = term_ids.get(index).copied().flatten() else {
                     belongs_to_emitted_bodies = false;
                     break;
@@ -227,10 +231,8 @@ pub(crate) fn lower_evidence_term_ids(
         if let checked_trees::EvidenceAssignmentSource::Forwarded { term: source } =
             &forwarding.source
         {
-            let output = usize::try_from(forwarding.output.arena_index() - 1)
-                .expect("arena indices fit the host address space");
-            let source = usize::try_from(source.arena_index() - 1)
-                .expect("arena indices fit the host address space");
+            let output = evidence_term_index(forwarding.output);
+            let source = evidence_term_index(*source);
             let output_root = evidence_term_root(&mut parents, output);
             let source_root = evidence_term_root(&mut parents, source);
             parents[output_root] = source_root;
@@ -242,10 +244,8 @@ pub(crate) fn lower_evidence_term_ids(
                 continue;
             };
             if let Some(output) = output.output {
-                let output = usize::try_from(output.arena_index() - 1)
-                    .expect("arena indices fit the host address space");
-                let source = usize::try_from(source.arena_index() - 1)
-                    .expect("arena indices fit the host address space");
+                let output = evidence_term_index(output);
+                let source = evidence_term_index(source);
                 let output_root = evidence_term_root(&mut parents, output);
                 let source_root = evidence_term_root(&mut parents, source);
                 parents[output_root] = source_root;
@@ -261,18 +261,14 @@ pub(crate) fn lower_evidence_term_ids(
         let Some(machine_position) = body_position(machine_symbol) else {
             continue;
         };
-        let index = usize::try_from(handle.arena_index() - 1)
-            .expect("arena indices fit the host address space");
+        let index = evidence_term_index(handle);
         let root = evidence_term_root(&mut parents, index);
         let lane_key = match term.kind {
             checked_trees::ContractProofFactKind::Requires => {
                 (machine_position, 0_u8, term.lane_position)
             }
             checked_trees::ContractProofFactKind::Ensures
-                if guarded_terms.contains(
-                    &usize::try_from(handle.arena_index() - 1)
-                        .expect("arena indices fit the host address space"),
-                ) =>
+                if guarded_terms.contains(&evidence_term_index(handle)) =>
             {
                 (machine_position, 2_u8, term.lane_position)
             }
@@ -290,8 +286,7 @@ pub(crate) fn lower_evidence_term_ids(
         let machine_position = body_position(invocation.caller_machine_symbol)
             .expect("retained proof-output caller belongs to an emitted body");
         for argument in &invocation.evidence_arguments {
-            let index = usize::try_from(argument.source.arena_index() - 1)
-                .expect("arena indices fit the host address space");
+            let index = evidence_term_index(argument.source);
             let root = evidence_term_root(&mut parents, index);
             roots
                 .entry(root)
@@ -309,8 +304,7 @@ pub(crate) fn lower_evidence_term_ids(
                 .into_iter()
                 .chain(retains_callee_term.then_some(output.callee_output))
             {
-                let index = usize::try_from(handle.arena_index() - 1)
-                    .expect("arena indices fit the host address space");
+                let index = evidence_term_index(handle);
                 let root = evidence_term_root(&mut parents, index);
                 roots
                     .entry(root)
@@ -329,8 +323,7 @@ pub(crate) fn lower_evidence_term_ids(
             continue;
         };
         for term in arm.rows.iter().filter_map(|row| row.selected_term) {
-            let index = usize::try_from(term.arena_index() - 1)
-                .expect("arena indices fit the host address space");
+            let index = evidence_term_index(term);
             let root = evidence_term_root(&mut parents, index);
             roots
                 .entry(root)
@@ -361,8 +354,7 @@ pub(crate) fn lower_evidence_term_ids(
         .collect::<BTreeMap<_, _>>();
     let mut term_ids = vec![None; parents.len()];
     for (handle, _) in checked.facts.proof.evidence_terms.iter() {
-        let index = usize::try_from(handle.arena_index() - 1)
-            .expect("arena indices fit the host address space");
+        let index = evidence_term_index(handle);
         let root = evidence_term_root(&mut parents, index);
         term_ids[index] = root_ids.get(&root).copied();
     }
@@ -379,8 +371,7 @@ pub(crate) fn lower_evidence_terms(
     let mut identities_by_id =
         BTreeMap::<EvidenceTermId, (PropositionId, EvidenceInterfaceIdentity)>::new();
     for (handle, term) in checked.facts.proof.evidence_terms.iter() {
-        let index = usize::try_from(handle.arena_index() - 1)
-            .expect("arena indices fit the host address space");
+        let index = evidence_term_index(handle);
         if term_ids.get(index).copied().flatten().is_none() {
             continue;
         }
@@ -402,8 +393,7 @@ pub(crate) fn lower_evidence_terms(
                     .evidence_projection
                     .as_ref()
                     .map(|projection| {
-                        let projection_index = usize::try_from(projection.term.arena_index() - 1)
-                            .expect("arena indices fit the host address space");
+                        let projection_index = evidence_term_index(projection.term);
                         evidence_projection_identity(
                             identities,
                             checked,
@@ -520,15 +510,11 @@ pub(crate) fn lower_evidence_contract_lanes(
                 == checked_trees::ContractProofFactOwner::Machine {
                     machine_symbol: selected_machine,
                 }
-                && !guarded_terms.contains(
-                    &usize::try_from(handle.arena_index() - 1)
-                        .expect("arena indices fit the host address space"),
-                ))
+                && !guarded_terms.contains(&evidence_term_index(handle)))
             .then_some((handle, term))
         })
         .map(|(handle, term)| {
-            let index = usize::try_from(handle.arena_index() - 1)
-                .expect("arena indices fit the host address space");
+            let index = evidence_term_index(handle);
             let term_id =
                 term_ids
                     .get(index)
@@ -574,10 +560,7 @@ fn selected_guarded_evidence_terms(
             (guarantee.machine_symbol == selected_machine)
                 .then_some(guarantee.evidence_term)
                 .flatten()
-                .map(|handle| {
-                    usize::try_from(handle.arena_index() - 1)
-                        .expect("arena indices fit the host address space")
-                })
+                .map(|handle| evidence_term_index(handle))
         })
         .collect()
 }

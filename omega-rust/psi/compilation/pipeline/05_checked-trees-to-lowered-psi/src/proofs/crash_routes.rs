@@ -231,10 +231,15 @@ pub(crate) fn lower_checked_crash_exit(
     })
 }
 
-pub(crate) fn lower_checked_crash_route_buckets(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+/// One crash-route bucket roster through a caller-owned predicate namespace.
+/// Every alternative guard becomes one terminal predicate term, and the
+/// alternatives and their cause are canonicalized once for every producer;
+/// only the predicate's own value/structural namespace differs per caller.
+pub(crate) fn lower_crash_route_buckets(
     buckets: &[checked_trees::CrashRouteBucket],
-    parameters: &[ValueDeclaration],
+    mut lower_predicate: impl FnMut(
+        &checked_trees::CrashPredicateIdentity,
+    ) -> Result<Proposition, LoweringError>,
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     buckets
         .iter()
@@ -247,15 +252,8 @@ pub(crate) fn lower_checked_crash_route_buckets(
                         Ok(terminal_psi::CrashRouteGuard::Truth)
                     }
                     checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                        let expression = predicate.scalar_expression().ok_or(
-                            LoweringError::Unsupported(
-                                "guarded crash route is outside structured scalar predicate lowering",
-                            ),
-                        )?;
                         Ok(terminal_psi::CrashRouteGuard::Predicate(
-                            terminal_psi::CrashPredicateTerm::new(
-                                checked_boolean_proposition(identities, expression, parameters)?,
-                            ),
+                            terminal_psi::CrashPredicateTerm::new(lower_predicate(predicate)?),
                         ))
                     }
                 })
@@ -263,12 +261,32 @@ pub(crate) fn lower_checked_crash_route_buckets(
             alternatives.sort();
             alternatives.dedup();
             Ok(terminal_psi::CrashRouteBucket {
-                cause: match bucket.cause() {
-                    checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-                    checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
-                },
+                cause: lower_crash_cause(bucket.cause()),
                 alternatives,
             })
         })
         .collect()
+}
+
+/// One checked crash cause names one terminal cause.
+fn lower_crash_cause(cause: checked_trees::CrashCause) -> TerminalCrashCause {
+    match cause {
+        checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+        checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+    }
+}
+
+pub(crate) fn lower_checked_crash_route_buckets(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    buckets: &[checked_trees::CrashRouteBucket],
+    parameters: &[ValueDeclaration],
+) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
+    lower_crash_route_buckets(buckets, |predicate| {
+        let expression = predicate
+            .scalar_expression()
+            .ok_or(LoweringError::Unsupported(
+                "guarded crash route is outside structured scalar predicate lowering",
+            ))?;
+        checked_boolean_proposition(identities, expression, parameters)
+    })
 }
