@@ -9160,6 +9160,48 @@ fail/facts/signed_8bit_exact_arithmetic_bound_through_target_body_rejected rejec
 	exact arithmetic in machine `compute_target_body` state `entry` local `sum` may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute_target_body` state `entry` local `sum` may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute_target_body` state `entry` local `sum` may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i8 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_8bit_exact_multiplication_bound_through_call_result_rejected rejected 7051ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_call_result: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_const_name_rejected rejected 6582ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_const: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_field_rejected rejected 6656ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_field: c.prod >= 30 && c.prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_local_rejected rejected 12440ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_local: transported >= 30 && transported <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_match_join_rejected rejected 13072ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_match_join: joined >= 30 && joined <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_other_machine_rejected rejected 12697ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_other_machine: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_other_state_rejected rejected 9858ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_other_state: p >= 30 && p <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_exact_multiplication_bound_through_parameter_rejected rejected 12403ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_parameter: transported >= 30 && transported <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_multiplication_bound_through_target_body_rejected rejected 12772ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 30 && prod <= 100 (needs fact `prod >= 30 && prod <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_call_result_rejected rejected 12262ms expected @9b001b8f6afa+wt
+	cannot prove ensures contract for exit from produce_diff at statement 0: result >= 40 && result <= 90
+fail/facts/signed_8bit_exact_subtraction_bound_through_const_name_rejected rejected 10783ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from main: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_field_rejected rejected 10509ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from main: carrier.diff >= 40 && carrier.diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_local_rejected rejected 11333ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from main: local_diff >= 40 && local_diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_match_join_rejected rejected 11876ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from main: joined >= 40 && joined <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_other_machine_rejected rejected 11196ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call runner from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_other_state_rejected rejected 8850ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from main: forwarded >= 40 && forwarded <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_exact_subtraction_bound_through_parameter_rejected rejected 9398ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call check_param from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_exact_subtraction_bound_through_target_body_rejected rejected 9758ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 90 (needs fact `val >= 40 && val <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_saturating_arithmetic_bound_through_call_result_rejected rejected 22265ms expected @9b001b8f6afa+wt
 	cannot prove ensures contract for exit from produce_sum at statement 1: result >= 50 && result <= 100
 fail/facts/signed_8bit_saturating_arithmetic_bound_through_const_name_rejected rejected 23410ms expected @9b001b8f6afa+wt
@@ -18317,6 +18359,24 @@ pass/facts/signed_8bit_exact_arithmetic_bound_through_other_machine_exit checked
 pass/facts/signed_8bit_exact_arithmetic_bound_through_other_state_exit checked 2042ms check-target:macos_arm64 @b9f31a0e74de+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_parameter_exit checked 2050ms check-target:macos_arm64 @b9f31a0e74de+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_target_body_exit checked 1279ms check-target:macos_arm64 @b9f31a0e74de+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_call_result_exit checked 10231ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_const_name_exit checked 9983ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_field_exit checked 15757ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_local_exit checked 21158ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_match_join_exit checked 31091ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_other_machine_exit checked 27655ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_other_state_exit checked 22954ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_parameter_exit checked 24705ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_multiplication_bound_through_target_body_exit checked 24824ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_call_result_exit checked 21458ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_const_name_exit checked 13821ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_field_exit checked 14528ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_local_exit checked 13368ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_match_join_exit checked 12860ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_other_machine_exit checked 12273ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_other_state_exit checked 17049ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_parameter_exit checked 17319ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_exact_subtraction_bound_through_target_body_exit checked 15804ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_saturating_arithmetic_bound_through_call_result_exit checked 38511ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_saturating_arithmetic_bound_through_const_name_exit checked 37947ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_saturating_arithmetic_bound_through_field_exit checked 37423ms check-target:macos_arm64 @9b001b8f6afa+wt
