@@ -1570,6 +1570,16 @@ pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit built 4674
 pass/facts/descriptor_range_exclusive_loan_through_other_state_exit built 6293ms exit:0 @f07988b617d7+wt
 pass/facts/descriptor_range_exclusive_loan_through_parameter_exit built 4830ms exit:0 @f07988b617d7+wt
 pass/facts/descriptor_range_exclusive_loan_through_target_body_exit built 4197ms exit:0 @f07988b617d7+wt
+pass/facts/descriptor_payload_exclusive_loan_through_call_result_exit built 6413ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_const_name_exit built 6421ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_field_exit built 7273ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_local_exit built 6950ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_match_join_exit built 7044ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_other_machine_exit built 6988ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit rejected 10677ms @699198b1be35+wt
+	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(12)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/facts/descriptor_payload_exclusive_loan_through_parameter_exit built 11312ms exit:0 @699198b1be35+wt
+pass/facts/descriptor_payload_exclusive_loan_through_target_body_exit built 13078ms exit:0 @699198b1be35+wt
 pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit built 55061ms exit:0 @143f0b3e0428
 pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit built 56206ms exit:0 @143f0b3e0428
 pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit built 55061ms exit:0 @143f0b3e0428
