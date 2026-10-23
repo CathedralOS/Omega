@@ -7700,6 +7700,27 @@ fail/facts/seven_variant_enum_payload_bound_through_target_body_rejected rejecte
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_call_result_rejected rejected 7577ms expected @5c78d5329dbd+wt
+	cannot prove ensures contract for exit from extract_payload at statement 33: result >= 40 && result <= 80
+fail/facts/seventeen_variant_enum_payload_bound_through_const_name_rejected rejected 8109ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_field_rejected rejected 12304ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_local_rejected rejected 12068ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_match_join_rejected rejected 11586ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_other_machine_rejected rejected 11354ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_other_state_rejected rejected 7146ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_parameter_rejected rejected 7257ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/seventeen_variant_enum_payload_bound_through_target_body_rejected rejected 7776ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/shared_borrow_field_projection_through_call_result_rejected rejected 11000ms expected @8f970335dca4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/shared_borrow_field_projection_through_const_name_rejected rejected 10859ms expected @8f970335dca4+wt
@@ -7742,6 +7763,27 @@ fail/facts/shared_qualification_erasure_through_target_body_rejected rejected 64
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_call_result_rejected rejected 7350ms expected @5c78d5329dbd+wt
+	cannot prove ensures contract for exit from produce_masked at statement 0: result >= 40 && result <= 63
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_const_name_rejected rejected 6567ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_masked from main: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_field_rejected rejected 6419ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_masked from main: carrier.masked >= 40 && carrier.masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_local_rejected rejected 6268ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_masked from main: local_masked >= 40 && local_masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_match_join_rejected rejected 6137ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_masked from main: joined >= 40 && joined <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_other_machine_rejected rejected 7589ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call runner from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_other_state_rejected rejected 7395ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call verify_masked from main: forwarded >= 40 && forwarded <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_parameter_rejected rejected 7760ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call check_param from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_and_mask_bound_through_target_body_rejected rejected 10992ms expected @5c78d5329dbd+wt
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_bitwise_or_bound_through_call_result_rejected rejected 27004ms expected @4c23cc3391c2+wt
 	cannot prove ensures contract for exit from produce_combined at statement 0: result >= 40 && result <= 63
 fail/facts/signed_16bit_bitwise_or_bound_through_const_name_rejected rejected 26683ms expected @4c23cc3391c2+wt
@@ -16535,6 +16577,15 @@ pass/facts/seven_variant_enum_payload_bound_through_other_machine_exit checked 7
 pass/facts/seven_variant_enum_payload_bound_through_other_state_exit checked 8482ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/seven_variant_enum_payload_bound_through_parameter_exit checked 16570ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/seven_variant_enum_payload_bound_through_target_body_exit checked 23484ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_call_result_exit checked 10270ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_const_name_exit checked 14513ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_field_exit checked 10588ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_local_exit checked 9438ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_match_join_exit checked 13593ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_other_machine_exit checked 14238ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_other_state_exit checked 13957ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_parameter_exit checked 12582ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/seventeen_variant_enum_payload_bound_through_target_body_exit checked 10824ms check-target:macos_arm64 @5c78d5329dbd+wt
 pass/facts/shared_borrow_field_projection_through_call_result_exit checked 63075ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_const_name_exit checked 56162ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_field_exit checked 65366ms check-target:macos_arm64 @8f970335dca4+wt
@@ -16553,6 +16604,15 @@ pass/facts/shared_qualification_erasure_through_other_machine_exit checked 1897m
 pass/facts/shared_qualification_erasure_through_other_state_exit checked 1836ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/shared_qualification_erasure_through_parameter_exit checked 2073ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/shared_qualification_erasure_through_target_body_exit checked 1737ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_call_result_exit checked 10383ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_const_name_exit checked 10201ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_field_exit checked 10826ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_local_exit checked 12626ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_match_join_exit checked 12067ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_other_machine_exit checked 11941ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_other_state_exit checked 11215ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_parameter_exit checked 8854ms check-target:macos_arm64 @5c78d5329dbd+wt
+pass/facts/signed_16bit_bitwise_and_mask_bound_through_target_body_exit checked 9360ms check-target:macos_arm64 @5c78d5329dbd+wt
 pass/facts/signed_16bit_bitwise_or_bound_through_call_result_exit checked 30561ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_bitwise_or_bound_through_const_name_exit checked 30551ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_bitwise_or_bound_through_field_exit checked 31533ms check-target:macos_arm64 @4c23cc3391c2+wt
