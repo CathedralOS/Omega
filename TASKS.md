@@ -2970,8 +2970,8 @@ crash and native exit behavior.
     `lowering/control_flow/ieee_float_arithmetic.rs`, and each ISA's
     `selected_form_encoding/ieee_float_arithmetic.rs`. Selected-form tag 230
     carries the operation/format ordinal; append identities, never renumber.
-    Nearest FMA (ordinal 44) stays AArch64-only until
-    **X86-FMA-PROVIDER-TRANSPORT**. With
+    Nearest FMA (ordinal 44) executes on AArch64 and admitted AVX+FMA3
+    x86-64; the Linux hardware witnesses agree with Terminal. With
     `omega::language::core::float_operations` imported, f32/f64 arithmetic
     and comparison in local, field and guard positions run natively and in
     Terminal on macOS ARM64. Comparison builtins admit: the six IEEE
@@ -6359,30 +6359,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   execution stay unsupported. **ADDRESS-EXPOSURE** owns address observation;
   **COMPONENT-SUBSTRATE** owns component replacement.
 
-- **X86-FMA-PROVIDER-TRANSPORT.** Execute admitted x86 FMA through std
-  consumers on Linux x86-64 hardware.
-  - `NearestIeeeFloatArithmeticRealization` carries the admitted AVX+FMA3
-    provider from stage 00 catalog admission through stage 02/03 lowering,
-    legalization and selection; x86 encodes `VFMADD213SS`/`SD` with the addend
-    in `xmm3`. The superseded constant-operand
-    `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` route, machine-code
-    FMA fragments/occurrences, `object_artifact/replay/x86_fma.rs`, and the
-    unused `ObjectArtifact` / `ExecutableImage` `x86_scalar_fma_provider`
-    fields are deleted. On Windows x86-64, std-free
-    `pass/float/fused_multiply_add_single_rounding_exit` exits 0,
-    `pass/float/named_provider_fused_multiply_add_exit` and
-    `pass/float/admitted_numeric_imports_preserve_semantics` exit 70, and
-    `pass/float/x86_fma_plan_association` builds natively. Without admission the
-    plan join still rejects.
-  - Remaining: run `pass/float/fused_multiply_add_single_rounding_exit`,
-    `pass/float/x86_fma_plan_association`,
-    `pass/float/named_provider_fused_multiply_add_exit` and
-    `pass/float/admitted_numeric_imports_preserve_semantics` on Linux x86-64
-    hardware.
-  Acceptance: the three std fixtures and the std-free fixture run on Linux
-  x86-64 hardware at their oracles, with missing-feature and
-  fused-versus-unfused controls retained.
-
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry checked assembly through
   source-to-native production under [assembly](wiki/spec/language/assembly.md)
   and the [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
@@ -6548,9 +6524,8 @@ report a missing runtime leg explicitly.
     still lets toolchain-origin selections stay unresolved. A package-owned std
     with a targetless UEFI-handoff call must late-bind like bundled std while
     unresolved root calls reject; do not widen the allowance to every
-    `CheckedCall` or infer ownership from a path. **MODULE-NAMESPACE-RESOLUTION**,
-    **PROVIDER-SELECTION-AFTER-TERMINAL** and **X86-FMA-PROVIDER-TRANSPORT** own
-    the respective parts.
+    `CheckedCall` or infer ownership from a path. **MODULE-NAMESPACE-RESOLUTION** and
+    **PROVIDER-SELECTION-AFTER-TERMINAL** own the remaining parts.
   - **Private progress premises:** under
     [termination](wiki/spec/language/termination.md), **TPR6** owns finite sets
     of externally dischargeable subjects. Fixtures needed: two independent
@@ -6640,8 +6615,8 @@ report a missing runtime leg explicitly.
   re-record after it lifts. At bff9578e24 Windows built every
   fixture a macOS cross-build built except
   `pass/float/{admitted_numeric_imports_preserve_semantics,named_provider_fused_multiply_add_exit}`
-  (x86 FMA, now admitted with AvxFma3; **X86-FMA-PROVIDER-TRANSPORT** runs
-  them once std checks), and every
+  (x86 FMA, now admitted with AvxFma3 and executed on Linux x86-64;
+  this Windows release row still needs its own current measurement), and every
   executed fixture met its oracle. Remaining:
   - 49 fixtures bind only macOS or POSIX hosts through Darwin/POSIX foreign
     providers (`pass/host/runtime_descriptor_*`, `pass/providers/foreign_*`,

@@ -8365,6 +8365,9 @@ fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1584ms 
 fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1504ms expected @9c4d1c444502
 fail/float/unbounded_result_does_not_prove_guarantee rejected 1369ms expected @9c4d1c444502
 fail/float/unguarded_scalar_state_contract rejected 1179ms expected @9c4d1c444502
+fail/float/x86_fma_missing_deployment_features rejected 9771ms expected @d6cf554fd1cb+wt
+	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
+	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
 fail/generics/applied_array_field_needs_explicit_borrow rejected 77ms expected @d1fa4738e67a+wt
 fail/generics/applied_data_argument_parameter_mismatch rejected 232ms expected @6ef08ceefee0+wt
 fail/generics/applied_implementation_extra_method_argument rejected 69ms expected @097fbfdea595+wt
