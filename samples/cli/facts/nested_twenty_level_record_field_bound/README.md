@@ -28,6 +28,8 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
 `Expected exit: 0`.
 
+Match the fact sentence beside every place: each positive place is pinned as `tests/omega/pass/facts/nested_twenty_level_record_field_bound_through_<place>_exit` and each reject twin as `tests/omega/fail/facts/nested_twenty_level_record_field_bound_through_<place>_rejected`, byte-equal (`cmp`) to the place and `invalid/` programs beside them (main.omg, build.omg, and the exit or rejection oracle).
+
 ## Execution
 
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
@@ -71,8 +73,9 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Owning board item:** `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS` (`TASKS.md`).
 - **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Fixture pin and landing ticket:** `253614adad2044839ab22a34f44d0581` (factsr1-pins-cq2).
 - **Requirement established:** Target-neutral compile-time multi-level nested record projection bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, projecting the leaf field of a 20-level nested structural record `RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { l6: Level6 { l7: Level7 { l8: Level8 { l9: Level9 { l10: Level10 { l11: Level11 { l12: Level12 { l13: Level13 { l14: Level14 { l15: Level15 { l16: Level16 { l17: Level17 { l18: Level18 { l19: Level19 { val: u64 } } } } } } } } } } } } } } } } } } }` preserves the static leaf interval bound (`root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.val >= 40u64 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.val <= 80u64`), discharging exact 64-bit unsigned subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
