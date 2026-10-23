@@ -89,6 +89,16 @@ All 18 positive and negative witness fixtures are pinned in the corpus suite:
   - [`live_across_seven_calls_preservation_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_other_machine_rejected)
   - [`live_across_seven_calls_preservation_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_target_body_rejected)
 
+Golden rows recorded at `@cb13fcfebe32+wt` with the record producer built from
+that same revision (`corpus_runner` sha256
+`a95a9395c72a8afab416a60eb450ae354f9c21e8753cd94bf06761df0290b624`):
+`corpus_outcomes.txt` 9 `checked ... check-target:macos_arm64` pass rows and 9
+`rejected ... expected` fail rows carrying `exact arithmetic in machine ...
+local underflow may overflow u64` with 12 diagnostic continuation lines;
+`corpus_native_macos_arm64.txt` 9 `built ... exit:0` rows;
+`corpus_both_macos_arm64.txt` 9 `built ... exit:0 interpreter-exit:0
+interpreter:agrees` rows.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).

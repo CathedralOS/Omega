@@ -67,6 +67,15 @@ All 18 positive and negative witness fixtures are pinned in the corpus suite:
   - [`live_across_eight_calls_preservation_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_other_machine_rejected)
   - [`live_across_eight_calls_preservation_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/live_across_eight_calls_preservation_bound_through_target_body_rejected)
 
+Golden legs: the check leg's 18 outcome rows were recorded by the row's
+original pin at `@00ef417922c0`. The native and Terminal-agreement legs were
+added at `@cb13fcfebe32+wt` with the record producer built from that revision
+(`corpus_runner` sha256
+`a95a9395c72a8afab416a60eb450ae354f9c21e8753cd94bf06761df0290b624`):
+`corpus_native_macos_arm64.txt` 9 `built ... exit:0` rows and
+`corpus_both_macos_arm64.txt` 9 `built ... exit:0 interpreter-exit:0
+interpreter:agrees` rows.
+
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
