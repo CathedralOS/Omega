@@ -7,8 +7,7 @@
 use crate::checked::CheckedCompilation;
 use crate::execution_settlement::SelectedProviderCustody;
 use crate::terminal::native_proposal;
-use artifacts::allocations::AllocationDelta;
-use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
 use std::sync::Arc;
@@ -18,7 +17,6 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
     "CheckedTrees",
     "CanonicalTerminalArtifact",
-    TimingCategory::Pipeline,
 );
 
 /// Production borrows precisely the source, entry and provider facts it reads.
@@ -151,7 +149,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
     for group in groups {
         let first_index = group[0];
         let mut timings = std::mem::take(&mut *requests[first_index].view.timings);
-        timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0, AllocationDelta::default());
+        timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
         let started = std::time::Instant::now();
         let admission_roots: Vec<Vec<_>> = group
             .iter()
@@ -329,20 +327,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
         };
         drop(applications);
         let elapsed = started.elapsed().as_micros();
-        timings.add_completed(
-            TERMINAL_PRODUCTION_STAGE,
-            elapsed,
-            AllocationDelta::default(),
-        );
+        timings.add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         *requests[first_index].view.timings = timings;
         for &request_index in &group[1..] {
             // The shared cost is visible in each product report; per-leg rows
             // remain on the producing request, not fabricated executions.
-            requests[request_index].view.timings.add_completed(
-                TERMINAL_PRODUCTION_STAGE,
-                elapsed,
-                AllocationDelta::default(),
-            );
+            requests[request_index]
+                .view
+                .timings
+                .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         }
         match produced {
             Err(diagnostics) => {

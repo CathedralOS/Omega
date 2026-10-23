@@ -68,7 +68,6 @@ fn prepare_typed_frontier(
     timings.add_completed(
         artifacts::compile_timings::SOURCE_ASSEMBLY,
         assembly_started.elapsed().as_micros(),
-        artifacts::allocations::AllocationDelta::default(),
     );
     let base_sources = syntax.sources.clone();
     let frontend_started = std::time::Instant::now();
@@ -87,7 +86,6 @@ fn prepare_typed_frontier(
     timings.add_completed(
         artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
         frontend_started.elapsed().as_micros(),
-        artifacts::allocations::AllocationDelta::default(),
     );
     if let Some(retention) = retention {
         retention.publish(&frontier);
@@ -391,10 +389,6 @@ pub(crate) fn timed<T>(
 ) -> T {
     let started = std::time::Instant::now();
     let result = step(timings);
-    timings.add_completed(
-        stage,
-        started.elapsed().as_micros(),
-        artifacts::allocations::AllocationDelta::default(),
-    );
+    timings.add_completed(stage, started.elapsed().as_micros());
     result
 }

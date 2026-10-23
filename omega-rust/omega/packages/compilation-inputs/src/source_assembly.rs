@@ -14,7 +14,7 @@ use crate::source_imports::{
     ProjectSourceSelection, SourceStorage, discover_imports, discover_imports_with_packages,
     discover_package_imports, validate_package_source_frontier, validate_selected_build_role,
 };
-use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use psi_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
 use source::{LoadedSource, SourceId, SourceOrigin};
@@ -532,9 +532,7 @@ impl PsiCompilationObserver for ParsingTimings<'_> {
         operation: impl FnOnce() -> Result<Value, Error>,
     ) -> Result<Value, Error> {
         let (name, input, output) = stage.observation_labels();
-        self.0.record_result(
-            StageMeta::new(name, input, output, TimingCategory::Pipeline),
-            operation,
-        )
+        self.0
+            .record_result(StageMeta::new(name, input, output), operation)
     }
 }

@@ -85,20 +85,6 @@ pub fn record_settled_check(elapsed: std::time::Duration) {
     );
 }
 
-static SETTLED_CHECK_REUSES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// Monotonic settled-check requests answered by an equal retained judgment
-/// instead of a check — the multi-target route's one-check evidence.
-#[doc(hidden)]
-pub fn settled_check_reuse_count() -> u64 {
-    SETTLED_CHECK_REUSES.load(std::sync::atomic::Ordering::Relaxed)
-}
-
-/// Account one settled checking request served by a retained equal judgment.
-pub fn record_settled_check_reuse() {
-    SETTLED_CHECK_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-}
-
 static PRELIMINARY_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static PRELIMINARY_CHECK_MICROS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
@@ -150,16 +136,13 @@ mod tests {
         let assemblies = source_assembly_invocation_count();
         let reuses = typed_frontier_reuse_count();
         let settled = settled_check_totals();
-        let settled_reuses = settled_check_reuse_count();
         record_checked_compilation();
         record_source_assembly();
         record_typed_frontier_reuse();
         record_settled_check(std::time::Duration::from_micros(11));
-        record_settled_check_reuse();
         assert_eq!(checked_compilation_call_count(), requests + 1);
         assert_eq!(source_assembly_invocation_count(), assemblies + 1);
         assert_eq!(typed_frontier_reuse_count(), reuses + 1);
         assert_eq!(settled_check_totals(), (settled.0 + 1, settled.1 + 11));
-        assert_eq!(settled_check_reuse_count(), settled_reuses + 1);
     }
 }

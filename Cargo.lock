@@ -106,9 +106,6 @@ dependencies = [
 [[package]]
 name = "artifacts"
 version = "0.1.0"
-dependencies = [
- "diagnostics",
-]
 
 [[package]]
 name = "backend-plan"

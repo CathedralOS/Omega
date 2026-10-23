@@ -1,10 +1,9 @@
-//! Host artifact byte writing and opt-in measurement storage.
+//! Opt-in compilation measurement: the phase-timing ladder and the
+//! process-wide activity counters.
 //!
-//! belong to realization's trust-model, not this host utility. Timing
-//! phase collection is disabled by default and the CLI owns its stderr presentation.
-//! Process-wide activity counters are separate diagnostic measurements.
+//! Trust records and validation belong to realization's trust-model, not this
+//! host utility. Timing phase collection is disabled by default and the CLI
+//! owns its stderr presentation. Process-wide activity counters are separate
+//! diagnostic measurements.
 
-pub mod allocations;
 pub mod compile_timings;
-
-pub use compile_timings::PhaseTiming;

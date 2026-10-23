@@ -5,7 +5,7 @@ pub mod publication;
 mod build_directory;
 
 use crate::temporary_directory::TemporaryDirectory;
-use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use artifacts::compile_timings::{CompileTimings, StageMeta};
 use compiler::{
     CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
     compile,
@@ -228,12 +228,7 @@ fn compile_project_targets(
     };
     let prepared = timings
         .record_result(
-            StageMeta::new(
-                "prepare",
-                "project",
-                "prepared sources",
-                TimingCategory::Pipeline,
-            ),
+            StageMeta::new("prepare", "project", "prepared sources"),
             || packages::prepare_local_project_for_targets(&options.root_path, profiles, offline),
         )
         .map_err(CompileProjectError::Preparation)?;
@@ -258,12 +253,7 @@ fn compile_project_targets(
         Vec::new()
     } else {
         timings.record_result(
-            StageMeta::new(
-                "compile",
-                "sources",
-                "requested product",
-                TimingCategory::Pipeline,
-            ),
+            StageMeta::new("compile", "sources", "requested product"),
             || -> Result<
                 Vec<(
                     target::TargetProfile,
@@ -406,12 +396,7 @@ fn compile_project_targets(
             ProjectProduct::NativeArtifact => {
                 let (report, path) = timings
                     .record_result(
-                        StageMeta::new(
-                            "publish",
-                            "retained product",
-                            "published product",
-                            TimingCategory::Pipeline,
-                        ),
+                        StageMeta::new("publish", "retained product", "published product"),
                         || publication::publish_compilation(report, &target_directories[index]),
                     )
                     .map_err(CompileProjectError::Publication)?;

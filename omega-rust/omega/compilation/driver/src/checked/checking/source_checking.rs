@@ -120,7 +120,7 @@ pub(crate) fn check_product_source(
         .chain(reuse.prior.sibling_product_checks.iter())
         .collect();
     let outcome = timings
-        .record(TYPED_TREES_TO_CHECKED_TREES, || {
+        .record_result(TYPED_TREES_TO_CHECKED_TREES, || {
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
                 program: typed,
@@ -129,9 +129,7 @@ pub(crate) fn check_product_source(
                 retain: reuse.retain,
             }
             .check();
-            if result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_settled_check_reuse();
-            } else {
+            if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             }
             result

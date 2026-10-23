@@ -114,7 +114,7 @@ pub(crate) fn prepare_checked_build(
     // plus sibling rows whose projections arrived equal. Psi still admits
     // this invocation's declaration authority; provider/comparison settlement
     // and executor grants remain fresh below.
-    let outcome = timings.record(
+    let outcome = timings.record_result(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
@@ -135,9 +135,7 @@ pub(crate) fn prepare_checked_build(
             }
             .check();
             artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-            if result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_settled_check_reuse();
-            } else {
+            if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             }
             result

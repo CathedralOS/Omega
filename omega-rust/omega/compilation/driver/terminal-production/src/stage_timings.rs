@@ -4,7 +4,7 @@
 //! recorder here. No timing carrier or product-report dependency crosses upward
 //! into Psi, and this adapter neither retries nor interprets a stage judgment.
 
-use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use artifacts::compile_timings::{CompileTimings, StageMeta};
 use psi_compiler::{PsiCompilationObserver, PsiCompilationStage};
 
 /// Borrow the existing recorder instead of importing host reporting into Psi.
@@ -25,9 +25,7 @@ impl PsiCompilationObserver for PsiStageTimings<'_> {
         operation: impl FnOnce() -> Result<Value, Error>,
     ) -> Result<Value, Error> {
         let (name, input, output) = stage.observation_labels();
-        self.timings.record_result(
-            StageMeta::new(name, input, output, TimingCategory::Pipeline),
-            operation,
-        )
+        self.timings
+            .record_result(StageMeta::new(name, input, output), operation)
     }
 }

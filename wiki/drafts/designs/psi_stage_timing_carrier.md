@@ -18,9 +18,9 @@ COMPILER-PASS-PROFILE-TIMINGS closes.
 ## Constraint
 
 `--timings` stage rows live in the Omega-side accumulator
-`artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory}`
-(each row is a `StageMeta` — stage name, input form, output form, category —
-plus elapsed microseconds and an `AllocationDelta`).
+`artifacts::compile_timings::{CompileTimings, StageMeta}`
+(each row is a `StageMeta` — stage name, input form, output form —
+plus elapsed microseconds).
 
 Psi crates cannot name that type: `omega-architecture-test` enforces
 `psi_does_not_depend_on_omega`, and `terminal-production` sits under
@@ -58,8 +58,8 @@ the boundary call returns.
   (`terminal-production/machine-selection`: `CheckedTrees → TerminalMachine`,
   `terminal-production/lowering`: `CheckedTrees → LoweredPsi`,
   `terminal-production/publication`:
-  `OptimizedLoweredPsi → CanonicalTerminalArtifact`, etc.) and
-  `TimingCategory::Pipeline`; `merge_terminal_production_timings` then
+  `OptimizedLoweredPsi → CanonicalTerminalArtifact`, etc.);
+  `merge_terminal_production_timings` then
   `add_completed`s each row under the coarse `terminal-production` boundary
   row the caller already recorded. The boundary row stays the contract with
   downstream readers; the sub-rows are additive detail beneath it.
