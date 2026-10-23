@@ -54,17 +54,19 @@ records the positive as `built ... exit:0` with `jobs=3`. The native row is the
 measurement that the host image executes the writeback oracle; the check row
 alone would not move if a regression built and then exited wrongly.
 
-The pin canonicalization re-measurement (producer `9ff26a870215`, host
-`macos_arm64`, `--jobs 2`) renamed the fixture families to
-`<fact>_through_<place>_{exit,rejected}` and key-renamed their golden rows, then
-re-measured at base `c1c6bc8cb8e+wt`:
+The pin canonicalization re-measurement (producer `9ff26a870215` for the
+sample gate; opt-level 1 corpus runner built from the landed tree for the
+goldens; host `macos_arm64`, `--jobs 2`) renamed the fixture families to
+`<fact>_through_<place>_{exit,rejected}` and key-renamed their golden rows:
 `python3 tools/sample_native_gate.py --cli <producer> --filter
 cli/facts/outcome_structural_evidence,cli/facts/placed_stable_write --jobs 2`
 reports 19/19 samples meeting their documented oracle and 18/18 intended-invalid
-controls matching their authored rejection (620 s wall), and
-`python3 tools/corpus_gate.py --record --filter
-facts/outcome_structural_evidence,facts/placed_stable_write` re-records the
-eighteen fixtures in the outcomes, native and both-macos goldens.
+controls matching their authored rejection (620 s wall); `python3
+tools/corpus_gate.py --record --filter
+facts/outcome_structural_evidence,facts/placed_stable_write` at `88723a749c16`
+re-records the nine check rows as `checked` (twins `rejected` with their
+fragment), the nine native rows as `built ... exit:0`, and the nine both-leg
+rows as `exit:0 interpreter-exit:0 interpreter:agrees`.
 
 The obligation is construction-gated, and the probes that establish that are in
 [the discrimination record](DISCRIMINATION.md).

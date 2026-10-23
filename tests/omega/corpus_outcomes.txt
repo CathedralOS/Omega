@@ -5335,23 +5335,23 @@ fail/facts/open_const_implementation_through_target_body_rejected rejected 2252m
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/ordinary_length_field_after_write_rejected rejected 608ms expected @cbdcc23565fb
 	cannot prove requires contract for call equal from main: counter.len == saved (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/outcome_structural_evidence_through_call_result_rejected rejected 2491ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_call_result_rejected rejected 322ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_const_name_rejected rejected 2541ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_const_name_rejected rejected 324ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_field_rejected rejected 2880ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_field_rejected rejected 335ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_local_rejected rejected 2851ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_local_rejected rejected 363ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_match_join_rejected rejected 2482ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_match_join_rejected rejected 323ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_other_machine_rejected rejected 2511ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_other_machine_rejected rejected 317ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_other_state_rejected rejected 3203ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_other_state_rejected rejected 324ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_parameter_rejected rejected 3617ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_parameter_rejected rejected 337ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
-fail/facts/outcome_structural_evidence_through_target_body_rejected rejected 3179ms expected @97fca7a18f74+wt
+fail/facts/outcome_structural_evidence_through_target_body_rejected rejected 363ms expected @88723a749c16
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
 fail/facts/owned_qualified_reference_carrier_reuse rejected 369ms expected @ab16f19fe1b1+wt
 	cannot use `carrier.reference` in machine `inspect` state `entry` (statement 1) after `carrier` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `carrier` first
@@ -5361,23 +5361,23 @@ fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16
 	cannot use `raw.reference` in machine `main` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
 fail/facts/owned_qualified_reference_selection_reuse rejected 5597ms expected @46ed51c132c2
 	cannot use `raw.reference` in machine `exercise` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
-fail/facts/placed_stable_write_through_call_result_rejected rejected 14565ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_call_result_rejected rejected 1481ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_const_name_rejected rejected 13851ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_const_name_rejected rejected 895ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_field_rejected rejected 14246ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_field_rejected rejected 1404ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_local_rejected rejected 14018ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_local_rejected rejected 1186ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_match_join_rejected rejected 14211ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_match_join_rejected rejected 2470ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_other_machine_rejected rejected 14057ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_other_machine_rejected rejected 2374ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_other_state_rejected rejected 13492ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_other_state_rejected rejected 2475ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_parameter_rejected rejected 13169ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_parameter_rejected rejected 2043ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_target_body_rejected rejected 13626ms expected @3b18b32f7117+wt
+fail/facts/placed_stable_write_through_target_body_rejected rejected 2473ms expected @88723a749c16
 	placed write application: the placement plan does not permit this operation
 fail/facts/predicate_array_copy_through_call_result rejected 527ms expected @e34cad686b12
 	cannot prove default-domain field requirement for return from produce, state entry, at statement 3: values requires [u16; N]::ZeroTail
@@ -12654,28 +12654,28 @@ pass/facts/open_const_implementation_through_other_machine_exit checked 3635ms c
 pass/facts/open_const_implementation_through_other_state_exit checked 3497ms check-target:macos_arm64 @ab30b42820ea+wt
 pass/facts/open_const_implementation_through_parameter_exit checked 3309ms check-target:macos_arm64 @ab30b42820ea+wt
 pass/facts/open_const_implementation_through_target_body_exit checked 3565ms check-target:macos_arm64 @ab30b42820ea+wt
-pass/facts/outcome_structural_evidence_through_call_result_exit checked 8017ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_const_name_exit checked 8310ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_field_exit checked 8021ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_local_exit checked 7801ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_match_join_exit checked 7707ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_other_machine_exit checked 7677ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_other_state_exit checked 8043ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_parameter_exit checked 7633ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/outcome_structural_evidence_through_target_body_exit checked 8782ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_through_call_result_exit checked 2070ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_const_name_exit checked 2064ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_field_exit checked 2499ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_local_exit checked 2491ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_match_join_exit checked 2089ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_other_machine_exit checked 2055ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_other_state_exit checked 1157ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_parameter_exit checked 1138ms check-target:macos_arm64 @88723a749c16
+pass/facts/outcome_structural_evidence_through_target_body_exit checked 1089ms check-target:macos_arm64 @88723a749c16
 pass/facts/owned_qualified_reference_carrier_exit checked 3812ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_field_exit checked 3796ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_result_exit checked 3797ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_selection_exit checked 3821ms check-target:macos_arm64 @ab16f19fe1b1+wt
-pass/facts/placed_stable_write_through_call_result_exit checked 52995ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_const_name_exit checked 50676ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_field_exit checked 51617ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_local_exit checked 51144ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_match_join_exit checked 51597ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_other_machine_exit checked 51678ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_other_state_exit checked 52020ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_parameter_exit checked 51520ms check-target:macos_arm64 @3b18b32f7117+wt
-pass/facts/placed_stable_write_through_target_body_exit checked 53045ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write_through_call_result_exit checked 2685ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_const_name_exit checked 1913ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_field_exit checked 2145ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_local_exit checked 2002ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_match_join_exit checked 1745ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_other_machine_exit checked 1749ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_other_state_exit checked 2196ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_parameter_exit checked 1977ms check-target:macos_arm64 @88723a749c16
+pass/facts/placed_stable_write_through_target_body_exit checked 2223ms check-target:macos_arm64 @88723a749c16
 pass/facts/predicate_array_copy_through_call_result_exit checked 689ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_const_name_exit checked 640ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_field_exit checked 636ms check-target:macos_arm64 @e34cad686b12
