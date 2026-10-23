@@ -3914,6 +3914,24 @@ pass/facts/unsigned_division_remainder_through_other_machine_exit built 5361ms e
 pass/facts/unsigned_division_remainder_through_other_state_exit built 5306ms exit:0 @595562a958b4+wt
 pass/facts/unsigned_division_remainder_through_parameter_exit built 4859ms exit:0 @595562a958b4+wt
 pass/facts/unsigned_division_remainder_through_target_body_exit built 4314ms exit:0 @595562a958b4+wt
+pass/facts/unsigned_exact_subtraction_interval_through_call_result_exit built 1457ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_const_name_exit built 1458ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_field_exit built 1451ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_local_exit built 1454ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_match_join_exit built 1477ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_other_machine_exit built 1474ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_other_state_exit built 1480ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_parameter_exit built 1475ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_exact_subtraction_interval_through_target_body_exit built 1440ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_call_result_exit built 1435ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_const_name_exit built 1439ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_field_exit built 1444ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_local_exit built 1446ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_match_join_exit built 1441ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_other_machine_exit built 1444ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_other_state_exit built 1449ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_parameter_exit built 1143ms exit:0 @e42d5379cc30+wt
+pass/facts/unsigned_shift_left_bound_through_target_body_exit built 1214ms exit:0 @e42d5379cc30+wt
 pass/facts/view_extent_after_write_through_call_result_exit built 7096ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/facts/view_extent_after_write_through_const_name_exit built 6683ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/facts/view_extent_after_write_through_field_exit built 6600ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
