@@ -125,3 +125,11 @@ The [publication capture](publication/production-observations.json),
 [qualification receipt](publication/qualification-summary.json) retain this
 execution separately from the earlier producers. No source/oracle changes were
 needed. Raw Clippy output is compressed to preserve suggestion whitespace.
+
+The [landing capture](landing/production-observations.json) observes producer
+`6283071a408d324016f7215ecf154b9b93674441` on main `47168d09ee17e238aa0fe291d19c2a8ba60d8509`. Main is refreshed after
+acquiring the build slot, eliminating the stale-base queue gap. The protected
+resolver, representation, foundation, parser and witness inputs are unchanged
+([integration delta](landing/prebuild-integration.json)); downstream changes receive
+a fresh optimized build and all 14 outcomes again. Qualification passes with
+no invalidations. Earlier captures retain their own identities.
