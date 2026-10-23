@@ -98,6 +98,41 @@ Evidence: [Ubuntu worker](https://app.devin.ai/sessions/3aed8451c84649e19fce5ebb
 [Windows worker](https://app.devin.ai/sessions/4bb030fb07c74a2494c396b1a3940259),
 [macOS worker](https://app.devin.ai/sessions/6907dd86375e4a2a883615e50958a54e).
 
+## Share verification builds as generations
+
+Per-slot verification builds were the dominant build-pool demand in the first
+wide local wave: every worktree built its own test runner (and sometimes `omega`)
+for its first gate run, producing median 17-minute and worst 75-minute pool
+waits with 25-45 waiters. Batch them instead:
+
+1. Pick the sub-batch base revision G and create the sub-batch worktrees **at G**.
+2. Build ONE pair at G — the `omega` binary plus the corpus test runner — through
+   the existing pool as a single hold (`tools/build_slot.py --slots 2 --
+   <build both>`), then publish both outside any worktree (for example
+   `build/swarm/<wave>/producers/gen-<rev11>/`) with a `GENERATION` file (exact
+   revision + sha256 of each artifact) and a `READY` marker. With a warm MBX
+   action cache the pair compiles in ~1-2 minutes; the pool queue dominates the
+   wall time.
+3. Every slot uses the published pair instead of building: place/twin runs via
+   `<gen>/omega run --both ...`, gates via `tools/corpus_gate.py --cli
+   <gen>/omega --runner <gen>/corpus_runner`.
+4. Validity: a generation is valid for a worktree whose base B is psi-identical —
+   `git diff G..B -- omega-rust` empty. Basing the sub-batch at G makes this
+   true by construction. After psi landings, re-roll the generation for the next
+   sub-batch: one build per batch, not per slot. Re-point the generation
+   worktree (`git reset --hard G`) rather than creating a new one.
+5. Slots never build for verification. A demonstrated red place needing a source
+   repair may build at most once for that repair. Golden record legs still need
+   a runner built at the revision the record must stamp.
+
+Observed on a 16 GiB, 10-CPU macOS ARM64 host (2026-10-23): per-slot runner
+builds queued 20-60 minutes each; after generations, an 11-slot sub-batch landed
+three rows inside 90 minutes with zero verification builds, generation re-rolls
+compiled in 42-81 seconds warm, and a 32-wide dispatch sat at load ~45-50 with
+~1.5 GiB free (earlier 22-wide record phases peaked at load 99, ~90 MB free).
+The next ceiling is not builds: it is golden-record memory floors (~1.2 GB free)
+and landing rebase+verify traffic.
+
 ## Bound the shared disk safely
 
 Read the effective MBX config and distinguish the action-cache cap from the

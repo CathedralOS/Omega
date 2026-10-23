@@ -117,6 +117,14 @@ build at a time when shared-host contention is unmeasured; keep other agents
 editing their own outcomes. Increase build overlap only after a same-host
 comparison improves useful throughput without memory/disk pressure or worse
 E2E latency. Do not infer a universal agent count or Cargo jobs cap from CPU count.
+Share verification builds as per-wave
+[generations](host-setup.md#share-verification-builds-as-generations): build the
+wave's `omega` plus corpus runner once at the sub-batch base, publish them with a
+`READY` marker and sha256s, and have every slot verify through `--cli`/`--runner`
+instead of building its own copy. Basing the slots at the generation revision
+makes the generation valid by construction; re-roll one generation per sub-batch
+(a warm pair build compiles in ~1-2 minutes). Slots never build for verification
+and build at most once for a demonstrated repair.
 
 Keep worktree targets independent and reuse the host's supported MBX action
 cache. Never force a common `CARGO_TARGET_DIR` across editing agents. Prefer a
@@ -211,6 +219,16 @@ helper actions before executing them.
     wave, renewing leases, or draining finished claims.
   - Always obtain commit hashes from `git rev-parse HEAD` rather than
     transcribing abbreviated `git commit` output by hand.
+  - Run `landing.py enqueue` from inside the worktree being published: its
+    checkpoint guard inspects the calling repo's tree, and a coordinator
+    checkout holding unrelated untracked files refuses the enqueue.
+  - Parameterize scripted landings by the measured revision instead of a
+    hard-coded one, so a movement-guard refusal re-runs with the corrected
+    measurement rather than publishing stale evidence or failing repeatedly.
+  - Count fixture coverage for selection by longest-prefix fact attribution
+    (`<fact>_...` directories under `tests/omega/{pass,fail}/facts`), not a
+    strict canonical suffix: variant, nested and legacy names otherwise read as
+    "missing" and slots spend hours re-verifying rows that were already complete.
   - After launching a background command or subagent, end the turn and let
     reactive wakeup resume execution instead of polling `manage_task`.
 
