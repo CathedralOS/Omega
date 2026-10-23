@@ -41,7 +41,11 @@ the wrong receiver. They preserve the positive's content domain and partition
 operation. The nested-field/reversed-store fixture exercises the same operation
 without depending on field placement or store order.
 
-The transport fixtures are `tests/omega/{pass,fail}/facts/borrowed_content_partition_through_*`.
+The transport fixtures are pinned as
+`tests/omega/pass/facts/borrowed_content_partition_through_<place>_exit` (nine
+positives, each carrying its native and interpreter exit oracle) and
+`tests/omega/fail/facts/borrowed_content_partition_through_<place>_rejected`
+(nine twins with their refusing fragment).
 Run each positive with `omega run --both <place>/main.omg`; both engines must
 exit 0. Every positive binds all four hosted targets. Execution on this host
 establishes macOS arm64 behavior, not other-host execution.

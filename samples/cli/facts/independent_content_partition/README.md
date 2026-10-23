@@ -13,8 +13,9 @@ are local, field, parameter, call result, match join, const name, another state,
 another machine, and another target body. Run
 `omega run --both samples/cli/facts/independent_content_partition/<place>/main.omg`.
 Each `invalid/main.omg` removes only the second owner's conservation equation.
-The corresponding corpus fixtures are
-`tests/omega/{pass,fail}/facts/independent_content_partition_through_*`.
+The corresponding corpus fixtures are pinned as
+`tests/omega/pass/facts/independent_content_partition_through_<place>_exit` and
+`tests/omega/fail/facts/independent_content_partition_through_<place>_rejected`.
 
 ## Requirements and evidence
 
