@@ -23040,6 +23040,8 @@ run/borrows/transition_shared_borrow checked 11798ms check-target:macos_arm64 @a
 run/calls/affine_call_local_field_exit checked 11247ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 run/calls/anonymous_shared_borrow_operands checked 3414ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/calls/byte_literal_expression_values checked 6095ms check-target:macos_arm64 @0553d60b9b91+wt
+run/calls/call_result_ascii_prefix_literal_exit checked 1468ms check-target:macos_arm64 @67df50a7eb89
+run/calls/call_result_ascii_prefix_literal_mismatch checked 1467ms check-target:macos_arm64 @67df50a7eb89
 run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_arm64 @16ed47526a08
 run/calls/named_transition_f32_destination_single_rounding_exit checked 54855ms check-target:macos_arm64 @c48489ea6ad6
 run/calls/named_transition_scalar_borrow_arguments_exit checked 62108ms check-target:macos_arm64 @c48489ea6ad6
