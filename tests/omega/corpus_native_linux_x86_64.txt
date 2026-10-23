@@ -1676,6 +1676,16 @@ pass/facts/indexed_element_mut_loan_through_other_machine_exit built 10134ms exi
 pass/facts/indexed_element_mut_loan_through_other_state_exit built 10435ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_parameter_exit built 8325ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_target_body_exit built 9465ms exit:0 @907be3818acc
+pass/facts/inferred_record_equation_call/call_result built 2751ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/const_name built 2573ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/field built 2497ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/local built 2800ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/match_join built 3464ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/other_machine built 3507ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/other_state built 3088ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/parameter built 3033ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/root built 2994ms exit:0 @1b08c4c75647
+pass/facts/inferred_record_equation_call/target_body built 2916ms exit:0 @1b08c4c75647
 pass/facts/no_wrap_domain_through_call_result_exit built 9472ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_const_name_exit built 8985ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_field_exit built 9329ms exit:0 @d2f0e31ca0d4+wt
@@ -1918,6 +1928,11 @@ pass/generics/generic_result_parameter_receipt checked 3574ms @6c49683ce714
 pass/generics/generic_seq_consuming_map_filter checked 3568ms @6c49683ce714
 pass/generics/generic_seq_map_filter checked 17592ms @6c49683ce714
 pass/generics/higher_order_schema checked 17482ms @6c49683ce714
+pass/generics/inferred_record_equation_data_exit built 2795ms exit:0 @1b08c4c75647
+pass/generics/inferred_record_equation_direct_record_exit built 2846ms exit:0 @1b08c4c75647
+pass/generics/inferred_record_equation_explicit_equal_exit built 3287ms exit:0 @1b08c4c75647
+pass/generics/inferred_record_equation_qualified_record_exit built 3394ms exit:0 @1b08c4c75647
+pass/generics/inferred_record_equation_repeated_equal_exit built 2840ms exit:0 @1b08c4c75647
 pass/generics/machine_bound_satisfied_at_call checked 3434ms @6c49683ce714
 pass/generics/machine_indexed_stream_dispatch checked 17724ms @6c49683ce714
 pass/generics/machine_type_equations checked 3416ms @6c49683ce714

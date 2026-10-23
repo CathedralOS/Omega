@@ -4920,6 +4920,26 @@ fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 3113
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 2890ms expected @cd657b07c6e2+wt
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_record_equation_call/call_result rejected 324ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/const_name rejected 338ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/field rejected 306ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/local rejected 357ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/match_join rejected 311ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/other_machine rejected 373ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/other_state rejected 337ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/parameter rejected 346ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/root rejected 375ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inferred_record_equation_call/target_body rejected 306ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
 fail/facts/integer_multiple_remainder_through_call_result_rejected rejected 982ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/integer_multiple_remainder_through_const_name_rejected rejected 780ms expected @595562a958b4+wt
@@ -12732,6 +12752,20 @@ fail/generics/inferred_machine_array_equation_result_conflict_rejected rejected 
 	generic machine `same` where type equation has conflicting element types
 fail/generics/inferred_machine_array_equation_underdetermined_rejected rejected 2648ms expected @cd657b07c6e2+wt
 	generic machine `capacity` cannot determine `Length` from its where equations; supply the argument explicitly
+fail/generics/inferred_record_equation_carrier_conflict rejected 264ms expected @1b08c4c75647
+	generic machine `read` where type equation constructor const binder has a different declared carrier
+fail/generics/inferred_record_equation_data_conflict rejected 52ms expected @1b08c4c75647
+	generic data `Package` where type equation has conflicting constructor constants
+fail/generics/inferred_record_equation_kind_conflict rejected 320ms expected @1b08c4c75647
+	generic machine `read` where type equation mixes type and value kinds in a constructor argument
+fail/generics/inferred_record_equation_nominal_conflict rejected 327ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting nominal constructors
+fail/generics/inferred_record_equation_qualified_conflict rejected 351ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/generics/inferred_record_equation_repeated_conflict rejected 334ms expected @1b08c4c75647
+	generic machine `read` where type equation has conflicting constructor constants
+fail/generics/inferred_record_equation_underdetermined rejected 260ms expected @1b08c4c75647
+	generic machine `read` cannot determine `Item` from its where equations; supply the argument explicitly
 fail/generics/lexical_requirement_cannot_substitute_owner rejected 621ms expected @f67ca304996f
 	machine `Selected::value` realizes `Bounded::value` but requires `input <= Outer`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/generics/lexical_requirement_value_parameter_bound rejected 313ms expected @f67ca304996f
@@ -17614,6 +17648,16 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit checked 10468
 pass/facts/inferred_array_equation_call_through_other_state_exit checked 10003ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_parameter_exit checked 10223ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_target_body_exit checked 12212ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_record_equation_call/call_result checked 3046ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/const_name checked 3034ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/field checked 2791ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/local checked 2771ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/match_join checked 2808ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/other_machine checked 2802ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/other_state checked 2793ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/parameter checked 2790ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/root checked 3187ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inferred_record_equation_call/target_body checked 3201ms check-target:macos_arm64 @1b08c4c75647
 pass/facts/integer_multiple_remainder_through_call_result_exit checked 3385ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/integer_multiple_remainder_through_const_name_exit checked 2806ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/integer_multiple_remainder_through_field_exit checked 2838ms check-target:macos_arm64 @595562a958b4+wt
@@ -20969,6 +21013,11 @@ pass/generics/inferred_machine_array_equation_nested_field_exit checked 13145ms 
 pass/generics/inferred_machine_array_equation_partial_exit checked 12219ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/generics/inferred_machine_array_equation_result_exit checked 13349ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/generics/inferred_machine_array_equation_values_exit checked 15106ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_record_equation_data_exit checked 2767ms check-target:macos_arm64 @1b08c4c75647
+pass/generics/inferred_record_equation_direct_record_exit checked 2759ms check-target:macos_arm64 @1b08c4c75647
+pass/generics/inferred_record_equation_explicit_equal_exit checked 2564ms check-target:macos_arm64 @1b08c4c75647
+pass/generics/inferred_record_equation_qualified_record_exit checked 2561ms check-target:macos_arm64 @1b08c4c75647
+pass/generics/inferred_record_equation_repeated_equal_exit checked 2948ms check-target:macos_arm64 @1b08c4c75647
 pass/generics/lexical_requirement_member_shadows_owner_exit checked 1100ms check-target:macos_arm64 @f67ca304996f
 pass/generics/lexical_requirement_value_parameter_precedence_exit checked 1045ms check-target:macos_arm64 @f67ca304996f
 pass/generics/machine_bound_satisfied_at_call checked 3528ms @a9ae30e1c334+wt
