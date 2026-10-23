@@ -486,13 +486,7 @@ fn retains_values_across_unit_call<Value>(
         // outside the exact call footprint checked below.
         return None;
     }
-    let bucket = crate::flow::fact_rows::with_borrow_state_index(borrow, |index| {
-        index.bucket(machine.symbol, state.symbol).to_vec()
-    });
-    let &[borrowed_state_handle] = bucket.as_slice() else {
-        return None;
-    };
-    let borrowed_state = borrow.states.get(borrowed_state_handle);
+    let borrowed_state = borrow.unique_state_borrow(machine.symbol, state.symbol)?;
     let mut calls = borrow
         .calls
         .span_or_empty(borrowed_state.calls)

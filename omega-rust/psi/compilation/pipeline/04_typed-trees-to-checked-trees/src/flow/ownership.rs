@@ -9,8 +9,6 @@
 //! Exact place types stay with validation's value-custody projection owner.
 use validation::canonical_place_from_expression_in_state;
 
-use crate::flow::borrow_state_fact;
-
 use crate::flow::canonical_place_from_symbol;
 use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
@@ -242,7 +240,8 @@ pub(crate) fn discover_state_move_events(
     segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
 ) -> Vec<DiscoveredMoveEvent> {
     let mut sink = DirectMoveEventSink::new(segments, operators, machine, state);
-    let borrow_calls = borrow_state_fact(borrow, machine.symbol, state.symbol)
+    let borrow_calls = borrow
+        .first_state_borrow(machine.symbol, state.symbol)
         .map(|(_, state)| borrow.calls.span_or_empty(state.calls))
         .unwrap_or_default();
     let mut call_index = 0usize;

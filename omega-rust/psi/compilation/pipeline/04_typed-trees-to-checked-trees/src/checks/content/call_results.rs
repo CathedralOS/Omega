@@ -283,13 +283,12 @@ pub(super) fn check_call_result_qualifications(
                     (None, _) => false,
                 }
                 && (facts.proof.contract_facts.iter().any(|(_, contract)| {
-                    let exact_call = crate::flow::proof_contract_call(
-                        &facts.proof,
+                    let exact_call = facts.proof.contract_call_at(&(
                         invocation.machine,
                         invocation.state,
                         invocation.statement,
                         invocation.ordinal,
-                    );
+                    ));
                     let (owner_symbol, state_symbol, applied) = match contract.owner {
                         checked_trees::ContractProofFactOwner::CallSignature {
                             owner_symbol,

@@ -151,10 +151,8 @@ fn matching_borrow_state<'a>(
     facts: &'a CheckFacts,
     state_flow: &FlowStateFact,
 ) -> Option<&'a checked_trees::StateBorrowFact> {
-    crate::flow::borrow_state_fact(
-        &facts.borrow,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    )
-    .map(|(_, state)| state)
+    facts
+        .borrow
+        .first_state_borrow(state_flow.machine_symbol, state_flow.state_symbol)
+        .map(|(_, state)| state)
 }

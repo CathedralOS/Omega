@@ -144,12 +144,9 @@ pub(super) fn aliases(
     state: &typed_trees::state::State,
 ) -> Option<Vec<ReceiverAlias>> {
     state_flow(facts, machine.symbol, state.symbol)?;
-    let borrow_state = facts.borrow.with_state_index(|index| {
-        index
-            .bucket(machine.symbol, state.symbol)
-            .first()
-            .map(|handle| facts.borrow.states.get(*handle))
-    })?;
+    let (_, borrow_state) = facts
+        .borrow
+        .first_state_borrow(machine.symbol, state.symbol)?;
     if borrow_state.loans.is_empty() {
         return Some(Vec::new());
     }

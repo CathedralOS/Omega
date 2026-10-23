@@ -2,7 +2,6 @@ use super::{CapturedValue, CheckedScalarExpressionRole};
 use crate::flow::FlowBuildContext;
 use validation::canonical_place_from_expression_in_state;
 
-use crate::flow::fact_rows::with_borrow_state_index;
 use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::transfers::scalar_values::LiveValues;
 use crate::flow::transfers::scalar_values::retains_values_across_unit_call;
@@ -261,13 +260,7 @@ fn exact_call_occurrence<'facts>(
     let (machine_index, caller_state_index) = context.state_location(program, caller_state)?;
     let owner = &program.machines()[machine_index];
     let caller = &program.machine_states(owner)[caller_state_index];
-    let bucket = with_borrow_state_index(borrow, |index| {
-        index.bucket(owner.symbol, caller_state).to_vec()
-    });
-    let &[state_handle] = bucket.as_slice() else {
-        return None;
-    };
-    let state = borrow.states.get(state_handle);
+    let state = borrow.unique_state_borrow(owner.symbol, caller_state)?;
     let receiver_root = receiver_root.unwrap_or_default();
     let mut calls = borrow
         .calls

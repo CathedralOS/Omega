@@ -1,9 +1,8 @@
-use arena::{Arena, Handle, HandleSpan, OwnedIndex};
+use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
-/// Handle-keyed maps take the integer hasher; none is iterated for output order.
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+use crate::checked_trees::keyed_rows::KeyedRows;
 
 /// One exact structural place captured for compatibility checking.
 ///
@@ -636,10 +635,10 @@ pub struct BorrowFacts {
     pub loan_suppliers: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
-    /// `(machine, state) -> state row` lookup owned by this ledger. The
-    /// index carries the `states` arena's revision, so a mutation rebuilds
-    /// it on the next query; the ledger's lifetime bounds it.
-    pub state_index: OwnedIndex<BorrowStateIndex>,
+    /// `(machine, state) -> state rows` grouping owned by this ledger. The
+    /// grouping carries the `states` arena's exact revision, so a mutation
+    /// rebuilds it on the next query; the ledger's lifetime bounds it.
+    pub state_index: KeyedRows<(SymbolHandle, SymbolHandle), StateBorrowFact>,
     /// Non-authorizing direct-root resource closures reconstructed from the
     /// exact loan activation/weakening ledger. Reborrow parent identity is
     /// retained separately.
@@ -684,7 +683,7 @@ impl BorrowFacts {
             loan_suppliers,
             returned_loans,
             states,
-            state_index: OwnedIndex::default(),
+            state_index: KeyedRows::default(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
             call_loan_resources: Arena::new(),
@@ -782,48 +781,49 @@ fn handle_span_contains<T>(span: HandleSpan<T>, handle: Handle<T>) -> bool {
         && handle.arena_index() < span.start().arena_index().saturating_add(span.count())
 }
 
-/// `states` rows bucketed by `(machine symbol, state symbol)`. A state's
-/// borrow row is addressed by its recorded identity rather than position,
-/// so consumers look rows up through this index instead of rescanning the
-/// arena — one build per ledger revision replaces O(states × queries).
-#[derive(Clone, Default)]
-pub struct BorrowStateIndex {
-    by_key: HashMap<(SymbolHandle, SymbolHandle), Vec<Handle<StateBorrowFact>>>,
-}
-
-impl BorrowStateIndex {
-    /// The rows recorded under `(machine, state)`, in arena order.
-    pub fn bucket(
+/// A state's borrow row is addressed by its recorded identity rather than
+/// position, so consumers ask this ledger instead of rescanning the arena —
+/// one build per ledger revision replaces O(states × queries).
+impl BorrowFacts {
+    /// Run `read` against the `states` rows recorded for `(machine, state)`,
+    /// in arena order: every row, including duplicates of one coordinate.
+    pub fn with_state_borrows<Result>(
         &self,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
-    ) -> &[Handle<StateBorrowFact>] {
-        self.by_key
-            .get(&(machine_symbol, state_symbol))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
-}
-
-impl BorrowFacts {
-    /// Run `run` against this ledger's owned `(machine, state)` row index,
-    /// rebuilding when the `states` arena's revision moved.
-    pub fn with_state_index<R>(&self, run: impl FnOnce(&BorrowStateIndex) -> R) -> R {
-        self.state_index.with(
-            self.states.revision(),
-            || {
-                let mut index = BorrowStateIndex::default();
-                for (handle, state) in self.states.iter() {
-                    index
-                        .by_key
-                        .entry((state.machine_symbol, state.state_symbol))
-                        .or_default()
-                        .push(handle);
-                }
-                index
-            },
-            run,
+        read: impl FnOnce(&[Handle<StateBorrowFact>]) -> Result,
+    ) -> Result {
+        self.state_index.with_rows(
+            &self.states,
+            |state| (state.machine_symbol, state.state_symbol),
+            &(machine_symbol, state_symbol),
+            read,
         )
+    }
+
+    /// The first `states` row recorded for `(machine, state)`, with its handle.
+    pub fn first_state_borrow(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    ) -> Option<(Handle<StateBorrowFact>, &StateBorrowFact)> {
+        self.with_state_borrows(machine_symbol, state_symbol, |rows| {
+            let handle = rows.first().copied()?;
+            Some((handle, self.states.get(handle)))
+        })
+    }
+
+    /// The unique `states` row recorded for `(machine, state)`; missing and
+    /// duplicate rows both answer `None`.
+    pub fn unique_state_borrow(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    ) -> Option<&StateBorrowFact> {
+        self.with_state_borrows(machine_symbol, state_symbol, |rows| match rows {
+            [handle] => Some(self.states.get(*handle)),
+            _ => None,
+        })
     }
 }
 
@@ -832,43 +832,41 @@ mod index_tests {
     use super::{BorrowFacts, StateBorrowFact, SymbolHandle};
 
     #[test]
-    fn state_index_preserves_duplicate_order_and_mutation_visibility() {
+    fn unique_state_borrow_preserves_duplicates_and_mutation_visibility() {
         let machine = SymbolHandle::from_parts(1, 1);
         let state = SymbolHandle::from_parts(2, 1);
         let replacement = SymbolHandle::from_parts(2, 2);
         let mut facts = BorrowFacts::default();
-        let queries = [
-            (machine, state),
-            (machine, replacement),
-            (SymbolHandle::invalid(), state),
-        ];
-        let assert_matches_roster = |facts: &BorrowFacts| {
-            for (machine, state) in queries {
-                let expected = facts
-                    .states
-                    .iter()
-                    .filter(|(_, row)| row.machine_symbol == machine && row.state_symbol == state)
-                    .map(|(handle, _)| handle)
-                    .collect::<Vec<_>>();
-                facts.with_state_index(|index| assert_eq!(index.bucket(machine, state), expected));
-            }
-        };
-        assert_matches_roster(&facts);
+        assert!(facts.unique_state_borrow(machine, state).is_none());
         let first = facts.states.insert(StateBorrowFact {
             machine_symbol: machine,
             state_symbol: state,
             ..StateBorrowFact::default()
         });
-        assert_matches_roster(&facts);
-        facts.states.insert(StateBorrowFact {
+        assert_eq!(
+            facts.unique_state_borrow(machine, state),
+            Some(facts.states.get(first))
+        );
+        // A second row under the same coordinate is not a unique answer.
+        let second = facts.states.insert(StateBorrowFact {
             machine_symbol: machine,
             state_symbol: state,
             ..StateBorrowFact::default()
         });
-        assert_matches_roster(&facts);
+        assert!(facts.unique_state_borrow(machine, state).is_none());
         let snapshot = facts.clone();
+        // Mutation moves one row between buckets without disturbing the other's,
+        // including its handle generation.
         facts.states.get_mut(first).state_symbol = replacement;
-        assert_matches_roster(&facts);
-        assert_matches_roster(&snapshot);
+        assert_eq!(
+            facts.unique_state_borrow(machine, replacement),
+            Some(facts.states.get(first))
+        );
+        assert_eq!(
+            facts.unique_state_borrow(machine, state),
+            Some(facts.states.get(second))
+        );
+        assert!(snapshot.unique_state_borrow(machine, state).is_none());
+        assert!(snapshot.unique_state_borrow(machine, replacement).is_none());
     }
 }

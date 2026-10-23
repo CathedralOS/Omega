@@ -362,13 +362,12 @@ pub(super) fn membership_evidence(
     };
     let declared = validation::canonical_place_from_expression(program, value)?;
     let symbol = declared.root.as_symbol()?;
-    let Some(contract_call) = crate::flow::proof_contract_call(
-        &facts.proof,
+    let Some(contract_call) = facts.proof.contract_call_at(&(
         state.machine_symbol,
         state.state_symbol,
         call.statement_index,
         call.call_ordinal,
-    ) else {
+    )) else {
         return Some(MembershipEvidence::default());
     };
     let mut position = None;
