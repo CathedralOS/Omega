@@ -51,6 +51,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The recorded 0 exit is discriminating:
 - In every positive place, evaluating `compute_*(60u64)` across seventeen sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `state done() {}`, terminating with native exit 0. If preservation fails or corrupts the live value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- Discrimination was measured via 1-token perturbation on macOS arm64 with the shared opt-level 1 generation `gen-317bacd12b0`: mutating `transition head + underflow == 40` to `41` branches to `bad()`, and `omega run --both` reports `native signal 5` (SIGTRAP) and `interp crash: Trap (host presentation agrees)`, confirming sensitivity to the preserved value in both engines.
 - Each invalid twin widens the bound contract to `saved >= 39 && saved <= 80` (or `SAVED = 39`), so `res - 40` may underflow. Exact subtraction `let underflow: u64 = res - 40;` fails closed at compile time with `exact arithmetic in machine ... local underflow may overflow u64`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -68,6 +69,11 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`underflow`).
+
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/live_across_seventeen_calls_preservation_bound_through_<place>_exit` (nine positives: `main.omg`, `build.omg`, `expected_native_exit.txt`) and `tests/omega/fail/facts/live_across_seventeen_calls_preservation_bound_through_<place>_rejected` (nine reject twins: `main.omg`, `build.omg`, `expected.txt`). Every fixture is a byte-identical copy of its place program, so the sample and the fixture cannot drift apart.
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Recorded from the shared opt-level 1 producer on macOS arm64: `corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows with their own diagnostic line, `corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
 
 ## Requirements and Evidence
 
