@@ -2,10 +2,17 @@
 
 Fact: matching a 19-variant tagged enum payload NineteenChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`) — the settled
+proposition-based scalar range contract carried through payloads' case `where`
+propositions, finishing this customer group's transport and execution across all
+nine places before the next group. The family template's
+`ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` ids are not items on any board at
+`80e7797d0e1` (`grep` over `TASKS.md` returns no match; they survive in 40 sibling
+row READMEs), so they are recorded here rather than cited as an owner.
 Governing Specifications:
 - `wiki/spec/layouts/plans.md` (Tagged variant layout plans and alignment)
 - `wiki/spec/terminal-psi/control_flow.md` (Pattern matching, variant dispatch, and join obligations)
+- `wiki/spec/language/domains.md` (declaration and membership for case `where` propositions)
 
 Every positive place and reject twin tests a 19-variant tagged enum (`data NineteenChoice [copy]`) with bounded 64-bit unsigned payloads across all variants (`V1(v: u64)` through `V19(v: u64)` where `v >= 40u64 && v <= 80u64`).
 Matching or extracting the active variant payload yields an exact result `res: u64` statically guaranteed to lie in `[40, 80]`.
@@ -74,6 +81,28 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+## Pinned Fixtures
+
+The row is pinned by eighteen fixtures under
+`tests/omega/{pass,fail}/facts/nineteen_variant_enum_payload_bound_through_*`:
+the nine pass fixtures (`_exit`, each with `main.omg`, `build.omg` and
+`expected_native_exit.txt`) are byte-identical copies of their place program,
+and the nine fail fixtures (`_rejected`) are byte-identical copies of their
+place's `invalid/main.omg` with that place's own refusal fragment pinned in
+`expected.txt`. Sample and fixture therefore cannot drift apart.
+
+Baseline measured on `macos_arm64` with the wave's shared producer built at
+`9b001b8f6afa2cdac67fd580033c3560d906a5d5` (`omega` sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`,
+`opt_level 1`; its `--build-profile` reports `1`): all ten positives (root plus
+nine places) report `native exit 0` and `interp exit: 0`, and all nine twins
+refuse at checking with exit 1 and the diagnostic fragments in the table above.
+`<place>/main.omg` versus `<place>/invalid/main.omg` differ only in `V19`'s own
+bound (`v >= 40u64` versus `v >= 39u64`); no caller guard or control flow
+differs. The same nineteen runs on the wave's previous producer at
+`4c23cc3391c2e539d4065563ac95de7b18f2fc67` produced identical results, so the
+row's evidence is not tied to one generation.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V19(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all nineteen tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
@@ -84,4 +113,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 19-variant tagged enum `NineteenChoice` with a 1-byte discriminant tag (`u8` range 0..18) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 19-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None at this row's scope: nine positive places and nine reject twins are authored, pinned under `tests/omega/{pass,fail}/facts/`, and green on the recording host. Cross-host runtime observation is limited to that host: every positive `build.omg` declares all four hosted `ProgramEntry` bindings, but only `macos_arm64` native execution and Terminal agreement are observed here; `windows_x86_64`, `linux_x86_64` and `linux_arm64` remain declared and unexecuted on this host.
