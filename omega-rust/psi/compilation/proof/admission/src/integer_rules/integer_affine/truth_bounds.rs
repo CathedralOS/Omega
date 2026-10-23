@@ -1,5 +1,6 @@
 //! The truth bounds an integer affine form admits, in i128 arithmetic.
 
+use crate::integer_rules::fixed_integer::integer_value_as_i128;
 use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use crate::integer_rules::integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError,
@@ -14,9 +15,9 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, S
 pub fn integer_affine_truth_bounds(
     form: &CheckedIntegerAffineForm,
 ) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
-    let mut minimum = integer_value_to_i128(form.integer_type().minimum_value())
+    let mut minimum = integer_value_as_i128(form.integer_type().minimum_value())
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-    let mut maximum = integer_value_to_i128(form.integer_type().maximum_value())
+    let mut maximum = integer_value_as_i128(form.integer_type().maximum_value())
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
     let carrier_minimum = minimum;
     let carrier_maximum = maximum;
@@ -170,25 +171,4 @@ fn scalar_integer_from_i128(
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
     ScalarTerm::integer(integer_type, value)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
-}
-
-pub(super) fn integer_value_to_i128(value: IntegerValue) -> Option<i128> {
-    match value {
-        IntegerValue::Signed(value) => Some(value),
-        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
-    }
-}
-
-pub(crate) fn integer_literal_as_i128(
-    term: &ScalarTerm,
-    integer_type: IntegerType,
-) -> Option<i128> {
-    let (actual_type, value) = term.integer_value()?;
-    if actual_type != integer_type {
-        return None;
-    }
-    match value {
-        IntegerValue::Signed(value) => Some(value),
-        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
-    }
 }

@@ -6,9 +6,10 @@
 
 pub use terminal_psi::IntegerCastChainWitness;
 
+use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, fixed_native_interval};
 use semantic_vocabulary::{
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-    ScalarTerm, ScalarType,
+    IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
+    ScalarType,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,24 +164,6 @@ fn strict_fixed_native_widen(source: IntegerType, target: IntegerType) -> bool {
         && source.can_widen_to(target)
 }
 
-fn fixed_native_interval(integer_type: IntegerType) -> Option<(i128, i128)> {
-    if integer_type.is_address() || !matches!(integer_type.bits(), 8 | 16 | 32 | 64) {
-        return None;
-    }
-    Some((
-        integer_value_as_i128(integer_type, integer_type.minimum_value())?,
-        integer_value_as_i128(integer_type, integer_type.maximum_value())?,
-    ))
-}
-
-fn integer_value_as_i128(integer_type: IntegerType, value: IntegerValue) -> Option<i128> {
-    match (integer_type.sign(), value) {
-        (IntegerSign::Signed, IntegerValue::Signed(value)) => Some(value),
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(value)) => i128::try_from(value).ok(),
-        _ => None,
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntegerCastChainWitnessError {
     RootNotInteger,
@@ -269,7 +252,7 @@ pub fn check_integer_cast_bound_conversion(
         return Err(IntegerCastBoundConversionError::RootBoundMismatch);
     };
     let source_type = chain.carriers()[0];
-    let Some(root_value) = typed_integer_as_i128(root_literal, source_type) else {
+    let Some(root_value) = fixed_integer_as_i128(root_literal, source_type) else {
         return Err(IntegerCastBoundConversionError::RootBoundNotTypedLiteral);
     };
 
@@ -291,7 +274,7 @@ pub fn check_integer_cast_bound_conversion(
         .carriers()
         .last()
         .expect("a checked cast chain retains its target carrier");
-    let Some(target_value) = typed_integer_as_i128(target_literal, target_type) else {
+    let Some(target_value) = fixed_integer_as_i128(target_literal, target_type) else {
         return Err(IntegerCastBoundConversionError::ConclusionNotTypedLiteral);
     };
     if target_value != root_value {
@@ -324,13 +307,6 @@ pub fn integer_cast_truth_bounds(
     ])
 }
 
-fn typed_integer_as_i128(term: &ScalarTerm, expected: IntegerType) -> Option<i128> {
-    let (actual, value) = term.integer_value()?;
-    (actual == expected)
-        .then(|| integer_value_as_i128(actual, value))
-        .flatten()
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntegerCastBoundConversionError {
     RootBoundNotLessOrEqual,
@@ -355,11 +331,11 @@ mod tests {
     use super::super::value;
     use super::{
         CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
-        IntegerCastChainWitnessError, IntegerSign, IntegerType, IntegerValue, Proposition,
-        PropositionContext, ScalarTerm, ScalarType, check_integer_cast_bound_conversion,
+        IntegerCastChainWitnessError, IntegerType, IntegerValue, Proposition, PropositionContext,
+        ScalarTerm, ScalarType, check_integer_cast_bound_conversion,
         check_integer_cast_chain_witness,
     };
-    use semantic_vocabulary::ValueId;
+    use semantic_vocabulary::{IntegerSign, ValueId};
 
     fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
         IntegerType::new(sign, bits).expect("fixed integer type")

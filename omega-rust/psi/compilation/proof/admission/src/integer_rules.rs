@@ -1,8 +1,9 @@
 //! Independently checked integer rules: closed integer denotation, open-term
-//! ring normalization, and the affine, cast, forbidden-root and shift
-//! normalizations a proof node may cite.
+//! ring normalization, the fixed native integer readings, and the affine,
+//! cast, forbidden-root and shift normalizations a proof node may cite.
 
 pub(crate) mod closed_integer;
+pub(crate) mod fixed_integer;
 pub(crate) mod integer_affine;
 pub(crate) mod integer_cast;
 pub(crate) mod integer_forbidden_root;

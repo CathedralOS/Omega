@@ -3,8 +3,8 @@
 //! directional no-wrap evidence; Saturating translations clamp inclusive
 //! endpoints and reject strict transport across their plateaus.
 
+use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, integer_value_as_i128};
 use crate::integer_rules::integer_affine::CheckedIntegerAffineForm;
-use crate::integer_rules::integer_affine::truth_bounds::integer_literal_as_i128;
 use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
@@ -132,7 +132,7 @@ fn map_integer_affine_bound_with_remainder_policy(
     if relative_translation::applies(form, strict, bound) {
         return relative_translation::map(form, &evidence_members);
     }
-    let Some(bound) = integer_literal_as_i128(bound, form.integer_type()) else {
+    let Some(bound) = fixed_integer_as_i128(bound, form.integer_type()) else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
     };
     let mut mapped = bound;
@@ -146,12 +146,10 @@ fn map_integer_affine_bound_with_remainder_policy(
         mapped = match step {
             CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(*value),
             CheckedIntegerEndpointStep::SaturatingAdd(value) => {
-                let minimum =
-                    super::truth_bounds::integer_value_to_i128(form.integer_type().minimum_value())
-                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-                let maximum =
-                    super::truth_bounds::integer_value_to_i128(form.integer_type().maximum_value())
-                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+                let minimum = integer_value_as_i128(form.integer_type().minimum_value())
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+                let maximum = integer_value_as_i128(form.integer_type().maximum_value())
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
                 mapped
                     .checked_add(*value)
                     .map(|endpoint| endpoint.clamp(minimum, maximum))
@@ -404,7 +402,7 @@ pub fn integer_affine_wrapping_evidence(
     if relative_translation::applies(form, strict, bound) {
         return relative_translation::evidence(form);
     }
-    let _ = integer_literal_as_i128(bound, form.integer_type())
+    let _ = fixed_integer_as_i128(bound, form.integer_type())
         .ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)?;
     let mut reverses_order = false;
     let mut required_evidence = Vec::new();

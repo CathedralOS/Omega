@@ -4,6 +4,7 @@
 //! independently landed count fact. It accepts no proof authority and is not a
 //! proof rule.
 
+use crate::integer_rules::fixed_integer::fixed_native;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
 };
@@ -284,10 +285,6 @@ fn checked_axiom<'a>(
         .validate(proposition)
         .map_err(IntegerShiftChainWitnessError::MalformedProposition)?;
     Ok(proposition)
-}
-
-fn fixed_native(integer_type: IntegerType) -> bool {
-    !integer_type.is_address() && matches!(integer_type.bits(), 8 | 16 | 32 | 64)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -51,12 +51,21 @@ pub(super) fn apply_definition(
                 CheckedIntegerEndpointStep::Subtract(literal),
             )
         }
+        // A multiply step is the same reading with the chain operand on
+        // either side; the sibling operand supplies the literal.
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+        } if *scalar_type == integer_type
+            && (left.as_ref() == current || right.as_ref() == current) =>
+        {
+            let sibling = if left.as_ref() == current {
+                right
+            } else {
+                left
+            };
+            let (literal, used_landing) = signed_literal(sibling, integer_type, landed)?;
             (
                 coefficient.checked_mul(literal),
                 offset.checked_mul(literal),
@@ -64,7 +73,15 @@ pub(super) fn apply_definition(
                 CheckedIntegerEndpointStep::Multiply(literal),
             )
         }
+        // A division step is the truncating image under either policy, except
+        // signed `MIN / -1`: its wrapped result is not that image, so the
+        // wrapping spelling rejects the step rather than pretend.
         ScalarTerm::ExactIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerDivide {
             scalar_type,
             left,
             right,
@@ -73,6 +90,12 @@ pub(super) fn apply_definition(
             if literal == 0 {
                 return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
             }
+            if matches!(expression, ScalarTerm::WrappingIntegerDivide { .. })
+                && integer_type.sign() == IntegerSign::Signed
+                && literal == -1
+            {
+                return None;
+            }
             (
                 Some(coefficient),
                 Some(offset),
@@ -80,7 +103,15 @@ pub(super) fn apply_definition(
                 CheckedIntegerEndpointStep::Divide(literal),
             )
         }
+        // A remainder step keeps the dividend's sign under either policy, and
+        // signed `MIN % -1` still has the ordinary remainder image (zero):
+        // only a zero divisor prevents the bounded image.
         ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
             left,
             right,
@@ -94,19 +125,6 @@ pub(super) fn apply_definition(
                 Some(offset),
                 used_landing,
                 CheckedIntegerEndpointStep::Remainder(literal),
-            )
-        }
-        ScalarTerm::ExactIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && right.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
-            (
-                coefficient.checked_mul(literal),
-                offset.checked_mul(literal),
-                used_landing,
-                CheckedIntegerEndpointStep::Multiply(literal),
             )
         }
         // `x & mask` carries no affine slope, but a non-negative mask pins
@@ -240,48 +258,6 @@ pub(super) fn apply_definition(
                 offset.checked_sub(literal),
                 used_landing,
                 policy_add_step(expression, left, literal.checked_neg()?),
-            )
-        }
-        // Wrapping division is truncating division except at signed MIN/-1.
-        // Every other nonzero literal has a monotone image (order reverses for
-        // a negative divisor), already modeled by Divide. Do not treat the
-        // exceptional wrapped result as that image without separate evidence.
-        ScalarTerm::WrappingIntegerDivide {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
-            if literal == 0 {
-                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
-            }
-            if integer_type.sign() == IntegerSign::Signed && literal == -1 {
-                return None;
-            }
-            (
-                Some(coefficient),
-                Some(offset),
-                used_landing,
-                CheckedIntegerEndpointStep::Divide(literal),
-            )
-        }
-        // Wrapping remainder keeps the dividend's sign on both carriers.
-        // Unlike division, signed MIN % -1 still has the ordinary remainder
-        // image: zero. Only a zero divisor prevents this bounded image.
-        ScalarTerm::WrappingIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
-            if literal == 0 {
-                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
-            }
-            (
-                Some(coefficient),
-                Some(offset),
-                used_landing,
-                CheckedIntegerEndpointStep::Remainder(literal),
             )
         }
         _ => return None,

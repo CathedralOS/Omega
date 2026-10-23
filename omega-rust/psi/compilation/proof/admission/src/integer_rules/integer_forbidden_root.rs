@@ -11,6 +11,7 @@ pub use terminal_psi::{
 
 use std::collections::BTreeSet;
 
+use crate::integer_rules::fixed_integer::fixed_native_interval;
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
@@ -148,10 +149,14 @@ pub fn check_integer_correlated_forbidden_root_witness(
     {
         forbidden_roots.insert(root);
     }
+    // The branch admission above already required a fixed signed native
+    // carrier, so its mathematical minimum is the endpoint the wrapped
+    // divisor can reach.
+    let (carrier_minimum, _) = fixed_native_interval(integer_type)
+        .ok_or(IntegerCorrelatedForbiddenRootWitnessError::UnsupportedCarrier(integer_type))?;
     if let Some(root) = affine_equation_root(divisor.coefficient, divisor.offset, -1)?
         && in_interval(root, bounds.interval)
-        && affine_value(dividend.coefficient, dividend.offset, root)?
-            == signed_minimum(integer_type)?
+        && affine_value(dividend.coefficient, dividend.offset, root)? == carrier_minimum
     {
         forbidden_roots.insert(root);
     }
@@ -532,31 +537,11 @@ fn signed_literal(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> 
 fn carrier_interval(
     integer_type: IntegerType,
 ) -> Result<(i128, i128), IntegerCorrelatedForbiddenRootWitnessError> {
-    if integer_type.carrier() != IntegerCarrier::Fixed
-        || integer_type.sign() != IntegerSign::Signed
-        || !matches!(integer_type.bits(), 8 | 16 | 32 | 64)
-    {
+    if integer_type.sign() != IntegerSign::Signed {
         return Err(IntegerCorrelatedForbiddenRootWitnessError::UnsupportedCarrier(integer_type));
     }
-    Ok((signed_minimum(integer_type)?, signed_maximum(integer_type)?))
-}
-
-fn signed_minimum(
-    integer_type: IntegerType,
-) -> Result<i128, IntegerCorrelatedForbiddenRootWitnessError> {
-    match integer_type.minimum_value() {
-        IntegerValue::Signed(value) => Ok(value),
-        _ => Err(IntegerCorrelatedForbiddenRootWitnessError::UnsupportedCarrier(integer_type)),
-    }
-}
-
-fn signed_maximum(
-    integer_type: IntegerType,
-) -> Result<i128, IntegerCorrelatedForbiddenRootWitnessError> {
-    match integer_type.maximum_value() {
-        IntegerValue::Signed(value) => Ok(value),
-        _ => Err(IntegerCorrelatedForbiddenRootWitnessError::UnsupportedCarrier(integer_type)),
-    }
+    fixed_native_interval(integer_type)
+        .ok_or(IntegerCorrelatedForbiddenRootWitnessError::UnsupportedCarrier(integer_type))
 }
 
 fn affine_equation_root(

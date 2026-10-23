@@ -1,6 +1,7 @@
 //! Checking an integer affine witness: normalizing the ordered endpoint
 //! chain, replaying each correlated definition, and landing literals.
 
+use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, integer_value_as_i128};
 use crate::integer_rules::integer_affine::bound_mapping::direct_math_leaf;
 use crate::term_matchers::*;
 use semantic_vocabulary::{
@@ -337,16 +338,11 @@ pub fn check_integer_affine_witness(
     let mut coefficient = 1_i128;
     let mut offset = 0_i128;
     let mut endpoint_steps = Vec::with_capacity(witness.definition_axioms.len());
-    let mut previous = None;
     for (&index, &literal_index) in witness
         .definition_axioms
         .iter()
         .zip(&witness.literal_axioms)
     {
-        if previous.is_some_and(|previous| index <= previous) {
-            return Err(IntegerAffineWitnessError::NonCanonicalDefinitionOrder);
-        }
-        previous = Some(index);
         let proposition = semantic_axioms
             .get(index)
             .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
@@ -561,27 +557,20 @@ fn apply_policy_expression_target(
     )
 }
 
+/// The exact literal a term carries: its own closed value in the expected
+/// carrier, or the value a landed axiom pinned to that exact term. The flag
+/// records which of the two the caller consumed.
 fn signed_literal(
     term: &ScalarTerm,
     integer_type: IntegerType,
     landed: Option<&LandedInteger>,
 ) -> Option<(i128, bool)> {
-    if let Some((actual_type, IntegerValue::Signed(value))) = term.integer_value()
-        && actual_type == integer_type
-    {
+    if let Some(value) = fixed_integer_as_i128(term, integer_type) {
         return Some((value, false));
-    }
-    if let Some((actual_type, IntegerValue::Unsigned(value))) = term.integer_value()
-        && actual_type == integer_type
-    {
-        return i128::try_from(value).ok().map(|value| (value, false));
     }
     landed
         .filter(|landed| landed.term == *term && landed.integer_type == integer_type)
-        .and_then(|landed| match landed.value {
-            IntegerValue::Signed(value) => Some((value, true)),
-            IntegerValue::Unsigned(value) => i128::try_from(value).ok().map(|value| (value, true)),
-        })
+        .and_then(|landed| integer_value_as_i128(landed.value).map(|value| (value, true)))
 }
 
 fn landed_integer(
