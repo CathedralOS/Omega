@@ -434,7 +434,7 @@ fn collect_service_methods(
                     )
                 })
                 .unwrap_or_default(),
-            result_claims: service_result_claims(program, scope, signature, identities),
+            result_claims: service_result_claims(program, scope, signature),
             service_reach: service_reach_names(program, trait_definition, signature),
             synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
@@ -615,7 +615,6 @@ fn service_result_claims(
     program: &checked_trees::typed_trees::TypedTrees,
     scope: &AppliedTraitScope<'_>,
     signature: &checked_trees::typed_trees::signature::StateSignature,
-    identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceResultClaim> {
     let reference = scope.type_reference(program, signature.return_type);
     if !reference.reference.is_valid()
@@ -629,7 +628,6 @@ fn service_result_claims(
         reference,
         scope.declaration.symbol,
         signature.symbol,
-        identities,
         &mut claims,
     );
     claims.sort_by(|left, right| left.domain.cmp(&right.domain));
@@ -637,14 +635,20 @@ fn service_result_claims(
     claims
 }
 
-fn append_bodyless_result_claims(
+/// Visit every domain constraint on a type reference's reference/constraint
+/// spine that establishes `requirement` through `boundary_trait`. Entry and
+/// result claims are two projections of one recognition, so the spine walk
+/// exists once; `visit` receives the constrained subject its domain applies to.
+fn for_each_establishing_domain<'scope, Visitor>(
     program: &checked_trees::typed_trees::TypedTrees,
-    reference: AppliedTypeReference<'_>,
+    reference: AppliedTypeReference<'scope>,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
-    identities: &mut ProviderIdentityTable,
-    claims: &mut Vec<ServiceResultClaim>,
-) {
+    visit: &mut Visitor,
+) where
+    Visitor:
+        FnMut(AppliedTypeReference<'scope>, &checked_trees::typed_trees::types::DomainConstraint),
+{
     use checked_trees::typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program
@@ -652,33 +656,25 @@ fn append_bodyless_result_claims(
         .type_reference(reference.reference)
     {
         TypeReferenceNode::Reference { referee, .. } => {
-            append_bodyless_result_claims(
+            for_each_establishing_domain(
                 program,
                 reference.child(program, *referee),
                 boundary_trait,
                 requirement,
-                identities,
-                claims,
+                visit,
             );
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            append_bodyless_result_claims(
-                program,
-                reference.child(program, *base_type),
-                boundary_trait,
-                requirement,
-                identities,
-                claims,
-            );
+            let subject = reference.child(program, *base_type);
+            for_each_establishing_domain(program, subject, boundary_trait, requirement, visit);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 let TypeConstraintNode::Domain(domain) = constraint else {
                     continue;
                 };
                 if domain.symbol.is_valid()
-                    && domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
                     && domain.establishment_routes.iter().any(|route| {
                         matches!(
                             route,
@@ -689,21 +685,51 @@ fn append_bodyless_result_claims(
                         )
                     })
                 {
-                    claims.push(ServiceResultClaim {
-                        domain: domain
-                            .semantic_id
-                            .is_valid()
-                            .then(|| program.semantic_domains.name(domain.semantic_id))
-                            .flatten()
-                            .unwrap_or_else(|| domain.name.as_str())
-                            .to_owned(),
-                        effective_carry: language_semantics::CarryPolicy::STRICT,
-                    });
+                    visit(subject, domain);
                 }
             }
         }
         _ => {}
     }
+}
+
+/// The domain coordinate a claim publishes: the registered semantic domain's
+/// name, or the authored spelling when the constraint carries no registration.
+fn domain_claim_name(
+    program: &checked_trees::typed_trees::TypedTrees,
+    domain: &checked_trees::typed_trees::types::DomainConstraint,
+) -> String {
+    domain
+        .semantic_id
+        .is_valid()
+        .then(|| program.semantic_domains.name(domain.semantic_id))
+        .flatten()
+        .unwrap_or_else(|| domain.name.as_str())
+        .to_owned()
+}
+
+fn append_bodyless_result_claims(
+    program: &checked_trees::typed_trees::TypedTrees,
+    reference: AppliedTypeReference<'_>,
+    boundary_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+    claims: &mut Vec<ServiceResultClaim>,
+) {
+    for_each_establishing_domain(
+        program,
+        reference,
+        boundary_trait,
+        requirement,
+        &mut |_, domain| {
+            if domain.predicate_body != language_semantics::DomainPredicateBody::Bodyless {
+                return;
+            }
+            claims.push(ServiceResultClaim {
+                domain: domain_claim_name(program, domain),
+                effective_carry: language_semantics::CarryPolicy::STRICT,
+            });
+        },
+    );
 }
 
 fn append_routed_entry_claims(
@@ -715,76 +741,26 @@ fn append_routed_entry_claims(
     identities: &mut ProviderIdentityTable,
     claims: &mut Vec<ServiceEntryClaim>,
 ) {
-    use checked_trees::typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
-
-    match program
-        .type_reference_table
-        .type_reference(reference.reference)
-    {
-        TypeReferenceNode::Reference { referee, .. } => {
-            append_routed_entry_claims(
-                program,
-                reference.child(program, *referee),
+    for_each_establishing_domain(
+        program,
+        reference,
+        boundary_trait,
+        requirement,
+        &mut |subject, domain| {
+            claims.push(ServiceEntryClaim {
                 parameter_index,
-                boundary_trait,
-                requirement,
-                identities,
-                claims,
-            );
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            append_routed_entry_claims(
-                program,
-                reference.child(program, *base_type),
-                parameter_index,
-                boundary_trait,
-                requirement,
-                identities,
-                claims,
-            );
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                let TypeConstraintNode::Domain(domain) = constraint else {
-                    continue;
-                };
-                if domain.symbol.is_valid()
-                    && domain.establishment_routes.iter().any(|route| {
-                        matches!(
-                            route,
-                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                                boundary_trait: route_trait,
-                                requirement: route_requirement,
-                            } if *route_trait == boundary_trait && *route_requirement == requirement
-                        )
-                    })
-                {
-                    claims.push(ServiceEntryClaim {
-                        parameter_index,
-                        carrier_identity: identities.intern(
-                            &program
-                                .type_identity_text(
-                                    reference.child(program, *base_type).type_identity(program),
-                                )
-                                .unwrap_or_default(),
-                        ),
-                        domain: domain
-                            .semantic_id
-                            .is_valid()
-                            .then(|| program.semantic_domains.name(domain.semantic_id))
-                            .flatten()
-                            .unwrap_or_else(|| domain.name.as_str())
-                            .to_owned(),
-                        predicate_body: domain.predicate_body,
-                        effective_carry: language_semantics::CarryPolicy::STRICT,
-                        authority_flow: ServiceEntryAuthorityFlow::Accepts,
-                    });
-                }
-            }
-        }
-        _ => {}
-    }
+                carrier_identity: identities.intern(
+                    &program
+                        .type_identity_text(subject.type_identity(program))
+                        .unwrap_or_default(),
+                ),
+                domain: domain_claim_name(program, domain),
+                predicate_body: domain.predicate_body,
+                effective_carry: language_semantics::CarryPolicy::STRICT,
+                authority_flow: ServiceEntryAuthorityFlow::Accepts,
+            });
+        },
+    );
 }
 
 fn service_reach_names(
