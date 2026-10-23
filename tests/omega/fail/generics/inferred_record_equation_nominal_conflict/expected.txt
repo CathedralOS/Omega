@@ -1,0 +1,1 @@
+has conflicting nominal constructors

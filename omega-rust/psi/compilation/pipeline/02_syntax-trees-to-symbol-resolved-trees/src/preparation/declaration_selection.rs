@@ -728,6 +728,84 @@ impl<'base> ConstantSelection<'base> {
         self.symbols.display_path(symbol, "::")
     }
 
+    /// Re-expose a normalized constant's exact retained declaration in the
+    /// original occurrence's lexical scope. Coordinates here are the existing
+    /// normalization custody join, not a new name-based semantic identity.
+    /// Every proposed qualified/imported spelling must select that same header.
+    pub(super) fn retained_const_name(
+        &self,
+        syntax: &SyntaxTrees,
+        origin: &syntax_trees::types::ConstArgumentOrigin,
+    ) -> Result<Identifier, Diagnostic> {
+        let reject = || {
+            Diagnostic::error("inferred constant lost its exact retained declaration selection")
+                .with_source_span(origin.reference)
+        };
+        let mut selected = self
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .filter_map(|(handle, symbol)| {
+                (symbol.kind == SymbolKind::Const
+                    && self.symbols.symbol_source_span(handle) == Some(origin.declaration))
+                .then_some(handle)
+            });
+        let selected_header = selected.next().ok_or_else(reject)?;
+        if selected.next().is_some() {
+            return Err(reject());
+        }
+        let selects = |path: &str| {
+            self.symbols.find_top_level_by_name_and_kinds_from_source(
+                path,
+                &[SymbolKind::Const],
+                origin.reference,
+            ) == Some(selected_header)
+        };
+        let path = self.declaration_path(selected_header);
+        let mut candidates = vec![path.clone()];
+        for item in syntax.root_items() {
+            let Item::Use(import) = item else {
+                continue;
+            };
+            let members = syntax.items.identifier_path_members(import.path);
+            if !members
+                .first()
+                .is_some_and(|member| member.source_span().source_id == origin.reference.source_id)
+            {
+                continue;
+            }
+            let mut prefix = String::new();
+            for member in members {
+                if !prefix.is_empty() {
+                    prefix.push_str("::");
+                }
+                prefix.push_str(member.as_str(syntax));
+                candidates.push(format!("{prefix}::{path}"));
+            }
+        }
+        // Loader-bound sources may have no logical module spelling. A bare
+        // lookup is usable only after it rejoins the exact retained header.
+        candidates.push(self.symbols.name(selected_header).to_owned());
+        for candidate in candidates {
+            if !selects(&candidate) {
+                continue;
+            }
+            let name = Identifier::new(candidate, origin.reference);
+            let definition = self.select(syntax, &name)?.ok_or_else(reject)?;
+            if definition.name.source_span() != origin.declaration
+                || syntax.expressions.source_span(definition.value) != origin.initializer
+            {
+                return Err(reject());
+            }
+            return Ok(name);
+        }
+        Err(
+            Diagnostic::error("inferred constant has no exact source-visible reference")
+                .with_source_span(origin.reference),
+        )
+    }
+
     /// Whether one authored name selects an exact constant declaration in its
     /// own source scope. Private or ambiguous candidates still count as
     /// constants here: the leaf's checked admission and package custody own

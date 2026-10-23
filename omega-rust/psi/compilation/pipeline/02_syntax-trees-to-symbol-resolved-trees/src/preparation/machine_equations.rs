@@ -570,6 +570,16 @@ fn complete_arguments(
                     completed.push(argument);
                     continue;
                 }
+                if CanonicalConstValue::from_atom(text).is_some() {
+                    argument = inferred_const_argument(syntax, reference, selection)?;
+                    completed.push(argument);
+                    continue;
+                }
+                if text.parse::<i128>().is_err() {
+                    argument.path = vec![value.clone()].into_boxed_slice();
+                    completed.push(argument);
+                    continue;
+                }
                 argument.const_literal = Some(
                     IntegerLiteral::from_parts(
                         text.starts_with('-'),
@@ -586,6 +596,55 @@ fn complete_arguments(
     Ok(completed.into_boxed_slice())
 }
 
+/// A syntax-stage atom cannot grant resolved nominal carrier authority.
+/// Restore its retained source operand so ordinary static-argument admission
+/// checks the exact declaration and carrier. The original occurrence remains
+/// the lexical selection scope even when a type reaches a different caller.
+fn inferred_const_argument(
+    syntax: &mut SyntaxTrees,
+    reference: TypeReferenceHandle,
+    selection: &ConstantSelection<'_>,
+) -> Result<StaticMachineArgument, Diagnostic> {
+    let reject =
+        || Diagnostic::error("inferred structural constant lost its authored operand custody");
+    let normalization = syntax
+        .type_references
+        .const_argument_normalization(reference)
+        .ok_or_else(reject)?
+        .clone();
+    if normalization.authored_expression.is_valid() {
+        let type_reference = syntax
+            .type_references
+            .insert(TypeReferenceNode::ConstExpression(
+                normalization.authored_expression,
+            ));
+        return Ok(StaticMachineArgument {
+            type_reference,
+            path: Box::default(),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+        });
+    }
+    let mut origins = syntax
+        .type_references
+        .const_argument_origins(normalization.selections)
+        .iter()
+        .filter(|origin| origin.reference == normalization.reference);
+    let origin = origins.next().ok_or_else(reject)?;
+    if origins.next().is_some() {
+        return Err(reject());
+    }
+    let name = selection.retained_const_name(syntax, origin)?;
+    Ok(StaticMachineArgument {
+        type_reference: TypeReferenceHandle::invalid(),
+        path: vec![name].into_boxed_slice(),
+        application: None,
+        const_literal: None,
+        evidence_projection: None,
+    })
+}
+
 /// Expose an authored scalar const's value to equation matching without
 /// replacing its source argument. The immutable static-argument checker still
 /// owns the selected declaration's exact carrier and policy. Constructor slots
@@ -597,6 +656,25 @@ fn supplied_const_argument_reference(
     selection: &ConstantSelection<'_>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
     let (value, _) = scalar_const_argument(syntax, argument, selection)?;
+    if matches!(
+        value.decode_encoding(),
+        Some(
+            DecodedCanonicalConstValue::Array { .. }
+                | DecodedCanonicalConstValue::Record { .. }
+                | DecodedCanonicalConstValue::Variant { .. }
+        )
+    ) {
+        let first = argument.path.first().ok_or_else(|| {
+            Diagnostic::error("structural const argument lost its source selection")
+        })?;
+        let name = syntax_trees::identifier::Identifier::new(
+            argument.path.joined_path_in(syntax),
+            first.source_span(),
+        );
+        return Ok(syntax
+            .type_references
+            .insert(TypeReferenceNode::Named(name)));
+    }
     scalar_const_argument_reference(syntax, value)
 }
 
@@ -714,6 +792,22 @@ fn application_argument_reference(
                         if !boolean
                             && type_equations::const_binder_envelope(carrier.as_str(syntax))
                                 .is_some() => {}
+                    Some(
+                        DecodedCanonicalConstValue::Array { .. }
+                        | DecodedCanonicalConstValue::Record { .. }
+                        | DecodedCanonicalConstValue::Variant { .. },
+                    ) if declared_type.is_valid() && required_carrier.is_some() => {
+                        let first = argument.path.first().ok_or_else(|| {
+                            reject("lost its structural constructor argument selection")
+                        })?;
+                        let name = syntax_trees::identifier::Identifier::new(
+                            argument.path.joined_path_in(syntax),
+                            first.source_span(),
+                        );
+                        return Ok(syntax
+                            .type_references
+                            .insert(TypeReferenceNode::Named(name)));
+                    }
                     _ => {
                         return Err(reject(
                             "has a constructor argument with a different scalar kind",

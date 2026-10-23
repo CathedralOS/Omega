@@ -204,7 +204,7 @@ impl Solver<'_, '_> {
     }
 
     /// The tuple discipline shared by nominal and domain applications: arity
-    /// against the head's declared telescope, then only type and scalar const
+    /// against the head's declared telescope, then only type and canonical const
     /// indices.
     fn complete_application(
         &self,
@@ -328,6 +328,10 @@ impl Solver<'_, '_> {
                         self.match_application_boolean(pattern, actual, type_reference, span)?;
                         continue;
                     }
+                    if !self.integer_constructor_parameter(type_reference) {
+                        self.match_application_constant(pattern, actual, type_reference, span)?;
+                        continue;
+                    }
                     let value = self
                         .application_integer(actual, type_reference, false, span)?
                         .ok_or_else(|| {
@@ -401,6 +405,15 @@ impl Solver<'_, '_> {
                                 CanonicalConstValue::boolean(value).atom(),
                             )),
                         ));
+                        continue;
+                    }
+                    if !self.integer_constructor_parameter(type_reference) {
+                        let Some((reference, _)) =
+                            self.application_constant(argument, type_reference, true, span)?
+                        else {
+                            return Ok(None);
+                        };
+                        arguments.push(reference);
                         continue;
                     }
                     let Some(value) =
@@ -525,6 +538,101 @@ impl Solver<'_, '_> {
             Some(selection),
         )
         .map_err(|reason| self.type_structure_error(&reason, span))
+    }
+
+    fn integer_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
+        self.syntax
+            .type_references
+            .type_reference(reference)
+            .as_named()
+            .is_some_and(|name| const_binder_envelope(name.as_str(self.syntax)).is_some())
+    }
+
+    /// Canonical identity compares values, not the atom's diagnostic rendering.
+    /// The selected constructor telescope and its forwarded-binder carrier check
+    /// supply nominal authority. Retaining the actual reference also retains its
+    /// authored constant/expression custody for reconstruction and machine calls.
+    fn application_constant(
+        &self,
+        reference: TypeReferenceHandle,
+        parameter_type: TypeReferenceHandle,
+        binders: bool,
+        span: SourceSpan,
+    ) -> Result<Option<(TypeReferenceHandle, CanonicalConstValue)>, Diagnostic> {
+        let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(reference)
+            .as_named()
+        else {
+            return Err(self.type_structure_error(
+                "requires a normalized structural constructor constant",
+                span,
+            ));
+        };
+        if binders
+            && let Some((position, is_type)) = self.parameter_position(name.as_str(self.syntax))
+        {
+            if is_type || self.base_info.const_parameter_types[position].is_none() {
+                return Err(self.type_structure_error(
+                    "mixes type and value kinds in a constructor argument",
+                    span,
+                ));
+            }
+            return match self.bindings[position] {
+                None => Ok(None),
+                Some(Binding::Constant(reference)) => {
+                    self.application_constant(reference, parameter_type, false, span)
+                }
+                _ => Err(self.type_structure_error("requires a structural const binding", span)),
+            };
+        }
+        let value = if let Some(value) = CanonicalConstValue::from_atom(name.as_str(self.syntax)) {
+            if value.decode_encoding().is_none() {
+                return Err(self.type_structure_error(
+                    "requires a canonical structural constructor constant",
+                    span,
+                ));
+            }
+            value
+        } else {
+            self.selected_constructor_constant(name, parameter_type)?
+        };
+        Ok(Some((reference, value)))
+    }
+
+    fn match_application_constant(
+        &mut self,
+        pattern: TypeReferenceHandle,
+        actual: TypeReferenceHandle,
+        parameter_type: TypeReferenceHandle,
+        span: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        let (reference, value) = self
+            .application_constant(actual, parameter_type, false, span)?
+            .ok_or_else(|| {
+                self.type_structure_error("requires a closed structural constructor constant", span)
+            })?;
+        if let Some((_, expected)) =
+            self.application_constant(pattern, parameter_type, true, span)?
+        {
+            if expected.identity() != value.identity() {
+                return Err(
+                    self.type_structure_error("has conflicting constructor constants", span)
+                );
+            }
+        } else if let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(pattern)
+            .as_named()
+            && let Some((position, false)) = self.parameter_position(name.as_str(self.syntax))
+        {
+            self.bindings[position] = Some(Binding::Constant(reference));
+        } else {
+            return Err(self.type_structure_error("lost its structural constructor binder", span));
+        }
+        Ok(())
     }
 
     fn boolean_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
@@ -766,6 +874,19 @@ impl Solver<'_, '_> {
                         let actual =
                             self.application_boolean(actual, type_reference, false, span)?;
                         if expected != actual || expected.is_none() {
+                            return Err(undecidable());
+                        }
+                        continue;
+                    }
+                    if !self.integer_constructor_parameter(type_reference) {
+                        let expected =
+                            self.application_constant(expected, type_reference, false, span)?;
+                        let actual =
+                            self.application_constant(actual, type_reference, false, span)?;
+                        if expected.as_ref().map(|(_, value)| value.identity())
+                            != actual.as_ref().map(|(_, value)| value.identity())
+                            || expected.is_none()
+                        {
                             return Err(undecidable());
                         }
                         continue;

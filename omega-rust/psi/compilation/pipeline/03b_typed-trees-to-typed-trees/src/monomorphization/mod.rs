@@ -215,6 +215,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
         validation::static_arguments::validate_source_const_recipes(program)?;
+        // Authored closed recipes and recipes closed by caller substitution
+        // enter the same canonical argument operation. A nongeneric caller has
+        // no cloning step to close an inferred aggregate index for selection.
+        // Source formation must succeed above before any recipe is replaced.
+        body_rewriting::fold_closed_const_machine_arguments(program)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()

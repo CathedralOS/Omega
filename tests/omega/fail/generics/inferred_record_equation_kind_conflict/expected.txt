@@ -1,0 +1,1 @@
+mixes type and value kinds in a constructor argument

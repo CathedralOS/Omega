@@ -24,7 +24,7 @@
 //!
 //! Fixed arrays, slices, anonymous references and declared generic applications
 //! retain ordinary type trees.
-//! Their type, integer and Boolean const positions recursively recover binders, or build
+//! Their type and canonical const positions recursively recover binders, or build
 //! an omitted type once those binders are known. `type_structure` owns this
 //! traversal: nominal heads join by selected declaration, never layout or leaf
 //! spelling. Declared domains join the same traversal by declaration and
@@ -696,7 +696,11 @@ pub(crate) fn complete_equation_arguments_with_types(
             Some(Binding::Boolean(value)) => TypeReferenceNode::Named(Identifier::generated(
                 CanonicalConstValue::boolean(value).atom(),
             )),
-            Some(Binding::Opaque) | None => {
+            Some(Binding::Constant(reference)) => {
+                tuple.push(reference);
+                continue;
+            }
+            None => {
                 unreachable!("solving binds every omitted binder or rejects")
             }
         };
@@ -715,9 +719,9 @@ enum Binding {
     Integer(BigInt),
     /// Boolean index identity never participates in integer endpoint arithmetic.
     Boolean(bool),
-    /// A supplied const argument that is not an integer literal (a canonical
-    /// structured atom). Equations cannot relate it to an endpoint.
-    Opaque,
+    /// A canonical non-scalar index retains its original reference, including
+    /// declaration/expression custody. Its identity never enters endpoint arithmetic.
+    Constant(TypeReferenceHandle),
 }
 
 enum Outcome {
@@ -765,12 +769,12 @@ impl<'a, 's> Solver<'a, 's> {
                             value
                                 .as_str(syntax)
                                 .parse::<i128>()
-                                .map_or(Binding::Opaque, |value| {
+                                .map_or(Binding::Constant(*argument), |value| {
                                     Binding::Integer(BigInt::from_i128(value))
                                 })
                         }
                     }
-                    _ => Binding::Opaque,
+                    _ => Binding::Constant(*argument),
                 }
             } else {
                 Binding::Type(*argument)
@@ -978,7 +982,7 @@ impl<'a, 's> Solver<'a, 's> {
                         let expected = closed_name_identity(self.syntax, self.selection, &name);
                         self.match_name(*binder, expected, other, *other_binder, *span)
                     }
-                    Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => Err(self
+                    Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => Err(self
                         .reject(format!(
                             "where equation mixes type and value kinds: type binder `{}` received a value argument",
                             self.binder_name(*binder)
@@ -1084,7 +1088,7 @@ impl<'a, 's> Solver<'a, 's> {
             None => Binding::NamedType(name.clone()),
             Some(other) => match self.bindings[*other].clone() {
                 Some(binding @ (Binding::Type(_) | Binding::NamedType(_))) => binding,
-                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                     unreachable!("a type binder holds a type binding")
                 }
                 None => return Ok(Outcome::Deferred),
@@ -1118,7 +1122,7 @@ impl<'a, 's> Solver<'a, 's> {
             Some(index) => match self.bindings[index].clone() {
                 Some(Binding::Type(handle)) => ConstructedCarrier::Bound(handle),
                 Some(Binding::NamedType(name)) => ConstructedCarrier::Name(name),
-                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                     unreachable!("a type binder holds a type binding")
                 }
                 None => return Ok(Outcome::Deferred),
@@ -1173,7 +1177,7 @@ impl<'a, 's> Solver<'a, 's> {
             Endpoint::Literal(value) => Ok(Some(value.clone())),
             Endpoint::Binder(index) => match &self.bindings[*index] {
                 Some(Binding::Integer(value)) => Ok(Some(value.clone())),
-                Some(Binding::Boolean(_) | Binding::Opaque) => Err(self
+                Some(Binding::Boolean(_) | Binding::Constant(_)) => Err(self
                     .reject(format!(
                         "where equation mixes type and value kinds: const binder `{}` holds a non-integer argument",
                         self.binder_name(*index)
@@ -1435,7 +1439,7 @@ impl<'a, 's> Solver<'a, 's> {
                                 span,
                             )?;
                         }
-                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                             unreachable!("a type binder holds a type binding")
                         }
                     },
@@ -1537,7 +1541,7 @@ impl<'a, 's> Solver<'a, 's> {
                 Some(Binding::NamedType(bound)) => {
                     closed_name_identity(self.syntax, self.selection, &bound)
                 }
-                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                     unreachable!("a type binder holds a type binding")
                 }
             },
@@ -1631,7 +1635,7 @@ impl<'a, 's> Solver<'a, 's> {
                     format!("where equations bind `{name}` to both {existing} and {value}")
                 })
                 .with_source_span(span)),
-            Some(Binding::Boolean(_) | Binding::Opaque) => Err(self
+            Some(Binding::Boolean(_) | Binding::Constant(_)) => Err(self
                 .reject(format!(
                     "where equation mixes type and value kinds: const binder `{name}` holds a non-integer argument"
                 ))

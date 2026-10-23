@@ -251,7 +251,7 @@ impl Solver<'_, '_> {
                             .syntax
                             .type_references
                             .insert(TypeReferenceNode::Named(name)),
-                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                             return Err(self.type_structure_error(
                                 "mixes type and value kinds in an element position",
                                 span,
@@ -443,7 +443,7 @@ impl Solver<'_, '_> {
                                 .type_references
                                 .insert(TypeReferenceNode::Named(name)),
                         )),
-                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                             Err(self.type_structure_error(
                                 "mixes type and value kinds in an element position",
                                 span,

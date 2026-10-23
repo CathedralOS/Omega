@@ -1,0 +1,16 @@
+// Expected exit: 0
+// Fact: the omitted Setting is inferred from the exact record-valued Token index and consumed as Setting.minimum.
+data Configuration [copy] { minimum: u64; }
+const EIGHT: Configuration = Configuration { minimum: 8 };
+const SEVEN: Configuration = Configuration { minimum: 7 };
+data Token<const Setting: Configuration> [copy] { marker: u8; }
+machine read<Item [copy], Other [copy], const Setting: Configuration>(item: Item, other: Other) -> u64
+where Item == Token<Setting>, Other == Token<Setting>
+{ Setting.minimum }
+machine main() crashes Trap {
+    let item: Token<SEVEN> = Token { marker: 1 };
+    let other: Token<EIGHT> = Token { marker: 2 };
+    let observed: u64 = read(item, other);
+    transition observed == 7 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

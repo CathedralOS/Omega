@@ -16,6 +16,8 @@ mod evidence_rewrites;
 mod machine_arguments;
 mod type_parameter_substitution;
 
+pub(crate) use const_substitution::fold_closed_const_machine_arguments;
+
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
 
 pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;

@@ -5668,7 +5668,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   const and runtime value binders cannot supply type positions.
 
   - Combine equations with argument/result inference and keep obligations
-    through forwarding beyond closed scalar constructor indices, retained
+    through forwarding beyond closed scalar and record constructor indices, retained
     extensions, late-selected receivers, operator/conformance supply and
     machine/evidence/value binders. Closed declaration-backed ordinary call
     types now combine with structural equations to infer omitted array type

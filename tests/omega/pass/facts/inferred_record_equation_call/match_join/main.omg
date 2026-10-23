@@ -1,0 +1,21 @@
+// Fact: an omitted Setting is inferred from the exact record-valued Token index and consumed as Setting.minimum.
+// Expected exit: 0
+data Configuration [copy] { minimum: u64; }
+const SEVEN: Configuration = Configuration { minimum: 7 };
+const EIGHT: Configuration = Configuration { minimum: 8 };
+data Token<const Setting: Configuration> [copy] { marker: u8; }
+machine read<Item [copy], const Setting: Configuration>(items: Item) -> u64
+where Item == Token<Setting>
+{ Setting.minimum }
+machine joined(flag: bool) -> u64 {
+    let left: Token<SEVEN> = Token { marker: 1 };
+    let right: Token<SEVEN> = Token { marker: 1 };
+    let items: Token<SEVEN> = match flag { true -> left, false -> right };
+    read(items)
+}
+machine main() crashes Trap {
+    let left_result: u64 = joined(true);
+    let right_result: u64 = joined(false);
+    transition left_result == 7 && right_result == 7 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}
