@@ -173,6 +173,7 @@ fn derive_component(
     let projection_limit = projections::finite_projection_limit(
         program,
         flow,
+        semantic,
         maximum_fact_projection_length,
         component,
         external,

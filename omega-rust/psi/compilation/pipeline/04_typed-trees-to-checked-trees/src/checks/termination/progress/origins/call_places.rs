@@ -206,9 +206,10 @@ pub(super) fn call_result_place(
         return None;
     }
     let (callee, callee_state) = validation::find_state(program, call.target_symbol)?;
+    // Lifetime binders are erased regions, not runtime generic arguments.
+    // Their declared relation does not replace the checked body replay below.
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
-        || !callee.lifetime_parameters.is_empty()
         || !program.machine_type_parameters(callee).is_empty()
         || call.receiver.is_valid() != callee.attached_data.is_some()
         || !call.carries_only_positional_arguments()

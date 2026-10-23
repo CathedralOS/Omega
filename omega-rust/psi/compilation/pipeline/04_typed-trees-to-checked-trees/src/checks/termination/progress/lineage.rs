@@ -20,6 +20,7 @@ impl StateParameterLineage {
     fn derive(
         program: &dyn ::validation::CheckingInput,
         flow: &FlowFacts,
+        semantic: &facts::FactPlan,
         machine: &typed_trees::machine::Machine,
         demand: &ProgressSubject,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -34,6 +35,7 @@ impl StateParameterLineage {
             let mut incoming = transfers::collect(
                 program,
                 flow,
+                semantic,
                 machine,
                 std::slice::from_ref(&subjects[position]),
                 call_frames,
@@ -133,12 +135,20 @@ impl StateParameterLineage {
 pub(super) fn resolve(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
+    semantic: &facts::FactPlan,
     machine: &typed_trees::machine::Machine,
     premise: ProgressPremise,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressPremise>> {
-    StateParameterLineage::derive(program, flow, machine, &premise.subject, call_frames)
-        .resolve(premise)
+    StateParameterLineage::derive(
+        program,
+        flow,
+        semantic,
+        machine,
+        &premise.subject,
+        call_frames,
+    )
+    .resolve(premise)
 }
 
 fn resolve_subject_lineage(

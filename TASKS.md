@@ -5961,11 +5961,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     ordinary capture, alias and write-invalidation checks. Extend
     generic/dispatched callee and unresolved projection handling without
     treating generic field traversal as evidence about a callee's body.
-  - Closed-array selector enumeration returns alternatives, but
-    `machine_summaries::instantiate_call_premise` and
-    `src/checks/termination/progress/lineage/transfers.rs` require one subject.
-    Carry all finite alternatives into call coverage and state transfers; every
-    possible subject must be covered.
+  - State arrivals with distinct local owned backing homes still need a complete
+    retention plan for every selected origin. The
+    [progress selector row](samples/cli/facts/progress_selector/README.md)
+    covers finite caller-owned selector alternatives through all nine places;
+    broader helper/reference provenance obligations above remain open.
   - Keep exact public-schema, local admitted-receipt and build-bound provider
     coverage per demand. Route catalogs are not receipts. **COMPONENT-SUBSTRATE** owns installed
     composition; **STATE-LOCAL-VALUE-FRONTIER** owns nested structural-result

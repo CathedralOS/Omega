@@ -3,7 +3,7 @@
 use super::super::CheckedProgressSummary;
 use crate::checks::termination::progress::fact_subjects::fact_subject;
 use crate::checks::termination::progress::machine_summaries::{
-    call_argument_subject, selected_call_summary,
+    call_argument_places, selected_call_summary,
 };
 use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
@@ -22,6 +22,7 @@ pub(super) fn maximum_fact_projection_length(semantic: &facts::FactPlan) -> usiz
 pub(super) fn finite_projection_limit(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
+    semantic: &facts::FactPlan,
     maximum_fact_projection_length: usize,
     component: &[SymbolHandle],
     summaries: &[CheckedProgressSummary],
@@ -75,17 +76,34 @@ pub(super) fn finite_projection_limit(
                     validation::call_target_parameters(program, call.target_symbol)
                 {
                     for parameter in parameters {
-                        if let Some(subject) = call_argument_subject(
+                        if let Some(places) = call_argument_places(
                             program,
                             machine,
                             state,
                             call,
                             parameters,
                             parameter.symbol,
+                            &[],
                             call_frames,
                         ) {
-                            maximum_prefix_length =
-                                maximum_prefix_length.max(subject.projections.len());
+                            for place in places {
+                                let Some(subjects) = super::super::origins::at_place(
+                                    program,
+                                    flow,
+                                    semantic,
+                                    machine,
+                                    state,
+                                    call,
+                                    place,
+                                    call_frames,
+                                ) else {
+                                    continue;
+                                };
+                                for subject in subjects {
+                                    maximum_prefix_length =
+                                        maximum_prefix_length.max(subject.projections.len());
+                                }
+                            }
                         }
                     }
                 }

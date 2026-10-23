@@ -109,13 +109,20 @@ pub(super) fn retained_storage(
             operand_parents,
         });
     };
-    // One home may have several supplying permissions. Distinct alternatives
-    // cannot be collapsed to whichever resource happened to be encountered first.
-    if roots.any(|candidate| candidate != root) {
-        return Err("state loan: distinct backing alternatives");
+    // Every origin must agree on the state-owned home retained for cleanup.
+    // Distinct caller-owned referents all require no local home; their captured
+    // descriptor supplies the address and their complete parent resources above
+    // retain permission. Never choose one referent from the origin alternatives.
+    let backing = local_backing_binding(program, facts, state, statement, operations, root)?;
+    for candidate in roots {
+        if local_backing_binding(program, facts, state, statement, operations, candidate)?
+            != backing
+        {
+            return Err("state loan: distinct backing alternatives");
+        }
     }
     Ok(RetainedStorage {
-        backing: local_backing_binding(program, facts, state, statement, operations, root)?,
+        backing,
         parents,
         operand_parents,
     })

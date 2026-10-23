@@ -4,34 +4,59 @@ use validation::CanonicalPlace;
 
 use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject};
 use crate::flow::{self};
-use facts::{PlaceRoot, PlaceSegment};
+use facts::PlaceSegment;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::machine::Machine;
 
 mod call_places;
 mod callee_values;
+mod captured_values;
 mod leaf_arrivals;
 mod reference_bounds;
 use call_places::*;
 pub(super) use call_places::{call_argument_boundary_place, call_argument_place};
 use reference_bounds::*;
 
-pub(super) fn at_call(
+/// Stored values use their completed producer graph. Entry storage has no
+/// earlier local producer and keeps the existing live-origin query. An unknown
+/// stored producer never falls back to its declaration initializer.
+pub(super) fn at_place(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    semantic: &facts::FactPlan,
+    machine: &Machine,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<ProgressSubject>> {
+    match captured_values::at_call(
+        program,
+        flow,
+        semantic,
+        machine,
+        state,
+        call,
+        &place,
+        call_frames,
+    ) {
+        captured_values::CapturedOrigins::Incoming => {
+            direct_at_place(program, flow, machine, state, call, place, call_frames)
+        }
+        captured_values::CapturedOrigins::Exact(subjects) => Some(subjects),
+        captured_values::CapturedOrigins::Unavailable => None,
+    }
+}
+
+fn direct_at_place(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
-    subject: ProgressSubject,
+    place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressSubject>> {
-    let mut place = CanonicalPlace {
-        root: PlaceRoot::Symbol(subject.root),
-        segments: Vec::new(),
-    };
-    for projection in subject.projections {
-        validation::push_field_place_segments(program, &mut place.segments, projection);
-    }
     // The shared backward trace keeps value-position call results opaque;
     // progress supplies the two producers it can prove exactly: an owned
     // helper result substitutes the caller argument place the callee's

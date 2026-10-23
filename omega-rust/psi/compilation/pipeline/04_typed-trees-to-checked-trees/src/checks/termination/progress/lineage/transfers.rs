@@ -2,7 +2,7 @@
 
 use super::{FlowFacts, ProgressSubject};
 use crate::checks::termination::progress::machine_summaries::{
-    call_argument_subject, local_state_transition_target,
+    call_argument_places, local_state_transition_target,
 };
 
 pub(super) struct ParameterTransfer {
@@ -13,6 +13,7 @@ pub(super) struct ParameterTransfer {
 pub(super) fn collect(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
+    semantic: &facts::FactPlan,
     machine: &typed_trees::machine::Machine,
     subjects: &[ProgressSubject],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -34,37 +35,50 @@ pub(super) fn collect(
                     .iter()
                     .any(|parameter| parameter.symbol == subject.root)
             }) {
-                transfers.push(ParameterTransfer {
-                    destination: destination.clone(),
-                    source: call_argument_subject(
-                        program,
-                        machine,
-                        state,
-                        call,
-                        parameters,
-                        destination.root,
-                        call_frames,
-                    )
-                    .and_then(|mut subject| {
-                        subject
-                            .projections
-                            .extend_from_slice(&destination.projections);
-                        // A transfer names ONE source. Routes that disagree
-                        // have no single one, so the transfer stays unknown
-                        // exactly as it did before they were enumerated; the
-                        // summary path is what carries the whole set.
-                        let mut subjects = crate::checks::termination::progress::origins::at_call(
+                let sources = call_argument_places(
+                    program,
+                    machine,
+                    state,
+                    call,
+                    parameters,
+                    destination.root,
+                    &destination.projections,
+                    call_frames,
+                )
+                .and_then(|places| {
+                    let mut sources = Vec::new();
+                    for place in places {
+                        for source in crate::checks::termination::progress::origins::at_place(
                             program,
                             flow,
+                            semantic,
                             machine,
                             state,
                             call,
-                            subject,
+                            place,
                             call_frames,
-                        )?;
-                        (subjects.len() == 1).then(|| subjects.pop()).flatten()
-                    }),
+                        )? {
+                            if !sources.contains(&source) {
+                                sources.push(source);
+                            }
+                        }
+                    }
+                    (!sources.is_empty()).then_some(sources)
                 });
+                match sources {
+                    Some(sources) => {
+                        for source in sources {
+                            transfers.push(ParameterTransfer {
+                                destination: destination.clone(),
+                                source: Some(source),
+                            });
+                        }
+                    }
+                    None => transfers.push(ParameterTransfer {
+                        destination: destination.clone(),
+                        source: None,
+                    }),
+                }
             }
         }
     }

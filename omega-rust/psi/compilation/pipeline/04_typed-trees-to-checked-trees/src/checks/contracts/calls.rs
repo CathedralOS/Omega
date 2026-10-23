@@ -193,6 +193,15 @@ pub(super) fn check_call_requires(
                 });
 
             let satisfied = satisfied
+                || crate::checks::termination::profile_requirement_covered(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    fact,
+                    call_frames,
+                );
+            let satisfied = satisfied
                 && super::prover::contract_membership_place_is_accessible(
                     program,
                     &facts.semantic,

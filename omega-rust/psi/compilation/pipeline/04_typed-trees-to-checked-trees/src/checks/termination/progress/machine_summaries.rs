@@ -11,7 +11,7 @@ use crate::checks::termination::progress::fact_subjects::{
 use crate::checks::termination::progress::{lineage, origins};
 
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
-use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
+use language_semantics::{ProgressPremise, TerminationGuarantee};
 use symbols::SymbolHandle;
 
 pub(crate) fn derive_machine_summary(
@@ -65,56 +65,34 @@ pub(crate) fn derive_machine_summary(
                 return Some(no_guarantee(machine.symbol));
             };
             for callee_premise in callee_premises {
-                let local_instance = instantiate_call_premise(
+                let places = call_argument_places(
                     program,
                     machine,
                     state_flow,
                     call,
-                    callee_premise,
+                    call_target_parameters(program, call.target_symbol)?,
+                    callee_premise.subject.root,
+                    &callee_premise.subject.projections,
                     call_frames,
                 )?;
-                if admitted_receipt_covers(
-                    program,
-                    flow,
-                    semantic,
-                    state_flow,
-                    call,
-                    &local_instance,
-                ) {
-                    continue;
-                }
-                // A call whose routes disagree yields one subject per route.
-                // The demand holds only if it holds for every one, so each
-                // resolves on its own and all of their premises are kept.
-                let subjects = origins::at_call(
-                    program,
-                    flow,
-                    machine,
-                    state_flow,
-                    call,
-                    local_instance.subject.clone(),
-                    call_frames,
-                )?;
-                let mut instances = Vec::new();
-                for subject in subjects {
-                    let mut entry_instance = local_instance.clone();
-                    entry_instance.subject = subject;
-                    instances.extend(lineage::resolve(
+                for place in places {
+                    for instance in resolve_call_place_premises(
                         program,
                         flow,
+                        semantic,
                         machine,
-                        entry_instance,
+                        state_flow,
+                        call,
+                        place,
+                        callee_premise.profile,
                         call_frames,
-                    )?);
-                }
-                for instance in instances {
-                    if !entry_parameter_roots.contains(&instance.subject.root) {
-                        // Arbitrary local values cannot become caller
-                        // premises; only entry parameters can.
-                        return Some(no_guarantee(machine.symbol));
-                    }
-                    if !premises.contains(&instance) {
-                        premises.push(instance);
+                    )? {
+                        if !entry_parameter_roots.contains(&instance.subject.root) {
+                            return Some(no_guarantee(machine.symbol));
+                        }
+                        if !premises.contains(&instance) {
+                            premises.push(instance);
+                        }
                     }
                 }
             }
@@ -321,164 +299,158 @@ pub(crate) fn selected_call_summary<'a>(
     }
 }
 
-fn instantiate_call_premise(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state_flow: &FlowStateFact,
-    call: &FlowCallFact,
-    premise: &ProgressPremise,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<ProgressPremise> {
-    let mut subject = call_argument_subject(
-        program,
-        machine,
-        state_flow,
-        call,
-        call_target_parameters(program, call.target_symbol)?,
-        premise.subject.root,
-        call_frames,
-    )?;
-    subject
-        .projections
-        .extend(premise.subject.projections.iter().copied());
-    Some(ProgressPremise {
-        profile: premise.profile,
-        subject,
-    })
-}
-
-/// The single subject a call argument names, or `None` when it names none or
-/// when a dynamic selector leaves several — `call_argument_subjects`
-/// is what reads that set.
-pub(crate) fn call_argument_subject(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state_flow: &FlowStateFact,
-    call: &FlowCallFact,
-    parameters: &[typed_trees::signature::StateParameter],
-    parameter_symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<ProgressSubject> {
-    let mut subjects = call_argument_subjects(
-        program,
-        machine,
-        state_flow,
-        call,
-        parameters,
-        parameter_symbol,
-        call_frames,
-    )?;
-    (subjects.len() == 1).then(|| subjects.pop()).flatten()
-}
-
+/// Retain every selected place until its captured origin is resolved. A
+/// selector slot is not itself a public progress subject, and resolving its
+/// source twice could replace a captured value with a later storage version.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn call_argument_subjects(
+pub(crate) fn call_argument_places(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    state_flow: &FlowStateFact,
+    state: &FlowStateFact,
     call: &FlowCallFact,
     parameters: &[typed_trees::signature::StateParameter],
     parameter_symbol: SymbolHandle,
+    projections: &[SymbolHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<ProgressSubject>> {
+) -> Option<Vec<validation::CanonicalPlace>> {
     let call_site = find_call_site(
         program,
         machine.symbol,
-        state_flow.state_symbol,
+        state.state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let parameter_index =
-        typed_trees::signature::state_parameter_position(parameters, parameter_symbol)?;
+    let position = typed_trees::signature::state_parameter_position(parameters, parameter_symbol)?;
     let arguments = call_site_argument_expressions(program, &call_site);
-    let parameter = &parameters[parameter_index];
+    let mut relative = Vec::new();
+    for projection in projections {
+        validation::push_field_place_segments(program, &mut relative, *projection);
+    }
     let place = origins::call_argument_place(
         program,
-        state_flow,
+        state,
         call.statement_index,
-        *arguments.get(parameter_index)?,
-        parameter.type_reference,
-        &[],
+        *arguments.get(position)?,
+        parameters[position].type_reference,
+        &relative,
         call_frames,
     )?;
-    // A demanded operand spelled through a reference leaf names the
-    // referent's storage, not the carrier's: resolve the leaf so the premise
-    // surface never sees the index selectors it cannot carry.
-    let place = origins::call_argument_boundary_place(
-        program,
-        machine,
-        state_flow,
-        call.statement_index,
-        place,
-        call_frames,
-    )?;
-    if let Some(subject) = subject_from_place(place.root, &place.segments) {
-        return Some(vec![subject]);
-    }
-    dynamic_selector_subjects(program, state_flow, call, &place, call_frames)
+    selector_places(program, state, call, place)
 }
 
-/// The subjects a demand behind a DYNAMIC selector names, when the selected
-/// carrier is a closed array literal.
-///
-/// `boxes[i].view.scheduler` has no single origin: `i` is not a constant, so
-/// the premise surface, which carries field projections and no selectors,
-/// refuses the place. The array's length is closed and its elements are
-/// spelled, though, so the demand names one of finitely many exact places --
-/// the same shape as a callee whose routes disagree. Every element must name
-/// one, and the caller conjoins a premise apiece; one it cannot name leaves
-/// the whole demand unproven.
-fn dynamic_selector_subjects(
+/// Closed geometry supplies alternatives, never their contents. Each fixed
+/// slot still owes the ordinary capture, binding and write-preservation walk.
+/// Nested selectors consume one dimension at a time without a shape budget.
+pub(super) fn selector_places(
     program: &dyn ::validation::CheckingInput,
-    state_flow: &FlowStateFact,
+    state: &FlowStateFact,
     call: &FlowCallFact,
-    place: &validation::CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<ProgressSubject>> {
-    let selector = place
-        .segments
-        .iter()
-        .position(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))?;
-    // Only one selector: a second would multiply two element sets together,
-    // which is a different obligation than this conjunction.
-    if place.segments[selector + 1..]
-        .iter()
-        .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
-    {
-        return None;
-    }
-    let root = place.root.as_symbol()?;
-    let typed_state = program.state_by_symbol(state_flow.state_symbol)?;
-    let (_, local) = program
-        .state_local_declaration(typed_state, root)
-        .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
-    let typed_trees::expression::ExpressionNode::ArrayLiteral(elements) =
-        program.expression_table.expression(local.initial_value)
-    else {
-        return None;
-    };
-    let elements = program.expression_table.expression_handles(*elements);
-    if elements.is_empty() {
-        return None;
-    }
-    let relative = &place.segments[selector + 1..];
-    let mut subjects = Vec::with_capacity(elements.len());
-    for element in elements {
-        let element_place = origins::call_argument_place(
-            program,
-            state_flow,
-            call.statement_index,
-            *element,
-            local.type_reference,
-            relative,
-            call_frames,
-        )?;
-        let subject = subject_from_place(element_place.root, &element_place.segments)?;
-        if !subjects.contains(&subject) {
-            subjects.push(subject);
+    place: validation::CanonicalPlace,
+) -> Option<Vec<validation::CanonicalPlace>> {
+    let mut pending = vec![place];
+    let mut places = Vec::new();
+    while let Some(mut selected) = pending.pop() {
+        if let Some(selector) = selected
+            .segments
+            .iter()
+            .position(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+        {
+            let collection = validation::CanonicalPlace {
+                root: selected.root,
+                segments: selected.segments[..selector].to_vec(),
+            };
+            let reference = validation::canonical_place_type_reference(
+                program,
+                state.state_symbol,
+                call.statement_index,
+                &collection,
+            )?;
+            let length = validation::fixed_array_type_length(program, reference)?;
+            if length == 0 {
+                return None;
+            }
+            for index in 0..length {
+                selected.segments[selector] = facts::PlaceSegment::FixedIndex { index };
+                pending.push(selected.clone());
+            }
+        } else if !places.contains(&selected) {
+            places.push(selected);
         }
     }
-    Some(subjects)
+    (!places.is_empty()).then_some(places)
+}
+
+/// Local receipts and entry lineage are separate sources of coverage. A route
+/// catalogue or a callee requirement is neither. This shared transport is used
+/// both by summary derivation and by the consuming call's ordinary admission.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn resolve_call_place_premises(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    semantic: &facts::FactPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    place: validation::CanonicalPlace,
+    profile: language_semantics::SemanticDomainId,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<ProgressPremise>> {
+    let local = origins::call_argument_boundary_place(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        place.clone(),
+        call_frames,
+    )?;
+    let mut owned_frames = None;
+    let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    // A live receipt does not excuse writes during later operand evaluation.
+    // Check both the captured slot and its referent before using that receipt.
+    let preserved = [&place, &local].iter().all(|place| {
+        crate::flow::local_reference_storage_at_call(
+            program,
+            frames,
+            machine,
+            flow,
+            state,
+            call,
+            (*place).clone(),
+            crate::flow::ValueObservation::Contents,
+        )
+        .is_some()
+    });
+    if preserved && let Some(subject) = subject_from_place(local.root, &local.segments) {
+        let premise = ProgressPremise { profile, subject };
+        if admitted_receipt_covers(program, flow, semantic, state, call, &premise) {
+            return Some(Vec::new());
+        }
+    }
+    let mut premises = Vec::new();
+    for subject in origins::at_place(
+        program,
+        flow,
+        semantic,
+        machine,
+        state,
+        call,
+        place,
+        call_frames,
+    )? {
+        for premise in lineage::resolve(
+            program,
+            flow,
+            semantic,
+            machine,
+            ProgressPremise { profile, subject },
+            call_frames,
+        )? {
+            if !premises.contains(&premise) {
+                premises.push(premise);
+            }
+        }
+    }
+    Some(premises)
 }
 
 fn is_local_state_transition(

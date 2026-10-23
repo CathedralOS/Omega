@@ -91,6 +91,68 @@ pub(crate) fn entry_covers_progress_premises(
     })
 }
 
+/// A progress-profile precondition consumes the same exact subject transport
+/// as termination analysis. It still needs an existing entry qualification or
+/// an exact live receipt; a selected callee's promise establishes neither.
+pub(crate) fn profile_requirement_covered(
+    program: &dyn ::validation::CheckingInput,
+    checked: &checked_trees::CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    required: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let Some((_, _, domain_symbol, instance)) = required.payload.domain_membership() else {
+        return false;
+    };
+    let Some(domain) = program.domain_definition(domain_symbol).filter(|domain| {
+        domain.classification == Some(language_semantics::DomainClassification::ProgressProfile)
+            && typed_trees::domain::index_parameters(program, domain).is_empty()
+            && (!instance.is_valid() || instance == domain.semantic_id)
+    }) else {
+        return false;
+    };
+    if !call.authored_source_custody_valid
+        || crate::flow::captured_call_operands(program, &checked.flow, state, call).is_none()
+    {
+        return false;
+    }
+    let Some(handle) = required.place.as_place() else {
+        return false;
+    };
+    let stored = checked.semantic.places.get(handle);
+    let place = validation::CanonicalPlace {
+        root: stored.root,
+        segments: checked
+            .semantic
+            .place_segments
+            .span_or_empty(stored.segments)
+            .to_vec(),
+    };
+    let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
+        return false;
+    };
+    let Some(places) = machine_summaries::selector_places(program, state, call, place) else {
+        return false;
+    };
+    places.into_iter().all(|place| {
+        machine_summaries::resolve_call_place_premises(
+            program,
+            &checked.flow,
+            &checked.semantic,
+            machine,
+            state,
+            call,
+            place,
+            domain.semantic_id,
+            call_frames,
+        )
+        .is_some_and(|premises| {
+            entry_covers_progress_premises(program, checked, machine.symbol, &premises)
+        })
+    })
+}
+
 /// Derive checked termination premises from exact selected call contracts.
 ///
 /// Published operation contracts remain the caller-facing authority. Private

@@ -262,7 +262,7 @@ pub(super) fn binding_overwrite(
 /// A stored view's descriptor survives writes to its referent's descendants.
 /// Unknown writes and replacement of the descriptor or its enclosing owner
 /// stop the retained address; this grants no access to the backing contents.
-pub(super) fn binding_origin_is_stable(
+pub(crate) fn binding_origin_is_stable(
     program: &dyn ::validation::CheckingInput,
     control: &checked_trees::FlowControlFacts,
     writes: HandleSpan<checked_trees::FlowOperandReferent>,

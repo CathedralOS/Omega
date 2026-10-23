@@ -20,7 +20,7 @@ mod progress;
 mod ranking;
 mod source_natural;
 
-pub(crate) use progress::entry_covers_progress_premises;
+pub(crate) use progress::{entry_covers_progress_premises, profile_requirement_covered};
 
 // Contract induction uses the same authored-edge graph as ranking; graph
 // membership supplies no ranking or invariant evidence by itself.
