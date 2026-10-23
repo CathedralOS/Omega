@@ -11,7 +11,7 @@
 
 use std::collections::BTreeMap;
 
-use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
+use calling_conventions::{CallSignature, ValueShape};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
@@ -20,7 +20,7 @@ use terminal_interpreter::{
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
     TerminalImportSignature, TerminalScalarValue,
 };
-use terminal_psi::{BoundaryCompletion, BoundaryMachineDeclaration, BoundaryParameterKind};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
 
 use super::TerminalRuntimeError;
 
@@ -68,31 +68,16 @@ impl DescriptorModeImport {
             parameters: vec![ValueShape::integer(4, 4), ValueShape::integer(4, 4)],
             result: Some(ValueShape::integer(4, 4)),
         };
-        if !binding.has_valid_entry_mechanism()
-            || binding.provider_plan_report_identity() == 0
-            || !binding
-                .boundary_entry_plan
-                .call
-                .callback_materializations
-                .is_empty()
-            || validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &native_signature)
-                .is_err()
-            || signature.completion != BoundaryCompletion::NormalReturn
-            || signature.scalar_parameters != [ScalarType::Integer(word), ScalarType::Integer(word)]
+        if signature.scalar_parameters != [ScalarType::Integer(word), ScalarType::Integer(word)]
             || !signature.structural_parameters.is_empty()
             || signature.result
                 != terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(word).into())
             || declaration.parameter_order
                 != [BoundaryParameterKind::Scalar, BoundaryParameterKind::Scalar]
-            || !declaration.requires.is_empty()
-            || !declaration.scalar_requires.is_empty()
-            || !declaration.scalar_ensures.is_empty()
-            || !declaration.content_guarantees.is_empty()
-            || !declaration.program_local_root_introductions.is_empty()
-            || !declaration.crash_routes.is_empty()
         {
             return Err(invalid());
         }
+        super::admit_exact_foreign_call(&signature, declaration, binding, &native_signature)?;
         Ok(Some(Self {
             signature,
             result_type: word,

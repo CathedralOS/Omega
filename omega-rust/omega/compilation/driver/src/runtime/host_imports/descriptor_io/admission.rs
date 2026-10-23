@@ -6,14 +6,14 @@
 //! only one-word parameters, so borrowed pointer/length aggregates stay unavailable
 //! there rather than receiving a made-up register split.
 
-use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
+use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{
-    BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, ByteSequenceCarrier,
+    StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
 };
 
 use super::super::borrowed_storage;
@@ -133,17 +133,7 @@ pub(super) fn admit(
             Some(ValueShape::integer(u32::from(width / 8), width / 8))
         },
     };
-    if !binding.has_valid_entry_mechanism()
-        || binding.provider_plan_report_identity() == 0
-        || !binding
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
-        || validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &native_signature)
-            .is_err()
-        || signature.completion != BoundaryCompletion::NormalReturn
-        || signature.scalar_parameters != scalar_parameters
+    if signature.scalar_parameters != scalar_parameters
         || (!signature.result.is_unit()
             && signature.result
                 != BoundaryMachineResult::Scalar(ScalarType::Integer(result_type).into()))
@@ -152,15 +142,10 @@ pub(super) fn admit(
         || formal.multiplicity != StructuralMultiplicity::Unrestricted
         || !formal.qualifications.is_empty()
         || !formal.projected_qualifications.is_empty()
-        || !declaration.requires.is_empty()
-        || !declaration.scalar_requires.is_empty()
-        || !declaration.scalar_ensures.is_empty()
-        || !declaration.content_guarantees.is_empty()
-        || !declaration.program_local_root_introductions.is_empty()
-        || !declaration.crash_routes.is_empty()
     {
         return Err(invalid());
     }
+    super::super::admit_exact_foreign_call(&signature, declaration, binding, &native_signature)?;
 
     Ok(Some(DescriptorContract {
         signature,

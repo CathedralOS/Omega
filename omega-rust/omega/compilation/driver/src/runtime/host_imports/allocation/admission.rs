@@ -2,9 +2,7 @@
 //! applications determine whether their values can cross this particular slot.
 
 use super::{AllocationOperation, TerminalRuntimeError};
-use calling_conventions::{
-    BoundaryCallingApplication, CallSignature, ValueShape, validate_boundary_entry_plan,
-};
+use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
 };
@@ -12,8 +10,8 @@ use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{
-    BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-    StructuralAccess, StructuralFieldType, StructuralTypeShape,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
+    StructuralFieldType, StructuralTypeShape,
 };
 
 pub(super) fn select(
@@ -101,7 +99,6 @@ pub(super) fn validate(
                 || !signature.structural_parameters.is_empty()
                 || signature.result != BoundaryMachineResult::Scalar(address.into())
                 || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
-                || !declaration.requires.is_empty()
             {
                 return Err(invalid(
                     "calloc requires two u64 sizes and a bare address result",
@@ -119,7 +116,6 @@ pub(super) fn validate(
             if signature.scalar_parameters == [address]
                 && signature.structural_parameters.is_empty()
                 && declaration.parameter_order == [BoundaryParameterKind::Scalar]
-                && declaration.requires.is_empty()
             {
                 // An ordinary raw address has no structural payload lane.
             } else {
@@ -172,32 +168,7 @@ pub(super) fn validate(
             }
         }
     };
-    if signature.completion != BoundaryCompletion::NormalReturn
-        || !binding.has_valid_entry_mechanism()
-        || binding.provider_plan_report_identity() == 0
-        || !binding
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
-        || !declaration.scalar_requires.is_empty()
-        || !declaration.scalar_ensures.is_empty()
-        || !declaration.content_guarantees.is_empty()
-        || !declaration.program_local_root_introductions.is_empty()
-        || !declaration.crash_routes.is_empty()
-    {
-        return Err(invalid(
-            "allocation import contains unsupported effects, result authority or entry mechanism",
-        ));
-    }
-    validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &native).map_err(
-        |diagnostic| {
-            TerminalRuntimeError::missing(
-                "runtime-host-allocation-abi",
-                format!("allocation C calling plan rejected: {diagnostic}"),
-            )
-        },
-    )?;
+    super::super::admit_exact_foreign_call(signature, declaration, binding, &native)?;
     if let Some(application) = application {
         if application.plan.plan() != &binding.boundary_entry_plan
             || application.commitment == [0; 32]

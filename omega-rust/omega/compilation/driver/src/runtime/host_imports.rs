@@ -1,6 +1,8 @@
 //! Explicit host bindings for exact admitted native host operation slots.
 //! A slot's realization selects semantics; its complete declaration selects
-//! the typed adapter. No source-name dispatch or stdout-driven exit exists.
+//! the typed adapter. Every family's offer first passes the shared
+//! `admit_exact_foreign_call` premise; the family then owns its own shape
+//! rules. No source-name dispatch or stdout-driven exit exists.
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
@@ -40,6 +42,68 @@ use super::TerminalRuntimeError;
 enum OutputKind {
     Line,
     Byte,
+}
+
+/// Shared admission premise for every exact foreign call binding before any
+/// trusted host adapter is offered for it: an identified provider-plan report,
+/// a valid entry mechanism, no callback materializations, no declaration
+/// residue obligations, normal completion, and an evaluated boundary-entry
+/// plan that validates the native signature the adapter will actually run.
+/// Each family below keeps its own declaration/ABI shape rules; this one rule
+/// gates every offer, so one operation carries it instead of five copies.
+pub(super) fn admit_exact_foreign_call(
+    signature: &TerminalImportSignature,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    binding: &target_operations::NormalizedForeignCallBinding,
+    native_signature: &calling_conventions::CallSignature,
+) -> Result<(), TerminalRuntimeError> {
+    if !binding.has_valid_entry_mechanism() {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "foreign call binding has no valid entry mechanism",
+        ));
+    }
+    if binding.provider_plan_report_identity() == 0 {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "foreign call binding identifies no provider-plan report",
+        ));
+    }
+    if !binding
+        .boundary_entry_plan
+        .call
+        .callback_materializations
+        .is_empty()
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "foreign call binding retains callback materializations",
+        ));
+    }
+    if !declaration.requires.is_empty()
+        || !declaration.scalar_requires.is_empty()
+        || !declaration.scalar_ensures.is_empty()
+        || !declaration.content_guarantees.is_empty()
+        || !declaration.program_local_root_introductions.is_empty()
+        || !declaration.crash_routes.is_empty()
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "foreign declaration retains residue obligations this runtime does not supply",
+        ));
+    }
+    if signature.completion != terminal_psi::BoundaryCompletion::NormalReturn {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "foreign call declaration does not complete with a normal return",
+        ));
+    }
+    calling_conventions::validate_boundary_entry_plan(
+        binding.boundary_entry_plan.clone(),
+        native_signature,
+    )
+    .map_err(|diagnostic| {
+        TerminalRuntimeError::missing(
+            "runtime-host-foreign-call-abi",
+            format!("foreign boundary-entry plan rejected: {diagnostic}"),
+        )
+    })?;
+    Ok(())
 }
 
 /// One explicitly supplied host capability root shared by the receiver and

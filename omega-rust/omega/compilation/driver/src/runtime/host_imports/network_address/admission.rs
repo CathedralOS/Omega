@@ -4,15 +4,14 @@
 
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature, ValueShape,
-    validate_boundary_entry_plan,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
 use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
 use terminal_psi::{
-    BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-    StructuralAccess, StructuralMultiplicity,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
+    StructuralMultiplicity,
 };
 
 use super::{AddressOperation, TerminalRuntimeError};
@@ -178,24 +177,6 @@ pub(super) fn validate(
             "inet selected opaque application differs from its exact signature root",
         ));
     }
-    if signature.completion != BoundaryCompletion::NormalReturn
-        || !binding.has_valid_entry_mechanism()
-        || !binding
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
-        || !declaration.requires.is_empty()
-        || !declaration.scalar_requires.is_empty()
-        || !declaration.scalar_ensures.is_empty()
-        || !declaration.content_guarantees.is_empty()
-        || !declaration.program_local_root_introductions.is_empty()
-        || !declaration.crash_routes.is_empty()
-    {
-        return Err(invalid(
-            "inet requires normal completion without extra callback, proof, content or crash obligations",
-        ));
-    }
     let graph = BoundaryValueGraph {
         shapes: &application.signature.shapes,
         fields: &application.signature.fields,
@@ -220,12 +201,7 @@ pub(super) fn validate(
                 invalid("inet native shape cannot be classified under the selected calling policy")
             })?,
     };
-    if validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &native_signature).is_err()
-    {
-        return Err(invalid(
-            "inet complete signature does not validate its selected boundary-entry plan",
-        ));
-    }
+    super::super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
     Ok((
         structural_type,
         application.opaque_applications[0].selected_application_commitment,

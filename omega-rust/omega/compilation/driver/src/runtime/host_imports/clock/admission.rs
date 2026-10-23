@@ -4,13 +4,13 @@
 //! Scalar carriers and thin loan pointers follow the authored parameter order;
 //! storage permission is checked separately from native pointer representation.
 
-use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
+use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
-use terminal_psi::{BoundaryCompletion, BoundaryMachineDeclaration, BoundaryParameterKind};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
 
 use super::{ClockImplementation, ClockNamespace, ClockOperation, TerminalRuntimeError, timespec};
 
@@ -169,24 +169,6 @@ pub(super) fn validate(
         }
         _ => None,
     };
-    if signature.completion != BoundaryCompletion::NormalReturn
-        || !binding.has_valid_entry_mechanism()
-        || binding.provider_plan_report_identity() == 0
-        || !binding
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
-        || validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &native_signature)
-            .is_err()
-        || !declaration.requires.is_empty()
-        || !declaration.scalar_requires.is_empty()
-        || !declaration.scalar_ensures.is_empty()
-        || !declaration.content_guarantees.is_empty()
-        || !declaration.program_local_root_introductions.is_empty()
-        || !declaration.crash_routes.is_empty()
-    {
-        return Err(invalid());
-    }
+    super::super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
     Ok(operation)
 }
