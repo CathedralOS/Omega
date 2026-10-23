@@ -73,6 +73,25 @@ omega --check samples/cli/facts/twentyone_arg_stack_calling_plan/<place>/invalid
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
 
+## Pinned Fixtures
+
+The nine positive places are pinned under
+`tests/omega/pass/facts/twentyone_arg_stack_calling_plan_through_<place>_exit/`,
+each carrying `main.omg` byte-identical to its place program, a `build.omg`
+binding `ProgramEntry` for all four hosted targets, and
+`expected_native_exit.txt` declaring `0`.
+
+The nine reject twins are pinned under
+`tests/omega/fail/facts/twentyone_arg_stack_calling_plan_through_<place>_rejected/`,
+each carrying the place twin's `main.omg` and `build.omg` and an `expected.txt`
+holding the place's observed `exact arithmetic ... may overflow \`u64\``
+diagnostic (decision 17), naming the machine the subtraction is proved in.
+
+`git diff` of a positive place against its twin changes only the construct's own
+value and contract bounds — `a21`'s bound `80u64` to `81u64` and the argument
+supplied in that place's idiom `60u64` to `81u64` — plus the header oracle
+comment, so each twin breaks only the fact under test.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS-STACK-BOUNDS` / `TWENTYONE-ARG-STACK-CALLING-PLAN` (`TASKS.md`)
@@ -91,6 +110,33 @@ omega --check samples/cli/facts/twentyone_arg_stack_calling_plan/<place>/invalid
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/twentyone_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+Fresh, measured on the macOS arm64 host in worktree `factsr1-pins-ed` with the
+shared generation producer `gen-9b001b8f6af` (revision
+`9b001b8f6afa2cdac67fd580033c3560d906a5d5`, omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`):
+
+- `omega run --both` on the root and the nine positive places: 10/10 report
+  `native exit 0` with `interp exit: 0`; no compiler repair was needed.
+- `omega --check` on the nine `<place>/invalid/main.omg` twins: 9/9 exit 1 with
+  `exact arithmetic in machine ... local \`headroom\` may overflow \`u64\``
+  (decision 17), naming the machine that owns the subtraction: probe, check_call
+  (parameter), step (other_state), forward21 (other_machine) and evaluate21
+  (target_body).
+- `corpus_gate.py --runner <generation>/corpus_runner`, scoped to this fact:
+  check leg 18 rows (9 `checked` carrying `check-target:macos_arm64`, 9
+  `rejected` carrying the twins' diagnostics with their `expected.txt` fragment
+  satisfied; 0 rejected without their expected fragment, 0 fail fixtures that
+  did not reject); native leg 9 rows `built` with `exit:0`; both leg 9 rows
+  `exit:0 interpreter-exit:0 interpreter:agrees`. Each golden diff against the
+  recorded base `9b001b8f6af` is a pure addition (60 / 18 / 18 lines, 0
+  deletions), every row stamped `@9b001b8f6afa+wt`. The native leg's two
+  `regressed-from:` rows are the standing memory canaries
+  (`interrupt_table_canary`, `secondary_processor_canary`), not this fact.
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
-- What remains open: multi-argument calls exceeding 22+ arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
+- What remains open: aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
+
+Retained from the authoring session (`windows_x86_64`):
+`sample_native_gate.py --filter cli/facts/twentyone_arg_stack_calling_plan`
+reported 10/10 samples meeting their documented oracle (root plus nine places
+exiting 0) with 9/9 intended-invalid controls matching their authored rejection
+(`may overflow \`u64\``).

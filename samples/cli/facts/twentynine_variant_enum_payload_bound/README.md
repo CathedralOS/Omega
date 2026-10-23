@@ -74,6 +74,26 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+## Pinned Fixtures
+
+The nine positive places are pinned under
+`tests/omega/pass/facts/twentynine_variant_enum_payload_bound_through_<place>_exit/`,
+each carrying `main.omg` byte-identical to its place program, a `build.omg`
+binding `ProgramEntry` for all four hosted targets, and
+`expected_native_exit.txt` declaring `0`.
+
+The nine reject twins are pinned under
+`tests/omega/fail/facts/twentynine_variant_enum_payload_bound_through_<place>_rejected/`,
+each carrying the place twin's `main.omg` and `build.omg` and an
+`expected.txt` holding that place's observed diagnostic — the requires contract
+on `verify_payload` (local, field, const_name, target_body), `consume`
+(parameter, other_state), `choose` (match_join), `forward_payload`
+(other_machine), and the ensures contract on `extract_payload` (call_result).
+
+`git diff` of a positive place against its twin changes only the construct's own
+bound — variant `V29`'s lower bound `v >= 40u64` to `v >= 39u64` — plus the
+header oracle comment, so each twin breaks only the fact under test.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V29(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all twenty-nine tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
@@ -84,4 +104,27 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 29-variant tagged enum `TwentyNineChoice` with a 1-byte discriminant tag (`u8` range 0..28) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 29-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+
+- **Remaining Open**: None for this fact row; the ten positive programs (root plus nine places) report native exit 0 with `interp exit: 0`, the nine reject twins refuse with the diagnostics pinned in their `expected.txt`, and all eighteen fixtures are pinned under `tests/omega/{pass,fail}/facts/`.
+
+### Verification Evidence
+
+Fresh, measured on the macOS arm64 host in worktree `factsr1-pins-ed` with the
+shared generation producer `gen-9b001b8f6af` (revision
+`9b001b8f6afa2cdac67fd580033c3560d906a5d5`, omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`):
+
+- `omega run --both` on the root and the nine positive places: 10/10 report
+  `native exit 0` with `interp exit: 0`; no compiler repair was needed.
+- `omega --check` on the nine `<place>/invalid/main.omg` twins: 9/9 exit 1 with
+  that place's requires or ensures contract diagnostic.
+- `corpus_gate.py --runner <generation>/corpus_runner`, scoped to this fact:
+  check leg 18 rows (9 `checked` carrying `check-target:macos_arm64`, 9
+  `rejected` carrying the twins' diagnostics with their `expected.txt` fragment
+  satisfied; 0 rejected without their expected fragment, 0 fail fixtures that
+  did not reject); native leg 9 rows `built` with `exit:0`; both leg 9 rows
+  `exit:0 interpreter-exit:0 interpreter:agrees`. Each golden diff against the
+  recorded base `9b001b8f6af` is a pure addition (60 / 18 / 18 lines, 0
+  deletions), every row stamped `@9b001b8f6afa+wt`. The native leg's two
+  `regressed-from:` rows are the standing memory canaries
+  (`interrupt_table_canary`, `secondary_processor_canary`), not this fact.
