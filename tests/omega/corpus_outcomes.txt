@@ -1096,23 +1096,23 @@ fail/constants/predicate_constant_field_shadows_outer_constant rejected 6ms expe
 fail/constants/predicate_constant_generic_static_index_fence rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/predicate_constant_nested_projection_shadow rejected 5ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/predicate_constant_static_index_fence rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
-fail/constants/target_layout_derived_crashing_helper_reject rejected 2688ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_crashing_helper_reject rejected 2900ms expected @f12ecf5d5aa1
 	constant initializer: constant invocation of `forbidden` retains unhandled [Trap] routes at its concrete arguments
-fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 3049ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 3498ms expected @f12ecf5d5aa1
 	constant initializer: constant invocation of `forbidden` retains unhandled [Trap] routes at its concrete arguments
-fail/constants/target_layout_derived_dependency_cycle_reject rejected 2384ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_dependency_cycle_reject rejected 3147ms expected @f12ecf5d5aa1
 	constant initializer: target constant dependency cycle or unavailable canonical input
-fail/constants/target_layout_derived_helper_alias_underflow_reject rejected 4059ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_helper_alias_underflow_reject rejected 3344ms expected @f12ecf5d5aa1
 	exact arithmetic in machine `main` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/constants/target_layout_derived_helper_generic_underflow_reject rejected 3703ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_helper_generic_underflow_reject rejected 3941ms expected @f12ecf5d5aa1
 	exact arithmetic in machine `main` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/constants/target_layout_derived_intermediate_overflow_reject rejected 2885ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_intermediate_overflow_reject rejected 2922ms expected @f12ecf5d5aa1
 	constant initializer: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
-fail/constants/target_layout_derived_late_native_reject rejected 37ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_late_native_reject rejected 21ms expected @f12ecf5d5aa1
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/constants/target_layout_derived_qualified_reject rejected 34ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_qualified_reject rejected 36ms expected @f12ecf5d5aa1
 	target-dependent constant evaluation requires an unqualified builtin scalar destination
-fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 2830ms expected @d6cf554fd1cb+wt
+fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 3224ms expected @f12ecf5d5aa1
 	constant initializer: constant expression differs from its destination carrier
 fail/constants/unused_case_predicate_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/unused_default_domain_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
@@ -10117,23 +10117,23 @@ fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
-fail/facts/target_layout_derived_constant_through_call_result_reject rejected 2810ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_call_result_reject rejected 2486ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_const_name_reject rejected 3020ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_const_name_reject rejected 3216ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_field_reject rejected 2772ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_field_reject rejected 3087ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_local_reject rejected 3160ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_local_reject rejected 3318ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_match_join_reject rejected 3183ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_match_join_reject rejected 3554ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_other_machine_reject rejected 3397ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_other_machine_reject rejected 2902ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_other_state_reject rejected 2896ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_other_state_reject rejected 2726ms expected @f12ecf5d5aa1
 	machine `main` state `verify` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_parameter_reject rejected 2809ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_parameter_reject rejected 2902ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_target_body_reject rejected 2986ms expected @d6cf554fd1cb+wt
+fail/facts/target_layout_derived_constant_through_target_body_reject rejected 2759ms expected @f12ecf5d5aa1
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_recursive_bound_through_call_result_rejected rejected 884ms expected @9d9ba4fb6251+wt
 	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
@@ -15843,13 +15843,13 @@ pass/constants/qualified_variant_constant checked 1876ms @d2f0e31ca0d4+wt
 pass/constants/runtime_predicate_constant_materialization_exit checked 4187ms check-target:macos_arm64 @ea68f95d0acea7b04f53f3efe179629294cb3491
 pass/constants/runtime_scoped_const_exit checked 16161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/constants/static_namespace_constant checked 9370ms @5041ef1af684+wt
-pass/constants/target_layout_derived_alignment_exit checked 3807ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/constants/target_layout_derived_helper_alias_exit checked 7765ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/constants/target_layout_derived_helper_exit checked 8234ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/constants/target_layout_derived_helper_generic_exit checked 9172ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/constants/target_layout_derived_public_alias_exit checked 3438ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/constants/target_layout_derived_shadow_exit checked 7299ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/constants/target_layout_derived_skipped_crashing_helper_exit checked 8032ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/constants/target_layout_derived_alignment_exit checked 4184ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/constants/target_layout_derived_helper_alias_exit checked 8190ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/constants/target_layout_derived_helper_exit checked 8197ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/constants/target_layout_derived_helper_generic_exit checked 7212ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/constants/target_layout_derived_public_alias_exit checked 3019ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/constants/target_layout_derived_shadow_exit checked 7108ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/constants/target_layout_derived_skipped_crashing_helper_exit checked 7598ms check-target:macos_arm64 @f12ecf5d5aa1
 pass/constraints/anonymous_integer_return_landing checked 2252ms @a9ae30e1c334+wt
 pass/constraints/contract_range_membership_unimplemented checked 2097ms @a9ae30e1c334+wt
 pass/constraints/guarded_parameter_result_contract checked 2133ms @a9ae30e1c334+wt
@@ -19847,15 +19847,15 @@ pass/facts/structural_issuer_forwarding_other_state checked 3488ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3626ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/facts/structural_issuer_forwarding_target_body checked 4089ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
-pass/facts/target_layout_derived_constant_through_call_result_exit checked 3755ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_const_name_exit checked 3532ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_field_exit checked 3547ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_local_exit checked 3765ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_match_join_exit checked 3645ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_other_machine_exit checked 3355ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_other_state_exit checked 3576ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_parameter_exit checked 3752ms check-target:macos_arm64 @d6cf554fd1cb+wt
-pass/facts/target_layout_derived_constant_through_target_body_exit checked 5536ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/target_layout_derived_constant_through_call_result_exit checked 3386ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_const_name_exit checked 3286ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_field_exit checked 3843ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_local_exit checked 4454ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_match_join_exit checked 3122ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_other_machine_exit checked 3617ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_other_state_exit checked 3925ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_parameter_exit checked 3675ms check-target:macos_arm64 @f12ecf5d5aa1
+pass/facts/target_layout_derived_constant_through_target_body_exit checked 5942ms check-target:macos_arm64 @f12ecf5d5aa1
 pass/facts/target_recursive_bound_through_call_result_exit checked 1816ms check-target:macos_arm64 @e2a6d051c734+wt
 pass/facts/target_recursive_bound_through_const_name_exit checked 1815ms check-target:macos_arm64 @e2a6d051c734+wt
 pass/facts/target_recursive_bound_through_field_exit checked 1823ms check-target:macos_arm64 @e2a6d051c734+wt
