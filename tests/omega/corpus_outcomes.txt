@@ -11804,6 +11804,48 @@ fail/facts/unsigned_8bit_shift_left_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `shift_target` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_target` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_target` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/unsigned_8bit_shift_right_bound_through_call_result_rejected rejected 1684ms expected @60453171ca5f+wt
+	cannot prove ensures contract for exit from produce_shifted at statement 0: result >= 40 && result <= 40
+fail/facts/unsigned_8bit_shift_right_bound_through_const_name_rejected rejected 1685ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_shifted from main: shifted >= 40 && shifted <= 40 (needs fact `shifted >= 40 && shifted <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_shift_right_bound_through_field_rejected rejected 1767ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_shifted from main: carrier.shifted >= 40 && carrier.shifted <= 40 (needs fact `shifted >= 40 && shifted <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_shift_right_bound_through_local_rejected rejected 2517ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_shifted from main: local_shifted >= 40 && local_shifted <= 40 (needs fact `shifted >= 40 && shifted <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_shift_right_bound_through_match_join_rejected rejected 2499ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_shifted from main: joined >= 40 && joined <= 40 (needs fact `shifted >= 40 && shifted <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_shift_right_bound_through_other_machine_rejected rejected 3066ms expected @60453171ca5f+wt
+	cannot prove requires contract for call runner from main: shifted >= 40 && shifted <= 40 (needs fact `val >= 40 && val <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_shift_right_bound_through_other_state_rejected rejected 1718ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_shifted from main: forwarded >= 40 && forwarded <= 40 (needs fact `shifted >= 40 && shifted <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_shift_right_bound_through_parameter_rejected rejected 1595ms expected @60453171ca5f+wt
+	cannot prove requires contract for call check_param from main: shifted >= 40 && shifted <= 40 (needs fact `val >= 40 && val <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_shift_right_bound_through_target_body_rejected rejected 2317ms expected @60453171ca5f+wt
+	cannot prove requires contract for call exercise from main: shifted >= 40 && shifted <= 40 (needs fact `val >= 40 && val <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: shifted >= 40 && shifted <= 40 (needs fact `val >= 40 && val <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: shifted >= 40 && shifted <= 40 (needs fact `val >= 40 && val <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: shifted >= 40 && shifted <= 40 (needs fact `val >= 40 && val <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_call_result_rejected rejected 1548ms expected @60453171ca5f+wt
+	cannot prove ensures contract for exit from produce_sum at statement 1: result >= 50 && result <= 100
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_const_name_rejected rejected 1510ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_sum from main: sum >= 50 && sum <= 100 (needs fact `sum >= 50 && sum <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_field_rejected rejected 1507ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_sum from main: carrier.sum >= 50 && carrier.sum <= 100 (needs fact `sum >= 50 && sum <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_local_rejected rejected 1429ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_sum from main: local_sum >= 50 && local_sum <= 100 (needs fact `sum >= 50 && sum <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_match_join_rejected rejected 1453ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_sum from main: joined >= 50 && joined <= 100 (needs fact `sum >= 50 && sum <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_other_machine_rejected rejected 1438ms expected @60453171ca5f+wt
+	cannot prove requires contract for call runner from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_other_state_rejected rejected 1228ms expected @60453171ca5f+wt
+	cannot prove requires contract for call verify_sum from main: forwarded >= 50 && forwarded <= 100 (needs fact `sum >= 50 && sum <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_parameter_rejected rejected 1202ms expected @60453171ca5f+wt
+	cannot prove requires contract for call check_param from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_target_body_rejected rejected 1239ms expected @60453171ca5f+wt
+	cannot prove requires contract for call exercise from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_call_result_rejected rejected 1004ms expected @f1b0d3326d2d+wt
 	cannot prove ensures contract for exit from produce_prod at statement 1: result >= 40 && result <= 150
 fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_const_name_rejected rejected 1026ms expected @f1b0d3326d2d+wt
@@ -20165,6 +20207,24 @@ pass/facts/unsigned_8bit_shift_left_bound_through_other_machine_exit checked 394
 pass/facts/unsigned_8bit_shift_left_bound_through_other_state_exit checked 2728ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_shift_left_bound_through_parameter_exit checked 2729ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_shift_left_bound_through_target_body_exit checked 3890ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_call_result_exit checked 2403ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_const_name_exit checked 2470ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_field_exit checked 2310ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_local_exit checked 2424ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_match_join_exit checked 2410ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_other_machine_exit checked 2466ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_other_state_exit checked 2426ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_parameter_exit checked 2425ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_shift_right_bound_through_target_body_exit checked 2421ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_call_result_exit checked 2403ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_const_name_exit checked 1837ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_field_exit checked 2774ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_local_exit checked 2030ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_match_join_exit checked 2767ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_other_machine_exit checked 2028ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_other_state_exit checked 2746ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_parameter_exit checked 2005ms check-target:macos_arm64 @60453171ca5f+wt
+pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_target_body_exit checked 1842ms check-target:macos_arm64 @60453171ca5f+wt
 pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_call_result_exit checked 1195ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_const_name_exit checked 1197ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_field_exit checked 1191ms check-target:macos_arm64 @f1b0d3326d2d+wt
