@@ -1,0 +1,34 @@
+// Fact: an 8-bit signed i8 left shift of a bounded input (val >= 25i8 && val <= 25i8) by 2u32 bits establishes shifted >= 100i8 && shifted <= 100i8 so exact 8-bit signed subtraction shifted - 100i8 is proved overflow-free across all nine places.
+// Expected exit: 0
+
+data ShiftCarrier {
+    val: i8;
+}
+
+machine verify_i8_shifted(s: i8) -> i32
+requires s >= 100i8 && s <= 100i8
+{
+    let diff: i8 = s - 100i8;
+    transition diff == 0i8 {
+        true -> 0i32
+        _ -> 1i32
+    }
+}
+
+machine exercise(val: i8) -> i32
+requires val >= 25i8 && val <= 25i8
+{
+    let carrier: ShiftCarrier = ShiftCarrier { val: val };
+    let shifted: i8 = carrier.val << 2u32;
+    verify_i8_shifted(shifted)
+}
+
+machine main() crashes Trap {
+    let exit_code: i32 = exercise(25i8);
+    transition exit_code == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

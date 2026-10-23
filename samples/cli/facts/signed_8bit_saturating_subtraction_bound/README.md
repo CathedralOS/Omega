@@ -24,6 +24,25 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned Corpus Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/signed_8bit_saturating_subtraction_bound_through_*_exit`
+and
+`tests/omega/fail/facts/signed_8bit_saturating_subtraction_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`; the
+place's `build.omg` carries a fixture-unique `Build::application` name, binds
+`ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and
+`linux_arm64`, and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and
+pins the refusal its widened inputs (`lhs = 105`, `rhs = 10` producing `95i8`)
+actually produce: `cannot prove requires contract for call verify_diff`
+(local, field, match_join, const_name, other_state), `cannot prove requires
+contract for call check_param` (parameter), `cannot prove ensures contract for
+exit from produce_diff` (call_result), `cannot prove requires contract for
+call runner` (other_machine), and `cannot prove requires contract for call
+exercise` (target_body).
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` ([TASKS.md](../../../../TASKS.md)).
