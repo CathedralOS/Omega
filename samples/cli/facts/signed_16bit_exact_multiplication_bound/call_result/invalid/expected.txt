@@ -1,1 +1,1 @@
-cannot prove requires contract
+cannot prove ensures contract for exit from produce_prod

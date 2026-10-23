@@ -31,7 +31,7 @@ requires rhs >= 150i16 && rhs <= 251i16
 }
 
 machine main() crashes Trap {
-    let exit_code: i32 = exercise(150i16, 201i16, true);
+    let exit_code: i32 = exercise(150i16, 200i16, true);
     transition exit_code == 0i32 {
         true -> done()
         _ -> bad()
