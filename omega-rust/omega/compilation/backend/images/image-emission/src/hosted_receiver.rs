@@ -52,35 +52,6 @@ impl HostedReceiverBinding {
     pub const fn receiver_alignment(&self) -> u64 {
         self.receiver_alignment
     }
-    fn linux_shim_byte_count(&self) -> Result<usize, Diagnostic> {
-        let initialization = self
-            .private_entry_ram
-            .iter()
-            .try_fold(0usize, |size, recipe| {
-                size.checked_add(
-                    recipe
-                        .contents()
-                        .len()
-                        .checked_mul(7)
-                        .ok_or_else(|| invalid(self.target()))?,
-                )
-                .ok_or_else(|| invalid(self.target()))
-            })?;
-        14usize
-            .checked_add(initialization)
-            .and_then(|size| size.checked_add((1 + self.private_entry_ram.len()) * 7))
-            .and_then(|size| {
-                size.checked_add(
-                    5 + self
-                        .private_entry_ram
-                        .iter()
-                        .map(|recipe| recipe.observation_header().len() * 7 + 92)
-                        .sum::<usize>()
-                        + 11,
-                )
-            })
-            .ok_or_else(|| invalid(self.target()))
-    }
 
     /// Whether the receiver's nominal cleanup must occupy its hosted extent
     /// through completion. The receiver partition then counts as a
@@ -341,31 +312,172 @@ fn install_entry_text(
 /// call rel32; mov rsp, [rip+scratch]; xor eax, eax; ret`.
 pub(crate) const MACOS_X86_64_RECEIVER_SHIM_BYTES: usize = 36;
 
-/// Fixed Linux x86-64 hosted-receiver bridge byte width. The emitted text is
-/// `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; lea rdi, [rip+receiver];
-/// call rel32; xor edi, edi; mov eax, 231; syscall; ud2`.
-pub(crate) const LINUX_X86_64_RECEIVER_SHIM_BYTES: usize = 37;
+/// Fixed macOS ARM64 hosted-receiver bridge byte width: sixteen A64
+/// instructions — the `adrp`/`add` pairs, the call, and the restore tail.
+const MACOS_ARM64_RECEIVER_SHIM_BYTES: usize = 64;
+
+/// Exact inputs an independent reader re-derives one bridge from: final text
+/// bytes, their load address, the exact semantic entry, the mapped BSS base
+/// and the admitted private-stack partitions.
+struct ReceiverReaderInput<'a> {
+    bytes: &'a [u8],
+    address: u64,
+    selected_entry: u64,
+    bss_address: u64,
+    partitions: HostedReceiverPartitions,
+    private_entry_ram: &'a [terminal_installation::CheckedPrivateEntryRamRecipe],
+}
+
+type ReceiverReader = for<'a> fn(&ReceiverReaderInput<'a>) -> Result<(), Diagnostic>;
+
+/// One hosted-receiver leg: the target's emitted bridge, the shim byte-count
+/// rule replay reads, the format header probe that proves the published image
+/// selects it, and the independent instruction reader for its final bytes.
+/// `prepare` and `validate_image` both select this row once, so a hosted
+/// target is one row rather than another family of arms.
+struct ReceiverForm {
+    encode: fn(
+        &crate::ObjectArtifact,
+        &HostedReceiverBinding,
+        object_file::ObjectPlan,
+        ReceiverStorage,
+    ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic>,
+    /// Emitted shim byte count: constant for the fixed-width legs. The Linux
+    /// x86-64 bridge embeds its private allocation initializers, so its width
+    /// is the exact prepared text tail.
+    shim_byte_count: fn(&[u8], usize) -> Option<usize>,
+    /// Independent format-header probe over the final image.
+    header_probe: fn(&image::EmittedImageOutput, usize, &[u8], target::NativeTarget) -> bool,
+    reader: ReceiverReader,
+}
+
+/// The row for a hosted-receiver target. `None` names a target this bridge
+/// does not answer, so no leg falls through to another target's bridge.
+fn receiver_form(target: target::NativeTarget) -> Option<ReceiverForm> {
+    Some(if target == target::NativeTarget::macos_arm64() {
+        ReceiverForm {
+            encode: prepare_macos_arm64,
+            shim_byte_count: |_, _| Some(MACOS_ARM64_RECEIVER_SHIM_BYTES),
+            header_probe: |output, offset, _expected, target| {
+                crate::hosted_unit_entry::main_points_to(&output.bytes, offset, target)
+            },
+            reader: read_darwin_arm64,
+        }
+    } else if target == target::NativeTarget::macos_x64() {
+        ReceiverForm {
+            encode: prepare_macos_x86_64,
+            shim_byte_count: |_, _| Some(MACOS_X86_64_RECEIVER_SHIM_BYTES),
+            header_probe: |output, offset, _expected, target| {
+                crate::hosted_unit_entry::main_points_to(&output.bytes, offset, target)
+            },
+            reader: read_darwin_x86_64,
+        }
+    } else if target == target::NativeTarget::linux_x64() {
+        ReceiverForm {
+            encode: prepare_linux_x86_64,
+            shim_byte_count: |text, offset| text.len().checked_sub(offset),
+            header_probe: |output, offset, _expected, _target| elf_entry_points_to(output, offset),
+            reader: read_linux_x86_64,
+        }
+    } else if target == target::NativeTarget::linux_arm64() {
+        ReceiverForm {
+            encode: prepare_linux_arm64,
+            shim_byte_count: |_, _| Some(LINUX_ARM64_RECEIVER_SHIM_BYTES),
+            header_probe: |output, offset, _expected, _target| elf_entry_points_to(output, offset),
+            reader: read_linux_arm64,
+        }
+    } else if target == target::NativeTarget::windows_x64() {
+        ReceiverForm {
+            encode: prepare_windows_x86_64,
+            shim_byte_count: |_, _| Some(WINDOWS_X86_64_RECEIVER_SHIM_BYTES),
+            header_probe: |output, offset, expected, _target| {
+                crate::hosted_unit_entry::pe_entry_points_to(&output.bytes, offset, expected)
+            },
+            reader: read_windows_x86_64,
+        }
+    } else {
+        return None;
+    })
+}
+
+/// The five independent readers, selected by the row and given the exact
+/// coordinates the writer's own plan cannot establish.
+fn read_darwin_arm64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
+    instructions::validate(
+        input.bytes,
+        input.address,
+        input.selected_entry,
+        input.bss_address,
+        input.partitions,
+    )
+}
+
+fn read_darwin_x86_64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
+    instructions::validate_macos_x86_64(
+        input.bytes,
+        input.address,
+        input.selected_entry,
+        input.bss_address,
+        input.partitions,
+    )
+}
+
+fn read_linux_x86_64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
+    instructions::validate_x86_64(
+        input.bytes,
+        input.address,
+        input.selected_entry,
+        input.bss_address,
+        input.partitions,
+        input.private_entry_ram,
+    )
+}
+
+fn read_linux_arm64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
+    instructions::validate_linux_arm64(
+        input.bytes,
+        input.address,
+        input.selected_entry,
+        input.bss_address,
+        input.partitions,
+    )
+}
+
+fn read_windows_x86_64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
+    instructions::validate_windows_x86_64(
+        input.bytes,
+        input.address,
+        input.selected_entry,
+        input.bss_address,
+        input.partitions,
+    )
+}
 
 pub(crate) fn prepare(
     artifact: &crate::ObjectArtifact,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
     let invalid = || invalid(artifact.target);
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
     validate_binding(artifact, binding)?;
     let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
-    if artifact.target == target::NativeTarget::linux_x64() {
-        return prepare_linux_x86_64(artifact, binding, object, storage);
-    }
-    if artifact.target == target::NativeTarget::linux_arm64() {
-        return prepare_linux_arm64(artifact, binding, object, storage);
-    }
-    if artifact.target == target::NativeTarget::windows_x64() {
-        return prepare_windows_x86_64(artifact, binding, object, storage);
-    }
-    if artifact.target == target::NativeTarget::macos_x64() {
-        return prepare_macos_x86_64(artifact, binding, object, storage);
-    }
+    let form = receiver_form(artifact.target).ok_or_else(invalid)?;
+    (form.encode)(artifact, binding, object, storage)
+}
+
+/// The Darwin loader arrives at the LC_MAIN entry on AArch64 with the incoming
+/// stack supplying the return continuation. The bridge preserves that physical
+/// input in the saved-continuation residence, switches sp to the exact private
+/// stack top before the application can spill, passes the receiver through x0,
+/// calls the exact semantic continuation, restores the incoming sp, and
+/// completes through `ret` with the value-free Unit result published as a
+/// physical i32 zero.
+fn prepare_macos_arm64(
+    artifact: &crate::ObjectArtifact,
+    _binding: &HostedReceiverBinding,
+    object: object_file::ObjectPlan,
+    storage: ReceiverStorage,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    let invalid = || invalid(artifact.target);
     let offset = artifact.text_bytes.len();
     let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 9 * 4);
     if !offset.is_multiple_of(4)
@@ -394,21 +506,41 @@ pub(crate) fn prepare(
         0x5280_0000, // normal Unit -> physical i32 zero
         0xd65f_03c0, // return to exact saved loader continuation
     ];
-    let mut shim_bytes = Vec::with_capacity(64);
-    shim_bytes.extend(words.into_iter().flat_map(u32::to_le_bytes));
-    let (object, text, symbol, offset) = install_entry_text(
-        object,
+    debug_assert_eq!(words.len() * 4, MACOS_ARM64_RECEIVER_SHIM_BYTES);
+    finish_aarch64_receiver_shim(
         artifact,
-        &shim_bytes,
+        object,
+        &words,
         "omega_macos_hosted_receiver_entry",
-    )?;
+        &[
+            (0, storage.scratch),
+            (4, storage.stack_top),
+            (7, storage.receiver),
+            (10, storage.scratch),
+        ],
+        |symbol, offset| crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
+    )
+}
+
+/// Install an AArch64 receiver shim: every `adrp`/`add` pair becomes the two
+/// page relocations at its named instruction, and the row's constructor names
+/// the entry shim. The x86-64 counterpart is `finish_receiver_shim`.
+fn finish_aarch64_receiver_shim(
+    artifact: &crate::ObjectArtifact,
+    object: object_file::ObjectPlan,
+    words: &[u32],
+    name: &'static str,
+    fields: &[(usize, object_file::ObjectSymbolHandle)],
+    shim: impl Fn(object_file::ObjectSymbolHandle, usize) -> crate::hosted_unit_entry::EntryShim,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let shim_bytes = words
+        .iter()
+        .flat_map(|word| word.to_le_bytes())
+        .collect::<Vec<_>>();
+    let (object, text, symbol, offset) = install_entry_text(object, artifact, &shim_bytes, name)?;
     let mut relocations = artifact.relocations.clone();
-    for (instruction, destination) in [
-        (0, storage.scratch),
-        (4, storage.stack_top),
-        (7, storage.receiver),
-        (10, storage.scratch),
-    ] {
+    for &(instruction, destination) in fields {
         for (relative, kind) in [
             (0, RelocationKind::Aarch64Page21),
             (1, RelocationKind::Aarch64PageOffset12),
@@ -430,7 +562,7 @@ pub(crate) fn prepare(
         object,
         text,
         relocations,
-        shim: crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
+        shim: shim(symbol, offset),
     })
 }
 
@@ -596,16 +728,6 @@ fn linux_argument_register(ordinal: usize) -> Option<calling_conventions::Machin
         .copied()
 }
 
-/// The Linux kernel arrives on AArch64 with the machine stack pointer at the
-/// initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])
-/// and supplies no return continuation. The bridge preserves the incoming sp —
-/// the continuation pointer — together with the authored contract's head-word
-/// input (`argc`, the value at the image base) in the sixteen-byte
-/// saved-continuation residence, then switches sp to the exact private stack
-/// top before the application can spill, passes the receiver through x0 under
-/// AAPCS64, calls the exact semantic continuation, and completes through
-/// exit_group with the value-free Unit result published as status zero in w0.
-/// `brk #0` fails closed if the nonreturning supervisor call ever returned.
 /// The Darwin loader arrives at the LC_MAIN entry with the incoming stack
 /// supplying the return continuation. The bridge preserves that physical
 /// input in the saved-continuation residence, switches rsp to the exact
@@ -647,13 +769,22 @@ fn prepare_macos_x86_64(
     )
 }
 
+/// The Linux kernel arrives on AArch64 with the machine stack pointer at the
+/// initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])
+/// and supplies no return continuation. The bridge preserves the incoming sp —
+/// the continuation pointer — together with the authored contract's head-word
+/// input (`argc`, the value at the image base) in the sixteen-byte
+/// saved-continuation residence, then switches sp to the exact private stack
+/// top before the application can spill, passes the receiver through x0 under
+/// AAPCS64, calls the exact semantic continuation, and completes through
+/// exit_group with the value-free Unit result published as status zero in w0.
+/// `brk #0` fails closed if the nonreturning supervisor call ever returned.
 fn prepare_linux_arm64(
     artifact: &crate::ObjectArtifact,
     _binding: &HostedReceiverBinding,
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
     let invalid = || invalid(artifact.target);
     let offset = artifact.text_bytes.len();
     let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 10 * 4);
@@ -682,44 +813,19 @@ fn prepare_linux_arm64(
         0xd400_0001, // svc #0
         0xd420_0000, // brk #0 if the nonreturning call ever returned
     ];
-    let mut shim_bytes = Vec::with_capacity(LINUX_ARM64_RECEIVER_SHIM_BYTES);
-    shim_bytes.extend(words.into_iter().flat_map(u32::to_le_bytes));
-    debug_assert_eq!(shim_bytes.len(), LINUX_ARM64_RECEIVER_SHIM_BYTES);
-    let (object, text, symbol, offset) = install_entry_text(
-        object,
+    debug_assert_eq!(words.len() * 4, LINUX_ARM64_RECEIVER_SHIM_BYTES);
+    finish_aarch64_receiver_shim(
         artifact,
-        &shim_bytes,
-        "omega_linux_arm64_hosted_receiver_entry",
-    )?;
-    let mut relocations = artifact.relocations.clone();
-    for (instruction, destination) in [
-        (0, storage.scratch),
-        (5, storage.stack_top),
-        (8, storage.receiver),
-    ] {
-        for (relative, kind) in [
-            (0, RelocationKind::Aarch64Page21),
-            (1, RelocationKind::Aarch64PageOffset12),
-        ] {
-            relocations.push_record(RelocationRecord {
-                origin: RelocationOrigin::Materialization {
-                    object_symbol_handle: symbol,
-                },
-                section: SectionKind::Text,
-                offset: offset + (instruction + relative) * 4,
-                byte_width: 4,
-                symbol_handle: destination,
-                addend: 0,
-                kind,
-            });
-        }
-    }
-    Ok(crate::hosted_unit_entry::PreparedEntry {
         object,
-        text,
-        relocations,
-        shim: crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
-    })
+        &words,
+        "omega_linux_arm64_hosted_receiver_entry",
+        &[
+            (0, storage.scratch),
+            (5, storage.stack_top),
+            (8, storage.receiver),
+        ],
+        |symbol, offset| crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
+    )
 }
 
 /// Fixed Windows x86-64 hosted-receiver bridge byte width. The emitted text
@@ -1488,7 +1594,7 @@ fn receiver_pointer_matches(
 }
 
 /// Re-derive the exact prepared entry, require byte/section/relocation/shim
-/// equality, then hand the shim bytes to the target-owned independent reader.
+/// equality, then hand the shim bytes to the target row's independent reader.
 /// The writer's own plan is never trusted: object, text, relocations, and the
 /// final image are all re-checked against the binding's exact custody.
 pub(crate) fn validate_image(
@@ -1501,86 +1607,29 @@ pub(crate) fn validate_image(
 ) -> Result<(), Diagnostic> {
     let invalid = || invalid(artifact.target);
     let expected = prepare(artifact)?;
-    let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
-    let linux_shim_bytes = binding.linux_shim_byte_count()?;
-    let (_symbol, offset) = match shim {
-        crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset }
-            if expected_shim_matches(expected.shim, shim) =>
-        {
-            // The Darwin receiver shim is emitted under two ISAs; the exact
-            // bridge width belongs to the artifact's admitted target.
-            let shim_bytes = if artifact.target == target::NativeTarget::macos_x64() {
-                MACOS_X86_64_RECEIVER_SHIM_BYTES
-            } else {
-                64
-            };
-            if !crate::hosted_unit_entry::unique_region(object, symbol, offset, shim_bytes, output)
-                || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset, artifact.target)
-            {
-                return Err(invalid());
-            }
-            (symbol, offset)
-        }
-        crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset }
-            if expected_shim_matches(expected.shim, shim) =>
-        {
-            if !crate::hosted_unit_entry::unique_region(
-                object,
-                symbol,
-                offset,
-                linux_shim_bytes,
-                output,
-            ) || !elf_entry_points_to(output, offset)
-            {
-                return Err(invalid());
-            }
-            (symbol, offset)
-        }
-        crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset }
-            if expected_shim_matches(expected.shim, shim) =>
-        {
-            if !crate::hosted_unit_entry::unique_region(
-                object,
-                symbol,
-                offset,
-                LINUX_ARM64_RECEIVER_SHIM_BYTES,
-                output,
-            ) || !elf_entry_points_to(output, offset)
-            {
-                return Err(invalid());
-            }
-            (symbol, offset)
-        }
-        crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset }
-            if expected_shim_matches(expected.shim, shim) =>
-        {
-            let end = offset
-                .checked_add(WINDOWS_X86_64_RECEIVER_SHIM_BYTES)
-                .ok_or_else(invalid)?;
-            let Some(expected_shim) = output.final_text_bytes.get(offset..end) else {
-                return Err(invalid());
-            };
-            if !crate::hosted_unit_entry::unique_region(
-                object,
-                symbol,
-                offset,
-                WINDOWS_X86_64_RECEIVER_SHIM_BYTES,
-                output,
-            ) || !crate::hosted_unit_entry::pe_entry_points_to(
-                &output.bytes,
-                offset,
-                expected_shim,
-            ) {
-                return Err(invalid());
-            }
-            (symbol, offset)
-        }
-        _ => return Err(invalid()),
-    };
+    // The prepared entry names the one adapter this image may carry; exact
+    // shim equality also refuses another kind or a substituted offset.
+    if shim != expected.shim {
+        return Err(invalid());
+    }
     if expected.object != *object || expected.text != text || expected.relocations != *relocations {
         return Err(invalid());
     }
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
+    let form = receiver_form(artifact.target).ok_or_else(invalid)?;
+    let (symbol, offset) = shim.symbol_offset();
+    let byte_count = (form.shim_byte_count)(text, offset).ok_or_else(invalid)?;
+    let end = offset.checked_add(byte_count).ok_or_else(invalid)?;
+    if !crate::hosted_unit_entry::unique_region(object, symbol, offset, byte_count, output) {
+        return Err(invalid());
+    }
+    let shim_bytes = output
+        .final_text_bytes
+        .get(offset..end)
+        .ok_or_else(invalid)?;
+    if !(form.header_probe)(output, offset, shim_bytes, artifact.target) {
+        return Err(invalid());
+    }
     let mut original_bss = artifact
         .object
         .layout
@@ -1608,120 +1657,14 @@ pub(crate) fn validate_image(
         .text_address
         .checked_add(offset as u64)
         .ok_or_else(invalid)?;
-    match shim {
-        crate::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
-            if artifact.target == target::NativeTarget::macos_x64() =>
-        {
-            let end = offset
-                .checked_add(MACOS_X86_64_RECEIVER_SHIM_BYTES)
-                .ok_or_else(invalid)?;
-            instructions::validate_macos_x86_64(
-                output
-                    .final_text_bytes
-                    .get(offset..end)
-                    .ok_or_else(invalid)?,
-                shim_address,
-                selected_entry,
-                output.final_image_layout.bss_address,
-                partitions,
-            )
-        }
-        crate::hosted_unit_entry::EntryShim::DarwinReceiver { .. } => {
-            let end = offset.checked_add(64).ok_or_else(invalid)?;
-            instructions::validate(
-                output
-                    .final_text_bytes
-                    .get(offset..end)
-                    .ok_or_else(invalid)?,
-                shim_address,
-                selected_entry,
-                output.final_image_layout.bss_address,
-                partitions,
-            )
-        }
-        crate::hosted_unit_entry::EntryShim::LinuxReceiver { .. } => {
-            let end = offset.checked_add(linux_shim_bytes).ok_or_else(invalid)?;
-            instructions::validate_x86_64(
-                output
-                    .final_text_bytes
-                    .get(offset..end)
-                    .ok_or_else(invalid)?,
-                shim_address,
-                selected_entry,
-                output.final_image_layout.bss_address,
-                partitions,
-                &binding.private_entry_ram,
-            )
-        }
-        crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. } => {
-            let end = offset
-                .checked_add(LINUX_ARM64_RECEIVER_SHIM_BYTES)
-                .ok_or_else(invalid)?;
-            instructions::validate_linux_arm64(
-                output
-                    .final_text_bytes
-                    .get(offset..end)
-                    .ok_or_else(invalid)?,
-                shim_address,
-                selected_entry,
-                output.final_image_layout.bss_address,
-                partitions,
-            )
-        }
-        crate::hosted_unit_entry::EntryShim::WindowsReceiver { .. } => {
-            let end = offset
-                .checked_add(WINDOWS_X86_64_RECEIVER_SHIM_BYTES)
-                .ok_or_else(invalid)?;
-            instructions::validate_windows_x86_64(
-                output
-                    .final_text_bytes
-                    .get(offset..end)
-                    .ok_or_else(invalid)?,
-                shim_address,
-                selected_entry,
-                output.final_image_layout.bss_address,
-                partitions,
-            )
-        }
-        _ => Err(invalid()),
-    }
-}
-
-fn expected_shim_matches(
-    expected: crate::hosted_unit_entry::EntryShim,
-    actual: crate::hosted_unit_entry::EntryShim,
-) -> bool {
-    match (expected, actual) {
-        (
-            crate::hosted_unit_entry::EntryShim::DarwinReceiver {
-                symbol: expected_symbol,
-                offset: expected_offset,
-            },
-            crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
-        )
-        | (
-            crate::hosted_unit_entry::EntryShim::LinuxReceiver {
-                symbol: expected_symbol,
-                offset: expected_offset,
-            },
-            crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
-        )
-        | (
-            crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver {
-                symbol: expected_symbol,
-                offset: expected_offset,
-            },
-            crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
-        )
-        | (
-            crate::hosted_unit_entry::EntryShim::WindowsReceiver {
-                symbol: expected_symbol,
-                offset: expected_offset,
-            },
-            crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
-        ) => expected_symbol == symbol && expected_offset == offset,
-        _ => false,
-    }
+    (form.reader)(&ReceiverReaderInput {
+        bytes: shim_bytes,
+        address: shim_address,
+        selected_entry,
+        bss_address: output.final_image_layout.bss_address,
+        partitions,
+        private_entry_ram: &binding.private_entry_ram,
+    })
 }
 
 /// ELF64 `e_entry` must select the emitted bridge inside `.text`; the scalar

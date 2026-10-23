@@ -298,27 +298,12 @@ pub(crate) fn emit_direct_executable_image_signed(
         )));
     }
     let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
-    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
-        (
-            &artifact.object,
-            artifact.text_bytes.as_slice(),
-            &artifact.relocations,
-            None,
-        ),
-        |prepared| {
-            (
-                &prepared.object,
-                prepared.text.as_slice(),
-                &prepared.relocations,
-                Some(prepared.shim),
-            )
-        },
-    );
+    let prepared = super::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
     let image = image::build_final_image(FinalImageInput {
         target: artifact.target,
-        object,
-        relocations,
-        text_bytes,
+        object: prepared.object,
+        relocations: prepared.relocations,
+        text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     let final_image_symbol_digest = image::final_image_symbol_digest(&image);
@@ -348,10 +333,10 @@ pub(crate) fn emit_direct_executable_image_signed(
     let mut output = emitted_direct_executable_output(output);
     let text_validation = validate_terminal_image(
         artifact,
-        object,
-        relocations,
-        text_bytes,
-        entry_shim,
+        prepared.object,
+        prepared.relocations,
+        prepared.text_bytes,
+        prepared.entry_shim,
         &output,
     )?;
     output.compiler_function_validation =
@@ -401,27 +386,12 @@ pub fn validate_direct_executable_image(
         ));
     }
     let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
-    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
-        (
-            artifact.object(),
-            artifact.text_bytes(),
-            artifact.relocations(),
-            None,
-        ),
-        |prepared| {
-            (
-                &prepared.object,
-                prepared.text.as_slice(),
-                &prepared.relocations,
-                Some(prepared.shim),
-            )
-        },
-    );
+    let prepared = super::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
     let replayed_final_image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
-        object,
-        relocations,
-        text_bytes,
+        object: prepared.object,
+        relocations: prepared.relocations,
+        text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     if image.final_image_symbol_digest != image::final_image_symbol_digest(&replayed_final_image) {
@@ -431,10 +401,10 @@ pub fn validate_direct_executable_image(
     }
     let recomputed = validate_terminal_image(
         artifact,
-        object,
-        relocations,
-        text_bytes,
-        entry_shim,
+        prepared.object,
+        prepared.relocations,
+        prepared.text_bytes,
+        prepared.entry_shim,
         image.output(),
     )?;
     let function_validation =

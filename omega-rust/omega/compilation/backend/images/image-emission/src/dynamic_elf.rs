@@ -194,7 +194,7 @@ pub(crate) fn emit_dynamic_elf_image(
             diagnostic,
         ))
     })?;
-    let prepared = prepared_parts(artifact, prepared_entry.as_ref());
+    let prepared = crate::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
     let image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
         object: prepared.object,
@@ -219,43 +219,13 @@ pub(crate) fn emit_dynamic_elf_image(
     Ok(DynamicElfImageEmission { admitted, output })
 }
 
-/// The object, text and relocations the final image is built from: the
-/// hosted-entry preparation's when it appended a bridge, the artifact's own
-/// otherwise.
-struct PreparedParts<'a> {
-    object: &'a object_file::ObjectPlan,
-    text_bytes: &'a [u8],
-    relocations: &'a object_file::RelocationPlan,
-    entry_shim: Option<crate::hosted_unit_entry::EntryShim>,
-}
-
-fn prepared_parts<'a>(
-    artifact: &'a ObjectArtifact,
-    prepared_entry: Option<&'a crate::hosted_unit_entry::PreparedEntry>,
-) -> PreparedParts<'a> {
-    prepared_entry.map_or(
-        PreparedParts {
-            object: artifact.object(),
-            text_bytes: artifact.text_bytes(),
-            relocations: artifact.relocations(),
-            entry_shim: None,
-        },
-        |prepared| PreparedParts {
-            object: &prepared.object,
-            text_bytes: prepared.text.as_slice(),
-            relocations: &prepared.relocations,
-            entry_shim: Some(prepared.shim),
-        },
-    )
-}
-
 /// The production output for writer bytes: the target the writer admitted
 /// must be this artifact's Linux target, and the final text and data must
 /// bind to the prepared object through the terminal text validation, whose
 /// receipt the output carries.
 fn validated_output(
     artifact: &ObjectArtifact,
-    prepared: &PreparedParts<'_>,
+    prepared: &crate::hosted_unit_entry::PreparedParts<'_>,
     admitted: &ValidatedElfDynamicExecutable,
 ) -> Result<EmittedImageOutput, Diagnostic> {
     let target = artifact.target();
@@ -309,7 +279,7 @@ fn derive_output(
     admitted: &ValidatedElfDynamicExecutable,
 ) -> Result<EmittedImageOutput, Diagnostic> {
     let prepared_entry = crate::hosted_unit_entry::prepare(artifact)?;
-    let prepared = prepared_parts(artifact, prepared_entry.as_ref());
+    let prepared = crate::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
     let output = validated_output(artifact, &prepared, admitted)?;
     let mut replayed_image = image::build_final_image(FinalImageInput {
         target: artifact.target(),

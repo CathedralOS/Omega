@@ -12,7 +12,7 @@ use object_file::{
     ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum EntryShim {
     Physical {
         symbol: ObjectSymbolHandle,
@@ -56,11 +56,61 @@ pub(super) enum EntryShim {
     },
 }
 
+impl EntryShim {
+    /// The shim's installed symbol and text offset. Every entry surface —
+    /// physical arrival, hosted receiver, free Unit — retains these two
+    /// coordinates, so replay reads them without re-matching the kind.
+    pub(super) const fn symbol_offset(&self) -> (ObjectSymbolHandle, usize) {
+        match self {
+            Self::Physical { symbol, offset }
+            | Self::DarwinReceiver { symbol, offset }
+            | Self::LinuxReceiver { symbol, offset }
+            | Self::LinuxArm64Receiver { symbol, offset }
+            | Self::WindowsReceiver { symbol, offset }
+            | Self::DarwinUnit { symbol, offset }
+            | Self::DarwinX86_64Unit { symbol, offset }
+            | Self::WindowsUnit { symbol, offset }
+            | Self::LinuxUnit { symbol, offset }
+            | Self::LinuxArm64Unit { symbol, offset } => (*symbol, *offset),
+        }
+    }
+}
+
 pub(super) struct PreparedEntry {
     pub object: ObjectPlan,
     pub text: Vec<u8>,
     pub relocations: object_file::RelocationPlan,
     pub shim: EntryShim,
+}
+
+/// The object, text and relocations the final image is built from: the
+/// hosted-entry preparation's when it appended a bridge, the artifact's own
+/// otherwise. One settlement serves every writer lane.
+pub(super) struct PreparedParts<'a> {
+    pub object: &'a ObjectPlan,
+    pub text_bytes: &'a [u8],
+    pub relocations: &'a object_file::RelocationPlan,
+    pub entry_shim: Option<EntryShim>,
+}
+
+pub(super) fn prepared_parts<'a>(
+    artifact: &'a crate::ObjectArtifact,
+    prepared_entry: Option<&'a PreparedEntry>,
+) -> PreparedParts<'a> {
+    prepared_entry.map_or(
+        PreparedParts {
+            object: artifact.object(),
+            text_bytes: artifact.text_bytes(),
+            relocations: artifact.relocations(),
+            entry_shim: None,
+        },
+        |prepared| PreparedParts {
+            object: &prepared.object,
+            text_bytes: prepared.text.as_slice(),
+            relocations: &prepared.relocations,
+            entry_shim: Some(prepared.shim),
+        },
+    )
 }
 
 /// One hosted Unit entry leg: the adapter's encode/decode pair, its shim
@@ -486,104 +536,45 @@ fn validate_unit_entry(
     Ok(())
 }
 
-pub(super) fn validate_darwin(
+/// Validate a free-Unit entry adapter from its own retained shim identity: the
+/// adapter's variant is its exact target, so the mechanics row is read from
+/// the shim rather than named again by a caller arm.
+pub(super) fn validate_unit_shim(
+    shim: EntryShim,
     artifact: &crate::ObjectArtifact,
     object: &ObjectPlan,
     text: &[u8],
-    symbol: ObjectSymbolHandle,
-    offset: usize,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    validate_unit_entry(
-        &unit_entry_form(target::NativeTarget::macos_arm64())
-            .ok_or_else(|| Diagnostic::error("Darwin Unit entry has no mechanics row"))?,
-        artifact,
-        object,
-        text,
-        symbol,
-        offset,
-        output,
-    )
-}
-
-pub(super) fn validate_darwin_x86_64(
-    artifact: &crate::ObjectArtifact,
-    object: &ObjectPlan,
-    text: &[u8],
-    symbol: ObjectSymbolHandle,
-    offset: usize,
-    output: &image::EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    validate_unit_entry(
-        &unit_entry_form(target::NativeTarget::macos_x64())
-            .ok_or_else(|| Diagnostic::error("Darwin x86-64 Unit entry has no mechanics row"))?,
-        artifact,
-        object,
-        text,
-        symbol,
-        offset,
-        output,
-    )
-}
-
-pub(super) fn validate_windows(
-    artifact: &crate::ObjectArtifact,
-    object: &ObjectPlan,
-    text: &[u8],
-    symbol: ObjectSymbolHandle,
-    offset: usize,
-    output: &image::EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    validate_unit_entry(
-        &unit_entry_form(target::NativeTarget::windows_x64())
-            .ok_or_else(|| Diagnostic::error("Windows Unit entry has no mechanics row"))?,
-        artifact,
-        object,
-        text,
-        symbol,
-        offset,
-        output,
-    )
-}
-
-pub(super) fn validate_linux_x86_64(
-    artifact: &crate::ObjectArtifact,
-    object: &ObjectPlan,
-    text: &[u8],
-    symbol: ObjectSymbolHandle,
-    offset: usize,
-    output: &image::EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    validate_unit_entry(
-        &unit_entry_form(target::NativeTarget::linux_x64())
-            .ok_or_else(|| Diagnostic::error("Linux x86-64 Unit entry has no mechanics row"))?,
-        artifact,
-        object,
-        text,
-        symbol,
-        offset,
-        output,
-    )
-}
-
-pub(super) fn validate_linux_arm64(
-    artifact: &crate::ObjectArtifact,
-    object: &ObjectPlan,
-    text: &[u8],
-    symbol: ObjectSymbolHandle,
-    offset: usize,
-    output: &image::EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    validate_unit_entry(
-        &unit_entry_form(target::NativeTarget::linux_arm64())
-            .ok_or_else(|| Diagnostic::error("Linux ARM64 Unit entry has no mechanics row"))?,
-        artifact,
-        object,
-        text,
-        symbol,
-        offset,
-        output,
-    )
+    let (target, symbol, offset) = match shim {
+        EntryShim::DarwinUnit { symbol, offset } => {
+            (target::NativeTarget::macos_arm64(), symbol, offset)
+        }
+        EntryShim::DarwinX86_64Unit { symbol, offset } => {
+            (target::NativeTarget::macos_x64(), symbol, offset)
+        }
+        EntryShim::WindowsUnit { symbol, offset } => {
+            (target::NativeTarget::windows_x64(), symbol, offset)
+        }
+        EntryShim::LinuxUnit { symbol, offset } => {
+            (target::NativeTarget::linux_x64(), symbol, offset)
+        }
+        EntryShim::LinuxArm64Unit { symbol, offset } => {
+            (target::NativeTarget::linux_arm64(), symbol, offset)
+        }
+        EntryShim::Physical { .. }
+        | EntryShim::DarwinReceiver { .. }
+        | EntryShim::LinuxReceiver { .. }
+        | EntryShim::LinuxArm64Receiver { .. }
+        | EntryShim::WindowsReceiver { .. } => {
+            return Err(Diagnostic::error(
+                "Unit entry validation requires a free-Unit adapter shim",
+            ));
+        }
+    };
+    let form = unit_entry_form(target)
+        .ok_or_else(|| Diagnostic::error("Unit entry has no mechanics row"))?;
+    validate_unit_entry(&form, artifact, object, text, symbol, offset, output)
 }
 
 /// Independently parse the emitted PE32+ headers: `AddressOfEntryPoint` must

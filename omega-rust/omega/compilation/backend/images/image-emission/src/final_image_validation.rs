@@ -305,29 +305,13 @@ fn validate_terminal_image_with_import_count(
                     output,
                 )?;
             }
-            super::hosted_unit_entry::EntryShim::DarwinUnit { symbol, offset } => {
-                super::hosted_unit_entry::validate_darwin(
-                    artifact, object, text_bytes, symbol, offset, output,
-                )?
-            }
-            super::hosted_unit_entry::EntryShim::DarwinX86_64Unit { symbol, offset } => {
-                super::hosted_unit_entry::validate_darwin_x86_64(
-                    artifact, object, text_bytes, symbol, offset, output,
-                )?
-            }
-            super::hosted_unit_entry::EntryShim::WindowsUnit { symbol, offset } => {
-                super::hosted_unit_entry::validate_windows(
-                    artifact, object, text_bytes, symbol, offset, output,
-                )?
-            }
-            super::hosted_unit_entry::EntryShim::LinuxUnit { symbol, offset } => {
-                super::hosted_unit_entry::validate_linux_x86_64(
-                    artifact, object, text_bytes, symbol, offset, output,
-                )?
-            }
-            super::hosted_unit_entry::EntryShim::LinuxArm64Unit { symbol, offset } => {
-                super::hosted_unit_entry::validate_linux_arm64(
-                    artifact, object, text_bytes, symbol, offset, output,
+            unit @ (super::hosted_unit_entry::EntryShim::DarwinUnit { .. }
+            | super::hosted_unit_entry::EntryShim::DarwinX86_64Unit { .. }
+            | super::hosted_unit_entry::EntryShim::WindowsUnit { .. }
+            | super::hosted_unit_entry::EntryShim::LinuxUnit { .. }
+            | super::hosted_unit_entry::EntryShim::LinuxArm64Unit { .. }) => {
+                super::hosted_unit_entry::validate_unit_shim(
+                    unit, artifact, object, text_bytes, output,
                 )?
             }
         }
