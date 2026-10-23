@@ -6024,47 +6024,68 @@ fail/facts/runtime_index_application_through_target_body_payload_outside_limit r
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/scalar_boundary_parameter/call_result rejected 486ms expected @8fdb0071edab
+fail/facts/saturating_integer_arithmetic_through_call_result_rejected rejected 3749ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_const_name_rejected rejected 3047ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_field_rejected rejected 2982ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_local_rejected rejected 3342ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_match_join_rejected rejected 3637ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_other_machine_rejected rejected 4584ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `forward` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_other_state_rejected rejected 4556ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `perform` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_parameter_rejected rejected 4730ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saturating_integer_arithmetic_through_target_body_rejected rejected 4380ms expected @abda3e427bc9+wt
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 3222ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/const_name rejected 477ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_const_name_rejected rejected 2914ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/field rejected 566ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_field_rejected rejected 3212ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/local rejected 559ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_local_rejected rejected 2975ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/match_join rejected 541ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_match_join_rejected rejected 3724ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/other_machine rejected 559ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_other_machine_rejected rejected 4465ms expected @abda3e427bc9+wt
 	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/other_state rejected 482ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_other_state_rejected rejected 4253ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/parameter rejected 492ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_parameter_rejected rejected 4462ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/target_body rejected 459ms expected @8fdb0071edab
+fail/facts/scalar_boundary_parameter_through_target_body_rejected rejected 4794ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
@@ -13262,15 +13283,24 @@ pass/facts/runtime_index_application_through_other_machine_exit checked 13003ms 
 pass/facts/runtime_index_application_through_other_state_exit checked 19741ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/runtime_index_application_through_parameter_exit checked 18736ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/runtime_index_application_through_target_body_exit checked 13976ms check-target:macos_arm64 @336cafc17e1a+wt
-pass/facts/scalar_boundary_parameter/call_result checked 1434ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/const_name checked 1432ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/field checked 1371ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/local checked 1442ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/match_join checked 1205ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/other_machine checked 1388ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/other_state checked 1326ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/parameter checked 1410ms check-target:macos_arm64 @8fdb0071edab
-pass/facts/scalar_boundary_parameter/target_body checked 1316ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/saturating_integer_arithmetic_through_call_result_exit checked 5546ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_const_name_exit checked 5551ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_field_exit checked 5483ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_local_exit checked 5426ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_match_join_exit checked 7317ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_other_machine_exit checked 6452ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_other_state_exit checked 7162ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_parameter_exit checked 7107ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_target_body_exit checked 9496ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_call_result_exit checked 8677ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_const_name_exit checked 12384ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_field_exit checked 8828ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_local_exit checked 10921ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_match_join_exit checked 11215ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_other_machine_exit checked 11273ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_other_state_exit checked 10084ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_parameter_exit checked 10499ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_target_body_exit checked 10009ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/scalar_domain_call_guarantee/call_result checked 25444ms check-target:macos_arm64 @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/const_name checked 17006ms check-target:macos_arm64 @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/field checked 16903ms check-target:macos_arm64 @83f47d8fae73

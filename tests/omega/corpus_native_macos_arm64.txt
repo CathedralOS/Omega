@@ -2173,6 +2173,24 @@ pass/facts/runtime_count_index_through_other_machine_exit built 15058ms exit:0 @
 pass/facts/runtime_count_index_through_other_state_exit built 15268ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_parameter_exit built 15311ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_target_body_exit built 15184ms exit:0 @ce5f8c9f2f5f
+pass/facts/saturating_integer_arithmetic_through_call_result_exit built 7300ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_const_name_exit built 9636ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_field_exit built 7849ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_local_exit built 7285ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_match_join_exit built 5384ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_other_machine_exit built 5501ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_other_state_exit built 5311ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_parameter_exit built 5555ms exit:0 @abda3e427bc9+wt
+pass/facts/saturating_integer_arithmetic_through_target_body_exit built 5248ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_call_result_exit built 4826ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_const_name_exit built 4729ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_field_exit built 3600ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_local_exit built 3099ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_match_join_exit built 3293ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_other_machine_exit built 3120ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_other_state_exit built 3316ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_parameter_exit built 2465ms exit:0 @abda3e427bc9+wt
+pass/facts/scalar_boundary_parameter_through_target_body_exit built 2253ms exit:0 @abda3e427bc9+wt
 pass/facts/scalar_domain_call_guarantee/call_result built 22857ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/const_name built 11930ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/field built 11692ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73

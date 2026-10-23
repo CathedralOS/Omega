@@ -1,0 +1,15 @@
+// Clamping or bounding an unsigned sum/value at a ceiling (`clamped >= 10u64 && clamped <= 100u64`) establishes both lower and upper interval bounds across all nine places, discharging exact subtraction `100u64 - clamped` and `clamped - 10u64` without overflow.
+// Place: match join (invalid twin). One match arm bound is widened to alt_val <= 101u64.
+
+machine compute(val: u64, alt_val: u64, flag: bool) -> u64
+    requires val >= 10u64 && val <= 100u64 && alt_val >= 10u64 && alt_val <= 101u64
+{
+    let clamped: u64 = match flag { true -> val, false -> alt_val };
+    let headroom: u64 = 100u64 - clamped;
+    let above_floor: u64 = clamped - 10u64;
+    headroom + above_floor
+}
+
+machine main() {
+    let total: u64 = compute(60u64, 60u64, true);
+}

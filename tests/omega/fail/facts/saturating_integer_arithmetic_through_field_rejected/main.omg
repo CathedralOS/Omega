@@ -1,0 +1,24 @@
+// Clamping or bounding an unsigned sum/value at a ceiling (`clamped >= 10u64 && clamped <= 100u64`) establishes both lower and upper interval bounds across all nine places, discharging exact subtraction `100u64 - clamped` and `clamped - 10u64` without overflow.
+// Place: field (invalid twin). The record field bound is widened to val <= 101u64.
+
+data Payload where val >= 10u64 && val <= 101u64 {
+    val: u64;
+}
+
+machine compute(payload: Payload) -> u64 {
+    let headroom: u64 = 100u64 - payload.val;
+    let above_floor: u64 = payload.val - 10u64;
+    headroom + above_floor
+}
+
+machine probe(val: u64) -> u64
+    requires val >= 10u64 && val <= 101u64
+{
+    let payload: Payload = Payload { val: val };
+    compute(payload)
+}
+
+machine main() {
+    let payload: Payload = Payload { val: 60u64 };
+    let total: u64 = compute(payload);
+}

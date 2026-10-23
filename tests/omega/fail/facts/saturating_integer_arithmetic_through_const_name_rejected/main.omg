@@ -1,0 +1,14 @@
+// Clamping or bounding an unsigned sum/value at a ceiling (`clamped >= 10u64 && clamped <= 100u64`) establishes both lower and upper interval bounds across all nine places, discharging exact subtraction `100u64 - clamped` and `clamped - 10u64` without overflow.
+// Place: const name (invalid twin). The named constant is set to CLAMPED = 101u64.
+
+const CLAMPED: u64 = 101u64;
+
+machine compute() -> u64 {
+    let headroom: u64 = 100u64 - CLAMPED;
+    let above_floor: u64 = CLAMPED - 10u64;
+    headroom + above_floor
+}
+
+machine main() {
+    let total: u64 = compute();
+}

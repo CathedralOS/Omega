@@ -23,7 +23,12 @@ The places are [local](local/main.omg), [field](field/main.omg),
 [match join](match_join/main.omg), [const name](const_name/main.omg),
 [another state](other_state/main.omg), [another machine](other_machine/main.omg)
 and [target body](target_body/main.omg). Each place has an `invalid/main.omg`.
-Matching fixtures are under `tests/omega/{pass,fail}/facts/scalar_boundary_parameter`.
+Matching fixtures are under
+`tests/omega/{pass,fail}/facts/scalar_boundary_parameter_through_<place>_{exit,rejected}`.
+Recorded at `abda3e427bc9+wt`: nine `_exit` positions carry `checked`
+(`check-target:macos_arm64`), `built ... exit:0` and
+`interpreter-exit:0 interpreter:agrees` rows; nine `_rejected` twins carry the
+`99 >= 100` structural rejection. 0 keys lost, 0 timeout rows.
 
 Each positive binds all four hosted targets and expects native and Terminal
 exit zero. Run `omega run --both <place>/main.omg`; check its twin with

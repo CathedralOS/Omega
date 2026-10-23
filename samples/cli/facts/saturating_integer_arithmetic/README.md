@@ -19,6 +19,8 @@ Every place performs the same operation: establish or pass an unsigned scalar va
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | forwarding machine transports the bounded value |
 | target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each of four target bodies evaluates the clamped arithmetic |
 
+Match the fact sentence beside every place: each positive place is pinned as `tests/omega/pass/facts/saturating_integer_arithmetic_through_<place>_exit` and each reject twin as `tests/omega/fail/facts/saturating_integer_arithmetic_through_<place>_rejected`, byte-equal to the place and `invalid/` programs beside them.
+
 Each positive place and the root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0, and passes `omega run --both` — Terminal Psi and native execution agreeing:
 
 ```sh
@@ -64,6 +66,7 @@ Check a twin with `omega --check samples/cli/facts/saturating_integer_arithmetic
 ### Verification Evidence
 
 - `sample_native_gate.py --filter cli/facts/saturating_integer_arithmetic`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow `u64``).
+- Pinned record at `abda3e427bc9+wt` on macOS arm64: 18 fixture families (`..._through_<place>_{exit,rejected}` for the nine places) — 9 `checked` rows with `check-target:macos_arm64` and 9 `rejected ... expected` rows carrying the `may overflow `u64`` diagnostic in `corpus_outcomes.txt`; 9 `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; 9 `exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows.
 - Discrimination: corrupting the sum expectation (`transition total == 90u64` to `transition total == 91u64`) triggers the `bad()` state and traps with `crash Trap`, proving the exit 0 oracle actively discriminates computation errors.
 - Remaining open: saturating operations across variable non-constant dynamic bounds, and cross-carrier signed/unsigned saturating reduction proofs under `CONSERVATION-CONTRACT`.
 

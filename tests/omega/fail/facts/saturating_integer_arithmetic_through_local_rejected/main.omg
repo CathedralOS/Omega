@@ -1,0 +1,21 @@
+// Clamping or bounding an unsigned sum/value at a ceiling (`clamped >= 10u64 && clamped <= 100u64`) establishes both lower and upper interval bounds across all nine places, discharging exact subtraction `100u64 - clamped` and `clamped - 10u64` without overflow.
+// Place: local (invalid twin). The ceiling bound is widened to 101u64 so 100u64 - c fails closed.
+
+machine compute(clamped: u64) -> u64
+    requires clamped >= 10u64 && clamped <= 101u64
+{
+    let c: u64 = clamped;
+    let headroom: u64 = 100u64 - c;
+    let above_floor: u64 = c - 10u64;
+    headroom + above_floor
+}
+
+machine probe(val: u64) -> u64
+    requires val >= 10u64 && val <= 101u64
+{
+    compute(val)
+}
+
+machine main() {
+    let total: u64 = probe(60u64);
+}
