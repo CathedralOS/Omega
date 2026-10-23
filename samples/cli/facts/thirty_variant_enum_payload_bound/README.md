@@ -56,6 +56,14 @@ Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
 
+### Pinned fixtures
+
+The fact row is pinned under `tests/omega/` as 18 corpus fixtures:
+- 9 positive pass fixtures: `tests/omega/pass/facts/thirty_variant_enum_payload_bound_through_<place>_exit/` (`build.omg` binding `ProgramEntry` for all four hosted targets, `main.omg`, `expected_native_exit.txt`)
+- 9 reject fail fixtures: `tests/omega/fail/facts/thirty_variant_enum_payload_bound_through_<place>_rejected/` (`build.omg`, `main.omg` byte-identical to the place's `invalid/main.omg`, and the authored `expected.txt` fragment)
+
+`expected.txt` pins each twin's full diagnostic line, including its `needs fact ... here; establish it before the call via a prior contract guarantee, domain membership, or guard` clause and its `in state` suffix; the column below quotes the leading clause.
+
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` reject twin that widens one variant's bound (`V30(v: u64) where v >= 39u64 && v <= 80u64`).
@@ -64,15 +72,15 @@ The compiler strictly fails closed at compile time:
 
 | Place | `omega run --both` | Reject twin diagnostic |
 | --- | --- | --- |
-| `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
-| `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
-| `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
-| `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
-| `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
-| `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
-| `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+| `local` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
+| `field` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
+| `parameter` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
+| `call_result` | native 0 / interp 0 | `cannot prove ensures contract for exit from extract_payload at statement 59: result >= 40 && result <= 80` |
+| `match_join` | native 0 / interp 0 | `cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
+| `const_name` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
+| `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
+| `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
+| `target_body` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
 ## Requirements and Evidence (AGENTS.md)
 
