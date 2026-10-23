@@ -76,6 +76,39 @@ omega --check samples/cli/facts/thirty_arg_stack_calling_plan/<place>/invalid/ma
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/thirty_arg_stack_calling_plan_through_*_exit` and
+`tests/omega/fail/facts/thirty_arg_stack_calling_plan_through_*_rejected`
+(9 + 9). Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for all
+four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg`; the
+positive-vs-twin diff is the 30th argument value (`60u64` to `81u64`), its
+`requires`/`ensures` upper bounds (`80u64` to `81u64`) and the twin header line
+only, and every twin pins the `may overflow `u64`` fragment. The diagnostics
+name the consuming subtraction's own machine and state (`probe` in `entry` as
+well as `step`, `check_call`, `forward30`, `evaluate30`), so the twin breaks
+only the preserved bound.
+
+Measured with the shared generation producer `gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, runner
+sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`,
+sources equal the base `9b001b8f6afa`): 10/10 positive entries (root plus nine
+places) pass `omega run --both` with `native exit 0` and `interp exit: 0`; 9/9
+reject twins refuse at checked compilation with exit 1 and the `may overflow
+`u64`` fragment.
+
+Recorded at the same base and producer: `tests/omega/corpus_outcomes.txt` gains
+the 9 `checked ... check-target:macos_arm64` rows and the 9 `rejected ...
+expected` rows with their 12 diagnostic continuation lines;
+`tests/omega/corpus_native_macos_arm64.txt` and
+`tests/omega/corpus_both_macos_arm64.txt` each gain the 9 `built ... exit:0`
+rows (`exit:0 interpreter-exit:0 interpreter:agrees` in the both leg), every row
+stamped `@9b001b8f6afa+wt`.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)), governing specifications at [wiki/spec/build/calling_plans.md](../../../../wiki/spec/build/calling_plans.md) and [wiki/spec/resources/activation_storage.md](../../../../wiki/spec/resources/activation_storage.md).

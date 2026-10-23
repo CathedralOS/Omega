@@ -71,6 +71,39 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/thirteen_variant_enum_payload_bound_through_*_exit` and
+`tests/omega/fail/facts/thirteen_variant_enum_payload_bound_through_*_rejected`
+(9 + 9). Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for all
+four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` — the
+positive-vs-twin diff is the `V13` bound (`v >= 40u64` to `v >= 39u64`, spelled
+through the named constants in `const_name`) and the removed `Expected exit: 0`
+header line only — and pins its place's `cannot prove` fragment (`verify_payload`
+via `local_res`, `holder.res`, `res` and `target_probe`, `consume` in
+`parameter`/`other_state`, `choose`, `forward_payload`, and the `ensures
+contract for exit from extract_payload` clause in `call_result`).
+
+Measured with the shared generation producer `gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, runner
+sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`,
+sources equal the base `9b001b8f6afa`): 10/10 positive entries (root plus nine
+places) pass `omega run --both` with `native exit 0` and `interp exit: 0`; 9/9
+reject twins refuse at checked compilation with exit 1 and their authored
+fragment.
+
+Recorded at the same base and producer: `tests/omega/corpus_outcomes.txt` gains
+the 9 `checked ... check-target:macos_arm64` rows and the 9 `rejected ...
+expected` rows with their 12 diagnostic continuation lines;
+`tests/omega/corpus_native_macos_arm64.txt` and
+`tests/omega/corpus_both_macos_arm64.txt` each gain the 9 `built ... exit:0`
+rows (`exit:0 interpreter-exit:0 interpreter:agrees` in the both leg), every row
+stamped `@9b001b8f6afa+wt`.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V13(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all thirteen tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
