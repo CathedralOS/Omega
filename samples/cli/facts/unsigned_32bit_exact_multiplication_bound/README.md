@@ -66,10 +66,40 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u32\``).
 
+## Pinned Fixtures
+
+The row is pinned by 18 fixtures:
+`tests/omega/pass/facts/unsigned_32bit_exact_multiplication_bound_through_<place>_exit` and
+`tests/omega/fail/facts/unsigned_32bit_exact_multiplication_bound_through_<place>_rejected` for each of the
+nine places. Each positive fixture is its place program copied byte-identical, binds `ProgramEntry` for all
+four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries
+`expected_native_exit.txt` = 0; each reject twin is the place's invalid program and `build.omg` copied
+byte-identical, with `expected.txt` carrying the row's own `may overflow \`u32\`` fragment (`multiply_other_state`
+in state `check_state` for `other_state`, `forward_eval` in state `entry` for `other_machine`; the four
+target-scoped bodies of `target_body` report four diagnostics).
+
+The rows were first measured on the slot's base generation producer (gen-f1b0d3326d2, omega sha256
+4e3950e53eb15fbb3b54868f9c8964e23e7efc5bdced336e07f18eb27e28ac4a) and re-measured on gen-5648483032b
+(revision 5648483032b790550a7d772454aa8e20272c0aaf, macOS arm64 host, runner default jobs) after main moved
+the contract-entailment checking sources; the diagnostics were byte-identical across the two producers and
+every fragment still matched. The three legs were recorded with gen-5648483032b, the tree staged at the
+published base f28130ba26ee so each row is stamped `@f28130ba26ee+wt`:
+
+- `tests/omega/corpus_outcomes.txt`: nine `checked` rows carrying `check-target:macos_arm64` and nine
+  `rejected` rows carrying each twin's own diagnostic line with its `may overflow \`u32\`` fragment
+  satisfied;
+- `tests/omega/corpus_native_macos_arm64.txt`: nine `built` rows with `exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: nine `built` rows with `exit:0`, `interpreter-exit:0` and
+  `interpreter:agrees`.
+
+Measured with these producers before the record: the root and all nine places run `omega run --both`
+with `native exit 0` and `interp exit: 0` (10/10), and all nine twins reject with that fragment (9/9).
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `TERMINAL-INTEGER-ARITHMETIC-INTERVALS` ([`TASKS.md`](../../../../TASKS.md)).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` ([TASKS.md](../../../../TASKS.md)): "machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls". This row is one customer group's nine-place transport and execution of that settled proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 - **Requirement established:** End-to-end nine-place 32-bit unsigned (`u32`) bounded exact multiplication, interval synthesis (`[300, 750]`), consuming exact subtractions (`750 - prod` and `prod - 300`) overflow/underflow discharge, and native realization agreement.
+- **Pinned fixtures:** the 18 fixtures named above; nine `checked` and nine `rejected` rows in `tests/omega/corpus_outcomes.txt`, nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, and nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `tests/omega/corpus_both_macos_arm64.txt`, all stamped `@f1b0d3326d2d+wt`.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Bounded entry contracts `requires lhs >= 20u32 && lhs <= 30u32` and `requires rhs >= 15u32 && rhs <= 25u32` establish non-negative operand bounds well below `u32::MAX`. Exact unsigned multiplication `lhs * rhs` synthesizes interval `[20 * 15, 30 * 25] = [300, 750]`, directly discharging consuming exact subtractions `750u32 - prod` and `prod - 300u32` without runtime checks or post-hoc equality guards.
