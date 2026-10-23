@@ -74,6 +74,8 @@ Recorded with the shared opt-level 1 producer `gen-4c23cc3391c` (omega sha256 `8
 
 The call-result twin widens the returned leaf value itself (`val: 81u64` with its contract upper bound widened to `81u64`), not the contract bound alone. The first authoring widened only the contract while the callee body still returned the literal `60u64`; the checker proves that call result by its body, so the twin was correctly accepted and pinned nothing. The other eight twins widen only the declared bound.
 
+A later main-change validation run with the newer `gen-9b001b8f6af` producer (revision `9b001b8f6af`, built after `4c23cc3391c`) re-ran the filter on the landed tree at `OMEGA_CORPUS_JOBS=2`: the check leg reports 0 structural moves — 36 fixtures (18 `checked`, 18 `rejected`), 0 rejected without their expected fragment, 0 fail fixtures that did not reject; the native leg 18 `built ... exit:0`; the both leg 18 `built ... exit:0 interpreter-exit:0 interpreter:agrees`. Only perf-timing rows moved under host load, so the recorded verdicts survive the compiler movement between the measurement revision and the landing.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
