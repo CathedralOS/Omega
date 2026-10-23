@@ -15,7 +15,10 @@ The nine places are `local`, `field`, `parameter`, `call_result`,
 Every `invalid/main.omg` differs only by retaining the original remaining
 count instead of subtracting the request; the default-domain obligation must
 reject it. The same sources are pinned under
-`tests/omega/{pass,fail}/facts/qualified_field_capacity_through_*`.
+`tests/omega/pass/facts/qualified_field_capacity_through_<place>_exit` and
+`tests/omega/fail/facts/qualified_field_capacity_through_<place>_rejected`,
+the corpus reject name the fact census resolves; the nine reject families were
+renamed byte-identically from `_mismatch` and re-recorded under those names.
 
 The distinct compiler mechanism is nominal field membership transport into a
 selected call's prerequisites, followed by exact completed-result equations.
@@ -67,6 +70,16 @@ required bounds before constructing the value`.
 The nine reject twins were re-verified on the check leg: `clean — 9 fixtures
 ({'rejected': 9})`, 0 rejected without their expected fragment, 0 fail
 fixtures that did not reject.
+
+Under the corpus reject names the nine reject rows were re-recorded at
+`595562a958b` with the wave's shared opt-level 1 corpus runner (sha256
+`fa7c9b282deaefd7f38eafd3b4ea07d960ad1eb7e679d23253fef05ed8ff30dd`): a
+filtered re-run of the nine pins alone reads `clean — 9 fixtures
+({'rejected': 9}), 0 rejected without their expected fragment, 0 fail fixtures
+did not reject`, and the `target_body` twin keeps its four diagnostics, one per
+checked target body. The rename rewrites the nine key lines in place — 9
+insertions, 9 deletions, 0 continuation lines touched, diagnostic-line count
+unchanged at 4191.
 
 Remaining open on other hosts: `tests/omega/corpus_native_linux_x86_64.txt` and
 `tests/omega/corpus_native_windows_x86_64.txt` carry no row for this fact and
