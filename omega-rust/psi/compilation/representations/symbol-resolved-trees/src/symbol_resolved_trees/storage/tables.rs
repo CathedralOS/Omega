@@ -40,8 +40,10 @@ impl SymbolResolvedTreeTables {
     }
 
     /// Retain normalized rows belonging to earlier completed bodies. The
-    /// successor expression table already contains newly resolved body graphs;
-    /// only normalized statements/types are seeded from the predecessor.
+    /// successor owns a clone of the predecessor, extended with resolved body
+    /// graphs in declaration storage. Its normalized statements and types are
+    /// still the exact predecessor tables: final routing runs after this append.
+    /// Transfer those owned tables instead of copying the predecessor twice.
     pub fn from_body_completion(
         symbol_resolved_trees: &mut SymbolResolvedTrees,
         predecessor: &SymbolResolvedTrees,
@@ -50,10 +52,10 @@ impl SymbolResolvedTreeTables {
         let mut tables = Self {
             bodies: ResolvedBodyTables {
                 expressions: ExpressionTable::default(),
-                statements: predecessor.tables.bodies.statements.clone(),
+                statements: std::mem::take(&mut symbol_resolved_trees.tables.bodies.statements),
             },
             types: ResolvedTypeTables {
-                references: predecessor.tables.types.references.clone(),
+                references: std::mem::take(&mut symbol_resolved_trees.tables.types.references),
             },
         };
         tables.append_declaration_tables(

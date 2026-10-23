@@ -209,3 +209,7 @@ records the call-selection dependencies and the next falsifiable comparison.
 [Resolver-owned call-result projection](call_selection/README.md) preserves the
 measured placement demands with about 80% fewer early expression rows. Its ledger
 retains exact declaration/use comparisons, native/Terminal executions and limits.
+
+The [deferred completion storage follow-up](completion/README.md) transfers
+already-owned normalized statement/type tables, preserving the transactional
+predecessor and exact complete-carrier results.

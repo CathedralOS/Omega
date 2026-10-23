@@ -945,7 +945,9 @@ impl SymbolResolvedTrees {
     }
 
     /// Normalize newly completed implementations without moving any retained
-    /// normalized statement, transition target or type-reference row.
+    /// normalized statement, transition target or type-reference row. The
+    /// successor must retain the predecessor tables installed by its seed;
+    /// body lowering extends declaration storage before final table routing.
     pub fn append_completed_body_tables(
         &mut self,
         predecessor: &Self,

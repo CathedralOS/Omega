@@ -430,3 +430,84 @@ impl RebasedResolvedBodyCompletion {
         (self.successor, self.predecessor, self.selected)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn completion_batches_preserve_retained_statements_and_predecessors() {
+        let source_text = r#"
+            machine first(value: u64) -> u64 {
+                let incremented: u64 = value + 1;
+                incremented
+            }
+            machine second(value: u64) -> u64 {
+                let doubled: u64 = value + value;
+                doubled
+            }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source_text)
+            .tokenize()
+            .unwrap();
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("completion/main.omg".into(), source_text.to_owned())
+            .source_id;
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let frontier =
+            super::super::resolve_deferred_numeric_probe(super::super::ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            })
+            .unwrap();
+        let pending: Vec<_> = frontier.pending_machines().collect();
+        assert_eq!(pending.len(), 2);
+        let initial = frontier.shared_trees();
+        let initial_snapshot = initial.as_ref().clone();
+        let first = frontier
+            .complete_machine_bodies(&pending[..1])
+            .unwrap()
+            .into_resolved_frontier();
+        assert_eq!(initial.as_ref(), &initial_snapshot);
+        let predecessor = first.shared_trees();
+        let predecessor_snapshot = predecessor.as_ref().clone();
+        let machine = predecessor
+            .machines
+            .iter()
+            .find(|machine| machine.symbol == pending[0])
+            .unwrap();
+        let state = predecessor.machine_state(predecessor.machine_state_handles(machine.states)[0]);
+        let retained_nodes = state.statement_nodes;
+        let retained_statements = predecessor
+            .tables
+            .bodies
+            .statements
+            .statements(retained_nodes)
+            .to_vec();
+        assert!(!retained_statements.is_empty());
+        let second = first
+            .complete_machine_bodies(&pending[1..])
+            .unwrap()
+            .into_resolved_frontier();
+        assert_eq!(predecessor.as_ref(), &predecessor_snapshot);
+        assert_eq!(
+            second
+                .trees()
+                .tables
+                .bodies
+                .statements
+                .statements(retained_nodes),
+            retained_statements
+        );
+        assert!(
+            second.trees().tables.bodies.statements.statement_count()
+                > predecessor.tables.bodies.statements.statement_count()
+        );
+        assert_eq!(second.pending_machines().count(), 0);
+        let completed = second.shared_trees();
+        let completed_snapshot = completed.as_ref().clone();
+        assert!(second.complete_machine_bodies(&pending[..1]).is_err());
+        assert_eq!(completed.as_ref(), &completed_snapshot);
+    }
+}

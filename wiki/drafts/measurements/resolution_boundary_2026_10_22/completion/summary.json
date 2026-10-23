@@ -1,0 +1,103 @@
+{
+  "comparisons": 100,
+  "workloads": [
+    {
+      "name": "length",
+      "completion_batches": 2,
+      "statement_rows_not_copied": 924,
+      "type_rows_not_copied": 4017,
+      "baseline_exit": 0
+    },
+    {
+      "name": "dyn",
+      "completion_batches": 2,
+      "statement_rows_not_copied": 924,
+      "type_rows_not_copied": 4015,
+      "baseline_exit": 0
+    },
+    {
+      "name": "record",
+      "completion_batches": 2,
+      "statement_rows_not_copied": 924,
+      "type_rows_not_copied": 4031,
+      "baseline_exit": 0
+    },
+    {
+      "name": "returned",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 936,
+      "type_rows_not_copied": 8686,
+      "baseline_exit": 0
+    },
+    {
+      "name": "forwarded",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 936,
+      "type_rows_not_copied": 8706,
+      "baseline_exit": 0
+    },
+    {
+      "name": "nested",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 936,
+      "type_rows_not_copied": 8721,
+      "baseline_exit": 0
+    },
+    {
+      "name": "equation",
+      "completion_batches": 2,
+      "statement_rows_not_copied": 924,
+      "type_rows_not_copied": 4017,
+      "baseline_exit": 0
+    },
+    {
+      "name": "machine_constants",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 794,
+      "type_rows_not_copied": 6172,
+      "baseline_exit": 0
+    },
+    {
+      "name": "computed_constants",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 791,
+      "type_rows_not_copied": 6269,
+      "baseline_exit": 1
+    },
+    {
+      "name": "wrong_backing",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 936,
+      "type_rows_not_copied": 8671,
+      "baseline_exit": 1
+    },
+    {
+      "name": "overlapping_loans",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 936,
+      "type_rows_not_copied": 8736,
+      "baseline_exit": 1
+    },
+    {
+      "name": "exact_policy_owner",
+      "completion_batches": 0,
+      "statement_rows_not_copied": 0,
+      "type_rows_not_copied": 0,
+      "baseline_exit": 1
+    },
+    {
+      "name": "result_authority",
+      "completion_batches": 5,
+      "statement_rows_not_copied": 815,
+      "type_rows_not_copied": 6378,
+      "baseline_exit": 1
+    },
+    {
+      "name": "invalid_length",
+      "completion_batches": 2,
+      "statement_rows_not_copied": 920,
+      "type_rows_not_copied": 4017,
+      "baseline_exit": 1
+    }
+  ]
+}
