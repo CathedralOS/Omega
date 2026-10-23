@@ -2593,6 +2593,27 @@ fail/facts/case_equality_through_target_body_compile rejected 2951ms expected @3
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_payload_exclusive_loan_through_call_result_rejected rejected 972ms expected @4fba1ca3cd5a
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/case_payload_exclusive_loan_through_const_name_rejected rejected 945ms expected @4fba1ca3cd5a
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/case_payload_exclusive_loan_through_field_rejected rejected 958ms expected @4fba1ca3cd5a
+	statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/case_payload_exclusive_loan_through_local_rejected rejected 936ms expected @4fba1ca3cd5a
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/case_payload_exclusive_loan_through_match_join_rejected rejected 949ms expected @4fba1ca3cd5a
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/case_payload_exclusive_loan_through_other_machine_rejected rejected 970ms expected @4fba1ca3cd5a
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/case_payload_exclusive_loan_through_other_state_rejected rejected 959ms expected @4fba1ca3cd5a
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
+fail/facts/case_payload_exclusive_loan_through_parameter_rejected rejected 1115ms expected @4fba1ca3cd5a
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/facts/case_payload_exclusive_loan_through_target_body_rejected rejected 1266ms expected @4fba1ca3cd5a
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 fail/facts/case_payload_layout_geometry_unproved_call_result rejected 6760ms expected @9ff26a870215+wt
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
 fail/facts/case_payload_layout_geometry_unproved_const_name rejected 7040ms expected @9ff26a870215+wt
@@ -12942,6 +12963,15 @@ pass/facts/case_equality_through_other_machine_compile checked 22067ms @39840d33
 pass/facts/case_equality_through_other_state_compile checked 20944ms @39840d33bf1c
 pass/facts/case_equality_through_parameter_compile checked 20918ms @39840d33bf1c
 pass/facts/case_equality_through_target_body_compile checked 16930ms @39840d33bf1c
+pass/facts/case_payload_exclusive_loan_through_call_result_exit checked 1312ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_const_name_exit checked 1330ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_field_exit checked 1327ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_local_exit checked 1316ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_match_join_exit checked 1330ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_other_machine_exit checked 1319ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_other_state_exit checked 1251ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_parameter_exit checked 1239ms check-target:macos_arm64 @4fba1ca3cd5a
+pass/facts/case_payload_exclusive_loan_through_target_body_exit checked 1128ms check-target:macos_arm64 @4fba1ca3cd5a
 pass/facts/case_payload_layout_geometry_through_call_result_exit checked 9181ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/case_payload_layout_geometry_through_const_name_exit checked 8085ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/case_payload_layout_geometry_through_field_exit checked 8384ms check-target:macos_arm64 @9ff26a870215+wt
