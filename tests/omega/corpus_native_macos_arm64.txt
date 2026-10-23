@@ -3938,6 +3938,7 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 212511ms @d41eaa7
 pass/float/builtin_extrema_field_store_exit built 2139ms exit:70 @9213c1dcbe3f+wt
 pass/float/computed_comparison_literal_landing_exit built 6031ms exit:0 @6ef30fb818e6+wt
 pass/float/data_where_float_field_restored_exit built 1621ms exit:70 @8cb8c462809d+wt
+pass/float/equality_premise_excludes_nan checked 2716ms @a8ec2fd3489a
 pass/float/f32_arg_const_arith_landed_exit built 6672ms exit:70 @fb2178def922
 pass/float/f32_per_operation_rounding_exit built 7304ms exit:77 @fb2178def922
 pass/float/finite_core_domain_range_discharge built 5181ms exit:77 @42dbef3839ee+wt
@@ -3974,9 +3975,11 @@ pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5
 pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+wt
 pass/float/nan_match_fallthrough checked 18657ms @5041ef1af684+wt
 pass/float/nearest_even_binary_arithmetic_exit built 7862ms exit:70 @48008365d839
+pass/float/nested_call_requirement_before_sibling_write_exit built 3130ms exit:0 @a8ec2fd3489a
+pass/float/nested_caller_snapshot_before_sibling_write_exit built 3128ms exit:0 @a8ec2fd3489a
 pass/float/nested_float_operator_applications_exit built 15621ms exit:70 @48008365d839
 pass/float/owned_local_computed_float_store_exit built 34618ms exit:70 @589aedee8ebc+wt
-pass/float/primitive_storage_predicate_keeps_ieee_meaning built 12386ms exit:0 @a80b1ee9811e+wt
+pass/float/primitive_storage_predicate_keeps_ieee_meaning built 3137ms exit:0 @a8ec2fd3489a
 pass/float/returned_record_computed_fields_exit built 35081ms exit:70 @589aedee8ebc+wt
 pass/float/runtime_absolute_return_sum_exit built 37171ms exit:70 @589aedee8ebc+wt
 pass/float/runtime_absolute_shared_call_operands_exit built 36252ms exit:70 @589aedee8ebc+wt
@@ -4003,6 +4006,7 @@ pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit built 25204ms exit:70 @c9eb93b5756b
 pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
+pass/float/value_refinement_conjunction_survives_scalar_transport_exit built 2342ms exit:0 @a8ec2fd3489a
 pass/float/waterline_record_computed_return_exit built 35335ms exit:70 @589aedee8ebc+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
@@ -5055,6 +5059,8 @@ pass/time/static_duration_accessors built 2763ms exit:70 @48008365d839
 pass/traits/applied_callable_law_equality_exit built 17762ms exit:0 @589aedee8ebc+wt
 pass/traits/boundary_trait_effects_host_call built 1527ms exit:0 @b8c70eeec573
 pass/traits/conformance_unused_lifetime_scope_exit built 1290ms exit:0 @252f1432d9e9
+pass/traits/contract_call_captured_trait_static_argument_exit built 1138ms exit:0 @a8ec2fd3489a
+pass/traits/contract_call_forwarded_static_arguments_exit built 1217ms exit:0 @a8ec2fd3489a
 pass/traits/default_row_nested_captured_reference_exit built 3767ms exit:0 @619f89e4fed6+wt
 pass/traits/dyn_finite_family checked 9801ms @5041ef1af684+wt
 pass/traits/dyn_finite_family_dispatch checked 432ms @7f068b5c82b8

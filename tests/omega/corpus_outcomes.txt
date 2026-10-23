@@ -11758,10 +11758,14 @@ fail/float/guarded_range_requires_builtin_boolean_wrapper rejected 167ms expecte
 fail/float/guarded_range_requires_current_observation rejected 174ms expected @22da6bb2553e+wt
 fail/float/guarded_range_requires_ieee_comparison rejected 170ms expected @22da6bb2553e+wt
 fail/float/guarded_range_requires_ordered_value rejected 155ms expected @22da6bb2553e+wt
+fail/float/inequality_premise_allows_nan rejected 1822ms expected @a8ec2fd3489a
+	cannot prove ensures contract for exit from keep at statement 0: result == value
 fail/float/integer_conversion_lookalike rejected 443ms expected @b60606588008+wt
 fail/float/integer_to_float_coercion_requires_denotation rejected 511ms expected @9c4d1c444502
 fail/float/integer_to_float_semantics_lookalike rejected 32ms expected @9c4d1c444502
 fail/float/local_initializer_range_unproven rejected 204ms expected @9c4d1c444502
+fail/float/match_join_requires_preserves_ieee_nan rejected 2008ms expected @a8ec2fd3489a
+	cannot prove requires contract for call demand from main: nan == nan (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 849ms expected @1b12798e27f4
 fail/float/mixed_float_comparison_formats rejected 153ms expected @f7d5743143af
 fail/float/mixed_float_contract_formats rejected 157ms expected @f7d5743143af
@@ -11777,6 +11781,10 @@ fail/float/named_nan_runtime_materialization rejected 293ms expected @9c4d1c4445
 fail/float/named_trapping_cast_operand_requires_site_coverage rejected 3295ms expected @9c4d1c444502
 fail/float/named_trapping_index_operand_requires_site_coverage rejected 1632ms expected @9c4d1c444502
 fail/float/negated_ordered_guard_cast rejected 429ms expected @9c4d1c444502
+fail/float/nested_call_requirement_after_sibling_write rejected 1989ms expected @a8ec2fd3489a
+	cannot prove requires contract for call demand from main: cell.value == cell.value (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/float/nested_caller_snapshot_after_sibling_write rejected 2089ms expected @a8ec2fd3489a
+	cannot prove requires contract for call demand from forward: value == value (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/nonfinite_subtraction_mass_domain rejected 4151ms @abbaf3aaa059+wt
 fail/float/normal_call_guarantee_inactive_match_arm rejected 1573ms expected @9c4d1c444502
 fail/float/normal_call_guarantee_skipped_short_circuit rejected 1585ms expected @9c4d1c444502
@@ -11820,6 +11828,8 @@ fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1584ms 
 fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1504ms expected @9c4d1c444502
 fail/float/unbounded_result_does_not_prove_guarantee rejected 1369ms expected @9c4d1c444502
 fail/float/unguarded_scalar_state_contract rejected 1179ms expected @9c4d1c444502
+fail/float/value_refinement_conjunction_requires_finite rejected 948ms expected @a8ec2fd3489a
+	cannot prove initializer `divide(1.0, 0.0)` satisfies `finite` for the bounded value of machine `main` state `entry` local `local`
 fail/float/x86_fma_missing_deployment_features rejected 9771ms expected @d6cf554fd1cb+wt
 	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
 	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
@@ -11875,6 +11885,9 @@ fail/generics/const_data_argument_requires_value rejected 814ms expected @a9ae30
 fail/generics/const_data_machine_call_requires_pure rejected 52ms expected @a9ae30e1c334+wt
 fail/generics/const_data_machine_call_runtime_argument rejected 21ms expected @a9ae30e1c334+wt
 fail/generics/const_data_where_fact_false rejected 860ms expected @a9ae30e1c334+wt
+fail/generics/const_expression_cannot_supply_type_binder rejected 304ms expected @a8ec2fd3489a
+	machine `marker` static argument 1 requires its declared binder kind, not a const value
+	machine `marker` static argument 1 requires its declared binder kind, not a const value
 fail/generics/const_extent_guard_authored_comparison rejected 638ms expected @d80baff24c7e+wt
 fail/generics/const_extent_guard_closed_alias_write rejected 1119ms expected @d80baff24c7e+wt
 fail/generics/const_extent_guard_closed_authored_comparison rejected 897ms expected @d80baff24c7e+wt
@@ -11948,7 +11961,8 @@ fail/generics/equation_named_array_actual_boolean rejected 18ms expected @a9ae30
 fail/generics/equation_named_array_actual_conflict rejected 14ms expected @a9ae30e1c334+wt
 fail/generics/equation_named_array_actual_explicit rejected 17ms expected @a9ae30e1c334+wt
 fail/generics/equation_named_array_actual_open rejected 52ms expected @a9ae30e1c334+wt
-fail/generics/erased_static_arguments_keep_binder_order rejected 729ms expected @a9ae30e1c334+wt
+fail/generics/erased_static_arguments_keep_binder_order rejected 333ms expected @a8ec2fd3489a
+	machine `unused` static argument 1 requires its declared binder kind, not a const value
 fail/generics/erased_static_const_keeps_declared_carrier rejected 722ms expected @a9ae30e1c334+wt
 fail/generics/erased_static_const_keeps_literal_landing rejected 783ms expected @a9ae30e1c334+wt
 fail/generics/extraction_borrowed_payload_escape rejected 1915ms expected @632377c34d0a+wt
@@ -11973,6 +11987,9 @@ fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejecte
 	generic machine `FixedBuffer::select` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `FixedBuffer<2>::total` state `FixedBuffer<2>::total::total`
 fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
 fail/generics/forwarded_slice_result_element_mismatch rejected 222ms expected @6ef08ceefee0+wt
+fail/generics/forwarded_static_arguments_keep_binder_order rejected 179ms expected @a8ec2fd3489a
+	machine `marker` static argument 1 requires its declared binder kind, not a const value
+	machine `marker` static argument 1 requires its declared binder kind, not a const value
 fail/generics/generic_carrier_equation_index_conflict rejected 16ms expected @a9ae30e1c334+wt
 fail/generics/generic_carrier_equation_mismatch rejected 15ms expected @a9ae30e1c334+wt
 fail/generics/generic_carrier_equation_repeated_carrier_conflict rejected 13ms expected @a9ae30e1c334+wt
@@ -13770,8 +13787,12 @@ fail/traits/const_selector_public_identity rejected 224ms expected @963915e78283
 fail/traits/const_selector_wrong_implementation rejected 2232ms expected @963915e78283
 	`OtherQuarter` implements `Other<>`, not `dyn Fraction<>`; a selector names exactly the trait application its implementation satisfies
 fail/traits/contextual_static_machine_nominal_authority rejected 480ms expected @4730b1ac8a84
+fail/traits/contract_call_captured_trait_static_argument_bound rejected 240ms expected @a8ec2fd3489a
+	machine `main` state `entry` value call to `identity` violates required fact `below<Limit>(input)`: the instantiated fact is structurally false
 fail/traits/contract_call_distinct_static_arguments rejected 913ms expected @f3014db3f225+wt
 fail/traits/contract_proposition_distinct_declarations rejected 479ms expected @f3014db3f225+wt
+fail/traits/contract_static_binder_not_shadowing_local rejected 208ms expected @a8ec2fd3489a
+	machine `main` state `entry` value call to `demand` violates required fact `below<2>(value)`: the instantiated fact is structurally false
 fail/traits/data_in_implementation_argument rejected 166ms expected @a9ae30e1c334+wt
 fail/traits/data_subject_implementation_retired rejected 0ms expected @a9ae30e1c334+wt
 fail/traits/default_row_foreign_captured_operand rejected 115ms expected @619f89e4fed6+wt
@@ -19785,6 +19806,7 @@ pass/float/constructed_ieee_predicates_exit checked 29097ms check-target:macos_a
 pass/float/constructor_requirement_result_policy_exit checked 29175ms check-target:macos_arm64 @9c4d1c444502
 pass/float/data_where_float_field_restored_exit checked 28777ms check-target:macos_arm64 @9c4d1c444502
 pass/float/directed_square_root_radius_exit checked 15511ms check-target:macos_arm64 @cc35a4f0d368+wt
+pass/float/equality_premise_excludes_nan checked 2533ms @a8ec2fd3489a
 pass/float/explicit_float_comparison_formats checked 4321ms @f7d5743143af
 pass/float/f32_arg_const_arith_landed_exit checked 28206ms check-target:macos_arm64 @9c4d1c444502
 pass/float/f32_per_operation_rounding_exit checked 46604ms check-target:macos_arm64 @1b12798e27f4
@@ -19829,11 +19851,13 @@ pass/float/named_provider_multiply_then_add_exit checked 25581ms check-target:ma
 pass/float/named_provider_negate_is_nan_exit checked 25723ms check-target:macos_arm64 @9c4d1c444502
 pass/float/nan_match_fallthrough checked 18753ms @5041ef1af684+wt
 pass/float/nearest_even_binary_arithmetic_exit checked 25648ms check-target:macos_arm64 @9c4d1c444502
+pass/float/nested_call_requirement_before_sibling_write_exit checked 2943ms check-target:macos_arm64 @a8ec2fd3489a
+pass/float/nested_caller_snapshot_before_sibling_write_exit checked 2944ms check-target:macos_arm64 @a8ec2fd3489a
 pass/float/nested_float_operator_applications_exit checked 17131ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/ordinary_numeric_helper_edges_exit checked 15670ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/owned_local_computed_float_store_exit checked 17257ms check-target:linux_x86_64 @1b12798e27f4
 pass/float/primitive_comparison_sealed_scope_exit checked 27659ms check-target:macos_arm64 @963915e78283
-pass/float/primitive_storage_predicate_keeps_ieee_meaning checked 11026ms check-target:macos_arm64 @a80b1ee9811e+wt
+pass/float/primitive_storage_predicate_keeps_ieee_meaning checked 2948ms check-target:macos_arm64 @a8ec2fd3489a
 pass/float/public_boolean_result_contract_import_exit checked 24929ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_match_import_exit checked 24773ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_short_circuit_import_exit checked 25074ms check-target:macos_arm64 @9c4d1c444502
@@ -19890,6 +19914,7 @@ pass/float/symbolic_integer_conversion_finite_requires_exit checked 11294ms chec
 pass/float/trapping_float_sites_share_nonentry_guard_coverage checked 11131ms check-target:macos_arm64 @9c4d1c444502
 pass/float/trapping_raw_finite_operand_capture_proof checked 3102ms @9c4d1c444502
 pass/float/trapping_raw_finite_semantic_result_proof checked 11246ms check-target:macos_arm64 @9c4d1c444502
+pass/float/value_refinement_conjunction_survives_scalar_transport_exit checked 3003ms check-target:macos_arm64 @a8ec2fd3489a
 pass/float/waterline_record_computed_return_exit checked 11575ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/x86_fma_plan_association checked 11382ms check-target:linux_x86_64 @9c4d1c444502
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 5204ms check-target:macos_arm64 @589aedee8ebc+wt
@@ -21568,6 +21593,8 @@ pass/traits/applied_qualified_signature_region_scope_exit checked 10523ms check-
 pass/traits/boundary_trait_effects_host_call checked 11629ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/traits/computed_static_arguments_exit checked 4100ms check-target:macos_arm64 @abff0035e791
 pass/traits/conformance_unused_lifetime_scope_exit checked 11299ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/contract_call_captured_trait_static_argument_exit checked 1168ms check-target:macos_arm64 @a8ec2fd3489a
+pass/traits/contract_call_forwarded_static_arguments_exit checked 1167ms check-target:macos_arm64 @a8ec2fd3489a
 pass/traits/contract_proposition_alias_correspondence checked 1696ms @f3014db3f225+wt
 pass/traits/default_row_captured_invocation_regions_exit checked 16549ms check-target:macos_arm64 @4730b1ac8a84
 pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b

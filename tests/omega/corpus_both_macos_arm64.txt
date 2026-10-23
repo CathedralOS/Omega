@@ -2790,6 +2790,7 @@ pass/float/admitted_numeric_imports_preserve_semantics built 8261ms exit:70 inte
 pass/float/closed_integer_conversion_predicate_proof_exit built 6882ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/float/closed_integer_conversion_trapping_source_no_normal_result built 21167ms exit:signal signal:5 interpreter:trapped @95f5c1baea71
 pass/float/computed_comparison_literal_landing_exit built 10426ms exit:0 interpreter-exit:0 interpreter:agrees @6ef30fb818e6
+pass/float/equality_premise_excludes_nan checked 2843ms @a8ec2fd3489a
 pass/float/float_saturating_arithmetic_exit built 9107ms exit:77 interpreter-exit:77 interpreter:agrees @cba4ef8c9ab1
 pass/float/float_to_int_trapping_nan_traps built 9106ms exit:signal signal:5 interpreter:trapped @cba4ef8c9ab1
 pass/float/float_trapping_overflow_traps built 8882ms exit:signal signal:5 interpreter:trapped @cba4ef8c9ab1
@@ -2799,6 +2800,9 @@ pass/float/named_nan_semantic_only_exit built 32544ms exit:70 interpreter-exit:7
 pass/float/named_operation_retains_collection_element_policy_exit built 6290ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/float/named_provider_directed_divide_exit built 35672ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
 pass/float/named_provider_min_max_sqrt_exit built 60835ms exit:70 interpreter-exit:70 interpreter:agrees @503a4a8606d3+wt
+pass/float/nested_call_requirement_before_sibling_write_exit built 3254ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
+pass/float/nested_caller_snapshot_before_sibling_write_exit built 3254ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
+pass/float/primitive_storage_predicate_keeps_ieee_meaning built 3599ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
 pass/float/public_boolean_result_contract_import_exit built 53225ms exit:0 interpreter-exit:0 interpreter:agrees @d8a6671a4728
 pass/float/public_boolean_result_contract_match_import_exit built 62686ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/float/public_boolean_result_contract_short_circuit_import_exit built 62457ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
@@ -2825,6 +2829,7 @@ pass/float/saturating_named_operations_retain_ordered_inputs built 8797ms exit:0
 pass/float/symbolic_integer_conversion_finite_requires_exit built 21063ms exit:0 interpreter-exit:0 interpreter:agrees @95f5c1baea71
 pass/float/trapping_float_sites_share_nonentry_guard_coverage built 8770ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/float/trapping_raw_finite_semantic_result_proof built 8851ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
+pass/float/value_refinement_conjunction_survives_scalar_transport_exit built 2295ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
 pass/generics/borrowed_applied_field_static_selection_exit built 5642ms exit:0 interpreter-exit:0 interpreter:agrees @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
 pass/generics/contextual_static_machine_const_scopes_exit built 3451ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
@@ -3218,6 +3223,8 @@ pass/time/runtime_clock_padded_out_parameter_prefix_exit built 15753ms exit:0 in
 pass/time/runtime_clock_shared_import_slots_exit built 11288ms exit:0 interpreter-exit:0 interpreter:agrees @b8b69519109d+wt
 pass/time/runtime_time_host_native_darwin_exit built 12509ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/traits/computed_static_arguments_exit built 4096ms exit:0 interpreter-exit:0 interpreter:agrees @abff0035e791
+pass/traits/contract_call_captured_trait_static_argument_exit built 1101ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
+pass/traits/contract_call_forwarded_static_arguments_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
 pass/traits/dyn_finite_family_dispatch checked 434ms @0cfa2d49940a
 pass/traits/inherited_region_application_identity_exit built 2797ms exit:0 interpreter-exit:0 interpreter:agrees @4e2bb3ff7b5e
 pass/traits/public_nested_machine_contract_scopes built 5729ms exit:0 interpreter-exit:0 interpreter:agrees @eb2c4b6a1507
