@@ -39,6 +39,67 @@ const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 572;
 const WRITE_SEMANTICS_OFFSET: usize = 573;
 
 #[test]
+fn post_allocation_codec_retains_pre_streaming_bytes_at_empty_boundaries() {
+    use sha2::Digest;
+    // Captured from the whole-buffer v21 encoder before changing its storage.
+    // Round trips alone could let the codec and identity drift together.
+    let identities = [
+        "81ae82f282f0b42d01fe4f27edeb54c205a6766fa4bc3490d8e16869c6e1c88a",
+        "87c5761e5480a1e03643e77075e804408afc5315ca94934eb3fdd79169534239",
+        "e6e993c6fba81ed794cb5242015f67a3b640930228b81affeaf31b1433fa14bd",
+        "b6a5b6be77bd548d2e38605c9c4cbf23a1e1c903d06fbba63b21c30e00ee93f0",
+    ];
+    let wire_digests = [
+        "41a28159395be83700d76726a4bf94b7ba451a58039a961b79e4efb2b0d20e38",
+        "84e9091f3f0563fc7e1705ff043dc265887874299c92e3a4bcc13cc50922ea9b",
+        "0360e4cfc87a430b6765d604ac3e0011994fefcac2f03142c71c336c58142385",
+        "762a788d614791be3f2cd3f439cc5f882b6c3acd838a6e8cad601f0182927341",
+    ];
+    for variant in 0..4 {
+        let mut source = plan();
+        match variant {
+            1 => source.functions.clear(),
+            2 => source.functions[0].blocks.clear(),
+            3 => source.functions[0].blocks[0].instructions.clear(),
+            _ => {}
+        }
+        source.identity = post_allocation_machine_identity(&source);
+        assert_eq!(
+            crate::digest_encoder::hex(&source.identity.bytes()),
+            identities[variant]
+        );
+        assert_eq!(
+            crate::digest_encoder::hex(&sha2::Sha256::digest(source.encode())),
+            wire_digests[variant]
+        );
+    }
+}
+
+#[test]
+fn post_allocation_identity_stream_scratch_does_not_grow_with_instruction_count() {
+    let mut source = plan();
+    let single_size = source.encode().len();
+    let instruction = source.functions[0].blocks[0].instructions[0].clone();
+    source.functions[0].blocks[0].instructions = (0..1000)
+        .map(|ordinal| {
+            let mut instruction = instruction.clone();
+            instruction.instruction = SelectedInstructionId(ordinal);
+            instruction
+        })
+        .collect();
+    source.identity = post_allocation_machine_identity(&source);
+    let mut encoded_content = Vec::new();
+    let mut largest_chunk = 0;
+    super::super::identity::write_terminal_post_allocation_machine_content(&source, |chunk| {
+        largest_chunk = largest_chunk.max(chunk.len());
+        encoded_content.extend_from_slice(chunk);
+    });
+    assert!(largest_chunk <= single_size);
+    assert!(encoded_content.len() > 100 * largest_chunk);
+    assert_eq!(encoded_content, source.encode()[44..]);
+}
+
+#[test]
 fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];

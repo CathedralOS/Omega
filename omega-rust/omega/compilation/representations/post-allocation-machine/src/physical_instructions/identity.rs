@@ -29,14 +29,22 @@ fn post_allocation_machine_identity_with_domain(
     domain: &[u8],
 ) -> PostAllocationMachineIdentity {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
-    digest.raw(&encode_terminal_post_allocation_machine_content(plan));
+    write_terminal_post_allocation_machine_content(plan, |chunk| digest.raw(chunk));
     PostAllocationMachineIdentity::from_bytes(digest.finish().into())
 }
 
-pub(crate) fn encode_terminal_post_allocation_machine_content(
+/// Emit the one canonical byte sequence to either hashing or wire publication.
+/// Hashing does not need a second, whole-plan byte image. Reuse scratch only
+/// after its consumer returns; each chunk is a header, slot or instruction.
+pub(crate) fn write_terminal_post_allocation_machine_content(
     plan: &PostAllocationMachinePlan,
-) -> Vec<u8> {
+    mut consume: impl FnMut(&[u8]),
+) {
     let mut bytes = Vec::new();
+    let mut emit = |bytes: &mut Vec<u8>| {
+        consume(bytes);
+        bytes.clear();
+    };
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.effects.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
@@ -52,32 +60,38 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
         crate::MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1 => 0,
     });
     encode_len(&mut bytes, plan.functions.len());
+    emit(&mut bytes);
     for function in &plan.functions {
         crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         encode_len(&mut bytes, function.local_storage_slots.len());
+        emit(&mut bytes);
         for slot in &function.local_storage_slots {
             slot.id.encode_identity(&mut bytes);
             crate::codec_bytes::push_encoded(&mut bytes, slot.byte_size.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, slot.alignment.to_le_bytes());
+            emit(&mut bytes);
         }
         encode_len(&mut bytes, function.outgoing_arguments.len());
+        emit(&mut bytes);
         for slot in &function.outgoing_arguments {
             slot.id.encode_identity(&mut bytes);
             crate::codec_bytes::push_encoded(&mut bytes, slot.byte_size.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, slot.alignment.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, slot.abi_stack_byte_offset.to_le_bytes());
+            emit(&mut bytes);
         }
         encode_len(&mut bytes, function.blocks.len());
+        emit(&mut bytes);
         for block in &function.blocks {
             crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
             encode_len(&mut bytes, block.instructions.len());
+            emit(&mut bytes);
             for instruction in &block.instructions {
                 encode_instruction(&mut bytes, instruction);
+                emit(&mut bytes);
             }
         }
     }
-
-    bytes
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMachineInstruction) {

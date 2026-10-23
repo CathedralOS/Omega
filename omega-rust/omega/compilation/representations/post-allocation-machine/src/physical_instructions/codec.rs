@@ -26,12 +26,13 @@ const VERSION: u32 = 21;
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
 ) -> Vec<u8> {
-    let content = super::identity::encode_terminal_post_allocation_machine_content(plan);
-    let mut encoded = Vec::with_capacity(44 + content.len());
+    let mut encoded = Vec::with_capacity(44);
     encoded.extend_from_slice(MAGIC);
     crate::codec_bytes::push_encoded(&mut encoded, VERSION.to_le_bytes());
     encoded.extend_from_slice(&plan.identity.bytes());
-    encoded.extend_from_slice(&content);
+    super::identity::write_terminal_post_allocation_machine_content(plan, |chunk| {
+        encoded.extend_from_slice(chunk);
+    });
     encoded
 }
 
