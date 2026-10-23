@@ -5306,31 +5306,31 @@ fail/facts/opaque_wrapped_carrier_cleanup rejected 6797ms expected @1b897a2de67b
 	opaque representation carrier graph at `AddressCarrier<AddressWrapper<AddressWord>>.payload.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_wrapped_growing_carrier_family rejected 7115ms expected @1b897a2de67b
 	opaque representation carrier graph at `AddressCarrier<AddressWrapper<AddressWord>>.payload.payload` contains a recursive by-value carrier family; v1 carriers must be inert storage
-fail/facts/open_const_implementation_bound_through_call_result rejected 509ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_call_result_rejected rejected 2643ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_const_name rejected 41ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_const_name_rejected rejected 76ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_field rejected 537ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_field_rejected rejected 1903ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_local rejected 524ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_local_rejected rejected 2007ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_match_join rejected 503ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_match_join_rejected rejected 2038ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_other_machine rejected 615ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_other_machine_rejected rejected 2096ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_other_state rejected 532ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_other_state_rejected rejected 2264ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_parameter rejected 544ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_parameter_rejected rejected 2161ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_const_implementation_bound_through_target_body rejected 517ms expected @863cf92cb2f3
+fail/facts/open_const_implementation_through_target_body_rejected rejected 2252ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/ordinary_length_field_after_write_rejected rejected 608ms expected @cbdcc23565fb
@@ -5527,31 +5527,31 @@ fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected reje
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/record_const_implementation_bound_through_call_result rejected 511ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_call_result_rejected rejected 1615ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_const_name rejected 42ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_const_name_rejected rejected 88ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_field rejected 500ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_field_rejected rejected 1477ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_local rejected 507ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_local_rejected rejected 2329ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_match_join rejected 499ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_match_join_rejected rejected 2897ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_other_machine rejected 531ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_other_machine_rejected rejected 2498ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_other_state rejected 498ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_other_state_rejected rejected 2198ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_parameter rejected 505ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_parameter_rejected rejected 2417ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/record_const_implementation_bound_through_target_body rejected 502ms expected @972dd7c7ae28
+fail/facts/open_record_const_implementation_through_target_body_rejected rejected 2591ms expected @ab30b42820ea+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/record_layout_geometry_unproved_call_result rejected 3932ms expected @45cbafd80d9c
@@ -12645,15 +12645,15 @@ pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 2877
 pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 2883ms check-target:macos_arm64 @b25d58842d0a
 pass/facts/opaque_nested_carrier_exchange_exit checked 144689ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @1b897a2de67b
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 65162ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @1b897a2de67b
-pass/facts/open_const_implementation_through_call_result_exit checked 1420ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_const_name_exit checked 5757ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_field_exit checked 1424ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_local_exit checked 1426ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_match_join_exit checked 1482ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_other_machine_exit checked 1463ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_other_state_exit checked 1423ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_parameter_exit checked 1407ms check-target:macos_arm64 @863cf92cb2f3
-pass/facts/open_const_implementation_through_target_body_exit checked 1476ms check-target:macos_arm64 @863cf92cb2f3
+pass/facts/open_const_implementation_through_call_result_exit checked 5900ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_const_name_exit checked 19450ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_field_exit checked 4347ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_local_exit checked 3929ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_match_join_exit checked 4274ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_other_machine_exit checked 3635ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_other_state_exit checked 3497ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_parameter_exit checked 3309ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_const_implementation_through_target_body_exit checked 3565ms check-target:macos_arm64 @ab30b42820ea+wt
 pass/facts/outcome_structural_evidence_through_call_result_exit checked 8017ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_through_const_name_exit checked 8310ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_through_field_exit checked 8021ms check-target:macos_arm64 @97fca7a18f74+wt
@@ -12735,15 +12735,15 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 22317ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 22767ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 21843ms check-target:macos_arm64 @8f970335dca4+wt
-pass/facts/record_const_implementation_through_call_result_exit checked 1270ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_const_name_exit checked 4900ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_field_exit checked 1220ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_local_exit checked 1264ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_match_join_exit checked 1250ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_other_machine_exit checked 1255ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_other_state_exit checked 1242ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_parameter_exit checked 1246ms check-target:macos_arm64 @972dd7c7ae28
-pass/facts/record_const_implementation_through_target_body_exit checked 1230ms check-target:macos_arm64 @972dd7c7ae28
+pass/facts/open_record_const_implementation_through_call_result_exit checked 2819ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_const_name_exit checked 15452ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_field_exit checked 3574ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_local_exit checked 3011ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_match_join_exit checked 3249ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_other_machine_exit checked 6948ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_other_state_exit checked 7151ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_parameter_exit checked 6050ms check-target:macos_arm64 @ab30b42820ea+wt
+pass/facts/open_record_const_implementation_through_target_body_exit checked 6194ms check-target:macos_arm64 @ab30b42820ea+wt
 pass/facts/record_layout_geometry_through_call_result_exit checked 7952ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_const_name_exit checked 7761ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_field_exit checked 7941ms check-target:macos_arm64 @45cbafd80d9c

@@ -57,7 +57,31 @@ also observes private selected helper/constant projection, nested aliases,
 floating constant dependencies, effect isolation, distinct implementation
 binders and the completed-call controls. The exact nine positive/reject source
 and Build mirrors live under
-`tests/omega/{pass,fail}/facts/open_const_implementation_*`.
+`tests/omega/pass/facts/open_const_implementation_through_<place>_exit` (nine
+positives, byte-identical to their place program and Build pair) and
+`tests/omega/fail/facts/open_const_implementation_through_<place>_rejected`
+(nine twins, byte-identical to `<place>/invalid`). The reject family was
+renamed from the legacy `open_const_implementation_bound_through_<place>`
+spelling in the same change; the rename touched no fixture byte, verdict,
+timing, stamp or diagnostic line.
+
+Measured on macOS arm64 with the `factsr1` shared opt-level 1 producer (built
+at `9ff26a870215d1a351e830cacd1255a852e3dd1e`): the root and all nine places run
+`omega run --both` with native exit 0 and Terminal exit 0 (10/10 agree), and all
+nine `<place>/invalid` twins exit 1 at checking with the verbatim diagnostic
+"generic machine `selected` cannot bind `Implementation` to conformance
+`Selected`: expected a complete `Reading` implementation with the instantiated
+trait arguments". Each twin differs from its positive on exactly one line: the
+selected application's own const argument `Selected<Base + 4>` becomes
+`Selected<Base + 3>`; the required bound, the consuming `value - 7` and every
+other line stay identical. Recorded on macOS arm64 at `ab30b42820ea+wt`: 18 rows
+in `corpus_outcomes.txt` (9 `checked check-target:macos_arm64`, 9 `rejected
+expected` carrying both diagnostics), 9 rows in `corpus_native_macos_arm64.txt`
+(`built ... exit:0`) and 9 rows in `corpus_both_macos_arm64.txt` (`exit:0
+interpreter-exit:0 interpreter:agrees`). The nine `<place>/invalid` twins and the
+root invalid control also carry their intended-invalid `sample.json`; the sample
+check gate reports 40/40 checked with 20/20 intended rejection controls
+matched.
 
 After integration, the optimized `8b23a13f8b1c` producer reobserves all 21 pinned
 positive programs with native/Terminal agreement and checks the 13 selected
