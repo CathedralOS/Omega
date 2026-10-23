@@ -71,10 +71,12 @@ error: machine `main` state `entry` local `diff`: exact arithmetic may overflow 
 
 Each `invalid/expected.txt` pins the target-neutral tail
 (`bounds [-8, -8] lie outside [0, 18446744073709551615]`), so the fragment is
-satisfied under either wording. The shared corpus golden records the
-`linux_x86_64` wording, because the check leg realizes the first of
-`macos_arm64`, `linux_x86_64`, `windows_x86_64` that the fixture's own
-`build.omg` binds — here `linux_x86_64`.
+satisfied under either wording. The shared corpus golden stores the
+`linux_x86_64` wording, and re-measuring the check leg at `56ec1c794f3`
+reproduces those rows byte-for-byte (`0 moved fixture(s)`), so the stored text
+is the runner route's own output rather than a recording host's: the row is
+host-independent, which the pass rows name for themselves through their
+`check-target:` fact.
 
 Restoring the array bound `[u64; 9]` restores clean compilation and zero exit.
 
@@ -122,3 +124,22 @@ repair was needed and no fixture, twin, or golden row was added.
 - `python3 tools/sample_gate.py --cli <producer> --filter
   facts/record_layout_geometry`: 28/28 checked with 18 intended-invalid
   controls matched.
+- Every fixture source is byte-identical to its sample counterpart (`cmp`, 36
+  pairs across both rows).
+
+### Corpus gate at 56ec1c794f3
+
+Runner built from this tree at the landed candidate `56ec1c794f3`; host
+`macos_arm64`; `OMEGA_CORPUS_JOBS=2`.
+
+- `python3 tools/corpus_gate.py --filter
+  facts/readonly_byte_literal_subslice,facts/record_layout_geometry`:
+  clean — 36 fixtures (18 `checked`, 18 `rejected`), 0 rejected without their
+  expected fragment, 0 fail fixtures that did not reject, 0 moved rows. The
+  nine rows here keep their pinned fragment and their stored diagnostic text
+  byte-for-byte, which is where the `linux_x86_64` wording is confirmed as the
+  runner route's own output.
+- `python3 tools/corpus_gate.py --native --filter` the same two rows: clean —
+  18 fixtures all `built` and executed at exit `0`, 0 with stdout differing
+  from expected, 0 moved rows; the `perf_faster` verdicts are jobs=2-vs-3 and
+  host-load noise, as the gate's own perf context reports.

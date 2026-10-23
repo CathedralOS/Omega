@@ -113,4 +113,21 @@ repair was needed and no fixture, twin, or golden row was added.
 - `python3 tools/sample_gate.py --cli <producer> --filter
   facts/readonly_byte_literal_subslice`: 19/19 checked with 9 intended-invalid
   controls matched.
+- Every fixture source is byte-identical to its sample counterpart (`cmp`, 36
+  pairs across both rows).
+
+### Corpus gate at 56ec1c794f3
+
+Runner built from this tree at the landed candidate `56ec1c794f3`; host
+`macos_arm64`; `OMEGA_CORPUS_JOBS=2`.
+
+- `python3 tools/corpus_gate.py --filter
+  facts/readonly_byte_literal_subslice,facts/record_layout_geometry`:
+  clean — 36 fixtures (18 `checked`, 18 `rejected`), 0 rejected without their
+  expected fragment, 0 fail fixtures that did not reject, 0 moved rows. The
+  nine rows here keep their pinned fragments (`may overflow `u64``).
+- `python3 tools/corpus_gate.py --native --filter` the same two rows: clean —
+  18 fixtures all `built` and executed at exit `0`, 0 with stdout differing
+  from expected, 0 moved rows; the `perf_faster` verdicts are jobs=2-vs-3 and
+  host-load noise, as the gate's own perf context reports.
 
