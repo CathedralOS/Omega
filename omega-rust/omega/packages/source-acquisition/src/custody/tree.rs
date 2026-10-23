@@ -22,6 +22,7 @@ use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
 use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy)]
@@ -38,6 +39,33 @@ pub(crate) struct CacheCustodyMeasurement {
     pub(crate) entry_count: usize,
     pub(crate) logical_bytes: u64,
     pub(crate) maximum_depth: usize,
+}
+
+/// Retain one child of a parent whose ancestry the caller already verified.
+/// The caller rechecks that retained parent's pathname after its bounded walk.
+pub(crate) fn retain_cache_child_directory(
+    kind: CacheCustodyKind,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let classified = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache child is not a concrete directory",
+        ));
+    }
+    let directory = open_cache_custody_directory(parent, Path::new(name), path, &classified, kind)?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    verify_capability_cache_node_owner_and_mode(kind, path, &opened)?;
+    verify_macos_opened_cache_directory_acl_custody(kind, path, &directory)?;
+    Ok(directory)
 }
 
 pub(crate) fn read_bounded_cache_record(

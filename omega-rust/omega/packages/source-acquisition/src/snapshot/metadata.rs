@@ -1,7 +1,9 @@
 //! Snapshot identity records and published-snapshot verification.
 
 use crate::SourceResolveError;
-use crate::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
+use crate::custody::tree::{
+    CacheCustodyKind, read_bounded_cache_record, read_bounded_cache_record_from_open_directory,
+};
 use crate::error::local_snapshot_invalid;
 use crate::identity::digest::append_framed_bytes;
 use crate::limits::{
@@ -118,10 +120,12 @@ pub(crate) fn verify_local_snapshot(
 /// Read only the bounded cache routing metadata, not a verified source result.
 pub(crate) fn local_snapshot_content_identity(
     publication: &Path,
+    directory: &cap_std::fs::Dir,
 ) -> Result<String, SourceResolveError> {
     let metadata_path = publication.join(LOCAL_SNAPSHOT_METADATA);
-    let bytes = read_bounded_cache_record(
+    let bytes = read_bounded_cache_record_from_open_directory(
         CacheCustodyKind::LocalSnapshot,
+        directory,
         publication,
         Path::new(LOCAL_SNAPSHOT_METADATA),
         512,

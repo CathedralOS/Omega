@@ -207,6 +207,44 @@ fn source_and_lookup_limits_are_enforced_independently() {
     );
 }
 
+#[test]
+fn oversized_routing_metadata_is_skipped_without_repair() {
+    let fixture = Fixture::new();
+    let storage = fixture.storage();
+    let old = fixture.capture(&storage);
+    let expected = SourceContentDigest::derive(old.normalized().content_identity.as_bytes());
+    let publication = old.snapshot_root().parent().unwrap();
+    let metadata = publication.join(crate::limits::LOCAL_SNAPSHOT_METADATA);
+    assert!(metadata.is_file());
+    make_tree_owner_writable(publication);
+    let oversized = vec![0u8; 513];
+    fs::write(&metadata, &oversized).unwrap();
+    assert!(
+        recover_cached_local_source_in_lane(
+            old.canonical_live_root(),
+            &expected,
+            storage.external_local_sources(),
+            LocalSourceLimits::default(),
+        )
+        .unwrap()
+        .is_none()
+    );
+    assert_eq!(fs::read(metadata).unwrap(), oversized);
+}
+
+#[test]
+fn retained_collection_rejects_a_different_directory_identity() {
+    let fixture = Fixture::new();
+    let storage = fixture.storage();
+    let _snapshot = fixture.capture(&storage);
+    let lane = storage.external_local_sources();
+    let collection = lane.path().join(LOCAL_CACHE_SNAPSHOTS);
+    let retained = crate::tree::filesystem::open_absolute_directory_nofollow(&collection).unwrap();
+    super::verify_collection(lane, &retained).unwrap();
+    let different = lane.directory().try_clone().unwrap();
+    assert!(super::verify_collection(lane, &different).is_err());
+}
+
 #[cfg(unix)]
 #[test]
 fn symlinked_collection_is_not_followed() {

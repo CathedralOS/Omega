@@ -2,8 +2,10 @@
 
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
-use crate::custody::platform::same_capability_file_identity;
-use crate::custody::tree::verify_local_cache_custody;
+use crate::custody::tree::{
+    CacheCustodyKind, retain_cache_child_directory, verify_local_cache_custody,
+    verify_retained_cache_custody_root,
+};
 use crate::error::local_snapshot_invalid;
 use crate::identity::SourceContentDigest;
 use crate::limits::{CACHE_CUSTODY_ENTRY_LIMIT, LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
@@ -66,6 +68,7 @@ fn recover_bounded(
         Err(error) => return Err(io_error(&collection, error)),
     };
     let result = (|| {
+        verify_collection(lane, &directory)?;
         for (index, entry) in directory
             .entries()
             .map_err(|error| io_error(&collection, error))?
@@ -90,7 +93,17 @@ fn recover_bounded(
                 continue;
             }
             let publication = collection.join(name);
-            let Ok(identity) = local_snapshot_content_identity(&publication) else {
+            let Ok(publication_directory) = retain_cache_child_directory(
+                CacheCustodyKind::LocalSnapshot,
+                &directory,
+                OsStr::new(name),
+                &publication,
+            ) else {
+                continue;
+            };
+            let Ok(identity) =
+                local_snapshot_content_identity(&publication, &publication_directory)
+            else {
                 continue;
             };
             if SourceContentDigest::derive(identity.as_bytes()) != *expected
@@ -135,23 +148,12 @@ fn is_snapshot_name(name: &str) -> bool {
 fn verify_collection(lane: &RetainedStorageLane, retained: &Dir) -> Result<(), SourceResolveError> {
     lane.verify_path_identity()?;
     let path = lane.path().join(LOCAL_CACHE_SNAPSHOTS);
-    let named = lane
-        .directory()
-        .open_dir_nofollow(LOCAL_CACHE_SNAPSHOTS)
-        .map_err(|error| io_error(&path, error))?;
-    let first = retained
-        .dir_metadata()
-        .map_err(|error| io_error(&path, error))?;
-    let second = named
-        .dir_metadata()
-        .map_err(|error| io_error(&path, error))?;
-    if !same_capability_file_identity(&first, &second) {
-        return Err(local_snapshot_invalid(
-            &path,
-            "cached snapshot collection changed during lookup",
-        ));
-    }
-    Ok(())
+    verify_retained_cache_custody_root(
+        &path,
+        CacheCustodyKind::LocalSnapshot,
+        retained,
+        "cached snapshot collection changed during lookup",
+    )
 }
 
 #[cfg(test)]
