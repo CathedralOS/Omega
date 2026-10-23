@@ -71,6 +71,13 @@ struct ExpressionSpanStorage {
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
 }
 
+/// Scratch remapping prepared without changing the expression arena. Only
+/// preparation can construct it; the enclosing tree transaction commits it
+/// after every occurrence store has passed validation.
+pub(crate) struct PreparedExpressionSelectionRebase {
+    remapped: Vec<Option<Vec<AuthoredDeclarationSelectionOccurrenceId>>>,
+}
+
 impl ExpressionTable {
     pub fn insert_match_arms(
         &mut self,
@@ -254,11 +261,11 @@ impl ExpressionTable {
             .map(StoredAuthoredSelectionOccurrenceId::occurrence)
     }
 
-    pub(crate) fn rebase_authored_selection_extension(
-        &mut self,
+    pub(crate) fn prepare_authored_selection_rebase(
+        &self,
         expression_frontier: usize,
         rebase: language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
-    ) -> Result<(), ()> {
+    ) -> Result<PreparedExpressionSelectionRebase, ()> {
         if expression_frontier > self.expression_count() {
             return Err(());
         }
@@ -281,6 +288,15 @@ impl ExpressionTable {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        Ok(PreparedExpressionSelectionRebase { remapped })
+    }
+
+    /// Commit the occurrence rows prepared from this unchanged table.
+    pub(crate) fn apply_authored_selection_rebase(
+        &mut self,
+        prepared: PreparedExpressionSelectionRebase,
+    ) {
+        let PreparedExpressionSelectionRebase { remapped } = prepared;
         for (index, occurrences) in remapped.into_iter().enumerate() {
             let Some(occurrences) = occurrences else {
                 continue;
@@ -292,7 +308,6 @@ impl ExpressionTable {
                         .map(StoredAuthoredSelectionOccurrenceId::new),
                 );
         }
-        Ok(())
     }
 
     pub fn insert_expression_handles(

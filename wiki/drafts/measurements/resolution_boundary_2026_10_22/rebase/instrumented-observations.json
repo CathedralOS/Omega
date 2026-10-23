@@ -1,0 +1,466 @@
+{
+  "metadata": {
+    "base": "fd83d7231c4752cbe59020c24c6a2a627d654c5f",
+    "mode": "instrumented",
+    "started_utc": "2026-10-23T01:58:38.736859+00:00",
+    "inputs": {
+      "samples/cli/facts/length/local/build.omg": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+      "samples/cli/facts/length/local/main.omg": "492d090e1ae88e1de91eb1eabcd39f36905841bcdd0dfbd01e25a8ee85318336",
+      "samples/cli/facts/length/local/invalid/build.omg": "4497f74067c281cf873cea3c356f131cf7f85cc971b2654dc3bcbbd455668fdd",
+      "samples/cli/facts/length/local/invalid/main.omg": "bd1bb7ec10c196e15dadec717b336dfadcaa9dab8c6ea913b04391c255a3cf22",
+      "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/build.omg": "22cb0c6f504a50724d2d5d7a83603529d384af204b81c72a878460a061dcb684",
+      "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/main.omg": "5e5c1bf63f31547c1439e73b5cc56e1c6c829407f74670dad51adb1476b4903f",
+      "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/invalid/build.omg": "22cb0c6f504a50724d2d5d7a83603529d384af204b81c72a878460a061dcb684",
+      "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/invalid/main.omg": "068382c02ec0bee92366dfb953e3220c87f4887b9d1a592e5b5675acbad87b73",
+      "samples/cli/facts/nested_nine_level_record_field_bound/local/build.omg": "6622df2af31a5aa0cd400b5521779e232c1b42c991447fb22c0f884485ad0b39",
+      "samples/cli/facts/nested_nine_level_record_field_bound/local/main.omg": "c5c2f0c7dc6a63c8dc66416d9729b2c8c97076cff66584a7e0de10e69904f920",
+      "samples/cli/facts/nested_nine_level_record_field_bound/local/invalid/build.omg": "6622df2af31a5aa0cd400b5521779e232c1b42c991447fb22c0f884485ad0b39",
+      "samples/cli/facts/nested_nine_level_record_field_bound/local/invalid/main.omg": "82886b8a473310edcbeb88115e5845fc0fd47aa3a2a752ac3b3a3c0e8eb3caa7",
+      "tests/omega/pass/layouts/placed_reference_results/returned/build.omg": "e53c6408d0f69f134df73be8b4b32730da63aec1d051f543e209e6d2f0fdaf86",
+      "tests/omega/pass/layouts/placed_reference_results/returned/main.omg": "b269eade319936ebddb029e643ac314204ccc6e81ecfba376caac740d1361184",
+      "tests/omega/pass/layouts/placed_reference_results/forwarded/build.omg": "e53c6408d0f69f134df73be8b4b32730da63aec1d051f543e209e6d2f0fdaf86",
+      "tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg": "bf83b9c90a15c5b6e557776e33412eccf0cbfc7072dacb5b3ec3fe56a210c069",
+      "tests/omega/fail/layouts/placed_reference_results/wrong_backing/build.omg": "9c638f776aa7741c9fc439e15a4e43cced16a4cdd30692201dc3642c32cc39ba",
+      "tests/omega/fail/layouts/placed_reference_results/wrong_backing/main.omg": "bc12b1fb06db4d4597149ff5d94bf6e9c97053db5f9e59301a5748a9d0bc603b",
+      "tests/omega/fail/layouts/placed_reference_results/overlapping_loans/build.omg": "e53c6408d0f69f134df73be8b4b32730da63aec1d051f543e209e6d2f0fdaf86",
+      "tests/omega/fail/layouts/placed_reference_results/overlapping_loans/main.omg": "ee61df7f36109ae98798a76f4a5af589543ab1e218ed657ce2722cd7b022bc4c",
+      "tests/omega/fail/layouts/placed_policy_requires_exact_attached_owner/main.omg": "e95e9e4c1808c972c3419e45d1b48dd7b855fb05920f41e449dfb14b11ddc3c6",
+      "tests/omega/fail/layouts/placed_policy_requires_exact_attached_owner/first.omg": "ccc26b543266a040597a1d821137cc06717f95796074362436ca05ad25118836",
+      "tests/omega/fail/layouts/placed_policy_requires_exact_attached_owner/second.omg": "4d80c0cb6c703ca746fc05da674a803e5fc40961785a5d5a7f45acaa7b74c894",
+      "tests/omega/fail/layouts/placed_factory_result_cannot_upgrade_source/main.omg": "d2c7a67a3510812ff8bade07a38ddd054700e790b257eb230b405e74448fdfc7"
+    },
+    "candidate_patch_sha256": "a69d02c70209320a5a5939a1c45c9013c92b2f1d6788563539c784c8a5e968c9",
+    "library_tree": "4acf0ac90ba112e00c2c779989d80aa0965c6aa5",
+    "binaries": {
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented": "8eff1290e470f9c5341ee3028952953432f8c84e83ecd153a654c3dce48be015",
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-normalization/omega-candidate": "5eae6450b7f7ac07bb9410d834c5b5bf540d16d86f058286655db67b9f73289f"
+    },
+    "complete": true
+  },
+  "records": [
+    {
+      "subject": "length",
+      "path": "samples/cli/facts/length/local/main.omg",
+      "producer": "instrumented",
+      "positive": true,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-1a1w1xui",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/samples/cli/facts/length/local/main.omg"
+      ],
+      "exit": 0,
+      "wall_ms": 2937.485792,
+      "rss": 363675648,
+      "load": [
+        21.1982421875,
+        32.94873046875,
+        39.802734375
+      ],
+      "timings": {
+        "prepare: project -> prepared sources": 13.27,
+        "compile: sources -> requested product": 2877.496,
+        "publish: retained product -> published product": 1.102,
+        "Source ingress: SourceFiles -> SyntaxTrees": 33.682,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 30.89,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 17.553,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 62.511,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 350.631,
+        "Stage 05: TypedTrees -> CheckedTrees": 2361.626,
+        "Step: settle: CheckedTrees -> SelectedExecution": 86.632,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 17.998,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 11.182,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 6.511,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.09,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.145,
+        "total elapsed": 2892.612
+      },
+      "output": "REBASE\t5575\taccepted\tequal\n    13.270 ms  prepare: project -> prepared sources\n  2877.496 ms  compile: sources -> requested product\n     1.102 ms  publish: retained product -> published product\n    33.682 ms  Source ingress: SourceFiles -> SyntaxTrees\n    30.890 ms  Step: assemble: PreparedSources -> AssembledSyntax\n    17.553 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees\n    62.511 ms  Stage 04: SymbolResolvedTrees -> TypedTrees\n   350.631 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)\n  2361.626 ms  Stage 05: TypedTrees -> CheckedTrees\n    86.632 ms  Step: settle: CheckedTrees -> SelectedExecution\n    17.998 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact\n    11.182 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi\n     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine\n     6.511 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi\n     0.090 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt\n     0.145 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact\n  2892.612 ms  total elapsed\npublished native output to /private/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-1a1w1xui/omega-program\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5575,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ],
+      "native_sha256": "0def06f10ae2e93054062a6f358b53f9b35c34af5ad96e3d822d6ddd9cf84436",
+      "native_exit": 0
+    },
+    {
+      "subject": "dyn",
+      "path": "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/main.omg",
+      "producer": "instrumented",
+      "positive": true,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-xbrtvvj8",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/samples/cli/facts/dyn_dispatch_selector_payload_bound/local/main.omg"
+      ],
+      "exit": 0,
+      "wall_ms": 2726.8490420000003,
+      "rss": 342147072,
+      "load": [
+        21.1982421875,
+        32.94873046875,
+        39.802734375
+      ],
+      "timings": {
+        "prepare: project -> prepared sources": 22.804,
+        "compile: sources -> requested product": 2641.105,
+        "publish: retained product -> published product": 2.762,
+        "Source ingress: SourceFiles -> SyntaxTrees": 40.16,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 35.097,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 43.85,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 56.305,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 283.802,
+        "Stage 05: TypedTrees -> CheckedTrees": 2145.429,
+        "Step: settle: CheckedTrees -> SelectedExecution": 110.274,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 2.736,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 2.281,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.238,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.077,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.117,
+        "total elapsed": 2670.453
+      },
+      "output": "REBASE\t5559\taccepted\tequal\n    22.804 ms  prepare: project -> prepared sources\n  2641.105 ms  compile: sources -> requested product\n     2.762 ms  publish: retained product -> published product\n    40.160 ms  Source ingress: SourceFiles -> SyntaxTrees\n    35.097 ms  Step: assemble: PreparedSources -> AssembledSyntax\n    43.850 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees\n    56.305 ms  Stage 04: SymbolResolvedTrees -> TypedTrees\n   283.802 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)\n  2145.429 ms  Stage 05: TypedTrees -> CheckedTrees\n   110.274 ms  Step: settle: CheckedTrees -> SelectedExecution\n     2.736 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact\n     2.281 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi\n     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine\n     0.238 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi\n     0.077 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt\n     0.117 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact\n  2670.453 ms  total elapsed\npublished native output to /private/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-xbrtvvj8/omega-program\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5559,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ],
+      "native_sha256": "e3dd967c514ae4edb69e500a5eb9b3db1861d6bcdce425b72e820842d9f62433",
+      "native_exit": 0
+    },
+    {
+      "subject": "record",
+      "path": "samples/cli/facts/nested_nine_level_record_field_bound/local/main.omg",
+      "producer": "instrumented",
+      "positive": true,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-z9wj0qro",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/samples/cli/facts/nested_nine_level_record_field_bound/local/main.omg"
+      ],
+      "exit": 0,
+      "wall_ms": 3878.26525,
+      "rss": 327745536,
+      "load": [
+        21.34228515625,
+        32.783203125,
+        39.7041015625
+      ],
+      "timings": {
+        "prepare: project -> prepared sources": 14.823,
+        "compile: sources -> requested product": 3816.891,
+        "publish: retained product -> published product": 0.941,
+        "Source ingress: SourceFiles -> SyntaxTrees": 44.674,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 43.73,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 23.316,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 109.286,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 364.899,
+        "Stage 05: TypedTrees -> CheckedTrees": 3218.981,
+        "Step: settle: CheckedTrees -> SelectedExecution": 123.156,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 4.599,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 3.948,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.278,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.142,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.192,
+        "total elapsed": 3833.157
+      },
+      "output": "REBASE\t5601\taccepted\tequal\n    14.823 ms  prepare: project -> prepared sources\n  3816.891 ms  compile: sources -> requested product\n     0.941 ms  publish: retained product -> published product\n    44.674 ms  Source ingress: SourceFiles -> SyntaxTrees\n    43.730 ms  Step: assemble: PreparedSources -> AssembledSyntax\n    23.316 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees\n   109.286 ms  Stage 04: SymbolResolvedTrees -> TypedTrees\n   364.899 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)\n  3218.981 ms  Stage 05: TypedTrees -> CheckedTrees\n   123.156 ms  Step: settle: CheckedTrees -> SelectedExecution\n     4.599 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact\n     3.948 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi\n     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine\n     0.278 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi\n     0.142 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt\n     0.192 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact\n  3833.157 ms  total elapsed\npublished native output to /private/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-z9wj0qro/omega-program\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5601,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ],
+      "native_sha256": "8a6d4c8b43487541b07ed4256f4f213f89d287db31c9690f42c75c56c2cc16d2",
+      "native_exit": 0
+    },
+    {
+      "subject": "returned",
+      "path": "tests/omega/pass/layouts/placed_reference_results/returned/main.omg",
+      "producer": "instrumented",
+      "positive": true,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-uoi1swka",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/tests/omega/pass/layouts/placed_reference_results/returned/main.omg"
+      ],
+      "exit": 0,
+      "wall_ms": 6219.782167,
+      "rss": 306823168,
+      "load": [
+        21.955078125,
+        32.72021484375,
+        39.64111328125
+      ],
+      "timings": {
+        "prepare: project -> prepared sources": 21.665,
+        "compile: sources -> requested product": 6152.543,
+        "publish: retained product -> published product": 1.713,
+        "Source ingress: SourceFiles -> SyntaxTrees": 31.081,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 13.938,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 36.269,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 58.605,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 1479.14,
+        "Stage 05: TypedTrees -> CheckedTrees": 2899.621,
+        "Step: settle: CheckedTrees -> SelectedExecution": 113.058,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 8.609,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 7.978,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.32,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.119,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.163,
+        "total elapsed": 6180.66
+      },
+      "output": "REBASE\t5613\taccepted\tequal\n    21.665 ms  prepare: project -> prepared sources\n  6152.543 ms  compile: sources -> requested product\n     1.713 ms  publish: retained product -> published product\n    31.081 ms  Source ingress: SourceFiles -> SyntaxTrees\n    13.938 ms  Step: assemble: PreparedSources -> AssembledSyntax\n    36.269 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees\n    58.605 ms  Stage 04: SymbolResolvedTrees -> TypedTrees\n  1479.140 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)\n  2899.621 ms  Stage 05: TypedTrees -> CheckedTrees\n   113.058 ms  Step: settle: CheckedTrees -> SelectedExecution\n     8.609 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact\n     7.978 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi\n     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine\n     0.320 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi\n     0.119 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt\n     0.163 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact\n  6180.660 ms  total elapsed\npublished native output to /private/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-uoi1swka/omega-program\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5613,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ],
+      "native_sha256": "37d6d92d98803c20efa0b98a73da0f1491abdca19b75cfe41f8bcda7bfd438b2",
+      "native_exit": 0
+    },
+    {
+      "subject": "forwarded",
+      "path": "tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg",
+      "producer": "instrumented",
+      "positive": true,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-r58mf66v",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg"
+      ],
+      "exit": 0,
+      "wall_ms": 8232.164625,
+      "rss": 312295424,
+      "load": [
+        22.58935546875,
+        32.4990234375,
+        39.4814453125
+      ],
+      "timings": {
+        "prepare: project -> prepared sources": 6.466,
+        "compile: sources -> requested product": 8190.551,
+        "publish: retained product -> published product": 1.361,
+        "Source ingress: SourceFiles -> SyntaxTrees": 33.802,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 22.025,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 31.697,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 68.273,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 1852.227,
+        "Stage 05: TypedTrees -> CheckedTrees": 3878.437,
+        "Step: settle: CheckedTrees -> SelectedExecution": 130.98,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 6.371,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.709,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.325,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.134,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.18,
+        "total elapsed": 8199.634
+      },
+      "output": "REBASE\t5615\taccepted\tequal\n     6.466 ms  prepare: project -> prepared sources\n  8190.551 ms  compile: sources -> requested product\n     1.361 ms  publish: retained product -> published product\n    33.802 ms  Source ingress: SourceFiles -> SyntaxTrees\n    22.025 ms  Step: assemble: PreparedSources -> AssembledSyntax\n    31.697 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees\n    68.273 ms  Stage 04: SymbolResolvedTrees -> TypedTrees\n  1852.227 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)\n  3878.437 ms  Stage 05: TypedTrees -> CheckedTrees\n   130.980 ms  Step: settle: CheckedTrees -> SelectedExecution\n     6.371 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact\n     5.709 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi\n     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine\n     0.325 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi\n     0.134 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt\n     0.180 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact\n  8199.634 ms  total elapsed\npublished native output to /private/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-r58mf66v/omega-program\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5615,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ],
+      "native_sha256": "4d0a240596326ce9cbc5c99920a9162d872f69bd90d9b3aee8869e0933232cef",
+      "native_exit": 0
+    },
+    {
+      "subject": "wrong_backing",
+      "path": "tests/omega/fail/layouts/placed_reference_results/wrong_backing/main.omg",
+      "producer": "instrumented",
+      "positive": false,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-cfxqcks8",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/tests/omega/fail/layouts/placed_reference_results/wrong_backing/main.omg"
+      ],
+      "exit": 1,
+      "wall_ms": 4917.968709,
+      "rss": 330727424,
+      "load": [
+        23.5830078125,
+        32.54052734375,
+        39.455078125
+      ],
+      "timings": {
+        "total elapsed": 4868.231
+      },
+      "output": "REBASE\t5577\taccepted\tequal\n  4868.231 ms  total elapsed\ncannot compile accepted package inputs: checked compilation failed for package `wrong_backing` with 1 diagnostic(s)\n  error: machine `borrow_view` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5577,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ]
+    },
+    {
+      "subject": "overlapping_loans",
+      "path": "tests/omega/fail/layouts/placed_reference_results/overlapping_loans/main.omg",
+      "producer": "instrumented",
+      "positive": false,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-_vo9u27n",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/tests/omega/fail/layouts/placed_reference_results/overlapping_loans/main.omg"
+      ],
+      "exit": 1,
+      "wall_ms": 7207.869459000001,
+      "rss": 302530560,
+      "load": [
+        26.4189453125,
+        32.9794921875,
+        39.5693359375
+      ],
+      "timings": {
+        "total elapsed": 7185.724
+      },
+      "output": "REBASE\t5642\taccepted\tequal\n  7185.724 ms  total elapsed\ncannot compile accepted package inputs: checked compilation failed for package `stable_transfer` with 3 diagnostic(s)\n  error: state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)\n  error: state `package_view` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)\n  error: statement 3 creates local borrow `second_holder` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5642,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ]
+    },
+    {
+      "subject": "exact_policy_owner",
+      "path": "tests/omega/fail/layouts/placed_policy_requires_exact_attached_owner/main.omg",
+      "producer": "instrumented",
+      "positive": false,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-xjqgfh9t",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/tests/omega/fail/layouts/placed_policy_requires_exact_attached_owner/main.omg"
+      ],
+      "exit": 1,
+      "wall_ms": 106.50729199999631,
+      "rss": 34619392,
+      "load": [
+        28.46728515625,
+        33.294921875,
+        39.64208984375
+      ],
+      "timings": {
+        "total elapsed": 89.888
+      },
+      "output": "    89.888 ms  total elapsed\nerror: `Placed<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine\n",
+      "rebases": []
+    },
+    {
+      "subject": "result_authority",
+      "path": "tests/omega/fail/layouts/placed_factory_result_cannot_upgrade_source/main.omg",
+      "producer": "instrumented",
+      "positive": false,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-u5acbg6s",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/tests/omega/fail/layouts/placed_factory_result_cannot_upgrade_source/main.omg"
+      ],
+      "exit": 1,
+      "wall_ms": 3456.277666999995,
+      "rss": 158089216,
+      "load": [
+        28.46728515625,
+        33.294921875,
+        39.64208984375
+      ],
+      "timings": {
+        "total elapsed": 3418.393
+      },
+      "output": "REBASE\t5092\taccepted\tequal\n  3418.393 ms  total elapsed\nerror: machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5092,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ]
+    },
+    {
+      "subject": "length_invalid",
+      "path": "samples/cli/facts/length/local/invalid/main.omg",
+      "producer": "instrumented",
+      "positive": false,
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolved-rebase/omega-instrumented",
+        "--timings",
+        "--target",
+        "macos_arm64",
+        "--build-dir",
+        "/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-normalization-1o_8quor",
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/samples/cli/facts/length/local/invalid/main.omg"
+      ],
+      "exit": 1,
+      "wall_ms": 5565.846666999995,
+      "rss": 284049408,
+      "load": [
+        30.03125,
+        33.53857421875,
+        39.69091796875
+      ],
+      "timings": {
+        "total elapsed": 5539.8
+      },
+      "output": "REBASE\t5567\taccepted\tequal\n  5539.800 ms  total elapsed\ncannot compile accepted package inputs: checked compilation failed for package `length_local_invalid` with 1 diagnostic(s)\n  error: cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry\n",
+      "rebases": [
+        {
+          "removed_clone_rows": 5567,
+          "outcome": "accepted",
+          "equal": true
+        }
+      ]
+    }
+  ]
+}

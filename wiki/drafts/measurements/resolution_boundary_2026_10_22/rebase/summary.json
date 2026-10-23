@@ -1,0 +1,42 @@
+{
+  "decision": "retained",
+  "work_reduction": [
+    {
+      "subject": "samples/cli/facts/length/local/main.omg",
+      "baseline_copies": 4,
+      "candidate_copies": 3,
+      "baseline_rows": 17300,
+      "candidate_rows": 11725,
+      "removed_rows": 5575
+    },
+    {
+      "subject": "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/main.omg",
+      "baseline_copies": 4,
+      "candidate_copies": 3,
+      "baseline_rows": 17278,
+      "candidate_rows": 11719,
+      "removed_rows": 5559
+    },
+    {
+      "subject": "samples/cli/facts/nested_nine_level_record_field_bound/local/main.omg",
+      "baseline_copies": 4,
+      "candidate_copies": 3,
+      "baseline_rows": 17377,
+      "candidate_rows": 11776,
+      "removed_rows": 5601
+    }
+  ],
+  "full_result_comparisons": 9,
+  "unit_result_comparisons": 6,
+  "unit_rejection_comparisons": 4,
+  "all_equal": true,
+  "compile_observations": 30,
+  "standalone_native_executions": 15,
+  "dual_engine_programs": 5,
+  "legacy_sources": {
+    "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs": "616f1d6377271e8ef32b194ed35915bd7e6589ceb65c75941e189b851d3f68f3",
+    "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs": "5e57c20b5c51a552ab7ef9c8286a81dcce6137ead1187bd89bf57b7577aa3963",
+    "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/control_flow/statement.rs": "fe65d5347fcc1df83e95cd63b67a00b503042c40e7af3aa2bcd7f9cda25ab87e"
+  },
+  "timing_conclusion": "No speedup established: single alternating A/B observation per workload under shared-host contention."
+}

@@ -271,19 +271,40 @@ impl SymbolResolvedTrees {
                 return Err((self, AuthoredSelectionExtensionRebaseError::Ledger(error)));
             }
         };
-        let mut candidate = self.clone();
-        if let Err(error) = candidate.rebase_occurrence_stores(frontier, rebase) {
-            return Err((self, error));
-        }
-        candidate.tables.authored_declaration_selections = ledger;
-        Ok(candidate)
+        // Validate every store before touching any of them. The source carrier
+        // is already owned here; a backup clone is unnecessary when a late
+        // refusal cannot observe a partly rebased earlier store.
+        let expressions = match self.prepare_occurrence_rebase(frontier, rebase) {
+            Ok(prepared) => prepared,
+            Err(error) => return Err((self, error)),
+        };
+        let mut trees = self;
+        trees
+            .tables
+            .bodies
+            .expressions
+            .apply_authored_selection_rebase(expressions);
+        trees.apply_tree_statement_rebase(frontier.tree_statements, rebase);
+        trees
+            .tables
+            .bodies
+            .statements
+            .apply_authored_selection_rebase(
+                frontier.statements,
+                frontier.transition_targets,
+                rebase,
+            );
+        trees.apply_proof_fact_rebase(frontier.proof_facts, rebase);
+        trees.tables.authored_declaration_selections = ledger;
+        Ok(trees)
     }
 
-    fn rebase_occurrence_stores(
-        &mut self,
+    fn prepare_occurrence_rebase(
+        &self,
         frontier: AuthoredSelectionExtensionFrontier,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
-    ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
+    ) -> Result<expression::PreparedExpressionSelectionRebase, AuthoredSelectionExtensionRebaseError>
+    {
         if frontier.expressions > self.tables.bodies.expressions.expression_count() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
@@ -291,17 +312,18 @@ impl SymbolResolvedTrees {
                 ),
             );
         }
-        self.tables
+        let expressions = self
+            .tables
             .bodies
             .expressions
-            .rebase_authored_selection_extension(frontier.expressions, rebase)
+            .prepare_authored_selection_rebase(frontier.expressions, rebase)
             .map_err(|()| {
                 AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
                     AuthoredSelectionOccurrenceStore::Expressions,
                 )
             })?;
 
-        self.rebase_tree_statement_occurrences(frontier.tree_statements, rebase)?;
+        self.validate_tree_statement_rebase(frontier.tree_statements, rebase)?;
 
         if frontier.statements > self.tables.bodies.statements.statement_count() {
             return Err(
@@ -320,7 +342,7 @@ impl SymbolResolvedTrees {
         self.tables
             .bodies
             .statements
-            .rebase_authored_selection_extension(
+            .validate_authored_selection_rebase(
                 frontier.statements,
                 frontier.transition_targets,
                 rebase,
@@ -336,15 +358,16 @@ impl SymbolResolvedTrees {
                 })
             })?;
 
-        self.rebase_proof_fact_occurrences(frontier.proof_facts, rebase)
+        self.validate_proof_fact_rebase(frontier.proof_facts, rebase)?;
+        Ok(expressions)
     }
 
-    fn rebase_tree_statement_occurrences(
-        &mut self,
+    fn validate_tree_statement_rebase(
+        &self,
         frontier: usize,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
-        let statements = &mut self.tables.declarations.state_statements;
+        let statements = &self.tables.declarations.state_statements;
         if frontier > statements.len() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
@@ -368,6 +391,15 @@ impl SymbolResolvedTrees {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn apply_tree_statement_rebase(
+        &mut self,
+        frontier: usize,
+        rebase: AuthoredDeclarationSelectionSuffixRebase,
+    ) {
+        let statements = &mut self.tables.declarations.state_statements;
         statements.for_each_mut(|handle, statement| {
             if usize::try_from(handle.arena_index()).expect("tree statement index overflow")
                 > frontier
@@ -375,15 +407,14 @@ impl SymbolResolvedTrees {
                 rebase_tree_statement_occurrences(statement, rebase);
             }
         });
-        Ok(())
     }
 
-    fn rebase_proof_fact_occurrences(
-        &mut self,
+    fn validate_proof_fact_rebase(
+        &self,
         frontier: usize,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
-        let facts = &mut self.tables.declarations.proof_facts;
+        let facts = &self.tables.declarations.proof_facts;
         if frontier > facts.len() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
@@ -411,6 +442,15 @@ impl SymbolResolvedTrees {
                 );
             }
         }
+        Ok(())
+    }
+
+    fn apply_proof_fact_rebase(
+        &mut self,
+        frontier: usize,
+        rebase: AuthoredDeclarationSelectionSuffixRebase,
+    ) {
+        let facts = &mut self.tables.declarations.proof_facts;
         facts.for_each_mut(|handle, fact| {
             if usize::try_from(handle.arena_index()).expect("proof fact index overflow") <= frontier
             {
@@ -428,7 +468,6 @@ impl SymbolResolvedTrees {
                     .expect("proof membership occurrence was validated before mutation"),
             );
         });
-        Ok(())
     }
 
     pub fn authored_service_reach_rows_for(
@@ -1382,6 +1421,102 @@ mod tests {
                 AuthoredSelectionOccurrenceStore::TreeStatements
             )
         );
+    }
+
+    #[test]
+    fn extension_rebase_late_failures_preserve_every_earlier_store() {
+        for failed_store in [
+            AuthoredSelectionOccurrenceStore::Statements,
+            AuthoredSelectionOccurrenceStore::TransitionTargets,
+            AuthoredSelectionOccurrenceStore::ProofFacts,
+        ] {
+            let mut trees = SymbolResolvedTrees::default();
+            record_selection(&mut trees, 1, 3);
+            let frontier = trees.authored_selection_extension_frontier();
+            let mut destination = trees.authored_declaration_selections().clone();
+            let extension = record_selection(&mut trees, 3, 4);
+            for offset in [5, 7] {
+                destination
+                    .record_resolved(
+                        SourceSpan::new(SourceId(4), Span::new(offset, offset + 1)),
+                        AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                        AuthoredDeclarationSelectionKind::MemberAccess,
+                        SymbolHandle::from_arena_index(7),
+                    )
+                    .expect("destination-only row");
+            }
+            let outside_source = destination.as_slice()[2].occurrence_id();
+            // A valid expression and tree statement must really be shifted on
+            // success; a later invalid store must leave both wholly untouched.
+            let expression = trees
+                .tables
+                .bodies
+                .expressions
+                .insert(expression::ExpressionNode::default());
+            trees
+                .tables
+                .bodies
+                .expressions
+                .attach_authored_selection_occurrences(expression, [extension]);
+            trees
+                .tables
+                .declarations
+                .state_statements
+                .append(tree_call(extension));
+            trees
+                .tables
+                .bodies
+                .statements
+                .insert(statement::StatementNode::Call(statement::TableCall {
+                    authored_call_selection: Some(
+                        if failed_store == AuthoredSelectionOccurrenceStore::Statements {
+                            outside_source
+                        } else {
+                            extension
+                        },
+                    ),
+                    ..Default::default()
+                }));
+            trees.tables.bodies.statements.insert_transition_target(
+                statement::TransitionTargetNode::Named {
+                    authored_call_selection: Some(
+                        if failed_store == AuthoredSelectionOccurrenceStore::TransitionTargets {
+                            outside_source
+                        } else {
+                            extension
+                        },
+                    ),
+                    operational_acknowledgement: Default::default(),
+                    path: Default::default(),
+                    arguments: Default::default(),
+                    evidence_arguments: Default::default(),
+                    source_span: Default::default(),
+                },
+            );
+            trees
+                .tables
+                .declarations
+                .proof_facts
+                .append(domain::ProofFact::Membership(domain::ProofMembershipFact {
+                    authored_domain_selection: Some(
+                        if failed_store == AuthoredSelectionOccurrenceStore::ProofFacts {
+                            outside_source
+                        } else {
+                            extension
+                        },
+                    ),
+                    ..Default::default()
+                }));
+            let expected = trees.clone();
+            let (returned, error) = trees
+                .rebase_authored_selection_extension(frontier, &destination)
+                .expect_err("a late destination-only occurrence must reject");
+            assert_eq!(
+                error,
+                AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(failed_store)
+            );
+            assert_eq!(returned, expected, "late refusal changed an earlier store");
+        }
     }
 
     #[test]

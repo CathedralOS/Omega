@@ -1,0 +1,6 @@
+{
+  "host": "macOS-27.0.1-arm64-arm-64bit",
+  "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "origin_main_checked": "8b048d43c2eb3a2e6beaa282292e4ef03f5a7f70",
+  "representation_delta_since_last_fetch": ""
+}

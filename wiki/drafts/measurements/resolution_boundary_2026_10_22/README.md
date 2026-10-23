@@ -184,3 +184,13 @@ All 57 full-carrier differential comparisons passed, five native/Terminal
 positives agree, and five invalid controls preserve exact diagnostics. Copied
 expression rows fall by about half; contended timings do not establish an
 end-to-end speedup. The narrower placed-result selection remains unresolved.
+
+
+## Retained follow-up: preflight selection rebasing
+
+[The rebase experiment](rebase/README.md) validates every occurrence store before
+mutating the owned carrier, preserving transactional rejection while removing
+one more full-tree backup. All 15 complete-result comparisons passed, including
+four rejection results; five native/Terminal positives and five invalid controls
+remain unchanged. The original workloads now make three full expression-arena
+copies, versus eight before the two retained changes. Timings remain inconclusive.

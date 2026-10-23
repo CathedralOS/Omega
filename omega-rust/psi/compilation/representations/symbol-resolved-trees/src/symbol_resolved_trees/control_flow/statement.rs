@@ -364,8 +364,8 @@ impl StatementTable {
         self.nodes.transition_targets.len()
     }
 
-    pub(crate) fn rebase_authored_selection_extension(
-        &mut self,
+    pub(crate) fn validate_authored_selection_rebase(
+        &self,
         statement_frontier: usize,
         transition_target_frontier: usize,
         rebase: language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
@@ -411,6 +411,16 @@ impl StatementTable {
             }
         }
 
+        Ok(())
+    }
+
+    /// The enclosing tree transaction validated both stores before mutation.
+    pub(crate) fn apply_authored_selection_rebase(
+        &mut self,
+        statement_frontier: usize,
+        transition_target_frontier: usize,
+        rebase: language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
+    ) {
         self.nodes.statements.for_each_mut(|handle, statement| {
             let StatementNode::Call(call) = statement else {
                 return;
@@ -446,7 +456,6 @@ impl StatementTable {
                         .expect("extension occurrences were validated before mutation");
                 }
             });
-        Ok(())
     }
 
     pub fn insert_tree(
@@ -997,8 +1006,9 @@ mod tests {
             });
 
         table
-            .rebase_authored_selection_extension(0, 0, rebase)
+            .validate_authored_selection_rebase(0, 0, rebase)
             .expect("extension-owned folded stores");
+        table.apply_authored_selection_rebase(0, 0, rebase);
 
         let StatementNode::Call(call) = table.statement(Handle::from_arena_index(1)) else {
             panic!("folded call")
