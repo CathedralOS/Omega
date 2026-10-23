@@ -1,0 +1,36 @@
+// Fact: 16-bit signed saturating subtraction lhs -| rhs with bounded interval 200i16 <= diff <= 450i16 establishes 200i16 <= diff <= 450i16 across all nine places so exact subtractions 450i16 - diff and diff - 200i16 are safe.
+// Place: const_name. A named constant rhs is subtracted via saturating subtraction from the bounded lhs.
+// Expected exit: 0
+machine verify_diff(value: i16) -> i16
+    requires value >= 200 && value <= 450
+{
+    let head: i16 = 450 - value;
+    let tail: i16 = value - 200;
+    head + tail
+}
+
+const RHS: i16 = 80;
+
+machine compute_const(lhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 500
+{
+    let a: i16 in Saturating = lhs as i16 in Saturating;
+    let b: i16 in Saturating = RHS as i16 in Saturating;
+    let sat: i16 in Saturating = a - b;
+    let diff: i16 = sat as i16;
+    verify_diff(diff)
+}
+
+machine evaluate() -> i16 {
+    compute_const(400)
+}
+
+machine main() crashes Trap {
+    let res: i16 = evaluate();
+    transition res == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

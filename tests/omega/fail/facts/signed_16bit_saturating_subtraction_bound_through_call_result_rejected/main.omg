@@ -1,0 +1,41 @@
+// Fact: 16-bit signed saturating subtraction lhs -| rhs with bounded interval 200i16 <= diff <= 450i16 establishes 200i16 <= diff <= 450i16 across all nine places so exact subtractions 450i16 - diff and diff - 200i16 are safe.
+// Place: call_result. The saturating difference result is returned from a callee invocation.
+// Expected exit: 0
+machine verify_diff(value: i16) -> i16
+    requires value >= 200 && value <= 450
+{
+    let head: i16 = 450 - value;
+    let tail: i16 = value - 200;
+    head + tail
+}
+
+machine get_diff(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+    ensures result >= 200 && result <= 470
+{
+    let a: i16 in Saturating = lhs as i16 in Saturating;
+    let b: i16 in Saturating = rhs as i16 in Saturating;
+    let sat: i16 in Saturating = a - b;
+    sat as i16
+}
+
+machine compute_call_result(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let transported: i16 = get_diff(lhs, rhs);
+    verify_diff(transported)
+}
+
+machine evaluate() -> i16 {
+    compute_call_result(400, 80)
+}
+
+machine main() crashes Trap {
+    let res: i16 = evaluate();
+    transition res == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

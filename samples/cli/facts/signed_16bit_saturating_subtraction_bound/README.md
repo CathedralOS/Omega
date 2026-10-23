@@ -4,6 +4,8 @@
 
 Every place performs the same operation: define bounded signed 16-bit inputs `lhs` (`300..500`) and `rhs` (`50..100`), evaluate 16-bit saturating subtraction `(lhs as i16 in Saturating) - (rhs as i16 in Saturating)` producing `sat as i16`, transport the difference value through the place, pass `diff` to `verify_diff(value: i16)` which requires `value >= 200 && value <= 450`, execute exact subtractions `head: i16 = 450 - value` and `tail: i16 = value - 200`, sum them to obtain `250i16`, and verify in `main` that `res == 250` transitioning to `done()` exiting 0. Only the transport mechanism of the difference value changes across places.
 
+Owning task: **ARITHMETIC-POLICY-REALIZATION** (`TASKS.md`), numeric-policy realization and full program acceptance. Exact requirement this row establishes: 16-bit signed saturating subtraction `lhs -| rhs` on bounded operands (`lhs >= 300 && lhs <= 500`, `rhs >= 50 && rhs <= 100`) statically establishes the difference interval `[300 - 100, 500 - 50] = [200, 450]` on the `i16` result, carries that fact through all nine transport places, and proves the consuming exact subtractions `450i16 - diff` and `diff - 200i16` from the carried fact itself — with Terminal Psi and native execution agreeing (`omega run --both`, exit 0) — and every place's reject twin failing closed at compile time.
+
 ## Places
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
@@ -20,8 +22,8 @@ Every place performs the same operation: define bounded signed 16-bit inputs `lh
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 16-bit signed saturating subtraction and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declares
+`Expected exit: 0`, and carries `expected_native_exit.txt` `0`.
 
 ## Execution
 
@@ -58,25 +60,36 @@ The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
 route and the batch route. Each mirror is byte-identical to its per-place twin.
 
-### Acceptance Gate
+### Measured evidence
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_16bit_saturating_subtraction_bound --jobs 4
-```
-
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 18/18 intended-invalid controls match their authored rejection (`cannot prove requires contract for call verify_diff`).
+Measured on macOS arm64 with the factsr1 shared generation producer
+`gen-4c23cc3391c` (revision `4c23cc3391c2e539d4065563ac95de7b18f2fc67`, omega
+sha256 `83c7ae2a45442b1ceb6f5476a6f8ed4c4af9eabbd85e682a3ed7254c7fec94cf`,
+corpus_runner sha256 `a1de848f1baca0837d28285d9da6da9acdd7639081c083743f76862a409bdb3d`):
+the ten `omega run --both` invocations above report `native exit 0` and
+`interp exit: 0` (20/20 engine observations); each of the nine `omega --check`
+twin invocations exits 1 with `cannot prove requires contract for call
+verify_diff` (nine twins and their nine byte-identical `invalid/<place>/`
+mirrors). The same facts are pinned under the corpus (below) and were measured
+fresh there through the check, native and agreement legs. The earlier
+Windows-host `sample_native_gate.py` run (10/10 oracles, 18/18 controls) is
+retained evidence from the row's author, not re-measured here. No compiler
+repair was needed and none landed.
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_16bit_saturating_subtraction_bound_through_*` and
-`tests/omega/fail/facts/signed_16bit_saturating_subtraction_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under
+`tests/omega/pass/facts/signed_16bit_saturating_subtraction_bound_through_<place>_exit`
+(9 fixtures: the place's `main.omg`, `build.omg` bound to all four hosted
+targets for `ProgramEntry`, and `expected_native_exit.txt` `0`) and
+`tests/omega/fail/facts/signed_16bit_saturating_subtraction_bound_through_<place>_rejected`
+(9 fixtures: the twin's `main.omg`, `build.omg` and `expected.txt` fragment).
+Every pinned file is byte-identical to the sample file it names (36/36 pairs
+verified with `cmp`).
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Parent outcome:** `ARITHMETIC-POLICY-REALIZATION` (`TASKS.md`), numeric-policy realization and full program acceptance.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for 16-bit signed saturating subtraction (`i16 in Saturating`, `[numeric values](wiki/spec/language/numeric_values.md)`). Specifically, 16-bit signed saturating subtraction `lhs -| rhs` with bounded interval `200i16 <= diff <= 450i16` establishes `200i16 <= diff <= 450i16` across all nine places so exact subtractions `450i16 - diff` and `diff - 200i16` are safe without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**

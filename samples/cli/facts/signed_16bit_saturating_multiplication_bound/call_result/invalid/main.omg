@@ -1,4 +1,4 @@
-// Fact: 16-bit signed saturating multiplication lhs *% rhs with bounded interval 50i16 <= prod <= 200i16 establishes 50i16 <= prod <= 200i16 across all nine places so exact subtractions 200i16 - prod and prod - 50i16 are safe.
+// Fact: 16-bit signed saturating multiplication lhs *| rhs with bounded interval 50i16 <= prod <= 200i16 establishes 50i16 <= prod <= 200i16 across all nine places so exact subtractions 200i16 - prod and prod - 50i16 are safe.
 // Invalid: lhs upper bound 21 allows prod 210, violating ensures contract. Place: call_result.
 // Expected diagnostic: cannot prove ensures contract for exit from mul_saturating
 

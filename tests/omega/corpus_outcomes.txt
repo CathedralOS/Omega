@@ -7448,6 +7448,48 @@ fail/facts/signed_16bit_bitwise_xor_bound_through_target_body_rejected rejected 
 	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_call_result_rejected rejected 47522ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from mul_saturating at statement 3: result >= 50 && result <= 200
+fail/facts/signed_16bit_saturating_multiplication_bound_through_const_name_rejected rejected 43660ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_prod from compute_const: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_field_rejected rejected 47702ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_prod from compute_field: container.prod >= 50 && container.prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_local_rejected rejected 45225ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_prod from compute_local: p >= 50 && p <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_match_join_rejected rejected 42570ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from choose_saturating at statement 4: result >= 50 && result <= 200
+fail/facts/signed_16bit_saturating_multiplication_bound_through_other_machine_rejected rejected 40053ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call forward from compute_forward: (prod_sat as i16) >= 50 && (prod_sat as i16) <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_other_state_rejected rejected 38117ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call step from verify_state: (prod_sat as i16) >= 50 && (prod_sat as i16) <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_parameter_rejected rejected 39290ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_parameter from compute_param: (prod_sat as i16) >= 50 && (prod_sat as i16) <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_multiplication_bound_through_target_body_rejected rejected 40516ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_prod from verify_target: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from verify_target: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from verify_target: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from verify_target: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_call_result_rejected rejected 36977ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_call_result: transported >= 200 && transported <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_const_name_rejected rejected 37789ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_const: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_field_rejected rejected 38929ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_field: transported >= 200 && transported <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_local_rejected rejected 40533ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_local: transported >= 200 && transported <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_match_join_rejected rejected 53268ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_match_join: joined >= 200 && joined <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_other_machine_rejected rejected 40914ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_other_machine: transported >= 200 && transported <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_other_state_rejected rejected 35410ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_other_state: d >= 200 && d <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_parameter_rejected rejected 38266ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_parameter: transported >= 200 && transported <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_saturating_subtraction_bound_through_target_body_rejected rejected 41701ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 200 && diff <= 450 (needs fact `value >= 200 && value <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_rejected rejected 10471ms expected @4c23cc3391c2+wt
 	cannot prove requires contract for call verify_sum from compute_call_result: transported >= 350 && transported <= 600 (needs fact `value >= 350 && value <= 600` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_rejected rejected 10723ms expected @4c23cc3391c2+wt
@@ -15412,6 +15454,24 @@ pass/facts/signed_16bit_bitwise_xor_bound_through_other_machine_exit checked 247
 pass/facts/signed_16bit_bitwise_xor_bound_through_other_state_exit checked 27634ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_bitwise_xor_bound_through_parameter_exit checked 27098ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_bitwise_xor_bound_through_target_body_exit checked 30039ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_call_result_exit checked 61253ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_const_name_exit checked 61289ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_field_exit checked 61121ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_local_exit checked 61285ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_match_join_exit checked 61192ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_other_machine_exit checked 45707ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_other_state_exit checked 57266ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_parameter_exit checked 60371ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_multiplication_bound_through_target_body_exit checked 61297ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_call_result_exit checked 60352ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_const_name_exit checked 38031ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_field_exit checked 42676ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_local_exit checked 47099ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_match_join_exit checked 49077ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_other_machine_exit checked 46286ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_other_state_exit checked 45505ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_parameter_exit checked 45595ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_saturating_subtraction_bound_through_target_body_exit checked 43955ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_exit checked 11941ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_exit checked 11960ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_field_exit checked 11913ms check-target:macos_arm64 @4c23cc3391c2+wt
