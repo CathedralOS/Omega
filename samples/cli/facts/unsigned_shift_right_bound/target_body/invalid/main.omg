@@ -1,6 +1,6 @@
 // Logical right shift on a bounded u64 value by a bounded shift count establishes the exact post-shift interval, discharging exact subtraction shifted - 100u64.
 // Invalid: target bodies bound is weakened to 399..399, so 399 >> 2 == 99 underflows shifted - 100.
-// Expected exit: 0
+// Expected rejection: exact arithmetic in machine `shift_right_target` state `entry` terminal expression may overflow `u64`.
 
 linux_x86_64 machine shift_right_target(val: u64, shift: u64) -> u64
 requires val >= 399 && val <= 399 && shift >= 2 && shift <= 2

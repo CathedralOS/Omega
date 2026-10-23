@@ -1,6 +1,6 @@
 // Logical right shift on a bounded u64 value by a bounded shift count establishes the exact post-shift interval, discharging exact subtraction shifted - 100u64.
 // Invalid: successor state requires bound is weakened to 399..399, so 399 >> 2 == 99 underflows shifted - 100.
-// Expected exit: 0
+// Expected rejection: exact arithmetic in machine `main` state `compute` local `res` may overflow `u64`.
 
 machine main() crashes Trap {
     transition 399 >= 399 && 399 <= 399 && 2 >= 2 && 2 <= 2 {

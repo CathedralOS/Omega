@@ -1,6 +1,6 @@
 // Logical right shift on a bounded u64 value by a bounded shift count establishes the exact post-shift interval, discharging exact subtraction shifted - 100u64.
 // Invalid: match arm produces 399, so joined bound allows 399 >> 2 == 99 underflowing shifted - 100.
-// Expected exit: 0
+// Expected rejection: exact arithmetic in machine `shift_right_match_join` state `entry` terminal expression may overflow `u64`.
 
 machine shift_right_match_join(flag: bool) -> u64
 ensures result == 0

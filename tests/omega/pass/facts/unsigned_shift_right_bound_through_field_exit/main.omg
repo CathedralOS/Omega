@@ -1,0 +1,26 @@
+// Logical right shift on a bounded u64 value by a bounded shift count establishes the exact post-shift interval, discharging exact subtraction shifted - 100u64.
+// Place: field. Bounded record fields carry the u64 value and shift count into the shift.
+// Expected exit: 0
+
+data ShiftPayload where val >= 400 && val <= 400 && shift >= 2 && shift <= 2 {
+    val: u64;
+    shift: u64;
+}
+
+machine shift_right_field(payload: ShiftPayload) -> u64
+ensures result == 0
+{
+    let shifted: u64 = payload.val >> payload.shift;
+    shifted - 100
+}
+
+machine main() crashes Trap {
+    let payload: ShiftPayload = ShiftPayload { val: 400, shift: 2 };
+    let res: u64 = shift_right_field(payload);
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

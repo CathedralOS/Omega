@@ -1,6 +1,6 @@
 // Logical right shift on a bounded u64 value by a bounded shift count establishes the exact post-shift interval, discharging exact subtraction shifted - 100u64.
 // Invalid: named constant is weakened to 399, so 399 >> 2 == 99 underflows shifted - 100.
-// Expected exit: 0
+// Expected rejection: exact arithmetic in machine `shift_right_const` state `entry` terminal expression may overflow `u64`.
 
 const BASE_VAL: u64 = 399;
 const SHIFT_AMT: u64 = 2;
