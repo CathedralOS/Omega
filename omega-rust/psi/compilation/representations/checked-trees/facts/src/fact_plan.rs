@@ -44,168 +44,76 @@ pub struct FactPlan {
     pub symbol_sets: Arena<SymbolFactSet>,
 }
 
-impl Clone for FactPlan {
-    fn clone(&self) -> Self {
-        Self {
-            places: self.places.clone(),
-            place_segments: self.place_segments.clone(),
-            facts: self.facts.clone(),
-            scalar_values: self.scalar_values.clone(),
-            boolean_predicates: self.boolean_predicates.clone(),
-            boolean_predicate_bindings: self.boolean_predicate_bindings.clone(),
-            integer_ranges: self.integer_ranges.clone(),
-            qualification_correspondences: self.qualification_correspondences.clone(),
-            domain_definition_facts: self.domain_definition_facts.clone(),
-            data_definition_facts: self.data_definition_facts.clone(),
-            instantiated_expressions: self.instantiated_expressions.clone(),
-            refs: self.refs.clone(),
-            contexts: self.contexts.clone(),
-            symbol_sets: self.symbol_sets.clone(),
-        }
-    }
+/// Whole-plan operations over the complete root set: copying, storage-reusing
+/// replacement, page extension, page handoff, and page adoption.
+///
+/// The roots are classified once, here. Every generated method names every
+/// field of `FactPlan` in a destructuring pattern, so a new arena must be
+/// classified in this list before the plan compiles, and `clone_from` — the
+/// one fan-out a struct literal cannot check — cannot keep an old root while
+/// replacing the others.
+macro_rules! fact_plan_roots {
+    ($($root:ident),* $(,)?) => {
+        impl Clone for FactPlan {
+            fn clone(&self) -> Self {
+                Self {
+                    $($root: self.$root.clone(),)*
+                }
+            }
 
-    /// Replace the complete plan while reusing storage; this is not an in-place
-    /// mutation preserving handles from the replaced plan. Only handles shared
-    /// with the source before divergence retain their meaning after replacement.
-    fn clone_from(&mut self, source: &Self) {
-        self.places.clone_from(&source.places);
-        self.place_segments.clone_from(&source.place_segments);
-        self.facts.clone_from(&source.facts);
-        self.scalar_values.clone_from(&source.scalar_values);
-        self.boolean_predicates
-            .clone_from(&source.boolean_predicates);
-        self.boolean_predicate_bindings
-            .clone_from(&source.boolean_predicate_bindings);
-        self.integer_ranges.clone_from(&source.integer_ranges);
-        self.qualification_correspondences
-            .clone_from(&source.qualification_correspondences);
-        self.domain_definition_facts
-            .clone_from(&source.domain_definition_facts);
-        self.data_definition_facts
-            .clone_from(&source.data_definition_facts);
-        self.instantiated_expressions
-            .clone_from(&source.instantiated_expressions);
-        self.refs.clone_from(&source.refs);
-        self.contexts.clone_from(&source.contexts);
-        self.symbol_sets.clone_from(&source.symbol_sets);
-    }
+            /// Replace the complete plan while reusing storage; this is not an
+            /// in-place mutation preserving handles from the replaced plan.
+            /// Only handles shared with the source before divergence retain
+            /// their meaning after replacement.
+            fn clone_from(&mut self, source: &Self) {
+                $(self.$root.clone_from(&source.$root);)*
+            }
+        }
+
+        /// Page partitioning for producers that extend one baseline plan from
+        /// several workers. A worker copies the baseline, writes each
+        /// partition on its own page, and hands back only those pages;
+        /// adopting them keeps every handle the worker minted.
+        impl FactPlan {
+            /// Append later rows of every arena on page `generation`.
+            pub fn begin_page(&mut self, generation: u32) {
+                let Self { $($root,)* } = self;
+                $($root.begin_page(generation);)*
+            }
+
+            /// The pages written after the first, leaving this plan at its first page.
+            pub fn take_additional_pages(&mut self) -> Self {
+                let Self { $($root,)* } = self;
+                Self {
+                    $($root: $root.take_additional_pages(),)*
+                }
+            }
+
+            /// Adopt pages taken from a copy of this plan's baseline.
+            pub fn adopt_additional_pages(&mut self, other: Self) {
+                let Self { $($root,)* } = other;
+                $(self.$root.adopt_additional_pages($root);)*
+            }
+        }
+    };
 }
 
-/// Page partitioning for producers that extend one baseline plan from several
-/// workers. A worker copies the baseline, writes each partition on its own
-/// page, and hands back only those pages; adopting them keeps every handle
-/// the worker minted. Every field is named so a new arena cannot be skipped.
-impl FactPlan {
-    /// Append later rows of every arena on page `generation`.
-    pub fn begin_page(&mut self, generation: u32) {
-        let Self {
-            places,
-            place_segments,
-            facts,
-            scalar_values,
-            boolean_predicates,
-            boolean_predicate_bindings,
-            integer_ranges,
-            qualification_correspondences,
-            domain_definition_facts,
-            data_definition_facts,
-            instantiated_expressions,
-            refs,
-            contexts,
-            symbol_sets,
-        } = self;
-        places.begin_page(generation);
-        place_segments.begin_page(generation);
-        facts.begin_page(generation);
-        scalar_values.begin_page(generation);
-        boolean_predicates.begin_page(generation);
-        boolean_predicate_bindings.begin_page(generation);
-        integer_ranges.begin_page(generation);
-        qualification_correspondences.begin_page(generation);
-        domain_definition_facts.begin_page(generation);
-        data_definition_facts.begin_page(generation);
-        instantiated_expressions.begin_page(generation);
-        refs.begin_page(generation);
-        contexts.begin_page(generation);
-        symbol_sets.begin_page(generation);
-    }
-
-    /// The pages written after the first, leaving this plan at its first page.
-    pub fn take_additional_pages(&mut self) -> Self {
-        let Self {
-            places,
-            place_segments,
-            facts,
-            scalar_values,
-            boolean_predicates,
-            boolean_predicate_bindings,
-            integer_ranges,
-            qualification_correspondences,
-            domain_definition_facts,
-            data_definition_facts,
-            instantiated_expressions,
-            refs,
-            contexts,
-            symbol_sets,
-        } = self;
-        Self {
-            places: places.take_additional_pages(),
-            place_segments: place_segments.take_additional_pages(),
-            facts: facts.take_additional_pages(),
-            scalar_values: scalar_values.take_additional_pages(),
-            boolean_predicates: boolean_predicates.take_additional_pages(),
-            boolean_predicate_bindings: boolean_predicate_bindings.take_additional_pages(),
-            integer_ranges: integer_ranges.take_additional_pages(),
-            qualification_correspondences: qualification_correspondences.take_additional_pages(),
-            domain_definition_facts: domain_definition_facts.take_additional_pages(),
-            data_definition_facts: data_definition_facts.take_additional_pages(),
-            instantiated_expressions: instantiated_expressions.take_additional_pages(),
-            refs: refs.take_additional_pages(),
-            contexts: contexts.take_additional_pages(),
-            symbol_sets: symbol_sets.take_additional_pages(),
-        }
-    }
-
-    /// Adopt pages taken from a copy of this plan's baseline.
-    pub fn adopt_additional_pages(&mut self, other: Self) {
-        let Self {
-            places,
-            place_segments,
-            facts,
-            scalar_values,
-            boolean_predicates,
-            boolean_predicate_bindings,
-            integer_ranges,
-            qualification_correspondences,
-            domain_definition_facts,
-            data_definition_facts,
-            instantiated_expressions,
-            refs,
-            contexts,
-            symbol_sets,
-        } = other;
-        self.places.adopt_additional_pages(places);
-        self.place_segments.adopt_additional_pages(place_segments);
-        self.facts.adopt_additional_pages(facts);
-        self.scalar_values.adopt_additional_pages(scalar_values);
-        self.boolean_predicates
-            .adopt_additional_pages(boolean_predicates);
-        self.boolean_predicate_bindings
-            .adopt_additional_pages(boolean_predicate_bindings);
-        self.integer_ranges.adopt_additional_pages(integer_ranges);
-        self.qualification_correspondences
-            .adopt_additional_pages(qualification_correspondences);
-        self.domain_definition_facts
-            .adopt_additional_pages(domain_definition_facts);
-        self.data_definition_facts
-            .adopt_additional_pages(data_definition_facts);
-        self.instantiated_expressions
-            .adopt_additional_pages(instantiated_expressions);
-        self.refs.adopt_additional_pages(refs);
-        self.contexts.adopt_additional_pages(contexts);
-        self.symbol_sets.adopt_additional_pages(symbol_sets);
-    }
-}
+fact_plan_roots!(
+    places,
+    place_segments,
+    facts,
+    scalar_values,
+    boolean_predicates,
+    boolean_predicate_bindings,
+    integer_ranges,
+    qualification_correspondences,
+    domain_definition_facts,
+    data_definition_facts,
+    instantiated_expressions,
+    refs,
+    contexts,
+    symbol_sets,
+);
 
 impl FactPlan {
     pub fn with_capacity(fact_capacity: usize, context_capacity: usize) -> Self {
