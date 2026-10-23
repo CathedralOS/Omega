@@ -89,6 +89,29 @@ python3 tools/sample_native_gate.py --filter cli/facts/computed_subslice_extent
 python3 tools/corpus_gate.py --both --filter computed_subslice_extent
 ```
 
+### Re-pin at the corpus fixture names (macOS arm64)
+
+The row's fixtures first landed as `computed_subslice_extent_<place>_exit` and
+`computed_subslice_extent_<place>_insufficient_bound`. The corpus census
+(`tools/swarm/fact_status.sh`) matches fixture families as
+`<fact>_through_<place>_{exit,rejected}` on exact path components, so it read
+zero for this row; on 2026-10-22 both families moved to
+`tests/omega/{pass,fail}/facts/computed_subslice_extent_through_<place>_`
+`{exit,rejected}` with contents unchanged (`git mv`; each `build.omg`'s
+`Build::application` label renamed to name the behavior it pins). Every entry
+was re-measured on macOS arm64: root and nine places `omega run --both` exit 0
+with `native exit 0` / `interp exit: 0` and the nine twins exit 1 at
+`cannot prove requires contract for call range ... end <= items.len` in state
+`entry` (shared opt-level-1 producer at base `9ff26a870215`), and the golden
+records below were taken with the corpus runner built from the landing-base
+tree `a93651a39273` (`--build-profile` reports `opt_level: 1`, digest
+`36b7269cd30c3582`). The three goldens carry this row at the anchored base
+(`@a93651a39273+wt`): nine `checked check-target:macos_arm64` rows and twelve
+`rejected expected` rows in `tests/omega/corpus_outcomes.txt`, nine
+`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, and
+nine `built ... exit:0 interpreter:agrees` rows in
+`tests/omega/corpus_both_macos_arm64.txt`.
+
 Authority comes from [state contracts](../../../../wiki/spec/language/state_contracts.md),
 [checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants),
 [exact subslice descriptors](../../../../wiki/spec/terminal-psi/byte_views.md), and

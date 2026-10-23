@@ -242,12 +242,27 @@ discharge instead, which is a different obligation.
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/{pass,fail}/facts/content_interval_adjacency/`
-by nine positive fixtures and nine reject twins; each positive fixture is
-byte-identical to its place program and carries `expected_native_exit.txt` `0`,
-and each twin carries the authored `expected.txt` fragment. The recorded
-`corpus_outcomes.txt` golden carries `checked` and `rejected expected` rows for
-all eighteen.
+Every positive place is pinned under `tests/omega/pass/facts/` as
+`content_interval_adjacency_through_<place>_exit` (byte-identical to its place
+program, with `expected_native_exit.txt` `0`) and every reject twin under
+`tests/omega/fail/facts/` as `content_interval_adjacency_through_<place>_rejected`
+(carrying the authored `expected.txt` fragment). The families were moved on
+2026-10-22 from the original nested `content_interval_adjacency/<place>/`
+layout to these names — contents unchanged — because the corpus census
+(`tools/swarm/fact_status.sh`) matches fixture families on exact path
+components and read the row as unpinned. Re-measured on macOS arm64: root and
+nine places `omega run --both` exit 0 (`native exit 0`, `interp exit: 0`), and
+the nine twins reject at exit 1 with `cannot prove ensures contract ...` under
+the authored fragment (shared opt-level-1 producer at base `9ff26a870215`). The
+recorded goldens carry `checked check-target:macos_arm64` and
+`rejected expected` rows for all eighteen in `tests/omega/corpus_outcomes.txt`
+(records taken with the runner built from the landing-base tree `a93651a39273`,
+opt-level 1, digest `36b7269cd30c3582`; stamps `@a93651a39273+wt`), plus
+`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt` (this
+macOS arm64 host executes the host target, so the row now carries its own
+native rows as well as the retained `interpreter:agrees` evidence at
+`f77f2aa2a1c2` in `tests/omega/corpus_both_macos_arm64.txt`, re-recorded at
+`a93651a39273` in the same pass).
 
 ## Requirements and Evidence
 

@@ -2830,52 +2830,52 @@ fail/facts/computed_record_window_through_target_body_rejected rejected 3481ms e
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
-fail/facts/computed_subslice_extent_call_result_insufficient_bound rejected 27026ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from window: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_const_name_insufficient_bound rejected 29828ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_effectful_actual rejected 4084ms expected @3f2f7090cbe0
+fail/facts/computed_subslice_extent_effectful_actual rejected 1752ms expected @a93651a39273+wt
 	exact arithmetic in machine `read` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/computed_subslice_extent_field_insufficient_bound rejected 22162ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_local_insufficient_bound rejected 21418ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_match_join_insufficient_bound rejected 21648ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_other_machine_insufficient_bound rejected 21619ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_other_state_insufficient_bound rejected 21523ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_parameter_insufficient_bound rejected 21364ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from exercise: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_saved_predicate rejected 11635ms expected @3f2f7090cbe0
+fail/facts/computed_subslice_extent_saved_predicate rejected 4568ms expected @a93651a39273+wt
 	cannot prove requires contract for call range from read: cursor.low + 0 <= cursor.low + 2 && cursor.low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_stale_field rejected 11479ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_target_body_insufficient_bound rejected 21481ms expected @3f2f7090cbe0
-	cannot prove requires contract for call range from read: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_37 <= __hoist_38 && __hoist_38 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_39 <= __hoist_40 && __hoist_40 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_41 <= __hoist_42 && __hoist_42 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/content_interval_adjacency/call_result rejected 4955ms expected @f77f2aa2a1c2+wt
+fail/facts/computed_subslice_extent_stale_field rejected 4516ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_call_result_rejected rejected 5048ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from window: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_const_name_rejected rejected 4447ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_field_rejected rejected 4346ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_local_rejected rejected 4308ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_match_join_rejected rejected 5816ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_other_machine_rejected rejected 5641ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_other_state_rejected rejected 5626ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_parameter_rejected rejected 3991ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from exercise: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_through_target_body_rejected rejected 5000ms expected @a93651a39273+wt
+	cannot prove requires contract for call range from read: __hoist_16 <= __hoist_17 && __hoist_17 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: __hoist_18 <= __hoist_19 && __hoist_19 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: __hoist_20 <= __hoist_21 && __hoist_21 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: __hoist_22 <= __hoist_23 && __hoist_23 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/content_interval_adjacency_through_call_result_rejected rejected 5755ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from carry at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 1: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/const_name rejected 4761ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_const_name_rejected rejected 6477ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/field rejected 4888ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_field_rejected rejected 6325ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 1: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/local rejected 4828ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_local_rejected rejected 5755ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 1: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/match_join rejected 4806ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_match_join_rejected rejected 4961ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/other_machine rejected 4679ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_other_machine_rejected rejected 4692ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from Forwarder::forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/other_state rejected 4678ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_other_state_rejected rejected 3927ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/parameter rejected 4674ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_parameter_rejected rejected 3701ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
-fail/facts/content_interval_adjacency/target_body rejected 4551ms expected @f77f2aa2a1c2+wt
+fail/facts/content_interval_adjacency_through_target_body_rejected rejected 3616ms expected @a93651a39273+wt
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
@@ -11664,24 +11664,24 @@ pass/facts/computed_record_window_through_other_machine_exit checked 20855ms che
 pass/facts/computed_record_window_through_other_state_exit checked 20453ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_through_parameter_exit checked 20761ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_through_target_body_exit checked 20511ms check-target:macos_arm64 @dd658fb23eef
-pass/facts/computed_subslice_extent_call_result_exit checked 62827ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_const_name_exit checked 62923ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_field_exit checked 63098ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_local_exit checked 63748ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_match_join_exit checked 62696ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_other_machine_exit checked 62526ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_other_state_exit checked 63248ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_parameter_exit checked 62538ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/computed_subslice_extent_target_body_exit checked 63318ms check-target:macos_arm64 @3f2f7090cbe0
-pass/facts/content_interval_adjacency/call_result checked 12620ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/const_name checked 12109ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/field checked 12159ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/local checked 11770ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/match_join checked 11715ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/other_machine checked 11742ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/other_state checked 11735ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/parameter checked 11741ms check-target:macos_arm64 @f77f2aa2a1c2+wt
-pass/facts/content_interval_adjacency/target_body checked 11792ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/computed_subslice_extent_through_call_result_exit checked 5897ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_const_name_exit checked 5911ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_field_exit checked 5910ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_local_exit checked 6619ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_match_join_exit checked 6545ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_other_machine_exit checked 6379ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_other_state_exit checked 9652ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_parameter_exit checked 9408ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/computed_subslice_extent_through_target_body_exit checked 9763ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_call_result_exit checked 13452ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_const_name_exit checked 12557ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_field_exit checked 11791ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_local_exit checked 9641ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_match_join_exit checked 8916ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_other_machine_exit checked 8062ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_other_state_exit checked 6074ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_parameter_exit checked 6000ms check-target:macos_arm64 @a93651a39273+wt
+pass/facts/content_interval_adjacency_through_target_body_exit checked 5338ms check-target:macos_arm64 @a93651a39273+wt
 pass/facts/content_reunion_through_call_result_exit checked 5742ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/content_reunion_through_const_name_exit checked 5756ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/content_reunion_through_field_exit checked 5733ms check-target:macos_arm64 @6cd22386cbb5
