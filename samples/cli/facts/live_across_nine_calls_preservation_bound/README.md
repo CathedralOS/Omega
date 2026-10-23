@@ -42,6 +42,31 @@ omega run --both samples/cli/facts/live_across_nine_calls_preservation_bound/tar
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
+### Pinned Corpus Fixtures
+
+All 18 positive and negative witness fixtures are pinned in the corpus suite:
+
+- Pass fixtures (`tests/omega/pass/facts/`):
+  - [`live_across_nine_calls_preservation_bound_through_local_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_local_exit)
+  - [`live_across_nine_calls_preservation_bound_through_field_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_field_exit)
+  - [`live_across_nine_calls_preservation_bound_through_parameter_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_parameter_exit)
+  - [`live_across_nine_calls_preservation_bound_through_call_result_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_call_result_exit)
+  - [`live_across_nine_calls_preservation_bound_through_match_join_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_match_join_exit)
+  - [`live_across_nine_calls_preservation_bound_through_const_name_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_const_name_exit)
+  - [`live_across_nine_calls_preservation_bound_through_other_state_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_other_state_exit)
+  - [`live_across_nine_calls_preservation_bound_through_other_machine_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_other_machine_exit)
+  - [`live_across_nine_calls_preservation_bound_through_target_body_exit`](../../../../tests/omega/pass/facts/live_across_nine_calls_preservation_bound_through_target_body_exit)
+- Fail fixtures (`tests/omega/fail/facts/`):
+  - [`live_across_nine_calls_preservation_bound_through_local_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_local_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_field_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_field_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_parameter_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_parameter_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_call_result_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_call_result_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_match_join_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_match_join_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_const_name_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_const_name_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_other_state_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_other_state_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_other_machine_rejected)
+  - [`live_across_nine_calls_preservation_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/live_across_nine_calls_preservation_bound_through_target_body_rejected)
+
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
@@ -78,5 +103,7 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) without reopening source. The 64-bit integer layout plan (`u64` size 8, alignment 8) validates, and target `CallPlan`/`StatePlan` assign register and stack spill placements for values live across calls per ABI rules.
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions, assigns callee-saved register homes (such as `rbx`/`r12-r15` on `x86_64`; `x19-x28` on `arm64`) or spill slots in the activation frame, and emits prologues and epilogues restoring callee-saved registers according to the `StatePlan`. Nine sequential calls exert sustained pressure on callee-saved allocation and activation frame sizing.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions encode into machine bytes, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
+
+- **Pinned record:** the 18 fixtures are under `tests/omega/{pass,fail}/facts/live_across_nine_calls_preservation_bound_through_<place>_{exit,rejected}`, byte-equal to the nine `<place>/main.omg` programs and their `invalid/` twins. Recorded at `@595562a958b4+wt` on macOS arm64 with the shared generation's `corpus_runner` (opt-level 1 producer at base `595562a958b`): 18 rows in `corpus_outcomes.txt` (9 `checked` with `check-target:macos_arm64`, 9 `rejected ... expected` carrying the `exact arithmetic in machine ... local underflow may overflow u64` diagnostic), 9 `built ... exit:0` rows in `corpus_native_macos_arm64.txt`, and 9 `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`; 0 keys lost, 0 continuation lines dropped, 0 timeout rows.
 
 - **What remains open:** Values live across ten or more sequential calls with extreme register pressure forcing multi-slot stack frame spill reallocation, live-across-call floating point scalar preservation, and live-across-call vector register preservation.
