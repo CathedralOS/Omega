@@ -191,47 +191,62 @@ pub(super) fn check_flow_call_contracts(
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             let _s = phase_profile::guard("05.d.7.3b.2.exits");
-            return_values::check_activation_return(program, facts, exit_flow, &mut diagnostics);
-            boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics);
-            exits::check_scalar_result_domains(
-                program,
-                facts,
-                exit_flow,
-                &mut scalar_returns,
-                &mut diagnostics,
-            );
-            check_exit_ensures(
-                program,
-                facts,
-                state_flow,
-                exit_flow,
-                entailment.for_machine(facts, state_flow.machine_symbol),
-                &content_plans,
-                call_frames,
-                &mut cyclic_headers,
-                &mut diagnostics,
-            );
+            phase_profile::scope("05.d.7.3b.2.exits.a.activation_return", || {
+                return_values::check_activation_return(program, facts, exit_flow, &mut diagnostics)
+            });
+            phase_profile::scope("05.d.7.3b.2.exits.b.boundary_refutations", || {
+                boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics)
+            });
+            phase_profile::scope("05.d.7.3b.2.exits.c.scalar_result_domains", || {
+                exits::check_scalar_result_domains(
+                    program,
+                    facts,
+                    exit_flow,
+                    &mut scalar_returns,
+                    &mut diagnostics,
+                )
+            });
+            phase_profile::scope("05.d.7.3b.2.exits.d.exit_ensures", || {
+                check_exit_ensures(
+                    program,
+                    facts,
+                    state_flow,
+                    exit_flow,
+                    entailment.for_machine(facts, state_flow.machine_symbol),
+                    &content_plans,
+                    call_frames,
+                    &mut cyclic_headers,
+                    &mut diagnostics,
+                )
+            });
             // An owned nominal result also owes its declared field predicates
             // on the returned value itself -- enforced here so a caller may
             // consume them from the signature (flow/calls.rs).
             let exit_diagnostics = diagnostics.len();
-            exits::check_result_field_domains(
-                program,
-                facts,
-                state_flow,
-                exit_flow,
-                call_frames,
-                &mut diagnostics,
-            );
+            phase_profile::scope("05.d.7.3b.2.exits.e.result_field_domains", || {
+                exits::check_result_field_domains(
+                    program,
+                    facts,
+                    state_flow,
+                    exit_flow,
+                    call_frames,
+                    &mut diagnostics,
+                )
+            });
             // The return hands every readable `&mut` referent back to the
             // caller, so the field facts it assumed on entry are due again.
             // A reference return into that referent names the same place
             // twice; report each exact place once per exit.
-            exits::check_exclusive_referent_field_domains(
-                program,
-                facts,
-                exit_flow,
-                &mut diagnostics,
+            phase_profile::scope(
+                "05.d.7.3b.2.exits.f.exclusive_referent_field_domains",
+                || {
+                    exits::check_exclusive_referent_field_domains(
+                        program,
+                        facts,
+                        exit_flow,
+                        &mut diagnostics,
+                    )
+                },
             );
             let mut reported = Vec::new();
             for diagnostic in diagnostics.split_off(exit_diagnostics) {

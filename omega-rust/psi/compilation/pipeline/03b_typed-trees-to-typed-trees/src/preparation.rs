@@ -291,35 +291,63 @@ pub fn prepare_typed_trees(
     let _post_loop_guard = phase_profile::guard("05.c.3.post_specialization");
     // Assembly normalization produces ordinary locals and helper bodies.
     // They participate in the same value/default-domain preparation as source.
-    crate::assembly_control::normalize(&mut program)?;
-    settle_value_destinations(&mut program)?;
-    default_domain_zero::refine_default_domain_zero(&mut program);
+    phase_profile::scope("05.c.3.a.assembly_normalize", || {
+        crate::assembly_control::normalize(&mut program)
+    })?;
+    phase_profile::scope("05.c.3.b.settle_value_destinations", || {
+        settle_value_destinations(&mut program)
+    })?;
+    phase_profile::scope("05.c.3.c.default_domain_zero", || {
+        default_domain_zero::refine_default_domain_zero(&mut program)
+    });
     // Constructed result types finish the source roster that field elaboration reads;
     // substituted member edges do not become new application demands.
-    crate::constructed_results::retain_constructed_result_types(&mut program);
-    data_applications::elaborate(&mut program)?;
-    runtime_index_fields::materialize(&mut program)?;
+    phase_profile::scope("05.c.3.d.constructed_result_types", || {
+        crate::constructed_results::retain_constructed_result_types(&mut program)
+    });
+    phase_profile::scope("05.c.3.e.data_applications", || {
+        data_applications::elaborate(&mut program)
+    })?;
+    phase_profile::scope("05.c.3.f.runtime_index_fields", || {
+        runtime_index_fields::materialize(&mut program)
+    })?;
     // A projected receiver reads its elaborated field telescope. Binding it
     // before that producer would borrow the declaration's open field instead
     // of the caller's exact application. This is the ordinary dependency order,
     // not a separate path for nested Binding carriers.
-    validation::resolve_dynamic_call_targets(&mut program)?;
+    phase_profile::scope("05.c.3.g.dynamic_call_targets", || {
+        validation::resolve_dynamic_call_targets(&mut program)
+    })?;
     let signature_type_start = program.type_reference_table.type_reference_count();
-    crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
-    crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+    phase_profile::scope("05.c.3.h.dynamic_slots", || {
+        crate::monomorphization::instantiate_dynamic_slots(&mut program)
+    })?;
+    phase_profile::scope("05.c.3.i.requirement_applications", || {
+        crate::monomorphization::instantiate_requirement_applications(&mut program)
+    })?;
     // The public signatures above own newly instantiated carrier occurrences.
     // Complete their field views just as for source types, without revisiting
     // the unchanged source roster or electing a private realization's fields.
-    data_applications::elaborate_new_types(&mut program, signature_type_start)?;
-    crate::assignment_destinations::prepare(&mut program);
-    entry_contexts::validate_zero_contexts(&program, request.entry_contexts)?;
-    crate::assembly_control::admit(&program)?;
+    phase_profile::scope("05.c.3.j.elaborate_new_types", || {
+        data_applications::elaborate_new_types(&mut program, signature_type_start)
+    })?;
+    phase_profile::scope("05.c.3.k.assignment_destinations", || {
+        crate::assignment_destinations::prepare(&mut program)
+    });
+    phase_profile::scope("05.c.3.l.zero_contexts", || {
+        entry_contexts::validate_zero_contexts(&program, request.entry_contexts)
+    })?;
+    phase_profile::scope("05.c.3.m.assembly_admit", || {
+        crate::assembly_control::admit(&program)
+    })?;
     // Mathematical source applications consume the same exact application
     // views, implicit index descriptors and final operand occurrences as
     // immutable checking. Form their signature after those producers finish;
     // checking before preparation would capture an incomplete source value.
     // This remains one kernel-checked signature, carried into the proof facts.
-    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&program)?;
+    let mathematics = phase_profile::scope("05.c.3.n.mathematical_declarations", || {
+        proof::mathematical_declarations::check_mathematical_declarations(&program)
+    })?;
     Ok((
         program.into(),
         TypedPreparation {
