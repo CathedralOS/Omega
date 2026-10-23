@@ -2615,6 +2615,15 @@ pass/facts/nine_variant_enum_payload_bound_through_other_machine_exit built 8096
 pass/facts/nine_variant_enum_payload_bound_through_other_state_exit built 9478ms exit:0 @595562a958b4+wt
 pass/facts/nine_variant_enum_payload_bound_through_parameter_exit built 9104ms exit:0 @595562a958b4+wt
 pass/facts/nine_variant_enum_payload_bound_through_target_body_exit built 10166ms exit:0 @595562a958b4+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_call_result_exit built 4742ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_const_name_exit built 5065ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_field_exit built 5362ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_local_exit built 4120ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_match_join_exit built 4214ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_other_machine_exit built 4112ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_other_state_exit built 5273ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_parameter_exit built 5468ms exit:0 @80e7797d0e1e+wt
+pass/facts/nineteen_variant_enum_payload_bound_through_target_body_exit built 5840ms exit:0 @80e7797d0e1e+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 15708ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 15401ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit built 15557ms exit:0 stdout:match @d698b30fd9ab+wt
