@@ -10,8 +10,9 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, borrowed_slice_view_element, parameter_qualifications,
-    strips_erased_parameter, structural_access_for_type_reference,
+    ShapeCollector, base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
+    dense_structural_parameter_index, parameter_qualifications,
+    structural_access_for_type_reference,
 };
 
 use crate::execution::terminal_unit::StateParameter;
@@ -172,7 +173,7 @@ pub(crate) fn structural_computation_argument(
     if access != target_access {
         return None;
     }
-    let parameter_index = dense_structural_index(program, parameters, source_position)?;
+    let parameter_index = dense_structural_parameter_index(program, parameters, source_position)?;
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         path: Vec::new(),
@@ -370,22 +371,11 @@ pub(crate) fn borrowed_storage_argument(
                 {
                     return None;
                 }
-                let parameter_index = u32::try_from(
-                    parameters[..position]
-                        .iter()
-                        .filter(|parameter| {
-                            !parameter.is_const
-                                && strips_erased_parameter(parameter) != Some(true)
-                                && program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
-                        })
-                        .count(),
-                )
-                .ok()?;
+                let parameter_index = dense_scalar_parameter_index(program, parameters, position)?;
                 CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index }
             } else {
-                let parameter_index = dense_structural_index(program, parameters, position)?;
+                let parameter_index =
+                    dense_structural_parameter_index(program, parameters, position)?;
                 CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
             };
             (reference, source)
@@ -617,7 +607,7 @@ pub(in crate::execution) fn borrowed_view_argument(
         }
         (
             CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: dense_structural_index(program, parameters, position)?,
+                parameter_index: dense_structural_parameter_index(program, parameters, position)?,
             },
             parameter.type_reference,
         )
@@ -684,28 +674,6 @@ pub(in crate::execution) fn borrowed_view_argument(
     })
 }
 
-/// The dense structural-namespace index of the authored parameter at
-/// `position`: the number of earlier formals the structural roster keeps.
-/// The signature builders strip `[erased]` formals before splitting scalars
-/// from structural values (`strips_erased_parameter`), and stage 05 replays
-/// that roster, so an erased proof formal occupies no structural slot here.
-fn dense_structural_index(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[StateParameter],
-    position: usize,
-) -> Option<u32> {
-    let index = parameters[..position]
-        .iter()
-        .filter(|parameter| {
-            strips_erased_parameter(parameter) != Some(true)
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .count();
-    u32::try_from(index).ok()
-}
-
 /// Resolve the established home first, then apply one owned-storage contract.
 /// Copying snapshots contents; affine arguments move at the exact call occurrence.
 /// Neither operation acquires disposal authority from its storage classification.
@@ -737,7 +705,7 @@ fn owned_argument(
         }
         (
             CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: dense_structural_index(program, parameters, position)?,
+                parameter_index: dense_structural_parameter_index(program, parameters, position)?,
             },
             parameter.type_reference,
         )

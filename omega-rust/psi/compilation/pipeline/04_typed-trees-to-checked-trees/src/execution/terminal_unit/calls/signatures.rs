@@ -10,8 +10,7 @@ use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, StateParameter, SymbolHandle, TypeReferenceNode,
-    strips_erased_parameter,
+    PermissionEventSource, StateParameter, SymbolHandle, strips_erased_parameter,
 };
 
 /// The qualified structural signature of a state without scalar
@@ -455,14 +454,9 @@ pub(crate) fn entry_claims(
             }
             return None;
         }
-        let mut source_type = source.type_reference;
-        while let TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } = program.type_reference_table.type_reference(source_type)
-        {
-            source_type = *base_type;
-        }
+        // The carrier beneath the declaration's `Reference`/`Constrained`
+        // shells, from the type table's own query rather than a private walk.
+        let source_type = validation::unwrapped_type_reference(program, source.type_reference)?;
         // The source ownership producer already enumerates the complete
         // frontier. Preserve each typed descendant path: an array element may
         // itself contain several claims or another array, not one root claim.

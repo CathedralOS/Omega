@@ -3,8 +3,8 @@
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
-    base_type_identity, byte_sequence_type_identity, structural_access_for_type_reference,
-    terminal_field_identity,
+    base_type_identity, byte_sequence_type_identity, dense_scalar_parameter_index,
+    structural_access_for_type_reference, terminal_field_identity,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -757,11 +757,7 @@ fn runtime_index_parameter_position(
     {
         return None;
     }
-    let selector = parameters[..authored_position]
-        .iter()
-        .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
-        .count();
-    u32::try_from(selector).ok()
+    dense_scalar_parameter_index(program, parameters, authored_position)
 }
 
 /// The checked coordinate for a runtime-index selector spelled as a field
@@ -867,14 +863,7 @@ pub(crate) fn fixed_byte_range_within_extent(
     start: usize,
     end: usize,
 ) -> Option<()> {
-    let mut container = container;
-    while let TypeReferenceNode::Constrained { base_type, .. }
-    | TypeReferenceNode::Reference {
-        referee: base_type, ..
-    } = program.type_reference_table.type_reference(container)
-    {
-        container = *base_type;
-    }
+    let container = validation::unwrapped_type_reference(program, container)?;
     let TypeReferenceNode::FixedArray {
         element_type,
         length: typed_trees::types::FixedArrayLength::Literal(length),
@@ -894,32 +883,21 @@ pub(crate) fn fixed_byte_range_within_extent(
 /// borrows.
 fn slice_type_reference(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    while let TypeReferenceNode::Constrained { base_type, .. }
-    | TypeReferenceNode::Reference {
-        referee: base_type, ..
-    } = program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *base_type;
-    }
-    matches!(
-        program.type_reference_table.type_reference(type_reference),
-        TypeReferenceNode::Slice { .. }
-    )
+    validation::unwrapped_type_reference(program, type_reference).is_some_and(|type_reference| {
+        matches!(
+            program.type_reference_table.type_reference(type_reference),
+            TypeReferenceNode::Slice { .. }
+        )
+    })
 }
 
 fn fixed_array_literal_length(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<usize> {
-    while let TypeReferenceNode::Constrained { base_type, .. }
-    | TypeReferenceNode::Reference {
-        referee: base_type, ..
-    } = program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *base_type;
-    }
+    let type_reference = validation::unwrapped_type_reference(program, type_reference)?;
     let TypeReferenceNode::FixedArray {
         length: typed_trees::types::FixedArrayLength::Literal(length),
         ..

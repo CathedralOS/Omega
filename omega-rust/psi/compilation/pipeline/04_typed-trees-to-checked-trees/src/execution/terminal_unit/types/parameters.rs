@@ -218,3 +218,24 @@ pub(crate) fn dense_structural_parameter_index(
     )
     .ok()
 }
+
+/// The dense scalar-namespace index of the authored parameter at
+/// `authored_position`: the number of earlier formals that occupy the scalar
+/// namespace (`values::scalar::occupies_scalar_position`), the same partition
+/// the signature builders record in each
+/// `CheckedStructuralScalarParameterPlan`'s `source_position`.
+pub(crate) fn dense_scalar_parameter_index(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    authored_position: usize,
+) -> Option<u32> {
+    parameters.get(authored_position)?;
+    u32::try_from(
+        parameters
+            .iter()
+            .take(authored_position)
+            .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+            .count(),
+    )
+    .ok()
+}
