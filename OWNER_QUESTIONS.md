@@ -135,3 +135,42 @@ linear terminal-disposition eligibility kept separate. This asks for the source
 selection contract; implementing its representation, checking and lowering is
 engineering. It gates that part of `STATIC-MACHINE-MIGRATION` and new nominal
 cleanup examples, not existing residence repairs or structural cleanup.
+
+### Q3. When does mutation preserve non-owning routed membership?
+
+Cathedral's reusable mapping carrier needs to protect its installed custody
+while allowing checked state updates. The guide's controlled cell is the same
+minimal case: `Controlled` is established by `create`, while a separately
+authorized setter changes a field and subsequent readers receive the controlled
+cell. A declared `Counter.cell: Cell in Controlled` also owes that qualification
+at its ordinary consumption points.
+
+[Domain mutation](wiki/spec/language/domains.md#declaration-and-membership) says
+subject-bound facts invalidate unless preserved or re-established, and
+[authority](wiki/spec/resources/authority.md) makes
+provenance mean what its declared theory states; equal reconstructed fields do
+not recover it. [Mutable arguments](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+distinguish additional input qualifications (not automatically promised back)
+from declared field/default domains (restored on return), and explicitly retain
+access restrictions even when membership facts disappear.
+[Reference identity](wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
+does not by itself preserve facts about a changed referent. These clauses do
+not specify a preservation judgment for a predicate-free, non-owning routed
+domain when a descendant field changes without replacing the governed carrier.
+
+Does that membership denote an origin of the existing carrier which can survive
+such a field update, or an origin of its prior value which must be established
+again? If preservation is allowed, what distinguishes an admissible descendant
+update from whole-carrier replacement and from a routed domain with additional
+predicate or history meaning? An `ensures Controlled` creates the obligation,
+not the missing derivation. Recommendation: specify the exact preservation
+boundary; do not infer it merely from an empty predicate/dependency list.
+
+Audit: source clauses and access catalogs remain locally fail-closed pending
+enforcement. The ordinary checker currently also confuses additional root
+qualifications with default-domain handback obligations; repairing that does
+not answer this question. Existing identity-only retention for a separately
+governed nonresident content write does not establish a general rule for
+mutation of the carrier itself. This gates controlled-field handback and the
+guide's post-update qualified reader, not policy parsing, exact route resolution,
+access-demand inference, or the already-published three-page boot.

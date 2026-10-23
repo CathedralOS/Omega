@@ -1,0 +1,4 @@
+data Cell { value: u32; }
+domain Cell::Before(cell) requires cell.value == 0;
+machine observe(cell: &write Cell in Before) -> u32 { cell.value }
+machine main() {}

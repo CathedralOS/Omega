@@ -1909,6 +1909,13 @@ defines the complete product bar.
   and a writer delegating to an unlisted helper. Its interpreter/native results
   agree without extra runtime permission fields or a changed carrier layout.
 
+  The controlled field's post-update routed-membership handback needs the
+  preservation boundary in [Q3](OWNER_QUESTIONS.md#q3-when-does-mutation-preserve-non-owning-routed-membership).
+  This does not gate policy transport or access-demand checking: access restrictions
+  survive independently of invalidated membership facts. Keep the
+  `additional_input_domain_mutation` fact row as the prerequisite distinction
+  between an extra input qualification and a declared field/default invariant.
+
   Acceptance: the same policy survives the ordinary fact/loan transport places,
   nested fields, whole-place replacement, requirement dispatch, helper calls,
   reflection and codecs. Reject unauthorized reads/writes, an issuer accessing

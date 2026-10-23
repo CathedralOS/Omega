@@ -1774,9 +1774,6 @@ fail/domains/qualified_fixed_byte_array_write_only_read rejected 280ms expected 
 fail/domains/qualified_fixed_byte_array_write_only_split rejected 894ms expected @ef7962801508
 fail/domains/qualified_fixed_vec_byte_view_overflow rejected 3043ms expected @ef7962801508
 fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
-fail/domains/qualified_mutable_scalar_exit_requires_handback rejected 569ms expected @65641cea7412+wt
-	cannot prove default-domain field requirement for return from corrupt at statement 2: value requires [u16; N]::Terminated
-	cannot prove default-domain field requirement for return from corrupt at statement 3: value requires [u16; N]::Terminated
 fail/domains/qualified_record_authored_arithmetic rejected 925ms expected @868a854ecd4d+wt
 fail/domains/qualified_record_capture_after_mutation rejected 843ms expected @868a854ecd4d+wt
 fail/domains/qualified_record_capture_before_mutation rejected 834ms expected @868a854ecd4d+wt

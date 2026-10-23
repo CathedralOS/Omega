@@ -1,0 +1,8 @@
+data Cell { value: u32; }
+domain Cell::Before(cell) requires cell.value == 0;
+data Holder { cell: Cell in Before; }
+machine overwrite(cell: &write Cell) { cell.value = 73; }
+machine corrupt(holder: &write Holder) {
+    overwrite(&write holder.cell);
+}
+machine main() {}

@@ -127,8 +127,8 @@ pub(crate) fn validate_checked_write_only_slice(
             // an attenuation onto write-only access is sound only when the
             // lent place keeps every declared constraint atom. The walk
             // therefore runs whether or not any write-only root exists, so
-            // `&write` formations from mutable places take the same exact-atom
-            // gate in every state.
+            // `&write` formations from mutable places take the same storage
+            // and qualification-admission judgments in every state.
             // A generic declaration retains a dependent obligation. Calls
             // below judge its exact static application with the ordinary
             // callable substitution, so dependence never becomes absence.
@@ -335,9 +335,23 @@ fn closed_write_only_data(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let definition = program.closed_data_definition(type_reference)?;
-    checked_write_only_data_shape(program, definition)?;
+    let definition = write_only_data_shape(program, type_reference)?;
     definition.where_facts.is_empty().then_some(definition)
+}
+
+/// Qualifications add obligations, not fields or address computation. Resolve
+/// the retained carrier's geometry without changing the referee on the loan.
+/// Stores still owe the complete qualified destination and its custody; this
+/// query proves neither membership, access authorization nor displacement.
+fn write_only_data_shape(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<&DataDefinition> {
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
+    let definition = program.closed_data_definition(carrier)?;
+    checked_write_only_data_shape(program, definition)
 }
 
 fn closed_write_only_data_by_symbol(
@@ -378,8 +392,7 @@ fn write_only_record_shape(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let definition = program.closed_data_definition(type_reference)?;
-    checked_write_only_data_shape(program, definition)?;
+    let definition = write_only_data_shape(program, type_reference)?;
     (DataDefinition::shape_kind_from_members(program.data_members(definition))
         == DataShapeKind::Record)
         .then_some(definition)
@@ -672,15 +685,13 @@ fn projection_sources(
     sources
 }
 
-/// One `&write` borrow at a checked-call argument boundary. The lent place
-/// keeps every constraint atom it declared: a write-only subloan is sound
-/// only when the callee's declared `&write` referee is the place's type
-/// atom-for-atom — a weaker referee would let the callee write values the
-/// caller's place forbids, and a stronger or different one asserts atoms the
-/// place never owned. Returns `true` once the argument is resolved — admitted
-/// silently, or rejected with a directed diagnostic — and `false` when the
-/// shape is no admitted subloan, leaving the ordinary expression walk to
-/// report it.
+/// Locate one `&write` argument without observing its old contents. Compare
+/// the receiving storage identity here; ordinary call or construction admission
+/// separately proves qualifications on this exact value. The actual storage's
+/// declared defaults and the full loan remain obligations of the owner, even
+/// when the receiving helper's input type is bare. Returns `true` once this
+/// address judgment resolves, including a directed carrier mismatch, and
+/// `false` when the ordinary expression walk must diagnose an unsupported place.
 fn write_only_call_subloan(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -707,8 +718,8 @@ fn write_only_call_subloan(
 
     // `&write` formation is also the attenuation boundary for every mutable
     // place: a borrow lent from a `&mut` reference or a `mut` value binding
-    // faces the same exact-atom gate as a write-only reborrow, so the subloan
-    // rungs resolve the lent place over the state's write-only roots plus its
+    // faces the same non-observation judgment as a write-only reborrow. Resolve
+    // the lent place over the state's write-only roots plus its
     // declared projection sources. These establish address evaluation only;
     // ordinary argument admission still owns authority and binding mutability.
     // They never become write-only roots for expression observation.
@@ -721,19 +732,16 @@ fn write_only_call_subloan(
     if let Some(root) = direct_write_only_root(program, target, roots) {
         return match declared_referee {
             Some(declared) => {
-                crate::value_custody::type_references::type_references_match(
-                    program,
-                    root.referee,
-                    declared,
-                ) || reject_subloan_referee_mismatch(
-                    program,
-                    machine,
-                    state,
-                    target,
-                    root.referee,
-                    declared,
-                    diagnostics,
-                )
+                write_only_referee_storage_matches(program, root.referee, declared)
+                    || reject_subloan_referee_mismatch(
+                        program,
+                        machine,
+                        state,
+                        target,
+                        root.referee,
+                        declared,
+                        diagnostics,
+                    )
             }
             None => true,
         };
@@ -741,7 +749,7 @@ fn write_only_call_subloan(
 
     // A projected loan lends an address, not its previous value. Fields and
     // fixed-array elements share the same content-independent place walk;
-    // aggregate leaves owe the same exact referee contract as whole roots.
+    // aggregate leaves owe the same carrier and qualification checks as roots.
     if let Some(projection) = receiver::nonobserving_projection(
         program,
         machine,
@@ -758,17 +766,16 @@ fn write_only_call_subloan(
         return match declared_referee {
             Some(declared) => {
                 is_admitted_checked_referee(program, referee)
-                    && (crate::value_custody::type_references::type_references_match(
-                        program, referee, declared,
-                    ) || reject_subloan_referee_mismatch(
-                        program,
-                        machine,
-                        state,
-                        target,
-                        referee,
-                        declared,
-                        diagnostics,
-                    ))
+                    && (write_only_referee_storage_matches(program, referee, declared)
+                        || reject_subloan_referee_mismatch(
+                            program,
+                            machine,
+                            state,
+                            target,
+                            referee,
+                            declared,
+                            diagnostics,
+                        ))
             }
             // The call's own access and arity checks still own unresolved
             // targets; this judgment only establishes a non-observing place.
@@ -779,8 +786,25 @@ fn write_only_call_subloan(
     false
 }
 
-/// Report an `&write` subloan whose lent place type is not the callee's
-/// declared referee atom-for-atom, then treat the argument as resolved: the
+/// Compare storage without claiming qualification admission. An input domain
+/// is an independently checked call precondition, not a different record
+/// address. The full actual and formal types remain on the call and loan;
+/// ordinary admission proves predicates and rejects implicit meaning erasure.
+/// Storage-sensitive scalar constraints and nested reference access remain in
+/// their existing structural identities rather than being stripped here.
+fn write_only_referee_storage_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+) -> bool {
+    actual.is_valid()
+        && required.is_valid()
+        && crate::stored_structural_type_identity(program, actual, &[], &[])
+            == crate::stored_structural_type_identity(program, required, &[], &[])
+}
+
+/// Report an `&write` subloan whose lent storage does not match the receiving
+/// referee, then treat the argument as resolved: the
 /// generic projection envelope must not report the same borrow again.
 fn reject_subloan_referee_mismatch(
     program: &dyn crate::CheckingInput,
@@ -792,7 +816,7 @@ fn reject_subloan_referee_mismatch(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` lends `{}` of type `{}` as `&write` to a parameter declared `&write {}`; a write-only subloan must preserve the callee-declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected",
+        "machine `{}` state `{}` lends `{}` of type `{}` as `&write` to a parameter declared `&write {}`; a write-only subloan requires compatible stored carriers without changing scalar storage constraints or nested reference access",
         machine.name,
         state.name,
         program.expression_table.display_name(target),
@@ -1453,8 +1477,9 @@ fn validate_received_value(
     {
         // Calls and local formation use the same non-observing place walk.
         // This boundary checks the lent place against the receiving parameter;
-        // persistent locals check their own declared referee instead. Neither
-        // may weaken, strengthen or substitute the original constraint atoms.
+        // persistent locals check their own declared referee instead. Carrier
+        // compatibility does not prove the receiving qualifications or erase
+        // the lent storage's original constraints.
         return;
     }
     if let Some(required) = receiving_type

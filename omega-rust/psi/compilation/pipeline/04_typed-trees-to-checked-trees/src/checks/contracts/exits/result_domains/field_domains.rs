@@ -413,8 +413,9 @@ pub(crate) fn is_readable_mutable_reference(
 
 /// The referent whose validity an exclusive borrow owes on normal return.
 /// Write-only authority changes which operations may establish that validity,
-/// not the requirement to return a valid value. The retained entry memberships
-/// are invariant premises; this query grants no observation or readable alias.
+/// not the requirement to return a valid value. Declared field/default domains
+/// remain invariant premises; additional input qualifications are preconditions.
+/// This query grants no observation or readable alias.
 pub(crate) fn exclusive_referent_type(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -488,7 +489,7 @@ pub(crate) fn exclusive_referent_field_requirements(
 }
 
 /// A machine's normal return is a default-domain consumption point for every
-/// mutable or write-only referent it received: the root and field facts
+/// mutable or write-only referent it received: its declared field/default facts
 /// assumed on entry must be provable again from the live evidence at the
 /// exit. A write through a bare alias (`&mut [u8; 4]` onto a `Utf8` field)
 /// retires the field's fact without establishing anything, so returning
@@ -514,59 +515,17 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
         .iter()
         .map(|context_ref| context_ref.context)
         .collect();
-    // Exclusive roots use implicit signature preconditions rather than seeded
-    // StateParameterDomain facts. Their declaration still creates a return
-    // obligation, even when a write retired every copy of the entry evidence.
+    // Entry qualifications are implicit `requires`, not implicit `ensures`.
+    // They may expire when the supplied referent changes. Only its declared
+    // field/default domains below require restoration here; explicit result
+    // guarantees are checked separately. Retained access restrictions are not
+    // membership facts and do not disappear with this input knowledge.
     let memberships = std::cell::OnceCell::new();
     let membership = || {
         memberships.get_or_init(|| {
             crate::flow::MembershipEvidence::prepare(program, &facts.semantic, &entry_contexts)
         })
     };
-    if let Some(state) = validation::find_state_for_exit(program, exit) {
-        for parameter in program.state_parameters(state).iter().filter(|parameter| {
-            exclusive_referent_type(program, parameter.type_reference).is_valid()
-        }) {
-            for (domain_symbol, semantic_domain) in
-                validation::field_domains::domain_constraint_identities(
-                    program,
-                    parameter.type_reference,
-                )
-            {
-                let subject = CanonicalPlace {
-                    root: PlaceRoot::Symbol(parameter.symbol),
-                    segments: Vec::new(),
-                };
-                let established = membership().contains(&subject, domain_symbol, semantic_domain);
-                // Predicate-only qualifications may be repaired inside the
-                // invariant window. At return they need live evidence just
-                // as routed qualifications do; their declaration is not a
-                // postcondition we may assume. Keep indexed applications on
-                // exact instance matching until their substituted predicates
-                // are available to the place prover.
-                let repaired = !established
-                    && value_provable_domain(program, domain_symbol)
-                    && program.domain_definitions().iter().any(|domain| {
-                        domain.symbol == domain_symbol
-                            && typed_trees::domain::index_parameters(program, domain).is_empty()
-                    })
-                    && super::super::super::prover::prove_domain_at_place(
-                        program,
-                        &facts.semantic,
-                        &entry_contexts,
-                        &subject,
-                        domain_symbol,
-                    );
-                if !established && !repaired {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
-                        crate::labels::machine_name(program, exit.machine_symbol), exit.statement_index,
-                        parameter.name, crate::labels::symbol_name(program, domain_symbol),
-                    )));
-                }
-            }
-        }
-    }
     // Every return-field question sees this same immutable exit namespace.
     // Prepare tags once if any conditional payload needs them, never per field.
     let cases = std::cell::OnceCell::new();

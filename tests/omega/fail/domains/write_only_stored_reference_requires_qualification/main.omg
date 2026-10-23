@@ -1,0 +1,7 @@
+data Cell { value: u32; }
+domain Cell::Before(cell) requires cell.value == 0;
+data Holder { cell: &write Cell in Before; }
+machine main() {
+    let mut cell: Cell = Cell { value: 1 };
+    let holder: Holder = Holder { cell: &write cell };
+}

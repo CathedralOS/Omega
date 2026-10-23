@@ -1,3 +1,4 @@
+// An additional input qualification is not an implicit postcondition.
 domain [u16; 4]::Terminated(value) requires value[3] == 0;
 machine corrupt(value: &mut [u16; 4] in Terminated, fail: bool) -> u64 {
     transition fail { true -> broken(value) false -> 0 }
