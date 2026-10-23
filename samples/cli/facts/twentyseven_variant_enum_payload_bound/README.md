@@ -2,7 +2,7 @@
 
 Fact: matching a 27-variant tagged enum payload TwentySevenChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64), V26(u64), V27(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`), the `payloads case where` clause of the settled proposition-based scalar range contract; the enum-bound row family's local label is `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND`.
 Governing Specifications:
 - `wiki/spec/layouts/plans.md` (Tagged variant layout plans and alignment)
 - `wiki/spec/terminal-psi/control_flow.md` (Pattern matching, variant dispatch, and join obligations)
@@ -34,19 +34,46 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/twenty-sevenone_variant_enum_payload_bound/target_body/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/local/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/field/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/parameter/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/call_result/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/match_join/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/const_name/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/other_state/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/other_machine/main.omg
+omega run --both samples/cli/facts/twentyseven_variant_enum_payload_bound/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
+
+### Pinned fixture family
+
+The 18 fixtures under `tests/omega/{pass,fail}/facts/` mirror this sample tree
+byte-for-byte: nine positives
+(`twentyseven_variant_enum_payload_bound_through_<place>_exit`: `main.omg`,
+`build.omg`, `expected_native_exit.txt`) and nine reject twins
+(`twentyseven_variant_enum_payload_bound_through_<place>_rejected`: `main.omg`,
+`build.omg`, `expected.txt`). Both files of a twin are the sample's own
+`<place>/invalid/` files, and each `expected.txt` carries the twin's observed
+rejection text.
+
+The three macOS golden legs were recorded at `9b001b8f6afa+wt` with the shared
+generation producer built at that same revision (`gen-9b001b8f6af`; omega
+sha256 `6d24393125b7`, runner sha256 `cee00bbdce17`):
+
+- `corpus_outcomes.txt`: +18 keys -- nine `checked` rows carrying
+  `check-target:macos_arm64` and nine `rejected ... expected` rows carrying
+  their own diagnostics in 12 continuation lines;
+- `corpus_native_macos_arm64.txt`: nine `built ... exit:0` rows;
+- `corpus_both_macos_arm64.txt`: nine `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows.
+
+No row records a lost success, no leg wrote a timeout row, and no twin was
+recorded as rejected without its expected fragment. The same 18 twin
+diagnostics are byte-identical under the earlier producer
+`gen-4c23cc3391c`, 42 `.rs` files of compiler movement apart.
 
 ### The oracle discriminates
 
@@ -84,4 +111,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 27-variant tagged enum `TwentySevenChoice` with a 1-byte discriminant tag (`u8` range 0..26) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 27-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
