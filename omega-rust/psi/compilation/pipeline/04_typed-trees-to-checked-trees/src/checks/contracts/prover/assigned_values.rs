@@ -84,6 +84,67 @@ fn prove_domain_by_extent_enumeration(
         })
 }
 
+/// One walk over the live facts in the selected contexts: `accepts` judges the
+/// payload, `at_subject` the fact's own place. Membership, permission and
+/// carried-origin obligations are payload judgments over this one walk; none of
+/// them rebuilds the context/view/fact scan for itself.
+pub(super) fn live_fact_at_place(
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    accepts: impl Fn(&facts::Fact) -> bool,
+    at_subject: impl Fn(PlaceHandle) -> bool,
+) -> bool {
+    contexts.iter().any(|context| {
+        semantic
+            .context_view(semantic.contexts.get(*context))
+            .facts()
+            .any(|candidate| {
+                accepts(candidate) && candidate.place.as_place().is_some_and(&at_subject)
+            })
+    })
+}
+
+/// The membership specialization of the same walk: the payload supplies the
+/// carried fact's declaration and interned instance, `satisfies` decides
+/// whether that membership answers the obligation at hand.
+pub(super) fn carried_membership_at(
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    satisfies: impl Fn(SymbolHandle, language_semantics::SemanticDomainId) -> bool,
+    at_subject: impl Fn(PlaceHandle) -> bool,
+) -> bool {
+    live_fact_at_place(
+        semantic,
+        contexts,
+        |candidate| {
+            candidate.payload.domain_membership().is_some_and(
+                |(_, _, candidate_symbol, candidate_instance)| {
+                    satisfies(candidate_symbol, candidate_instance)
+                },
+            )
+        },
+        at_subject,
+    )
+}
+
+/// Whether a carried fact at `candidate` covers the `subject` elementwise:
+/// same canonical root, and at every position either equal segments or a
+/// containing `FixedRange` (the whole-extent `0..usize::MAX` row covers a
+/// runtime `Index`; a finite range covers contained indices -- see
+/// [`segments_cover_subject`]).
+fn covers_canonical_subject(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    candidate: PlaceHandle,
+    subject: &CanonicalPlace,
+) -> bool {
+    canonical_place_from_semantic_place(program, semantic, semantic.places.get(candidate))
+        .is_some_and(|candidate| {
+            candidate.root == subject.root
+                && segments_cover_subject(program, &candidate.segments, &subject.segments)
+        })
+}
+
 /// Whether a carried membership fact on `subject` (a declared constraint or
 /// established contract evidence) already implies `domain`. This is the
 /// evidence arm of [`prove_domain_at_place`]: routed provenance and prior
@@ -96,34 +157,14 @@ fn carried_domain_membership_at_place(
     subject: &CanonicalPlace,
     domain: SymbolHandle,
 ) -> bool {
-    contexts.iter().any(|context| {
-        semantic
-            .context_view(semantic.contexts.get(*context))
-            .facts()
-            .any(|fact| {
-                let candidate_domain = match fact.payload {
-                    facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
-                    _ => return false,
-                };
-                let Some(place) = fact.place.as_place() else {
-                    return false;
-                };
-                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
-                    .is_some_and(|candidate| {
-                        (candidate.root) == (subject.root)
-                            && segments_cover_subject(
-                                program,
-                                &candidate.segments,
-                                &subject.segments,
-                            )
-                            && validation::field_domains::domain_membership_implies(
-                                program,
-                                candidate_domain,
-                                domain,
-                            )
-                    })
-            })
-    })
+    carried_membership_at(
+        semantic,
+        contexts,
+        |candidate, _| {
+            validation::field_domains::domain_membership_implies(program, candidate, domain)
+        },
+        |candidate| covers_canonical_subject(program, semantic, candidate, subject),
+    )
 }
 
 pub(in crate::checks::contracts) fn prove_domain_at_place(
@@ -150,9 +191,9 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
 /// symbol, which is the whole theory of an atomic domain but not of a family:
 /// `BelowIndex<4>` and `BelowIndex<9>` share a symbol and have no variance
 /// relationship, so a fact about one must not satisfy an obligation for the
-/// other. [`domain_membership_implies`] correctly refuses that reduction, so an
-/// indexed requirement is discharged here by matching the carried fact's own
-/// interned instance identity instead of its family symbol.
+/// other. [`validation::field_domains::domain_membership_implies`] correctly
+/// refuses that reduction, so an indexed requirement matches the carried fact's
+/// own interned instance identity instead of its family symbol.
 ///
 /// Only live membership evidence is consulted. A declared constraint, a
 /// completed call's `ensures`, or an established initializer each record their
@@ -166,36 +207,15 @@ pub(in crate::checks::contracts) fn prove_indexed_domain_at_place(
     domain: SymbolHandle,
     instance: language_semantics::SemanticDomainId,
 ) -> bool {
-    if !instance.is_valid() {
-        return false;
-    }
-    contexts.iter().any(|context| {
-        semantic
-            .context_view(semantic.contexts.get(*context))
-            .facts()
-            .any(|fact| {
-                let Some((_, _, candidate_symbol, candidate_instance)) =
-                    fact.payload.domain_membership()
-                else {
-                    return false;
-                };
-                if candidate_symbol != domain || candidate_instance != instance {
-                    return false;
-                }
-                let Some(place) = fact.place.as_place() else {
-                    return false;
-                };
-                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
-                    .is_some_and(|candidate| {
-                        candidate.root == subject.root
-                            && segments_cover_subject(
-                                program,
-                                &candidate.segments,
-                                &subject.segments,
-                            )
-                    })
-            })
-    })
+    instance.is_valid()
+        && carried_membership_at(
+            semantic,
+            contexts,
+            |candidate_domain, candidate_instance| {
+                candidate_domain == domain && candidate_instance == instance
+            },
+            |candidate| covers_canonical_subject(program, semantic, candidate, subject),
+        )
 }
 
 /// Per-byte predicates survive a window; UTF-8 and nonempty do not. Strip

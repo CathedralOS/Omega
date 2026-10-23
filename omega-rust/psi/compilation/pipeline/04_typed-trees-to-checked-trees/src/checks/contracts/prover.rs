@@ -24,7 +24,7 @@
 //! contract checks, and `call_guarantees` is also used by `checks::borrows`.
 
 use checked_trees::{FlowCallFact, FlowStateFact};
-use facts::{FactPayload, FactPlace};
+use facts::FactPayload;
 
 mod assigned_values;
 pub(super) use assigned_values::{
@@ -288,40 +288,36 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 // declaration implication nor a scalar value alone supplies
                 // equality of their indices. Flow has already substituted
                 // exact caller subjects and refreshed specialized identities.
-                return semantic_domain.is_valid() && entry_contexts.iter().any(|entry_context| {
-                    semantic.context_view(semantic.contexts.get(*entry_context)).facts().any(|candidate| {
-                        matches!(candidate.payload,
-                            FactPayload::DomainMembership { domain_symbol: candidate_domain, semantic_domain: candidate_instance, .. }
-                            | FactPayload::ContractDomainMembership { domain_symbol: candidate_domain, semantic_domain: candidate_instance, .. }
-                            if candidate_domain == domain_symbol && candidate_instance == semantic_domain)
-                            && matches!(candidate.place, FactPlace::Place(candidate_place)
-                                if semantic.places_match(program, candidate_place, place))
-                    })
-                });
+                return semantic_domain.is_valid()
+                    && assigned_values::carried_membership_at(
+                        semantic,
+                        entry_contexts,
+                        |candidate_symbol, candidate_instance| {
+                            candidate_symbol == domain_symbol
+                                && candidate_instance == semantic_domain
+                        },
+                        |candidate| semantic.places_match(program, candidate, place),
+                    );
             }
             entry_contexts.iter().any(|entry_context| {
-                let context = semantic.contexts.get(*entry_context);
                 semantic
-                    .context_view(context)
+                    .context_view(semantic.contexts.get(*entry_context))
                     .proves_place_domain_membership_in_program(program, place, domain_symbol)
-                    || semantic.context_view(context).facts().any(|candidate| {
-                        let candidate_domain = match candidate.payload {
-                            facts::domain_membership_symbol_pattern!(domain_symbol) => {
-                                domain_symbol
-                            }
-                            _ => return false,
-                        };
-                        let Some(candidate_place) = candidate.place.as_place() else {
-                            return false;
-                        };
-                        validation::field_domains::domain_membership_implies(
-                            program,
-                            candidate_domain,
-                            domain_symbol,
-                        ) && (semantic.places_match(program, candidate_place, place)
-                            || place_covers_subject(program, semantic, candidate_place, place))
-                    })
-            }) || assigned_values::prove_domain(
+            }) || assigned_values::carried_membership_at(
+                semantic,
+                entry_contexts,
+                |candidate_symbol, _| {
+                    validation::field_domains::domain_membership_implies(
+                        program,
+                        candidate_symbol,
+                        domain_symbol,
+                    )
+                },
+                |candidate| {
+                    semantic.places_match(program, candidate, place)
+                        || place_covers_subject(program, semantic, candidate, place)
+                },
+            ) || assigned_values::prove_domain(
                 program,
                 semantic,
                 entry_contexts,
@@ -333,36 +329,22 @@ pub(super) fn semantic_contexts_prove_contract_fact(
             let Some(place) = fact.place.as_place() else {
                 return false;
             };
-            entry_contexts.iter().any(|entry_context| {
-                let context = semantic.contexts.get(*entry_context);
-                semantic.context_view(context).facts().any(|candidate| {
-                    let Some(candidate_permission) = candidate.payload.carry_permission() else {
-                        return false;
-                    };
-                    let Some(candidate_place) = candidate.place.as_place() else {
-                        return false;
-                    };
-                    candidate_permission == permission
-                        && semantic.places_match(program, candidate_place, place)
-                })
-            })
+            assigned_values::live_fact_at_place(
+                semantic,
+                entry_contexts,
+                |candidate| candidate.payload.carry_permission() == Some(permission),
+                |candidate| semantic.places_match(program, candidate, place),
+            )
         }
         FactPayload::BooleanExpression(expression)
         | FactPayload::ContractBooleanExpression { expression, .. } => {
-            matches!(
-                program.expression_table.expression(expression),
-                checked_trees::expression::ExpressionNode::Boolean(true)
-            ) || entry_contexts.iter().any(|entry_context| {
-                let context = semantic.contexts.get(*entry_context);
-                semantic_context_proves_boolean_expression(
-                    program,
-                    semantic,
-                    context,
-                    entry_contexts,
-                    point,
-                    expression,
-                )
-            })
+            semantic_contexts_prove_boolean_expression(
+                program,
+                semantic,
+                entry_contexts,
+                point,
+                expression,
+            )
         }
         FactPayload::PropositionApplication { .. }
         | FactPayload::ContractPropositionApplication { .. } => {
@@ -376,16 +358,12 @@ pub(super) fn semantic_contexts_prove_contract_fact(
             let Some(place) = fact.place.as_place() else {
                 return false;
             };
-            entry_contexts.iter().any(|entry_context| {
-                semantic
-                    .context_view(semantic.contexts.get(*entry_context))
-                    .facts()
-                    .any(|candidate| {
-                        matches!(candidate.payload, FactPayload::CarryOrigin { .. })
-                            && matches!(candidate.place, FactPlace::Place(candidate_place)
-                            if semantic.places_match(program, candidate_place, place))
-                    })
-            })
+            assigned_values::live_fact_at_place(
+                semantic,
+                entry_contexts,
+                |candidate| matches!(candidate.payload, FactPayload::CarryOrigin { .. }),
+                |candidate| semantic.places_match(program, candidate, place),
+            )
         }
         // These are evidence or deferred obligations, not propositions this
         // dispatcher can establish. An unfamiliar payload is never success.
