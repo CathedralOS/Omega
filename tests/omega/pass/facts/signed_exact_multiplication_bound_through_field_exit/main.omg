@@ -1,0 +1,39 @@
+// Fact: multiplying two bounded signed i64 values (factor >= 10i64 && factor <= 15i64 and scale >= 4i64 && scale <= 6i64) establishes product >= 40i64 && product <= 90i64, discharging a downstream contract requiring product >= 40i64 && product <= 90i64 across all nine places.
+// Place: field. A record field carries the product into the downstream verifier.
+// Expected exit: 0
+
+data ProductHolder {
+    product: i64;
+}
+
+machine verify_product(product: i64) -> i32
+requires product >= 40 && product <= 90
+{
+    0i32
+}
+
+machine verify_field(h: ProductHolder) -> i32
+requires h.product >= 40 && h.product <= 90
+{
+    verify_product(h.product)
+}
+
+machine compute_field(factor: i64, scale: i64) -> i32
+requires factor >= 10 && factor <= 15 && scale >= 4 && scale <= 6
+{
+    let holder: ProductHolder = ProductHolder { product: factor * scale };
+    verify_field(holder)
+}
+
+machine probe() -> i32 {
+    compute_field(12i64, 5i64)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,38 @@
+// Fact: left shift on a bounded signed i64 value value >= 25i64 && value <= 25i64 by 2 establishes shifted >= 100i64 && shifted <= 100i64 for exact subtraction shifted - 100i64.
+// Place: another machine. An independent forwarding machine transports the bounded signed operand.
+// Expected exit: 0
+
+machine shift_left(val: i64) -> i64
+    requires val >= 25i64 && val <= 25i64
+    ensures result >= 100i64 && result <= 100i64
+{
+    val << 2
+}
+
+machine dispatch_shift(v: i64) -> i64
+    requires v >= 25i64 && v <= 25i64
+    ensures result >= 100i64 && result <= 100i64
+{
+    shift_left(v)
+}
+
+machine main() crashes Trap {
+    let val: i64 = 25i64;
+    transition val >= 25i64 && val <= 25i64 {
+        true -> shift_step(val)
+        _ -> bad()
+    }
+    state shift_step(v: i64) {
+        let shifted: i64 = dispatch_shift(v);
+        transition shifted >= 100i64 && shifted <= 100i64 {
+            true -> done(shifted)
+            _ -> bad()
+        }
+    }
+    state done(s: i64) {
+        let diff: i64 = s - 100i64;
+    }
+    state bad() {
+        crash Trap;
+    }
+}
