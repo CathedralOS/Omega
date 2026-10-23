@@ -59,7 +59,7 @@ Each place has an `invalid/` twin that breaks only the accumulator obligation by
 ## Pinned Fixtures
 
 - Positive passes: `tests/omega/pass/facts/loop_branch_relaxation_ranking_through_<place>_exit` (all 9 places pinned, each carrying `expected_native_exit.txt` with `0`).
-- Negative controls: `tests/omega/fail/facts/loop_branch_relaxation_ranking_unproved_<place>` (all 9 places pinned, rejecting with `exact arithmetic`).
+- Negative controls: `tests/omega/fail/facts/loop_branch_relaxation_ranking_through_<place>_rejected` (all 9 places pinned, rejecting with `exact arithmetic`).
 
 ### Run Record
 
@@ -75,6 +75,17 @@ Measured on base `70011192ba70` with a freshly built `target/debug/omega`
 
 All ten programs (root `main.omg` and the nine places) report `native exit 0`
 and `interp exit: 0` under `omega run --both`.
+
+Re-measured on base `9ff26a870215` with the shared wave producer after the
+fail fixtures were renamed `..._unproved_<place>` →
+`..._through_<place>_rejected` (contents unchanged, golden keys rewritten in
+place): `omega run --both` on the root and the nine places again reports 10/10
+`native exit 0` with `interp exit: 0`; the nine twins reject with exit 1 and
+`exact arithmetic`; `python3 tools/corpus_gate.py --filter
+facts/loop_branch_relaxation_ranking` reports `clean — 18 fixtures
+({'checked': 9, 'rejected': 9})`, and `--native` reports `clean — 9 fixtures
+({'built': 9})`, `executed 9 (exit codes {'0': 9})`. The nine renamed rows keep
+their recorded verdict, diagnostics and `@69725a85bb43` stamp.
 
 ### The Oracle Discriminates
 
