@@ -1,0 +1,36 @@
+// A match on one evaluation of a copyable flag selects a subrange of the chosen descriptor payload, the join records that selected range, and the consumer writes 41 through the first element of that recorded range, leaving the unselected payload unchanged.
+// Place: other_state.
+// The source is used while the range loan is live.
+data Slot { case Absent; case Present(value: [i64; 4]); }
+
+machine choose(counter: &mut u64) -> bool
+requires counter == 0
+{
+    counter = 1;
+    true
+}
+
+machine main() crashes Trap {
+    let mut chosen: Slot = Slot::Present { value: [17, 0, 5, 6] };
+    let mut other: Slot = Slot::Present { value: [0, 0, 8, 9] };
+    let mut visits: u64 = 0;
+    let flag: bool = choose(&mut visits);
+    transition { _ -> pick(&mut chosen, &mut other, flag, visits) }
+
+    state pick(chosen: &mut Slot, other: &mut Slot, flag: bool, visits: u64) {
+        let selected: &mut [i64] = match flag {
+            true -> &mut chosen.value[0..2]
+            false -> &mut other.value[2..4]
+        };
+        chosen = Slot::Present { value: [7, 0, 7, 0] };
+        selected[0] = 41;
+        let observed: i64 = selected[0];
+        transition observed == 41 && visits == 1 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+
+    state done() {}
+    state wrong() { crash Trap; }
+}

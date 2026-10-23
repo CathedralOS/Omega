@@ -1,0 +1,33 @@
+// A match on one evaluation of a copyable flag selects a subrange of the chosen descriptor payload, the join records that selected range, and the consumer writes 41 through the first element of that recorded range, leaving the unselected payload unchanged.
+// Place: field.
+// Expected exit: 0
+data Slot { case Absent; case Present(value: [i64; 4]); }
+
+machine choose(counter: &mut u64) -> bool
+requires counter == 0
+{
+    counter = 1;
+    true
+}
+
+data Pair { chosen: Slot; other: Slot; }
+
+machine main() crashes Trap {
+    let mut pair: Pair = Pair {
+        chosen: Slot::Present { value: [17, 0, 5, 6] },
+        other: Slot::Present { value: [0, 0, 8, 9] }
+    };
+    let mut visits: u64 = 0;
+    let selected: &mut [i64] = match choose(&mut visits) {
+        true -> &mut pair.chosen.value[0..2]
+        false -> &mut pair.other.value[2..4]
+    };
+    selected[0] = 41;
+    let observed: i64 = selected[0];
+    transition observed == 41 && visits == 1 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
