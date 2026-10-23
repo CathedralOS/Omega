@@ -260,6 +260,10 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
         use crate::execution::terminal_unit::{calls, types::ShapeCollector};
+        // Only a range operand lends a subslice, and `admit_resolved` repeats
+        // this test. Testing it first keeps every other structural operand from
+        // rebuilding the state's whole structural signature only to be declined.
+        validation::subslice_expression(self.program, expression)?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_by_symbol(self.state)?;
         let parameters = if machine.attached_data.is_some() {

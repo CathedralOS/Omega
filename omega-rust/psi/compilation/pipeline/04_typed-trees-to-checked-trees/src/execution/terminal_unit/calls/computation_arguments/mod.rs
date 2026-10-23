@@ -214,6 +214,9 @@ pub(crate) fn subslice_computation_argument(
     // root needs the caller's structural signature namespace; rebuilding the
     // enclosing attachment for a local would unnecessarily require every
     // unrelated field (including service bindings) to be scalar-graph storage.
+    // The signature is needed only for a range operand; `admit_resolved`
+    // declines anything else before reading it.
+    validation::subslice_expression(program, expression)?;
     let parameters = if !program
         .state_parameters(state)
         .iter()

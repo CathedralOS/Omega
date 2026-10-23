@@ -45,6 +45,9 @@ pub(crate) fn plan(
     ) {
         return Some(subject);
     }
+    // The state's structural signature is needed only for a range operand;
+    // `admit_resolved` declines anything else before reading it.
+    ::validation::subslice_expression(program, operand)?;
     let parameters = if machine.attached_data.is_some() {
         calls::ambient_self_scalar_signature(program, state)?.0
     } else {
