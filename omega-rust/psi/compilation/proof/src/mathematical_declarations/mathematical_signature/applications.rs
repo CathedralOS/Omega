@@ -329,7 +329,7 @@ impl Elaborator<'_> {
                 .ok_or_else(|| {
                     self.refuse(format!(
                         "universe level literal `{}` exceeds the kernel's level range",
-                        literal.text()
+                        literal
                     ))
                 });
         }
@@ -441,7 +441,7 @@ impl Elaborator<'_> {
         {
             return Err(self.refuse(format!(
                 "mathematical generic literal `{}` does not fit `{}`",
-                literal.text(),
+                literal,
                 primitive.name()
             )));
         }

@@ -413,7 +413,7 @@ impl StaticMachineArgument {
             return "<structural type>".to_owned();
         }
         if let Some(literal) = &self.const_literal {
-            return literal.text().to_owned();
+            return literal.to_string();
         }
         if let Some(projection) = &self.evidence_projection {
             return format!("{}.{}", projection.term, projection.member);

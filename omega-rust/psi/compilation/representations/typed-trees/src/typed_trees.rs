@@ -582,7 +582,7 @@ pub fn static_const_argument_spelling(
                 .value_i64()
                 .map(i128::from)
                 .or_else(|| literal.value_u64().map(i128::from))
-                .map_or_else(|| literal.text().to_owned(), |value| value.to_string()),
+                .map_or_else(|| literal.to_string(), |value| value.to_string()),
         );
     }
     if argument.symbol.is_valid() {

@@ -174,8 +174,8 @@ fn bounds_eval(
             Bounds::floating(primitive, (!value.is_nan()).then_some((value, value)))
         }
         ExpressionNode::Integer(value) => value
-            .text()
-            .parse::<i64>()
+            .decimal_value_i128()
+            .and_then(|value| i64::try_from(value).ok())
             .map(Bounds::point)
             .unwrap_or(Bounds::UNKNOWN),
         ExpressionNode::Member(member)

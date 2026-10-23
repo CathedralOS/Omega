@@ -563,7 +563,7 @@ fn entry_operand_at(
 
         ExpressionNode::Boolean(value) => Some(CrashPredicateExpression::Boolean(*value)),
         ExpressionNode::Integer(value) => {
-            Some(CrashPredicateExpression::Integer(value.text().to_owned()))
+            Some(CrashPredicateExpression::Integer(value.to_string()))
         }
         // A float literal is already an entry value: its closed spelling
         // transports like the integer literal beside it.

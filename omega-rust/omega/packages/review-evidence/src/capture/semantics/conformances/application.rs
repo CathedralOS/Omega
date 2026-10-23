@@ -45,7 +45,9 @@ fn selected_conformance_application_type_reference(
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
-                name: typed_trees::name::Identifier::generated(literal.text()),
+                name: typed_trees::name::Identifier::generated(
+                    literal.canonical_spelling().as_str(),
+                ),
             }));
     }
     if let Some(application) = argument.application.as_ref() {

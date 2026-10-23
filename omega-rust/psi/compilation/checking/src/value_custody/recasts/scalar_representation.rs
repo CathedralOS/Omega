@@ -391,7 +391,9 @@ pub(super) fn narrow_by_field_literal_bounds(
     };
     for bound in bounds {
         let literal = program.expression_table.integer_node(bound.literal)?;
-        let literal = literal.text().parse::<i64>().ok()?;
+        let literal = literal
+            .decimal_value_i128()
+            .and_then(|value| i64::try_from(value).ok())?;
         let (minimum, maximum) = primitive_integer_extent(primitive)?;
         let (minimum, maximum) = match bound.operator {
             BinaryOperator::LessOrEqual => (minimum, literal),

@@ -43,7 +43,7 @@ pub(super) fn literal_value(
     expression: ExpressionHandle,
 ) -> Option<LiteralValue> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => value.text().parse().ok().map(LiteralValue::Integer),
+        ExpressionNode::Integer(value) => value.decimal_value_i128().map(LiteralValue::Integer),
         ExpressionNode::Float(value) => {
             use numerics::float_semantics::{FloatFormat, FloatSemantics};
             Some(match value.landing()? {
@@ -119,7 +119,7 @@ pub(super) fn integer_literal_value(
     expression: ExpressionHandle,
 ) -> Option<i128> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Integer(value) => value.decimal_value_i128(),
         ExpressionNode::Borrow(inner) => integer_literal_value(program, inner.target),
         _ => None,
     }
@@ -162,7 +162,7 @@ pub(super) fn fold(
                 None => None,
             }
         }
-        ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
+        ExpressionNode::Integer(value) => value.decimal_value_i128(),
         ExpressionNode::Member(member)
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
@@ -339,11 +339,7 @@ pub(super) fn expression_symbolic_value(
         ExpressionNode::Name(path) if path.symbol.is_valid() => {
             Some(SymbolicValue::Atom(path.symbol))
         }
-        ExpressionNode::Integer(value) => value
-            .text()
-            .parse::<i128>()
-            .ok()
-            .map(SymbolicValue::Integer),
+        ExpressionNode::Integer(value) => value.decimal_value_i128().map(SymbolicValue::Integer),
         ExpressionNode::Binary(binary) => symbolic_binary_shape(binary, |expression| {
             expression_symbolic_value(program, expression)
         }),
@@ -422,11 +418,7 @@ fn symbolic_operand(
                         .then_some(SymbolicValue::Atom(path.symbol))
                 })
         }
-        ExpressionNode::Integer(value) => value
-            .text()
-            .parse::<i128>()
-            .ok()
-            .map(SymbolicValue::Integer),
+        ExpressionNode::Integer(value) => value.decimal_value_i128().map(SymbolicValue::Integer),
         ExpressionNode::Binary(binary) => symbolic_binary_shape(binary, |expression| {
             symbolic_operand(program, symbols, expression)
         }),

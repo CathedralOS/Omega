@@ -111,3 +111,5 @@ session's timing comparison or establish performance on other hosts.
 - [Borrowed expression reads](../source_assembly_2026_10_22/expression_reads/README.md): remove temporary whole-node and name-path clones; exact parser and assembly observations preserved.
 
 - [Direct worker publication](../source_assembly_2026_10_22/worker_publication/README.md): keep forests in final slots; compare complete ownership, allocation and consumer timing.
+
+- [Inline common integer spelling](../source_assembly_2026_10_22/integer_representation/README.md): preserve canonical identity while removing common literal allocations and decimal reparsing.

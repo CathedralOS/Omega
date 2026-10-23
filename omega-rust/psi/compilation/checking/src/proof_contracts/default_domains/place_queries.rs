@@ -94,7 +94,7 @@ pub(super) fn self_place_spelling(
         ExpressionNode::Indexed(indexed) => {
             let collection = self_place_spelling(program, indexed.collection)?;
             let index = match program.expression_table.expression(indexed.index) {
-                ExpressionNode::Integer(value) => value.text().to_owned(),
+                ExpressionNode::Integer(value) => value.to_string(),
                 _ => return None,
             };
             Some(format!("{collection}[{index}]"))
@@ -129,7 +129,7 @@ pub(super) fn write_place_spelling(
         ExpressionNode::Indexed(indexed) => {
             let collection = write_place_spelling(program, indexed.collection)?;
             let index = match program.expression_table.expression(indexed.index) {
-                ExpressionNode::Integer(value) => value.text().to_owned(),
+                ExpressionNode::Integer(value) => value.to_string(),
                 _ => "*".to_owned(),
             };
             Some(format!("{collection}[{index}]"))

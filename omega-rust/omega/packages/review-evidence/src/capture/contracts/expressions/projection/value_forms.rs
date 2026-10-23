@@ -24,7 +24,7 @@ pub(super) fn project_value_form(
             Some(Ok(PackageReviewContractExpression::Boolean(*value)))
         }
         ExpressionNode::Integer(value) => Some(Ok(PackageReviewContractExpression::Integer(
-            value.text().to_owned(),
+            value.to_string(),
         ))),
         ExpressionNode::Float(value) => Some(match value.landing() {
             Some(numerics::literals::FloatFormat::F32) => {

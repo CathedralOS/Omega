@@ -141,9 +141,7 @@ fn predicate_expression(
             operator: unary.operator as u8,
             operand: Box::new(lower(unary.operand)),
         },
-        ExpressionNode::Integer(value) => {
-            CrashPredicateExpression::Integer(value.text().to_owned())
-        }
+        ExpressionNode::Integer(value) => CrashPredicateExpression::Integer(value.to_string()),
         // A float literal is a closed leaf like `Integer`: its suffix-free
         // spelling is the whole identity, so the predicate keeps it
         // structured instead of flattening to `Opaque`.

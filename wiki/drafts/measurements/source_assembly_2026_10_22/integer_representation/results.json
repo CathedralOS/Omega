@@ -1,0 +1,1392 @@
+{
+  "selected-candidate": {
+    "source_hashes": {
+      "omega-rust/omega/packages/review-evidence/src/capture/behavior/crash/expressions.rs": "d2ded39d1b6ae660507c9feb2562523d995e96af6707a62fe9b77b0a7cf60d21",
+      "omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/projection/value_forms.rs": "351f81f50ce74f1996fbba02b6935806ed34675b11664a0677dca7e4c85f4b02",
+      "omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/static_arguments.rs": "65304c162ce2e1150a70f4398f7fe65443934243f7fe7dba46fdc79dfeb7d66e",
+      "omega-rust/omega/packages/review-evidence/src/capture/contracts/propositions/binders.rs": "f9945f169ec4a85882a7c8275cb975dc61a6fb7ad5d859f69cf641792ae5de5a",
+      "omega-rust/omega/packages/review-evidence/src/capture/semantics/conformances/application.rs": "ef9fc245671219d938d4f9367ed438c3050062eb474fd9b6dad59961c94c0e38",
+      "omega-rust/omega/packages/review-evidence/src/capture/semantics/conformances/policy_arguments.rs": "4aa145df84ba738d666cbcd4397cd9c7c341d37d41be938095a39e1f46301d70",
+      "omega-rust/psi/compilation/checking/src/declarations/traits/conformance_applications.rs": "28dc255c26fa9d4b5b78dfb6164172477522fb8aacd3397b1957dbefacd330e8",
+      "omega-rust/psi/compilation/checking/src/machine_calls/calls/inline_assembly.rs": "3cac423a97116c0759df9d713eeabee8ceded975bdbfe459e3b6818e190f1e47",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/integer_ranges.rs": "e7dad85c836eed9a7e28125e03ca36ea55abe1ab50551a8d25cf77603425541b",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/place_queries.rs": "b76b51c33e0030ddf00eba999b760ff3870f67f9e507e64daa4ec6c4d9a14b5c",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/symbolic_values.rs": "18fdd487945425bd5e2bcc8fc9967b25d68c2143d6c79f213eb986ec5acc9ea9",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/where_fact_intervals.rs": "f01bde5279159d874283bf377bfc48ba21c049d370085e3bf801da2286e608d1",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/proof_fact_identity.rs": "3b518cf816d88c570d6123720af11493292a92fcbbb017d2e14c93a862e0899b",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/runtime_correspondence.rs": "97aaccca4eadadedcce817374d961530e20d62833511d9930fb3ac5a66fed8c0",
+      "omega-rust/psi/compilation/checking/src/value_custody/literals.rs": "15d5e5152b34c129a10b2f7af7d31feb3bb389d65a8d9d34151fb15f2946e002",
+      "omega-rust/psi/compilation/checking/src/value_custody/qualification_casts.rs": "102fd7cd2f68e25d579101f9ab3559d5b6a7d5f34091f6093cf6e880d37b5b4a",
+      "omega-rust/psi/compilation/checking/src/value_custody/recasts/scalar_representation.rs": "e3f0337ff1af131a89d1ee6ee9d9a01bcb02e102f08717e9585d6a4576f50c17",
+      "omega-rust/psi/compilation/checking/src/value_custody/struct_literals/construction_bounds.rs": "c37efa472f108c45f470279b01f3f3ec002705c0dd8b7850f07900b52707b051",
+      "omega-rust/psi/compilation/checking/src/value_custody/type_references/const_predicates.rs": "140b5b89da6c69412b467732c16d791455bd527dd25be9af2c4cc1065660577d",
+      "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs": "16f8b5ff5654e81c0d35c8eee17d928c218dce27395224bdeed57c508c0e5b67",
+      "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/machine.rs": "9d5ca95cde79ab7a57039397ce90ca192f11d29d2e00f4cca5ceaf5ba71bbfa4",
+      "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/domain_facts.rs": "debd15b8b787c25ef0fab29a1582be7130dce035a0faa589e53cde880eb8fd05",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/exhaustiveness.rs": "6fe1794217bc0b3164b559f774e6e4983bea30c6e3b5cf22e8923d92fb4118b4",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/proposition.rs": "07716099fcf5c050c581f55683e1d5f73198523e14182489ad6d475c6b837069",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation/seeded_local_instances.rs": "dc166daf00d73461b7865b02e2e8b270da9855bcd866424a2822ebdbe5a0dba3",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation/seeded_local_instances/substitution.rs": "5cd78dcbee369b915fa3e55307000472339c02429b654226d9633cc4bbea5cd6",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/writes/member_domains.rs": "00e5411e4e6ee088167c2a3bee3222e63ae3b827e328fd492a4c07dacdf4218f",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_calls.rs": "da92362bf43b50e4112a803eaa53d3513e9243bf1f7b63d5dba88977ff442115",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs": "574dc10cd0ce4072fb8593ae1b1ae3a11262801d6e79197ceebe6740aee856b1",
+      "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/applications.rs": "379af6dd20bc3a8b13f16ff40c81e057a60e5955bb9bf5c080d4ac79374d7714",
+      "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/level_types.rs": "f5f7a76a1b33709c2b3416a7716710c916cba4d37df4bb24420dc78143f0b94d",
+      "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/operand_terms.rs": "b32b46bac7d778bdea44b65c2e93172473212d7e715516e4d4b2e0a8b6086667",
+      "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/inspection/snapshot/statement_and_expression_snapshots.rs": "a35191cbc1ec57ba562d148a724993242aad8b73fb53ef9750e94870ba62ef3c",
+      "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression/display.rs": "988f46a3bf4d957cc55bef99895f43bd721ccf163372fc4cab1e67aa3297f2fd",
+      "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/inspection/snapshot/expression_and_type_snapshots.rs": "17cae12286733647a2fff4f16f3b3c430420b6ffd3974b94ebc1d713bf9a0c56",
+      "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/values/expression/display.rs": "7e987bf0a316611ff0e8aef1a394d595406354e6898227315c5e5007b6d3a5ad",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees.rs": "f99ae5a603bf4fceb34eddb347694eae99ac090ad85a70aa541065c6c17558f7",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/evidence/proposition.rs": "3becca05cf46f70c5145eb1297757a5afdebd26c092dbe2ef9101cc4cab984a7",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/evidence/ranking.rs": "1184aed4473b5761fb6bcde1e360a17b35d14bc6d4ba0d18f914fe396f5f6420",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/inspection/snapshot/statement_and_expression_snapshots.rs": "13f413fa538d52e3202dbb1759defa6aaf96fd593184ccbe900d625260024b84",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/display.rs": "c1876d3f264cde9bf19ea7c206fb3d809f694cb7dfa0cd0e25d5509c9c549465",
+      "omega-rust/psi/foundation/numerics/src/literals.rs": "25a7184dbc2e659660f4a74311a3a542fc5dd43dd53475a646725a87e8ec42d4"
+    }
+  },
+  "syntax-comparison": {
+    "syntax": {
+      "files": 463,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 172180,
+        "requested_bytes": 59288595,
+        "live_requested_bytes": 28770528
+      },
+      "candidate": {
+        "allocation_requests": 151795,
+        "requested_bytes": 59042631,
+        "live_requested_bytes": 28607464
+      }
+    },
+    "lookahead": {
+      "files": 1792,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 611947,
+        "requested_bytes": 198037109,
+        "live_requested_bytes": 97459298
+      },
+      "candidate": {
+        "allocation_requests": 545364,
+        "requested_bytes": 197257310,
+        "live_requested_bytes": 96946554
+      }
+    },
+    "acknowledgement": {
+      "files": 31,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 7169,
+        "requested_bytes": 1778956,
+        "live_requested_bytes": 879318
+      },
+      "candidate": {
+        "allocation_requests": 6277,
+        "requested_bytes": 1768979,
+        "live_requested_bytes": 872214
+      }
+    }
+  },
+  "assembly-comparison": {
+    "unique": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 4761827,
+        "requested_bytes": 1974877569
+      },
+      "candidate": {
+        "allocation_requests": 4281062,
+        "requested_bytes": 1969414155
+      }
+    },
+    "shared": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 4820358,
+        "requested_bytes": 1981180596
+      },
+      "candidate": {
+        "allocation_requests": 4339593,
+        "requested_bytes": 1975717182
+      }
+    }
+  },
+  "geometry-comparison": {
+    "baseline": {
+      "geometry": {
+        "integer": 24,
+        "optional_integer": 24,
+        "resolved_expression": 128,
+        "resolved_static_application": 32,
+        "resolved_static_argument": 160,
+        "syntax_expression": 112,
+        "syntax_static_application": 32,
+        "syntax_static_argument": 152,
+        "typed_expression": 704,
+        "typed_static_application": 32,
+        "typed_static_argument": 112
+      },
+      "integers": {
+        "canonical_length_histogram_last_bucket_67_or_more": [
+          0,
+          11306,
+          7387,
+          1553,
+          415,
+          175,
+          30,
+          16,
+          6,
+          8,
+          73,
+          7,
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          9,
+          115,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "maximum_length": 20,
+        "negative_zero_rows": 0,
+        "size": 24,
+        "u64_magnitude_rows": 21094
+      },
+      "node_size": 112,
+      "nonempty_expression_spans": 174861,
+      "parsed_sources": 1792,
+      "rows": [
+        {
+          "count": 137,
+          "kind": "Match",
+          "payload_size": 20
+        },
+        {
+          "count": 304,
+          "kind": "ArrayLiteral",
+          "payload_size": 12
+        },
+        {
+          "count": 4,
+          "kind": "Atomic",
+          "payload_size": 24
+        },
+        {
+          "count": 23845,
+          "kind": "Binary",
+          "payload_size": 20
+        },
+        {
+          "count": 5800,
+          "kind": "Boolean",
+          "payload_size": 1
+        },
+        {
+          "count": 1374,
+          "kind": "Cast",
+          "payload_size": 56
+        },
+        {
+          "count": 24238,
+          "kind": "Call",
+          "payload_size": 104
+        },
+        {
+          "count": 357,
+          "kind": "Float",
+          "payload_size": 40
+        },
+        {
+          "count": 0,
+          "kind": "UndeterminedNaN",
+          "payload_size": 0
+        },
+        {
+          "count": 2080,
+          "kind": "Indexed",
+          "payload_size": 16
+        },
+        {
+          "count": 21104,
+          "kind": "Integer",
+          "payload_size": 24
+        },
+        {
+          "count": 1720,
+          "kind": "Membership",
+          "payload_size": 20
+        },
+        {
+          "count": 20386,
+          "kind": "Member",
+          "payload_size": 104
+        },
+        {
+          "count": 3281,
+          "kind": "Borrow",
+          "payload_size": 12
+        },
+        {
+          "count": 102039,
+          "kind": "Name",
+          "payload_size": 12
+        },
+        {
+          "count": 138,
+          "kind": "Range",
+          "payload_size": 20
+        },
+        {
+          "count": 4110,
+          "kind": "StructLiteral",
+          "payload_size": 64
+        },
+        {
+          "count": 987,
+          "kind": "String",
+          "payload_size": 24
+        },
+        {
+          "count": 165,
+          "kind": "Unary",
+          "payload_size": 12
+        },
+        {
+          "count": 274,
+          "kind": "TypeExpression",
+          "payload_size": 8
+        },
+        {
+          "count": 2,
+          "kind": "ZeroValue",
+          "payload_size": 8
+        }
+      ]
+    },
+    "candidate": {
+      "geometry": {
+        "integer": 16,
+        "optional_integer": 16,
+        "resolved_expression": 128,
+        "resolved_static_application": 32,
+        "resolved_static_argument": 152,
+        "syntax_expression": 112,
+        "syntax_static_application": 32,
+        "syntax_static_argument": 144,
+        "typed_expression": 672,
+        "typed_static_application": 32,
+        "typed_static_argument": 104
+      },
+      "integers": {
+        "canonical_length_histogram_last_bucket_67_or_more": [
+          0,
+          11306,
+          7387,
+          1553,
+          415,
+          175,
+          30,
+          16,
+          6,
+          8,
+          73,
+          7,
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          9,
+          115,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "maximum_length": 20,
+        "negative_zero_rows": 0,
+        "size": 16,
+        "u64_magnitude_rows": 21094
+      },
+      "node_size": 112,
+      "nonempty_expression_spans": 174861,
+      "parsed_sources": 1792,
+      "rows": [
+        {
+          "count": 137,
+          "kind": "Match",
+          "payload_size": 20
+        },
+        {
+          "count": 304,
+          "kind": "ArrayLiteral",
+          "payload_size": 12
+        },
+        {
+          "count": 4,
+          "kind": "Atomic",
+          "payload_size": 24
+        },
+        {
+          "count": 23845,
+          "kind": "Binary",
+          "payload_size": 20
+        },
+        {
+          "count": 5800,
+          "kind": "Boolean",
+          "payload_size": 1
+        },
+        {
+          "count": 1374,
+          "kind": "Cast",
+          "payload_size": 56
+        },
+        {
+          "count": 24238,
+          "kind": "Call",
+          "payload_size": 104
+        },
+        {
+          "count": 357,
+          "kind": "Float",
+          "payload_size": 40
+        },
+        {
+          "count": 0,
+          "kind": "UndeterminedNaN",
+          "payload_size": 0
+        },
+        {
+          "count": 2080,
+          "kind": "Indexed",
+          "payload_size": 16
+        },
+        {
+          "count": 21104,
+          "kind": "Integer",
+          "payload_size": 16
+        },
+        {
+          "count": 1720,
+          "kind": "Membership",
+          "payload_size": 20
+        },
+        {
+          "count": 20386,
+          "kind": "Member",
+          "payload_size": 104
+        },
+        {
+          "count": 3281,
+          "kind": "Borrow",
+          "payload_size": 12
+        },
+        {
+          "count": 102039,
+          "kind": "Name",
+          "payload_size": 12
+        },
+        {
+          "count": 138,
+          "kind": "Range",
+          "payload_size": 20
+        },
+        {
+          "count": 4110,
+          "kind": "StructLiteral",
+          "payload_size": 64
+        },
+        {
+          "count": 987,
+          "kind": "String",
+          "payload_size": 24
+        },
+        {
+          "count": 165,
+          "kind": "Unary",
+          "payload_size": 12
+        },
+        {
+          "count": 274,
+          "kind": "TypeExpression",
+          "payload_size": 8
+        },
+        {
+          "count": 2,
+          "kind": "ZeroValue",
+          "payload_size": 8
+        }
+      ]
+    }
+  },
+  "production-primitive-comparison": {
+    "inputs": 412,
+    "exact_observations": true,
+    "sizes": {
+      "baseline": 24,
+      "candidate": 16
+    },
+    "binary_sha256": "00eb0dfc1bb33ed4a41c68082ee0279463fb39e29016d79f0bccf7edbabac181",
+    "owner_sha256": "25a7184dbc2e659660f4a74311a3a542fc5dd43dd53475a646725a87e8ec42d4"
+  },
+  "binary-hashes": {
+    "baseline-expression-reads-probe": "6892b70bca045790f883f6b3ab6f0c6ddfb3fd4fe36d18c51b32760503080c5a",
+    "baseline-retained": "d775557d3924c8b55ac524eddb01d1152f04986f4bc769b507fee0fc291be8e7",
+    "baseline-batch_timing": "08a93ba3e8cbb477c506062e4e2e5e771b70473ecc78fbac14f4c5d1eb3f031a",
+    "baseline-row_layout": "b33d948f167c0c0e005dee5c7bd5be194223d3cd795abd249a822d908fd22fe1",
+    "baseline-all_threads": "782d83add484a91a2983b972432d81dc9947945c32a90ae576ef802a4dfde2be",
+    "baseline-fused_timing": "97b6954f1b055542879edab7d7842127f8c1467a28da5e165629cda26b736972",
+    "candidate-expression-reads-probe": "f18730b3826434125da79ae431de5ac6f2ae78e09b8f6681e4791f9afd30e7bd",
+    "candidate-retained": "e6aa92b78fb8ecbc64a1e935a693035a02b7d62488b67365c6b31a95c46ef6ad",
+    "candidate-batch_timing": "c4005b2a5bdc590df17ad1b60936a1f817c799672bcca059514fad22518f38a0",
+    "candidate-row_layout": "fa521a574940b92a0cbadd1bb57e6963e96522bd278fa7dc8edd924707dd3399",
+    "candidate-all_threads": "8e984a1338588a13df1b7108911006a86df7ccbbee3d809e7974ec7b59a8b278",
+    "candidate-fused_timing": "14fefcdb2906f2c6fc2caeb6ab7ef511cb2853324e5cde9cb0da706cdda5ad8a"
+  },
+  "environment-current": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "load": [
+      22.48046875,
+      23.22998046875,
+      29.16015625
+    ],
+    "commands": {
+      "sysctl hw.memsize hw.logicalcpu hw.physicalcpu machdep.cpu.brand_string vm.swapusage": {
+        "exit": 0,
+        "stdout": "hw.memsize: 17179869184\nhw.logicalcpu: 10\nhw.physicalcpu: 10\nmachdep.cpu.brand_string: Apple M4\nvm.swapusage: total = 5120.00M  used = 3479.88M  free = 1640.12M  (encrypted)\n",
+        "stderr": ""
+      },
+      "rustc -Vv": {
+        "exit": 0,
+        "stdout": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1\n",
+        "stderr": ""
+      },
+      "mbx --version": {
+        "exit": 0,
+        "stdout": "mbx 1.25.0\n",
+        "stderr": ""
+      }
+    }
+  },
+  "input-selection": {
+    "base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+    "prior_base": "ceabbdf5779c66a5a09b3c7e3409d441aafb1e0c",
+    "corpora": {
+      "syntax": {
+        "count": 463,
+        "exact_renames": {},
+        "retained_deleted_parser_inputs": {}
+      },
+      "lookahead": {
+        "count": 1792,
+        "exact_renames": {
+          "tests/omega/fail/facts/predicate_array_copy_through_call_result/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_call_result_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_const_name/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_const_name_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_field/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_field_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_local/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_local_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_match_join/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_match_join_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_other_machine/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_other_machine_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_other_state/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_other_state_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_parameter/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_parameter_rejected/main.omg",
+          "tests/omega/fail/facts/predicate_array_copy_through_target_body/main.omg": "tests/omega/fail/facts/predicate_array_copy_through_target_body_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/call_result/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_call_result_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/const_name/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_const_name_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/field/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_field_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/local/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_local_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/match_join/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_match_join_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/other_machine/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_other_machine_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/other_state/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_other_state_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/parameter/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_parameter_rejected/main.omg",
+          "tests/omega/fail/facts/scalar_boundary_parameter/target_body/main.omg": "tests/omega/fail/facts/scalar_boundary_parameter_through_target_body_rejected/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/call_result/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_call_result_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/const_name/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_const_name_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/field/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_field_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/local/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_local_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/match_join/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_match_join_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/other_machine/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_other_machine_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/other_state/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_other_state_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/parameter/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_parameter_exit/main.omg",
+          "tests/omega/pass/facts/scalar_boundary_parameter/target_body/main.omg": "tests/omega/pass/facts/scalar_boundary_parameter_through_target_body_exit/main.omg"
+        },
+        "retained_deleted_parser_inputs": {}
+      },
+      "batch": {
+        "count": 456,
+        "exact_renames": {},
+        "retained_deleted_parser_inputs": {}
+      },
+      "case": {
+        "count": 16,
+        "exact_renames": {},
+        "retained_deleted_parser_inputs": {}
+      },
+      "acknowledgement": {
+        "count": 31,
+        "exact_renames": {},
+        "retained_deleted_parser_inputs": {}
+      }
+    }
+  },
+  "clippy-source-attribution": [
+    {
+      "diagnostic": "warning: empty line after outer attribute",
+      "file": "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/runtime_correspondence.rs",
+      "line": 271,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "\n#[allow(clippy::too_many_arguments)]\n\n/// Close every literal element under the shared leaf shape \u2014 the element"
+    },
+    {
+      "diagnostic": "warning: this `let...else` may be rewritten with the `?` operator",
+      "file": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/symbolic_values.rs",
+      "line": 169,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "        {\n            let Some(path) = program.expression_table.name_path_node(member.receiver) else {\n                return None;\n            };"
+    },
+    {
+      "diagnostic": "warning: this `let...else` may be rewritten with the `?` operator",
+      "file": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/where_fact_intervals.rs",
+      "line": 315,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "    while let Some(conjunct) = conjuncts.pop() {\n        let Some(binary) = program.expression_table.binary_node(conjunct) else {\n            return None;\n        };"
+    },
+    {
+      "diagnostic": "warning: redundant closure",
+      "file": "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/proof_fact_identity.rs",
+      "line": 257,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "                rows.iter()\n                    .map(|row| array_trace(row.iter().map(|element| element_trace(element)))),\n            ),\n        }"
+    },
+    {
+      "diagnostic": "warning: this `if` statement can be collapsed",
+      "file": "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/operand_terms.rs",
+      "line": 362,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "                    .last();\n                if let Some(position) = self.scope.iter().rposition(|entry| {\n                    if path.symbol.is_valid() {\n                        entry.symbol == Some(path.symbol)"
+    },
+    {
+      "diagnostic": "warning: empty line after doc comment",
+      "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs",
+      "line": 1019,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "/// predicates. Bind the name to the state's `is_self` parameter so receiver\n/// projections take the parameter path below.\n\n/// A sealed or builtin IEEE comparison is an entry predicate when its"
+    },
+    {
+      "diagnostic": "warning: parameter is only used in recursion",
+      "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/writes/member_domains.rs",
+      "line": 252,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "    domain: &typed_trees::domain::DomainDefinition,\n    capture: Option<&checked_trees::FlowOperandFact>,\n    frames: Option<&validation::CallFrameResolver<'_>>,\n) -> bool {"
+    },
+    {
+      "diagnostic": "warning: parameter is only used in recursion",
+      "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/writes/member_domains.rs",
+      "line": 253,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "    capture: Option<&checked_trees::FlowOperandFact>,\n    frames: Option<&validation::CallFrameResolver<'_>>,\n) -> bool {\n    let (Some(machine), Some(state_declaration)) = ("
+    },
+    {
+      "diagnostic": "warning: called `.iter().count()` on a `slice`",
+      "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs",
+      "line": 1189,
+      "four_line_source_fragment_unchanged": true,
+      "fragment": "    // Transition arguments bind only the non-self parameters, in order.\n    let argument_index = parameters[..parameter_ordinal].iter().count();\n    // The invocation itself is the entry state's one non-transition arrival.\n    let mut provenance = if state_index == entry_index {"
+    }
+  ],
+  "baseline": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+  "timing": {
+    "base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+    "binary_hashes": {
+      "baseline-expression-reads-probe": "6892b70bca045790f883f6b3ab6f0c6ddfb3fd4fe36d18c51b32760503080c5a",
+      "baseline-retained": "d775557d3924c8b55ac524eddb01d1152f04986f4bc769b507fee0fc291be8e7",
+      "baseline-batch_timing": "08a93ba3e8cbb477c506062e4e2e5e771b70473ecc78fbac14f4c5d1eb3f031a",
+      "baseline-row_layout": "b33d948f167c0c0e005dee5c7bd5be194223d3cd795abd249a822d908fd22fe1",
+      "baseline-all_threads": "782d83add484a91a2983b972432d81dc9947945c32a90ae576ef802a4dfde2be",
+      "baseline-fused_timing": "97b6954f1b055542879edab7d7842127f8c1467a28da5e165629cda26b736972",
+      "candidate-expression-reads-probe": "f18730b3826434125da79ae431de5ac6f2ae78e09b8f6681e4791f9afd30e7bd",
+      "candidate-retained": "e6aa92b78fb8ecbc64a1e935a693035a02b7d62488b67365c6b31a95c46ef6ad",
+      "candidate-batch_timing": "c4005b2a5bdc590df17ad1b60936a1f817c799672bcca059514fad22518f38a0",
+      "candidate-row_layout": "fa521a574940b92a0cbadd1bb57e6963e96522bd278fa7dc8edd924707dd3399",
+      "candidate-all_threads": "8e984a1338588a13df1b7108911006a86df7ccbbee3d809e7974ec7b59a8b278",
+      "candidate-fused_timing": "14fefcdb2906f2c6fc2caeb6ab7ef511cb2853324e5cde9cb0da706cdda5ad8a"
+    },
+    "summary": {
+      "parse-pages": {
+        "baseline": {
+          "min_ms": 5.837041,
+          "median_ms": 11.150208,
+          "mean_ms": 12.049081325058184,
+          "max_ms": 45.545583,
+          "trials": 1289,
+          "round_minima_ms": [
+            6.714584,
+            6.295125,
+            5.837041,
+            6.419375
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 5.592875,
+          "median_ms": 10.911,
+          "mean_ms": 11.950878418293364,
+          "max_ms": 55.420417,
+          "trials": 1793,
+          "round_minima_ms": [
+            5.592875,
+            6.81775,
+            5.633125,
+            6.562334
+          ],
+          "all_quiet": true
+        }
+      },
+      "append": {
+        "baseline": {
+          "min_ms": 8.577292,
+          "median_ms": 14.1550835,
+          "mean_ms": 15.402454362183756,
+          "max_ms": 70.261667,
+          "trials": 1502,
+          "round_minima_ms": [
+            8.580292,
+            8.718125,
+            10.294583,
+            8.577292
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 8.506042,
+          "median_ms": 14.097729000000001,
+          "mean_ms": 15.794341114730878,
+          "max_ms": 291.786583,
+          "trials": 1412,
+          "round_minima_ms": [
+            8.949958,
+            8.838958,
+            9.466417,
+            8.506042
+          ],
+          "all_quiet": true
+        }
+      },
+      "units": {
+        "baseline": {
+          "min_ms": 9.135583,
+          "median_ms": 17.45225,
+          "mean_ms": 20.136744023470243,
+          "max_ms": 168.0725,
+          "trials": 1193,
+          "round_minima_ms": [
+            10.52925,
+            9.135583,
+            10.965125,
+            15.819958
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 9.6815,
+          "median_ms": 19.225250000000003,
+          "mean_ms": 22.452181187192117,
+          "max_ms": 181.997958,
+          "trials": 812,
+          "round_minima_ms": [
+            9.767708,
+            9.6815,
+            13.73525,
+            13.123
+          ],
+          "all_quiet": true
+        }
+      }
+    }
+  },
+  "compiler-timing": {
+    "base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+    "producers": {
+      "baseline": {
+        "revision": "963aa6b78163cbb930df99f083c6dca4a0dfc436",
+        "measured_baseline": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+        "binary_sha256": "efa41f2e1bcd42803e0e76a8164c95474a948cd509a5a9d555270806f977e9fc",
+        "exact_source_objects": {
+          "omega-rust": {
+            "producer": "b2a731536035c438da80f239325c9d16b4fb5a3e",
+            "baseline": "b2a731536035c438da80f239325c9d16b4fb5a3e"
+          },
+          "source/library": {
+            "producer": "4acf0ac90ba112e00c2c779989d80aa0965c6aa5",
+            "baseline": "4acf0ac90ba112e00c2c779989d80aa0965c6aa5"
+          },
+          "Cargo.toml": {
+            "producer": "aa6887104dbb88767cf827ab9789a5e4868166ca",
+            "baseline": "aa6887104dbb88767cf827ab9789a5e4868166ca"
+          },
+          "Cargo.lock": {
+            "producer": "b78b3d8d9deb088b1d103dbed7ef02c7bd540bba",
+            "baseline": "b78b3d8d9deb088b1d103dbed7ef02c7bd540bba"
+          },
+          "rust-toolchain.toml": {
+            "producer": "34677fc928123970d13e8b81641724e2a9e6f929",
+            "baseline": "34677fc928123970d13e8b81641724e2a9e6f929"
+          },
+          "tools": {
+            "producer": "8b234e701b16057f31efc907f367f1c61325f300",
+            "baseline": "8b234e701b16057f31efc907f367f1c61325f300"
+          }
+        }
+      },
+      "candidate": {
+        "revision": "28bbd5196e2026b335ac670d41f7f7a8bb5a00ff",
+        "measured_base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+        "binary_sha256": "a9ddad3105c22f15ec44bbcd484c4051eea6ac3a2ddf0c6be71b3e86a624bee5"
+      }
+    },
+    "summary": {
+      "check-length": {
+        "baseline": {
+          "min_ms": 1828.253458,
+          "median_ms": 1983.0350415,
+          "mean_ms": 1999.7368061500001,
+          "max_ms": 2167.939875,
+          "trials": 20,
+          "user_cpu_median_ms": 1969.3294999999998,
+          "system_cpu_median_ms": 120.232,
+          "round_minima_ms": [
+            1879.519375,
+            1945.802833,
+            1828.253458,
+            1941.279625
+          ]
+        },
+        "candidate": {
+          "min_ms": 1824.604209,
+          "median_ms": 1975.9463544999999,
+          "mean_ms": 1969.18018755,
+          "max_ms": 2088.079417,
+          "trials": 20,
+          "user_cpu_median_ms": 1975.078,
+          "system_cpu_median_ms": 115.1575,
+          "round_minima_ms": [
+            1824.604209,
+            1875.282625,
+            1887.970542,
+            1944.741666
+          ]
+        }
+      },
+      "compile-length": {
+        "baseline": {
+          "min_ms": 1890.658292,
+          "median_ms": 2019.778792,
+          "mean_ms": 2067.314871,
+          "max_ms": 2461.48075,
+          "trials": 20,
+          "user_cpu_median_ms": 1987.068,
+          "system_cpu_median_ms": 121.5635,
+          "round_minima_ms": [
+            1890.658292,
+            1948.194875,
+            1941.383083,
+            2132.279334
+          ]
+        },
+        "candidate": {
+          "min_ms": 1936.591292,
+          "median_ms": 2067.6835005000003,
+          "mean_ms": 2072.06641885,
+          "max_ms": 2223.51225,
+          "trials": 20,
+          "user_cpu_median_ms": 2030.125,
+          "system_cpu_median_ms": 120.50649999999999,
+          "round_minima_ms": [
+            1983.842667,
+            1953.605375,
+            1936.591292,
+            2059.989334
+          ]
+        }
+      },
+      "compile-integer-constant": {
+        "baseline": {
+          "min_ms": 1482.025042,
+          "median_ms": 2007.740938,
+          "mean_ms": 1946.4687127,
+          "max_ms": 2288.01625,
+          "trials": 20,
+          "user_cpu_median_ms": 1770.1045,
+          "system_cpu_median_ms": 110.47999999999999,
+          "round_minima_ms": [
+            2018.735042,
+            1796.515834,
+            1996.746834,
+            1482.025042
+          ]
+        },
+        "candidate": {
+          "min_ms": 1562.29125,
+          "median_ms": 2065.3557505,
+          "mean_ms": 2105.3937418,
+          "max_ms": 2757.98275,
+          "trials": 20,
+          "user_cpu_median_ms": 1791.5045,
+          "system_cpu_median_ms": 108.545,
+          "round_minima_ms": [
+            2025.4035,
+            1921.648958,
+            2139.425375,
+            1562.29125
+          ]
+        }
+      }
+    }
+  },
+  "units-confirmation": {
+    "base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+    "binary_hashes": {
+      "baseline-expression-reads-probe": "6892b70bca045790f883f6b3ab6f0c6ddfb3fd4fe36d18c51b32760503080c5a",
+      "baseline-retained": "d775557d3924c8b55ac524eddb01d1152f04986f4bc769b507fee0fc291be8e7",
+      "baseline-batch_timing": "08a93ba3e8cbb477c506062e4e2e5e771b70473ecc78fbac14f4c5d1eb3f031a",
+      "baseline-row_layout": "b33d948f167c0c0e005dee5c7bd5be194223d3cd795abd249a822d908fd22fe1",
+      "baseline-all_threads": "782d83add484a91a2983b972432d81dc9947945c32a90ae576ef802a4dfde2be",
+      "baseline-fused_timing": "97b6954f1b055542879edab7d7842127f8c1467a28da5e165629cda26b736972",
+      "candidate-expression-reads-probe": "f18730b3826434125da79ae431de5ac6f2ae78e09b8f6681e4791f9afd30e7bd",
+      "candidate-retained": "e6aa92b78fb8ecbc64a1e935a693035a02b7d62488b67365c6b31a95c46ef6ad",
+      "candidate-batch_timing": "c4005b2a5bdc590df17ad1b60936a1f817c799672bcca059514fad22518f38a0",
+      "candidate-row_layout": "fa521a574940b92a0cbadd1bb57e6963e96522bd278fa7dc8edd924707dd3399",
+      "candidate-all_threads": "8e984a1338588a13df1b7108911006a86df7ccbbee3d809e7974ec7b59a8b278",
+      "candidate-fused_timing": "14fefcdb2906f2c6fc2caeb6ab7ef511cb2853324e5cde9cb0da706cdda5ad8a"
+    },
+    "summary": {
+      "units": {
+        "baseline": {
+          "min_ms": 8.515458,
+          "median_ms": 13.983041,
+          "mean_ms": 15.297378452399085,
+          "max_ms": 126.302083,
+          "trials": 1313,
+          "round_minima_ms": [
+            9.561458,
+            8.515458,
+            9.505625,
+            10.249833
+          ],
+          "all_quiet": true
+        },
+        "candidate": {
+          "min_ms": 8.277584,
+          "median_ms": 13.027875,
+          "mean_ms": 14.262205156472263,
+          "max_ms": 66.8735,
+          "trials": 1406,
+          "round_minima_ms": [
+            9.143292,
+            9.558333,
+            8.277584,
+            8.582125
+          ],
+          "all_quiet": true
+        }
+      }
+    }
+  },
+  "compiler-confirmation": {
+    "base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+    "producers": {
+      "baseline": {
+        "revision": "963aa6b78163cbb930df99f083c6dca4a0dfc436",
+        "measured_baseline": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+        "binary_sha256": "efa41f2e1bcd42803e0e76a8164c95474a948cd509a5a9d555270806f977e9fc",
+        "exact_source_objects": {
+          "omega-rust": {
+            "producer": "b2a731536035c438da80f239325c9d16b4fb5a3e",
+            "baseline": "b2a731536035c438da80f239325c9d16b4fb5a3e"
+          },
+          "source/library": {
+            "producer": "4acf0ac90ba112e00c2c779989d80aa0965c6aa5",
+            "baseline": "4acf0ac90ba112e00c2c779989d80aa0965c6aa5"
+          },
+          "Cargo.toml": {
+            "producer": "aa6887104dbb88767cf827ab9789a5e4868166ca",
+            "baseline": "aa6887104dbb88767cf827ab9789a5e4868166ca"
+          },
+          "Cargo.lock": {
+            "producer": "b78b3d8d9deb088b1d103dbed7ef02c7bd540bba",
+            "baseline": "b78b3d8d9deb088b1d103dbed7ef02c7bd540bba"
+          },
+          "rust-toolchain.toml": {
+            "producer": "34677fc928123970d13e8b81641724e2a9e6f929",
+            "baseline": "34677fc928123970d13e8b81641724e2a9e6f929"
+          },
+          "tools": {
+            "producer": "8b234e701b16057f31efc907f367f1c61325f300",
+            "baseline": "8b234e701b16057f31efc907f367f1c61325f300"
+          }
+        }
+      },
+      "candidate": {
+        "revision": "28bbd5196e2026b335ac670d41f7f7a8bb5a00ff",
+        "measured_base": "d7259534785f3a07d1d07bb13ad104d7870f54f6",
+        "binary_sha256": "a9ddad3105c22f15ec44bbcd484c4051eea6ac3a2ddf0c6be71b3e86a624bee5"
+      }
+    },
+    "summary": {
+      "compile-length": {
+        "baseline": {
+          "min_ms": 1224.4735,
+          "median_ms": 1749.35075,
+          "mean_ms": 1814.37958525,
+          "max_ms": 2514.358792,
+          "trials": 20,
+          "user_cpu_median_ms": 1758.524,
+          "system_cpu_median_ms": 114.358,
+          "round_minima_ms": [
+            1667.573417,
+            1846.374625,
+            2327.01825,
+            1928.213458,
+            2391.922666,
+            2269.972833,
+            2514.358792,
+            1958.248834,
+            1779.246791,
+            1719.454709,
+            1585.530333,
+            1458.350041,
+            1224.4735,
+            1328.2825,
+            1675.288333,
+            1605.895625,
+            1930.983541,
+            1662.197291,
+            1633.001416,
+            1781.20475
+          ]
+        },
+        "candidate": {
+          "min_ms": 1360.79675,
+          "median_ms": 1749.1927495,
+          "mean_ms": 1818.59767495,
+          "max_ms": 2336.655375,
+          "trials": 20,
+          "user_cpu_median_ms": 1768.8964999999998,
+          "system_cpu_median_ms": 108.5155,
+          "round_minima_ms": [
+            1874.818458,
+            1638.853958,
+            2304.067584,
+            1998.501333,
+            2336.655375,
+            2095.75775,
+            2226.721958,
+            2134.351167,
+            1794.159709,
+            1695.139792,
+            1776.275208,
+            1420.771417,
+            1360.79675,
+            1450.805292,
+            1628.418333,
+            1749.010291,
+            1749.375208,
+            1705.359458,
+            1728.655583,
+            1703.458875
+          ]
+        }
+      },
+      "compile-integer-constant": {
+        "baseline": {
+          "min_ms": 1439.798042,
+          "median_ms": 2087.984646,
+          "mean_ms": 2022.00098345,
+          "max_ms": 2367.795,
+          "trials": 20,
+          "user_cpu_median_ms": 2075.8509999999997,
+          "system_cpu_median_ms": 122.969,
+          "round_minima_ms": [
+            1688.487292,
+            1439.798042,
+            1675.381,
+            1686.098583,
+            2116.968792,
+            2230.1735,
+            2149.023375,
+            2166.990208,
+            2085.548875,
+            2085.181916,
+            1891.655417,
+            1933.313334,
+            2251.725584,
+            1999.255209,
+            2121.59925,
+            2090.420417,
+            2367.795,
+            2237.401166,
+            2195.492292,
+            2027.710417
+          ]
+        },
+        "candidate": {
+          "min_ms": 1336.437042,
+          "median_ms": 2101.1106044999997,
+          "mean_ms": 2057.09380635,
+          "max_ms": 2488.056292,
+          "trials": 20,
+          "user_cpu_median_ms": 2077.8015,
+          "system_cpu_median_ms": 126.2525,
+          "round_minima_ms": [
+            1440.515542,
+            1336.437042,
+            1882.32225,
+            2102.039542,
+            2419.765375,
+            2221.443792,
+            2488.056292,
+            2011.764375,
+            1995.039042,
+            2247.775041,
+            1932.2975,
+            1903.284041,
+            2338.799625,
+            2167.728125,
+            2100.181667,
+            2149.015875,
+            2158.859667,
+            2019.133542,
+            2213.530834,
+            2013.886958
+          ]
+        }
+      }
+    }
+  },
+  "decision": {
+    "retain": true,
+    "source_hashes": {
+      "omega-rust/omega/packages/review-evidence/src/capture/behavior/crash/expressions.rs": "d2ded39d1b6ae660507c9feb2562523d995e96af6707a62fe9b77b0a7cf60d21",
+      "omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/projection/value_forms.rs": "351f81f50ce74f1996fbba02b6935806ed34675b11664a0677dca7e4c85f4b02",
+      "omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/static_arguments.rs": "65304c162ce2e1150a70f4398f7fe65443934243f7fe7dba46fdc79dfeb7d66e",
+      "omega-rust/omega/packages/review-evidence/src/capture/contracts/propositions/binders.rs": "f9945f169ec4a85882a7c8275cb975dc61a6fb7ad5d859f69cf641792ae5de5a",
+      "omega-rust/omega/packages/review-evidence/src/capture/semantics/conformances/application.rs": "ef9fc245671219d938d4f9367ed438c3050062eb474fd9b6dad59961c94c0e38",
+      "omega-rust/omega/packages/review-evidence/src/capture/semantics/conformances/policy_arguments.rs": "4aa145df84ba738d666cbcd4397cd9c7c341d37d41be938095a39e1f46301d70",
+      "omega-rust/psi/compilation/checking/src/declarations/traits/conformance_applications.rs": "28dc255c26fa9d4b5b78dfb6164172477522fb8aacd3397b1957dbefacd330e8",
+      "omega-rust/psi/compilation/checking/src/machine_calls/calls/inline_assembly.rs": "3cac423a97116c0759df9d713eeabee8ceded975bdbfe459e3b6818e190f1e47",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/integer_ranges.rs": "e7dad85c836eed9a7e28125e03ca36ea55abe1ab50551a8d25cf77603425541b",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/place_queries.rs": "b76b51c33e0030ddf00eba999b760ff3870f67f9e507e64daa4ec6c4d9a14b5c",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/symbolic_values.rs": "18fdd487945425bd5e2bcc8fc9967b25d68c2143d6c79f213eb986ec5acc9ea9",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/where_fact_intervals.rs": "f01bde5279159d874283bf377bfc48ba21c049d370085e3bf801da2286e608d1",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/proof_fact_identity.rs": "3b518cf816d88c570d6123720af11493292a92fcbbb017d2e14c93a862e0899b",
+      "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/runtime_correspondence.rs": "97aaccca4eadadedcce817374d961530e20d62833511d9930fb3ac5a66fed8c0",
+      "omega-rust/psi/compilation/checking/src/value_custody/literals.rs": "15d5e5152b34c129a10b2f7af7d31feb3bb389d65a8d9d34151fb15f2946e002",
+      "omega-rust/psi/compilation/checking/src/value_custody/qualification_casts.rs": "102fd7cd2f68e25d579101f9ab3559d5b6a7d5f34091f6093cf6e880d37b5b4a",
+      "omega-rust/psi/compilation/checking/src/value_custody/recasts/scalar_representation.rs": "e3f0337ff1af131a89d1ee6ee9d9a01bcb02e102f08717e9585d6a4576f50c17",
+      "omega-rust/psi/compilation/checking/src/value_custody/struct_literals/construction_bounds.rs": "c37efa472f108c45f470279b01f3f3ec002705c0dd8b7850f07900b52707b051",
+      "omega-rust/psi/compilation/checking/src/value_custody/type_references/const_predicates.rs": "140b5b89da6c69412b467732c16d791455bd527dd25be9af2c4cc1065660577d",
+      "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs": "16f8b5ff5654e81c0d35c8eee17d928c218dce27395224bdeed57c508c0e5b67",
+      "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/machine.rs": "9d5ca95cde79ab7a57039397ce90ca192f11d29d2e00f4cca5ceaf5ba71bbfa4",
+      "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/domain_facts.rs": "debd15b8b787c25ef0fab29a1582be7130dce035a0faa589e53cde880eb8fd05",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/exhaustiveness.rs": "6fe1794217bc0b3164b559f774e6e4983bea30c6e3b5cf22e8923d92fb4118b4",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/proposition.rs": "07716099fcf5c050c581f55683e1d5f73198523e14182489ad6d475c6b837069",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation/seeded_local_instances.rs": "dc166daf00d73461b7865b02e2e8b270da9855bcd866424a2822ebdbe5a0dba3",
+      "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation/seeded_local_instances/substitution.rs": "5cd78dcbee369b915fa3e55307000472339c02429b654226d9633cc4bbea5cd6",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/writes/member_domains.rs": "00e5411e4e6ee088167c2a3bee3222e63ae3b827e328fd492a4c07dacdf4218f",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_calls.rs": "da92362bf43b50e4112a803eaa53d3513e9243bf1f7b63d5dba88977ff442115",
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs": "574dc10cd0ce4072fb8593ae1b1ae3a11262801d6e79197ceebe6740aee856b1",
+      "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/applications.rs": "379af6dd20bc3a8b13f16ff40c81e057a60e5955bb9bf5c080d4ac79374d7714",
+      "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/level_types.rs": "f5f7a76a1b33709c2b3416a7716710c916cba4d37df4bb24420dc78143f0b94d",
+      "omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/operand_terms.rs": "b32b46bac7d778bdea44b65c2e93172473212d7e715516e4d4b2e0a8b6086667",
+      "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/inspection/snapshot/statement_and_expression_snapshots.rs": "a35191cbc1ec57ba562d148a724993242aad8b73fb53ef9750e94870ba62ef3c",
+      "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression/display.rs": "988f46a3bf4d957cc55bef99895f43bd721ccf163372fc4cab1e67aa3297f2fd",
+      "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/inspection/snapshot/expression_and_type_snapshots.rs": "17cae12286733647a2fff4f16f3b3c430420b6ffd3974b94ebc1d713bf9a0c56",
+      "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/values/expression/display.rs": "7e987bf0a316611ff0e8aef1a394d595406354e6898227315c5e5007b6d3a5ad",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees.rs": "f99ae5a603bf4fceb34eddb347694eae99ac090ad85a70aa541065c6c17558f7",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/evidence/proposition.rs": "3becca05cf46f70c5145eb1297757a5afdebd26c092dbe2ef9101cc4cab984a7",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/evidence/ranking.rs": "1184aed4473b5761fb6bcde1e360a17b35d14bc6d4ba0d18f914fe396f5f6420",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/inspection/snapshot/statement_and_expression_snapshots.rs": "13f413fa538d52e3202dbb1759defa6aaf96fd593184ccbe900d625260024b84",
+      "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/display.rs": "c1876d3f264cde9bf19ea7c206fb3d809f694cb7dfa0cd0e25d5509c9c549465",
+      "omega-rust/psi/foundation/numerics/src/literals.rs": "25a7184dbc2e659660f4a74311a3a542fc5dd43dd53475a646725a87e8ec42d4"
+    },
+    "interpretation": "Retain for the demonstrated ownership reduction and narrower representation, with no whole-compiler CPU speedup claim. Initial parse-page and append timings are slightly lower overall, while the initial independent-unit run is higher; unchanged-binary confirmation reverses that independent-unit result (median 13.983\u219213.028 ms, minima 8.515\u21928.278 ms), so it is not a reproducible regression. Initial full-compile medians are about2\u20133% higher; per-invocation alternating confirmation gives length compile median1749.351\u21921749.193 ms and integer-constant compile2087.985\u21922101.111 ms. Corresponding user-CPU medians differ by+0.59% and+0.09%, with large variation in individual pairs. This evidence does not establish a stable CPU benefit or a material repeatable consumer regression. All observations, including slow runs and tails, remain retained. Three diagnostic samples did not support attributing the initial full-compile difference to integer formatting. The allocation removal and exact behavior comparisons are the acceptance basis; CPU effects remain uncertain on this shared host.",
+    "compiler_confirmation_pairing": {
+      "compile-length": {
+        "elapsed_ns": {
+          "paired_percent_changes": [
+            12.427941036193669,
+            -11.239358697317448,
+            -0.9862692739947332,
+            3.6452330891261653,
+            -2.31058017826401,
+            -7.674765110283587,
+            -11.439768855390941,
+            8.9928475861919,
+            0.838159049966225,
+            -1.4141062787365377,
+            12.030351676658846,
+            -2.576790409950691,
+            11.133213581184087,
+            9.224151639429113,
+            -2.7977273569420813,
+            8.911828625225882,
+            -9.404965352835182,
+            2.5966933789209223,
+            5.857567915299344,
+            -4.364791582775651
+          ],
+          "median_percent_change": -0.07405511201425408,
+          "candidate_lower_pairs": 10,
+          "pairs": 20,
+          "minimum_percent_change": -11.439768855390941,
+          "maximum_percent_change": 12.427941036193669
+        },
+        "user_cpu_ns": {
+          "paired_percent_changes": [
+            -0.471296576223601,
+            -7.4008698521777605,
+            -12.525524571963654,
+            -2.1083391958439335,
+            12.69776009461976,
+            -2.8420043922107063,
+            -14.144748550901177,
+            9.26164907339948,
+            1.6241709253017378,
+            -0.4481390276587005,
+            2.710624955316554,
+            11.331352497006208,
+            8.315457880887966,
+            7.177749039689196,
+            -1.3754977167538929,
+            8.200661123299845,
+            -8.297867510750724,
+            1.3201304720388718,
+            3.43933059266075,
+            0.7360976289423116
+          ],
+          "median_percent_change": 1.0281140504905917,
+          "candidate_lower_pairs": 9,
+          "pairs": 20,
+          "minimum_percent_change": -14.144748550901177,
+          "maximum_percent_change": 12.69776009461976
+        },
+        "system_cpu_ns": {
+          "paired_percent_changes": [
+            -15.258718679472183,
+            -11.194711213309883,
+            27.22986489397716,
+            9.116640648406582,
+            -10.156396974903735,
+            -46.4449222922264,
+            23.745856139375874,
+            -37.565353538177646,
+            -3.5126960553482856,
+            4.259343872795385,
+            11.722573829438732,
+            -43.11222931958913,
+            8.372352666416027,
+            2.0902472148757845,
+            4.51810613412329,
+            2.098466505246166,
+            -6.2893347056540705,
+            5.109474640184786,
+            -5.828088304368251,
+            5.287680560284036
+          ],
+          "median_percent_change": 2.094356860060975,
+          "candidate_lower_pairs": 9,
+          "pairs": 20,
+          "minimum_percent_change": -46.4449222922264,
+          "maximum_percent_change": 27.22986489397716
+        }
+      },
+      "compile-integer-constant": {
+        "elapsed_ns": {
+          "paired_percent_changes": [
+            -14.68602998523485,
+            -7.1788540465316135,
+            12.351891898021993,
+            24.668839840902713,
+            14.303308775465396,
+            -0.391436271662271,
+            15.776139103186804,
+            -7.163199557937272,
+            -4.339856719972579,
+            7.7975510794713765,
+            2.1484929355926052,
+            -1.5532553607267463,
+            3.8669916804569215,
+            8.426783896402501,
+            -1.0095018180271365,
+            2.8030465796966997,
+            -8.824046549637954,
+            -9.755408521137776,
+            0.8216171865293997,
+            -0.6817274737115464
+          ],
+          "median_percent_change": 0.21509045743356436,
+          "candidate_lower_pairs": 10,
+          "pairs": 20,
+          "minimum_percent_change": -14.68602998523485,
+          "maximum_percent_change": 24.668839840902713
+        },
+        "user_cpu_ns": {
+          "paired_percent_changes": [
+            -6.793510748396592,
+            -5.613135809866843,
+            6.844253777784681,
+            24.086221249066675,
+            9.602334924929012,
+            1.2141484553401138,
+            0.09589399758160866,
+            -6.688890526005597,
+            -6.515492909155418,
+            7.051273391832624,
+            1.9024801312076844,
+            -1.7126936291897432,
+            0.5343481020340546,
+            1.9380408591089804,
+            -2.7670173617597826,
+            3.771098188045041,
+            -0.29283589023216816,
+            -4.485639532954799,
+            1.514005676350605,
+            0.5020979863606501
+          ],
+          "median_percent_change": 0.5182230441973523,
+          "candidate_lower_pairs": 8,
+          "pairs": 20,
+          "minimum_percent_change": -6.793510748396592,
+          "maximum_percent_change": 24.086221249066675
+        },
+        "system_cpu_ns": {
+          "paired_percent_changes": [
+            -3.474799689842334,
+            9.546777908138871,
+            4.001270855998529,
+            4.796778658613321,
+            23.583703657664934,
+            -22.25383360522023,
+            10.474127088455587,
+            -11.11984337083609,
+            -1.5920275210959067,
+            26.38389715197298,
+            -1.4876739657056048,
+            -0.7716310456963527,
+            7.438088387571051,
+            0.8183331886585599,
+            -0.42881894311290747,
+            13.078948011833646,
+            -7.523066481194018,
+            -7.496024647187438,
+            6.189942344650867,
+            -4.986274876785823
+          ],
+          "median_percent_change": 0.1947571227728262,
+          "candidate_lower_pairs": 10,
+          "pairs": 20,
+          "minimum_percent_change": -22.25383360522023,
+          "maximum_percent_change": 26.38389715197298
+        }
+      }
+    }
+  }
+}

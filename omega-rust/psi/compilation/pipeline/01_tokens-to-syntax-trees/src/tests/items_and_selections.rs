@@ -974,8 +974,8 @@ fn parses_type_and_integer_const_proposition_arguments() {
         call.machine_arguments[1]
             .const_literal
             .as_ref()
-            .map(|literal| literal.text()),
-        Some("7")
+            .map(|literal| literal.to_string()),
+        Some("7".to_owned())
     );
     assert_eq!(call.display_name(&parsed), "indexed<i32, 7>()");
     let snapshot = parsed.snapshot_json().expect("syntax should snapshot");

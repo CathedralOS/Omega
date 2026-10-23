@@ -89,7 +89,7 @@ pub fn resolve_witness_expressions(
 /// Render the source-like subset accepted in a normalized ranking witness.
 pub fn witness_expression_text(program: &TypedTrees, expression: ExpressionHandle) -> String {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal.text().to_string(),
+        ExpressionNode::Integer(literal) => literal.to_string(),
         ExpressionNode::Name(path) => program
             .expression_table
             .name_path_members(path.members)

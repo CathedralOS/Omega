@@ -317,13 +317,13 @@ fn validate_const_literal_argument(
     let Some(primitive) = type_reference.primitive_type() else {
         return Err(Diagnostic::error(format!(
             "proposition `{proposition}` const binder `{binder}` has a non-primitive type and cannot receive integer literal `{}`",
-            literal.text()
+            literal
         )));
     };
     if !primitive.accepts_integer_literal() || !integer_literal_fits(literal, primitive) {
         return Err(Diagnostic::error(format!(
             "proposition `{proposition}` const binder `{binder}` cannot receive integer literal `{}` as `{}`",
-            literal.text(),
+            literal,
             primitive.name()
         )));
     }

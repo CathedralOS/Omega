@@ -262,7 +262,7 @@ fn project_scalar_expression(
         },
         CheckedScalarExpression::IntegerLiteral { literal } => {
             PackageReviewScalarExpression::IntegerLiteral(PackageReviewIntegerLiteral {
-                canonical_text: literal.text().to_owned(),
+                canonical_text: literal.to_string(),
                 landing: literal
                     .landing()
                     .map(|landing| PackageReviewIntegerLiteralLanding {

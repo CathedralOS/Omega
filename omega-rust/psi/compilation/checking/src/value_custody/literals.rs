@@ -122,7 +122,7 @@ pub(crate) fn validate_suffix_magnitudes(
             // the value must sit inside the width's window. u64/addr accept
             // the full u64 window (an even larger spelling fails value_u64
             // and lands here too).
-            !literal.text().starts_with('-')
+            !literal.is_negative()
                 && literal.value_u64().is_some_and(|value| {
                     if width == 64 {
                         true
@@ -136,7 +136,7 @@ pub(crate) fn validate_suffix_magnitudes(
                 "literal `{}` does not fit its `{}` suffix -- a width suffix chooses the \
                  literal's type at the spelling, and the spelled value must fit that type's \
                  range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)",
-                literal.text(),
+                literal,
                 landed.name(),
             )));
         }

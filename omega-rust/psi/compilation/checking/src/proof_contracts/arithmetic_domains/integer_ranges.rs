@@ -220,7 +220,7 @@ pub(crate) fn validate_value_range_retaining_decisions(
 pub(crate) fn literal_interval(literal: &numerics::literals::IntegerLiteral) -> Interval {
     match literal.value_i64() {
         Some(value) => Interval::constant(value),
-        None if !literal.text().starts_with('-') => Interval {
+        None if !literal.is_negative() => Interval {
             low: Some(i64::MAX),
             high: None,
         },

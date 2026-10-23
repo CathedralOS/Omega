@@ -62,7 +62,7 @@ impl<'a> Elaborator<'a> {
                         }
                         _ => Err(self.refuse(format!(
                             "universe level literal `{}` exceeds the kernel's level range",
-                            literal.text()
+                            literal
                         ))),
                     },
                     _ => Err(self.refuse(

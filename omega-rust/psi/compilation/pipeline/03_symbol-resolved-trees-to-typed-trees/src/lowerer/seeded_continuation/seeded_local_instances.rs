@@ -293,7 +293,7 @@ fn instance_zero_gate_is_exact(
                     symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                         match source.tables.bodies.expressions.expression(*expression) {
                             symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
-                                literal.text().parse::<i128>() == Ok(0)
+                                literal.decimal_value_i128() == Some(0)
                             }
                             symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => {
                                 !*value

@@ -565,8 +565,8 @@ fn expression_symbol_trace(
         }
         ExpressionNode::Boolean(value) => boolean_trace(*value),
         ExpressionNode::Integer(value) => value.landing().map_or_else(
-            || format!("integer:{}:unlanded", value.text()),
-            |landing| integer_trace(value.text(), landing),
+            || format!("integer:{value}:unlanded"),
+            |landing| integer_trace(value.canonical_spelling().as_str(), landing),
         ),
         ExpressionNode::Float(value) => float_trace(value.text(), value.landing()),
         ExpressionNode::UndeterminedNaN(format) => format!("undetermined-nan:{}", format.name()),

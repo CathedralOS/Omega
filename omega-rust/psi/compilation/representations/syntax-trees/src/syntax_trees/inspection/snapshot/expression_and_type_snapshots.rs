@@ -447,7 +447,7 @@ pub(crate) fn snapshot_expression_handle(
             index: Box::new(snapshot_expression_handle(syntax_trees, indexed.index)),
         },
         ExpressionNode::Integer(value) => ExpressionSnapshot::Integer {
-            text: value.text().to_owned(),
+            text: value.to_string(),
         },
         ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
             value: Box::new(snapshot_expression_handle(syntax_trees, membership.value)),
@@ -559,7 +559,7 @@ pub(crate) fn snapshot_static_argument(
             )),
         }
     } else if let Some(literal) = &argument.const_literal {
-        StaticArgumentSnapshot::Const(literal.text().to_owned())
+        StaticArgumentSnapshot::Const(literal.to_string())
     } else if let Some(projection) = &argument.evidence_projection {
         StaticArgumentSnapshot::EvidenceProjection {
             term: snapshot_identifier(syntax_trees, &projection.term),

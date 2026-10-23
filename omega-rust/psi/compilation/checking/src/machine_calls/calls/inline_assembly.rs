@@ -66,7 +66,7 @@ pub(super) fn validate_asm_operand_constraint(
                 .maximum_literal()
                 .map(|maximum| format!(" or a literal in 0..={maximum}"))
                 .unwrap_or_default(),
-            literal.text(),
+            literal,
         )));
         return;
     }

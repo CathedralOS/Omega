@@ -35,10 +35,9 @@ impl<'a> Elaborator<'a> {
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Integer(literal) => {
                 let Some(value) = literal.value_bignum() else {
-                    return Err(self.refuse(format!(
-                        "integer literal `{}` has no exact value",
-                        literal.text()
-                    )));
+                    return Err(
+                        self.refuse(format!("integer literal `{}` has no exact value", literal))
+                    );
                 };
                 let position = self.carrier_position(carrier);
                 self.numeric_literal(position, value)
@@ -110,10 +109,7 @@ impl<'a> Elaborator<'a> {
         literal: &IntegerLiteral,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
         let Some(value) = literal.value_bignum() else {
-            return Err(self.refuse(format!(
-                "integer literal `{}` has no exact value",
-                literal.text()
-            )));
+            return Err(self.refuse(format!("integer literal `{}` has no exact value", literal)));
         };
         let carrier = match literal.landing() {
             Some(landing) if landing.landed_type == LandedIntegerType::Addr => {

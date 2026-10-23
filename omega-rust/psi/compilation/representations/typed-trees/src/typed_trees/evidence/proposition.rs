@@ -967,7 +967,7 @@ fn canonical_application_label(name: &str, binders: &[String], arguments: &[Stri
 
 fn display_binder_argument(argument: &PropositionBinderArgument) -> String {
     if let Some(literal) = &argument.const_literal {
-        return literal.text().to_owned();
+        return literal.to_string();
     }
     if let Some(projection) = &argument.evidence_projection {
         return format!("{}.{}", projection.term, projection.member);

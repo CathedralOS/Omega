@@ -417,10 +417,10 @@ fn close_const_argument(
     argument: &StaticMachineArgument,
 ) -> Result<(ClosedConformanceConstArgument, String), Diagnostic> {
     if let Some(literal) = argument.const_literal.as_ref() {
-        let value = literal.text().parse::<i128>().map_err(|_| {
+        let value = literal.decimal_value_i128().ok_or_else(|| {
             Diagnostic::error(format!(
                 "conformance `{conformance}` parameter `{parameter}` has a non-integer const literal `{}`",
-                literal.text(),
+                literal,
             ))
         })?;
         let primitive = program
@@ -449,7 +449,7 @@ fn close_const_argument(
                 declared_carrier: parameter_carrier,
                 value,
             },
-            literal.text().to_owned(),
+            literal.to_string(),
         ));
     }
     if argument.type_reference.is_valid()

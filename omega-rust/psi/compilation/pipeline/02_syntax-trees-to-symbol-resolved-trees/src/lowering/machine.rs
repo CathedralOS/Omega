@@ -614,7 +614,7 @@ fn render_ranked_subject(
 ) -> String {
     match syntax_trees.expressions.expression(subject) {
         // Range endpoints are commonly literals (`in 0..=capacity`).
-        syntax::expression::ExpressionNode::Integer(literal) => literal.text().to_string(),
+        syntax::expression::ExpressionNode::Integer(literal) => literal.to_string(),
         syntax::expression::ExpressionNode::Name(path) => syntax_trees
             .expressions
             .identifier_path_members(*path)

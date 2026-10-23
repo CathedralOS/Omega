@@ -1,22 +1,17 @@
-//! Integer literals as UNINTERPRETED payloads (TASKS_TIME.md D14).
+//! Canonical integer spelling with inline common magnitudes.
 //!
-//! A literal is a canonical SPELLING -- optional `-`, optional `0b`/`0o`/`0x`
-//! prefix, then digits -- never a numeric value. Underscores, width suffixes,
-//! uppercase prefixes/hex digits, and leading zeros are normalized away at
-//! construction, so structural equality is spelling-insensitive WITHIN a radix.
-//! (Cross-radix spellings of one value compare unequal at the node level; the
-//! structural-equivalence proof paths treat that conservatively -- a loud
-//! reject, never a soundness hole.)
-//!
-//! The only way to read a number out is an accessor that states the range it
-//! accepts (`value_i64` today), so the fit-check happens at the USE. There is
-//! deliberately NO unbounded numeric getter: the payload has no ceiling to
-//! outgrow when wider integer types (u128, ...) arrive -- widening the language
-//! means adding accessors, never touching stored literals. This mirrors how
-//! float literals already ride the trees as uninterpreted `SourceText`.
+//! Radix and sign are part of literal identity; landing is site metadata and
+//! does not affect equality. Values fitting a u64 magnitude retain those facts
+//! directly, avoiding a string allocation and repeated decimal parsing. Larger
+//! authored magnitudes keep canonical text, with no language-level width limit.
+//! Range-specific accessors decide fit at use. Decimal-only consumers retain
+//! their existing admission window rather than silently accepting radix prefixes.
+//! Text is materialized as a bounded temporary view only for diagnostics and
+//! exports. Float literals retain their exact decimal source spelling and round
+//! only when a consumer requests a format.
 
 use std::borrow::Cow;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 /// The integer type a constant LANDED at (ch5 "Constants: Two Phases" — the
 /// two-phase law's phase-B fact, riding the literal payload so every clone,
@@ -313,182 +308,359 @@ impl IntegerRadix {
     }
 }
 
-/// An integer literal: a canonical spelling (the exact mathematical value,
-/// phase A of the two-phase law) plus, once landed, the landing riding along
-/// (phase B). EQUALITY IS TEXT-ONLY by design: the spelling is the constant's
-/// identity, the landing is metadata about how a SITE rendered it — two
-/// spellings of one value stay equal whatever they landed as, preserving
-/// every structural-equivalence consumer bit-for-bit. Consumers that need
-/// landing-sensitivity compare `landing()` explicitly.
-#[derive(Debug, Clone)]
+/// Canonical integer spelling compressed by magnitude. Radix and sign remain
+/// part of spelling identity; landing remains site metadata. Arbitrary authored
+/// magnitudes retain canonical text, so this storage choice imposes no width.
+#[derive(Clone)]
 pub struct IntegerLiteral {
-    /// Canonical form: `-`? (`0b`|`0o`|`0x`)? digits. Digits are lowercase,
-    /// underscore-free, suffix-free, and carry no leading zeros (a lone `0`
-    /// stays, and is never negative).
-    text: Arc<str>,
-    /// `Some` once the constant has LANDED (ch5 two-phase law); `None` while
-    /// anonymous. Rides every clone/splice/table↔tree conversion.
-    landing: Option<IntegerLanding>,
+    representation: IntegerRepresentation,
+}
+
+#[derive(Clone)]
+enum IntegerRepresentation {
+    Small {
+        magnitude: u64,
+        radix: IntegerRadix,
+        negative: bool,
+        landing: Option<IntegerLanding>,
+    },
+    Large {
+        text: Arc<String>,
+        landing: Option<IntegerLanding>,
+    },
+}
+
+/// A deliberately temporary spelling view. Small values format into bounded
+/// stack storage; large values borrow their existing canonical text.
+pub struct CanonicalIntegerSpelling<'literal> {
+    storage: IntegerSpellingStorage<'literal>,
+}
+
+enum IntegerSpellingStorage<'literal> {
+    Borrowed(&'literal str),
+    Inline { bytes: [u8; 67], start: u8 },
+}
+
+impl CanonicalIntegerSpelling<'_> {
+    pub fn as_str(&self) -> &str {
+        match &self.storage {
+            IntegerSpellingStorage::Borrowed(text) => text,
+            IntegerSpellingStorage::Inline { bytes, start } => {
+                std::str::from_utf8(&bytes[usize::from(*start)..])
+                    .expect("canonical integer formatting writes only ASCII")
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for CanonicalIntegerSpelling<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.as_str(), formatter)
+    }
+}
+
+impl std::fmt::Display for CanonicalIntegerSpelling<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl std::fmt::Debug for IntegerLiteral {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("IntegerLiteral")
+            .field("text", &self.canonical_spelling())
+            .field("landing", &self.landing())
+            .finish()
+    }
 }
 
 impl PartialEq for IntegerLiteral {
     fn eq(&self, other: &Self) -> bool {
-        self.text == other.text
+        match (&self.representation, &other.representation) {
+            (
+                IntegerRepresentation::Small {
+                    magnitude: left,
+                    radix: left_radix,
+                    negative: left_negative,
+                    ..
+                },
+                IntegerRepresentation::Small {
+                    magnitude: right,
+                    radix: right_radix,
+                    negative: right_negative,
+                    ..
+                },
+            ) => left == right && left_radix == right_radix && left_negative == right_negative,
+            (
+                IntegerRepresentation::Large { text: left, .. },
+                IntegerRepresentation::Large { text: right, .. },
+            ) => left == right,
+            _ => false,
+        }
     }
 }
 
 impl Eq for IntegerLiteral {}
 
 impl IntegerLiteral {
-    /// Build from parser-supplied parts. `digits` may contain underscores and
-    /// uppercase hex digits; it must be non-empty after normalization and every
-    /// character must be valid for `radix`. The width suffix must already be
-    /// stripped (the parser owns suffix grammar).
     pub fn from_parts(
         negative: bool,
         radix: IntegerRadix,
         digits: &str,
     ) -> Result<Self, &'static str> {
-        let mut normalized = String::with_capacity(digits.len());
+        let mut magnitude = Some(0u64);
+        let mut saw_digit = false;
         for character in digits.chars() {
             if character == '_' {
                 continue;
             }
-            if !character.is_digit(radix.base()) {
-                return Err("invalid integer literal");
-            }
-            normalized.push(character.to_ascii_lowercase());
+            let digit = character
+                .to_digit(radix.base())
+                .ok_or("invalid integer literal")?;
+            saw_digit = true;
+            magnitude = magnitude.and_then(|value| {
+                value
+                    .checked_mul(u64::from(radix.base()))?
+                    .checked_add(u64::from(digit))
+            });
         }
-        if normalized.is_empty() {
+        if !saw_digit {
             return Err("invalid integer literal");
         }
-        let trimmed = normalized.trim_start_matches('0');
-        let digits = if trimmed.is_empty() { "0" } else { trimmed };
-        let negative = negative && digits != "0";
-        let sign = if negative { "-" } else { "" };
+        if let Some(magnitude) = magnitude {
+            return Ok(Self {
+                representation: IntegerRepresentation::Small {
+                    magnitude,
+                    radix,
+                    negative: negative && magnitude != 0,
+                    landing: None,
+                },
+            });
+        }
+        // Overflow cannot make malformed later characters acceptable. The
+        // complete digit stream was validated before entering this rare path.
+        let canonical_digits = digits
+            .bytes()
+            .filter(|byte| *byte != b'_')
+            .skip_while(|byte| *byte == b'0')
+            .count();
+        let mut text =
+            String::with_capacity(canonical_digits + radix.prefix().len() + usize::from(negative));
+        if negative {
+            text.push('-');
+        }
+        text.push_str(radix.prefix());
+        let mut significant = false;
+        for character in digits.chars().filter(|character| *character != '_') {
+            significant |= character != '0';
+            if significant {
+                text.push(character.to_ascii_lowercase());
+            }
+        }
         Ok(Self {
-            text: Arc::from(format!("{sign}{}{digits}", radix.prefix())),
-            landing: None,
+            representation: IntegerRepresentation::Large {
+                text: Arc::new(text),
+                landing: None,
+            },
         })
     }
 
-    /// A literal the COMPILER synthesizes (desugarings, defaults, generated
-    /// zeros). Canonical decimal spelling, anonymous.
     pub fn from_value(value: i64) -> Self {
-        if value == 0 {
-            return Self::zero();
-        }
         Self {
-            text: Arc::from(value.to_string()),
-            landing: None,
+            representation: IntegerRepresentation::Small {
+                magnitude: value.unsigned_abs(),
+                radix: IntegerRadix::Decimal,
+                negative: value < 0,
+                landing: None,
+            },
         }
     }
 
-    /// The shared zero literal (also the arena-default payload, mirroring the
-    /// old `Integer(0)` default).
     pub fn zero() -> Self {
-        static ZERO: OnceLock<Arc<str>> = OnceLock::new();
-        Self {
-            text: ZERO.get_or_init(|| Arc::from("0")).clone(),
-            landing: None,
-        }
+        Self::from_value(0)
     }
 
-    /// This literal LANDED at `landing` (ch5 two-phase law, phase B): the
-    /// first typed site renders the value once and the fact rides from then
-    /// on. Landing is idempotent-by-construction at the stamping sites; a
-    /// re-stamp simply records the newest site's rendering.
     pub fn with_landing(&self, landing: IntegerLanding) -> Self {
-        Self {
-            text: self.text.clone(),
-            landing: Some(landing),
+        let mut result = self.clone();
+        match &mut result.representation {
+            IntegerRepresentation::Small { landing: slot, .. }
+            | IntegerRepresentation::Large { landing: slot, .. } => *slot = Some(landing),
         }
+        result
     }
 
-    /// The landing this constant carries, if it has left the anonymous phase.
     pub fn landing(&self) -> Option<IntegerLanding> {
-        self.landing
+        match self.representation {
+            IntegerRepresentation::Small { landing, .. }
+            | IntegerRepresentation::Large { landing, .. } => landing,
+        }
     }
 
-    /// The literal with its sign flipped -- the parse-time negative fold
-    /// (`-5` stays one constant), mirroring the Float fold that prepends `-`
-    /// to the source text. `0` has no sign. The landing rides.
+    pub fn is_negative(&self) -> bool {
+        match &self.representation {
+            IntegerRepresentation::Small { negative, .. } => *negative,
+            IntegerRepresentation::Large { text, .. } => text.starts_with('-'),
+        }
+    }
+
     pub fn negated(&self) -> Self {
-        let text: &str = &self.text;
-        if text == "0" {
-            return self.clone();
-        }
-        let flipped = match text.strip_prefix('-') {
-            Some(positive) => Arc::from(positive),
-            None => Arc::from(format!("-{text}")),
-        };
-        Self {
-            text: flipped,
-            landing: self.landing,
+        match &self.representation {
+            IntegerRepresentation::Small {
+                magnitude,
+                radix,
+                negative,
+                landing,
+            } => Self {
+                representation: IntegerRepresentation::Small {
+                    magnitude: *magnitude,
+                    radix: *radix,
+                    landing: *landing,
+                    // Preserve historical negated nondecimal zero spelling.
+                    negative: !(*magnitude == 0 && *radix == IntegerRadix::Decimal) && !negative,
+                },
+            },
+            IntegerRepresentation::Large { text, landing } => Self {
+                representation: IntegerRepresentation::Large {
+                    text: Arc::new(match text.strip_prefix('-') {
+                        Some(positive) => positive.to_owned(),
+                        None => format!("-{text}"),
+                    }),
+                    landing: *landing,
+                },
+            },
         }
     }
 
-    /// The value, IF it fits i64 -- the transitional status-quo accessor.
-    /// Every spelling the parser accepted before D14 fits by construction, so
-    /// existing consumers behave bit-identically; only new u64-magnitude
-    /// spellings return `None`, and a consumer must NEVER silently skip work
-    /// on `None` (route to the oversize-literal validation gate instead).
     pub fn value_i64(&self) -> Option<i64> {
-        let (sign, unsigned) = match self.text.strip_prefix('-') {
-            Some(rest) => ("-", rest),
-            None => ("", &*self.text),
-        };
-        let (base, digits) = split_radix(unsigned);
-        if sign.is_empty() {
-            i64::from_str_radix(digits, base).ok()
-        } else {
-            // Reattach the sign so `-9223372036854775808` (i64::MIN) parses.
-            i64::from_str_radix(&format!("-{digits}"), base).ok()
-        }
-    }
-
-    /// The EXACT value at any magnitude -- the proof engines' accessor
-    /// (math roster N2: fact evaluation never rounds a literal). Canonical
-    /// text always parses, so `None` is unreachable for well-formed
-    /// literals; the Option mirrors the sibling accessors.
-    pub fn value_bignum(&self) -> Option<crate::bignum::BigInt> {
-        let (negative, unsigned) = match self.text.strip_prefix('-') {
-            Some(rest) => (true, rest),
-            None => (false, &*self.text),
-        };
-        let (base, digits) = split_radix(unsigned);
-        let magnitude = crate::bignum::BigInt::from_str_radix(digits, base)?;
-        Some(if negative {
-            magnitude.negate()
-        } else {
-            magnitude
-        })
-    }
-
-    /// The value, IF it is non-negative and fits u64 — the u64-target window
-    /// (D14 fire C). Widening the language to u128 later means adding another
-    /// accessor here, never touching stored literals.
-    pub fn value_u64(&self) -> Option<u64> {
-        if self.text.starts_with('-') {
+        let IntegerRepresentation::Small {
+            magnitude,
+            negative,
+            ..
+        } = self.representation
+        else {
             return None;
+        };
+        if negative {
+            i64::try_from(-i128::from(magnitude)).ok()
+        } else {
+            i64::try_from(magnitude).ok()
         }
-        let (base, digits) = split_radix(&self.text);
-        u64::from_str_radix(digits, base).ok()
     }
 
-    /// The literal's 8-byte two's-complement bit pattern: an i64-window value
-    /// as its bits, or a u64-magnitude value verbatim. This is what an 8-byte
-    /// store/immediate materializes; callers narrower than 8 bytes must go
-    /// through the typed windows instead.
+    pub fn value_u64(&self) -> Option<u64> {
+        match self.representation {
+            IntegerRepresentation::Small {
+                magnitude,
+                negative: false,
+                ..
+            } => Some(magnitude),
+            _ => None,
+        }
+    }
+
+    pub fn value_bignum(&self) -> Option<crate::bignum::BigInt> {
+        match &self.representation {
+            IntegerRepresentation::Small {
+                magnitude,
+                negative,
+                ..
+            } => {
+                let magnitude = crate::bignum::BigInt::from_u64(*magnitude);
+                Some(if *negative {
+                    magnitude.negate()
+                } else {
+                    magnitude
+                })
+            }
+            IntegerRepresentation::Large { text, .. } => {
+                let (negative, unsigned) = text
+                    .strip_prefix('-')
+                    .map_or((false, text.as_str()), |digits| (true, digits));
+                let (base, digits) = split_radix(unsigned);
+                let magnitude = crate::bignum::BigInt::from_str_radix(digits, base)?;
+                Some(if negative {
+                    magnitude.negate()
+                } else {
+                    magnitude
+                })
+            }
+        }
+    }
+
     pub fn bits_u64(&self) -> Option<u64> {
         self.value_i64()
             .map(|value| value as u64)
             .or_else(|| self.value_u64())
     }
 
-    /// The canonical spelling (for display/diagnostics).
-    pub fn text(&self) -> &str {
-        &self.text
+    /// Preserve consumers that accepted decimal spelling only. A prefixed
+    /// binary/octal/hex spelling remains outside this window even when it fits.
+    pub fn decimal_value_i128(&self) -> Option<i128> {
+        match &self.representation {
+            IntegerRepresentation::Small {
+                magnitude,
+                radix: IntegerRadix::Decimal,
+                negative,
+                ..
+            } => Some(if *negative {
+                -i128::from(*magnitude)
+            } else {
+                i128::from(*magnitude)
+            }),
+            IntegerRepresentation::Small { .. } => None,
+            IntegerRepresentation::Large { text, .. } => text.parse().ok(),
+        }
+    }
+
+    pub fn decimal_value_bignum(&self) -> Option<crate::bignum::BigInt> {
+        match &self.representation {
+            IntegerRepresentation::Small {
+                radix: IntegerRadix::Decimal,
+                ..
+            } => self.value_bignum(),
+            IntegerRepresentation::Small { .. } => None,
+            IntegerRepresentation::Large { text, .. } => {
+                crate::bignum::BigInt::from_decimal_str(text)
+            }
+        }
+    }
+
+    pub fn canonical_spelling(&self) -> CanonicalIntegerSpelling<'_> {
+        let storage = match &self.representation {
+            IntegerRepresentation::Large { text, .. } => IntegerSpellingStorage::Borrowed(text),
+            IntegerRepresentation::Small {
+                magnitude,
+                radix,
+                negative,
+                ..
+            } => {
+                let mut bytes = [0; 67];
+                let mut start = bytes.len();
+                let mut remaining = *magnitude;
+                let base = u64::from(radix.base());
+                loop {
+                    start -= 1;
+                    bytes[start] = b"0123456789abcdef"[(remaining % base) as usize];
+                    remaining /= base;
+                    if remaining == 0 {
+                        break;
+                    }
+                }
+                let prefix = radix.prefix().as_bytes();
+                start -= prefix.len();
+                bytes[start..start + prefix.len()].copy_from_slice(prefix);
+                if *negative {
+                    start -= 1;
+                    bytes[start] = b'-';
+                }
+                IntegerSpellingStorage::Inline {
+                    bytes,
+                    start: start as u8,
+                }
+            }
+        };
+        CanonicalIntegerSpelling { storage }
     }
 }
 
@@ -497,10 +669,9 @@ impl Default for IntegerLiteral {
         Self::zero()
     }
 }
-
 impl std::fmt::Display for IntegerLiteral {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.text)
+        formatter.write_str(self.canonical_spelling().as_str())
     }
 }
 
@@ -527,7 +698,7 @@ mod tests {
         let plain = IntegerLiteral::from_parts(false, IntegerRadix::Hexadecimal, "FF").unwrap();
         let fancy = IntegerLiteral::from_parts(false, IntegerRadix::Hexadecimal, "0_0fF").unwrap();
         assert_eq!(plain, fancy);
-        assert_eq!(plain.text(), "0xff");
+        assert_eq!(plain.canonical_spelling().as_str(), "0xff");
     }
 
     #[test]
@@ -542,7 +713,7 @@ mod tests {
     fn u64_magnitudes_parse_but_do_not_fit_i64() {
         let max = IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551615")
             .unwrap();
-        assert_eq!(max.text(), "18446744073709551615");
+        assert_eq!(max.canonical_spelling().as_str(), "18446744073709551615");
         assert_eq!(max.value_i64(), None);
         assert_eq!(max.value_u64(), Some(u64::MAX));
         assert_eq!(max.bits_u64(), Some(u64::MAX));
@@ -572,8 +743,8 @@ mod tests {
     #[test]
     fn zero_never_carries_a_sign_and_double_negation_round_trips() {
         let zero = IntegerLiteral::from_parts(true, IntegerRadix::Decimal, "000").unwrap();
-        assert_eq!(zero.text(), "0");
-        assert_eq!(zero.negated().text(), "0");
+        assert_eq!(zero.canonical_spelling().as_str(), "0");
+        assert_eq!(zero.negated().canonical_spelling().as_str(), "0");
         let five = IntegerLiteral::from_value(5);
         assert_eq!(five.negated().negated(), five);
     }
@@ -641,5 +812,65 @@ mod tests {
         assert_eq!(landed.landing(), Some(FloatFormat::F32));
         assert_eq!(landed.value_f32().to_bits(), 1.0f32.to_bits());
         assert_eq!(landed.landed_f64().to_bits(), f64::from(1.0f32).to_bits());
+    }
+
+    #[test]
+    fn decimal_consumers_preserve_their_spelling_window() {
+        let decimal = IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "255").unwrap();
+        let hexadecimal =
+            IntegerLiteral::from_parts(false, IntegerRadix::Hexadecimal, "ff").unwrap();
+        assert_ne!(decimal, hexadecimal);
+        assert_eq!(decimal.value_i64(), hexadecimal.value_i64());
+        assert_eq!(decimal.decimal_value_i128(), Some(255));
+        assert_eq!(hexadecimal.decimal_value_i128(), None);
+        assert_eq!(hexadecimal.decimal_value_bignum(), None);
+        let maximum =
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, &i128::MAX.to_string())
+                .unwrap();
+        assert_eq!(maximum.decimal_value_i128(), Some(i128::MAX));
+        let beyond = IntegerLiteral::from_parts(
+            false,
+            IntegerRadix::Decimal,
+            "170141183460469231731687303715884105728",
+        )
+        .unwrap();
+        assert_eq!(beyond.decimal_value_i128(), None);
+        assert_eq!(beyond.negated().decimal_value_i128(), Some(i128::MIN));
+    }
+
+    #[test]
+    fn oversized_magnitudes_still_validate_every_digit() {
+        for radix in [
+            IntegerRadix::Binary,
+            IntegerRadix::Octal,
+            IntegerRadix::Decimal,
+            IntegerRadix::Hexadecimal,
+        ] {
+            let digits = "1".repeat(1024);
+            let literal = IntegerLiteral::from_parts(false, radix, &digits).unwrap();
+            assert_eq!(literal.to_string(), format!("{}{digits}", radix.prefix()));
+            assert!(literal.value_bignum().is_some());
+            assert_eq!(literal.negated().negated(), literal);
+            assert!(IntegerLiteral::from_parts(false, radix, &format!("{digits}_z")).is_err());
+        }
+    }
+
+    #[test]
+    fn nondecimal_zero_negation_preserves_spelling_identity() {
+        for radix in [
+            IntegerRadix::Binary,
+            IntegerRadix::Octal,
+            IntegerRadix::Hexadecimal,
+        ] {
+            let positive = IntegerLiteral::from_parts(true, radix, "00_0").unwrap();
+            let negative = positive.negated();
+            assert!(!positive.is_negative());
+            assert!(negative.is_negative());
+            assert_eq!(negative.to_string(), format!("-{}0", radix.prefix()));
+            assert_eq!(negative.value_i64(), Some(0));
+            assert_eq!(negative.value_u64(), None);
+            assert_ne!(positive, negative);
+            assert_eq!(negative.negated(), positive);
+        }
     }
 }

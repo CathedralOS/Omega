@@ -562,7 +562,7 @@ pub(crate) fn table_expression_snapshot(
             index: Box::new(table_expression_snapshot(program, indexed.index)),
         },
         ExpressionNode::Integer(value) => ExpressionSnapshot::Integer {
-            text: value.text().to_owned(),
+            text: value.to_string(),
         },
         ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
             value: Box::new(table_expression_snapshot(program, membership.value)),
@@ -629,7 +629,7 @@ pub(crate) fn snapshot_static_argument(
             )),
         }
     } else if let Some(literal) = &argument.const_literal {
-        StaticArgumentSnapshot::Const(literal.text().to_owned())
+        StaticArgumentSnapshot::Const(literal.to_string())
     } else if let Some(projection) = &argument.evidence_projection {
         StaticArgumentSnapshot::EvidenceProjection {
             term: projection.term.as_str().to_owned(),

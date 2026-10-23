@@ -504,7 +504,7 @@ fn zero_fold(
             // not a field valuation merely because its member is named len.
             (zero_fold(program, definition, member.receiver)? == 0).then_some(0)
         }
-        ExpressionNode::Integer(literal) => literal.text().parse::<i128>().ok(),
+        ExpressionNode::Integer(literal) => literal.decimal_value_i128(),
         ExpressionNode::Binary(binary) => {
             let left = zero_fold(program, definition, binary.left)?;
             let right = zero_fold(program, definition, binary.right)?;
@@ -537,7 +537,7 @@ fn fact_expression_is_constant_false(
 ) -> bool {
     match program.tables.bodies.expressions.expression(expression) {
         symbol_resolved_trees::expression::ExpressionNode::Integer(literal) => {
-            literal.text().parse::<i128>() == Ok(0)
+            literal.decimal_value_i128() == Some(0)
         }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(value) => !*value,
         _ => false,

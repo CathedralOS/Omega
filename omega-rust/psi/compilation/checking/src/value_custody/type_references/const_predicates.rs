@@ -93,9 +93,8 @@ fn evaluate(
         ExpressionNode::Integer(value) => Ok((
             Scalar::Integer(
                 value
-                    .text()
-                    .parse()
-                    .map_err(|_| "integer predicate literal exceeds the evaluation carrier")?,
+                    .decimal_value_i128()
+                    .ok_or("integer predicate literal exceeds the evaluation carrier")?,
             ),
             None,
         )),

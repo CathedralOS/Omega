@@ -171,7 +171,7 @@ fn case_where_facts_match(
                     .bodies
                     .expressions
                     .expression(*instance_expression),
-                ExpressionNode::Integer(literal) if literal.text() == "0"
+                ExpressionNode::Integer(literal) if literal == &numerics::literals::IntegerLiteral::zero()
             ) {
                 return false;
             }
@@ -389,7 +389,7 @@ fn fact_expression_matches(
                 return matches!(
                     instance_node,
                     ExpressionNode::Integer(literal)
-                        if literal.text() == name.as_str()
+                        if literal.canonical_spelling().as_str() == name.as_str()
                 );
             }
             let ExpressionNode::Name(instance_path) = instance_node else {

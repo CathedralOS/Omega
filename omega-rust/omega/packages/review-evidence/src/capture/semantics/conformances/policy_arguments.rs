@@ -34,9 +34,8 @@ pub(crate) fn argument_type_reference(
             _ => unreachable!("const slot checked above"),
         };
         let integer = literal
-            .text()
-            .parse::<i128>()
-            .map_err(|_| rejected("a non-integer const literal"))?;
+            .decimal_value_i128()
+            .ok_or_else(|| rejected("a non-integer const literal"))?;
         let primitive = program
             .type_reference_table
             .primitive_type(carrier)

@@ -49,7 +49,7 @@ pub(crate) fn project_proposition_binder_argument(
     let value = if let Some(projection) = argument.evidence_projection.as_ref() {
         project_proposition_evidence_projection(compilation, context, projection)?
     } else if let Some(literal) = &argument.const_literal {
-        PackageReviewPropositionBinderValue::Integer(literal.text().to_owned())
+        PackageReviewPropositionBinderValue::Integer(literal.to_string())
     } else if let Some(position) = callable_binders
         .iter()
         .position(|(symbol, _)| *symbol == argument.symbol)

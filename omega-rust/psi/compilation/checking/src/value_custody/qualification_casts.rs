@@ -157,7 +157,7 @@ fn operand_mint_judgment(
     source: Option<&ExpressionInterval>,
 ) -> MintJudgment {
     let value = if let Some(literal) = program.expression_table.integer_node(cast.value)
-        && let Some(value) = BigInt::from_decimal_str(literal.text())
+        && let Some(value) = literal.decimal_value_bignum()
     {
         ScopedArithmeticValue::Integer(value)
     } else if let Some(source) = source {

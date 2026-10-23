@@ -622,7 +622,7 @@ pub(super) fn closed_lift_literal_for_representative(
             let landing =
                 exact_integer_landing(program, representative_type, primitive, literal, position)?;
             Ok(Some(ClosedLiftLiteral::Integer {
-                spelling: literal.text().to_owned(),
+                spelling: literal.to_string(),
                 landing,
             }))
         }
@@ -751,7 +751,7 @@ fn closed_recursive_array_element(
                         exact_integer_landing(program, target_type, primitive, literal, position)?;
                     Ok(ClosedRecursiveArrayElement::Integer(
                         ClosedIntegerArrayElement {
-                            spelling: literal.text().to_owned(),
+                            spelling: literal.to_string(),
                             landing,
                         },
                     ))
@@ -813,7 +813,7 @@ fn closed_integer_array_element(
     };
     let landing = exact_integer_landing(program, element_type, primitive, literal, position)?;
     Ok(ClosedIntegerArrayElement {
-        spelling: literal.text().to_owned(),
+        spelling: literal.to_string(),
         landing,
     })
 }
@@ -861,7 +861,9 @@ fn canonical_fixed_bytes(
             let value = literal
                 .value_u64()
                 .and_then(|value| u8::try_from(value).ok())?;
-            (literal.landing().is_none() && literal.text() == value.to_string()).then_some(value)
+            (literal.landing().is_none()
+                && literal == &numerics::literals::IntegerLiteral::from_value(i64::from(value)))
+                .then_some(value)
         })
         .collect()
 }
@@ -923,7 +925,7 @@ fn integer_literal_fits(literal: &IntegerLiteral, landed: LandedIntegerType) -> 
             }
         })
     } else {
-        !literal.text().starts_with('-')
+        !literal.is_negative()
             && literal
                 .value_u64()
                 .is_some_and(|value| width == 64 || value < (1u64 << width))

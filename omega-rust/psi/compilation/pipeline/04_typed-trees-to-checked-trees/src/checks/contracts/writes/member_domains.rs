@@ -197,7 +197,7 @@ pub(super) fn captured_value_satisfies_indexed_domain(
         return false;
     }
     let scalar = if let Some(literal) = program.expression_table.integer_node(capture.expression)
-        && let Some(integer) = numerics::bignum::BigInt::from_decimal_str(literal.text())
+        && let Some(integer) = literal.decimal_value_bignum()
     {
         validation::ScopedArithmeticValue::Integer(integer)
     } else {

@@ -204,7 +204,7 @@ pub fn impossible_variant(program: &dyn crate::CheckingInput, variant: &DataVari
         .any(|fact| match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 match program.expression_table.expression(*expression) {
-                    ExpressionNode::Integer(literal) => literal.text().parse::<i128>() == Ok(0),
+                    ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
                     ExpressionNode::Boolean(value) => !*value,
                     _ => false,
                 }
@@ -241,7 +241,9 @@ fn field_intervals(
         // comparison whose meaning depends on the field's format, so it does
         // not reduce to one here.
         let value = program.expression_table.integer_node(bound.literal)?;
-        let bound_value = value.text().parse::<i64>().ok()?;
+        let bound_value = value
+            .decimal_value_i128()
+            .and_then(|value| i64::try_from(value).ok())?;
         let (low, high) = match bound.operator {
             BinaryOperator::LessOrEqual => (None, Some(bound_value)),
             BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
@@ -461,7 +463,9 @@ fn bound_source_interval(
 ) -> Option<Interval> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => {
-            let literal = value.text().parse::<i64>().ok()?;
+            let literal = value
+                .decimal_value_i128()
+                .and_then(|value| i64::try_from(value).ok())?;
             Some(Interval {
                 low: Some(literal),
                 high: Some(literal),

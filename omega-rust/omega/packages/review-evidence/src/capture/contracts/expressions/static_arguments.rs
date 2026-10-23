@@ -343,7 +343,7 @@ pub(crate) fn project_static_argument(
             ));
         }
         return Ok(PackageReviewContractStaticArgument::ConstInteger(
-            literal.text().to_owned(),
+            literal.to_string(),
         ));
     }
     if let Some(position) = binders

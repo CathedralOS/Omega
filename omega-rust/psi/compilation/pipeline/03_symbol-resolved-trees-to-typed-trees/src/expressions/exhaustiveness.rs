@@ -403,7 +403,7 @@ fn variant_is_impossible(
         .any(|fact| match fact {
             resolved::domain::ProofFact::Expression(expression) => {
                 match program.tables.bodies.expressions.expression(*expression) {
-                    ExpressionNode::Integer(literal) => literal.text().parse::<i128>() == Ok(0),
+                    ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
                     ExpressionNode::Boolean(value) => !*value,
                     _ => false,
                 }
@@ -623,8 +623,7 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
                     // `transition true { true -> .. }` desugars to a name against
                     // a boolean literal: a closed subject decides the arm, so the
                     // block closes like `_` instead of counting half an axis.
-                    if let Some(subject) =
-                        closed_boolean_guard_through_names(program, binary.left)
+                    if let Some(subject) = closed_boolean_guard_through_names(program, binary.left)
                     {
                         return if subject == value {
                             ArmShape::Default
@@ -641,8 +640,7 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
                     program.tables.bodies.expressions.expression(binary.left)
                 {
                     let value = *value;
-                    if let Some(subject) =
-                        closed_boolean_guard_through_names(program, binary.right)
+                    if let Some(subject) = closed_boolean_guard_through_names(program, binary.right)
                     {
                         return if subject == value {
                             ArmShape::Default
