@@ -1,0 +1,96 @@
+// Fact: matching a 29-variant tagged enum payload TwentyNineChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64), V26(u64), V27(u64), V28(u64), V29(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+
+data TwentyNineChoice [copy] {
+    case V1(v: u64) where v >= 40u64 && v <= 80u64;
+    case V2(v: u64) where v >= 40u64 && v <= 80u64;
+    case V3(v: u64) where v >= 40u64 && v <= 80u64;
+    case V4(v: u64) where v >= 40u64 && v <= 80u64;
+    case V5(v: u64) where v >= 40u64 && v <= 80u64;
+    case V6(v: u64) where v >= 40u64 && v <= 80u64;
+    case V7(v: u64) where v >= 40u64 && v <= 80u64;
+    case V8(v: u64) where v >= 40u64 && v <= 80u64;
+    case V9(v: u64) where v >= 40u64 && v <= 80u64;
+    case V10(v: u64) where v >= 40u64 && v <= 80u64;
+    case V11(v: u64) where v >= 40u64 && v <= 80u64;
+    case V12(v: u64) where v >= 40u64 && v <= 80u64;
+    case V13(v: u64) where v >= 40u64 && v <= 80u64;
+    case V14(v: u64) where v >= 40u64 && v <= 80u64;
+    case V15(v: u64) where v >= 40u64 && v <= 80u64;
+    case V16(v: u64) where v >= 40u64 && v <= 80u64;
+    case V17(v: u64) where v >= 40u64 && v <= 80u64;
+    case V18(v: u64) where v >= 40u64 && v <= 80u64;
+    case V19(v: u64) where v >= 40u64 && v <= 80u64;
+    case V20(v: u64) where v >= 40u64 && v <= 80u64;
+    case V21(v: u64) where v >= 40u64 && v <= 80u64;
+    case V22(v: u64) where v >= 40u64 && v <= 80u64;
+    case V23(v: u64) where v >= 40u64 && v <= 80u64;
+    case V24(v: u64) where v >= 40u64 && v <= 80u64;
+    case V25(v: u64) where v >= 40u64 && v <= 80u64;
+    case V26(v: u64) where v >= 40u64 && v <= 80u64;
+    case V27(v: u64) where v >= 40u64 && v <= 80u64;
+    case V28(v: u64) where v >= 40u64 && v <= 80u64;
+    case V29(v: u64) where v >= 39u64 && v <= 80u64;
+}
+
+data ResHolder {
+    res: u64;
+}
+
+machine verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine extract(choice: TwentyNineChoice) -> u64 {
+    transition choice {
+        TwentyNineChoice::V1 { v } -> v
+        TwentyNineChoice::V2 { v } -> v
+        TwentyNineChoice::V3 { v } -> v
+        TwentyNineChoice::V4 { v } -> v
+        TwentyNineChoice::V5 { v } -> v
+        TwentyNineChoice::V6 { v } -> v
+        TwentyNineChoice::V7 { v } -> v
+        TwentyNineChoice::V8 { v } -> v
+        TwentyNineChoice::V9 { v } -> v
+        TwentyNineChoice::V10 { v } -> v
+        TwentyNineChoice::V11 { v } -> v
+        TwentyNineChoice::V12 { v } -> v
+        TwentyNineChoice::V13 { v } -> v
+        TwentyNineChoice::V14 { v } -> v
+        TwentyNineChoice::V15 { v } -> v
+        TwentyNineChoice::V16 { v } -> v
+        TwentyNineChoice::V17 { v } -> v
+        TwentyNineChoice::V18 { v } -> v
+        TwentyNineChoice::V19 { v } -> v
+        TwentyNineChoice::V20 { v } -> v
+        TwentyNineChoice::V21 { v } -> v
+        TwentyNineChoice::V22 { v } -> v
+        TwentyNineChoice::V23 { v } -> v
+        TwentyNineChoice::V24 { v } -> v
+        TwentyNineChoice::V25 { v } -> v
+        TwentyNineChoice::V26 { v } -> v
+        TwentyNineChoice::V27 { v } -> v
+        TwentyNineChoice::V28 { v } -> v
+        TwentyNineChoice::V29 { v } -> v
+    }
+}
+
+machine probe(choice: TwentyNineChoice) -> u64 {
+    let res: u64 = extract(choice);
+    let holder: ResHolder = ResHolder { res: res };
+    verify_payload(holder.res)
+}
+
+machine main() crashes Trap {
+    let p: TwentyNineChoice = TwentyNineChoice::V29 { v: 60u64 };
+    let combined: u64 = probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
