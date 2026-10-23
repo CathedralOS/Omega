@@ -1261,6 +1261,15 @@ pass/facts/returned_linear_residual_through_other_machine_exit built 2374ms exit
 pass/facts/returned_linear_residual_through_other_state_exit built 2461ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
 pass/facts/returned_linear_residual_through_parameter_exit built 2829ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
 pass/facts/returned_linear_residual_through_target_body_exit built 2634ms exit:0 interpreter-exit:0 interpreter:agrees @77333889f7cd+wt
+pass/facts/runtime_index_application_through_call_result_exit built 1661ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_const_name_exit built 1664ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_field_exit built 1664ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_local_exit built 1666ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_match_join_exit built 1652ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_other_machine_exit built 1667ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_other_state_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_parameter_exit built 1631ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
+pass/facts/runtime_index_application_through_target_body_exit built 1176ms exit:0 interpreter-exit:0 interpreter:agrees @5e6e565d7a08+wt
 pass/facts/saturating_integer_arithmetic_through_call_result_exit built 5105ms exit:0 interpreter-exit:0 interpreter:agrees @abda3e427bc9+wt
 pass/facts/saturating_integer_arithmetic_through_const_name_exit built 5013ms exit:0 interpreter-exit:0 interpreter:agrees @abda3e427bc9+wt
 pass/facts/saturating_integer_arithmetic_through_field_exit built 5158ms exit:0 interpreter-exit:0 interpreter:agrees @abda3e427bc9+wt

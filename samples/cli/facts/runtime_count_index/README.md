@@ -64,8 +64,8 @@ still rejects a runtime name, as in `tests/omega/fail/generics/const_generic_run
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/runtime_count_index_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg` and recording native exit 0).
-  - Negative controls: `tests/omega/fail/facts/runtime_count_index_through_<place>_out_of_bounds` (9 places pinned, each byte-identical to `<place>/controls/out_of_bounds/main.omg` and `<place>/invalid/main.omg`, rejecting with `cannot prove requires contract`).
+  - Positive passes: `tests/omega/pass/facts/runtime_count_index_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg`, recorded in `tests/omega/corpus_native_macos_arm64.txt` with native exit 0).
+  - Negative controls: `tests/omega/fail/facts/runtime_count_index_through_<place>_rejected` (9 places pinned under the canonical reject name, each byte-identical to `<place>/controls/out_of_bounds/main.omg` and `<place>/invalid/main.omg`, rejecting with `cannot prove requires contract`).
 
 ### Specification and Lowering Layers
 

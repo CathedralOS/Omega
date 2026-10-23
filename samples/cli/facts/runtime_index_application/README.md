@@ -34,7 +34,7 @@ that construction against its actual captured runtime limit.
 
 Mirrored corpus pairs live at
 `tests/omega/pass/facts/runtime_index_application_through_<place>_exit` and
-`tests/omega/fail/facts/runtime_index_application_through_<place>_payload_outside_limit`.
+`tests/omega/fail/facts/runtime_index_application_through_<place>_rejected`.
 Their sources and builds match the sample pairs byte for byte. Every positive
 and root binds all four hosted `ProgramEntry` targets (`windows_x86_64`, `linux_x86_64`,
 `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`.
@@ -59,7 +59,8 @@ premise to the earlier construction. No caller guard repairs a missing fact.
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/runtime_index_application`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`data \`Index\` literal violates the default domain`).
+- `python3 tools/sample_native_gate.py --cli <shared producer> --filter cli/facts/runtime_count_index,cli/facts/runtime_index_application` at base `5e6e565d` on `macos_arm64` (2026-10-22): 20/20 samples meet their documented oracle (this row's root and nine places with native exit 0); 27/27 intended-invalid controls match their authored rejection, including this row's 9/9 (`data \`Index\` literal violates the default domain`); `omega run --both` reports Terminal and native agreement (exit 0) on all ten positives of both rows.
+- The nine pass fixtures are recorded in `tests/omega/corpus_native_macos_arm64.txt` (native `exit:0`) and `tests/omega/corpus_both_macos_arm64.txt` (`exit:0 interpreter-exit:0 interpreter:agrees`); the nine reject fixtures are recorded in `tests/omega/corpus_outcomes.txt` with their default-domain diagnostic.
 - Focused controls additionally challenge a second runtime descriptor and a same-named global constant: `tests/omega/pass/generics/runtime_index_predicate_second_descriptor_exit` and `tests/omega/fail/generics/runtime_index_predicate_global_shadow`.
 - The oracle discriminates: mutating the payload or expectation breaks the `first == 8 && second == 8` guard, transitioning to `bad()` and trapping with `crash Trap`, proving the exit 0 oracle actively verifies the execution.
 - Remaining open: runtime argument forms, general parameter/result/field qualification forwarding through reassignment and guards, and linear custody coverage beyond fixed scalar constructors under `RUNTIME-VALUE-GENERICS`.

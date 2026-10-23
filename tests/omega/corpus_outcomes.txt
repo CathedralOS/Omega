@@ -6169,44 +6169,44 @@ fail/facts/returned_write_destination_through_parameter_rejected rejected 1888ms
 	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_target_body_rejected rejected 2268ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/runtime_count_index_through_call_result_out_of_bounds rejected 7953ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_call_result_rejected rejected 1187ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_const_name_out_of_bounds rejected 7057ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_const_name_rejected rejected 1203ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$6b6bd8faeb92b6a0$0 from indexed: 4 < items.len (needs fact `4 < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_field_out_of_bounds rejected 5786ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_field_rejected rejected 1222ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: held.count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_local_out_of_bounds rejected 5621ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_local_rejected rejected 1196ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_match_join_out_of_bounds rejected 5390ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_match_join_rejected rejected 1181ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_other_machine_out_of_bounds rejected 5168ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_other_machine_rejected rejected 1211ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call consume from indexed: measure(items) < items.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_other_state_out_of_bounds rejected 5258ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_other_state_rejected rejected 1212ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call pick from indexed: count < items.len (needs fact `count < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_parameter_out_of_bounds rejected 5516ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_parameter_rejected rejected 1170ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_count_index_through_target_body_out_of_bounds rejected 5290ms expected @ce5f8c9f2f5f
+fail/facts/runtime_count_index_through_target_body_rejected rejected 1176ms expected @5e6e565d7a08+wt
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_through_call_result_payload_outside_limit rejected 5918ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_call_result_rejected rejected 458ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_const_name_payload_outside_limit rejected 5850ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_const_name_rejected rejected 442ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_field_payload_outside_limit rejected 4823ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_field_rejected rejected 443ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_local_payload_outside_limit rejected 6038ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_local_rejected rejected 505ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_match_join_payload_outside_limit rejected 5910ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_match_join_rejected rejected 505ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_other_machine_payload_outside_limit rejected 4098ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_other_machine_rejected rejected 498ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_other_state_payload_outside_limit rejected 5689ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_other_state_rejected rejected 390ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_parameter_payload_outside_limit rejected 4472ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_parameter_rejected rejected 386ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_target_body_payload_outside_limit rejected 3659ms expected @336cafc17e1a+wt
+fail/facts/runtime_index_application_through_target_body_rejected rejected 423ms expected @5e6e565d7a08+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
