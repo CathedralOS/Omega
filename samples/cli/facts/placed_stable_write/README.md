@@ -54,8 +54,20 @@ records the positive as `built ... exit:0` with `jobs=3`. The native row is the
 measurement that the host image executes the writeback oracle; the check row
 alone would not move if a regression built and then exited wrongly.
 
+The pin canonicalization re-measurement (producer `9ff26a870215`, host
+`macos_arm64`, `--jobs 2`) renamed the fixture families to
+`<fact>_through_<place>_{exit,rejected}` and key-renamed their golden rows, then
+re-measured at base `c1c6bc8cb8e+wt`:
+`python3 tools/sample_native_gate.py --cli <producer> --filter
+cli/facts/outcome_structural_evidence,cli/facts/placed_stable_write --jobs 2`
+reports 19/19 samples meeting their documented oracle and 18/18 intended-invalid
+controls matching their authored rejection (620 s wall), and
+`python3 tools/corpus_gate.py --record --filter
+facts/outcome_structural_evidence,facts/placed_stable_write` re-records the
+eighteen fixtures in the outcomes, native and both-macos goldens.
+
 The obligation is construction-gated, and the probes that establish that are in
-[the discrimination record](../../../../tests/omega/pass/facts/placed_stable_write/DISCRIMINATION.md).
+[the discrimination record](DISCRIMINATION.md).
 The write is observable through the placed home: corrupting only the consumer's
 demanded value traps both engines (`native signal 5`, `interp crash: Trap`).
 Violating the construct's own licence refuses before runtime realization — a
@@ -68,5 +80,6 @@ and stored backing references, static callbacks, and actual allocation alignment
 One insufficient caller rejects even when another caller supplies aligned backing.
 This establishes permitted reads and writes over initialized Stable RAM, not
 destructive transfer, Vacant initialization, allocator conservation or reset.
-Pinned corpus copies live under `tests/omega/{pass,fail}/facts/placed_stable_write`.
+Pinned corpus copies live under `tests/omega/pass/facts/placed_stable_write_through_<place>_exit`
+and `tests/omega/fail/facts/placed_stable_write_through_<place>_rejected`.
 Build logs and actual producer identities stay in the qualification/claim record.

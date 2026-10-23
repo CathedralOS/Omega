@@ -95,13 +95,16 @@ omega --check samples/cli/facts/outcome_structural_evidence/target_body/invalid/
 
 - **Parent outcome:** `OUTCOME-SPECIFIC-CALL-EVIDENCE` (`TASKS.md`) / [contracts](../../../../wiki/spec/proofs/contracts.md).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/outcome_structural_evidence_<place>` (9 places pinned, each byte-identical to `<place>/main.omg` and recording native exit 0 and Terminal interpreter agreement).
-  - Negative controls: `tests/omega/fail/facts/outcome_structural_evidence_<place>` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `outcome-specific evidence \`selected\` is not definitely assigned on the matching ordinary exit`).
+  - Positive passes: `tests/omega/pass/facts/outcome_structural_evidence_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg` and recording native exit 0 and Terminal interpreter agreement).
+  - Negative controls: `tests/omega/fail/facts/outcome_structural_evidence_through_<place>_rejected` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `outcome-specific evidence \`selected\` is not definitely assigned on the matching ordinary exit`).
 
 - **Measured run record** (producer revision `3d4cd69c2bc1`, `macos_arm64`, library root `source/library`):
   - `python3 tools/sample_native_gate.py --filter outcome_structural_evidence` — 10/10 samples meet their documented oracle; 9/9 intended-invalid controls match their authored rejection.
   - `python3 tools/corpus_gate.py --native --filter facts/outcome_structural_evidence` — clean, 9 fixtures all `built`, executed 9 with exit codes `{'0': 9}`, 0 stdout differing from expected. Nine `built ... exit:0` rows are pinned in `tests/omega/corpus_native_macos_arm64.txt`.
   - Discrimination probes recorded under [The oracle discriminates](#the-oracle-discriminates). This row was **coverage**, not a repair: all nine places already ran green on both engines, so no compiler source changed. Only the golden rows were missing.
+- **Pin canonicalization re-measurement** (producer revision `9ff26a870215`, host `macos_arm64`, `--jobs 2`): the fixture families were renamed to the canonical `<fact>_through_<place>_{exit,rejected}` shape and their golden rows key-renamed to match, then re-measured at base `c1c6bc8cb8e+wt`.
+  - `python3 tools/sample_native_gate.py --cli <producer> --filter cli/facts/outcome_structural_evidence,cli/facts/placed_stable_write --jobs 2` — 19/19 samples meet their documented oracle (including the root `main.omg`), 18/18 intended-invalid controls match their authored rejection, 620 s wall.
+  - `python3 tools/corpus_gate.py --record --filter facts/outcome_structural_evidence,facts/placed_stable_write` re-records all eighteen fixtures' rows in `tests/omega/corpus_outcomes.txt`, `tests/omega/corpus_native_macos_arm64.txt` and `tests/omega/corpus_both_macos_arm64.txt`.
 
 ### Specification and Lowering Layers
 
