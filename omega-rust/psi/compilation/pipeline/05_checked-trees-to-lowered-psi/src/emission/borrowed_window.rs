@@ -88,6 +88,52 @@ use checked_trees::{
 use language_semantics::Multiplicity;
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
+/// Storage identity follows an already captured descriptor origin. The emitted
+/// access still uses that descriptor and its own authority; this coordinate is
+/// only the restoration ledger's subject. Captured selectors are copied as SSA
+/// coordinates, never evaluated again at extraction or repair.
+fn captured_window_storage(
+    mut source: PlaceId,
+    path: &[StructuralPathSegment],
+    field: Option<terminal_psi::TerminalIdentityIndex>,
+    operations: &OperationBuffer,
+) -> (
+    PlaceId,
+    Vec<StructuralPathSegment>,
+    Option<terminal_psi::TerminalIdentityIndex>,
+) {
+    let mut path = path.to_vec();
+    path.extend(field.map(StructuralPathSegment::Field));
+    let mut visited = Vec::new();
+    while path.first() == Some(&StructuralPathSegment::Referent) && !visited.contains(&source) {
+        visited.push(source);
+        let mut captures = operations
+            .loan_captures
+            .iter()
+            .filter(|capture| capture.carrier == source);
+        let Some(capture) = captures.next() else {
+            break;
+        };
+        // Several checked loans may share one formation, but ambiguity never
+        // establishes that two different storage roots are the same debt.
+        if captures.any(|other| other.source != capture.source) {
+            break;
+        }
+        source = capture.source.place;
+        let mut captured = capture.source.path.clone();
+        captured.extend_from_slice(&path[1..]);
+        path = captured;
+    }
+    let field = match path.last() {
+        Some(StructuralPathSegment::Field(field)) => Some(*field),
+        _ => None,
+    };
+    if field.is_some() {
+        path.pop();
+    }
+    (source, path, field)
+}
+
 /// One open restoration debt: the exact hole beneath an owned or exclusive
 /// storage root. The removed value retains separate ordinary result custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,9 +143,8 @@ pub(crate) struct OpenBorrowedWindow {
     opening: PlaceId,
     pub(crate) source: PlaceId,
     pub(crate) path: Vec<StructuralPathSegment>,
-    /// A field extending `path`, or `None` when `path` names the whole hole.
-    pub(crate) field: Option<StructuralFieldId>,
-    /// The same final field in the published path's identity namespace.
+    /// A final field extending the captured storage path, in the published
+    /// identity namespace. An alias's whole referent can be its parent's field.
     field_path_identity: Option<terminal_psi::TerminalIdentityIndex>,
     pub(crate) hole_type: StructuralTypeId,
     spelling: String,
@@ -685,21 +730,27 @@ impl BorrowedWindowLedger {
         let source = evaluated.source;
         let path = evaluated.path;
         let field = evaluated.field;
+        let (storage_source, storage_path, storage_field) = captured_window_storage(
+            evaluated.original_source,
+            &evaluated.original_path,
+            place.field.as_ref().map(|field| field.identity),
+            operations,
+        );
         let (qualifications, projected_qualifications) =
             place.selected_memberships(identities, &evaluated.original_path)?;
         if let Some(absent) = environment.windows.open.iter().find(|absent| {
-            absent.source == evaluated.original_source
+            absent.source == storage_source
                 && paths_overlap(
                     &absent.path,
                     absent.field_path_identity,
-                    &evaluated.original_path,
-                    place.field.as_ref().map(|field| field.identity),
+                    &storage_path,
+                    storage_field,
                     &operations.scalar_index_coordinates,
                 )
         }) {
             return Err(unpinned(
                 &place.spelling,
-                if absent.path == evaluated.original_path && absent.field == field {
+                if absent.path == storage_path && absent.field_path_identity == storage_field {
                     "the place is already absent: repeated extraction of one open window"
                 } else {
                     "the place overlaps an open window: extraction through absent storage"
@@ -739,10 +790,9 @@ impl BorrowedWindowLedger {
         );
         environment.windows.open.push(OpenBorrowedWindow {
             opening: moved_place,
-            source: evaluated.original_source,
-            path: evaluated.original_path,
-            field: place.field.as_ref().map(|field| field.id),
-            field_path_identity: place.field.as_ref().map(|field| field.identity),
+            source: storage_source,
+            path: storage_path,
+            field_path_identity: storage_field,
             hole_type,
             spelling: place.spelling,
             restoration_required: place.restoration_required,
@@ -803,6 +853,12 @@ impl BorrowedWindowLedger {
         let source = evaluated.source;
         let path = evaluated.path;
         let field = evaluated.field;
+        let (storage_source, storage_path, storage_field) = captured_window_storage(
+            evaluated.original_source,
+            &evaluated.original_path,
+            place.field.as_ref().map(|field| field.identity),
+            operations,
+        );
         let index = opening.and_then(|opening| {
             environment
                 .windows
@@ -818,8 +874,8 @@ impl BorrowedWindowLedger {
         }
         if let Some(index) = index {
             let absent = &environment.windows.open[index];
-            if absent.source != evaluated.original_source
-                || absent.field != place.field.as_ref().map(|field| field.id)
+            if absent.source != storage_source
+                || absent.field_path_identity != storage_field
                 || absent.hole_type != hole_type
             {
                 return Err(unpinned(
@@ -866,23 +922,23 @@ impl BorrowedWindowLedger {
         if index.is_none()
             && ((place.restoration_required && !discardable)
                 || environment.windows.open.iter().any(|absent| {
-                    absent.source == evaluated.original_source
+                    absent.source == storage_source
                         && paths_overlap(
                             &absent.path,
                             absent.field_path_identity,
-                            &evaluated.original_path,
-                            place.field.as_ref().map(|field| field.identity),
+                            &storage_path,
+                            storage_field,
                             &operations.scalar_index_coordinates,
                         )
                 }))
         {
             let reason = if environment.windows.open.iter().any(|absent| {
-                absent.source == evaluated.original_source
+                absent.source == storage_source
                     && paths_overlap(
                         &absent.path,
                         absent.field_path_identity,
-                        &evaluated.original_path,
-                        place.field.as_ref().map(|field| field.identity),
+                        &storage_path,
+                        storage_field,
                         &operations.scalar_index_coordinates,
                     )
             }) {

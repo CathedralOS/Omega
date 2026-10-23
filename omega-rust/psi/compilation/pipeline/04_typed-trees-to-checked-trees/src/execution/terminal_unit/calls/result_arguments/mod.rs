@@ -134,6 +134,16 @@ fn argument_contract(
         [contextual, declared]
             .into_iter()
             .flatten()
+            // A place's descriptor type and its completed owned value type
+            // are distinct. Match the actual producer before retaining the
+            // receiving contract; extraction publishes the referent while a
+            // descriptor-producing operation keeps the reference shell.
+            .flat_map(|source_type| {
+                [
+                    source_type,
+                    validation::assignment_value_type(program, source_type),
+                ]
+            })
             .find(|source_type| {
                 validation::reference_result_custody::result_multiplicity(program, *source_type)
                     == result.multiplicity
@@ -820,6 +830,7 @@ fn argument_contract(
             {
                 return None;
             }
+            phase("call result argument: anonymous produced value type");
             let source_type = produced_type?;
             let source_type = if access == CheckedStructuralAccess::Owned {
                 validation::assignment_value_type(program, source_type)
@@ -834,6 +845,7 @@ fn argument_contract(
             let contract = (access == CheckedStructuralAccess::Owned)
                 .then(|| validation::structural_result_contract(program, source_type).ok())
                 .flatten();
+            phase("call result argument: anonymous receiving contract");
             if validation::reference_result_custody::result_multiplicity(program, source_type)
                 != result.multiplicity
                 || validation::structural_type_identity(program, source_type, &[], &[])

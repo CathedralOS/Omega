@@ -15,8 +15,23 @@ pub(crate) use result_candidates::{
     reference_result_candidates_before_statement,
 };
 
+/// A prepared referent store preserves the reference descriptor's binding.
+/// The receiving type, unlike the RHS expression's spelling, already records
+/// whether assignment selected the descriptor or its referent after typing.
+pub(crate) fn assignment_preserves_reference_binding(
+    program: &dyn ::validation::CheckingInput,
+    assignment: &typed_trees::statement::TableAssignment,
+    declared: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    crate::checks::type_reference_is_reference(program, declared)
+        && assignment.receiving_type.is_valid()
+        && program.normalized_type_identity(assignment.receiving_type)
+            != program.normalized_type_identity(declared)
+}
+
 /// The expression whose place a reference-typed local currently refers to:
-/// its initializer, or the value of the latest whole-local reassignment.
+/// its initializer, or the value of the latest descriptor reassignment.
+/// A store through the reference changes its referent, not this route.
 /// Returns `None` when the symbol is not a reference-typed local or the route
 /// cannot be replayed.
 pub(crate) fn reference_route_source(
@@ -49,6 +64,13 @@ pub(crate) fn reference_route_source(
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
             StatementNode::Assignment(assignment) => {
+                if assignment_preserves_reference_binding(
+                    program,
+                    assignment,
+                    declaration.type_reference,
+                ) {
+                    return None;
+                }
                 let target = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,

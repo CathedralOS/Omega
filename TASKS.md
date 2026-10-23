@@ -969,6 +969,13 @@ defines the complete product bar.
   and nested linear cleanup, and
   `fail/ownership/whole_borrowed_{missing_repair,stale_observation,shared_extraction,live_descendant,forwarded_live_descendant}`
   for exact restoration and exclusive-route admission.
+  The nine-place `facts/recoverable_replacement_window` row qualifies repeated
+  retained-alias extraction, ordinary success/failure repair and disjoint sibling
+  mutation on Linux x86-64 in native and Terminal execution. Keep
+  `runtime_recoverable_alias_operand_order_exit` and
+  `runtime_rebound_alias_recoverable_restore_exit` (0), and
+  `fail/ownership/rebound_alias_recoverable_wrong_place`, for exact call order
+  and descriptor-rebinding debt. Other native hosts remain unqualified for this row.
   Missing repair, early return, stale reads, overlapping loans, wrong-place
   repair, repeated extraction and whole-owner cleanup reject, including
   `fail/ownership/borrowed_storage_boundary_call` and

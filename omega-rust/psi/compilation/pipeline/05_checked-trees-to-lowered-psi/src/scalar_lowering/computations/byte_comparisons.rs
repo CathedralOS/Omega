@@ -55,80 +55,80 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let mut range_slot = None;
         let private_bindings;
-        let (bindings, root, path) = if let Some(expression) = super::call_views::expression(subject)
-        {
-            let slot = self
-                .call_views
-                .iter()
-                .find(|slot| slot.expression == expression)
-                .ok_or(LoweringError::Unsupported(
-                    "byte comparison operand has no call result reservation",
-                ))?;
-            private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-            (
-                &private_bindings,
-                CheckedStorageRoot::Parameter { index: 0 },
-                Vec::new(),
-            )
-        } else if let Some(range) = super::subslices::range(subject) {
-            let slot = self
-                .subslices
-                .iter()
-                .find(|slot| slot.expression == range.expression)
-                .ok_or(LoweringError::Unsupported(
-                    "byte comparison operand has no descriptor reservation",
-                ))?;
-            range_slot = Some(slot.clone());
-            private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-            (
-                &private_bindings,
-                CheckedStorageRoot::Parameter { index: 0 },
-                Vec::new(),
-            )
-        } else {
-            let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-            let root = match subject.source {
-                Source::Parameter { parameter_index } => {
-                    let (position, _) = self
-                        .checked
-                        .state_parameters(state)
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| {
-                            !parameter.relevance.is_erased()
-                                && self
-                                    .checked
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_none()
-                        })
-                        .nth(parameter_index as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "byte comparison lost its source parameter",
-                        ))?;
-                    CheckedStorageRoot::Parameter {
-                        index: u32::try_from(position).map_err(|_| {
-                            LoweringError::Unsupported("byte comparison parameter overflow")
-                        })?,
+        let (bindings, root, path) =
+            if let Some(expression) = super::call_views::expression(subject) {
+                let slot = self
+                    .call_views
+                    .iter()
+                    .find(|slot| slot.expression == expression)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte comparison operand has no call result reservation",
+                    ))?;
+                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
+                (
+                    &private_bindings,
+                    CheckedStorageRoot::Parameter { index: 0 },
+                    Vec::new(),
+                )
+            } else if let Some(range) = super::subslices::range(subject) {
+                let slot = self
+                    .subslices
+                    .iter()
+                    .find(|slot| slot.expression == range.expression)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte comparison operand has no descriptor reservation",
+                    ))?;
+                range_slot = Some(slot.clone());
+                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
+                (
+                    &private_bindings,
+                    CheckedStorageRoot::Parameter { index: 0 },
+                    Vec::new(),
+                )
+            } else {
+                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let root = match subject.source {
+                    Source::Parameter { parameter_index } => {
+                        let (position, _) = self
+                            .checked
+                            .state_parameters(state)
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, parameter)| {
+                                !parameter.relevance.is_erased()
+                                    && self
+                                        .checked
+                                        .primitive_type_reference(parameter.type_reference)
+                                        .is_none()
+                            })
+                            .nth(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "byte comparison lost its source parameter",
+                            ))?;
+                        CheckedStorageRoot::Parameter {
+                            index: u32::try_from(position).map_err(|_| {
+                                LoweringError::Unsupported("byte comparison parameter overflow")
+                            })?,
+                        }
                     }
-                }
-                Source::StructuralLocal { symbol } => {
-                    let (_, local) = self
-                        .checked
-                        .state_local_declaration(state, symbol)
-                        .ok_or(LoweringError::Unsupported("byte comparison lost its local"))?;
-                    if validation::reference_shell(&self.checked.typed, local.type_reference)
-                        .is_some()
-                    {
-                        CheckedStorageRoot::ViewLocal { symbol }
-                    } else {
-                        CheckedStorageRoot::OwnedLocal { symbol }
+                    Source::StructuralLocal { symbol } => {
+                        let (_, local) = self
+                            .checked
+                            .state_local_declaration(state, symbol)
+                            .ok_or(LoweringError::Unsupported("byte comparison lost its local"))?;
+                        if validation::reference_shell(&self.checked.typed, local.type_reference)
+                            .is_some()
+                        {
+                            CheckedStorageRoot::ViewLocal { symbol }
+                        } else {
+                            CheckedStorageRoot::OwnedLocal { symbol }
+                        }
                     }
-                }
-                _ => return unsupported("byte comparison has no observable operand"),
+                    _ => return unsupported("byte comparison has no observable operand"),
+                };
+                let path = observation_path(&subject.path)?;
+                (site.bindings, root, path)
             };
-            let path = observation_path(&subject.path)?;
-            (site.bindings, root, path)
-        };
         let mut comparison = CheckedBooleanExpression::byte_literal_equality_in_extent(
             root,
             path,
@@ -200,80 +200,80 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let mut range_slot = None;
         let private_bindings;
-        let (bindings, root, path) = if let Some(expression) = super::call_views::expression(subject)
-        {
-            let slot = self
-                .call_views
-                .iter()
-                .find(|slot| slot.expression == expression)
-                .ok_or(LoweringError::Unsupported(
-                    "byte predicate operand has no call result reservation",
-                ))?;
-            private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-            (
-                &private_bindings,
-                CheckedStorageRoot::Parameter { index: 0 },
-                Vec::new(),
-            )
-        } else if let Some(range) = super::subslices::range(subject) {
-            let slot = self
-                .subslices
-                .iter()
-                .find(|slot| slot.expression == range.expression)
-                .ok_or(LoweringError::Unsupported(
-                    "byte predicate operand has no descriptor reservation",
-                ))?;
-            range_slot = Some(slot.clone());
-            private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-            (
-                &private_bindings,
-                CheckedStorageRoot::Parameter { index: 0 },
-                Vec::new(),
-            )
-        } else {
-            let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-            let root = match subject.source {
-                Source::Parameter { parameter_index } => {
-                    let (position, _) = self
-                        .checked
-                        .state_parameters(state)
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| {
-                            !parameter.relevance.is_erased()
-                                && self
-                                    .checked
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_none()
-                        })
-                        .nth(parameter_index as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "byte predicate lost its source parameter",
-                        ))?;
-                    CheckedStorageRoot::Parameter {
-                        index: u32::try_from(position).map_err(|_| {
-                            LoweringError::Unsupported("byte predicate parameter overflow")
-                        })?,
+        let (bindings, root, path) =
+            if let Some(expression) = super::call_views::expression(subject) {
+                let slot = self
+                    .call_views
+                    .iter()
+                    .find(|slot| slot.expression == expression)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte predicate operand has no call result reservation",
+                    ))?;
+                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
+                (
+                    &private_bindings,
+                    CheckedStorageRoot::Parameter { index: 0 },
+                    Vec::new(),
+                )
+            } else if let Some(range) = super::subslices::range(subject) {
+                let slot = self
+                    .subslices
+                    .iter()
+                    .find(|slot| slot.expression == range.expression)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte predicate operand has no descriptor reservation",
+                    ))?;
+                range_slot = Some(slot.clone());
+                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
+                (
+                    &private_bindings,
+                    CheckedStorageRoot::Parameter { index: 0 },
+                    Vec::new(),
+                )
+            } else {
+                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let root = match subject.source {
+                    Source::Parameter { parameter_index } => {
+                        let (position, _) = self
+                            .checked
+                            .state_parameters(state)
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, parameter)| {
+                                !parameter.relevance.is_erased()
+                                    && self
+                                        .checked
+                                        .primitive_type_reference(parameter.type_reference)
+                                        .is_none()
+                            })
+                            .nth(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "byte predicate lost its source parameter",
+                            ))?;
+                        CheckedStorageRoot::Parameter {
+                            index: u32::try_from(position).map_err(|_| {
+                                LoweringError::Unsupported("byte predicate parameter overflow")
+                            })?,
+                        }
                     }
-                }
-                Source::StructuralLocal { symbol } => {
-                    let (_, local) = self
-                        .checked
-                        .state_local_declaration(state, symbol)
-                        .ok_or(LoweringError::Unsupported("byte predicate lost its local"))?;
-                    if validation::reference_shell(&self.checked.typed, local.type_reference)
-                        .is_some()
-                    {
-                        CheckedStorageRoot::ViewLocal { symbol }
-                    } else {
-                        CheckedStorageRoot::OwnedLocal { symbol }
+                    Source::StructuralLocal { symbol } => {
+                        let (_, local) = self
+                            .checked
+                            .state_local_declaration(state, symbol)
+                            .ok_or(LoweringError::Unsupported("byte predicate lost its local"))?;
+                        if validation::reference_shell(&self.checked.typed, local.type_reference)
+                            .is_some()
+                        {
+                            CheckedStorageRoot::ViewLocal { symbol }
+                        } else {
+                            CheckedStorageRoot::OwnedLocal { symbol }
+                        }
                     }
-                }
-                _ => return unsupported("byte predicate has no observable operand"),
+                    _ => return unsupported("byte predicate has no observable operand"),
+                };
+                let path = observation_path(&subject.path)?;
+                (site.bindings, root, path)
             };
-            let path = observation_path(&subject.path)?;
-            (site.bindings, root, path)
-        };
         let evaluation = CheckedBooleanExpression::ByteSequencePredicate {
             predicate,
             root,

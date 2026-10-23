@@ -224,6 +224,18 @@ pub(crate) fn apply_statement_permission_production(
                 if !ordered {
                     continue;
                 }
+                // Extraction transfers the referent, not the descriptor that
+                // keeps its exclusive route alive. Window checking owns exact
+                // restoration debt; the completed value establishes its custody.
+                if projected_affine::is_borrowed_place_transfer(
+                    program,
+                    machine_symbol,
+                    state,
+                    event,
+                    path,
+                ) {
+                    continue;
+                }
                 // Arm-local moves follow the same retained decision route as
                 // their completions. Skipping them leaves the source live at
                 // the join even when every arm transfers it. The route joins

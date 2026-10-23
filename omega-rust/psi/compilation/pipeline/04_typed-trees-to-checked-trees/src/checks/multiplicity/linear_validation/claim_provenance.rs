@@ -104,6 +104,18 @@ pub(crate) fn written_linear_targets(
             ) else {
                 return Vec::new();
             };
+            // Repair installs no new descriptor or claim in the alias carrier.
+            if validation::canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &place,
+            )
+            .is_some_and(|declared| {
+                crate::flow::assignment_preserves_reference_binding(program, assignment, declared)
+            }) {
+                return Vec::new();
+            }
             (place, assignment.value)
         }
         _ => {
@@ -172,6 +184,18 @@ pub(crate) fn written_owner_targets(
                 source.segments.extend_from_slice(relative_path);
                 source
             });
+            // The loan suspends caller custody. Its extracted value has local
+            // custody independent of the reference carrier's claim-free affine
+            // occurrence, just as extraction through a borrowed parameter does.
+            let borrowed_extraction = tracked.multiplicity == Multiplicity::Linear
+                && source_place.as_ref().is_some_and(|source| {
+                    super::super::projected_affine::has_reference_prefix(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        source,
+                    )
+                });
             Some(WrittenLinearTarget {
                 root: target.root,
                 destination_path: target.segments.clone(),
@@ -186,22 +210,30 @@ pub(crate) fn written_owner_targets(
                         relative_path,
                         places,
                     ),
-                claim_identity: expression_permission_claim_identity_for_claim(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    value,
-                    relative_path,
-                    places,
-                ),
-                provenance: expression_permission_provenance_for_claim(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    value,
-                    relative_path,
-                    places,
-                ),
+                claim_identity: (!borrowed_extraction)
+                    .then(|| {
+                        expression_permission_claim_identity_for_claim(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            value,
+                            relative_path,
+                            places,
+                        )
+                    })
+                    .flatten(),
+                provenance: (!borrowed_extraction)
+                    .then(|| {
+                        expression_permission_provenance_for_claim(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            value,
+                            relative_path,
+                            places,
+                        )
+                    })
+                    .flatten(),
             })
         })
         .collect()

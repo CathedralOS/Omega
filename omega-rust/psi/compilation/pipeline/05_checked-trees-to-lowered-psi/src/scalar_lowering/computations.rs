@@ -28,8 +28,8 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 pub(crate) mod arrays;
 mod byte_comparisons;
-pub(crate) mod call_views;
 mod call_signature;
+pub(crate) mod call_views;
 mod calls;
 pub(crate) mod cases;
 pub(crate) mod comparisons;

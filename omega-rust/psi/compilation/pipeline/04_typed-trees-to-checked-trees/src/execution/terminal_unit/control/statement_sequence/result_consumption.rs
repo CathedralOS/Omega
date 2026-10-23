@@ -1351,6 +1351,15 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                         return None;
                     };
                     expression
+                } else if let CheckedUnitEffectOperationPlan::MoveStructuralField {
+                    expression,
+                    ..
+                } = operand
+                {
+                    // Extraction already retained the exact operand occurrence.
+                    // Adopt its owned result with the rest of the sequence;
+                    // storage spelling is not a second producer to replay.
+                    *expression
                 } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
                 ) = operand
