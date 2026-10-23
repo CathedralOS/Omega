@@ -2654,6 +2654,24 @@ fail/facts/case_where_equality_through_target_body_rejected rejected 4931ms expe
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/checked_asm_arm_load_through_call_result_rejected rejected 2ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_call_result_rejected/main.omg:10:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_const_name_rejected rejected 2ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_const_name_rejected/main.omg:8:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_field_rejected rejected 2ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_field_rejected/main.omg:8:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_local_rejected rejected 2ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_local_rejected/main.omg:7:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_match_join_rejected rejected 6ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_match_join_rejected/main.omg:9:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_other_machine_rejected rejected 2ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_other_machine_rejected/main.omg:7:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_other_state_rejected rejected 5ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_other_state_rejected/main.omg:9:13: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_parameter_rejected rejected 3ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_parameter_rejected/main.omg:6:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_arm_load_through_target_body_rejected rejected 2ms expected @8d202634513c
+	tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg:11:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/checked_asm_countdown_through_call_result_rejected rejected 3856ms expected @fb19bb8df981
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_through_const_name_rejected rejected 3777ms expected @fb19bb8df981
@@ -11594,6 +11612,15 @@ pass/facts/case_where_equality_through_other_machine_exit checked 5621ms check-t
 pass/facts/case_where_equality_through_other_state_exit checked 5557ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_parameter_exit checked 5744ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_target_body_exit checked 5710ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/checked_asm_arm_load_through_call_result_exit checked 2334ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_const_name_exit checked 2334ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_field_exit checked 2731ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_local_exit checked 2904ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_match_join_exit checked 2813ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_other_machine_exit checked 2775ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_other_state_exit checked 2362ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_parameter_exit checked 2498ms check-target:macos_arm64 @8d202634513c
+pass/facts/checked_asm_arm_load_through_target_body_exit checked 1907ms check-target:macos_arm64 @8d202634513c
 pass/facts/checked_asm_countdown_through_call_result_exit checked 8355ms check-target:linux_x86_64 @fb19bb8df981
 pass/facts/checked_asm_countdown_through_const_name_exit checked 8324ms check-target:linux_x86_64 @fb19bb8df981
 pass/facts/checked_asm_countdown_through_field_exit checked 8441ms check-target:linux_x86_64 @fb19bb8df981
