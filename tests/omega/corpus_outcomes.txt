@@ -3365,23 +3365,23 @@ fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 10758ms expected @963915e78283
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_trait_dispatch_unproved_call_result rejected 4425ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_call_result_rejected rejected 4370ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_const_name rejected 4067ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_const_name_rejected rejected 3370ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_field rejected 4118ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_field_rejected rejected 3856ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_local rejected 4315ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_local_rejected rejected 4586ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_match_join rejected 4398ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_match_join_rejected rejected 4721ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_other_machine rejected 4359ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_other_machine_rejected rejected 4189ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from forward: right >= 40 && right <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_other_state rejected 4072ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_other_state_rejected rejected 4281ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: right >= 40 && right <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/dynamic_trait_dispatch_unproved_parameter rejected 4429ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 4416ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_unproved_target_body rejected 4465ms expected @69725a85bb43
+fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 4302ms expected @114906953e11+wt
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -11958,15 +11958,15 @@ pass/facts/dynamic_float_refinement_through_other_machine_exit checked 35462ms c
 pass/facts/dynamic_float_refinement_through_other_state_exit checked 53022ms check-target:macos_arm64 @963915e78283
 pass/facts/dynamic_float_refinement_through_parameter_exit checked 30432ms check-target:macos_arm64 @963915e78283
 pass/facts/dynamic_float_refinement_through_target_body_exit checked 46628ms check-target:macos_arm64 @963915e78283
-pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 7082ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 6974ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_field_exit checked 6980ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_local_exit checked 8600ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_match_join_exit checked 8819ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 8823ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 8692ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 8643ms check-target:macos_arm64 @69725a85bb43
-pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 8905ms check-target:macos_arm64 @69725a85bb43
+pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 6696ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 6636ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_field_exit checked 4651ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_local_exit checked 4691ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_match_join_exit checked 2821ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 2899ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 3274ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 3305ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 2029ms check-target:macos_arm64 @114906953e11+wt
 pass/facts/eight_variant_enum_payload_bound_through_call_result_exit checked 2801ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/eight_variant_enum_payload_bound_through_const_name_exit checked 2969ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/eight_variant_enum_payload_bound_through_field_exit checked 3370ms check-target:macos_arm64 @9ed829f6e62d+wt

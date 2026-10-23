@@ -66,7 +66,7 @@ omega --check samples/cli/facts/dynamic_trait_dispatch/target_body/invalid/main.
 - **Requirement established:** End-to-end nine-place fact preservation and dynamic trait object dispatch (`dyn Trait`). Dispatching inline conformance members through a runtime `dyn` trait selector over explicit data arguments without an implicit `Self` or receiver attachment, preserving exact contracts, bounds, and values across all nine places with differential agreement between native and Terminal Psi execution.
 - **Pinned fixtures:**
   - Pass: `tests/omega/pass/facts/dynamic_trait_dispatch_through_*_exit`.
-  - Fail: `tests/omega/fail/facts/dynamic_trait_dispatch_unproved_*`.
+  - Fail: `tests/omega/fail/facts/dynamic_trait_dispatch_through_<place>_rejected`.
 - **Authority:** [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md) and [Conformance](wiki/spec/language/conformance.md).
 
 Full 8-layer specification and lowering evidence:
@@ -99,6 +99,20 @@ Every sample place and the root carry `expected_native_exit.txt` of `0`
 beside the `Expected exit: 0` header. The executed oracle for the row is the
 one the corpus gate reads: `tests/omega/pass/facts/dynamic_trait_dispatch_through_<place>_exit/expected_native_exit.txt`,
 whose nine rows are recorded in `tests/omega/corpus_native_macos_arm64.txt`.
+
+**Canonical fixture names.** The nine fail fixtures were originally pinned as
+`dynamic_trait_dispatch_unproved_<place>`, a shape a fact-row census that counts
+fail fixtures only as `<fact>_through_<place>_rejected` reads as zero. They were
+renamed to `dynamic_trait_dispatch_through_<place>_rejected` with the nine
+golden keys rewritten in place (9 insertions, 9 deletions, 0 continuation
+lines touched), and all three golden legs were then re-recorded at
+`114906953e1` with the corpus runner built at that base (sha256
+`f14e17c7521b980e193ba6929baec279dd843ec8144214f42e19e4e94cacfe5a`):
+`python3 tools/corpus_gate.py --filter facts/dynamic_trait_dispatch` reads 18
+fixtures — nine `checked` with `check-target:macos_arm64` and nine `rejected`
+with their authored fragment — with 0 structural moves, and the native and
+both legs re-record each `_exit` fixture as a host success
+(`built ... exit:0`, `built ... exit:0 interpreter-exit:0 interpreter:agrees`).
 
 **Oracle discrimination.** The recorded `0` is measured, not assumed. The
 selector is the only input that decides the value: holding the trait contract
