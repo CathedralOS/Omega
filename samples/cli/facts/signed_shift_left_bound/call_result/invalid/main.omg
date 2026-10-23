@@ -1,5 +1,5 @@
 // Fact: left shift on a bounded signed i64 value value >= 25i64 && value <= 25i64 by 2 establishes shifted >= 100i64 && shifted <= 100i64 for exact subtraction shifted - 100i64.
-// Place: call result (invalid twin). Unbounded shift_left callee may overflow.
+// Place: call result (invalid twin). The shift's own operand bound is omitted, so exact left shift on `i64` may overflow.
 // Expected diagnostic: may overflow `i64`
 
 machine shift_left(val: i64) -> i64
@@ -8,12 +8,28 @@ machine shift_left(val: i64) -> i64
 }
 
 machine get_base() -> i64
+    ensures result >= 25i64 && result <= 25i64
 {
     25i64
 }
 
 machine main() crashes Trap {
     let base: i64 = get_base();
-    let shifted: i64 = shift_left(base);
-    let diff: i64 = shifted - 100i64;
+    transition base >= 25i64 && base <= 25i64 {
+        true -> shift_step(base)
+        _ -> bad()
+    }
+    state shift_step(v: i64) {
+        let shifted: i64 = shift_left(v);
+        transition shifted >= 100i64 && shifted <= 100i64 {
+            true -> done(shifted)
+            _ -> bad()
+        }
+    }
+    state done(s: i64) {
+        let diff: i64 = s - 100i64;
+    }
+    state bad() {
+        crash Trap;
+    }
 }
