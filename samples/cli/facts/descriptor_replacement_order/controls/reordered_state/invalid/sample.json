@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "returns a view borrowing the local",
+    "does not outlive the call"
+  ]
+}

@@ -450,6 +450,7 @@ pub(super) fn encode_structural_type(
     bytes.u8(u8::from(declaration.no_code_affine_cleanup));
     bytes.u8(u8::from(declaration.owns_linear_claim));
     bytes.u8(u8::from(declaration.descriptor_cleanup));
+    bytes.u8(u8::from(declaration.copyable));
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -789,6 +790,32 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
     use terminal_psi::{NominalAffineCleanup, StructuralPathSegment, TerminalAffineCleanupAction};
+
+    #[test]
+    fn logical_copy_permission_changes_encoded_identity() {
+        let mut encodings = Vec::new();
+        for copyable in [false, true] {
+            let declaration = StructuralTypeDeclaration {
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: true,
+                copyable,
+                scalar_restriction: None,
+                id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+            };
+            let mut encoder = CanonicalBytes::collect();
+            encode_structural_type(&mut encoder, &declaration);
+            let bytes = encoder.finish();
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+    }
 
     #[test]
     fn nominal_cleanup_identity_distinguishes_paths_and_descendant_custody() {

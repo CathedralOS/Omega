@@ -60,6 +60,7 @@ impl Types {
             identity: TerminalIdentityIndex(id.get().try_into().unwrap()),
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
             shape,

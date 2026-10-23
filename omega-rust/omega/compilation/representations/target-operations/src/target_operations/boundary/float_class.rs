@@ -58,6 +58,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
             id: StructuralTypeId::new(1).unwrap(),

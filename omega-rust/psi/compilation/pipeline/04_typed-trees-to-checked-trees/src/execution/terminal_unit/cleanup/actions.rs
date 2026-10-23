@@ -130,7 +130,11 @@ pub(super) fn selected_region(
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source,
         path,
-        type_identity: shapes.add_type(reference, &machine_binders(program, machine), &[])?,
+        type_identity: shapes.add_stored_type(
+            reference,
+            &machine_binders(program, machine),
+            &[],
+        )?,
         access: checked_trees::CheckedStructuralAccess::Owned,
     })
 }
@@ -184,7 +188,10 @@ pub(super) fn disposition_actions(
             &place,
         )?
     };
-    let type_identity = shapes.add_type(reference, &binders, &[])?;
+    // A disposed reference is its stored descriptor, not the referee beneath
+    // its access shell. Use the same storage identity as fields and receiving
+    // slots; ordinary value types retain their existing shape.
+    let type_identity = shapes.add_stored_type(reference, &binders, &[])?;
     // A caller that already holds the dying place in its own operand
     // namespace supplies it: a runtime-selected element has no static
     // argument path, but its store names the same place.

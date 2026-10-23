@@ -24,6 +24,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: false,
+        copyable: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
         id: argument.structural_type,

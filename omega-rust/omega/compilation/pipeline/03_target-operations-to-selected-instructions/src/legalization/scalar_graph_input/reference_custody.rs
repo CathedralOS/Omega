@@ -971,10 +971,9 @@ fn storage_access_conflicts_beneath_argument(
                     CarrierContract::Parameter(parameter)
                         if parameter.access == StructuralAccess::Owned
                 )
-                && reference
-                    .backing
-                    .iter()
-                    .all(|backing| matches!(backing, descriptor_backing::Backing::Source(Root::Place(_))));
+                && reference.backing.iter().all(|backing| {
+                    matches!(backing, descriptor_backing::Backing::Source(Root::Place(_)))
+                });
             !own_key
                 && !owned_alias
                 && leaf_storage_access_conflicts(
@@ -2088,10 +2087,8 @@ pub(in crate::legalization) fn apply(
                     .ok_or(invalid())?,
                 ),
             };
-            let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
-                types.iter(),
-                result.structural_type,
-            );
+            let shared_descriptor =
+                terminal_semantics::is_copyable_carrier(types.iter(), result.structural_type);
             if !shared_copy_type(types, result.structural_type)
                 || (result.multiplicity != StructuralMultiplicity::Unrestricted
                     && !(result.multiplicity == StructuralMultiplicity::Affine

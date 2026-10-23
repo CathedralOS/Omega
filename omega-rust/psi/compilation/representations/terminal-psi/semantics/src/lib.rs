@@ -174,12 +174,13 @@ pub use record_field::{
 pub use reference_views::{
     descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
     descriptor_source_projection_accessible, descriptor_value_transfer_matches,
-    is_shared_reference_carrier, reference_byte_field_compatible, reference_source_compatible,
-    reference_source_projection_accessible, reference_source_projection_compatible,
-    reference_source_storage_path, reference_storage_byte_width,
-    reference_storage_export_byte_width, reference_storage_source_compatible,
-    reference_storage_view_is_compatible, representation_view_declaration,
-    scalar_reference_view_is_total, scalar_reference_view_value, shared_descriptor_copy_matches,
+    is_copyable_carrier, is_shared_reference_carrier, reference_byte_field_compatible,
+    reference_source_compatible, reference_source_projection_accessible,
+    reference_source_projection_compatible, reference_source_storage_path,
+    reference_storage_byte_width, reference_storage_export_byte_width,
+    reference_storage_source_compatible, reference_storage_view_is_compatible,
+    representation_view_declaration, scalar_reference_view_is_total, scalar_reference_view_value,
+    shared_descriptor_copy_matches,
 };
 pub use scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,

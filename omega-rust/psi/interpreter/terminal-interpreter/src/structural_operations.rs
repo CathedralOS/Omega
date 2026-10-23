@@ -1601,7 +1601,7 @@ impl TerminalExecution<'_> {
         // A shared descriptor may carry affine disposal metadata even though
         // copying its permission is admitted. Its cells retain the captured
         // backing below; no referent snapshot or parent reborrow is created.
-        let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
+        let shared_descriptor = terminal_semantics::is_copyable_carrier(
             self.program.structural_types().values(),
             result.structural_type,
         );

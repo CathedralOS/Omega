@@ -34,7 +34,6 @@ mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
 mod declared_returns;
-mod incoming_replacement;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 pub use declared_returns::returned_sources as declared_return_sources;
@@ -1357,9 +1356,9 @@ pub fn initial_parameter_reference_establishment(
     (!loans.is_empty()).then_some(established)
 }
 
-/// The current descriptor retired by this exact replacement: either a complete
-/// installed formation/weakening group or an unchanged admitted input leaf.
-/// Neither evidence kind grants disposal of the referent or its other aliases.
+/// Installed descriptors retain their exact formation/weakening group. Owned
+/// input and local slots instead use the post-RHS contextual storage death;
+/// reconstructing an entry loan here would revive a displaced descriptor.
 pub fn replaced_reference_carrier(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -1379,17 +1378,6 @@ pub fn replaced_reference_carrier(
         selection,
     )
     .map(|(carrier, _)| carrier)
-    .or_else(|| {
-        incoming_replacement::carrier(
-            program,
-            facts,
-            machine,
-            state,
-            owner,
-            statement_index,
-            selection,
-        )
-    })
 }
 
 /// Installed descriptors owe their complete historical formation group and
@@ -2263,7 +2251,12 @@ pub fn result_multiplicity(
     // access. Mutable slice/byte views retain their separate affine carrier.
     if stored_loan_parts(program, reference).is_some()
         || mutable_borrowed_parts(program, reference).is_some()
+        || (program.type_multiplicity(reference) == Multiplicity::Unrestricted
+            && is_reference_record(program, reference))
     {
+        // Copying an aggregate duplicates its descriptors. Each resulting
+        // runtime carrier ends once even when the source record remains freely
+        // copyable; source permission production keeps its own multiplicity.
         Multiplicity::Affine
     } else {
         program.type_multiplicity(reference)

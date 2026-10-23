@@ -156,6 +156,22 @@ impl RemainingCustody {
                 .is_none_or(|(_, frontier)| frontier.contains(path))
     }
 
+    /// Fresh construction storage is not the same as an excluded owner. A
+    /// descendant write cannot revive an already moved containing value or an
+    /// inactive payload. Case selection is checked separately at the store.
+    pub(super) fn is_construction_vacancy(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
+        self.constructing
+            .iter()
+            .any(|(candidate, frontier)| *candidate == root && !frontier.contains(path))
+            && !self
+                .excluded
+                .iter()
+                .chain(&self.inactive_cases)
+                .any(|(candidate, removed)| {
+                    *candidate == root && (path.starts_with(removed) || removed.starts_with(path))
+                })
+    }
+
     /// An allocated, still-owned home must retire even when no semantic
     /// cleanup-bearing subtree remains. Initialized unrestricted fields do
     /// not create disposal work. This is exit geometry, not a persistent removal

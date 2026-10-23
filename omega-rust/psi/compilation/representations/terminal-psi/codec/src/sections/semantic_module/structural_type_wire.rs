@@ -29,6 +29,7 @@ pub(crate) fn encode_structural_type(
     writer.boolean(declaration.owns_linear_claim);
     writer.boolean(declaration.no_code_affine_cleanup);
     writer.boolean(declaration.descriptor_cleanup);
+    writer.boolean(declaration.copyable);
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => writer.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -142,6 +143,7 @@ pub(crate) fn decode_structural_type(
     let owns_linear_claim = reader.boolean()?;
     let no_code_affine_cleanup = reader.boolean()?;
     let descriptor_cleanup = reader.boolean()?;
+    let copyable = reader.boolean()?;
     let mut scalar_restriction = None;
     let shape = match reader.u8()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -241,6 +243,7 @@ pub(crate) fn decode_structural_type(
         quotient_carrier,
         owns_linear_claim,
         no_code_affine_cleanup,
+        copyable,
         descriptor_cleanup,
         scalar_restriction,
         id,
@@ -349,6 +352,41 @@ mod tests {
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
 
     #[test]
+    fn logical_copy_permission_changes_encoded_identity() {
+        let mut encodings = Vec::new();
+        for copyable in [false, true] {
+            let declaration = StructuralTypeDeclaration {
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: true,
+                copyable,
+                scalar_restriction: None,
+                id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+            };
+            let mut writer = Writer::default();
+            encode_structural_type(&mut writer, &declaration).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_structural_type(&mut reader).unwrap(), declaration);
+            assert_eq!(reader.remaining(), 0);
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+        let mut old = super::super::MAGIC.to_vec();
+        old.extend_from_slice(&183_u16.to_le_bytes());
+        assert!(matches!(
+            super::super::decode_module(&old),
+            Err(CodecError::UnsupportedFormatMarker(183))
+        ));
+    }
+
+    #[test]
     fn declaration_owned_linearity_round_trips_and_changes_bytes() {
         let mut encodings = Vec::new();
         for owns_linear_claim in [false, true] {
@@ -356,6 +394,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -394,6 +433,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: true,
+            copyable: false,
             descriptor_cleanup: true,
             scalar_restriction: None,
             id: StructuralTypeId::new(1).expect("record identity"),

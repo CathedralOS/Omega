@@ -154,13 +154,29 @@ pub(crate) fn descriptor_geometry_matches(
     }
 }
 
-/// Shared references can be copied even when their materialized carriers have
-/// affine retirement custody. Fixed arrays inherit this distinction from their
-/// elements, including nested arrays; the referent itself is never copied.
-/// Nominal payloads do not inherit copy permission from their physical fields
-/// or cleanup metadata. Their ordinary multiplicity remains authoritative.
-/// This declaration judgment does not establish live backing, fresh carrier
-/// identity, memberships or parent loans; each copy still checks those.
+/// Logical duplication permission, independently of physical carrier retirement.
+/// Nominal aggregates require their exact checked source-copy capability;
+/// neither field geometry nor cleanup authority can supply it. Intrinsic shared
+/// descriptors retain their access-based rule. Every copy still authenticates
+/// backing, fresh occurrence identity, memberships and actual stored loan leaves.
+pub fn is_copyable_carrier<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    structural_type: StructuralTypeId,
+) -> bool {
+    let mut declarations = types.clone().filter(|row| row.id == structural_type);
+    let declared_copyable = declarations
+        .next()
+        .is_some_and(|row| row.copyable && !row.owns_linear_claim)
+        && declarations.next().is_none();
+    // Logical copy authority is retained independently from both the physical
+    // shape and its affine retirement. Actual loan leaves, origin, access and
+    // occurrence freshness remain checked by every copying operation.
+    declared_copyable || is_shared_reference_carrier(types, structural_type)
+}
+
+/// Intrinsic shared descriptors, including arrays of descriptors, admit copies
+/// without duplicating their referents. Nominal payloads do not inherit this
+/// rule from their fields and instead require explicit logical copy authority.
 pub fn is_shared_reference_carrier<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     mut structural_type: StructuralTypeId,

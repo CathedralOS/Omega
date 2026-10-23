@@ -51,6 +51,7 @@ fn element_view_encoding_distinguishes_access_ceilings() {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: true,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
@@ -68,6 +69,31 @@ fn element_view_encoding_distinguishes_access_ceilings() {
 }
 
 #[test]
+fn logical_copy_permission_changes_encoded_identity() {
+    let mut encodings = Vec::new();
+    for copyable in [false, true] {
+        let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: true,
+            copyable,
+            scalar_restriction: None,
+            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_structural_type(&mut bytes, &declaration);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
+    }
+}
+
+#[test]
 fn declaration_owned_linearity_changes_encoded_identity() {
     let mut encodings = Vec::new();
     for owns_linear_claim in [false, true] {
@@ -75,6 +101,7 @@ fn declaration_owned_linearity_changes_encoded_identity() {
             quotient_carrier: None,
             owns_linear_claim,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -336,6 +363,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
+    bytes.push(u8::from(declaration.copyable));
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {

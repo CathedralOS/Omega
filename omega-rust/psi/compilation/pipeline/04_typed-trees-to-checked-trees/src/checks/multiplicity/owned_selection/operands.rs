@@ -136,6 +136,54 @@ pub(super) fn expression_nodes(
     program: &dyn ::validation::CheckingInput,
     root: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
+    expression_read_nodes(program, root, |_| false)
+}
+
+/// A scalar/copy projection reads its selected value, not its containing
+/// owner's value. Retain every selector expression as a value input: skipping
+/// an aggregate receiver must not hide a move or effect in its index.
+pub(super) fn predicate_value_nodes(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    expression_read_nodes(program, root, |expression| {
+        validation::expression_result_type_reference(program, machine, state, expression)
+            .is_some_and(|reference| {
+                program.type_multiplicity(reference)
+                    == language_semantics::Multiplicity::Unrestricted
+            })
+    })
+}
+
+fn place_selector_inputs(
+    program: &dyn ::validation::CheckingInput,
+    mut place: ExpressionHandle,
+    pending: &mut Vec<ExpressionHandle>,
+) {
+    loop {
+        place = match program.expression_table.expression(place) {
+            ExpressionNode::Name(_) => return,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                pending.push(indexed.index);
+                indexed.collection
+            }
+            // A computed receiver is a value, not a source-storage prefix.
+            _ => {
+                pending.push(place);
+                return;
+            }
+        };
+    }
+}
+
+fn expression_read_nodes(
+    program: &dyn ::validation::CheckingInput,
+    root: ExpressionHandle,
+    projected_copy: impl Fn(ExpressionHandle) -> bool,
+) -> Vec<ExpressionHandle> {
     let mut pending = vec![root];
     let mut nodes = Vec::new();
     while let Some(expression) = pending.pop() {
@@ -166,8 +214,21 @@ pub(super) fn expression_nodes(
                 pending
                     .extend_from_slice(program.expression_table.expression_handles(call.arguments));
             }
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::Indexed(indexed) => {
+                pending.push(indexed.index);
+                if projected_copy(expression) {
+                    place_selector_inputs(program, indexed.collection, &mut pending);
+                } else {
+                    pending.push(indexed.collection);
+                }
+            }
+            ExpressionNode::Member(member) => {
+                if projected_copy(expression) {
+                    place_selector_inputs(program, member.receiver, &mut pending);
+                } else {
+                    pending.push(member.receiver);
+                }
+            }
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
             ExpressionNode::StructLiteral(literal) => pending.extend(
                 program

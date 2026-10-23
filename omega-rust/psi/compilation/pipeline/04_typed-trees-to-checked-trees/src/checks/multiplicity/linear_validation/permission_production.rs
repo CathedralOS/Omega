@@ -17,7 +17,7 @@ use crate::checks::multiplicity::selected_evaluation::SelectedEvaluation;
 use crate::checks::multiplicity::selected_evaluation::place_bindings::{
     SelectionSite, enter_produced,
 };
-use crate::checks::multiplicity::{projected_affine, temporary_results};
+use crate::checks::multiplicity::{projected_affine, projected_replacements, temporary_results};
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
@@ -780,7 +780,7 @@ pub(crate) fn apply_statement_permission_production(
     let replacement_custody = remaining.clone();
     let mut storage_establishments: Vec<StorageEstablishment> = Vec::new();
     if written_targets.is_empty() {
-        for mut establishment in projected_affine::append_replacement(
+        for mut establishment in projected_replacements::append_replacement(
             program,
             facts,
             machine_symbol,
@@ -790,6 +790,7 @@ pub(crate) fn apply_statement_permission_production(
             places,
             &replacement_custody,
             permission_events,
+            cleanup_dispositions,
         ) {
             // The producer returns its exact index in the shared event vector;
             // both cleanup consumers replay this statement's event slice.

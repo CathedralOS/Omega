@@ -638,7 +638,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 183 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 184 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1007,7 +1007,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + structural type shape |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape |
 | structural referent identity | structural type id + canonical closed-type identity string; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |

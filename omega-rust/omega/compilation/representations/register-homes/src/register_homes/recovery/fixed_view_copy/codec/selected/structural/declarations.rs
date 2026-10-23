@@ -61,6 +61,7 @@ pub(super) fn encode_type(
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
+    bytes.push(u8::from(declaration.copyable));
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -157,6 +158,7 @@ pub(super) fn decode_type(
     let owns_linear_claim = decode_bool(cursor)?;
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
+    let copyable = decode_bool(cursor)?;
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -246,6 +248,7 @@ pub(super) fn decode_type(
         quotient_carrier,
         owns_linear_claim,
         no_code_affine_cleanup,
+        copyable,
         descriptor_cleanup,
         scalar_restriction,
         id,

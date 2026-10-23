@@ -1580,7 +1580,7 @@ pub(super) fn apply_operation(
                     "reference copy needs an exact ordinary carrier path",
                 ));
             };
-            let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
+            let shared_descriptor = terminal_semantics::is_copyable_carrier(
                 structural_types.values().copied(),
                 result.structural_type,
             );

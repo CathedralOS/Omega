@@ -308,6 +308,7 @@ mod tests {
             identity: TerminalIdentityIndex(1),
             owns_linear_claim: false,
             no_code_affine_cleanup: true,
+            copyable: false,
             descriptor_cleanup: true,
             shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),

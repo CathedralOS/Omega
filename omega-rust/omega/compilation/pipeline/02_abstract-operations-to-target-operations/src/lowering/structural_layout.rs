@@ -1515,6 +1515,7 @@ mod placed_geometry_tests {
             identity: TerminalIdentityIndex(2),
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
             shape: StructuralTypeShape::Record {
@@ -1531,6 +1532,7 @@ mod placed_geometry_tests {
             identity: TerminalIdentityIndex(1),
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
             shape: StructuralTypeShape::Record {

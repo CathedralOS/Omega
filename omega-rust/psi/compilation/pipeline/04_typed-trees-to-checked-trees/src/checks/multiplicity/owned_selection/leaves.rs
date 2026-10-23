@@ -282,12 +282,16 @@ pub(super) fn collect_leaves(
             // captured effect/loan sequence before joining this route, so a
             // predicate call stays rejected even when its arguments move no
             // ownership.
-            let mut operands = expression_nodes(program, dispatch.subject);
+            let mut predicate_roots = vec![dispatch.subject];
             for (_, arm) in reachable_arms(program, dispatch.arms) {
                 if let MatchPattern::Value(pattern) = arm.pattern {
-                    operands.extend(expression_nodes(program, pattern));
+                    predicate_roots.push(pattern);
                 }
             }
+            let operands = predicate_roots
+                .iter()
+                .flat_map(|root| expression_nodes(program, *root))
+                .collect::<Vec<_>>();
             if operands.iter().any(|operand| {
                 matches!(
                     program.expression_table.expression(*operand),
@@ -297,18 +301,22 @@ pub(super) fn collect_leaves(
                 return Err(unsupported());
             }
             let tag_operands = case_tag_operands(program, machine, state, &operands);
-            if operands.iter().any(|operand| {
-                matches!(
-                    program.expression_table.expression(*operand),
-                    ExpressionNode::Name(_)
-                ) && !tag_operands.contains(operand)
-                    && validation::expression_result_type_reference(
-                        program, machine, state, *operand,
-                    )
-                    .is_none_or(|reference| {
-                        program.type_multiplicity(reference) != Multiplicity::Unrestricted
-                    })
-            }) {
+            if predicate_roots
+                .iter()
+                .flat_map(|root| predicate_value_nodes(program, machine, state, *root))
+                .any(|operand| {
+                    matches!(
+                        program.expression_table.expression(operand),
+                        ExpressionNode::Name(_)
+                    ) && !tag_operands.contains(&operand)
+                        && validation::expression_result_type_reference(
+                            program, machine, state, operand,
+                        )
+                        .is_none_or(|reference| {
+                            program.type_multiplicity(reference) != Multiplicity::Unrestricted
+                        })
+                })
+            {
                 return Err(Diagnostic::error(
                     "owned match predicates require unrestricted operands without hidden ownership transfers",
                 ));

@@ -121,7 +121,7 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
     for declaration in &module.structural_types {
         writeln!(
             output,
-            "type id=type:{} identity={} shape={}",
+            "type id=type:{} identity={} shape={} copyable={}",
             declaration.id.get(),
             module
                 .identities
@@ -169,7 +169,8 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
                     format!("mixed(fields={},cases={})", fields.len(), cases.len())
                 }
-            }
+            },
+            declaration.copyable
         )
         .expect("writing to a String cannot fail");
     }

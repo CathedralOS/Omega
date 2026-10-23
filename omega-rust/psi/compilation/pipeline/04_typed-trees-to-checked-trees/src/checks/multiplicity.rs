@@ -38,6 +38,7 @@ mod selected_evaluation;
 pub(crate) use claim_outcomes::ClaimOutcomePreparation;
 pub(crate) use permission_events::prepare_permission_events;
 mod projected_affine;
+mod projected_replacements;
 mod temporary_results;
 mod type_multiplicity;
 

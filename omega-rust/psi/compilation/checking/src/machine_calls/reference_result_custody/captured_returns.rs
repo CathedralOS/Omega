@@ -13,6 +13,7 @@
 //! formation and the returned live association own its placement authority.
 //! Forwarded descriptors still retain their exact existing interpretation.
 
+mod incoming_origins;
 mod named_returns;
 
 use super::{
@@ -519,29 +520,6 @@ impl Captures<'_> {
                 }]);
             }
         }
-        let incoming = if loan.incoming_reference.is_valid() {
-            if !self
-                .facts
-                .borrow
-                .incoming_references
-                .is_valid(loan.incoming_reference)
-            {
-                return None;
-            }
-            let incoming = self
-                .facts
-                .borrow
-                .incoming_references
-                .get(loan.incoming_reference);
-            if incoming.state_symbol != state.symbol
-                || loan.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol())
-            {
-                return None;
-            }
-            Some(incoming)
-        } else {
-            None
-        };
         let (parameter_index, parameter) = self
             .program
             .state_parameters(state)
@@ -552,19 +530,10 @@ impl Captures<'_> {
         let mut path = Vec::new();
         let mut incoming_segments = Vec::new();
         let mut selected = parameter.type_reference;
-        if let Some(incoming) = incoming {
-            let carrier = super::input_carrier_type(self.program, parameter.type_reference)?;
-            if carrier != incoming.carrier_type {
-                return None;
-            }
-            let owner = self.facts.borrow.owner_segments.span(incoming.owner_path)?;
-            let incoming_leaf = super::declared_carrier_references(self.program, carrier)?
-                .into_iter()
-                .find(|source| {
-                    super::origin_owner_path(self.program, carrier, source.path.iter().cloned())
-                        .as_deref()
-                        == Some(owner)
-                })?;
+        if loan.incoming_reference.is_valid() {
+            let selected_incoming = self.incoming_leaf(state, loan)?;
+            let carrier = selected_incoming.carrier;
+            let incoming_leaf = selected_incoming.reference;
             if !reference_access_can_supply(incoming_leaf.access, leaf.source.access) {
                 return None;
             }
@@ -573,11 +542,7 @@ impl Captures<'_> {
                     CheckedUnitStructuralPathSegment::Referent,
                 ));
             }
-            let incoming_path = super::origin_place_segments(
-                self.program,
-                carrier,
-                incoming_leaf.path.iter().cloned(),
-            )?;
+            let incoming_path = selected_incoming.segments;
             selected =
                 crate::project_type_reference_from_segments(self.program, carrier, &incoming_path)?;
             if incoming_leaf.crosses_reference {
@@ -685,14 +650,7 @@ impl Captures<'_> {
                             && candidate.kind == loan.kind
                             && self.facts.borrow.owner_segments.span(candidate.owner_path)
                                 == Some(owner_path)
-                            && self
-                                .facts
-                                .borrow
-                                .access_segments
-                                .span(candidate.segments)
-                                .is_some_and(|segments| {
-                                    frame_origin_fits_loan(&origin.source, segments)
-                                })
+                            && self.origin_matches_returned_loan(state, candidate, &origin.source)
                     })
                 {
                     return None;
@@ -703,7 +661,7 @@ impl Captures<'_> {
                 .filter(|origin| {
                     origin.result_path == result_path
                         && loan.root == facts::PlaceRoot::Symbol(origin.source.root)
-                        && frame_origin_fits_loan(&origin.source, &segments)
+                        && self.origin_matches_returned_loan(state, loan, &origin.source)
                 })
                 .collect::<Vec<_>>();
             if !matching.is_empty() {

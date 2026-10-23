@@ -16,6 +16,9 @@ pub struct StructuralTypeDeclaration {
     /// row but cannot erase its disposition requirement. Arrays remain
     /// transparent and never inherit this bit from their element carrier.
     pub owns_linear_claim: bool,
+    /// Checked logical copy permission of this exact nominal type, independent
+    /// of physical carrier retirement, layout and the selected representation.
+    pub copyable: bool,
     /// Checked authority that disposing represented owned contents requires no
     /// executable cleanup. This does not remove claims, loans, or access checks.
     pub no_code_affine_cleanup: bool,
@@ -889,6 +892,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: reference,
@@ -902,6 +906,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: referent,
@@ -912,6 +917,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: element,
@@ -931,6 +937,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: array,

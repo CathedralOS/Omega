@@ -16,6 +16,7 @@ fn byte_predicate_observations_require_complete_current_typed_contents() {
         identity: TerminalIdentityIndex(id.get() as u32),
         owns_linear_claim: false,
         no_code_affine_cleanup: true,
+        copyable: false,
         descriptor_cleanup: true,
         shape,
         scalar_restriction: None,

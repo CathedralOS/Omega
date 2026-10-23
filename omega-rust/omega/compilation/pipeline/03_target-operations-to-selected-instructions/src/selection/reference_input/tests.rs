@@ -33,6 +33,7 @@ fn declaration(identity: u32, shape: StructuralTypeShape) -> StructuralTypeDecla
         identity: TerminalIdentityIndex(identity),
         owns_linear_claim: identity == 1,
         no_code_affine_cleanup: false,
+        copyable: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
         shape,

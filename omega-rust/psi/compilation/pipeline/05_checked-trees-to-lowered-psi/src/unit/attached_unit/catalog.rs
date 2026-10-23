@@ -581,6 +581,7 @@ pub(super) fn lower_unit_structural_types_including(
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id,
@@ -987,6 +988,7 @@ pub(crate) fn lower_unit_structural_type_roots(
         declarations.push(StructuralTypeDeclaration {
             quotient_carrier: None,
             owns_linear_claim: plan.owns_linear_claim,
+            copyable: plan.copyable,
             no_code_affine_cleanup: plan.no_code_affine_cleanup,
             descriptor_cleanup: plan.descriptor_cleanup,
             scalar_restriction: plan

@@ -8,8 +8,8 @@ use super::super::{
 };
 use super::{
     Captures, CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
-    CheckedUnitStructuralPathSegment, SymbolHandle, TypeReferenceHandle, frame_origin_fits_loan,
-    loan_owner_path, loan_place_segments,
+    CheckedUnitStructuralPathSegment, SymbolHandle, TypeReferenceHandle, loan_owner_path,
+    loan_place_segments,
 };
 
 impl Captures<'_> {
@@ -129,14 +129,7 @@ impl Captures<'_> {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
                         && self.facts.borrow.owner_segments.span(loan.owner_path)
                             == Some(owner_path.as_slice())
-                        && self
-                            .facts
-                            .borrow
-                            .access_segments
-                            .span(loan.segments)
-                            .is_some_and(|segments| {
-                                frame_origin_fits_loan(&origin.source, segments)
-                            })
+                        && self.origin_matches_returned_loan(state, loan, &origin.source)
                 }) {
                     if leaf.source.access.borrow_access_kind()? != loan.kind {
                         return None;

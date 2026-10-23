@@ -56,6 +56,9 @@ pub struct CheckedUnitStructuralTypePlan {
     /// Transparent arrays/aggregates do not inherit this bit from children;
     /// each child keeps its own obligation even beneath a whole-linear parent.
     pub owns_linear_claim: bool,
+    /// The exact logical source type admits duplication. Runtime descriptor
+    /// retirement may still be affine; layout and cleanup grant no copy right.
+    pub copyable: bool,
     /// Exact source contents admit affine disposal without executing a hook,
     /// settling a linear claim, or disposing borrowed referent storage. This
     /// is a type capability, not proof that any particular place is live or

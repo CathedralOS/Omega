@@ -1,0 +1,4 @@
+data Cell { value: i64; }
+machine invalid<'storage>(rows: &[[&'storage mut Cell; 1]; 1]) -> [&'storage mut Cell; 1] {
+    rows[0]
+}

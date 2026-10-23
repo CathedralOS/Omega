@@ -40,6 +40,9 @@ pub(super) fn validate_type_shape(
     declaration: &StructuralTypeDeclaration,
     attachment_storage: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
+    if declaration.copyable && declaration.owns_linear_claim {
+        return malformed("a copyable type cannot own a conserved linear claim");
+    }
     if let Some(restriction) = &declaration.scalar_restriction {
         let StructuralTypeShape::PrimitiveScalar(carrier) = declaration.shape else {
             return malformed("scalar restriction requires a primitive declaration");
@@ -649,6 +652,7 @@ mod authored_storage_envelope_tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: scalar_type,
@@ -691,6 +695,7 @@ mod authored_storage_envelope_tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: element,
@@ -709,6 +714,7 @@ mod authored_storage_envelope_tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: array,

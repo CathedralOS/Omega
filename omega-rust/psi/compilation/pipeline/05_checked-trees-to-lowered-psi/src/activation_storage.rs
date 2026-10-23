@@ -62,6 +62,7 @@ pub(crate) fn prepare_operation(
                 identity: key,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
+                copyable: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {

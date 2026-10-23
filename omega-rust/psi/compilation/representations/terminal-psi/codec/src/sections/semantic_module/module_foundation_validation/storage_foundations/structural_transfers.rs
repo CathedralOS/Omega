@@ -158,7 +158,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             // copyable. The copy retains backing and parent obligations;
             // ordinary affine payloads still require an owned transfer.
             && !(result.multiplicity == StructuralMultiplicity::Affine
-                && terminal_semantics::is_shared_reference_carrier(
+                && terminal_semantics::is_copyable_carrier(
                     module.structural_types.iter(), result.structural_type,
                 )))
             || !result.qualification_establishments.is_empty()

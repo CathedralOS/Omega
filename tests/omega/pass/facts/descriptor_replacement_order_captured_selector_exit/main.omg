@@ -1,0 +1,43 @@
+// Replacing one input-carrier reference retains its new backing and the untouched sibling.
+// Expected exit: 0
+data Cell { value: i64; }
+data Views<'storage> { first: &'storage Cell; second: &'storage Cell; }
+data Bundle<'storage> { entries: [Views<'storage>; 2]; }
+
+machine stage<'storage>(
+    bundle: &mut Bundle<'storage>, cursor: &mut u64,
+    intermediate: &'storage Cell, incoming: &'storage Cell
+) -> &'storage Cell requires cursor == 0 ensures cursor == 1 {
+    bundle.entries[0].first = intermediate;
+    cursor = 1;
+    incoming
+}
+
+machine replace<'storage>(
+    mut bundle: Bundle<'storage>, intermediate: &'storage Cell,
+    incoming: &'storage Cell
+) -> bool {
+    let mut cursor: u64 = 0;
+    bundle.entries[cursor].first = stage(&mut bundle, &mut cursor, intermediate, incoming);
+    bundle.entries[0].first.value == 41 && bundle.entries[0].second.value == 19
+        && bundle.entries[1].first.value == 23 && cursor == 1
+}
+
+machine main() crashes Trap {
+    let old: Cell = Cell { value: 17 };
+    let intermediate: Cell = Cell { value: 31 };
+    let new: Cell = Cell { value: 41 };
+    let sibling: Cell = Cell { value: 19 };
+    let spare: Cell = Cell { value: 23 };
+    let bundle: Bundle = Bundle { entries: [
+        Views { first: &old, second: &sibling },
+        Views { first: &spare, second: &sibling }
+    ] };
+    let replaced: bool = replace(bundle, &intermediate, &new);
+    transition replaced && old.value == 17 && sibling.value == 19 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1146,7 +1146,7 @@ pub(crate) fn validate_structural_root_operations(
                             );
                     let shared_descriptor_copy = result.multiplicity
                         == terminal_psi::StructuralMultiplicity::Affine
-                        && terminal_semantics::is_shared_reference_carrier(
+                        && terminal_semantics::is_copyable_carrier(
                             structural_types.values().copied(),
                             result.structural_type,
                         );

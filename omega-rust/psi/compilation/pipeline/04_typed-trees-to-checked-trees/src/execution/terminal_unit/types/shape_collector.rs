@@ -3,16 +3,19 @@
 //! retain their own arenas beside the type catalog; they never alter a shape's
 //! declaration or grant custody.
 //!
-//! Collection describes storage, not permission to copy, construct, or discard
-//! it. Fields and array elements collect the same stored value shapes,
+//! Collection describes storage and retains checked type capabilities, not
+//! occurrence authority to copy, construct, or discard it. Fields and array
+//! elements collect the same stored value shapes,
 //! including provider receipts and stored reference shells. Their multiplicity
 //! and cleanup remain obligations of the operations that use that storage.
 //! Plain finite source contents additionally retain their no-code disposal
 //! capability. A selected move may remove a common exit disposition while the
 //! skipped alternative still owns the value; the graph's existing custody
 //! solver needs this independent authority to settle that live complement.
-//! Nominal hooks, linear descendants and stored loans never gain this capability.
-//! Shared descriptors have a separate exact-type disposal judgment. A replacement
+//! Nominal hooks and linear descendants never gain this capability. Copyable
+//! shared-carrier aggregates can retire their own descriptors without owning
+//! an affine source claim or their external referents.
+//! Descriptors have a separate exact-type disposal judgment. A replacement
 //! must settle their resident cohort and preserve external loans before installing
 //! the incoming roster; this bit never permits ordinary resource-free cleanup.
 //!
@@ -314,6 +317,8 @@ impl<'program> ShapeCollector<'program> {
             owns_linear_claim: data.properties.multiplicity
                 == language_semantics::Multiplicity::Linear,
             no_code_affine_cleanup: false,
+            copyable: data.properties.multiplicity
+                == language_semantics::Multiplicity::Unrestricted,
             descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
@@ -440,6 +445,7 @@ impl<'program> ShapeCollector<'program> {
             scalar_restriction: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
+            copyable: access == CheckedStructuralAccess::SharedBorrow,
             descriptor_cleanup: access != CheckedStructuralAccess::Owned,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Reference {
@@ -522,6 +528,7 @@ impl<'program> ShapeCollector<'program> {
                 _ => return None,
             };
             *access = Some(shell.access.into());
+            stored.copyable = shell.access == language_semantics::ReferenceAccess::Shared;
             stored.identity = identity;
             if self
                 .types
@@ -562,6 +569,15 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        // Usage multiplicity permits repeated exclusive-reference access; it
+        // does not permit copying that descriptor, including inside an array.
+        // Ask the same declared-property owner as stored-value copy planning.
+        let copyable = validation::type_satisfies_declared_property(
+            self.program,
+            &[],
+            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::DeclaredPropertyRequirement::Copy,
+        );
         // One identity names one plan for the whole module, and lowering
         // rejoins this plan by recomputing the identity from source types, so
         // both use the one rule: a bounded byte owner keeps its qualification
@@ -585,6 +601,11 @@ impl<'program> ShapeCollector<'program> {
             substitutions,
             validation::ContentsRequirement::DescriptorCleanup,
         );
+        // An owned copy aggregate may contain intrinsic descriptor lifetimes
+        // without a source affine claim. The checked contents judgment excludes
+        // hooks and conserved claims; disposal of this copied home never owns
+        // its descriptors' external referents.
+        let no_code_affine_cleanup = no_code_affine_cleanup || (descriptor_cleanup && copyable);
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
@@ -631,6 +652,7 @@ impl<'program> ShapeCollector<'program> {
                 // A borrowed byte carrier owns only its descriptor. As with
                 // Reference shapes, replacement may retire that descriptor,
                 // never its backing or any still-live child permission.
+                copyable: copyable && !carrier.is_borrowed(),
                 descriptor_cleanup: carrier.is_borrowed(),
                 owns_linear_claim: false,
                 no_code_affine_cleanup: no_code_affine_cleanup
@@ -670,6 +692,9 @@ impl<'program> ShapeCollector<'program> {
                 no_code_affine_cleanup: false,
                 // The element type describes borrowed backing, not contents
                 // disposed with this address/extent descriptor.
+                // Canonical view identity does not carry its occurrence's
+                // access. Only stored descriptors can retain a shared-copy bit.
+                copyable: false,
                 descriptor_cleanup: true,
                 identity: identity,
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
@@ -724,6 +749,7 @@ impl<'program> ShapeCollector<'program> {
                     scalar_restriction,
                     owns_linear_claim: false,
                     no_code_affine_cleanup,
+                    copyable,
                     descriptor_cleanup,
                     identity: identity,
                     shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
@@ -809,6 +835,7 @@ impl<'program> ShapeCollector<'program> {
                     scalar_restriction: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup,
+                    copyable,
                     descriptor_cleanup,
                     identity: identity,
                     shape: CheckedUnitStructuralTypeShape::FixedArray {
@@ -909,6 +936,10 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        // Copy permission belongs to the logical declaration, never a chosen
+        // opaque representation or a quotient's cloned physical carrier.
+        let copyable =
+            data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted;
         if let Some(accessor) = self.add_placed_accessor_attachment(&data, binders) {
             return (accessor == identity).then_some(identity);
         }
@@ -927,6 +958,7 @@ impl<'program> ShapeCollector<'program> {
             self.in_progress.remove(&identity);
             let mut plan = plan?;
             plan.identity = identity;
+            plan.copyable = copyable;
             self.types.insert(identity, plan);
             return Some(identity);
         }
@@ -951,6 +983,7 @@ impl<'program> ShapeCollector<'program> {
                         scalar_restriction: None,
                         owns_linear_claim: true,
                         no_code_affine_cleanup: false,
+                        copyable: false,
                         descriptor_cleanup: false,
                         identity,
                         shape: CheckedUnitStructuralTypeShape::ByteSequence(
@@ -993,6 +1026,8 @@ impl<'program> ShapeCollector<'program> {
             &substitutions,
             validation::ContentsRequirement::DescriptorCleanup,
         );
+        let no_code_affine_cleanup =
+            no_code_affine_cleanup || (descriptor_cleanup && !owns_linear_claim && copyable);
         let members = self.program.data_members(&data).to_vec();
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
@@ -1082,6 +1117,7 @@ impl<'program> ShapeCollector<'program> {
                     scalar_restriction: None,
                     owns_linear_claim,
                     no_code_affine_cleanup,
+                    copyable,
                     descriptor_cleanup,
                     identity: identity,
                     shape: if matches!(shape_kind, DataShapeKind::Mixed) {
@@ -1187,6 +1223,7 @@ impl<'program> ShapeCollector<'program> {
                 scalar_restriction: None,
                 owns_linear_claim,
                 no_code_affine_cleanup,
+                copyable,
                 descriptor_cleanup,
                 identity: identity,
                 shape: CheckedUnitStructuralTypeShape::Record {
@@ -1366,6 +1403,7 @@ impl<'program> ShapeCollector<'program> {
             owns_linear_claim: self.program.type_multiplicity(type_reference)
                 == language_semantics::Multiplicity::Linear,
             no_code_affine_cleanup: false,
+            copyable: false,
             descriptor_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::BindingCarrier,
