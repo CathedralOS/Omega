@@ -153,14 +153,12 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
         let ((arguments, evidence_arguments), rest) =
             parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
         input = rest;
-        expression = match syntax_trees.expressions.expression(expression).clone() {
+        expression = match syntax_trees.expressions.expression(expression) {
             ExpressionNode::Name(path) => {
-                let (members, receiver) =
-                    parse_postfix::call_path_members_and_receiver(syntax_trees, path);
-                let target = members
-                    .last()
-                    .cloned()
-                    .expect("call path should have at least one member");
+                let path = *path;
+                let (target, receiver) =
+                    parse_postfix::call_path_target_and_receiver(syntax_trees, path);
+                let target = target.expect("call path should have at least one member");
 
                 syntax_trees
                     .expressions
@@ -175,12 +173,14 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                     }))
             }
             ExpressionNode::Member(member) => {
+                let receiver = member.receiver;
+                let target = member.member.clone();
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
                         target_is_static: false,
-                        receiver: member.receiver,
-                        target: member.member,
+                        receiver,
+                        target,
                         machine_arguments: Box::default(),
                         arguments,
                         evidence_arguments,

@@ -209,6 +209,23 @@ impl ExpressionTable {
         *self.expressions.get_mut(handle) = node;
     }
 
+    /// Update only call acknowledgement flags through the page's normal COW
+    /// path. A rejected non-call leaves its payload and revision untouched.
+    pub fn set_call_acknowledgement(
+        &mut self,
+        expression: ExpressionHandle,
+        acknowledgement: language_core::CallOperationalAcknowledgement,
+    ) -> bool {
+        if !matches!(self.expressions.get(expression), ExpressionNode::Call(_)) {
+            return false;
+        }
+        let ExpressionNode::Call(call) = self.expressions.get_mut(expression) else {
+            unreachable!("call kind was checked before acquiring the mutable page")
+        };
+        call.operational_acknowledgement = acknowledgement;
+        true
+    }
+
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }

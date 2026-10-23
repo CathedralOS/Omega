@@ -379,7 +379,7 @@ fn apply_unary_prefix(
         }
         UnaryPrefix::Negate(span) => {
             // Preserve literal folding and the existing 0 - value representation.
-            let negated = match syntax_trees.expressions.expression(expression).clone() {
+            let negated = match syntax_trees.expressions.expression(expression) {
                 ExpressionNode::Integer(literal) => ExpressionNode::Integer(literal.negated()),
                 ExpressionNode::Float(text) => ExpressionNode::Float(FloatSpelling::generated(
                     format!("-{}", text.as_str(syntax_trees)),
@@ -404,26 +404,20 @@ fn apply_unary_prefix(
             suspend,
             block,
         } => {
-            let ExpressionNode::Call(call) =
-                syntax_trees.expressions.expression(expression).clone()
-            else {
+            if !syntax_trees.expressions.set_call_acknowledgement(
+                expression,
+                language_core::CallOperationalAcknowledgement {
+                    acknowledges_suspend: suspend,
+                    acknowledges_block: block,
+                    ..Default::default()
+                },
+            ) {
                 return Err(input.error_here(if suspend {
                     "`suspend` is a call acknowledgement and must appear immediately before a call"
                 } else {
                     "`block` is a call acknowledgement and must appear immediately before a call"
                 }));
-            };
-            syntax_trees.expressions.replace_expression(
-                expression,
-                ExpressionNode::Call(syntax_trees::expression::TableCallExpression {
-                    operational_acknowledgement: language_core::CallOperationalAcknowledgement {
-                        acknowledges_suspend: suspend,
-                        acknowledges_block: block,
-                        ..Default::default()
-                    },
-                    ..call
-                }),
-            );
+            }
             Ok(expression)
         }
         // Ownership is inferred from value flow; explicit `move` has no extra node.

@@ -107,3 +107,5 @@ session's timing comparison or establish performance on other hosts.
 [Worker-owned child lists](../source_assembly_2026_10_22/child_list_storage/README.md): four variants preserve exact observations and reduce allocation traffic, but CPU benefit remains unresolved. The implementation is not retained; full results and the worker-batch comparison are preserved.
 
 - [Uniform arena slot metadata](../source_assembly_2026_10_22/arena_slot_metadata/README.md): eliminate uniform per-row metadata and compact cold ownership; first-retirement tradeoff measured.
+
+- [Borrowed expression reads](../source_assembly_2026_10_22/expression_reads/README.md): remove temporary whole-node and name-path clones; exact parser and assembly observations preserved.

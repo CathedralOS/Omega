@@ -427,14 +427,12 @@ fn build_call_expression_handle(
     arguments: HandleSpan<ExpressionHandle>,
     evidence_arguments: Box<[syntax_trees::identifier::Identifier]>,
 ) -> Result<ExpressionHandle, ParseError> {
-    let expression = syntax_trees.expressions.expression(expression).clone();
+    let expression = syntax_trees.expressions.expression(expression);
     let call = match expression {
         ExpressionNode::Name(path) => {
-            let (members, receiver) = call_path_members_and_receiver(syntax_trees, path);
-            let target = members
-                .last()
-                .cloned()
-                .ok_or_else(|| ParseError::new("missing call target"))?;
+            let path = *path;
+            let (target, receiver) = call_path_target_and_receiver(syntax_trees, path);
+            let target = target.ok_or_else(|| ParseError::new("missing call target"))?;
 
             // A namespace-qualified declaration is an ordinary machine call,
             // even when its leaf name and arity match a dot atomic operation.
@@ -459,7 +457,7 @@ fn build_call_expression_handle(
             Ok(TableCallExpression {
                 target_is_static: false,
                 receiver: member.receiver,
-                target: member.member,
+                target: member.member.clone(),
                 machine_arguments,
                 arguments,
                 evidence_arguments,
@@ -928,31 +926,30 @@ fn parse_static_type_argument<'tokens, 'source>(
     ))
 }
 
-/// Read a call target name path's members and build its receiver: the
-/// path's prefix minus the final member, or an invalid handle when the
-/// target is a single member.
-pub(crate) fn call_path_members_and_receiver(
+/// Retain only the target name before publishing the receiver expression.
+/// The temporary path is a borrowed view; its prefix is copied into durable
+/// storage exactly as before. Callers own their empty-path diagnostic.
+pub(crate) fn call_path_target_and_receiver(
     syntax_trees: &mut SyntaxTrees,
     path: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> (Vec<syntax_trees::identifier::Identifier>, ExpressionHandle) {
-    let members = syntax_trees
-        .tables
-        .expressions
-        .identifier_path_members(path)
-        .to_vec();
-    let receiver = if members.len() <= 1 {
+) -> (
+    Option<syntax_trees::identifier::Identifier>,
+    ExpressionHandle,
+) {
+    let members = syntax_trees.expressions.identifier_path_members(path);
+    let count = members.len();
+    let target = members.last().cloned();
+    let receiver = if count <= 1 {
         ExpressionHandle::invalid()
     } else {
         let receiver_path = syntax_trees
-            .tables
             .expressions
-            .copy_identifier_path_prefix(path, members.len() - 1);
+            .copy_identifier_path_prefix(path, count - 1);
         syntax_trees
-            .tables
             .expressions
             .insert(ExpressionNode::Name(receiver_path))
     };
-    (members, receiver)
+    (target, receiver)
 }
 
 #[cfg(test)]
