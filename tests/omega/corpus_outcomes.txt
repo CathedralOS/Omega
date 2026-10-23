@@ -6090,42 +6090,42 @@ fail/facts/scalar_boundary_parameter_through_target_body_rejected rejected 4794m
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_domain_call_guarantee/call_result rejected 4423ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_call_result_rejected rejected 1934ms expected @595562a958b4+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
-fail/facts/scalar_domain_call_guarantee/const_name rejected 4167ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_const_name_rejected rejected 1574ms expected @595562a958b4+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
-fail/facts/scalar_domain_call_guarantee/field rejected 3980ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_field_rejected rejected 1088ms expected @595562a958b4+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
-fail/facts/scalar_domain_call_guarantee/local rejected 3987ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_local_rejected rejected 1092ms expected @595562a958b4+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
-fail/facts/scalar_domain_call_guarantee/match_join rejected 3911ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_match_join_rejected rejected 923ms expected @595562a958b4+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
-fail/facts/scalar_domain_call_guarantee/other_machine rejected 3893ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_other_machine_rejected rejected 953ms expected @595562a958b4+wt
 	cannot prove requires contract for call forwarded from issue: captured >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove scalar result domain for return from issue at statement 2: i64::Nonnegative
-fail/facts/scalar_domain_call_guarantee/other_state rejected 3883ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_other_state_rejected rejected 1748ms expected @595562a958b4+wt
 	cannot prove requires contract for call finish from issue: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/scalar_domain_call_guarantee/parameter rejected 3883ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_parameter_rejected rejected 2176ms expected @595562a958b4+wt
 	cannot prove requires contract for call issue from transport: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/scalar_domain_call_guarantee/target_body rejected 3866ms expected @83f47d8fae73
+fail/facts/scalar_domain_call_guarantee_through_target_body_rejected rejected 2728ms expected @595562a958b4+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
-fail/facts/scalar_sign_zero_extension_unproved_call_result rejected 2364ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_call_result_rejected rejected 922ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_const_name rejected 2248ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_const_name_rejected rejected 1367ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_field rejected 2335ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_field_rejected rejected 393ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_local rejected 2423ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_local_rejected rejected 364ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_match_join rejected 2437ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_match_join_rejected rejected 376ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_other_machine rejected 2369ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_other_machine_rejected rejected 376ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_other_state rejected 2331ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_other_state_rejected rejected 367ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `compute` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_parameter rejected 2325ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_parameter_rejected rejected 367ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scalar_sign_zero_extension_unproved_target_body rejected 2421ms expected @45cbafd80d9c
+fail/facts/scalar_sign_zero_extension_through_target_body_rejected rejected 440ms expected @595562a958b4+wt
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -13301,24 +13301,24 @@ pass/facts/scalar_boundary_parameter_through_other_machine_exit checked 11273ms 
 pass/facts/scalar_boundary_parameter_through_other_state_exit checked 10084ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/scalar_boundary_parameter_through_parameter_exit checked 10499ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/scalar_boundary_parameter_through_target_body_exit checked 10009ms check-target:macos_arm64 @abda3e427bc9+wt
-pass/facts/scalar_domain_call_guarantee/call_result checked 25444ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/const_name checked 17006ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/field checked 16903ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/local checked 11487ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/match_join checked 11299ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/other_machine checked 11332ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/other_state checked 11295ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/parameter checked 11310ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_domain_call_guarantee/target_body checked 11330ms check-target:macos_arm64 @83f47d8fae73
-pass/facts/scalar_sign_zero_extension_through_call_result_exit checked 7632ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_const_name_exit checked 7578ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_field_exit checked 7709ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_local_exit checked 7740ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_match_join_exit checked 7711ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_other_machine_exit checked 7869ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_other_state_exit checked 7781ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_parameter_exit checked 7722ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scalar_sign_zero_extension_through_target_body_exit checked 7727ms check-target:macos_arm64 @45cbafd80d9c
+pass/facts/scalar_domain_call_guarantee_through_call_result_exit checked 2491ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_const_name_exit checked 2488ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_field_exit checked 2701ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_local_exit checked 3112ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_match_join_exit checked 1687ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_other_machine_exit checked 1274ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_other_state_exit checked 1244ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_parameter_exit checked 1250ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_domain_call_guarantee_through_target_body_exit checked 1252ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_call_result_exit checked 1238ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_const_name_exit checked 1219ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_field_exit checked 1190ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_local_exit checked 2452ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_match_join_exit checked 2358ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_other_machine_exit checked 2676ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_other_state_exit checked 2567ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_parameter_exit checked 3728ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_sign_zero_extension_through_target_body_exit checked 4054ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/scalar_width_shifts_through_call_result_exit checked 7542ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_const_name_exit checked 7845ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_field_exit checked 7660ms check-target:macos_arm64 @45cbafd80d9c

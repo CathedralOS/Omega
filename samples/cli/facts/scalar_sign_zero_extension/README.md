@@ -70,8 +70,8 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/scalar_sign_zero_extension_through_*` and
-`tests/omega/fail/facts/scalar_sign_zero_extension_unproved_*` fixtures.
+The row is pinned under `tests/omega/pass/facts/scalar_sign_zero_extension_through_*_exit` and
+`tests/omega/fail/facts/scalar_sign_zero_extension_through_*_rejected` fixtures.
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
