@@ -1,0 +1,93 @@
+// Fact: matching a 28-variant tagged enum payload TwentyEightChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64), V26(u64), V27(u64), V28(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Expected exit: 0
+
+const MAX_RES: u64 = 80u64;
+const MIN_RES: u64 = 40u64;
+
+data TwentyEightChoice [copy] {
+    case V1(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V2(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V3(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V4(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V5(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V6(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V7(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V8(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V9(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V10(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V11(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V12(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V13(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V14(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V15(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V16(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V17(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V18(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V19(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V20(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V21(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V22(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V23(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V24(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V25(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V26(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V27(v: u64) where v >= MIN_RES && v <= MAX_RES;
+    case V28(v: u64) where v >= MIN_RES && v <= MAX_RES;
+}
+
+machine verify_payload(value: u64) -> u64
+    requires value >= MIN_RES && value <= MAX_RES
+{
+    let headroom: u64 = MAX_RES - value;
+    let margin: u64 = value - MIN_RES;
+    headroom + margin
+}
+
+machine extract(choice: TwentyEightChoice) -> u64 {
+    transition choice {
+        TwentyEightChoice::V1 { v } -> v
+        TwentyEightChoice::V2 { v } -> v
+        TwentyEightChoice::V3 { v } -> v
+        TwentyEightChoice::V4 { v } -> v
+        TwentyEightChoice::V5 { v } -> v
+        TwentyEightChoice::V6 { v } -> v
+        TwentyEightChoice::V7 { v } -> v
+        TwentyEightChoice::V8 { v } -> v
+        TwentyEightChoice::V9 { v } -> v
+        TwentyEightChoice::V10 { v } -> v
+        TwentyEightChoice::V11 { v } -> v
+        TwentyEightChoice::V12 { v } -> v
+        TwentyEightChoice::V13 { v } -> v
+        TwentyEightChoice::V14 { v } -> v
+        TwentyEightChoice::V15 { v } -> v
+        TwentyEightChoice::V16 { v } -> v
+        TwentyEightChoice::V17 { v } -> v
+        TwentyEightChoice::V18 { v } -> v
+        TwentyEightChoice::V19 { v } -> v
+        TwentyEightChoice::V20 { v } -> v
+        TwentyEightChoice::V21 { v } -> v
+        TwentyEightChoice::V22 { v } -> v
+        TwentyEightChoice::V23 { v } -> v
+        TwentyEightChoice::V24 { v } -> v
+        TwentyEightChoice::V25 { v } -> v
+        TwentyEightChoice::V26 { v } -> v
+        TwentyEightChoice::V27 { v } -> v
+        TwentyEightChoice::V28 { v } -> v
+    }
+}
+
+machine probe(choice: TwentyEightChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+machine main() crashes Trap {
+    let p: TwentyEightChoice = TwentyEightChoice::V28 { v: 60u64 };
+    let combined: u64 = probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
