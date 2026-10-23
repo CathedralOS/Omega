@@ -246,6 +246,8 @@ fail/asm/scratch_missing_clobbers rejected 1ms expected @7875d3411f26+wt
 fail/asm/scratch_missing_flag_clobber rejected 1ms expected @7875d3411f26+wt
 fail/asm/scratch_register_alias rejected 1ms expected @7875d3411f26+wt
 fail/asm/scratch_separate_body_flag rejected 1879ms expected @7875d3411f26+wt
+fail/asm/scratch_snapshot_after_input_write_wrong_value_rejected rejected 2802ms expected @8d202634513c
+	cannot prove requires contract for call after from main$assembly$portable$5$entry: asm#scratch#2#eax$version$3 == 7 (needs fact `asm#scratch#2#eax == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `branch`
 fail/asm/scratch_termination_rank_required rejected 3377ms expected @7875d3411f26+wt
 fail/asm/scratch_uninitialized_flag rejected 1895ms expected @7875d3411f26+wt
 fail/asm/scratch_uninitialized_register rejected 1885ms expected @7875d3411f26+wt
@@ -9661,6 +9663,7 @@ pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:l
 pass/asm/scratch_exact_register_flag_clobbers_exit checked 10849ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/asm/scratch_hardware_flag_mix checked 21688ms check-target:linux_x86_64 @737f6be3b09b
 pass/asm/scratch_latest_zero_flag_exit checked 9520ms check-target:linux_x86_64 @7875d3411f26+wt
+pass/asm/scratch_snapshot_survives_input_write_exit checked 3251ms check-target:linux_x86_64 @8d202634513c
 pass/asm/scratch_subtract_modular_underflow_exit checked 8672ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/asm/scratch_target_sibling_capture_identity_exit checked 7405ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/asm/scratch_zero_flag_survives_move_exit checked 8845ms check-target:linux_x86_64 @7875d3411f26+wt
