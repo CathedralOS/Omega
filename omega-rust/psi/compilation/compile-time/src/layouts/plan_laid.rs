@@ -17,9 +17,9 @@
 //!    application span, and each rewritten use retains its own occurrence.
 //!    Generated spelling is not an ownership exemption: those spans join the
 //!    shell and its uses to managed source custody during ordinary resolution.
-//! 2. `compute_plan_laid_layouts` (POST-TYPING, after const-length
+//! 2. the plan-laid installation pass (POST-TYPING, after const-length
 //!    substitution): evaluates the policy at build time through the existing
-//!    L2/L3 pipeline (`compute_layout_plan` -- contract gate, plan validation),
+//!    L2/L3 pipeline (policy contract gate and plan validation),
 //!    requires the plan be FULLY STATIC (a dynamic plan cannot be a value
 //!    type: values need offsets, bytes need mints), and records the placement
 //!    on `TypedTrees::plan_laid_layouts` for the native layout builder.
@@ -32,7 +32,6 @@ mod desugaring;
 mod layout_installation;
 
 pub use desugaring::desugar_plan_laid_value_types;
-pub use layout_installation::compute_plan_laid_layouts;
 pub(crate) use layout_installation::compute_plan_laid_layouts_in;
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized

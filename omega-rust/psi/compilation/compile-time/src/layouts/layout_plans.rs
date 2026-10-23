@@ -1,10 +1,8 @@
 //! Source-authored layout policy evaluation and validation.
 //!
 //! Reflect the schema, admit and execute its policy, then validate the returned
-//! layout and private callback demands. Typed-value byte production belongs to
-//! the sibling `materialization` module.
+//! layout and private callback demands.
 
-use layout_plans::LayoutPlanReport;
 use typed_trees::TypedTrees;
 
 use super::schema_reflection::{build_schema_value, schema_fields};
@@ -19,38 +17,6 @@ pub type NativeLayoutPlanReport =
 pub type PrivateCallbackLayoutDemandReport = layout_plans::PrivateCallbackLayoutDemandReport<
     typed_trees::typed_trees::ClosedConformanceApplication,
 >;
-
-/// Compute the layout plan a policy machine produces for a schema; a plan
-/// that also produced private native-layout demands is refused here and
-/// must be consumed through [`compute_native_layout_plan`].
-pub fn compute_layout_plan(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    schema_data: &str,
-    selection: Option<crate::AuthorizedSelection>,
-) -> Result<LayoutPlanReport, String> {
-    let report = compute_native_layout_plan(typed, policy_machine, schema_data, selection)?;
-    if !report.private_callback_demands.is_empty() {
-        return Err(format!(
-            "policy `{policy_machine}` produced private native-layout demands; consume it through the native layout-plan path so those demands cannot be discarded"
-        ));
-    }
-    Ok(report.layout)
-}
-
-/// Compute the native layout plan a policy machine produces for a schema,
-/// under an authorized selection when the caller holds one.
-pub fn compute_native_layout_plan(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    schema_data: &str,
-    selection: Option<crate::AuthorizedSelection>,
-) -> Result<NativeLayoutPlanReport, String> {
-    let machine = typed
-        .realized_machine_named(policy_machine)
-        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    compute_native_layout_plan_for_machine(typed, machine.symbol, schema_data, selection)
-}
 
 /// Evaluate one exact checked policy body. A family interface is never replaced
 /// with a selected member here; the application owner evaluates its full roster.

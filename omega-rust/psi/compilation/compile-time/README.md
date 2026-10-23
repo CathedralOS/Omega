@@ -20,11 +20,12 @@ continuation retains the same authority; an extension cannot normalize its
 predecessor's templates or silently combine sibling generated units.
 
 The lifecycle calls responsibility owners directly: `const_evaluation` folds
-constant positions, `layouts` evaluates layout policies and materializes owned
-values, and `machine_execution` admits and runs machines with supplied operator
-semantics. `syntax_probes.rs` owns temporary normalization and resolution shared
-by constants and placed views. `reflection` separately owns semantic schema
-graphs, scoped selection snapshots, and checked runtime visitation plans; their
+constant positions, `layouts` evaluates layout policies, plan-laid value types,
+placed views and wire plans, and `machine_execution` admits and runs machines
+with supplied operator semantics. `syntax_probes.rs` owns temporary
+normalization and resolution shared by constants and placed views. `reflection`
+separately owns semantic schema graphs, scoped selection snapshots, and checked
+runtime visitation plans; their
 independent replay remains beside their producers.
 
 [Build activation admission](src/machine_execution/build_activation.rs) recognizes
@@ -33,9 +34,9 @@ replacement before its caller may execute effects. Omega consumes that verdict
 when constructing the build argument; target configuration stays Omega-owned.
 
 Within `layouts`, `layout_plans.rs` produces validated policy plans,
-`materialization.rs` derives exact bytes and retains value-specific custody, and
-`schema_reflection.rs` owns the typed geometry and Schema ABI both consume. The
-record, sum, and nested materializers keep their existing admission boundaries.
+`plan_laid/`, `placed_views/`, `access_plans.rs` and `wire_plans.rs` install
+their results into the typed program, and `schema_reflection.rs` owns the typed
+geometry and Schema ABI all of them consume.
 
 This target-neutral service owns the admission floor, checked zero-argument and
 fixed-array evaluation, ownership-taking const-generic pre-resolution evaluation,
@@ -334,8 +335,8 @@ not establish `ConstEvaluable`. Temporary local mutation and borrows do not
 escape through that snapshot. The separate augmenting API returns argument
 snapshots for effectful build evaluation and is not hermetic admission.
 
-[Layout/materialization notes](layouts.md) describe the supported geometry and
-atomic replay entrances. The full target capsule, target-dependent application
+[Layout evaluation notes](layouts.md) describe the supported geometry and
+policy entrances. The full target capsule, target-dependent application
 closure, semantic-result/usage cache split, richer resource/trust admission,
 and generator expansion remain implementation work. Returning a value or
 passing the common floor does not establish those artifacts.

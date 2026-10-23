@@ -70,20 +70,6 @@ impl FieldShape {
     }
 }
 
-/// Compute plans only for wire schemas appended after a retained checkpoint.
-pub fn compute_wire_plans(
-    typed: &mut TypedTrees,
-    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-    wire_schema_frontier: usize,
-) -> Result<(), Vec<Diagnostic>> {
-    compute_wire_plans_in(
-        typed,
-        selection_authority,
-        wire_schema_frontier,
-        &crate::build_time_evaluation::EvaluationDomain::all(),
-    )
-}
-
 pub(crate) fn compute_wire_plans_in(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,

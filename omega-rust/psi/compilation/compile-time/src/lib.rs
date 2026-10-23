@@ -33,6 +33,7 @@ mod wire_demands;
 pub use language_semantics::wire::WireCompatibilityDemand;
 pub use wire_demands::harvest_wire_compatibility_demands;
 
+pub use build_time_values::BuildTimeValue;
 pub use checked_interpreter::{
     CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
     SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody,
@@ -43,35 +44,12 @@ pub use const_evaluation::const_lengths::{
     evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
-pub use layouts::access_plans::{compute_access_plan, compute_placement_plan};
-pub use layouts::layout_plans::{
-    compute_layout_plan, compute_native_layout_plan, compute_native_layout_plan_for_machine,
-};
-pub use layouts::materialization::{
-    BuildTimeValue, ValidatedConstMaterialization,
-    ValidatedConstNestedSumRecordOccurrenceMaterialization,
-    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
-    ValidatedConstRecordSumArrayElementMaterialization,
-    ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,
-    ValidatedConstRecordSumChildMaterialization, ValidatedConstRecordSumFieldMaterialization,
-    ValidatedConstRecordWithNestedSumRecordMaterialization,
-    ValidatedConstRecordWithNestedSumRecordsMaterialization,
-    ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
-    ValidatedConstRecordWithSumArrayMaterialization,
-    ValidatedConstRecordWithSumArraysMaterialization, ValidatedConstRecordWithSumMaterialization,
-    ValidatedConstSumMaterialization, evaluate_and_materialize_typed_owned_layout_into,
-    materialize_typed_owned_layout_into, validate_const_materializable_conventional_sum,
-    validate_const_materializable_record_with_conventional_sums,
-};
+pub use layouts::layout_plans::compute_native_layout_plan_for_machine;
 pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
 pub use layouts::placement_lifecycles::{
     admit_placement_lifecycle_plans, retain_placement_lifecycle_plans,
 };
-pub use layouts::plan_laid::{
-    PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types,
-};
-pub use layouts::schema_reflection::normalized_schema_report_fingerprint;
-pub use layouts::wire_plans::compute_wire_plans;
+pub use layouts::plan_laid::{PlanLaidRecord, desugar_plan_laid_value_types};
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
     BuildTimeProgram, BuildTimeSelectionAuthority,

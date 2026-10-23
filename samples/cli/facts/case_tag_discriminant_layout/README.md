@@ -39,8 +39,9 @@ value**: its width and offset in the constructed/matched representation. This
 is distinct from `case_payload_layout_geometry` (payload packing) and from
 record layout. The reference implementation fixes the tag at `tag_offset = 0`,
 `tag_size = 4`, `tag_align = 4`
-(`CONVENTIONAL_TAG_SIZE`/`CONVENTIONAL_TAG_ALIGN` in
-`omega-rust/psi/compilation/compile-time/src/layouts/materialization/const_sum_materializable.rs`),
+(`evaluate_conventional_sum_layout` in
+`omega-rust/omega/compilation/backend/calling-conventions/src/aggregate_layout/mod.rs`
+places the signed 32-bit case tag at byte zero as `ValueShape::integer(4, 4)`),
 so `size_of`/`align_of` are the tag's observable footprint: the width is the
 floor under total size and the alignment is the tag alignment floor.
 

@@ -8,19 +8,6 @@ use typed_trees::{
 
 use super::PlanLaidRecord;
 
-pub fn compute_plan_laid_layouts(
-    typed: &mut TypedTrees,
-    records: &[PlanLaidRecord],
-    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-) -> Result<(), Vec<Diagnostic>> {
-    compute_plan_laid_layouts_in(
-        typed,
-        records,
-        selection_authority,
-        &crate::build_time_evaluation::EvaluationDomain::all(),
-    )
-}
-
 pub(crate) fn compute_plan_laid_layouts_in(
     typed: &mut TypedTrees,
     records: &[PlanLaidRecord],

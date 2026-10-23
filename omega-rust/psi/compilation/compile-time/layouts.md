@@ -5,17 +5,19 @@ meaning. These are implementation boundaries, not limits on the language.
 
 ## Ownership
 
-`layout_plans/` reflects checked schemas, evaluates authored plans, validates
-them, and derives complete structured materialization values. `plan_laid/`
-owns pre-resolution desugaring and post-typing installation. `placed_views/`
-owns concrete view probing, evaluation, and exact accessor synthesis. Omega
+`layout_plans/` reflects checked schemas, evaluates authored plans, and
+validates them. `plan_laid/` owns pre-resolution desugaring and post-typing
+installation. `placed_views/`, `access_plans/` and `wire_plans.rs` own concrete
+view probing, placed-access policy evaluation and wire-plan installation. Omega
 schedules these target-neutral services and supplies target realization inputs;
 it does not reinterpret their semantics.
 
 The [layout-plans foundation](../../foundation/layout-plans/src/layout_reports/mod.rs) holds
-normalized geometry/report carriers. The [target layout owner](../../../omega/compilation/backend/layout/src/sum_materialization/mod.rs)
-projects conventional sum reports from its runtime layout. Compact fingerprints
-are compatibility reports; exact schema rows and complete layouts govern replay.
+normalized geometry and the conventional report carriers, including the
+conventional sum reports' path depth limit. The interpreter's provider storage
+applies those reports through the same foundation's aggregate materialization.
+Compact fingerprints are compatibility reports; exact schema rows and complete
+layouts govern replay.
 
 ## Supported geometry and values
 
@@ -33,29 +35,17 @@ Sorted destination offsets determine semantic element order. Scalar fragments,
 stored-width integer placement, and active field-access decisions do not apply
 to these aggregate fields.
 
-Structured materialization checks complete semantic values and exact typed
-schemas before deriving bytes. Erased fields remain required but emit no bytes;
-erased-only nested records and arrays have no physical plan entry. Specialized
-generic records use their concrete checked symbols and substituted member
-types, never display names. Unsupported recursion, unresolved generics,
-references, or mismatched/incomplete values reject before destination mutation.
-A checked zero-argument source machine may supply the structured value.
-
-The sealed `ConstMaterializable` record entrance is narrower than the legacy
-typed-owned writer: closed non-generic copy records with integers, Booleans,
-non-NaN binary32/binary64 values, literal arrays, and recursively eligible
-records. Binary32 must already be exact; this entrance grants no narrowing.
-It preserves signed zero, infinity, exact IEEE bits, and target byte order.
-It rejects NaNs lacking exact-representation evidence and unsupported generic,
-opaque, quotient, reference, slice, Text, dynamic, atomic, or non-copy shapes.
-These fences do not revoke the language's carried-quotient materialization rule.
-
-The carrier retains typed value, exact schema/layout, byte order, and zeroed
-staged bytes. Hash-free replay checks complete geometry and reconstructs bytes
-before copying; even equal compact report coordinates cannot authorize a
-substituted layout. Malformed evidence and a short destination leave the
-destination unchanged. Richer producer-origin chains, quotient custody, and
-target-dependent const applications remain outside this bounded entrance.
+Typed-owned byte materialization has no entrance here. The record, sum,
+record-with-sum and record-with-nested-sum carriers
+(`ValidatedConstMaterialization` and the `ValidatedConstRecordWith*` family),
+their per-shape validators and their shared replay helpers outlived tree
+execution inside the compiler: no compile path, reader or consumer called them,
+so they were deleted. The language's
+[materialization rule](../../../../wiki/spec/language/constants.md#materialization)
+still governs: a value materializes only from admitted computation or a checked
+realization, under a selected layout that determines every observable bit, and
+the foundation's reports plus the interpreter's provider storage carry the
+aggregate path that does exist.
 
 ## Runtime layout observations
 
@@ -106,23 +96,22 @@ as ordinary packing by legacy typed-layout consumers.
 ## Conventional sum materialization
 
 Read-only conventional reports retain the fixed four-byte tag, authored-order
-ordinals, complete payload overlay, and total geometry. They are not authorable
-`LayoutPlan` tag placements. Outer record plans retain sum fields and arrays as
-opaque whole `At` extents. Psi rejoins exact reports and occurrence-distinct
-values, reconstructing zero-padded images before one atomic outer copy.
+ordinals, complete payload overlay, and total geometry, with the foundation's
+`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT` bounding one record path. They are not
+authorable `LayoutPlan` tag placements. Outer record plans retain sum fields and
+arrays as opaque whole `At` extents, and the interpreter's provider storage
+applies the reports through the foundation's aggregate materialization.
 
-Direct pure-sum fields and direct nonzero literal arrays of sums retain their
-validating entrances. Recursive record paths use one report and custody tree:
-leaves retain direct-sum geometry and branches retain each exact record-field
-occurrence. Depth is report data, not a family of Rust APIs. Sibling record
-paths may have different depths, and repeated nominal types retain separate
-field/index occurrences. Projection and validation share a private resource
-bound of 64 record nodes along a path; validation also bounds total occurrences.
-Cycles, array-mediated nested paths, mixed common-field/case shapes, direct sums
-coexisting with deeper sum paths in one record, and target-dependent sum geometry
-remain unsupported. These bounds do not authorize flattening children into the
-outer schema or adding programmable tag placement. Replay independently checks
-every record boundary and selected sum before copying the complete staged image.
+Depth is report data, not a family of Rust APIs. An earlier compiler revision
+kept one `ValidatedConstRecordWithSum*` / `ValidatedConstRecordWithNestedSum*`
+carrier and one `validate_const_materializable_*` entrance per nesting
+combination for a tree-execution route the compiler no longer has; none had a
+caller, so that family is deleted with the rest of the materialization
+entrances. Cycles, array-mediated nested paths, mixed common-field/case shapes,
+direct sums coexisting with deeper sum paths in one record, and target-dependent
+sum geometry stayed unsupported by it; deleting it widens no live path and does
+not authorize flattening children into the outer schema or adding programmable
+tag placement.
 
 ## Other consumers
 

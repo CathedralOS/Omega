@@ -19,23 +19,6 @@ use super::evaluate_selected_policy;
 const ACCESS_FIELD_CAPACITY: usize = 32;
 const BOUNDARY_REACH_CAPACITY: usize = 32;
 
-/// Evaluate and validate one source `Placement::plan` machine. The returned
-/// layout is validated before its access value is normalized against it; the
-/// complete layout/access/reach tuple then receives one placement identity.
-pub fn compute_placement_plan(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    schema_data: &str,
-) -> Result<ValidatedPlacementPlan, String> {
-    let machine = typed
-        .realized_machine_named(policy_machine)
-        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    let schema = typed
-        .data_definition_by_name_str(schema_data)
-        .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
-    compute_selected_placement_plan(typed, machine, schema)
-}
-
 /// Exact selected declarations are the inputs; names remain diagnostics and
 /// policy-local field labels. No global name lookup can change their custody.
 pub(crate) fn compute_selected_placement_plan(

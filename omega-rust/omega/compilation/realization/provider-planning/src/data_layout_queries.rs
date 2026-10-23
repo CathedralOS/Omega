@@ -14,8 +14,8 @@
 //! omitted, references measured as the reference, not the referent). A type
 //! whose `data` definition carries a validated layout plan consults the
 //! installed `PlanLaidLayout` inside that same path: its size and alignment
-//! are the `LayoutPlanReport::{size, align}` that
-//! `build-time-evaluation::compute_native_layout_plan` produced and the layout
+//! are the `LayoutPlanReport::{size, align}` that the plan-laid policy
+//! evaluation in `build-time-evaluation` produced and the layout
 //! installer validated, so policy, schema, and field custody stay exactly
 //! where they were judged. Machine declarations and proof-only carriers were
 //! already rejected at lowering, where the operand was admitted as a data

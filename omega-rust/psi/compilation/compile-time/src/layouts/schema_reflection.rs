@@ -42,7 +42,6 @@ pub(crate) struct SchemaFieldInfo {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RepeatedFieldInfo {
     pub(crate) element_size: u64,
-    pub(crate) element_align: u64,
     pub(crate) element_count: u64,
 }
 
@@ -319,7 +318,6 @@ pub(super) fn reflected_field_layout(
                 None,
                 Some(RepeatedFieldInfo {
                     element_size,
-                    element_align,
                     element_count: length,
                 }),
             ))
