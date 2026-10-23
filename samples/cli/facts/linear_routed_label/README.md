@@ -10,11 +10,37 @@ carrier. It does not implement allocation, placement initialization or retiremen
 
 Run each place with `omega run --both <place>/main.omg` after ordinary package
 preparation. Each must report native exit 0 and Terminal interpreter exit 0.
-The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
-`const_name`, `other_state`, `other_machine`, and `target_body`. Every place's
-`invalid/main.omg` replaces issuance with construction of the same raw carrier;
-it must reject missing `Claim::Issued` provenance. The same programs are pinned
-under `tests/omega/{pass,fail}/facts/linear_routed_label_<place>`.
+Every place's `invalid/main.omg` replaces issuance with construction of the
+same raw carrier; it must reject missing `Claim::Issued` provenance.
+
+| Place | Positive Project | Reject Twin | Transport Mechanism |
+| --- | --- | --- | --- |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the `issue` result is moved into the local `claim` and cast to `Tagged` |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the issued claim is stored in `Holder.claim`; the field projection is cast |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the claim arrives as an explicit `label(claim: Claim in Issued)` parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `forward(issue(29))` returns the claim; the call result is cast |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `choose` yields the claim from both arm states; the join result is cast |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the payload arrives as the named constant `PAYLOAD = 29` |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state `label` receives the claim and casts it |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | the forwarding machine `label` returns `Claim in Tagged` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies has its own `label` machine |
+
+## Pinned Fixtures
+
+The row is pinned by 18 fixtures: nine
+`tests/omega/pass/facts/linear_routed_label_through_<place>_exit` fixtures, each
+a byte-identical copy of its place program and `build.omg` (`ProgramEntry` for
+all four hosted targets, `Expected exit: 0`), and nine
+`tests/omega/fail/facts/linear_routed_label_through_<place>_rejected` twins,
+each a byte-identical copy of its `invalid/` program pinning the diagnostic
+`construction value is not proven in domain Claim::Issued`. Recorded rows: 18 `checked` with
+`check-target:macos_arm64` and 18 `rejected` with `expected` in
+[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt), 9
+`built exit:0 interpreter-exit:0 interpreter:agrees` in
+[`corpus_both_macos_arm64.txt`](../../../../tests/omega/corpus_both_macos_arm64.txt).
+The tenant of record is **DOMAIN-ISSUER-ROUTES** (`TASKS.md`): preserve the
+selected-domain qualification rule and the exact claim transport that
+`facts/linear_routed_label` pins.
 
 ## Requirements exercised
 

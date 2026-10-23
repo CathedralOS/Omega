@@ -4453,35 +4453,35 @@ fail/facts/linear_claim_retirement_through_parameter_rejected rejected 2687ms ex
 	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/linear_claim_retirement_through_target_body_rejected rejected 2688ms expected @45cbafd80d9c
 	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
-fail/facts/linear_routed_label_call_result rejected 5570ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_call_result_rejected rejected 5570ms expected @d012ed8f0bae+wt
 	cannot prove requires contract for call forward from exercise: Claim in Claim::Issued in state `entry`
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/facts/linear_routed_label_const_name rejected 5448ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_const_name_rejected rejected 5448ms expected @d012ed8f0bae+wt
 	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/facts/linear_routed_label_field rejected 5495ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_field_rejected rejected 5495ms expected @d012ed8f0bae+wt
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	construction of `Holder` field `claim` is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/facts/linear_routed_label_local rejected 5555ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_local_rejected rejected 5555ms expected @d012ed8f0bae+wt
 	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/facts/linear_routed_label_match_join rejected 5612ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_match_join_rejected rejected 5612ms expected @d012ed8f0bae+wt
 	cannot prove requires contract for call choose from exercise: Claim in Claim::Issued in state `entry`
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/facts/linear_routed_label_other_machine rejected 5597ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_other_machine_rejected rejected 5597ms expected @d012ed8f0bae+wt
 	cannot prove requires contract for call label from exercise: Claim in Claim::Issued in state `entry`
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/facts/linear_routed_label_other_state rejected 5387ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_other_state_rejected rejected 5387ms expected @d012ed8f0bae+wt
 	cannot prove requires contract for call label from exercise: claim in Claim::Issued in state `entry`
 	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/facts/linear_routed_label_parameter rejected 5354ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_parameter_rejected rejected 5354ms expected @d012ed8f0bae+wt
 	cannot prove requires contract for call label from exercise: Claim in Claim::Issued in state `entry`
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/facts/linear_routed_label_target_body rejected 5382ms expected @d012ed8f0bae+wt
+fail/facts/linear_routed_label_through_target_body_rejected rejected 5382ms expected @d012ed8f0bae+wt
 	cannot prove requires contract for call label from exercise: Claim in Claim::Issued in state `entry`
 	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/live_across_call_spill_through_call_result_rejected rejected 2332ms expected @45cbafd80d9c
@@ -5088,23 +5088,23 @@ fail/facts/nested_array_element_projection_through_target_body_rejected rejected
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_borrow_qualification_call_result rejected 639ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_call_result_rejected rejected 639ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_const_name rejected 639ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_const_name_rejected rejected 639ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_field rejected 635ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_field_rejected rejected 635ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_local rejected 627ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_local_rejected rejected 627ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_match_join rejected 627ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_match_join_rejected rejected 627ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_other_machine rejected 627ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_other_machine_rejected rejected 627ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_other_state rejected 606ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_other_state_rejected rejected 606ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_parameter rejected 607ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_parameter_rejected rejected 607ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_target_body rejected 640ms expected @91cfec61d529+wt
+fail/facts/nested_borrow_qualification_through_target_body_rejected rejected 640ms expected @91cfec61d529+wt
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_record_field_borrow_bound_through_call_result_rejected rejected 7499ms expected @84ebbdd6b4e1
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -12288,15 +12288,15 @@ pass/facts/linear_claim_retirement_through_other_machine_exit checked 8021ms che
 pass/facts/linear_claim_retirement_through_other_state_exit checked 7982ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_parameter_exit checked 7938ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_target_body_exit checked 7826ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/linear_routed_label_call_result checked 18445ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_const_name checked 18161ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_field checked 18129ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_local checked 18128ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_match_join checked 18282ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_other_machine checked 18139ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_other_state checked 18161ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_parameter checked 18422ms check-target:macos_arm64 @d012ed8f0bae+wt
-pass/facts/linear_routed_label_target_body checked 18202ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_call_result_exit checked 18445ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_const_name_exit checked 18161ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_field_exit checked 18129ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_local_exit checked 18128ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_match_join_exit checked 18282ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_other_machine_exit checked 18139ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_other_state_exit checked 18161ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_parameter_exit checked 18422ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_through_target_body_exit checked 18202ms check-target:macos_arm64 @d012ed8f0bae+wt
 pass/facts/live_across_call_spill_through_call_result_exit checked 7789ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/live_across_call_spill_through_const_name_exit checked 7813ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/live_across_call_spill_through_field_exit checked 7809ms check-target:macos_arm64 @45cbafd80d9c
@@ -12549,15 +12549,15 @@ pass/facts/nested_array_element_projection_through_other_machine_exit checked 24
 pass/facts/nested_array_element_projection_through_other_state_exit checked 24742ms check-target:macos_arm64 @84ebbdd6b4e1+wt
 pass/facts/nested_array_element_projection_through_parameter_exit checked 24132ms check-target:macos_arm64 @84ebbdd6b4e1+wt
 pass/facts/nested_array_element_projection_through_target_body_exit checked 25303ms check-target:macos_arm64 @84ebbdd6b4e1+wt
-pass/facts/nested_borrow_qualification_call_result checked 801ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_const_name checked 801ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_field checked 800ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_local checked 745ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_match_join checked 745ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_other_machine checked 745ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_other_state checked 756ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_parameter checked 757ms check-target:macos_arm64 @91cfec61d529+wt
-pass/facts/nested_borrow_qualification_target_body checked 760ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_call_result_exit checked 801ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_const_name_exit checked 801ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_field_exit checked 800ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_local_exit checked 745ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_match_join_exit checked 745ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_other_machine_exit checked 745ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_other_state_exit checked 756ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_parameter_exit checked 757ms check-target:macos_arm64 @91cfec61d529+wt
+pass/facts/nested_borrow_qualification_through_target_body_exit checked 760ms check-target:macos_arm64 @91cfec61d529+wt
 pass/facts/nested_record_field_borrow_bound_through_call_result_exit checked 25991ms check-target:macos_arm64 @84ebbdd6b4e1
 pass/facts/nested_record_field_borrow_bound_through_const_name_exit checked 26288ms check-target:macos_arm64 @84ebbdd6b4e1
 pass/facts/nested_record_field_borrow_bound_through_field_exit checked 25728ms check-target:macos_arm64 @84ebbdd6b4e1
