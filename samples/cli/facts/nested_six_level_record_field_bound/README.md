@@ -64,10 +64,19 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/nested_six_level_record_field_bound_through_*` fixtures; every positive records `built ... exit:0` and `interpreter-exit:0 interpreter:agrees`. The nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart.
+
+Recorded with the shared opt-level 1 producer `gen-317bacd12b0` (omega sha256 `ecbd667e4dba...`, corpus_runner sha256 `6065879534a8...`, macos_arm64, jobs 3): check leg 18 fixtures — 9 `checked` with `check-target:macos_arm64`, 9 `rejected` carrying their own `may overflow \`u64\`` fragment, 0 fail fixtures that did not reject and 0 lost successes; native leg 9 `built ... exit:0`; both leg 9 `interpreter-exit:0 interpreter:agrees`. The two rows landed together as pure row additions: 60/0 lines in `corpus_outcomes.txt`, 18/0 in `corpus_native_macos_arm64.txt`, 18/0 in `corpus_both_macos_arm64.txt`, stamped `@317bacd12b0a+wt`.
+
+The call-result twin widens the returned leaf value itself (`val: 81u64` with its contract upper bound widened to `81u64`), not the contract bound alone. The first authoring widened only the contract while the callee body still returned the literal `60u64`; the checker proves that call result by its body, so the twin was correctly accepted and pinned nothing (`did not reject at all`). The other eight twins widen only the declared bound.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Fixture pin and landing ticket:** `11af58c00ea14323acf0d1aed2a888e0` (factsr1-pins-bl).
 - **Requirement established:** Target-neutral compile-time multi-level nested record projection bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, projecting the leaf field of a 6-level nested structural record `RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { val: u64 } } } } } }` preserves the static leaf interval bound (`root.l1.l2.l3.l4.l5.val >= 40u64 && root.l1.l2.l3.l4.l5.val <= 80u64`), discharging exact 64-bit unsigned subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
