@@ -92,7 +92,7 @@ pub(crate) fn validate_boolean_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
     }
-    let output = super::constant_installation::install_evaluated_constant(
+    let output = crate::candidates::constant_installation::install_evaluated_constant(
         input,
         patch.location,
         abstract_operations::AbstractOperation::BooleanConstant {

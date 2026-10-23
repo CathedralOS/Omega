@@ -1,8 +1,18 @@
+//! Removed-result accounting for the common-subexpression families.
+//!
+//! A same-block or dominating CSE removes the redundant node and substitutes
+//! its live result, so its accounting is the shared removed-result use-site
+//! spine. A phi-translated join additionally moves every incoming edge's
+//! leader onto the join parameter, so it builds on the same dead-node spine
+//! and names those edges itself.
+use crate::candidates::canonicalize_provenance;
 use crate::candidates::provenance_realized_at;
-use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
+use crate::candidates::rewrite_accounting::dead_scalar::{
+    reconstruct_dead_scalar_node_accounting, reconstruct_removed_result_use_accounting,
+};
 use optimization_unit::{
-    DeadScalarNodeRewrite, LocalScalarCommonSubexpressionRewrite, NodeLocation,
-    PhiTranslatedScalarGvnRewrite, PsiOptimizationFunction, PsiRealizationSite,
+    DeadScalarNodeRewrite, LocalScalarCommonSubexpressionRewrite, PhiTranslatedScalarGvnRewrite,
+    PsiOptimizationFunction, PsiRealizationSite,
 };
 use semantic_vocabulary::BlockId;
 
@@ -10,48 +20,13 @@ pub(crate) fn reconstruct_local_cse_accounting(
     function: &PsiOptimizationFunction,
     patch: LocalScalarCommonSubexpressionRewrite,
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let dead = DeadScalarNodeRewrite {
-        location: patch.redundant,
-        source_operation: patch.redundant_operation,
-        result: patch.redundant_result,
-        scalar_type: patch.scalar_type,
-    };
-    let (mut blocks, mut provenance) = reconstruct_dead_scalar_node_accounting(function, dead)?;
-    for use_block in &function.blocks {
-        if blocks.contains(&use_block.id)
-            || !use_block
-                .uses()
-                .any(|row| row.value == patch.redundant_result)
-        {
-            continue;
-        }
-        blocks.push(use_block.id);
-        for (index, node) in use_block.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: use_block.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
-    }
-    blocks.sort();
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
-    Some((blocks, provenance))
+    reconstruct_removed_result_use_accounting(
+        function,
+        patch.redundant,
+        patch.redundant_operation,
+        patch.redundant_result,
+        patch.scalar_type,
+    )
 }
 
 pub(crate) fn reconstruct_phi_translated_cse_accounting(
@@ -84,12 +59,6 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
     }
     blocks.sort();
     blocks.dedup();
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut provenance);
     Some((blocks, provenance))
 }

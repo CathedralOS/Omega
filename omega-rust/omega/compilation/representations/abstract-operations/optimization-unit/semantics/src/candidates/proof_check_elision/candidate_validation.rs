@@ -1,5 +1,4 @@
 //! Proof-certified scalar identity candidate acceptance.
-use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_proof_certified_scalar_identity_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
@@ -7,7 +6,7 @@ use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_o
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
-    OptimizationSafetyClass, OptimizationValidatorIdentity,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
@@ -18,7 +17,8 @@ use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
 use crate::candidates::{
-    candidate_block, candidate_function, rebuild_node_metadata, set_node_effect_link,
+    accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
+    set_node_effect_link,
 };
 
 /// Independently remove one live proof-certified integer identity.
@@ -276,41 +276,43 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.location.machine)
-        .expect("candidate function exists");
-    let output_block = output_function
-        .block_mut(patch.location.block)
-        .expect("candidate block exists");
-    let removed = output_block.nodes.remove(node_index);
-    let receiver = output_block
-        .nodes
-        .get_mut(node_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    receiver.provenance.extend_from_slice(&removed.provenance);
-    receiver.fuel.extend_from_slice(&removed.fuel);
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            rewrite_scalar_value_uses(&mut node.operation, patch.result, patch.replacement);
-            rebuild_node_metadata(node, block.id, node_index)?;
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    crate::unit_validation::revalidate_rewrite_output(&mut output, function.machine)?;
-    if output.accepted_obligation_facts != input.accepted_obligation_facts {
-        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
-    }
-    let output_function = output
-        .function(function.machine)
-        .expect("output function exists");
-
-    validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator),
-        provenance: accepted_provenance,
-    })
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.location.machine,
+        &expected_blocks,
+        validator,
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.location.machine)
+                .expect("candidate function exists");
+            let output_block = output_function
+                .block_mut(patch.location.block)
+                .expect("candidate block exists");
+            let removed = output_block.nodes.remove(node_index);
+            let receiver = output_block
+                .nodes
+                .get_mut(node_index)
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            receiver.provenance.extend_from_slice(&removed.provenance);
+            receiver.fuel.extend_from_slice(&removed.fuel);
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                    rewrite_scalar_value_uses(&mut node.operation, patch.result, patch.replacement);
+                    rebuild_node_metadata(node, block.id, node_index)?;
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            // The rewrite deletes one node and moves no accepted obligation
+            // fact, so any catalog drift is the candidate's claim alone.
+            if output.accepted_obligation_facts != input.accepted_obligation_facts {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            Ok(())
+        },
+    )
 }

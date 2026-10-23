@@ -55,9 +55,12 @@ pub(crate) fn validate_psi_optimization_unit(
 }
 
 /// The output-tail every rewrite candidate replays after mutating a function:
-/// rebuild the function's derived fact index and declared places, refresh the
-/// unit identity, re-validate the whole unit, and hand the rebuilt function
-/// back for the caller's remaining checks.
+/// rebuild the function's derived fact index, declared places and root
+/// service reach, refresh the unit identity, re-validate the whole unit, and
+/// hand the rebuilt function back for the caller's remaining checks. Every
+/// surface here is derived metadata — the rewrite re-derives it from the
+/// operations it landed, exactly as unit validation requires, instead of
+/// trusting a stale copy from before the mutation.
 pub(crate) fn revalidate_rewrite_output(
     output: &mut PsiOptimizationUnit,
     machine: MachineId,
@@ -68,6 +71,7 @@ pub(crate) fn revalidate_rewrite_output(
     output_function.facts = function_structure::reconstruct_fact_index(output_function);
     output_function.declared_places =
         derived_metadata::reconstruct_declared_places(output_function)?;
+    services::refresh_root_service_reach(output)?;
     output.identity = recompute_psi_optimization_unit_identity(output);
     validate_psi_optimization_unit(output)?;
     Ok(output.function(machine).expect("output function exists"))

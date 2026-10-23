@@ -1,4 +1,5 @@
 //! Independent linear empty-block replay mechanics.
+use crate::candidates::accept_region_rewrite;
 use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_accounting, reconstruct_linear_thread_bindings,
     reconstruct_linear_thread_ownership_is_identity,
@@ -9,7 +10,6 @@ use crate::unit_validation::derived_metadata::{
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 
 pub(super) fn validate(
@@ -159,76 +159,68 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
 
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.predecessor.machine)
-        .expect("candidate function exists");
-    let output_predecessor = output_function
-        .block_mut(patch.predecessor.block)
-        .and_then(|block| {
-            block
-                .nodes
-                .get_mut(usize::try_from(patch.predecessor.node).ok()?)
-        })
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let predecessor_edge = predecessor_node
-        .edge(patch.incoming_edge)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    let empty_edge = empty_node
-        .edge(patch.outgoing_edge)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    let mut combined_sources = predecessor_edge.provenance.clone();
-    combined_sources.extend_from_slice(&empty_edge.provenance);
-    let mut combined_fuel = predecessor_edge.fuel.clone();
-    combined_fuel.extend_from_slice(&empty_edge.fuel);
-    output_predecessor.operation = O::Jump {
-        structural_bindings: Vec::new(),
-        psi_edge: patch.incoming_edge,
-        target: patch.target,
-        bindings: composed_bindings,
-        cleanup_actions: Vec::new(),
-    };
-    output_predecessor.definitions = expected_definitions(
-        &output_predecessor.operation,
-        patch.predecessor.block,
-        patch.predecessor.node,
-    );
-    output_predecessor.uses = expected_uses(
-        &output_predecessor.operation,
-        patch.predecessor.block,
-        patch.predecessor.node,
-    );
-    output_predecessor.successors = expected_edges(&output_predecessor.operation);
-    output_predecessor.successors[0].provenance = combined_sources;
-    output_predecessor.successors[0].fuel = combined_fuel;
-    output_predecessor.ownership = expected_ownership(&output_predecessor.operation);
-    output_predecessor.provenance.clear();
-    output_predecessor.fuel.clear();
-    output_function
-        .blocks
-        .retain(|block| block.id != patch.empty.block);
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for node in &mut block.nodes {
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    let output_function =
-        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.predecessor.machine)?;
-    for input_block in &function.blocks {
-        if input_block.id != patch.empty.block
-            && !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id) != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.linear-empty-block-thread.v2",
-        ),
-        provenance: accepted_provenance,
-    })
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.predecessor.machine,
+        &expected_blocks,
+        b"omega.validator.linear-empty-block-thread.v2",
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.predecessor.machine)
+                .expect("candidate function exists");
+            let output_predecessor = output_function
+                .block_mut(patch.predecessor.block)
+                .and_then(|block| {
+                    block
+                        .nodes
+                        .get_mut(usize::try_from(patch.predecessor.node).ok()?)
+                })
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            let predecessor_edge = predecessor_node
+                .edge(patch.incoming_edge)
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            let empty_edge = empty_node
+                .edge(patch.outgoing_edge)
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            let mut combined_sources = predecessor_edge.provenance.clone();
+            combined_sources.extend_from_slice(&empty_edge.provenance);
+            let mut combined_fuel = predecessor_edge.fuel.clone();
+            combined_fuel.extend_from_slice(&empty_edge.fuel);
+            output_predecessor.operation = O::Jump {
+                structural_bindings: Vec::new(),
+                psi_edge: patch.incoming_edge,
+                target: patch.target,
+                bindings: composed_bindings,
+                cleanup_actions: Vec::new(),
+            };
+            output_predecessor.definitions = expected_definitions(
+                &output_predecessor.operation,
+                patch.predecessor.block,
+                patch.predecessor.node,
+            );
+            output_predecessor.uses = expected_uses(
+                &output_predecessor.operation,
+                patch.predecessor.block,
+                patch.predecessor.node,
+            );
+            output_predecessor.successors = expected_edges(&output_predecessor.operation);
+            output_predecessor.successors[0].provenance = combined_sources;
+            output_predecessor.successors[0].fuel = combined_fuel;
+            output_predecessor.ownership = expected_ownership(&output_predecessor.operation);
+            output_predecessor.provenance.clear();
+            output_predecessor.fuel.clear();
+            output_function
+                .blocks
+                .retain(|block| block.id != patch.empty.block);
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for node in &mut block.nodes {
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            Ok(())
+        },
+    )
 }

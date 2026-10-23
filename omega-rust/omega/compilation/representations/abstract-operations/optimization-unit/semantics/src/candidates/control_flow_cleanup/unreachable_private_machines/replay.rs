@@ -1,5 +1,5 @@
 //! Independent unreachable private-machine replay mechanics.
-use crate::candidates::provenance_proven_unreachable_at;
+use crate::candidates::{canonicalize_provenance, provenance_proven_unreachable_at};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
@@ -205,12 +205,6 @@ pub(crate) fn pruned_machine_provenance(
             }
         }
     }
-    rows.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut rows);
     Some(rows)
 }

@@ -18,23 +18,20 @@
 //! exactly, rebuilds the output itself, and reconstructs the exact node
 //! custody the folded observations carry.
 
-use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::provenance_realized_at;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::candidates::{accept_region_rewrite, canonicalize_provenance};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
-    PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
-    recompute_psi_optimization_unit_identity, resolved_sole_case, sole_case_at_path,
+    FoldedCaseMembershipRow, OptimizationNode, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    declared_structural_type, resolved_sole_case, sole_case_at_path,
 };
 use semantic_vocabulary::{
     BlockId, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralTypeId,
 };
-use std::collections::BTreeMap;
 
 use terminal_psi::StructuralPlaceDeclaration;
 
@@ -243,53 +240,6 @@ fn folded_node(
     })
 }
 
-/// Rebuilds a function's retained optimization-fact index after folding.
-/// Every fact row carries its emitting node's `support` custody, so the walk
-/// consumes each untouched node's retained rows in order and pushes one
-/// `BooleanConstant` fact at each folded site.
-fn refresh_facts(
-    function: &mut PsiOptimizationFunction,
-    rows: &[FoldedCaseMembershipRow],
-) -> Result<(), OptimizationUnitValidationError> {
-    let folded = rows
-        .iter()
-        .map(|row| ((row.site.block, row.site.node), row))
-        .collect::<BTreeMap<_, _>>();
-    let mut retained = std::mem::take(&mut function.facts).into_iter().peekable();
-    let mut next_facts = Vec::new();
-    for block in &function.blocks {
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            if let Some(PsiProvenance::Operation(operation)) = node.provenance.first() {
-                while let Some(fact) = retained.peek() {
-                    let support = match fact {
-                        OptimizationFact::OperationObligationReference { support, .. }
-                        | OptimizationFact::BooleanConstant { support, .. }
-                        | OptimizationFact::IntegerConstant { support, .. } => *support,
-                    };
-                    if support != *operation {
-                        break;
-                    }
-                    next_facts.push(retained.next().expect("peeked fact exists"));
-                }
-            }
-            if let Some(row) = folded.get(&(
-                block.id,
-                u32::try_from(node_index)
-                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
-            )) {
-                next_facts.push(OptimizationFact::BooleanConstant {
-                    value: row.result,
-                    constant: row.outcome,
-                    support: row.psi_operation,
-                });
-            }
-        }
-    }
-    next_facts.extend(retained);
-    function.facts = next_facts;
-    Ok(())
-}
-
 /// The exact node custody the folded observations carry: each folded site
 /// retains the membership's own provenance and fuel settlement, realized at
 /// the same node.
@@ -313,13 +263,7 @@ fn accepted_provenance(
             &node.fuel,
         ));
     }
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut provenance);
     Ok(provenance)
 }
 
@@ -372,47 +316,34 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
-    let input_function = function;
     let folded = patch
         .memberships
         .iter()
-        .map(|row| folded_node(row, input, input_function).map(|node| (row.site, node)))
+        .map(|row| folded_node(row, input, function).map(|node| (row.site, node)))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    for (location, node) in folded {
-        let index = usize::try_from(location.node)
-            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let Some(slot) = output_function
-            .block_mut(location.block)
-            .and_then(|block| block.nodes.get_mut(index))
-        else {
-            return Err(OptimizationUnitValidationError::CandidateLocationMissing);
-        };
-        *slot = node;
-    }
-    refresh_facts(output_function, &patch.memberships)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .function(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
-    for input_function_other in &input.functions {
-        if input_function_other.machine != patch.machine
-            && !output.functions.contains(input_function_other)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.case-membership-specialization.v1",
-        ),
-        provenance: expected_provenance,
-    })
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.machine,
+        &expected_blocks,
+        b"omega.validator.case-membership-specialization.v1",
+        expected_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.machine)
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            for (location, node) in folded {
+                let index = usize::try_from(location.node)
+                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+                let Some(slot) = output_function
+                    .block_mut(location.block)
+                    .and_then(|block| block.nodes.get_mut(index))
+                else {
+                    return Err(OptimizationUnitValidationError::CandidateLocationMissing);
+                };
+                *slot = node;
+            }
+            Ok(())
+        },
+    )
 }

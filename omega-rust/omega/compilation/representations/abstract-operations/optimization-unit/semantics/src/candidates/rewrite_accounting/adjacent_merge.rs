@@ -1,4 +1,4 @@
-use crate::candidates::provenance_realized_at;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at};
 use optimization_unit::{
     AdjacentBlockMergeRewrite, NodeLocation, OwnershipFrontierSite, OwnershipFrontierWitness,
     OwnershipFrontierWitnessRow, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
@@ -171,13 +171,7 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
             &mut realized,
         )?;
     }
-    realized.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut realized);
     Some((affected.into_iter().collect(), realized))
 }
 

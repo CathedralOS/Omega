@@ -8,7 +8,6 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatc
 
 mod boolean_candidate;
 mod boolean_evaluation;
-mod constant_installation;
 mod integer_candidate;
 mod integer_evaluation;
 mod observation;

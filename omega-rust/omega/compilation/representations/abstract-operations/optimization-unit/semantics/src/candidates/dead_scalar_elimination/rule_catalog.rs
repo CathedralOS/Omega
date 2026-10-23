@@ -1,7 +1,5 @@
 //! Exact dead-scalar rule identities and their independently accepted families.
-use optimization_core::{
-    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationValidatorIdentity,
-};
+use optimization_core::{OptimizationRuleIdentity, OptimizationSafetyClass};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum DeadScalarFamily {
@@ -43,18 +41,16 @@ pub(super) fn expected_safety(rule: OptimizationRuleIdentity) -> Option<Optimiza
     })
 }
 
-pub(super) fn validator_identity(
-    rule: OptimizationRuleIdentity,
-) -> Option<OptimizationValidatorIdentity> {
-    dead_scalar_family(rule).map(|family| {
-        OptimizationValidatorIdentity::from_canonical_bytes(match family {
-            DeadScalarFamily::Literal => b"omega.validator.dead-unused-scalar-literal.v1",
-            DeadScalarFamily::UnconditionallyTotal => {
-                b"omega.validator.dead-unused-unconditionally-total-scalar.v1"
-            }
-            DeadScalarFamily::ProofCertified => {
-                b"omega.validator.dead-unused-proof-certified-scalar-node.v1"
-            }
-        })
+/// The canonical validator-domain bytes one dead-scalar family publishes its
+/// accepted rewrite under.
+pub(super) fn validator_bytes(rule: OptimizationRuleIdentity) -> Option<&'static [u8]> {
+    dead_scalar_family(rule).map(|family| match family {
+        DeadScalarFamily::Literal => b"omega.validator.dead-unused-scalar-literal.v1".as_slice(),
+        DeadScalarFamily::UnconditionallyTotal => {
+            b"omega.validator.dead-unused-unconditionally-total-scalar.v1".as_slice()
+        }
+        DeadScalarFamily::ProofCertified => {
+            b"omega.validator.dead-unused-proof-certified-scalar-node.v1".as_slice()
+        }
     })
 }

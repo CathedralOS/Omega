@@ -1,4 +1,4 @@
-use crate::candidates::provenance_realized_at;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at};
 use optimization_unit::{
     NodeLocation, PsiOptimizationFunction, PsiRealizationSite, SharedJumpFusionRewrite,
 };
@@ -47,13 +47,7 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
             &terminal.fuel,
         ),
     ];
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut provenance);
     let mut blocks = vec![patch.predecessor.block, patch.target];
     blocks.sort();
     blocks.dedup();

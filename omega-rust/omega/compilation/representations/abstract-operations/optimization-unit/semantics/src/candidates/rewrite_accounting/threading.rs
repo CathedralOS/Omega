@@ -1,4 +1,4 @@
-use crate::candidates::provenance_realized_at;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at};
 use optimization_unit::{
     NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, ValueDefinition,
@@ -214,12 +214,6 @@ fn effect_audit(
             expected_effect = expected_effect.checked_add(1)?;
         }
     }
-    realized.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(realized);
     Some(())
 }

@@ -1,4 +1,5 @@
 //! Independent path-qualified empty-block replay mechanics.
+use crate::candidates::accept_region_rewrite;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_successor_operation;
 use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
@@ -10,7 +11,6 @@ use crate::unit_validation::derived_metadata::{
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 
 pub(super) fn validate(
@@ -141,57 +141,54 @@ pub(super) fn validate(
     let outgoing_edge = empty_node
         .edge(patch.outgoing_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.empty.machine)
-        .expect("candidate function exists");
-    for (location, incoming_edge, composed) in &incoming {
-        let node = output_function
-            .block_mut(location.block)
-            .and_then(|block| block.nodes.get_mut(usize::try_from(location.node).ok()?))
-            .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-        if !rewrite_successor_operation(&mut node.operation, *incoming_edge, patch.target, composed)
-        {
-            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-        }
-        let edge = node
-            .successors
-            .iter_mut()
-            .find(|edge| edge.psi_edge == *incoming_edge)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-        edge.target = patch.target;
-        edge.bindings = composed.clone();
-        edge.provenance.extend_from_slice(&outgoing_edge.provenance);
-        edge.fuel.extend_from_slice(&outgoing_edge.fuel);
-        node.definitions = expected_definitions(&node.operation, location.block, location.node);
-        node.uses = expected_uses(&node.operation, location.block, location.node);
-        node.ownership = expected_ownership(&node.operation);
-    }
-    output_function
-        .blocks
-        .retain(|block| block.id != patch.empty.block);
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for node in &mut block.nodes {
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    let output_function =
-        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.empty.machine)?;
-    for input_block in &function.blocks {
-        if input_block.id != patch.empty.block
-            && !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id) != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.path-qualified-empty-block-thread.v1",
-        ),
-        provenance: accepted_provenance,
-    })
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.empty.machine,
+        &expected_blocks,
+        b"omega.validator.path-qualified-empty-block-thread.v1",
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.empty.machine)
+                .expect("candidate function exists");
+            for (location, incoming_edge, composed) in &incoming {
+                let node = output_function
+                    .block_mut(location.block)
+                    .and_then(|block| block.nodes.get_mut(usize::try_from(location.node).ok()?))
+                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+                if !rewrite_successor_operation(
+                    &mut node.operation,
+                    *incoming_edge,
+                    patch.target,
+                    composed,
+                ) {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                }
+                let edge = node
+                    .successors
+                    .iter_mut()
+                    .find(|edge| edge.psi_edge == *incoming_edge)
+                    .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+                edge.target = patch.target;
+                edge.bindings = composed.clone();
+                edge.provenance.extend_from_slice(&outgoing_edge.provenance);
+                edge.fuel.extend_from_slice(&outgoing_edge.fuel);
+                node.definitions =
+                    expected_definitions(&node.operation, location.block, location.node);
+                node.uses = expected_uses(&node.operation, location.block, location.node);
+                node.ownership = expected_ownership(&node.operation);
+            }
+            output_function
+                .blocks
+                .retain(|block| block.id != patch.empty.block);
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for node in &mut block.nodes {
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            Ok(())
+        },
+    )
 }

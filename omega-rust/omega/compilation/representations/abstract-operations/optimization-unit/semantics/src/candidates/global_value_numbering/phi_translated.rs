@@ -1,4 +1,5 @@
 //! Phi-translated join validation and rewrite application.
+use crate::candidates::accept_region_rewrite;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_phi_translated_cse_accounting;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
@@ -11,7 +12,6 @@ use crate::unit_validation::derived_metadata::{
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-    OptimizationValidatorIdentity,
 };
 use optimization_unit::{
     NodeLocation, OptimizationFact, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
@@ -298,99 +298,94 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
-    let mut output = input.clone();
-    let output_function = output
-        .functions
-        .iter_mut()
-        .find(|row| row.machine == patch.redundant.machine)
-        .expect("candidate function exists");
-    let output_join = output_function
-        .blocks
-        .iter_mut()
-        .find(|row| row.id == patch.redundant.block)
-        .expect("candidate join exists");
-    output_join.parameters.push(ValueDefinition {
-        value: patch.redundant_result,
-        scalar_type: patch.scalar_type,
-        site: ValueDefinitionSite::BlockParameter {
-            block: patch.redundant.block,
-            position: patch.parameter_position,
-        },
-    });
-    let removed = output_join.nodes.remove(redundant_index);
-    let receiver = output_join
-        .nodes
-        .get_mut(redundant_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    receiver.provenance.extend_from_slice(&removed.provenance);
-    receiver.fuel.extend_from_slice(&removed.fuel);
-    for incoming in &patch.incoming {
-        let source = output_function
-            .blocks
-            .iter_mut()
-            .find(|row| row.id == incoming.source)
-            .expect("incoming source exists");
-        let node = source
-            .nodes
-            .iter_mut()
-            .find(|node| {
-                node.successors
-                    .iter()
-                    .any(|edge| edge.psi_edge == incoming.edge)
-            })
-            .expect("incoming edge exists");
-        let edge = node.edge(incoming.edge).expect("incoming edge exists");
-        let mut bindings = edge.bindings.clone();
-        bindings.push(abstract_operations::ValueBinding {
-            parameter: patch.redundant_result,
-            argument: incoming.leader_result,
-            scalar_type: patch.scalar_type,
-        });
-        if !rewrite_successor_operation(
-            &mut node.operation,
-            incoming.edge,
-            patch.redundant.block,
-            &bindings,
-        ) {
-            return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-        }
-    }
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            let node_index = u32::try_from(node_index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            node.definitions = expected_definitions(&node.operation, block.id, node_index);
-            node.uses = expected_uses(&node.operation, block.id, node_index);
-            node.successors = preserve_edge_custody(node);
-            node.ownership = expected_ownership(&node.operation);
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    let output_function =
-        crate::unit_validation::revalidate_rewrite_output(&mut output, function.machine)?;
-
-    for input_block in &function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id) != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(match proof_class {
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.redundant.machine,
+        &expected_blocks,
+        match proof_class {
             ScalarCseProofClass::ObligationFree => {
-                b"omega.validator.phi-translated-obligation-free-total-scalar-gvn.v1"
+                b"omega.validator.phi-translated-obligation-free-total-scalar-gvn.v1".as_slice()
             }
             ScalarCseProofClass::ProofCertified => {
-                b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1"
+                b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1".as_slice()
             }
             ScalarCseProofClass::CompatiblePolicy => {
                 b"omega.validator.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1"
+                    .as_slice()
             }
-        }),
-        provenance: accepted_provenance,
-    })
+        },
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .functions
+                .iter_mut()
+                .find(|row| row.machine == patch.redundant.machine)
+                .expect("candidate function exists");
+            let output_join = output_function
+                .blocks
+                .iter_mut()
+                .find(|row| row.id == patch.redundant.block)
+                .expect("candidate join exists");
+            output_join.parameters.push(ValueDefinition {
+                value: patch.redundant_result,
+                scalar_type: patch.scalar_type,
+                site: ValueDefinitionSite::BlockParameter {
+                    block: patch.redundant.block,
+                    position: patch.parameter_position,
+                },
+            });
+            let removed = output_join.nodes.remove(redundant_index);
+            let receiver = output_join
+                .nodes
+                .get_mut(redundant_index)
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            receiver.provenance.extend_from_slice(&removed.provenance);
+            receiver.fuel.extend_from_slice(&removed.fuel);
+            for incoming in &patch.incoming {
+                let source = output_function
+                    .blocks
+                    .iter_mut()
+                    .find(|row| row.id == incoming.source)
+                    .expect("incoming source exists");
+                let node = source
+                    .nodes
+                    .iter_mut()
+                    .find(|node| {
+                        node.successors
+                            .iter()
+                            .any(|edge| edge.psi_edge == incoming.edge)
+                    })
+                    .expect("incoming edge exists");
+                let edge = node.edge(incoming.edge).expect("incoming edge exists");
+                let mut bindings = edge.bindings.clone();
+                bindings.push(abstract_operations::ValueBinding {
+                    parameter: patch.redundant_result,
+                    argument: incoming.leader_result,
+                    scalar_type: patch.scalar_type,
+                });
+                if !rewrite_successor_operation(
+                    &mut node.operation,
+                    incoming.edge,
+                    patch.redundant.block,
+                    &bindings,
+                ) {
+                    return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+                }
+            }
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                    let node_index = u32::try_from(node_index)
+                        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+                    node.definitions = expected_definitions(&node.operation, block.id, node_index);
+                    node.uses = expected_uses(&node.operation, block.id, node_index);
+                    node.successors = preserve_edge_custody(node);
+                    node.ownership = expected_ownership(&node.operation);
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            Ok(())
+        },
+    )
 }

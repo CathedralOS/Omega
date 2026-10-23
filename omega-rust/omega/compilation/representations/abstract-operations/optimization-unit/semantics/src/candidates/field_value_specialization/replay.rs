@@ -23,23 +23,21 @@
 //! replay also recomputes the substitution set, the exact use-site roster,
 //! initializer dominance, and the shifted-custody provenance ledger.
 
-use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::candidates::{
+    accept_region_rewrite, candidate_function, canonicalize_provenance, rebuild_node_metadata,
+    set_node_effect_link,
+};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
     FunctionAnalysis, OptimizationNode, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     ScalarSubstitution, ValueDefinition, ValueDefinitionSite, field_evidence, function_analysis,
-    recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -389,13 +387,7 @@ fn expected_accounting(
             affected.insert(block.id);
         }
     }
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut provenance);
     Ok((affected.into_iter().collect(), provenance))
 }
 
@@ -442,98 +434,89 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
-    let input_function = function;
     let folded = patch
         .reads
         .iter()
         .filter(|row| matches!(row.resolution, FieldValueResolution::Constant(_)))
-        .map(|row| folded_node(row, input_function).map(|node| (row.site, node)))
+        .map(|row| folded_node(row, function).map(|node| (row.site, node)))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    for (location, node) in folded {
-        let index = usize::try_from(location.node)
-            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let Some(slot) = output_function
-            .block_mut(location.block)
-            .and_then(|block| block.nodes.get_mut(index))
-        else {
-            return Err(OptimizationUnitValidationError::CandidateLocationMissing);
-        };
-        *slot = node;
-    }
-    // Rebind every covered use of each forwarded result to its proven
-    // initializer before retiring the observation nodes.
-    for row in &patch.reads {
-        let FieldValueResolution::Forward(forwarded) = &row.resolution else {
-            continue;
-        };
-        for node in output_function
-            .blocks
-            .iter_mut()
-            .flat_map(|block| &mut block.nodes)
-        {
-            rewrite_scalar_value_uses(&mut node.operation, row.result, forwarded.initializer);
-        }
-    }
-    // Retire each forwarded observation in descending node order inside its
-    // block so earlier removals never shift a pending coordinate, and fuse
-    // the retired custody into the node inheriting the vacated index.
-    let mut removals: BTreeMap<BlockId, BTreeSet<u32>> = BTreeMap::new();
-    for row in &patch.reads {
-        if matches!(row.resolution, FieldValueResolution::Forward(_)) {
-            removals
-                .entry(row.site.block)
-                .or_default()
-                .insert(row.site.node);
-        }
-    }
-    for (block_id, sites) in removals {
-        let block = output_function
-            .block_mut(block_id)
-            .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-        for site in sites.iter().rev() {
-            let index = usize::try_from(*site)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            let removed = block.nodes.remove(index);
-            let receiver = block
-                .nodes
-                .get_mut(index)
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.machine,
+        &expected_blocks,
+        b"omega.validator.field-value-specialization.v1",
+        expected_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.machine)
                 .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
-        }
-    }
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            rebuild_node_metadata(node, block.id, node_index)?;
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .function(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
-    for input_function_other in &input.functions {
-        if input_function_other.machine != patch.machine
-            && !output.functions.contains(input_function_other)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.field-value-specialization.v1",
-        ),
-        provenance: expected_provenance,
-    })
+            for (location, node) in folded {
+                let index = usize::try_from(location.node)
+                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+                let Some(slot) = output_function
+                    .block_mut(location.block)
+                    .and_then(|block| block.nodes.get_mut(index))
+                else {
+                    return Err(OptimizationUnitValidationError::CandidateLocationMissing);
+                };
+                *slot = node;
+            }
+            // Rebind every covered use of each forwarded result to its proven
+            // initializer before retiring the observation nodes.
+            for row in &patch.reads {
+                let FieldValueResolution::Forward(forwarded) = &row.resolution else {
+                    continue;
+                };
+                for node in output_function
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.nodes)
+                {
+                    rewrite_scalar_value_uses(
+                        &mut node.operation,
+                        row.result,
+                        forwarded.initializer,
+                    );
+                }
+            }
+            // Retire each forwarded observation in descending node order
+            // inside its block so earlier removals never shift a pending
+            // coordinate, and fuse the retired custody into the node
+            // inheriting the vacated index.
+            let mut removals: BTreeMap<BlockId, BTreeSet<u32>> = BTreeMap::new();
+            for row in &patch.reads {
+                if matches!(row.resolution, FieldValueResolution::Forward(_)) {
+                    removals
+                        .entry(row.site.block)
+                        .or_default()
+                        .insert(row.site.node);
+                }
+            }
+            for (block_id, sites) in removals {
+                let block = output_function
+                    .block_mut(block_id)
+                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+                for site in sites.iter().rev() {
+                    let index = usize::try_from(*site)
+                        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+                    let removed = block.nodes.remove(index);
+                    let receiver = block
+                        .nodes
+                        .get_mut(index)
+                        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+                    receiver.provenance.extend_from_slice(&removed.provenance);
+                    receiver.fuel.extend_from_slice(&removed.fuel);
+                }
+            }
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                    rebuild_node_metadata(node, block.id, node_index)?;
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            Ok(())
+        },
+    )
 }

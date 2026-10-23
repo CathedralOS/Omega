@@ -6,19 +6,19 @@
 //! to equal the replayed rows exactly, rebuilds the output itself, and
 //! reconstructs the exact edge custody the fused traversals carry.
 
-use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::provenance_realized_at;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
-use crate::candidates::{candidate_block, candidate_function};
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::candidates::{
+    accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
+};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::binding_arguments;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     DispatchCondition, NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
     PsiRewriteCandidate, PsiRewritePatch, ScalarConstantValue, SpecializedStateEdgeRow, ValueUse,
-    integer_comparison_condition, recompute_psi_optimization_unit_identity,
+    integer_comparison_condition,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -640,13 +640,7 @@ fn accepted_provenance(
             &resolved.fuel,
         ));
     }
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut provenance);
     Ok(provenance)
 }
 
@@ -702,7 +696,6 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
-    let input_function = function;
     // Rows sharing one predecessor site — both constant arms of one
     // conditional — fold into a single node reconstruction; applied
     // independently, the later row would overwrite the earlier arm's fusion
@@ -714,43 +707,32 @@ pub(super) fn validate(
     let fused = sites
         .into_iter()
         .map(|(location, rows)| {
-            fused_node(&rows, patch.dispatch, input_function).map(|node| (location, node))
+            fused_node(&rows, patch.dispatch, function).map(|node| (location, node))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    for (location, node) in fused {
-        let index = usize::try_from(location.node)
-            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let Some(slot) = output_function
-            .block_mut(location.block)
-            .and_then(|block| block.nodes.get_mut(index))
-        else {
-            return Err(OptimizationUnitValidationError::CandidateLocationMissing);
-        };
-        *slot = node;
-    }
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .function(patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
-    for input_function_other in &input.functions {
-        if input_function_other.machine != patch.machine
-            && !output.functions.contains(input_function_other)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.state-argument-specialization.v1",
-        ),
-        provenance: expected_provenance,
-    })
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.machine,
+        &expected_blocks,
+        b"omega.validator.state-argument-specialization.v1",
+        expected_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.machine)
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            for (location, node) in fused {
+                let index = usize::try_from(location.node)
+                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+                let Some(slot) = output_function
+                    .block_mut(location.block)
+                    .and_then(|block| block.nodes.get_mut(index))
+                else {
+                    return Err(OptimizationUnitValidationError::CandidateLocationMissing);
+                };
+                *slot = node;
+            }
+            Ok(())
+        },
+    )
 }

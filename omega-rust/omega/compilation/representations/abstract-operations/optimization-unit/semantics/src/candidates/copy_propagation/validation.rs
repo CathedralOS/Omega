@@ -1,15 +1,14 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
-use crate::candidates::provenance_realized_at;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
     PsiRewriteCandidate, PsiRewritePatch, ValueDefinitionSite,
-    recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
+    reconstruct_psi_closed_region_observation,
 };
 use std::collections::BTreeSet;
 
@@ -122,13 +121,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
         }
     }
     incoming.sort_by_key(|row| (row.edge, row.source));
-    expected_provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut expected_provenance);
     if incoming != witness.incoming
         || incoming
             .iter()
@@ -184,9 +177,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
             node.ownership = expected_ownership(&node.operation);
         }
     }
-    function.facts = reconstruct_fact_index(function);
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
+    crate::unit_validation::revalidate_rewrite_output(&mut output, patch.machine)?;
     if !unchanged_outside_redundant_parameter_region(
         input,
         &output,

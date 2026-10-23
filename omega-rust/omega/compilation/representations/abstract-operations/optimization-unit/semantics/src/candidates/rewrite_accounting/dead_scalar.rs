@@ -1,4 +1,4 @@
-use crate::candidates::provenance_realized_at;
+use crate::candidates::{canonicalize_provenance, provenance_realized_at};
 use optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, PsiOptimizationFunction, PsiRealizationSite,
 };
@@ -60,12 +60,53 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
         }
     }
     blocks.sort();
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut provenance);
+    Some((blocks, provenance))
+}
+
+/// The dead-node accounting plus every block using `result`, whose realized
+/// provenance rows the removal shifts in place: each use block is affected,
+/// and every provenance-bearing node in it realizes its own site. Shared by
+/// every scalar-identity and common-subexpression family whose patch removes
+/// one scalar node and substitutes its live result.
+pub(crate) fn reconstruct_removed_result_use_accounting(
+    function: &PsiOptimizationFunction,
+    location: NodeLocation,
+    source_operation: semantic_vocabulary::OperationId,
+    result: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::ScalarType,
+) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
+    let dead = DeadScalarNodeRewrite {
+        location,
+        source_operation,
+        result,
+        scalar_type,
+    };
+    let (mut blocks, mut provenance) = reconstruct_dead_scalar_node_accounting(function, dead)?;
+    for use_block in &function.blocks {
+        if blocks.contains(&use_block.id) || !use_block.uses().any(|row| row.value == result) {
+            continue;
+        }
+        blocks.push(use_block.id);
+        for (index, node) in use_block.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: use_block.id,
+                node: u32::try_from(index).ok()?,
+            });
+            provenance.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
+        }
+    }
+    blocks.sort();
+    blocks.dedup();
+    canonicalize_provenance(&mut provenance);
     Some((blocks, provenance))
 }

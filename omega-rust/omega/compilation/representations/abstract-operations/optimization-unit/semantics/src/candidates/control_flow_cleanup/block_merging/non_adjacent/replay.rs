@@ -5,10 +5,11 @@ use crate::candidates::global_value_numbering::{
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::non_adjacent_merge::reconstruct_non_adjacent_merge_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
-use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
+use crate::candidates::{
+    accept_region_rewrite, candidate_function, rebuild_node_metadata, set_node_effect_link,
+};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
 };
@@ -130,74 +131,70 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.predecessor.machine)
-        .expect("candidate function exists");
-    let output_target_position = output_function
-        .block_index(patch.target)
-        .expect("candidate target exists");
-    let mut moved = output_function.blocks.remove(output_target_position);
-    let output_predecessor_position = output_function
-        .block_index(patch.predecessor.block)
-        .expect("candidate predecessor exists");
-    let removed = output_function.blocks[output_predecessor_position]
-        .nodes
-        .pop()
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let removed_edge = removed
-        .edge(patch.incoming_edge)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    let first = moved
-        .nodes
-        .first_mut()
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    if !first.provenance.is_empty() {
-        first.provenance.extend_from_slice(&removed_edge.provenance);
-        first.fuel.extend_from_slice(&removed_edge.fuel);
-    } else if !first.successors.is_empty() {
-        for successor in &mut first.successors {
-            successor
-                .provenance
-                .extend_from_slice(&removed_edge.provenance);
-            successor.fuel.extend_from_slice(&removed_edge.fuel);
-        }
-    } else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
-    output_function.blocks[output_predecessor_position]
-        .nodes
-        .append(&mut moved.nodes);
-    for block in &mut output_function.blocks {
-        for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            for substitution in &substitutions {
-                rewrite_scalar_value_uses(&mut node.operation, substitution.from, substitution.to);
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.predecessor.machine,
+        &expected_blocks,
+        b"omega.validator.non-adjacent-unique-predecessor-block-merge.v1",
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.predecessor.machine)
+                .expect("candidate function exists");
+            let output_target_position = output_function
+                .block_index(patch.target)
+                .expect("candidate target exists");
+            let mut moved = output_function.blocks.remove(output_target_position);
+            let output_predecessor_position = output_function
+                .block_index(patch.predecessor.block)
+                .expect("candidate predecessor exists");
+            let removed = output_function.blocks[output_predecessor_position]
+                .nodes
+                .pop()
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            let removed_edge = removed
+                .edge(patch.incoming_edge)
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            let first = moved
+                .nodes
+                .first_mut()
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            if !first.provenance.is_empty() {
+                first.provenance.extend_from_slice(&removed_edge.provenance);
+                first.fuel.extend_from_slice(&removed_edge.fuel);
+            } else if !first.successors.is_empty() {
+                for successor in &mut first.successors {
+                    successor
+                        .provenance
+                        .extend_from_slice(&removed_edge.provenance);
+                    successor.fuel.extend_from_slice(&removed_edge.fuel);
+                }
+            } else {
+                return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
             }
-            rebuild_node_metadata(node, block.id, node_index)?;
-        }
-    }
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for node in &mut block.nodes {
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    let output_function =
-        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.predecessor.machine)?;
-    for input_block in &function.blocks {
-        if input_block.id != patch.target
-            && !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id) != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.non-adjacent-unique-predecessor-block-merge.v1",
-        ),
-        provenance: accepted_provenance,
-    })
+            output_function.blocks[output_predecessor_position]
+                .nodes
+                .append(&mut moved.nodes);
+            for block in &mut output_function.blocks {
+                for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                    for substitution in &substitutions {
+                        rewrite_scalar_value_uses(
+                            &mut node.operation,
+                            substitution.from,
+                            substitution.to,
+                        );
+                    }
+                    rebuild_node_metadata(node, block.id, node_index)?;
+                }
+            }
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for node in &mut block.nodes {
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            Ok(())
+        },
+    )
 }

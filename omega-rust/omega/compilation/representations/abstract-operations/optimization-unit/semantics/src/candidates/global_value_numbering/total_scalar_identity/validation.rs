@@ -4,7 +4,7 @@ use crate::candidates::sparse_conditional_constant_propagation::scalar_value_def
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
-    OptimizationSafetyClass, OptimizationValidatorIdentity,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
@@ -59,7 +59,7 @@ pub(crate) fn validate_total_scalar_identity_candidate(
     let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    let validator = exact_rule_validator(candidate.rule(), patch.identity)
+    let validator = exact_rule_validator_bytes(candidate.rule(), patch.identity)
         .ok_or(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)?;
     if candidate.node_decision_point() != Some(patch.location)
         || candidate.substitutions()
@@ -133,10 +133,12 @@ pub(crate) fn validate_total_scalar_identity_candidate(
     )
 }
 
-fn exact_rule_validator(
+/// The canonical validator-domain bytes one total-identity family publishes
+/// its accepted rewrite under, when the rule names that family's own domain.
+fn exact_rule_validator_bytes(
     rule: OptimizationRuleIdentity,
     identity: TotalScalarIdentityKind,
-) -> Option<OptimizationValidatorIdentity> {
+) -> Option<&'static [u8]> {
     let (rule_domain, validator_domain) = match identity {
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft
         | TotalScalarIdentityKind::WrappingIntegerAddZeroRight
@@ -194,5 +196,5 @@ fn exact_rule_validator(
         ),
     };
     (rule == OptimizationRuleIdentity::from_canonical_bytes(rule_domain))
-        .then(|| OptimizationValidatorIdentity::from_canonical_bytes(validator_domain))
+        .then_some(validator_domain)
 }

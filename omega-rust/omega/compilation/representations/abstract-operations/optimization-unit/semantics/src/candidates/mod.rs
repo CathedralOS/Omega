@@ -6,7 +6,9 @@
 //! `ValidatedPsiRewrite` it reconstructed. Proof-check elision is recognized
 //! by rule before patch shape, because its rewrites reuse the scalar patch
 //! shapes of other families. Each family module owns its validator and
-//! replay; `rewrite_accounting` reconstructs provenance and custody for all of
+//! replay; `accept_region_rewrite` owns the one acceptance tail they share —
+//! clone, land, rebuild the derived surfaces, hold the region, issue — and
+//! `rewrite_accounting` reconstructs provenance and custody for all of
 //! them, `observation` the closed scalar observation boundaries, and
 //! `structural_bindings` the block-parameter bindings replays may forward
 //! through.
@@ -20,6 +22,7 @@ use optimization_unit::{
 use crate::OptimizationUnitValidationError;
 
 pub(crate) mod case_membership_specialization;
+pub(crate) mod constant_installation;
 pub(crate) mod contract;
 pub(crate) mod control_flow_cleanup;
 pub(crate) mod copy_propagation;
@@ -253,4 +256,61 @@ pub(crate) fn candidate_block(
     function
         .block(block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
+}
+
+/// The canonical provenance order every accepted roster leaves in: input
+/// realization site, then the disposition's canonical tag and site. The
+/// order is part of the candidate contract, so every family sorts through
+/// this one statement instead of re-spelling the key.
+pub(crate) fn canonicalize_provenance(rows: &mut [ProvenanceRewrite]) {
+    rows.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+}
+
+/// Accept one family's rewrite of `machine`'s region: clone the admitted
+/// input, let the family land its nodes on the clone, replay the shared
+/// output tail (derived surfaces rebuilt, identity refreshed, whole unit
+/// re-validated), then hold the rewrite inside its region — every input
+/// block the family's accounting did not name stays byte-exact and every
+/// other machine's function survives — before issuing the rebuild under the
+/// family's validator identity.
+pub(crate) fn accept_region_rewrite(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+    machine: semantic_vocabulary::MachineId,
+    expected_blocks: &[semantic_vocabulary::BlockId],
+    validator: &[u8],
+    provenance: Vec<ProvenanceRewrite>,
+    rewrite: impl FnOnce(&mut PsiOptimizationUnit) -> Result<(), OptimizationUnitValidationError>,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    let input_function = candidate_function(input, machine)?;
+    let mut output = input.clone();
+    rewrite(&mut output)?;
+    output
+        .function(machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let output_function = crate::unit_validation::revalidate_rewrite_output(&mut output, machine)?;
+    outside_region::validate_outside_region(
+        input_function.blocks.iter(),
+        output_function,
+        expected_blocks,
+    )?;
+    for input_function_other in &input.functions {
+        if input_function_other.machine != machine
+            && !output.functions.contains(input_function_other)
+        {
+            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
+        }
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator),
+        provenance,
+    })
 }

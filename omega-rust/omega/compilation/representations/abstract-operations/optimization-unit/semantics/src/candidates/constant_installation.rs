@@ -1,32 +1,32 @@
-//! Evaluated-constant node installation shared by the integer and boolean
-//! evaluation candidates.
+//! Evaluated-constant in-place installation shared by every constant
+//! replacement family.
 //!
-//! Both families replay the same acceptance: the patched node is rewritten
-//! to the computed `*Constant` operation, its definition roster is reset to
-//! the single produced scalar, uses/successors/ownership are cleared, the
-//! function fact index and unit identity are rebuilt, the rebuilt unit is
-//! revalidated, and the replacement must keep the closed scalar observation
-//! and live boundary the input spelled. Only the constant operation's
-//! construction and its definition's scalar type differ per family.
+//! The integer- and boolean-evaluation candidates, the proof-certified
+//! same-operand laws, and the proof-certified unit-divisor laws all replay
+//! the same acceptance: the patched node is rewritten to the computed
+//! `*Constant` operation, its definition roster is reset to the single
+//! produced scalar, uses/successors/ownership are cleared, the shared output
+//! tail rebuilds the unit's derived surfaces and revalidates it, and the
+//! replacement must keep the closed scalar observation and live boundary the
+//! input spelled. Only the constant operation's construction and its
+//! definition's scalar type differ per family.
 
+use crate::OptimizationUnitValidationError;
 use crate::candidates::observation::{
     ClosedScalarObservationBoundary, reconstruct_closed_scalar_node_boundary,
 };
-use crate::candidates::sparse_conditional_constant_propagation::observation::{
+use crate::candidates::sparse_conditional_constant_propagation::{
     observation_at, same_closed_scalar_observation,
 };
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use optimization_unit::{
     NodeLocation, PsiNodeObservation, PsiOptimizationUnit, ValueDefinition, ValueDefinitionSite,
-    recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{ScalarType, ValueId};
 
 /// Rewrite `location`'s node to `operation`, rebuild the unit's derived
 /// surfaces, and return the revalidated output — or the validation error the
 /// rebuilt boundaries raise.
-pub(super) fn install_evaluated_constant(
+pub(crate) fn install_evaluated_constant(
     input: &PsiOptimizationUnit,
     location: NodeLocation,
     operation: abstract_operations::AbstractOperation,
@@ -55,9 +55,7 @@ pub(super) fn install_evaluated_constant(
     node.uses.clear();
     node.successors.clear();
     node.ownership.clear();
-    function.facts = reconstruct_fact_index(function);
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
+    crate::unit_validation::revalidate_rewrite_output(&mut output, location.machine)?;
     let output_observation = observation_at(&output, location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if !same_closed_scalar_observation(input_observation, &output_observation) {

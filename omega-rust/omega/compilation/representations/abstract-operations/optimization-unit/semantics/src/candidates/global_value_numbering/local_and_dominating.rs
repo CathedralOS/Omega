@@ -1,4 +1,5 @@
 //! Same-block and dominating scalar CSE validation and rewrite application.
+use crate::candidates::accept_region_rewrite;
 use crate::candidates::global_value_numbering::{ScalarCseProofClass, ScalarCseScope};
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_local_cse_accounting;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
@@ -10,7 +11,6 @@ use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-    OptimizationValidatorIdentity,
 };
 use optimization_unit::{
     LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
@@ -383,72 +383,66 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
-    let mut output = input.clone();
-    let output_function = output
-        .functions
-        .iter_mut()
-        .find(|row| row.machine == patch.leader.machine)
-        .expect("candidate function exists");
-    let output_block = output_function
-        .blocks
-        .iter_mut()
-        .find(|row| row.id == patch.redundant.block)
-        .expect("candidate block exists");
-    let removed = output_block.nodes.remove(redundant_index);
-    let receiver = output_block
-        .nodes
-        .get_mut(redundant_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    receiver.provenance.extend_from_slice(&removed.provenance);
-    receiver.fuel.extend_from_slice(&removed.fuel);
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            rewrite_scalar_value_uses(&mut node.operation, redundant_result, leader_result);
-            let node_index = u32::try_from(node_index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            node.definitions = expected_definitions(&node.operation, block.id, node_index);
-            node.uses = expected_uses(&node.operation, block.id, node_index);
-            node.successors = preserve_edge_custody(node);
-            node.ownership = expected_ownership(&node.operation);
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    let output_function =
-        crate::unit_validation::revalidate_rewrite_output(&mut output, function.machine)?;
-
-    for input_block in &function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id) != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            match (scope, proof_class) {
-                (ScalarCseScope::SameBlock, ScalarCseProofClass::ObligationFree) => {
-                    b"omega.validator.same-block-obligation-free-total-scalar-cse.v1"
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.leader.machine,
+        &expected_blocks,
+        match (scope, proof_class) {
+            (ScalarCseScope::SameBlock, ScalarCseProofClass::ObligationFree) => {
+                b"omega.validator.same-block-obligation-free-total-scalar-cse.v1".as_slice()
+            }
+            (ScalarCseScope::Dominating, ScalarCseProofClass::ObligationFree) => {
+                b"omega.validator.dominator-total-scalar-cse.v1".as_slice()
+            }
+            (ScalarCseScope::SameBlock, ScalarCseProofClass::ProofCertified) => {
+                b"omega.validator.same-block-proof-certified-total-scalar-cse.v1".as_slice()
+            }
+            (ScalarCseScope::Dominating, ScalarCseProofClass::ProofCertified) => {
+                b"omega.validator.dominator-proof-certified-total-scalar-gvn.v1".as_slice()
+            }
+            (ScalarCseScope::SameBlock, ScalarCseProofClass::CompatiblePolicy) => {
+                b"omega.validator.same-block-proof-certified-compatible-policy-scalar-cse.v1"
+                    .as_slice()
+            }
+            (ScalarCseScope::Dominating, ScalarCseProofClass::CompatiblePolicy) => {
+                b"omega.validator.dominator-proof-certified-compatible-policy-scalar-gvn.v1"
+                    .as_slice()
+            }
+        },
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .functions
+                .iter_mut()
+                .find(|row| row.machine == patch.leader.machine)
+                .expect("candidate function exists");
+            let output_block = output_function
+                .blocks
+                .iter_mut()
+                .find(|row| row.id == patch.redundant.block)
+                .expect("candidate block exists");
+            let removed = output_block.nodes.remove(redundant_index);
+            let receiver = output_block
+                .nodes
+                .get_mut(redundant_index)
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            receiver.provenance.extend_from_slice(&removed.provenance);
+            receiver.fuel.extend_from_slice(&removed.fuel);
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                    rewrite_scalar_value_uses(&mut node.operation, redundant_result, leader_result);
+                    let node_index = u32::try_from(node_index)
+                        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+                    node.definitions = expected_definitions(&node.operation, block.id, node_index);
+                    node.uses = expected_uses(&node.operation, block.id, node_index);
+                    node.successors = preserve_edge_custody(node);
+                    node.ownership = expected_ownership(&node.operation);
+                    effect = set_node_effect_link(node, effect)?;
                 }
-                (ScalarCseScope::Dominating, ScalarCseProofClass::ObligationFree) => {
-                    b"omega.validator.dominator-total-scalar-cse.v1"
-                }
-                (ScalarCseScope::SameBlock, ScalarCseProofClass::ProofCertified) => {
-                    b"omega.validator.same-block-proof-certified-total-scalar-cse.v1"
-                }
-                (ScalarCseScope::Dominating, ScalarCseProofClass::ProofCertified) => {
-                    b"omega.validator.dominator-proof-certified-total-scalar-gvn.v1"
-                }
-                (ScalarCseScope::SameBlock, ScalarCseProofClass::CompatiblePolicy) => {
-                    b"omega.validator.same-block-proof-certified-compatible-policy-scalar-cse.v1"
-                }
-                (ScalarCseScope::Dominating, ScalarCseProofClass::CompatiblePolicy) => {
-                    b"omega.validator.dominator-proof-certified-compatible-policy-scalar-gvn.v1"
-                }
-            },
-        ),
-        provenance: accepted_provenance,
-    })
+            }
+            Ok(())
+        },
+    )
 }

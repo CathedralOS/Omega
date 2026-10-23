@@ -1,19 +1,17 @@
 //! Independent constant-conditional replay mechanics.
-use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
-use crate::candidates::{candidate_block, candidate_function, set_node_effect_link};
+use crate::candidates::{
+    accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
+    set_node_effect_link,
+};
 use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::unit_validation::services::refresh_root_service_reach;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     ConstantConditionalRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
     ProvenanceDisposition, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueUse,
-    reachable_blocks_after_conditional_fold, recompute_psi_optimization_unit_identity,
+    reachable_blocks_after_conditional_fold,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::BTreeSet;
@@ -118,78 +116,63 @@ pub(super) fn validate(
         .fuel
         .clone();
 
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.location.machine)
-        .expect("candidate function exists");
-    let output_block = output_function
-        .block_mut(patch.location.block)
-        .expect("candidate block exists");
-    let output_node =
-        &mut output_block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
-    output_node.operation = O::Jump {
-        structural_bindings: selected.structural_bindings.clone(),
-        psi_edge: selected.psi_edge,
-        target: selected.target,
-        bindings: selected.bindings.clone(),
-        cleanup_actions: selected.cleanup_actions.clone(),
-    };
-    output_node.definitions.clear();
-    output_node.uses = selected
-        .bindings
-        .iter()
-        .map(|binding| ValueUse {
-            value: binding.argument,
-            block: patch.location.block,
-            node: patch.location.node,
-        })
-        .collect();
-    output_node.successors = vec![OptimizationEdge {
-        structural_bindings: selected.structural_bindings.clone(),
-        psi_edge: selected.psi_edge,
-        target: selected.target,
-        bindings: selected.bindings.clone(),
-        cleanup_actions: selected.cleanup_actions.clone(),
-        provenance: vec![PsiProvenance::Edge(selected.psi_edge)],
-        fuel: selected_fuel,
-    }];
-    output_node.ownership.clear();
-    output_node.provenance.clear();
-    output_node.fuel.clear();
-    output_function
-        .blocks
-        .retain(|block| reachable.contains(&block.id));
-    let mut effect = 0u64;
-    for block in &mut output_function.blocks {
-        for node in &mut block.nodes {
-            effect = set_node_effect_link(node, effect)?;
-        }
-    }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    refresh_root_service_reach(&mut output)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-
-    let output_function = output
-        .function(patch.location.machine)
-        .expect("output function exists");
-    validate_outside_region(
-        function
-            .blocks
-            .iter()
-            .filter(|block| reachable.contains(&block.id)),
-        output_function,
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.location.machine,
         &expected_blocks,
-    )?;
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.constant-conditional-fold.v4",
-        ),
-        provenance: accepted_provenance,
-    })
+        b"omega.validator.constant-conditional-fold.v4",
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.location.machine)
+                .expect("candidate function exists");
+            let output_block = output_function
+                .block_mut(patch.location.block)
+                .expect("candidate block exists");
+            let output_node = &mut output_block.nodes
+                [usize::try_from(patch.location.node).expect("u32 fits usize")];
+            output_node.operation = O::Jump {
+                structural_bindings: selected.structural_bindings.clone(),
+                psi_edge: selected.psi_edge,
+                target: selected.target,
+                bindings: selected.bindings.clone(),
+                cleanup_actions: selected.cleanup_actions.clone(),
+            };
+            output_node.definitions.clear();
+            output_node.uses = selected
+                .bindings
+                .iter()
+                .map(|binding| ValueUse {
+                    value: binding.argument,
+                    block: patch.location.block,
+                    node: patch.location.node,
+                })
+                .collect();
+            output_node.successors = vec![OptimizationEdge {
+                structural_bindings: selected.structural_bindings.clone(),
+                psi_edge: selected.psi_edge,
+                target: selected.target,
+                bindings: selected.bindings.clone(),
+                cleanup_actions: selected.cleanup_actions.clone(),
+                provenance: vec![PsiProvenance::Edge(selected.psi_edge)],
+                fuel: selected_fuel,
+            }];
+            output_node.ownership.clear();
+            output_node.provenance.clear();
+            output_node.fuel.clear();
+            output_function
+                .blocks
+                .retain(|block| reachable.contains(&block.id));
+            let mut effect = 0u64;
+            for block in &mut output_function.blocks {
+                for node in &mut block.nodes {
+                    effect = set_node_effect_link(node, effect)?;
+                }
+            }
+            Ok(())
+        },
+    )
 }
 
 pub(crate) fn reconstruct_conditional_fold_accounting(
@@ -290,12 +273,6 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
         }
     }
     realized.extend(unreachable);
-    realized.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    canonicalize_provenance(&mut realized);
     Some((affected.into_iter().collect(), realized))
 }

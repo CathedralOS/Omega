@@ -1,10 +1,7 @@
 //! Same-operand exact integer laws and candidate acceptance.
 use crate::candidates::global_value_numbering::independently_accepted_operation_fact;
 use crate::candidates::provenance_realized_at;
-use crate::candidates::sparse_conditional_constant_propagation::{
-    observation_at, same_closed_scalar_observation,
-};
-use crate::unit_validation::function_structure::reconstruct_fact_index;
+use crate::candidates::sparse_conditional_constant_propagation::observation_at;
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
     validate_psi_optimization_unit,
@@ -19,7 +16,6 @@ use optimization_core::{
 use optimization_unit::{
     ObservationKnowledge, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
-    recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
@@ -246,51 +242,25 @@ pub(crate) fn validate_proof_certified_same_operand_integer_constant_candidate(
     }
 
     let accepted_catalog = input.accepted_obligation_facts.clone();
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.location.machine)
-        .expect("candidate source function exists");
-    let output_block = output_function
-        .block_mut(patch.location.block)
-        .expect("candidate source block exists");
-    let output_node = &mut output_block.nodes[patch.location.node as usize];
-    output_node.operation = O::IntegerConstant {
-        psi_operation: shape.psi_operation,
-        result: shape.result,
-        scalar_type: ScalarType::Integer(shape.scalar_type),
-        value: patch.constant,
-    };
-    output_node.definitions = vec![ValueDefinition {
-        value: shape.result,
-        scalar_type: ScalarType::Integer(shape.scalar_type),
-        site: ValueDefinitionSite::Node {
-            block: patch.location.block,
-            node: patch.location.node,
+    let output = crate::candidates::constant_installation::install_evaluated_constant(
+        input,
+        patch.location,
+        O::IntegerConstant {
+            psi_operation: shape.psi_operation,
+            result: shape.result,
+            scalar_type: ScalarType::Integer(shape.scalar_type),
+            value: patch.constant,
         },
-    }];
-    output_node.uses.clear();
-    output_node.successors.clear();
-    output_node.ownership.clear();
-    output_function.facts = reconstruct_fact_index(output_function);
-    output.identity = recompute_psi_optimization_unit_identity(&output);
+        shape.result,
+        ScalarType::Integer(shape.scalar_type),
+        &input_observation,
+        &input_live,
+    )?;
+    // The rewrite moves no accepted obligation fact, so any catalog drift is
+    // the candidate's claim alone. `install_evaluated_constant` has already
+    // revalidated the rebuilt unit; the catalog is not touched by either side.
     if output.accepted_obligation_facts != accepted_catalog {
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
-    }
-    validate_psi_optimization_unit(&output)?;
-    let output_observation = observation_at(&output, patch.location)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    if !same_closed_scalar_observation(&input_observation, &output_observation) {
-        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
-    }
-    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    if input_live.live_out != output_live.live_out
-        || output_live
-            .live_in
-            .iter()
-            .any(|value| !input_live.live_in.contains(value))
-    {
-        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
     }
     Ok(ValidatedPsiRewrite {
         unit: output,

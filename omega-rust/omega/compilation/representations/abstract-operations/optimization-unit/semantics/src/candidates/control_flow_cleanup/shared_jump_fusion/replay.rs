@@ -1,5 +1,5 @@
 //! Independent shared terminal-jump fusion replay mechanics.
-use crate::candidates::outside_region::validate_outside_region;
+use crate::candidates::accept_region_rewrite;
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
 use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
@@ -8,7 +8,6 @@ use crate::unit_validation::derived_metadata::{
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
     PsiRewritePatch, ScalarSubstitution,
@@ -165,25 +164,24 @@ pub(super) fn validate(
     clone.successors = expected_edges(&clone.operation);
     clone.ownership = expected_ownership(&clone.operation);
 
-    let mut output = input.clone();
-    let output_function = output
-        .function_mut(patch.predecessor.machine)
-        .expect("candidate function exists");
-    let output_predecessor = output_function
-        .block_mut(patch.predecessor.block)
-        .expect("candidate predecessor exists");
-    output_predecessor.nodes[predecessor_index] = clone;
-    let output_function =
-        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.predecessor.machine)?;
-    validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
-    Ok(ValidatedPsiRewrite {
-        unit: output,
-        candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.shared-terminal-jump-fusion.v2",
-        ),
-        provenance: accepted_provenance,
-    })
+    accept_region_rewrite(
+        input,
+        candidate,
+        patch.predecessor.machine,
+        &expected_blocks,
+        b"omega.validator.shared-terminal-jump-fusion.v2",
+        accepted_provenance,
+        |output| {
+            let output_function = output
+                .function_mut(patch.predecessor.machine)
+                .expect("candidate function exists");
+            let output_predecessor = output_function
+                .block_mut(patch.predecessor.block)
+                .expect("candidate predecessor exists");
+            output_predecessor.nodes[predecessor_index] = clone;
+            Ok(())
+        },
+    )
 }
 
 fn independently_post_dominates(
