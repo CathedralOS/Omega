@@ -189,6 +189,21 @@ fn assign_machine_references(
                     statement_path_members,
                     symbols,
                 );
+                for (preceding, expression) in &inputs.calls {
+                    let scope = MachineScope {
+                        prior_statements: &inputs.locals[..*preceding],
+                        ..machine_scope
+                    };
+                    super::expressions::assign_expression_table_symbols(
+                        symbols,
+                        &scope,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        *expression,
+                    );
+                }
                 for (preceding, reference) in &mut inputs.types {
                     let scope = MachineScope {
                         prior_statements: &inputs.locals[..*preceding],

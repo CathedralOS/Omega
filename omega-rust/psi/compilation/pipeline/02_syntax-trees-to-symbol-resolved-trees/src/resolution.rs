@@ -95,7 +95,7 @@ pub fn resolve_deferred(
             index_declarations(&mut provisional, &syntax)?;
             // Settlement also demands receipt helpers for normalized constants.
             // Their links belong to this batch just like header applications.
-            finish_resolution(&mut provisional, &syntax)?;
+            finish_resolution(&mut provisional, &syntax, &[])?;
             let selection = provisional.take_constant_selection()?;
             let links = provisional.equation_sources.take().unwrap_or_default();
             let before = syntax.root_item_handles().len();
@@ -133,7 +133,7 @@ fn index_deferred(
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     index_declarations(&mut lowerer, &syntax)?;
-    finish_resolution(&mut lowerer, &syntax)?;
+    finish_resolution(&mut lowerer, &syntax, &[])?;
     let pending = std::mem::take(&mut lowerer.pending_machine_bodies);
     let pending_type_inputs =
         type_inputs::bind(&lowerer.symbol_resolved_trees, &lowerer.pending_type_inputs)?;
@@ -184,8 +184,12 @@ pub fn resolve_const_argument_selection(
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
-    crate::symbols::assign_lexical_inputs(&mut lowerer, &syntax)?;
-    finish_resolution(&mut lowerer, &syntax)?;
+    crate::symbols::assign_lexical_inputs(
+        &mut lowerer,
+        &syntax,
+        crate::lowering::state::LexicalInputDemand::TypeOperands,
+    )?;
+    finish_resolution(&mut lowerer, &syntax, &[])?;
     Ok(lowerer.into_trees())
 }
 
@@ -389,15 +393,19 @@ fn drive_recorded(
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
     crate::symbols::assign(&mut lowerer)?;
-    finish_resolution(&mut lowerer, syntax)?;
+    finish_resolution(&mut lowerer, syntax, &[])?;
     let links = lowerer.equation_sources.take();
     Ok((lowerer.into_trees(), constant_selection, links))
 }
 
-fn finish_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+fn finish_resolution(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    inputs: &[selection::body_calls::CallSelectionInput],
+) -> Result<(), Vec<Diagnostic>> {
     settle_resolution(lowerer, syntax)?;
     lowerer.symbol_resolved_trees.rebuild_tables();
-    finish_resolved_tables(lowerer)
+    finish_resolved_tables(lowerer, inputs)
 }
 
 /// Shared name, obligation and declaration settlement precedes both complete
@@ -427,16 +435,43 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     Ok(())
 }
 
-fn finish_resolved_tables(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
+fn finish_resolved_tables(
+    lowerer: &mut Lowerer,
+    inputs: &[selection::body_calls::CallSelectionInput],
+) -> Result<(), Vec<Diagnostic>> {
     selection::conformance_blocks::route_conformance_requirement_calls(
         &mut lowerer.symbol_resolved_trees,
+        inputs,
     )?;
     selection::conformance_blocks::route_named_implementation_calls(
         &mut lowerer.symbol_resolved_trees,
+        inputs,
     );
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
-    crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees);
+    crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees, inputs);
     crate::symbols::recursive_tail_calls::normalize(&mut lowerer.symbol_resolved_trees);
     crate::symbols::target_machine_families::prepare_premises(&mut lowerer.symbol_resolved_trees)?;
     Ok(())
 }
+
+/// Select call-result inputs without materializing unrelated runtime expressions.
+/// Local headers establish the preceding-local scope; selected call roots retain
+/// their receivers, arguments and machine owner through ordinary final routing.
+/// This one-shot preparation product grants no body typing or execution authority.
+/// Receipt-required helper bodies still complete through normal settlement.
+pub fn resolve_call_result_selection(
+    request: ResolutionRequest,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    index_declarations(&mut lowerer, &syntax)?;
+    let inputs = crate::symbols::assign_lexical_inputs(
+        &mut lowerer,
+        &syntax,
+        crate::lowering::state::LexicalInputDemand::CallResults,
+    )?;
+    finish_resolution(&mut lowerer, &syntax, &inputs)?;
+    Ok(lowerer.into_trees())
+}
+
+#[cfg(test)]
+mod call_result_selection_tests;

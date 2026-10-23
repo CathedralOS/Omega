@@ -6,7 +6,7 @@ mod constructors;
 mod expressions;
 mod patterns;
 
-pub(crate) use expressions::statement_type_inputs;
+pub(crate) use expressions::{statement_call_inputs, statement_type_inputs};
 pub(super) use expressions::{visit_expression_type_inputs, visit_static_argument_type_inputs};
 
 pub(super) use assignments::{

@@ -1,0 +1,51 @@
+// A returned placed view retains its original backing and interpretation.
+// Expected exit: 0
+use omega::language::core::layout;
+
+public data Value { number: u64; }
+public data StablePlacement {}
+
+machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    let access: AccessPlan = AccessPlan::with(
+        AccessPlan::inaccessible(&schema), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported }
+    );
+    let mut services: [u64; 32];
+    PlacementPlan {
+        layout: Plan { entries: entries, entry_count: 1, size_fixed: 8,
+                       size_is_dynamic: false, align: 8 },
+        access: access,
+        reach: BoundaryReach { services: services, service_count: 0 },
+    }
+}
+
+machine borrow_view(value: &mut Value) -> &mut Placed<StablePlacement, Value> {
+    Placed::view_mut<StablePlacement, Value>(value)
+}
+
+machine observe(view: &mut Placed<StablePlacement, Value>) -> u64 {
+    placed_write(&mut view.number, 29u64);
+    placed_read(&view.number)
+}
+
+machine require_seventeen(value: u64)
+requires value == 17
+{}
+
+
+machine Value::borrow(value: &mut Value) -> &mut Placed<StablePlacement, Value> {
+    Placed::view_mut<StablePlacement, Value>(value)
+}
+machine main() crashes Trap {
+    let mut values: [Value; 1] = [Value { number: 17 }];
+    let view: &mut Placed<StablePlacement, Value> = values[0].borrow(&mut values[0]);
+    let observed: u64 = observe(view);
+    transition observed == 29 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

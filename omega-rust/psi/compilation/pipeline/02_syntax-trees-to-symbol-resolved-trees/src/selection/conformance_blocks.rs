@@ -198,7 +198,10 @@ impl DefaultBodyScope {
 /// A requirement name that
 /// matches no row, or several inherited rows, leaves the call unresolved so
 /// checking rejects it rather than choosing one.
-pub(crate) fn route_named_implementation_calls(program: &mut SymbolResolvedTrees) {
+pub(crate) fn route_named_implementation_calls(
+    program: &mut SymbolResolvedTrees,
+    inputs: &[super::body_calls::CallSelectionInput],
+) {
     let implementation_rows = program
         .conformances
         .iter()
@@ -222,7 +225,7 @@ pub(crate) fn route_named_implementation_calls(program: &mut SymbolResolvedTrees
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
     for machine in machines {
-        super::body_calls::retarget_machine_calls(program, machine, &mut |site| {
+        super::body_calls::retarget_machine_calls(program, machine, inputs, &mut |site| {
             if !site.receiver_symbol.is_valid() {
                 return None;
             }
@@ -257,6 +260,7 @@ pub(crate) fn route_named_implementation_calls(program: &mut SymbolResolvedTrees
 /// enclosing conformance context and may be shared by several blocks.
 pub(crate) fn route_conformance_requirement_calls(
     program: &mut SymbolResolvedTrees,
+    inputs: &[super::body_calls::CallSelectionInput],
 ) -> Result<(), Vec<Diagnostic>> {
     let trait_catalog = build_trait_catalog(program);
     let default_body_trait = |machine: SymbolHandle| {
@@ -314,31 +318,36 @@ pub(crate) fn route_conformance_requirement_calls(
 
     let mut hidden_calls = Vec::new();
     for plan in plans {
-        crate::selection::body_calls::retarget_machine_calls(program, plan.machine, &mut |site| {
-            let routed = routed_target(
-                site.target_symbol,
-                site.target,
-                site.argument_count,
-                plan.routes_by_name && site.local_receiver,
-                &plan.routes,
-            );
-            if routed.is_none()
-                && !site.target_symbol.is_valid()
-                && site.local_receiver
-                && let Some(scope) = &plan.default_body
-                && scope
-                    .hidden_names
-                    .iter()
-                    .any(|hidden| hidden.as_str() == site.target.as_str())
-            {
-                hidden_calls.push((
-                    scope.declaring_trait,
-                    scope.implementation.clone(),
-                    site.target.clone(),
-                ));
-            }
-            routed
-        });
+        crate::selection::body_calls::retarget_machine_calls(
+            program,
+            plan.machine,
+            inputs,
+            &mut |site| {
+                let routed = routed_target(
+                    site.target_symbol,
+                    site.target,
+                    site.argument_count,
+                    plan.routes_by_name && site.local_receiver,
+                    &plan.routes,
+                );
+                if routed.is_none()
+                    && !site.target_symbol.is_valid()
+                    && site.local_receiver
+                    && let Some(scope) = &plan.default_body
+                    && scope
+                        .hidden_names
+                        .iter()
+                        .any(|hidden| hidden.as_str() == site.target.as_str())
+                {
+                    hidden_calls.push((
+                        scope.declaring_trait,
+                        scope.implementation.clone(),
+                        site.target.clone(),
+                    ));
+                }
+                routed
+            },
+        );
     }
     let diagnostics = hidden_calls
         .into_iter()

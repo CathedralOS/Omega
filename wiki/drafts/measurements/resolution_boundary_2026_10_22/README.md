@@ -203,3 +203,9 @@ changes together with newer parser, arena, checking and backend changes: 25 test
 five native/interpreter agreements and five unchanged rejection controls pass.
 Five native images remain byte-identical. The [discovery audit](integration/discovery-audit.md)
 records the call-selection dependencies and the next falsifiable comparison.
+
+## Call-result selection
+
+[Resolver-owned call-result projection](call_selection/README.md) preserves the
+measured placement demands with about 80% fewer early expression rows. Its ledger
+retains exact declaration/use comparisons, native/Terminal executions and limits.

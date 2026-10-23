@@ -2160,9 +2160,11 @@ dependencies = [
  "language-semantics",
  "numerics",
  "source",
+ "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbols",
  "syntax-trees",
+ "tokens-to-syntax-trees",
 ]
 
 [[package]]

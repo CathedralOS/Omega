@@ -263,7 +263,7 @@ impl DeferredResolvedFrontier {
                 provisional.structural_type_equations_pending = true;
                 append_generated_declarations(&mut provisional, &self.syntax, syntax_frontier)?;
                 lower_selected_bodies(&mut provisional, &self.syntax, &pending, selected)?;
-                super::finish_resolution(&mut provisional, &self.syntax)?;
+                super::finish_resolution(&mut provisional, &self.syntax, &[])?;
                 let selection = provisional.take_constant_selection()?;
                 let links = provisional.equation_sources.take().unwrap_or_default();
                 let before = self.syntax.root_item_handles().len();
@@ -288,7 +288,7 @@ impl DeferredResolvedFrontier {
         lowerer
             .symbol_resolved_trees
             .append_completed_body_tables(&predecessor, selected);
-        super::finish_resolved_tables(&mut lowerer)?;
+        super::finish_resolved_tables(&mut lowerer, &[])?;
         let hoist_counter = lowerer.hoist_counter;
         self.supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
         self.conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);

@@ -21,13 +21,20 @@ struct Sibling {
 
 /// Runs after every other symbol assignment and selection pass: later passes
 /// re-derive call targets from names, which cannot see a sibling.
-pub(crate) fn bind_sibling_calls(program: &mut SymbolResolvedTrees) {
+pub(crate) fn bind_sibling_calls(
+    program: &mut SymbolResolvedTrees,
+    inputs: &[crate::selection::body_calls::CallSelectionInput],
+) {
     let symbols = std::mem::take(&mut program.symbols);
-    bind_sibling_calls_with(program, &symbols);
+    bind_sibling_calls_with(program, &symbols, inputs);
     program.symbols = symbols;
 }
 
-fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+fn bind_sibling_calls_with(
+    program: &mut SymbolResolvedTrees,
+    symbols: &SymbolTable,
+    inputs: &[crate::selection::body_calls::CallSelectionInput],
+) {
     let machine_families = program
         .machines
         .iter()
@@ -127,6 +134,6 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
             };
             state.is_valid().then_some(state)
         };
-        retarget_machine_calls(program, sibling.machine, &mut decide);
+        retarget_machine_calls(program, sibling.machine, inputs, &mut decide);
     }
 }

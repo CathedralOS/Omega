@@ -1,4 +1,4 @@
-//! One-shot lexical preparation for authored type/index inputs.
+//! One-shot lexical preparation for type operands and selected call results.
 //!
 //! These are declaration construction records, not executable statements. They
 //! are never installed into a state's body, and the machine stays Deferred.
@@ -17,12 +17,19 @@ use symbol_resolved_trees::{
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
+#[derive(Clone, Copy)]
+pub(crate) enum LexicalInputDemand {
+    TypeOperands,
+    CallResults,
+}
+
 pub(crate) struct StateLexicalInputs {
     pub(crate) machine: SymbolHandle,
     pub(crate) state: Handle<State>,
     pub(crate) locals: Vec<Statement>,
     /// Each input sees only the authored locals preceding its statement.
     pub(crate) types: Vec<(usize, TypeReference)>,
+    pub(crate) calls: Vec<(usize, symbol_resolved_trees::expression::ExpressionHandle)>,
 }
 
 pub(crate) fn lower_local_declaration(
@@ -58,6 +65,7 @@ pub(crate) fn lower_state_lexical_inputs(
     machine: SymbolHandle,
     state: Handle<State>,
     statements: HandleSpan<syntax::statement::StatementHandle>,
+    demand: LexicalInputDemand,
 ) -> Result<StateLexicalInputs, Diagnostic> {
     let declaration = lowerer.symbol_resolved_trees.machine_state(state).clone();
     super::with_state_scope(lowerer, &declaration, |lowerer| {
@@ -66,6 +74,7 @@ pub(crate) fn lower_state_lexical_inputs(
             state,
             locals: Vec::new(),
             types: Vec::new(),
+            calls: Vec::new(),
         };
         for &statement in syntax.items.statements(statements) {
             let local = match syntax.statements.statement(statement) {
@@ -82,6 +91,18 @@ pub(crate) fn lower_state_lexical_inputs(
                     inputs.locals.len(),
                     lower_type_reference_handle(lowerer, syntax, reference)?,
                 ));
+            }
+            if matches!(demand, LexicalInputDemand::CallResults) {
+                for expression in
+                    crate::preparation::generic_data::statement_call_inputs(syntax, statement)
+                {
+                    inputs.calls.push((
+                        inputs.locals.len(),
+                        crate::lowering::expression::lower_private_expression_into_table(
+                            lowerer, syntax, expression,
+                        )?,
+                    ));
+                }
             }
             // The declaration enters scope after every input of its own
             // statement, including inputs nested in its runtime initializer.

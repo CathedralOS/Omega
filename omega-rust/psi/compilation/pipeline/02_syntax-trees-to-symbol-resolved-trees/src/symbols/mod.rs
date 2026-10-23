@@ -608,9 +608,11 @@ pub(crate) fn assign_body_symbols(
 pub(crate) fn assign_lexical_inputs(
     lowerer: &mut crate::resolution::lowerer::Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let mut inputs = crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    demand: crate::lowering::state::LexicalInputDemand,
+) -> Result<Vec<crate::selection::body_calls::CallSelectionInput>, Vec<diagnostics::Diagnostic>> {
+    let mut inputs =
+        crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax, demand)
+            .map_err(|diagnostic| vec![diagnostic])?;
     for input in &mut inputs {
         let state = lowerer
             .symbol_resolved_trees
@@ -633,5 +635,15 @@ pub(crate) fn assign_lexical_inputs(
         &lowerer.pending_static_module_calls,
         &lowerer.pending_static_module_statement_calls,
     );
-    Ok(())
+    Ok(inputs
+        .into_iter()
+        .flat_map(|input| {
+            input.calls.into_iter().map(move |(_, expression)| {
+                crate::selection::body_calls::CallSelectionInput {
+                    machine: input.machine,
+                    expression,
+                }
+            })
+        })
+        .collect())
 }

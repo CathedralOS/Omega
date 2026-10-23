@@ -20,3 +20,7 @@ symbols = { path = "../../../foundation/symbols" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }

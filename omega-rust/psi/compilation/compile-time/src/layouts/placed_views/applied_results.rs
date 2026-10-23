@@ -28,16 +28,16 @@ pub(super) fn retain_applied_results(
     }) {
         return Ok(Vec::new());
     }
-    // Placement discovery precedes closed data and machine-equation settlement.
-    // Select declarations with the existing pre-resolution probe; the ordinary
-    // final resolver still requires every retained application to be closed.
-    let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_numeric_probe(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: syntax.clone(),
-            sources,
-            top_level_bindings: bindings.to_vec(),
-        },
-    )?;
+    // Preparation selects exact call results in their lexical owners, including
+    // target and conformance routing, without publishing executable bodies.
+    let resolved =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_call_result_selection(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: syntax.clone(),
+                sources,
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
     let mut selections = Vec::new();
     for (_, node) in resolved.tables.bodies.expressions.iter_expressions() {
         let symbol_resolved_trees::expression::ExpressionNode::Call(call) = node else {

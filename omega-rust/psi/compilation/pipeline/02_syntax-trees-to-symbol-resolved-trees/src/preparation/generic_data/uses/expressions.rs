@@ -362,3 +362,35 @@ impl ConstructorFrontier<'_> {
             syntax.items.state_parameter(*parameter).name.as_str(syntax) == name.as_str(syntax))
     }
 }
+
+/// Call-result input inventory. A selected call retains its whole receiver
+/// and argument subtree through ordinary lowering, so nested calls are not
+/// independently materialized a second time.
+pub(crate) fn statement_call_inputs(
+    syntax: &SyntaxTrees,
+    statement: syntax_trees::statement::StatementHandle,
+) -> Vec<ExpressionHandle> {
+    struct Calls<'a> {
+        syntax: &'a SyntaxTrees,
+        handles: Vec<ExpressionHandle>,
+    }
+    impl ExpressionMarks for Calls<'_> {
+        fn mark(&mut self, expression: ExpressionHandle) -> bool {
+            if matches!(
+                self.syntax.expressions.expression(expression),
+                ExpressionNode::Call(_)
+            ) {
+                self.handles.push(expression);
+                false
+            } else {
+                true
+            }
+        }
+    }
+    let mut calls = Calls {
+        syntax,
+        handles: Vec::new(),
+    };
+    collect_statement_expression_handles(syntax, statement, &mut calls);
+    calls.handles
+}

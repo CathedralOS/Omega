@@ -8,7 +8,7 @@
 
 mod lexical_inputs;
 pub(crate) use lexical_inputs::{
-    StateLexicalInputs, lower_local_declaration, lower_state_lexical_inputs,
+    LexicalInputDemand, StateLexicalInputs, lower_local_declaration, lower_state_lexical_inputs,
 };
 
 use crate::lowering::domain::lower_proof_facts;

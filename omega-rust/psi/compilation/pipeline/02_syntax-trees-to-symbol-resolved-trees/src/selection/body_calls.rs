@@ -9,6 +9,13 @@ use symbol_resolved_trees::name::DiagnosticName;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
+/// Preparation-only expression roots retain their machine owner through final
+/// call routing. They never populate executable state bodies.
+pub(crate) struct CallSelectionInput {
+    pub(crate) machine: SymbolHandle,
+    pub(crate) expression: symbol_resolved_trees::expression::ExpressionHandle,
+}
+
 /// One call the traversal offers to a decision.
 pub(crate) struct CallSite<'a> {
     /// The target state symbol ordinary resolution assigned, or invalid.
@@ -28,6 +35,7 @@ pub(crate) struct CallSite<'a> {
 pub(crate) fn retarget_machine_calls(
     program: &mut SymbolResolvedTrees,
     machine: SymbolHandle,
+    inputs: &[CallSelectionInput],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
     let Some((state_spans, declaration_expressions)) = program.machine(machine).map(|machine| {
@@ -61,6 +69,9 @@ pub(crate) fn retarget_machine_calls(
     let mut visited = Vec::new();
     for expression in declaration_expressions {
         retarget_expression(program, expression, decide, &mut visited);
+    }
+    for input in inputs.iter().filter(|input| input.machine == machine) {
+        retarget_expression(program, input.expression, decide, &mut visited);
     }
     for statements in state_spans {
         retarget_statement_span(program, statements, decide);
