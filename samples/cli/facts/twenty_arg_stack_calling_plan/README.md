@@ -24,6 +24,19 @@ Only the transport mechanism of the 20-argument calling plan and its bounded sta
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives arguments and invokes the 20-argument calling plan |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies invoke the 20-argument calling plan and consume the bounded result on each hosted target |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twenty_arg_stack_calling_plan_through_*_exit`
+and
+`tests/omega/fail/facts/twenty_arg_stack_calling_plan_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and
+pins the `may overflow `u64`` diagnostic fragment (decision 17).
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)).

@@ -75,6 +75,20 @@ The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
 route and the batch route. Each mirror is byte-identical to its per-place twin.
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twelve_variant_enum_payload_bound_through_*_exit`
+and
+`tests/omega/fail/facts/twelve_variant_enum_payload_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and
+pins its place's `cannot prove requires contract ... in state `entry``
+diagnostic fragment.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)`, `V2(v: u64)`, `V3(v: u64)`, `V4(v: u64)`, `V5(v: u64)`, `V6(v: u64)`, `V7(v: u64)`, `V8(v: u64)`, `V9(v: u64)`, `V10(v: u64)`, `V11(v: u64)`, and `V12(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all twelve tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
