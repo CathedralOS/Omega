@@ -43,7 +43,7 @@ pub(crate) fn compute_function(
         .map(|domain| domain.candidates.iter().copied().collect::<Vec<_>>())
         .collect::<Vec<_>>();
     let mut degrees = (0..domains.len())
-        .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).len())
+        .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).count())
         .collect::<Vec<_>>();
     let mut unassigned = (0..domains.len())
         .map(|domain_index| selection_key(domain_index, &viable, &degrees, &domains))
@@ -72,7 +72,7 @@ pub(crate) fn compute_function(
             pressure.push(failure);
             // This domain receives no proposed home. Its neighbors retain all
             // their candidates; continuing discovers other pressure regions.
-            for &remaining in conflicts.get_constrained_neighbors(domain_index) {
+            for remaining in conflicts.get_constrained_neighbors(domain_index) {
                 if active[remaining] {
                     unassigned.remove(&selection_key(remaining, &viable, &degrees, &domains));
                     degrees[remaining] -= 1;
@@ -84,7 +84,7 @@ pub(crate) fn compute_function(
         for member in &domains[domain_index].members {
             homes.insert(member.virtual_register, view);
         }
-        for &remaining in conflicts.get_constrained_neighbors(domain_index) {
+        for remaining in conflicts.get_constrained_neighbors(domain_index) {
             if !active[remaining] {
                 continue;
             }
@@ -219,7 +219,7 @@ fn stolen_coalesces(
     conflicts: &PreparedConflicts,
 ) -> usize {
     let mut stolen = 0;
-    for &neighbor in conflicts.get_constrained_neighbors(domain_index) {
+    for neighbor in conflicts.get_constrained_neighbors(domain_index) {
         if !active[neighbor]
             || viable[neighbor].binary_search(&view).is_err()
             || !conflicts.conflicts_between(neighbor, view, domain_index, view)
@@ -306,7 +306,7 @@ fn strands_neighbor(
     active: &[bool],
     conflicts: &PreparedConflicts,
 ) -> bool {
-    for &neighbor in conflicts.get_constrained_neighbors(domain_index) {
+    for neighbor in conflicts.get_constrained_neighbors(domain_index) {
         if !active[neighbor] || viable[neighbor].is_empty() {
             continue;
         }

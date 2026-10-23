@@ -22,7 +22,6 @@ pub(super) struct PreparedConflicts {
     /// function's domains and exhausted memory on a function with hundreds of
     /// thousands of them.
     pairs: Vec<Vec<(usize, DomainPair)>>,
-    neighbors: Vec<Vec<usize>>,
     physical_pairs: Vec<Vec<(RegisterViewId, DomainPair)>>,
 }
 
@@ -70,17 +69,6 @@ impl PreparedConflicts {
             .into_iter()
             .map(|row| row.into_iter().collect::<Vec<_>>())
             .collect::<Vec<_>>();
-        // Ascending domain order matches the remaining-domain roster during placement.
-        // The chosen domain is never its own neighbor, including tied self-constraints.
-        let neighbors = pairs
-            .iter()
-            .enumerate()
-            .map(|(domain, row)| {
-                row.iter()
-                    .filter_map(|&(other, _)| (other != domain).then_some(other))
-                    .collect()
-            })
-            .collect();
         // This is the original placement preflight order. Every later candidate
         // comes from these domains (or a subset), so neither class lookup nor
         // typed view admission belongs inside a candidate/neighbor loop.
@@ -130,13 +118,20 @@ impl PreparedConflicts {
             .collect();
         Ok(Self {
             pairs,
-            neighbors,
             physical_pairs,
         })
     }
 
-    pub(super) fn get_constrained_neighbors(&self, domain: usize) -> &[usize] {
-        &self.neighbors[domain]
+    // The pair rows already own the ordered neighbor identities. Borrow that
+    // roster rather than retaining a second allocation for every domain and
+    // every relation. Exclude tied self-constraints exactly as placement does.
+    pub(super) fn get_constrained_neighbors(
+        &self,
+        domain: usize,
+    ) -> impl Iterator<Item = usize> + '_ {
+        self.pairs[domain]
+            .iter()
+            .filter_map(move |&(other, _)| (other != domain).then_some(other))
     }
 
     pub(super) fn constrained(&self, left: usize, right: usize) -> bool {
