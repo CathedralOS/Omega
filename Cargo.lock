@@ -2289,16 +2289,11 @@ name = "terminal-production"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "checked-trees",
  "diagnostics",
  "effects",
- "optimization",
  "psi-compiler",
  "semantic-vocabulary",
- "source",
- "symbols",
  "target",
- "terminal-codec",
  "terminal-psi",
  "trust-model",
 ]

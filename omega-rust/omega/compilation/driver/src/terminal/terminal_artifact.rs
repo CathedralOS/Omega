@@ -12,7 +12,7 @@ use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
 use std::sync::Arc;
-use terminal_production::{TerminalApplicationCustody, TerminalProductionCustody};
+use terminal_production::{TerminalApplicationCustody, produce_terminal_artifact};
 
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
@@ -193,12 +193,28 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     .collect()
             })
             .collect();
+        // The product owns each exclusion policy; the application row lends it
+        // to Psi as that row's composition admission.
+        let policies: Vec<_> = group
+            .iter()
+            .map(|&request_index| {
+                let view = &requests[request_index].view;
+                terminal_production::TerminalBehaviorExclusions::new(
+                    view.build.config.behavior_exclusions.as_slice(),
+                    view.plan_facts,
+                    entries[request_index]
+                        .as_ref()
+                        .map(|entry| entry.target)
+                        .unwrap_or_else(|_| target::TargetProfile::host()),
+                )
+            })
+            .collect();
         let applications: Vec<_> = group
             .iter()
             .zip(&admission_roots)
-            .map(|(&request_index, admission_roots)| {
-                let view = &requests[request_index].view;
-                TerminalApplicationCustody {
+            .zip(&policies)
+            .map(
+                |((&request_index, admission_roots), policy)| TerminalApplicationCustody {
                     admission_roots,
                     entry_identity: entries[request_index]
                         .as_ref()
@@ -209,16 +225,11 @@ pub(crate) fn produce_retained_terminal_artifacts(
                             entry.selected_machine,
                         )
                     }),
-                    behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
-                        view.build.config.behavior_exclusions.as_slice(),
-                        view.plan_facts,
-                        entries[request_index]
-                            .as_ref()
-                            .map(|entry| entry.target)
-                            .unwrap_or_else(|_| target::TargetProfile::host()),
-                    ),
-                }
-            })
+                    admission: policy
+                        .as_ref()
+                        .map(|policy| policy as &dyn psi_compiler::TerminalCompositionAdmission),
+                },
+            )
             .collect();
         // Groups contain only admitted entries. Keep a diagnostic if internal
         // request assembly ever violates that property, never guess a root.
@@ -293,24 +304,24 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     .is_some_and(|machine| machine.target_family_interface)
                         })
                         .map_or(default, |family| family.canonical);
-                    terminal_production::TerminalProductionRequest {
-                        checked: checked_program,
-                        exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
-                        machine: terminal_production::TerminalMachineSelection::Symbol(default),
-                        roots: terminal_production::TerminalProgramRoots {
-                            machines: &machines,
-                            boundaries: &boundary_roots,
+                    produce_terminal_artifact(
+                        terminal_production::TerminalProductionRequest {
+                            checked: checked_program,
+                            exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
+                            machine: terminal_production::TerminalMachineSelection::Symbol(default),
+                            roots: terminal_production::TerminalProgramRoots {
+                                machines: &machines,
+                                boundaries: &boundary_roots,
+                            },
+                            optimization_selections: first
+                                .selections
+                                .project_psi()
+                                .selections()
+                                .clone(),
                         },
-                        optimization_selections: first
-                            .selections
-                            .project_psi()
-                            .selections()
-                            .clone(),
-                    }
-                    .produce(TerminalProductionCustody {
-                        applications: &applications,
-                        timings: &mut timings,
-                    })
+                        &applications,
+                        &mut timings,
+                    )
                     .map_err(|error| error.diagnostics())
                 })
             }

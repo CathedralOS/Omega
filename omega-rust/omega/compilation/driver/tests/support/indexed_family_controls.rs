@@ -13,7 +13,7 @@ use terminal_codec::{
     verify_module_mathematical_actuals,
 };
 use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
+    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
 };
 use terminal_psi::TerminalModule;
 
@@ -236,12 +236,15 @@ pub(super) fn produce(
     let nil_certificate = encode_mathematical_certificate(&signature.arena, &nil_judgment)
         .map_err(|error| format!("source Nil certificate: {error:?}"))?;
     let mut timings = Default::default();
-    let artifact = TerminalProductionRequest::new(
-        program,
-        TerminalMachineSelection::Name(machine),
-        checked.sources().exact_toolchain_sources(),
+    let artifact = produce_terminal_artifact(
+        TerminalProductionRequest::new(
+            program,
+            TerminalMachineSelection::Name(machine),
+            checked.sources().exact_toolchain_sources(),
+        ),
+        &[],
+        &mut timings,
     )
-    .produce(TerminalProductionCustody::artifact_only(&mut timings))
     .map_err(|error| format!("indexed inspection Terminal production: {error:?}"))?
     .into_artifact();
     let expected = artifact.semantic_module();

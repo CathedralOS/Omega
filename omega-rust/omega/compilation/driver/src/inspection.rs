@@ -8,7 +8,7 @@
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
 use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
+    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
 };
 
 pub fn inspect_terminal(
@@ -16,15 +16,15 @@ pub fn inspect_terminal(
     machine: &str,
 ) -> Result<terminal_codec::CanonicalTerminalArtifact, Vec<Diagnostic>> {
     let mut timings = std::mem::take(checked.timings_mut());
-    TerminalProductionRequest::new(
-        &checked.execution().program,
-        TerminalMachineSelection::Name(machine),
-        checked.sources().exact_toolchain_sources(),
+    produce_terminal_artifact(
+        TerminalProductionRequest::new(
+            &checked.execution().program,
+            TerminalMachineSelection::Name(machine),
+            checked.sources().exact_toolchain_sources(),
+        ),
+        &[],
+        &mut timings,
     )
-    .produce(TerminalProductionCustody {
-        applications: &[],
-        timings: &mut timings,
-    })
     .map(|produced| produced.into_artifact())
     .map_err(|error| vec![error.diagnostic()])
 }

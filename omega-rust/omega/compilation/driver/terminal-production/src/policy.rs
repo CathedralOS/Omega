@@ -1,33 +1,20 @@
-//! Product policy and reporting inputs for Psi-owned Terminal production.
+//! The product's behavior-exclusion policy for Psi-owned Terminal production.
+//!
+//! Behavior exclusions are Omega product policy: authored exclusions, the
+//! selected provider plan facts and the target profile. Psi's production
+//! sequence borrows this policy as an ordinary composition admission and never
+//! retains a product type.
 
-use artifacts::compile_timings::CompileTimings;
-pub use psi_compiler::ProducedTerminalArtifact;
+use diagnostics::Diagnostic;
 
 /// Product admission reads the actual unoptimized composition, then releases
 /// the borrow before optimization. No checked-source or LoweredPsi sidecar is
 /// retained in the result.
-pub struct TerminalProductionCustody<'a> {
-    pub applications: &'a [TerminalApplicationCustody<'a>],
-    pub timings: &'a mut CompileTimings,
-}
-
-/// A target's admission and entry correspondence, independent of shared Psi work.
-pub struct TerminalApplicationCustody<'a> {
-    pub entry_identity: Option<[u8; 32]>,
-    pub entry_machine: Option<psi_compiler::TerminalMachineSelection<'a>>,
-    pub admission_roots: &'a [symbols::SymbolHandle],
-    pub behavior_exclusions: Option<TerminalBehaviorExclusions<'a>>,
-}
-
-impl<'a> TerminalProductionCustody<'a> {
-    pub fn artifact_only(timings: &'a mut CompileTimings) -> Self {
-        Self {
-            applications: &[],
-            timings,
-        }
-    }
-}
-
+///
+/// A product caller lends this policy as the `admission` of the
+/// [`psi_compiler::TerminalApplicationCustody`] row it submits to
+/// [`crate::produce_terminal_artifact`]; the caller owns the policy value for
+/// as long as production borrows it.
 pub struct TerminalBehaviorExclusions<'a> {
     authored: &'a [effects::AuthoredBehaviorExclusion],
     providers: &'a effects::SelectedProviderPlanFacts,
@@ -54,7 +41,7 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
         module: &terminal_psi::TerminalModule,
         entry: semantic_vocabulary::MachineId,
         provenance: &terminal_psi::TerminalMachineProvenance,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    ) -> Result<(), Vec<Diagnostic>> {
         trust_model::verify_entry_behavior_exclusions(
             self.authored,
             self.providers,

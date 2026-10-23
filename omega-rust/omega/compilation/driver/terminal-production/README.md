@@ -11,7 +11,7 @@ Enter [terminal_production.rs](src/terminal_production.rs), then the
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
-[custody.rs](src/custody.rs) supplies product policy and re-exports the result;
+[policy.rs](src/policy.rs) supplies the product's exclusion policy;
 [stage_timings.rs](src/stage_timings.rs) owns sequence
 observations. Neither implements Psi judgments.
 
@@ -22,9 +22,12 @@ separates canonical sealing from source-entry correspondence audits.
 
 `TerminalProductionRequest` carries the checked trees, the
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
-selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
-ordered application rows (each with optional ProgramEntry source-signature
-identity and behavior exclusions) and the stage-timing carrier. Every shared
+selection. Its one `produce` entry takes a `TerminalProductionCustody` and a
+stage-timing observer; this product's `produce_terminal_artifact` is the entry
+that supplies them, recording the product production counter once. The custody
+holds ordered application rows, each with optional ProgramEntry
+source-signature identity and an optional composition admission that a product
+caller fills from its `TerminalBehaviorExclusions` policy. Every shared
 entry closure runs the same
 lowering, optimization and publication legs; an entry identity
 adds the ProgramEntry receipt legs, which check the unique Unit entry before

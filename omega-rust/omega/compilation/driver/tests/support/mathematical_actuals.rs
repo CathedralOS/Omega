@@ -15,7 +15,7 @@ use terminal_codec::{
     verify_module_mathematical_actuals,
 };
 use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
+    TerminalMachineSelection, TerminalProductionRequest, produce_terminal_artifact,
 };
 
 pub(super) fn produce(
@@ -103,12 +103,15 @@ pub(super) fn produce(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut timings = Default::default();
-    let artifact = TerminalProductionRequest::new(
-        program,
-        TerminalMachineSelection::Name(machine),
-        checked.sources().exact_toolchain_sources(),
+    let artifact = produce_terminal_artifact(
+        TerminalProductionRequest::new(
+            program,
+            TerminalMachineSelection::Name(machine),
+            checked.sources().exact_toolchain_sources(),
+        ),
+        &[],
+        &mut timings,
     )
-    .produce(TerminalProductionCustody::artifact_only(&mut timings))
     .map_err(|error| format!("mathematical actual Terminal production: {error:?}"))?
     .into_artifact();
     let expected = artifact.semantic_module();
