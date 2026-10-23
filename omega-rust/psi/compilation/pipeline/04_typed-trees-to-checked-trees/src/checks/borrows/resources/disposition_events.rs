@@ -4,7 +4,7 @@ use crate::checks::borrows::resources::lifecycle::span_handle;
 use crate::checks::borrows::resources::lifecycle::{
     EphemeralResourceStatus, EphemeralStatuses, LifecycleBoundaryKey, LifecycleEvent,
     LifecycleEventKind, LifecyclePhase, activation_boundary, apply_activation_batch,
-    apply_weakening_batch, exact_resource_lifecycle_handles, weakening_event_boundary,
+    apply_weakening_batch, exact_loan_lifecycle_rows, weakening_event_boundary,
 };
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, DispositionTargetIndex,
@@ -21,6 +21,7 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 
 pub(crate) fn plan_reborrow_disposition_events(
+    borrow: &BorrowFacts,
     flow: &FlowFacts,
     direct: &[CheckedDirectBorrowLoanResource],
     reborrows: &[CheckedReborrowLoanResourceDraft],
@@ -45,15 +46,22 @@ pub(crate) fn plan_reborrow_disposition_events(
     let mut dispositions = Vec::new();
     for (machine_symbol, state_symbol) in states {
         let mut events = Vec::new();
+        let Some(flow_state) = flow.control.state(machine_symbol, state_symbol) else {
+            return Err(reborrow_disposition_drift());
+        };
         for (index, resource) in direct.iter().enumerate().filter(|(_, resource)| {
             resource.machine_symbol == machine_symbol && resource.state_symbol == state_symbol
         }) {
-            let (activation, weakening) = exact_resource_lifecycle_handles(
+            // The lifecycle ledger is joined by its one reader; a drifted
+            // ledger is a disposition failure, not a second reconstruction.
+            let Ok((activation, weakening)) = exact_loan_lifecycle_rows(
                 flow,
-                machine_symbol,
-                state_symbol,
+                flow_state,
                 resource.loan,
-            )?;
+                borrow.loans.get(resource.loan).statement_index,
+            ) else {
+                return Err(reborrow_disposition_drift());
+            };
             events.push(LifecycleEvent {
                 boundary: activation_boundary(
                     flow.borrow_lifetimes.activations.get(activation).source,
@@ -466,17 +474,10 @@ pub(crate) fn bind_restored_call_uses(
             continue;
         };
 
-        let matching_flow_states = flow
+        let Some(flow_state) = flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| {
-                state.machine_symbol == child.machine_symbol
-                    && state.state_symbol == child.state_symbol
-            })
-            .map(|(_, state)| state)
-            .collect::<Vec<_>>();
-        let [flow_state] = matching_flow_states.as_slice() else {
+            .unique_state(child.machine_symbol, child.state_symbol)
+        else {
             continue;
         };
         let calls = flow

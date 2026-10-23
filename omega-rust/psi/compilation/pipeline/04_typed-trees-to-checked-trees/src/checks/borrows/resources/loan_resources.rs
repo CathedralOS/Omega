@@ -1,8 +1,16 @@
 //! Rebuilding the direct-borrow and reborrow resource arenas from the loan
 //! and flow-lifetime ledgers, and resolving each reborrow's parent graph.
+//!
+//! One traversal over the flow ledger's state-owned loans projects both
+//! rosters: a loan's recorded lineage decides whether it closes as a
+//! direct-root resource or a reborrow draft, so neither roster can silently
+//! omit loans the other sees. Every reconstruction joins the loan's
+//! activation and weakening rows through the lifecycle reader.
 
 use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
-use crate::checks::borrows::resources::lifecycle::{span_handle, weakening_boundary_key};
+use crate::checks::borrows::resources::lifecycle::{
+    exact_loan_lifecycle_rows, span_handle, weakening_boundary_key,
+};
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, ParentResourceIndex,
     ResourceHandles,
@@ -91,18 +99,30 @@ pub(crate) fn install_borrow_resources(
     }
 }
 
-pub(crate) fn reconstruct_direct_borrow_resources(
+/// Rebuild both checked resource rosters in one traversal of the state-owned
+/// loans: direct-root loans close as direct resources in their own arena
+/// (every derived occurrence stays outside it), reborrows close as drafts for
+/// the parent graph and disposition events. A loan's lineage selects its
+/// roster; there is no second walk that could disagree about coverage.
+pub(crate) fn reconstruct_borrow_resource_rosters(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
-) -> Result<Vec<CheckedDirectBorrowLoanResource>, Vec<Diagnostic>> {
-    let mut resources = Vec::new();
+) -> Result<
+    (
+        Vec<CheckedDirectBorrowLoanResource>,
+        Vec<CheckedReborrowLoanResourceDraft>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let mut direct = Vec::new();
+    let mut reborrows = Vec::new();
     let mut diagnostics = Vec::new();
 
     for (_, state) in borrow.states.iter() {
         let Some(flow_state) = flow.control.state(state.machine_symbol, state.state_symbol) else {
             diagnostics.push(Diagnostic::error(
-                "checked direct-root borrow resource has no exact flow-state owner",
+                "checked borrow resource has no exact flow-state owner",
             ));
             continue;
         };
@@ -118,272 +138,200 @@ pub(crate) fn reconstruct_direct_borrow_resources(
             .iter()
             .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
         {
-            // Direct reborrows close in their own typed parent-resource arena;
-            // every derived occurrence remains outside this root-only arena.
-            if loan.lineage != BorrowLoanLineage::DirectRoot {
-                continue;
-            }
+            match &loan.lineage {
+                BorrowLoanLineage::DirectRoot => {
+                    // A direct-root loan formed on a reference-typed binding is
+                    // still a referent reborrow: the binding carries no parent
+                    // loan to rebase through (parameters and loan-less locals
+                    // are the common cases), so its declared access is the
+                    // parent authority and the access-pair rule decides the
+                    // formation — `&write`/`&mut` on a `&u8` binding can never
+                    // derive write authority from a shared referent. This is
+                    // the same edge `Reborrow` loans face above the resource
+                    // arenas, applied at the declared-access boundary.
+                    if let Some(parent_access) =
+                        crate::checks::borrows::details::binding_reference_access(
+                            program,
+                            state.machine_symbol,
+                            state.state_symbol,
+                            loan.statement_index,
+                            loan.root,
+                        )
+                        && parent_access.direct_reborrow_effect(&loan.kind).is_none()
+                    {
+                        diagnostics.push(invalid_reborrow_attenuation_diagnostic(
+                            &parent_access,
+                            &loan.kind,
+                        ));
+                        continue;
+                    }
 
-            // A direct-root loan formed on a reference-typed binding is still
-            // a referent reborrow: the binding carries no parent loan to
-            // rebase through (parameters and loan-less locals are the common
-            // cases), so its declared access is the parent authority and the
-            // access-pair rule decides the formation — `&write`/`&mut` on a
-            // `&u8` binding can never derive write authority from a shared
-            // referent. This is the same edge `Reborrow` loans face above the
-            // resource arenas, applied at the declared-access boundary.
-            if let Some(parent_access) = crate::checks::borrows::details::binding_reference_access(
-                program,
-                state.machine_symbol,
-                state.state_symbol,
-                loan.statement_index,
-                loan.root,
-            ) && parent_access.direct_reborrow_effect(&loan.kind).is_none()
-            {
-                diagnostics.push(invalid_reborrow_attenuation_diagnostic(
-                    &parent_access,
-                    &loan.kind,
-                ));
-                continue;
-            }
+                    let (activation_handle, weakening_handle) = match exact_loan_lifecycle_rows(
+                        flow,
+                        flow_state,
+                        loan_handle,
+                        loan.statement_index,
+                    ) {
+                        Ok(rows) => rows,
+                        Err(drift) => {
+                            diagnostics.push(drift);
+                            continue;
+                        }
+                    };
+                    let activation = flow.borrow_lifetimes.activations.get(activation_handle);
+                    let weakening = flow.borrow_lifetimes.weakenings.get(weakening_handle);
 
-            let activations = flow
-                .borrow_lifetimes
-                .activations
-                .span_or_empty(flow_state.borrow_activations)
-                .iter()
-                .filter(|activation| activation.loan == loan_handle)
-                .collect::<Vec<_>>();
-            let weakenings = flow
-                .borrow_lifetimes
-                .weakenings
-                .span_or_empty(flow_state.borrow_weakenings)
-                .iter()
-                .filter(|weakening| weakening.loan == loan_handle)
-                .collect::<Vec<_>>();
-            let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice())
-            else {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-root borrow resource requires exactly one activation and one weakening",
-                ));
-                continue;
-            };
-            if activation.source
-                != (FlowInvalidationSource::Statement {
-                    statement_index: loan.statement_index,
-                })
-            {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-root borrow activation drifted from loan formation",
-                ));
-                continue;
-            }
+                    let parent_lifetime = CheckedDirectBorrowParentLifetime {
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        root: loan.root,
+                    };
+                    let restoration = CheckedDirectBorrowRestorationObligation {
+                        parent: parent_lifetime.clone(),
+                        weakening_source: weakening.source,
+                        weakening_reason: weakening.reason,
+                    };
+                    direct.push(CheckedDirectBorrowLoanResource {
+                        loan: loan_handle,
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        owner_symbol: loan.owner_symbol,
+                        owner_path: borrow.loan_owner_path(loan).to_vec(),
+                        captured_place: checked_trees::CapturedPlace {
+                            incoming_reference: loan.incoming_reference,
+                            root: loan.root,
+                            segments: borrow.loan_segments(loan).to_vec(),
+                        },
+                        access: loan.kind.clone(),
+                        activation_source: activation.source,
+                        weakening_source: weakening.source,
+                        weakening_reason: weakening.reason,
+                        parent_lifetime,
+                        restoration,
+                    });
+                }
 
-            let parent_lifetime = CheckedDirectBorrowParentLifetime {
-                machine_symbol: state.machine_symbol,
-                state_symbol: state.state_symbol,
-                root: loan.root,
-            };
-            let restoration = CheckedDirectBorrowRestorationObligation {
-                parent: parent_lifetime.clone(),
-                weakening_source: weakening.source,
-                weakening_reason: weakening.reason,
-            };
-            resources.push(CheckedDirectBorrowLoanResource {
-                loan: loan_handle,
-                machine_symbol: state.machine_symbol,
-                state_symbol: state.state_symbol,
-                owner_symbol: loan.owner_symbol,
-                owner_path: borrow.loan_owner_path(loan).to_vec(),
-                captured_place: checked_trees::CapturedPlace {
-                    incoming_reference: loan.incoming_reference,
-                    root: loan.root,
-                    segments: borrow.loan_segments(loan).to_vec(),
-                },
-                access: loan.kind.clone(),
-                activation_source: activation.source,
-                weakening_source: weakening.source,
-                weakening_reason: weakening.reason,
-                parent_lifetime,
-                restoration,
-            });
+                BorrowLoanLineage::Reborrow { parent_loan } => {
+                    let parent = borrow.loans.get(*parent_loan);
+                    let Some(access_effect) = parent.kind.direct_reborrow_effect(&loan.kind) else {
+                        diagnostics.push(invalid_reborrow_attenuation_diagnostic(
+                            &parent.kind,
+                            &loan.kind,
+                        ));
+                        continue;
+                    };
+                    let (child_activation, child_weakening) = match exact_loan_lifecycle_rows(
+                        flow,
+                        flow_state,
+                        loan_handle,
+                        loan.statement_index,
+                    ) {
+                        Ok(rows) => rows,
+                        Err(drift) => {
+                            diagnostics.push(drift);
+                            continue;
+                        }
+                    };
+                    let activation = flow.borrow_lifetimes.activations.get(child_activation);
+                    let weakening = flow.borrow_lifetimes.weakenings.get(child_weakening);
+                    let parent_weakenings = flow
+                        .borrow_lifetimes
+                        .weakenings
+                        .span_or_empty(flow_state.borrow_weakenings)
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, weakening)| weakening.loan == *parent_loan)
+                        .filter_map(|(offset, weakening)| {
+                            span_handle(flow_state.borrow_weakenings, offset)
+                                .map(|handle| (handle, weakening))
+                        })
+                        .collect::<Vec<_>>();
+                    let [(parent_weakening, parent_weakening_fact)] = parent_weakenings.as_slice()
+                    else {
+                        diagnostics.push(Diagnostic::error(
+                            "checked direct-reborrow parent status requires exactly one parent weakening",
+                        ));
+                        continue;
+                    };
+                    let Some(parent_lexical_status) = parent_lexical_status_at_child_end(
+                        parent_weakening_fact.source,
+                        parent_weakening_fact.reason,
+                        weakening.source,
+                        weakening.reason,
+                    ) else {
+                        diagnostics.push(Diagnostic::error(
+                            "checked direct-reborrow parent status has an unsupported weakening boundary",
+                        ));
+                        continue;
+                    };
+
+                    let Some(statement) = flow
+                        .control
+                        .statements
+                        .span_or_empty(flow_state.statements)
+                        .iter()
+                        .find(|statement| statement.statement_index == loan.statement_index)
+                    else {
+                        diagnostics.push(Diagnostic::error(
+                            "checked direct-reborrow suspension has no exact formation statement",
+                        ));
+                        continue;
+                    };
+                    let parent_constraints = flow
+                        .contexts
+                        .constraint_refs
+                        .span_or_empty(statement.entry_constraints)
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, constraint)| {
+                            constraint.kind
+                                == checked_trees::FlowConstraintKind::BorrowLoan {
+                                    loan: *parent_loan,
+                                }
+                        })
+                        .filter_map(|(offset, _)| span_handle(statement.entry_constraints, offset))
+                        .collect::<Vec<_>>();
+                    let [parent_entry_constraint] = parent_constraints.as_slice() else {
+                        diagnostics.push(Diagnostic::error(
+                            "checked direct-reborrow suspension requires exactly one parent entry constraint",
+                        ));
+                        continue;
+                    };
+
+                    reborrows.push(CheckedReborrowLoanResourceDraft {
+                        loan: loan_handle,
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        owner_symbol: loan.owner_symbol,
+                        owner_path: borrow.loan_owner_path(loan).to_vec(),
+                        captured_place: checked_trees::CapturedPlace {
+                            incoming_reference: loan.incoming_reference,
+                            root: loan.root,
+                            segments: borrow.loan_segments(loan).to_vec(),
+                        },
+                        access: loan.kind.clone(),
+                        parent_access: parent.kind.clone(),
+                        access_effect,
+                        activation_source: activation.source,
+                        weakening_source: weakening.source,
+                        weakening_reason: weakening.reason,
+                        parent_loan: *parent_loan,
+                        child_activation,
+                        parent_entry_constraint: *parent_entry_constraint,
+                        child_weakening,
+                        parent_weakening: *parent_weakening,
+                        parent_lexical_status,
+                    });
+                }
+
+                // Remaining lineages stay outside both rosters.
+                BorrowLoanLineage::LifetimeDependency | BorrowLoanLineage::UnretainedDerived => {}
+            }
         }
     }
 
     if diagnostics.is_empty() {
-        Ok(resources)
-    } else {
-        Err(diagnostics)
-    }
-}
-
-pub(crate) fn reconstruct_reborrow_resource_drafts(
-    borrow: &BorrowFacts,
-    flow: &FlowFacts,
-) -> Result<Vec<CheckedReborrowLoanResourceDraft>, Vec<Diagnostic>> {
-    let mut resources = Vec::new();
-    let mut diagnostics = Vec::new();
-
-    for (_, state) in borrow.states.iter() {
-        let Some(flow_state) = flow.control.state(state.machine_symbol, state.state_symbol) else {
-            diagnostics.push(Diagnostic::error(
-                "checked direct-reborrow resource has no exact flow-state owner",
-            ));
-            continue;
-        };
-
-        if state.loans.is_empty() {
-            continue;
-        }
-
-        for (loan_handle, loan) in borrow
-            .loans
-            .iter()
-            .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
-        {
-            let BorrowLoanLineage::Reborrow { parent_loan } = &loan.lineage else {
-                continue;
-            };
-            let parent = borrow.loans.get(*parent_loan);
-            let Some(access_effect) = parent.kind.direct_reborrow_effect(&loan.kind) else {
-                diagnostics.push(invalid_reborrow_attenuation_diagnostic(
-                    &parent.kind,
-                    &loan.kind,
-                ));
-                continue;
-            };
-            let activations = flow
-                .borrow_lifetimes
-                .activations
-                .span_or_empty(flow_state.borrow_activations)
-                .iter()
-                .enumerate()
-                .filter(|(_, activation)| activation.loan == loan_handle)
-                .filter_map(|(offset, activation)| {
-                    span_handle(flow_state.borrow_activations, offset)
-                        .map(|handle| (handle, activation))
-                })
-                .collect::<Vec<_>>();
-            let weakenings = flow
-                .borrow_lifetimes
-                .weakenings
-                .span_or_empty(flow_state.borrow_weakenings)
-                .iter()
-                .enumerate()
-                .filter(|(_, weakening)| weakening.loan == loan_handle)
-                .filter_map(|(offset, weakening)| {
-                    span_handle(flow_state.borrow_weakenings, offset)
-                        .map(|handle| (handle, weakening))
-                })
-                .collect::<Vec<_>>();
-            if activations.len() != 1 || weakenings.len() != 1 {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-reborrow resource requires exactly one activation and one weakening",
-                ));
-                continue;
-            }
-            let (child_activation, activation) = activations[0];
-            let (child_weakening, weakening) = weakenings[0];
-            if activation.source
-                != (FlowInvalidationSource::Statement {
-                    statement_index: loan.statement_index,
-                })
-            {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-reborrow activation drifted from loan formation",
-                ));
-                continue;
-            }
-            let parent_weakenings = flow
-                .borrow_lifetimes
-                .weakenings
-                .span_or_empty(flow_state.borrow_weakenings)
-                .iter()
-                .enumerate()
-                .filter(|(_, weakening)| weakening.loan == *parent_loan)
-                .filter_map(|(offset, weakening)| {
-                    span_handle(flow_state.borrow_weakenings, offset)
-                        .map(|handle| (handle, weakening))
-                })
-                .collect::<Vec<_>>();
-            let [(parent_weakening, parent_weakening_fact)] = parent_weakenings.as_slice() else {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-reborrow parent status requires exactly one parent weakening",
-                ));
-                continue;
-            };
-            let Some(parent_lexical_status) = parent_lexical_status_at_child_end(
-                parent_weakening_fact.source,
-                parent_weakening_fact.reason,
-                weakening.source,
-                weakening.reason,
-            ) else {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-reborrow parent status has an unsupported weakening boundary",
-                ));
-                continue;
-            };
-
-            let Some(statement) = flow
-                .control
-                .statements
-                .span_or_empty(flow_state.statements)
-                .iter()
-                .find(|statement| statement.statement_index == loan.statement_index)
-            else {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-reborrow suspension has no exact formation statement",
-                ));
-                continue;
-            };
-            let parent_constraints = flow
-                .contexts
-                .constraint_refs
-                .span_or_empty(statement.entry_constraints)
-                .iter()
-                .enumerate()
-                .filter(|(_, constraint)| {
-                    constraint.kind
-                        == checked_trees::FlowConstraintKind::BorrowLoan { loan: *parent_loan }
-                })
-                .filter_map(|(offset, _)| span_handle(statement.entry_constraints, offset))
-                .collect::<Vec<_>>();
-            let [parent_entry_constraint] = parent_constraints.as_slice() else {
-                diagnostics.push(Diagnostic::error(
-                    "checked direct-reborrow suspension requires exactly one parent entry constraint",
-                ));
-                continue;
-            };
-
-            resources.push(CheckedReborrowLoanResourceDraft {
-                loan: loan_handle,
-                machine_symbol: state.machine_symbol,
-                state_symbol: state.state_symbol,
-                owner_symbol: loan.owner_symbol,
-                owner_path: borrow.loan_owner_path(loan).to_vec(),
-                captured_place: checked_trees::CapturedPlace {
-                    incoming_reference: loan.incoming_reference,
-                    root: loan.root,
-                    segments: borrow.loan_segments(loan).to_vec(),
-                },
-                access: loan.kind.clone(),
-                parent_access: parent.kind.clone(),
-                access_effect,
-                activation_source: activation.source,
-                weakening_source: weakening.source,
-                weakening_reason: weakening.reason,
-                parent_loan: *parent_loan,
-                child_activation,
-                parent_entry_constraint: *parent_entry_constraint,
-                child_weakening,
-                parent_weakening: *parent_weakening,
-                parent_lexical_status,
-            });
-        }
-    }
-
-    if diagnostics.is_empty() {
-        Ok(resources)
+        Ok((direct, reborrows))
     } else {
         Err(diagnostics)
     }

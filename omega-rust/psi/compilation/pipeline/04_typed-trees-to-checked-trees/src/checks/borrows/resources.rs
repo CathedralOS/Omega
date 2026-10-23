@@ -15,8 +15,7 @@ use crate::checks::borrows::resources::disposition_events::{
     bind_restored_call_uses, plan_reborrow_disposition_events,
 };
 use crate::checks::borrows::resources::loan_resources::{
-    install_borrow_resources, plan_resource_installation, reconstruct_direct_borrow_resources,
-    reconstruct_reborrow_resource_drafts,
+    install_borrow_resources, plan_resource_installation, reconstruct_borrow_resource_rosters,
 };
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
@@ -27,11 +26,16 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
-    let direct = reconstruct_direct_borrow_resources(program, &facts.borrow, &facts.flow)?;
-    let reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
+    let (direct, reborrows) =
+        reconstruct_borrow_resource_rosters(program, &facts.borrow, &facts.flow)?;
     let installation = plan_resource_installation(&direct, &reborrows)?;
-    let mut dispositions =
-        plan_reborrow_disposition_events(&facts.flow, &direct, &reborrows, &installation)?;
+    let mut dispositions = plan_reborrow_disposition_events(
+        &facts.borrow,
+        &facts.flow,
+        &direct,
+        &reborrows,
+        &installation,
+    )?;
     bind_restored_call_uses(
         program,
         &facts.borrow,

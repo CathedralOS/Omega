@@ -87,42 +87,55 @@ impl EphemeralStatuses {
     }
 }
 
-pub(crate) fn exact_resource_lifecycle_handles(
+/// The durable lifecycle rows of one loan: its activation and weakening.
+pub(crate) type LoanLifecycleRows = (
+    arena::Handle<checked_trees::FlowBorrowActivationFact>,
+    arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+);
+
+/// The one activation and one weakening row of `loan` at `flow_state`. Every
+/// checked borrow-resource reconstruction joins the lifecycle ledger through
+/// this reader, so a ledger that holds no single pair — or an activation that
+/// does not start at the loan's own formation statement — is refused here,
+/// never reconstructed differently per consumer.
+pub(crate) fn exact_loan_lifecycle_rows(
     flow: &FlowFacts,
-    machine_symbol: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
+    flow_state: &checked_trees::FlowStateFact,
     loan: arena::Handle<BorrowLoanFact>,
-) -> Result<
-    (
-        arena::Handle<checked_trees::FlowBorrowActivationFact>,
-        arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    ),
-    Vec<Diagnostic>,
-> {
-    let Some(state) = flow.control.state(machine_symbol, state_symbol) else {
-        return Err(reborrow_disposition_drift());
-    };
+    formation_statement: usize,
+) -> Result<LoanLifecycleRows, Diagnostic> {
     let activations = flow
         .borrow_lifetimes
         .activations
-        .span_or_empty(state.borrow_activations)
+        .span_or_empty(flow_state.borrow_activations)
         .iter()
         .enumerate()
         .filter(|(_, event)| event.loan == loan)
-        .filter_map(|(offset, _)| span_handle(state.borrow_activations, offset))
+        .filter_map(|(offset, _)| span_handle(flow_state.borrow_activations, offset))
         .collect::<Vec<_>>();
     let weakenings = flow
         .borrow_lifetimes
         .weakenings
-        .span_or_empty(state.borrow_weakenings)
+        .span_or_empty(flow_state.borrow_weakenings)
         .iter()
         .enumerate()
         .filter(|(_, event)| event.loan == loan)
-        .filter_map(|(offset, _)| span_handle(state.borrow_weakenings, offset))
+        .filter_map(|(offset, _)| span_handle(flow_state.borrow_weakenings, offset))
         .collect::<Vec<_>>();
     let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice()) else {
-        return Err(reborrow_disposition_drift());
+        return Err(Diagnostic::error(
+            "checked borrow resource requires exactly one activation and one weakening",
+        ));
     };
+    if flow.borrow_lifetimes.activations.get(*activation).source
+        != (FlowInvalidationSource::Statement {
+            statement_index: formation_statement,
+        })
+    {
+        return Err(Diagnostic::error(
+            "checked borrow resource activation drifted from loan formation",
+        ));
+    }
     Ok((*activation, *weakening))
 }
 
