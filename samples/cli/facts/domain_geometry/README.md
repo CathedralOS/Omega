@@ -20,7 +20,7 @@ allowing a qualification to prove itself. False predicates and forged issuer
 qualifications still reject, including unused constants.
 
 The source corpus mirrors all nine positive programs and their rejection twins
-under `tests/omega/{pass,fail}/facts/no_wrap_domain_through_*`. Additional constant
+under `tests/omega/{pass,fail}/facts/domain_geometry_through_*`. Additional constant
 controls cover selected module identity, qualified aliases and payloadless cases.
 Foreign target bodies are source-checked. The recorded native rows and the
 host-bound runs below cover `macos_arm64` and `macos_x86_64`; no runtime
@@ -42,9 +42,8 @@ observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet.
 ## Verification
 
 Recorded native rows: `tests/omega/corpus_native_macos_arm64.txt` carries
-`pass/facts/no_wrap_domain_through_*_exit built ... exit:0` for all nine places
-(recorded at `46693e28988c`), which is the authored result on a host that
-executes `macos_arm64`.
+`pass/facts/domain_geometry_through_*_exit built ... exit:0` for all nine places,
+which is the authored result on a host that executes `macos_arm64`.
 
 Verified on Intel macOS (`macos_x86_64`) with a compiler built from
 `6e8f4d98f4ad813beba1d27d890b395df6adbede`, `opt_level` 1, binary digest

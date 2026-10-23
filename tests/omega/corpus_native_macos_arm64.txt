@@ -1832,15 +1832,15 @@ pass/facts/nested_result_extent_through_other_machine_exit built 19183ms exit:0 
 pass/facts/nested_result_extent_through_other_state_exit built 19329ms exit:0 @dd9caf64b378
 pass/facts/nested_result_extent_through_parameter_exit built 19303ms exit:0 @dd9caf64b378
 pass/facts/nested_result_extent_through_target_body_exit built 9185ms exit:0 @dd9caf64b378
-pass/facts/no_wrap_domain_through_call_result_exit built 1300ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_const_name_exit built 1251ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_field_exit built 1268ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_local_exit built 1270ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_match_join_exit built 1210ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_other_machine_exit built 1264ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_other_state_exit built 1257ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_parameter_exit built 1211ms exit:0 @46693e28988c
-pass/facts/no_wrap_domain_through_target_body_exit built 1272ms exit:0 @46693e28988c
+pass/facts/domain_geometry_through_call_result_exit built 6130ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_const_name_exit built 5205ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_field_exit built 5863ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_local_exit built 5349ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_match_join_exit built 6726ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_other_machine_exit built 6381ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_other_state_exit built 6333ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_parameter_exit built 6419ms exit:0 @8d202634513c+wt
+pass/facts/domain_geometry_through_target_body_exit built 7179ms exit:0 @8d202634513c+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 15708ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 15401ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit built 15557ms exit:0 stdout:match @d698b30fd9ab+wt
