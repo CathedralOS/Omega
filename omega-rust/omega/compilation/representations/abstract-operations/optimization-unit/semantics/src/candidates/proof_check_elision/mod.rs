@@ -1,8 +1,11 @@
 //! Optimizer module role: executable entrance. Independent proof-check-elision validation routing.
 //!
 //! The adjacent catalog maps every exact producer identity to one validation
-//! protocol. Protocol leaves reconstruct semantics and publish the exact
-//! validator identity; no sibling pass entrance recognizes these rules.
+//! protocol: the dead-scalar elision, the operand substitution identity, or
+//! one of the five integer constant laws, whose shared acceptance protocol
+//! lives in `integer_constant_law`. Protocol leaves reconstruct semantics and
+//! publish the exact validator identity; no sibling pass entrance recognizes
+//! these rules.
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, validate_dead_scalar_node_candidate,
 };
@@ -10,21 +13,14 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod candidate_validation;
 mod identity_classification;
+mod integer_constant_law;
 mod rule_catalog;
 mod same_operand;
 mod unit_divisor;
 
 pub(crate) use candidate_validation::validate_proof_certified_scalar_identity_candidate;
-pub(crate) use same_operand::{
-    validate_proof_certified_exact_integer_self_subtract_candidate,
-    validate_proof_certified_integer_self_divide_candidate,
-    validate_proof_certified_integer_self_remainder_candidate,
-};
-pub(crate) use unit_divisor::{
-    validate_proof_certified_integer_remainder_by_one_candidate,
-    validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
-};
 
+use integer_constant_law::validate_integer_constant_law_candidate;
 use rule_catalog::ProofCheckValidationRoute;
 pub(crate) use rule_catalog::is_proof_check_elision_rule;
 
@@ -40,22 +36,8 @@ pub(super) fn validate_proof_check_elision_candidate(
         Some(ProofCheckValidationRoute::OperandSubstitution) => {
             validate_proof_certified_scalar_identity_candidate(input, candidate)
         }
-        Some(ProofCheckValidationRoute::SelfSubtract) => {
-            validate_proof_certified_exact_integer_self_subtract_candidate(input, candidate)
-        }
-        Some(ProofCheckValidationRoute::SelfRemainder) => {
-            validate_proof_certified_integer_self_remainder_candidate(input, candidate)
-        }
-        Some(ProofCheckValidationRoute::SelfDivide) => {
-            validate_proof_certified_integer_self_divide_candidate(input, candidate)
-        }
-        Some(ProofCheckValidationRoute::RemainderByOne) => {
-            validate_proof_certified_integer_remainder_by_one_candidate(input, candidate)
-        }
-        Some(ProofCheckValidationRoute::RemainderByNegativeOne) => {
-            validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
-                input, candidate,
-            )
+        Some(ProofCheckValidationRoute::IntegerConstantLaw(law)) => {
+            validate_integer_constant_law_candidate(input, candidate, &law)
         }
         None => Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
     }
