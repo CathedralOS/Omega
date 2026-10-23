@@ -4261,6 +4261,29 @@ fail/facts/float_result_equality_through_parameter_rejected rejected 27555ms exp
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/float_result_equality_through_target_body_rejected rejected 27667ms expected @438f700a3012+wt
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/foreign_retained_shared_borrow_call_result rejected 2227ms expected @b0640f0a9309
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_const_name rejected 1877ms expected @b0640f0a9309
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_field rejected 1814ms expected @b0640f0a9309
+	statement 5 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_shared_borrow_local rejected 1953ms expected @b0640f0a9309
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_match_join rejected 1685ms expected @b0640f0a9309
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_other_machine rejected 2301ms expected @b0640f0a9309
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_other_state rejected 2296ms expected @b0640f0a9309
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_retained_shared_borrow_parameter rejected 2236ms expected @b0640f0a9309
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/foreign_retained_shared_borrow_retained_escape rejected 1657ms expected @b0640f0a9309
+	machine `escape` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 1813ms expected @b0640f0a9309
+	callable `Reader::redeem` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending`; retained-after-return authority requires a consumed owned input
+fail/facts/foreign_retained_shared_borrow_target_body rejected 1931ms expected @b0640f0a9309
+	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/forty_variant_enum_payload_bound_through_call_result_rejected rejected 2577ms expected @9d9ba4fb6251+wt
 	cannot prove ensures contract for exit from extract_payload at statement 79: result >= 40 && result <= 80
 fail/facts/forty_variant_enum_payload_bound_through_const_name_rejected rejected 1856ms expected @9d9ba4fb6251+wt
@@ -17495,6 +17518,17 @@ pass/facts/float_result_equality_through_other_machine_exit checked 38910ms chec
 pass/facts/float_result_equality_through_other_state_exit checked 38287ms check-target:macos_arm64 @438f700a3012+wt
 pass/facts/float_result_equality_through_parameter_exit checked 38499ms check-target:macos_arm64 @438f700a3012+wt
 pass/facts/float_result_equality_through_target_body_exit checked 38385ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/foreign_retained_shared_borrow_call_result checked 2965ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_const_name checked 2112ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_field checked 2217ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_local checked 2202ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_match_join checked 2160ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_other_machine checked 2691ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_other_state checked 2851ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_parameter checked 2653ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 2755ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 2939ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_target_body checked 2167ms check-target:macos_arm64 @b0640f0a9309
 pass/facts/forty_variant_enum_payload_bound_through_call_result_exit checked 2261ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_const_name_exit checked 2452ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_field_exit checked 2354ms check-target:macos_arm64 @9d9ba4fb6251+wt

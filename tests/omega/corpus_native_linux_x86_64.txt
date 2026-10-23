@@ -1668,6 +1668,17 @@ pass/facts/data_where_standing_through_other_machine_exit built 8499ms exit:0 @0
 pass/facts/data_where_standing_through_other_state_exit built 8022ms exit:0 @07f1c64be9c1
 pass/facts/data_where_standing_through_parameter_exit built 7780ms exit:0 @07f1c64be9c1
 pass/facts/data_where_standing_through_target_body_exit built 7312ms exit:0 @07f1c64be9c1
+pass/facts/foreign_retained_shared_borrow_call_result built 2711ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_const_name built 2321ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_field built 2456ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_local built 2365ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_match_join built 2311ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_other_machine built 3137ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_other_state built 3165ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_parameter built 2781ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow built 2804ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called built 2937ms exit:0 @b0640f0a9309
+pass/facts/foreign_retained_shared_borrow_target_body built 2444ms exit:0 @b0640f0a9309
 pass/facts/indexed_element_mut_loan_through_call_result_exit built 7579ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_const_name_exit built 9536ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_field_exit built 9382ms exit:0 @907be3818acc
