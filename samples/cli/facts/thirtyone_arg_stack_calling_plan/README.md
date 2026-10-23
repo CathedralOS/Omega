@@ -46,3 +46,45 @@ Fact: a machine transition call passing thirty-one u64 arguments across register
 | other_state | `other_state/` | Subtractions evaluated in another machine state reached via transition | 0 | `may overflow \`u64\`` |
 | other_machine | `other_machine/` | Bound validated inside a secondary machine | 0 | `may overflow \`u64\`` |
 | target_body | `target_body/` | Explicit target-scoped bodies for all 4 hosted targets | 0 | `may overflow \`u64\`` |
+
+## Owning Item
+
+Owning task: `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)), governing specifications at [wiki/spec/build/calling_plans.md](../../../../wiki/spec/build/calling_plans.md) and [wiki/spec/resources/activation_storage.md](../../../../wiki/spec/resources/activation_storage.md). The requirement this row establishes is that the thirty-first argument's static interval bound survives argument evaluation, register/stack placement on all four hosted ABIs and the callee's own entry contract, so an exact subtraction on it is proved without a runtime check.
+
+## Pinned Corpus Fixtures
+
+All 18 corpus fixtures are pinned under `tests/omega/`; the nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart, and each fail fixture is a byte-identical copy of its place's `invalid/` twin.
+
+### Pass Fixtures (`tests/omega/pass/facts/`)
+
+- `thirtyone_arg_stack_calling_plan_through_local_exit`
+- `thirtyone_arg_stack_calling_plan_through_field_exit`
+- `thirtyone_arg_stack_calling_plan_through_parameter_exit`
+- `thirtyone_arg_stack_calling_plan_through_call_result_exit`
+- `thirtyone_arg_stack_calling_plan_through_match_join_exit`
+- `thirtyone_arg_stack_calling_plan_through_const_name_exit`
+- `thirtyone_arg_stack_calling_plan_through_other_state_exit`
+- `thirtyone_arg_stack_calling_plan_through_other_machine_exit`
+- `thirtyone_arg_stack_calling_plan_through_target_body_exit`
+
+### Fail Fixtures (`tests/omega/fail/facts/`)
+
+- `thirtyone_arg_stack_calling_plan_through_local_rejected`
+- `thirtyone_arg_stack_calling_plan_through_field_rejected`
+- `thirtyone_arg_stack_calling_plan_through_parameter_rejected`
+- `thirtyone_arg_stack_calling_plan_through_call_result_rejected`
+- `thirtyone_arg_stack_calling_plan_through_match_join_rejected`
+- `thirtyone_arg_stack_calling_plan_through_const_name_rejected`
+- `thirtyone_arg_stack_calling_plan_through_other_state_rejected`
+- `thirtyone_arg_stack_calling_plan_through_other_machine_rejected`
+- `thirtyone_arg_stack_calling_plan_through_target_body_rejected`
+
+## Recorded Evidence
+
+The nine places and nine reject twins were compiled and executed with the shared generation producer at base `9b001b8f6af` (`omega` sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, `corpus_runner` sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`) and recorded on three legs:
+
+- `tests/omega/corpus_outcomes.txt` — 9 `checked … check-target:macos_arm64` pass rows and 9 `rejected … expected` fail rows; each twin rejects with its own verbatim diagnostic (`exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) …`);
+- `tests/omega/corpus_native_macos_arm64.txt` — 9 `built … exit:0` rows;
+- `tests/omega/corpus_both_macos_arm64.txt` — 9 `built … exit:0 interpreter-exit:0 interpreter:agrees` rows.
+
+36 recorded rows in total, no timeout rows, additions only. Each twin was also compiled on its own with the producer's check product (18 invocations, all exit 1) and that observation is the text its `expected.txt` carries; the `invalid/` controls keep their authored `sample.json` fragments beside it.

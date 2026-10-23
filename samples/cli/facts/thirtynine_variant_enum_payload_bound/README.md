@@ -5,6 +5,7 @@ Fact: matching a 39-variant tagged enum payload ThirtyNineChoice { V1(u64), V2(u
 One-sentence fact: Exhaustive match over a thirty-nine-variant tagged union whose active payload carries 40u64 <= v && v <= 80u64 preserves 40u64 <= v && v <= 80u64 across all nine places so v - 40u64 and 80u64 - v are proved safe without underflow.
 
 Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Obligation Class: Tagged case payload layout plans and variant discriminant tags (`wiki/spec/layouts/plans.md`) — a thirty-nine-variant enum tagged case payload preserves payload interval bounds `40u64 <= payload <= 80u64` to discharge exact subtractions `80u64 - payload` and `payload - 40u64` across all 9 transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`).
 Governing Specifications:
 - `wiki/spec/layouts/plans.md` (Tagged variant layout plans and alignment)
 - `wiki/spec/terminal-psi/control_flow.md` (Pattern matching, variant dispatch, and join obligations)
@@ -58,6 +59,34 @@ Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
 
+## Pinned Corpus Fixtures
+
+All 18 corpus fixtures are pinned under `tests/omega/`; the nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart.
+
+### Pass Fixtures (`tests/omega/pass/facts/`)
+
+- `thirtynine_variant_enum_payload_bound_through_local_exit`
+- `thirtynine_variant_enum_payload_bound_through_field_exit`
+- `thirtynine_variant_enum_payload_bound_through_parameter_exit`
+- `thirtynine_variant_enum_payload_bound_through_call_result_exit`
+- `thirtynine_variant_enum_payload_bound_through_match_join_exit`
+- `thirtynine_variant_enum_payload_bound_through_const_name_exit`
+- `thirtynine_variant_enum_payload_bound_through_other_state_exit`
+- `thirtynine_variant_enum_payload_bound_through_other_machine_exit`
+- `thirtynine_variant_enum_payload_bound_through_target_body_exit`
+
+### Fail Fixtures (`tests/omega/fail/facts/`)
+
+- `thirtynine_variant_enum_payload_bound_through_local_rejected`
+- `thirtynine_variant_enum_payload_bound_through_field_rejected`
+- `thirtynine_variant_enum_payload_bound_through_parameter_rejected`
+- `thirtynine_variant_enum_payload_bound_through_call_result_rejected`
+- `thirtynine_variant_enum_payload_bound_through_match_join_rejected`
+- `thirtynine_variant_enum_payload_bound_through_const_name_rejected`
+- `thirtynine_variant_enum_payload_bound_through_other_state_rejected`
+- `thirtynine_variant_enum_payload_bound_through_other_machine_rejected`
+- `thirtynine_variant_enum_payload_bound_through_target_body_rejected`
+
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` reject twin that widens one variant's bound (`V39(v: u64) where v >= 39u64 && v <= 80u64`).
@@ -69,7 +98,7 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 77: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
@@ -86,4 +115,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 39-variant tagged enum `ThirtyNineChoice` with a 1-byte discriminant tag (`u8` range 0..38) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 39-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row. The nine places and nine reject twins are pinned under `tests/omega/{pass,fail}/facts` and recorded on three legs at base `9b001b8f6af` with the shared generation producer (`omega` sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, `corpus_runner` sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`): `corpus_outcomes.txt` 18 `checked … check-target:macos_arm64` pass rows and 18 `rejected … expected` fail rows carrying each twin's verbatim diagnostic, `corpus_native_macos_arm64.txt` 18 `built … exit:0` rows, `corpus_both_macos_arm64.txt` 18 `built … exit:0 interpreter-exit:0 interpreter:agrees` rows — 36/18/18, no timeout rows, additions only.
