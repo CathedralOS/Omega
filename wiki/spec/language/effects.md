@@ -9,8 +9,8 @@ in [values](../resources/authority.md); implementation trust is recorded by
 
 | Clause | Meaning |
 | --- | --- |
-| `reaches A + B;` | Bounds service reach by the named boundary services and their boundary parents. |
-| `reaches;` | Explicitly bounds service reach by the empty set. |
+| `reaches A + B` | Bounds service reach by the named boundary services and their boundary parents. |
+| `reaches` with no members | Explicitly bounds service reach by the empty set. |
 | `invokes handler;` | May synchronously enter that binding before returning. |
 | `suspends;` | May park the current activation. |
 | `blocks;` | May occupy its worker while waiting. |
@@ -19,7 +19,7 @@ in [values](../resources/authority.md); implementation trust is recorded by
 Boundary traits supply identities that may be named in `reaches`; declaring or
 calling one does not implicitly add its identity. A boundary call contributes
 its requirement's explicit reach ceiling, with boundary-parent closure. Every
-boundary-trait machine requirement must declare that ceiling, using `reaches;`
+boundary-trait machine requirement must declare that ceiling, using bare `reaches`
 when it permits no services. A memberless service-identity trait has no operation
 requiring an annotation. Ordinary traits are not service
 identities. A wake operation may reach a scheduler without suspending.
@@ -35,10 +35,16 @@ annotation exemption because no checked body needs one.
 
 A present clause is an upper bound, not an assertion of exact equality and not
 an additive contribution. The complete derived reach must fit its normalized
-ceiling. `reaches A + B` permits a body reaching only `A`; `reaches;` rejects
+ceiling. `reaches A + B` permits a body reaching only `A`; bare `reaches` rejects
 any nonempty derived service row. Omission requests inference and is distinct
 from an explicit empty clause. Reach does not count local mutation as a service,
 and empty reach promises neither termination nor absence of blocking or crashes.
+
+`reaches` has no clause-ending semicolon. A following clause or body delimits
+its row. A bodyless declaration still has its final declaration semicolon:
+`machine call() reaches;` ends the declaration, whereas `reaches` followed by
+`terminates;` puts that terminator after the final clause. Do not insert a
+semicolon after `reaches` between header clauses.
 
 Boundary requirements publish their explicit ceilings. Opaque supplies inherit
 the governing requirement's admitted contract, not an inferred native-body

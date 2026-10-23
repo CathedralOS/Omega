@@ -45,13 +45,13 @@ physical operation is compiler-provided:
 ```omega
 boundary trait ElementIndex<T [copy]> {
     machine [] index(items: &[T], index: u64) -> T
-    reaches;
+    reaches
     requires index < items.len;
 }
 
 boundary trait ElementRange<T> {
     machine [..] range(items: &[T], start: u64, end: u64) -> &[T]
-    reaches;
+    reaches
     requires start <= end && end <= items.len;
 }
 ```
@@ -114,7 +114,7 @@ boundary trait Readable {
         path: [u8]::Utf8,
         out: &mut Vec<u8>
     ) -> ReadResult
-      reaches Readable;
+    reaches Readable
       suspends;
 }
 ```
@@ -122,8 +122,9 @@ boundary trait Readable {
 The caller proves input requirements. Checked realizations prove their
 guarantees; opaque realizations require admitted guarantees. The requirement
 explicitly names `Readable` in its reach row. The boundary trait's name is not
-added automatically. A boundary requirement must declare its row; spell
-`reaches;` explicitly when it permits no services. `suspends` separately permits
+added automatically. A boundary requirement must declare its row; use bare
+`reaches` when it permits no services. A bodyless declaration's final semicolon
+still terminates the declaration, not the reach clause. `suspends` separately permits
 parking. Opaque realizations inherit that published contract; unknown native
 behavior is not inferred as empty.
 
@@ -218,13 +219,13 @@ The root may also assume a connection the checker can demonstrably refute:
 ```omega
 boundary trait Expected {
     machine value() -> u32
-    reaches;
+    reaches
     ensures result == 1;
 }
 
 boundary trait Supplied {
     machine value() -> u32
-    reaches;
+    reaches
     ensures result == 0;
 }
 
@@ -263,7 +264,7 @@ for this scoped exception to the ordinary refutable-claim veto.
 `reaches` is an optional ceiling on a checked body's complete service reach.
 Without a clause, infer the row from direct boundary calls and ordinary callees,
 whether the body is private, an exported library API or an application entry.
-An explicit `reaches A + B` permits a body reaching only `A`; `reaches;`
+An explicit `reaches A + B` permits a body reaching only `A`; bare `reaches`
 permits no services and rejects hidden transitive use. Boundary-trait machine
 requirements must declare their ceiling, including an explicit empty one.
 Implementations must fit that requirement regardless of their own annotations.

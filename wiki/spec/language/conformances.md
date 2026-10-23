@@ -233,7 +233,7 @@ unproved relationship as though it were checked conformance evidence.
 ```omega
 public trait LocalLogger = Logger {
     machine *
-        reaches;
+        reaches
         suspends false;
         blocks false;
         terminates;
@@ -254,7 +254,7 @@ order-independent meet and expand before normalization and fingerprinting.
 Omission here means inheritance, unlike the omission rules of an ordinary
 machine contract. `suspends false` and `blocks false` explicitly remove those
 possibilities; crash refinement may disprove inherited route predicates.
-`reaches;` is empty. `reaches _;` introduces an independent abstract row for that
+Bare `reaches` is empty. `reaches _` introduces an independent abstract row for that
 requirement bounded by the inherited row; it does not correlate different
 requirements. This refinement-local bound is not an installation requirement's
 `reaches <= Bound` row and grants no unresolved ordinary exported row variable.
