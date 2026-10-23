@@ -1,0 +1,31 @@
+// Fact: 8-bit unsigned exact subtraction lhs - rhs with 100u8 <= lhs <= 180u8 and 20u8 <= rhs <= 40u8 establishes 60u8 <= diff <= 160u8 so 160u8 - diff and diff - 60u8 are safe.
+// Place: field (invalid twin). The lhs upper bound is widened to 181u8 so diff reaches 161u8, underflowing 160u8 - diff.
+// Expected diagnostic: may overflow `u8`
+
+data SubPacket {
+    lhs: u8;
+    rhs: u8;
+}
+
+machine sub_field(packet: SubPacket) -> u8
+requires packet.lhs >= 100 && packet.lhs <= 181 && packet.rhs >= 20 && packet.rhs <= 40
+{
+    let diff: u8 = packet.lhs - packet.rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
+}
+
+machine probe() -> u8 {
+    let packet: SubPacket = SubPacket { lhs: 140u8, rhs: 30u8 };
+    sub_field(packet)
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

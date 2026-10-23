@@ -1,0 +1,31 @@
+// Fact: 8-bit unsigned exact subtraction lhs - rhs with 100u8 <= lhs <= 180u8 and 20u8 <= rhs <= 40u8 establishes 60u8 <= diff <= 160u8 so 160u8 - diff and diff - 60u8 are safe.
+// Place: another machine. An intermediate forwarding machine receives and passes bounded 8-bit operands to subtraction.
+// Expected exit: 0
+
+machine forward_sub(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let diff: u8 = lhs - rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
+}
+
+machine sub_machine(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    forward_sub(lhs, rhs)
+}
+
+machine probe() -> u8 {
+    sub_machine(140u8, 30u8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

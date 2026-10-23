@@ -1,0 +1,25 @@
+// Fact: 8-bit unsigned exact subtraction lhs - rhs with 100u8 <= lhs <= 180u8 and 20u8 <= rhs <= 40u8 establishes 60u8 <= diff <= 160u8 so 160u8 - diff and diff - 60u8 are safe.
+// Place: parameter. Explicit machine parameters receive bounded 8-bit operands before subtraction and interval discharge.
+// Expected exit: 0
+
+machine sub_param(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let diff: u8 = lhs - rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
+}
+
+machine probe() -> u8 {
+    sub_param(140u8, 30u8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
