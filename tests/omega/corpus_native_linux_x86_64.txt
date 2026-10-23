@@ -778,6 +778,9 @@ pass/calls/scalar_local_record_view_call_exit built 14813ms exit:70 @6c49683ce71
 pass/calls/scalar_range_argument_exit built 15083ms exit:70 @6c49683ce714
 pass/calls/scalar_return_after_unit_call_exit built 15260ms exit:42 @6c49683ce714
 pass/calls/scalar_unit_call_state_forward_exit built 17717ms exit:0 @6c49683ce714
+pass/calls/selected_crash_formal_permitted_crash built 2606ms exit:signal signal:4 @22e86f6683cb
+pass/calls/selected_crash_formal_permitted_return_exit built 2720ms exit:0 @22e86f6683cb
+pass/calls/selected_crash_formal_saved_argument_exit built 2610ms exit:0 @22e86f6683cb
 pass/calls/serviceful_borrowed_scalar_exit built 7559ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/state_and_machine_names_exit built 17510ms exit:0 @6c49683ce714
 pass/calls/state_graph_callee_forwards_mut_parameter_exit built 14837ms exit:70 @6c49683ce714
@@ -1696,6 +1699,15 @@ pass/facts/opaque_inactive_carrier_payload_exit built 53162ms exit:70 @4bae60101
 pass/facts/opaque_nested_carrier_exchange_exit built 155651ms exit:70 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @4bae60101579
 pass/facts/opaque_wrapped_carrier_exchange_exit built 64992ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579
 pass/facts/returned_write_destination_through_match_join_exit built 7332ms exit:0 @adb7b6ab515b+wt
+pass/facts/selected_crash_formal_through_call_result_exit built 2682ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_const_name_exit built 2539ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_field_exit built 2436ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_local_exit built 2539ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_match_join_exit built 3170ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_other_machine_exit built 2608ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_other_state_exit built 2427ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_parameter_exit built 2461ms exit:0 @22e86f6683cb
+pass/facts/selected_crash_formal_through_target_body_exit built 2603ms exit:0 @22e86f6683cb
 pass/facts/selected_native_code_layout_through_call_result_exit built 7797ms exit:0 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_const_name_exit built 8132ms exit:0 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_field_exit built 7848ms exit:0 @b2bd1ba421fd+wt

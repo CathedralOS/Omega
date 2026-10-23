@@ -974,6 +974,8 @@ fail/calls/retired_core_binding_local rejected 274ms expected @f74c72195fbf
 	machine `invalid` state `entry` local data `slot` references unknown generic type `Binding`
 fail/calls/retired_core_binding_parameter rejected 254ms expected @f74c72195fbf
 	machine `invalid` state `entry` parameter `slot` references unknown generic type `Binding`
+fail/calls/selected_crash_formal_stale_argument_rejected rejected 2230ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/calls/selected_local_owner_reuse rejected 1452ms expected @4a9ab33501da+wt
 	cannot use `token` in machine `choose` state `entry` (statement 1) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/calls/selector_field_predicate_upper_bound rejected 178ms expected @12d4cf2df172+wt
@@ -8225,6 +8227,27 @@ fail/facts/scoped_scalar_initializer_through_parameter_rejected rejected 5002ms 
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
 fail/facts/scoped_scalar_initializer_through_target_body_rejected rejected 5121ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
+fail/facts/selected_crash_formal_through_call_result_rejected rejected 2024ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_const_name_rejected rejected 2021ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_field_rejected rejected 2148ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_local_rejected rejected 2188ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_match_join_rejected rejected 2097ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_other_machine_rejected rejected 2203ms expected @22e86f6683cb
+	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_other_state_rejected rejected 2086ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_parameter_rejected rejected 1933ms expected @22e86f6683cb
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_target_body_rejected rejected 2059ms expected @22e86f6683cb
+	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/selected_native_code_layout_through_call_result_rejected rejected 45ms expected @b9f8d3719246+wt
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_const_name_rejected rejected 62ms expected @b9f8d3719246+wt
@@ -15476,6 +15499,9 @@ pass/calls/scalar_local_record_view_call_exit checked 13471ms check-target:macos
 pass/calls/scalar_range_argument_exit checked 12760ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/scalar_return_after_unit_call_exit checked 12176ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/scalar_unit_call_state_forward_exit checked 13608ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/selected_crash_formal_permitted_crash checked 2874ms check-target:macos_arm64 @22e86f6683cb
+pass/calls/selected_crash_formal_permitted_return_exit checked 2872ms check-target:macos_arm64 @22e86f6683cb
+pass/calls/selected_crash_formal_saved_argument_exit checked 2886ms check-target:macos_arm64 @22e86f6683cb
 pass/calls/serviceful_borrowed_scalar_exit checked 12241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/state_and_machine_names_exit checked 12329ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 12332ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -18937,6 +18963,15 @@ pass/facts/scoped_scalar_initializer_through_other_machine_exit checked 55445ms 
 pass/facts/scoped_scalar_initializer_through_other_state_exit checked 56028ms check-target:macos_arm64 @81d9bd48f2a9+wt
 pass/facts/scoped_scalar_initializer_through_parameter_exit checked 55553ms check-target:macos_arm64 @81d9bd48f2a9+wt
 pass/facts/scoped_scalar_initializer_through_target_body_exit checked 55417ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/selected_crash_formal_through_call_result_exit checked 2901ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_const_name_exit checked 2681ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_field_exit checked 2418ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_local_exit checked 2494ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_match_join_exit checked 2500ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_other_machine_exit checked 2494ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_other_state_exit checked 2480ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_parameter_exit checked 2600ms check-target:macos_arm64 @22e86f6683cb
+pass/facts/selected_crash_formal_through_target_body_exit checked 2540ms check-target:macos_arm64 @22e86f6683cb
 pass/facts/selected_native_code_layout_through_call_result_exit checked 7955ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_const_name_exit checked 7952ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_field_exit checked 8011ms check-target:macos_arm64 @b9f8d3719246+wt
