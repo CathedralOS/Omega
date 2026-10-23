@@ -94,6 +94,23 @@ impl PreparedScalarQualifications {
                 );
             }
         }
+        for symbol in bodies {
+            let machine = checked.machine(*symbol).ok_or(LoweringError::Unsupported(
+                "scalar qualification closure lost a local's machine",
+            ))?;
+            for state in checked.machine_states(machine) {
+                references.extend(
+                    checked
+                        .facts
+                        .state_locals
+                        .locals(state.symbol)
+                        .iter()
+                        .filter(|local| local.is_scalar_value && !local.type_is_inferred)
+                        .map(|local| local.declared_type)
+                        .filter(|reference| carries_scalar_qualifications(checked, *reference)),
+                );
+            }
+        }
         let plans = &checked.facts.values.scalar_computations;
         let roots = plans
             .roots

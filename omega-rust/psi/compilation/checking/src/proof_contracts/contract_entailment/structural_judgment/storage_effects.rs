@@ -588,6 +588,34 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// Initialization installs the completed value after its operand effects.
+    /// An earlier opaque write may have retired this declaration's entry
+    /// observation before the binding existed; it cannot retire a later
+    /// completed initializer. Future writes still invalidate this current home.
+    pub(in crate::proof_contracts::contract_entailment) fn observe_completed_binding(
+        &mut self,
+        symbol: SymbolHandle,
+        reference: TypeReferenceHandle,
+        value: super::StructuralTerm,
+    ) {
+        if !self.requires_value_preservation()
+            || !symbol.is_valid()
+            || !self
+                .frame_resolver()
+                .is_some_and(|frames| frames.value_is_reference_free(reference))
+        {
+            return;
+        }
+        self.retain_storage_value(
+            CapturedStorageCoordinate {
+                root: facts::PlaceRoot::Symbol(symbol),
+                segments: Vec::new(),
+            },
+            value,
+            false,
+        );
+    }
+
     /// Rejoin a normalized content projection to the completed read of that
     /// exact parameter place and revision. This supplies no arithmetic or loan
     /// authority; absent reads and retired current values remain unavailable.

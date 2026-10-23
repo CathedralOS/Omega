@@ -17,6 +17,95 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::unit::attached_unit::OperationEnvironment;
 
 impl Evaluation {
+    /// Preserve a completed operand while its checked receiving declaration
+    /// introduces route-free membership on a fresh value. The ordinary
+    /// qualification emitter still rejects missing predicates and issuer proof.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn receiving_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        value: ValueDeclaration,
+        receiving_type: semantic_vocabulary::QualifiedScalarType,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        if value.value_type() == receiving_type {
+            return Ok(value);
+        }
+        if value.scalar_type != receiving_type.scalar_type {
+            return unsupported("scalar receiving membership changes its carrier");
+        }
+        let domains = |qualification: semantic_vocabulary::ScalarQualificationSetId| {
+            if qualification.is_empty() {
+                return Ok(&[][..]);
+            }
+            self.shared_qualifications
+                .catalog()
+                .sets
+                .iter()
+                .find(|set| set.id == qualification)
+                .map(|set| set.domains.as_slice())
+                .ok_or(LoweringError::Unsupported(
+                    "scalar receiving value lost its qualification set",
+                ))
+        };
+        let source_domains = domains(value.qualifications)?;
+        let receiving_domains = domains(receiving_type.qualifications)?;
+        if receiving_domains
+            .iter()
+            .all(|domain| source_domains.contains(domain))
+        {
+            // An ordinary receiving declaration cannot erase a stronger source.
+            return Ok(value);
+        }
+        // Stage the completed value, never its expression: destination
+        // qualification cannot repeat calls or observe mutable storage again.
+        values.push(value);
+        let source_types = values
+            .iter()
+            .map(|value| value.value_type())
+            .collect::<Vec<_>>();
+        let operand = crate::scalar_lowering::computations::parameters(&source_types)
+            .pop()
+            .ok_or(LoweringError::Unsupported(
+                "scalar receiving value lost its operand",
+            ))?;
+        let mut expansion = self.scalar_computation_expansion(
+            identities,
+            environment.checked,
+            &self.shared_qualifications,
+            environment.machine,
+            operations,
+        )?;
+        let qualification = expansion.qualification_edge(&source_types, value.value_type(), 0);
+        let entry = expansion.direct_value(&source_types, qualification, operand)?;
+        let states = expansion.finish();
+        let completed = self.single_completed_expansion(
+            identities,
+            environment.checked,
+            &states,
+            entry,
+            receiving_type,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+            "scalar receiving declaration has no completed value",
+            environment,
+        )?;
+        values.pop().ok_or(LoweringError::Unsupported(
+            "scalar receiving continuation lost its staged operand",
+        ))?;
+        Ok(completed)
+    }
+
     /// Consume an already retained computation over one captured formal frame.
     /// A fresh Expansion owns completion caches for this activation only: the
     /// same observation root at entry and on another arrival has new actuals.

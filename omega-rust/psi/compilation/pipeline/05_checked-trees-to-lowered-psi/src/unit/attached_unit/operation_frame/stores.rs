@@ -1183,6 +1183,31 @@ impl OperationFrame<'_, '_> {
             primitive_type,
             field_identity,
         )?;
+        let receiving_type = self
+            .evaluation
+            .shared_qualifications
+            .catalog()
+            .fields
+            .iter()
+            .find(|row| row.field == lowered.field)
+            .map(|row| row.value_type);
+        let value = if let Some(receiving_type) = receiving_type {
+            let (mut environment, emission) = self.reborrow().split();
+            emission.evaluation.receiving_value(
+                identities,
+                value,
+                receiving_type,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )?
+        } else {
+            value
+        };
         let path = crate::emission::runtime_elements::complete_path(
             std::mem::take(&mut lowered.steps),
             indexes,

@@ -2700,7 +2700,8 @@ impl Emission<'_, '_, '_> {
     /// `positions` records the saved-value remap for private control flow.
     pub(super) fn scalar_field_value(
         &mut self,
-        field_type: &terminal_psi::StructuralFieldType,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        field: &terminal_psi::StructuralFieldDeclaration,
         evaluated: ValueDeclaration,
         positions: &mut Vec<(usize, usize)>,
         field_index: usize,
@@ -2709,20 +2710,42 @@ impl Emission<'_, '_, '_> {
         // An atomic cell accepts its exact scalar initializer here, without
         // becoming an ordinary scalar field or acquiring event authority.
         // Records, selected cases and omitted-field zeroes share this check.
-        if field_type.scalar_type() != Some(evaluated.scalar_type) {
+        if field.field_type.scalar_type() != Some(evaluated.scalar_type) {
             return unsupported(
                 "field initializer requires its exact scalar carrier and range evidence",
             );
         }
+        let receiving_type = self
+            .evaluation
+            .shared_qualifications
+            .catalog()
+            .fields
+            .iter()
+            .find(|row| row.field == field.id)
+            .map(|row| row.value_type)
+            .unwrap_or(evaluated.value_type());
+        let evaluated = self.evaluation.receiving_value(
+            identities,
+            evaluated,
+            receiving_type,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            self.environment,
+        )?;
         positions.push((field_index, self.values.len()));
         self.values.push(evaluated);
-        let range_obligation = if terminal_semantics::scalar_field_requires_evidence(field_type) {
-            Some(obligation_id(allocate_dense(
-                &mut self.calls.next_obligation_identity,
-            )?))
-        } else {
-            None
-        };
+        let range_obligation =
+            if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
+                Some(obligation_id(allocate_dense(
+                    &mut self.calls.next_obligation_identity,
+                )?))
+            } else {
+                None
+            };
         Ok(terminal_psi::RecordFieldValue::Scalar {
             value: evaluated.id,
             range_obligation,

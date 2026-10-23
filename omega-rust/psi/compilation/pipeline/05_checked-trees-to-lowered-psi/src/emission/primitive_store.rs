@@ -170,6 +170,36 @@ pub(crate) fn emit_assignment(
         path: path.clone(),
     };
     let logical = logical_receiving.as_ref().unwrap_or(&physical);
+    let receiving_type = terminal_semantics::runtime_structural_field(
+        structural_types.iter(),
+        logical.root_type,
+        &logical.path,
+    )
+    .and_then(|field| {
+        evaluation
+            .shared_qualifications
+            .catalog()
+            .fields
+            .iter()
+            .find(|row| row.field == field.id)
+            .map(|row| row.value_type)
+    });
+    let value = if let Some(receiving_type) = receiving_type {
+        evaluation.receiving_value(
+            identities,
+            value,
+            receiving_type,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+            environment,
+        )?
+    } else {
+        value
+    };
     let logical_scalar = declared_restriction(logical, structural_types);
     let logical_restriction = receiving_restriction(logical, calls)?;
     if logical_restriction != logical_scalar && !preserves_byte_memberships {

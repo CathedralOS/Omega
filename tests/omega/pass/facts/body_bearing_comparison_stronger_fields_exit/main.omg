@@ -1,0 +1,43 @@
+// Equal f64-in-Marked carriers. The selected body returns false, the direct comparison is false, and the match arm misses with result 11.
+// Production: stronger_fields.
+// Expected exit: 0
+domain f64::Marked;
+domain f64::Extra;
+machine retained(value: f64 in Marked & Extra) -> bool { true }
+
+machine == f64::Marked::same(left: f64 in Marked, right: f64 in Marked) -> bool {
+    false
+}
+
+machine compare(left: f64 in Marked, right: f64 in Marked) -> bool {
+    left == right
+}
+
+machine choose(value: f64 in Marked, pattern: f64 in Marked) -> u64 {
+    match value { pattern -> 7, _ -> 11 }
+}
+
+machine hold(direct: bool) -> bool
+requires direct == false
+{
+    true
+}
+
+data Carriers [copy] {
+    left: f64 in Marked;
+    right: f64 in Marked;
+}
+
+machine main() crashes Trap {
+    let left: f64 in Marked & Extra = 1.0;
+    let right: f64 in Marked & Extra = 1.0;
+    let carriers: Carriers = Carriers { left: left, right: right };
+    let direct: bool = compare(carriers.left, carriers.right);
+    let matched: u64 = choose(carriers.left, carriers.right);
+    transition hold(direct) && matched == 11 && retained(left) && retained(right) {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

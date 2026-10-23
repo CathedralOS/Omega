@@ -101,7 +101,8 @@ impl emission::Emission<'_, '_, '_> {
                         source_count,
                     )?;
                     self.scalar_field_value(
-                        &target.field_type,
+                        identities,
+                        target,
                         evaluated,
                         &mut scalar_positions,
                         initialized.len(),
@@ -110,9 +111,10 @@ impl emission::Emission<'_, '_, '_> {
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                     if let Some(scalar_type) = target.field_type.scalar_type() {
                         self.zeroed_scalar_field(
+                            identities,
                             value,
                             scalar_type,
-                            &target.field_type,
+                            target,
                             &mut scalar_positions,
                             initialized.len(),
                         )?
@@ -188,9 +190,10 @@ impl emission::Emission<'_, '_, '_> {
     /// Records and mixed-case common fields use the same carrier/range join.
     pub(super) fn zeroed_scalar_field(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
         scalar_type: ScalarType,
-        field_type: &StructuralFieldType,
+        field: &terminal_psi::StructuralFieldDeclaration,
         positions: &mut Vec<(usize, usize)>,
         field_index: usize,
     ) -> Result<terminal_psi::RecordFieldValue, LoweringError> {
@@ -213,7 +216,8 @@ impl emission::Emission<'_, '_, '_> {
             self.operations,
         );
         self.scalar_field_value(
-            field_type,
+            identities,
+            field,
             ValueDeclaration {
                 qualifications: Default::default(),
                 id: zero,

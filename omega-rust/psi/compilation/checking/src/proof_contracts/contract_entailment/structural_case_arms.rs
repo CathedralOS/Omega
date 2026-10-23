@@ -571,7 +571,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         }
                     })?;
                     let mut leaves = Vec::new();
-                    for (value, outcome_judge) in outcomes {
+                    for (value, mut outcome_judge) in outcomes {
                         let mut pending_citations = pending_citations.clone();
                         if collect_citations
                             && !judge.has_runtime_body_values()
@@ -592,6 +592,11 @@ fn recognize_structural_state_leaves_from<'a>(
                         let mut environment = environment.clone();
                         environment.retain(|(name, _)| name != local.name.as_str());
                         if let Some(value) = value {
+                            outcome_judge.observe_completed_binding(
+                                local.symbol,
+                                local.type_reference,
+                                value.clone(),
+                            );
                             environment.push((local.name.as_str().to_owned(), value));
                         }
                         leaves.extend(recognize_structural_state_leaves_from(

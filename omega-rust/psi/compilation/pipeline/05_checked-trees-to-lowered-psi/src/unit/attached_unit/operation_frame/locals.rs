@@ -99,6 +99,33 @@ impl OperationFrame<'_, '_> {
         if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
+        let lowered = if let Some(local) = self
+            .checked
+            .facts
+            .state_locals
+            .at_statement(self.state, result.statement_index)
+            .filter(|local| !local.type_is_inferred)
+        {
+            let receiving_type = self
+                .evaluation
+                .shared_qualifications
+                .signature_value_type(self.checked, local.declared_type)?;
+            let (mut environment, emission) = self.reborrow().split();
+            emission.evaluation.receiving_value(
+                identities,
+                lowered,
+                receiving_type,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )?
+        } else {
+            lowered
+        };
         let lowered =
             self.refine_scalar_local_value(identities, result.statement_index, lowered)?;
         self.evaluation

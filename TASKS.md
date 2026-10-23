@@ -5456,14 +5456,16 @@ wait for Cathedral's instruction coverage. The interpreter is
     local copy drops Marked`). Measured at `2ece6cb7889b` on Intel macOS x86_64:
     nine of nine positives run `native exit 0` with `interp exit: 0`, nine of
     nine twins reject the obligation, and every retained artifact carries zero
-    `IeeeFloatCompare`. Open: the retained artifacts of `field` and
-    `other_state` are refused by codec foundation validation with
-    `scalar field write lacks its required domain identity` (minimal
-    reproduction: a domain-qualified scalar record field constructed from a
-    literal), so those two artifacts cannot be re-ingested from bytes although
-    both engines agree in memory; the emitted `EstablishRecord` scalar member and
-    the state-transition argument store must carry the receiving field's declared
-    qualification. A domain on an `f64` constant keeps
+    `IeeeFloatCompare`. The scalar receiving repair now carries the complete
+    recorded qualifications through explicit locals, record/case/default
+    construction and scalar field replacement; all nine artifacts re-ingest from
+    bytes. Same-folder default fields, case payloads, ordered mutable field calls,
+    saved field results and stronger-source controls exercise the other producers.
+    The ordered calls execute once each; a completed initializer owns its current
+    value after prior writes, while later alias writes invalidate current storage
+    and preserve detached snapshots. Every positive runs on both engines on
+    Windows x86_64; body-result twins and the overwritten-field control reject
+    their own obligation. Predicate, issuer and erasure controls remain enforced. A domain on an `f64` constant keeps
     the carrier's float encoding. Bodyless `float_comparison_route` stays
     on the comparison route (native exit 0, interpreter exit 0). A generic
     comparison body that returns false is recorded on the call, and the caller
@@ -5500,6 +5502,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     only the premise call's own `true`→`false` result changed. Re-measured at
     `8d202634513` with a producer built from that tree: identical verdicts
     (18 of 18 engine runs exit 0; nine of nine twins reject).
+    The pinned const-name place uses a named input constant. A supplied-callable
+    result constant remains open: `const DIRECT: bool = apply<witness>(true)`
+    refuses with `constant initializer call has no exact ordinary machine
+    declaration: selected MachineParameter`; preserve the callable selection
+    through constant evaluation.
     A call premise that is a static evidence argument is recorded on the
     selected realization: `samples/cli/facts/static_evidence_premise` exits 0
     on both engines through all nine places, and the caller reads
