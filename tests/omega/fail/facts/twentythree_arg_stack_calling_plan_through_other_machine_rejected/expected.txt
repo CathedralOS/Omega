@@ -1,0 +1,1 @@
+exact arithmetic in machine `forward23` state `entry` local `headroom` may overflow `u64`

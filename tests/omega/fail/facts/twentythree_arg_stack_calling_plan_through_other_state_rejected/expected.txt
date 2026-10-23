@@ -1,0 +1,1 @@
+exact arithmetic in machine `probe` state `step` local `headroom` may overflow `u64`
