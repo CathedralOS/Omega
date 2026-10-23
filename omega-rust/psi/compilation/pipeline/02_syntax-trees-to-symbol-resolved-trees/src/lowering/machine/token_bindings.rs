@@ -457,207 +457,100 @@ fn own_binders(
         .collect()
 }
 
-/// Whether `type_reference` names the declaration `home` anywhere in its
-/// structure: directly, behind a reference, as a generic base, as the
-/// constrained carrier, or as an array or slice element.
-fn names_symbol(
-    program: &SymbolResolvedTrees,
-    type_reference: &TypeReference,
-    home: SymbolHandle,
-) -> bool {
-    match type_reference {
-        TypeReference::Named { symbol, .. } => *symbol == home,
+/// One name position of an operand's resolved type reference.
+///
+/// [`name_positions`] owns the inventory; a rule states which positions it
+/// reads and how deep its reading reaches.
+enum TypePosition<'a> {
+    /// A `Named` type or a generic application's base (`Vec2` in `Vec2<T>`).
+    Declaration { symbol: SymbolHandle },
+    /// A dynamic-trait slot (`dyn Trait<..>`): a requirement the operand
+    /// satisfies, kept distinct from a declaration the operand itself names.
+    Trait { symbol: SymbolHandle },
+    /// A domain constraint's spelling (`i32 in Degrees`). A constraint is
+    /// still a name here; [`domains_named`] is the one place that joins a
+    /// spelling to the declarations it selects.
+    Domain { name: &'a str },
+}
+
+/// How deep a rule's reading reaches. The operand-telescope rules ask
+/// different questions, so their reading depths genuinely differ.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadingScope {
+    /// Every argument, including an instantiated `dyn` requirement's.
+    EveryArgument,
+    /// Generic application arguments; a `dyn` slot's arguments stay with the
+    /// rule that reads that requirement.
+    GenericArguments,
+    /// The reference, constrained-base, array and slice chain, with no
+    /// application arguments.
+    Chain,
+    /// References and constrained bases only, without elements: a carrier is a
+    /// named declaration, not an array or slice element.
+    HeadChain,
+}
+
+/// Every name position of one operand's resolved type reference, in operand
+/// order.
+///
+/// Every operand-telescope rule in this module reads the same closed
+/// inventory: a `Named` slot, a generic application's base and arguments, a
+/// dynamic-trait slot and arguments, a domain constraint's spelling, and the
+/// reference, constrained-base, array and slice chains. This is the one owner
+/// of that inventory; a new position is one edit here rather than five
+/// recursions kept in step by comment. Two facts are structural, not scope: a
+/// constraint reports its spelling without resolving it, and a constraint's
+/// own arguments parameterize the indexed family rather than joining the
+/// operand tuple, so they are never positions.
+fn name_positions<'program>(
+    program: &'program SymbolResolvedTrees,
+    reference: &'program TypeReference,
+    scope: ReadingScope,
+) -> Vec<TypePosition<'program>> {
+    let mut positions = Vec::new();
+    extend_name_positions(program, reference, scope, &mut positions);
+    positions
+}
+
+/// Append every position `scope` reaches, in operand order.
+fn extend_name_positions<'program>(
+    program: &'program SymbolResolvedTrees,
+    reference: &'program TypeReference,
+    scope: ReadingScope,
+    positions: &mut Vec<TypePosition<'program>>,
+) {
+    match reference {
+        TypeReference::Named { symbol, .. } => {
+            positions.push(TypePosition::Declaration { symbol: *symbol });
+        }
         TypeReference::Generic(generic) => {
-            generic.base_symbol == home
-                || program
-                    .child_type_references(generic.arguments)
-                    .iter()
-                    .any(|argument| names_symbol(program, argument, home))
+            positions.push(TypePosition::Declaration {
+                symbol: generic.base_symbol,
+            });
+            if matches!(
+                scope,
+                ReadingScope::EveryArgument | ReadingScope::GenericArguments
+            ) {
+                for argument in program.child_type_references(generic.arguments) {
+                    extend_name_positions(program, argument, scope, positions);
+                }
+            }
         }
         TypeReference::DynamicTrait {
             symbol, arguments, ..
         } => {
-            *symbol == home
-                || program
-                    .child_type_references(*arguments)
-                    .iter()
-                    .any(|argument| names_symbol(program, argument, home))
-        }
-        TypeReference::Reference(reference) => names_symbol(
-            program,
-            program.child_type_reference(reference.referee),
-            home,
-        ),
-        TypeReference::Constrained(constrained) => names_symbol(
-            program,
-            program.child_type_reference(constrained.base_type),
-            home,
-        ),
-        TypeReference::FixedArray(fixed_array) => names_symbol(
-            program,
-            program.child_type_reference(fixed_array.element_type),
-            home,
-        ),
-        TypeReference::Slice(slice) => names_symbol(
-            program,
-            program.child_type_reference(slice.element_type),
-            home,
-        ),
-        TypeReference::ConstExpression(_) | TypeReference::Unit => false,
-    }
-}
-
-/// Whether `type_reference` carries a domain constraint spelled as `domain_name`
-/// or its leaf (`i32 in Degrees` selects `i32::Degrees`), behind references
-/// and elements. Constraints are still names at this stage; the typed stage
-/// settles their symbols.
-fn qualified_by_domain(
-    program: &SymbolResolvedTrees,
-    type_reference: &TypeReference,
-    domain_name: &str,
-) -> bool {
-    let leaf = domain_name.rsplit("::").next().unwrap_or(domain_name);
-    match type_reference {
-        TypeReference::Constrained(constrained) => {
-            program
-                .tables
-                .types
-                .constraints
-                .span_or_empty(constrained.constraints)
-                .iter()
-                .any(|constraint| {
-                    matches!(
-                        constraint,
-                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
-                            if domain.name.as_str() == domain_name || domain.name.as_str() == leaf
-                    )
-                })
-                || qualified_by_domain(
-                    program,
-                    program.child_type_reference(constrained.base_type),
-                    domain_name,
-                )
-        }
-        TypeReference::Reference(reference) => qualified_by_domain(
-            program,
-            program.child_type_reference(reference.referee),
-            domain_name,
-        ),
-        TypeReference::FixedArray(fixed_array) => qualified_by_domain(
-            program,
-            program.child_type_reference(fixed_array.element_type),
-            domain_name,
-        ),
-        TypeReference::Slice(slice) => qualified_by_domain(
-            program,
-            program.child_type_reference(slice.element_type),
-            domain_name,
-        ),
-        TypeReference::Named { .. }
-        | TypeReference::Generic(_)
-        | TypeReference::DynamicTrait { .. }
-        | TypeReference::ConstExpression(_)
-        | TypeReference::Unit => false,
-    }
-}
-
-/// Whether `type_reference` names any authored declaration or a declared
-/// domain constraint. Builtin primitives resolve to `BuiltinType` symbols and
-/// generic binders to `TypeParameter` symbols; neither is a declaration that
-/// can own a family, so a telescope of only those has no home.
-fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> bool {
-    let is_declaration = |symbol: &SymbolHandle| {
-        symbol.is_valid()
-            && matches!(
-                program.symbols.get(*symbol).kind,
-                SymbolKind::Data | SymbolKind::Domain | SymbolKind::Trait
-            )
-    };
-    match type_reference {
-        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
-            is_declaration(symbol)
-        }
-        TypeReference::Generic(generic) => {
-            is_declaration(&generic.base_symbol)
-                || program
-                    .child_type_references(generic.arguments)
-                    .iter()
-                    .any(|argument| names_declaration(program, argument))
-        }
-        TypeReference::Reference(reference) => {
-            names_declaration(program, program.child_type_reference(reference.referee))
-        }
-        TypeReference::Constrained(constrained) => {
-            program
-                .tables
-                .types
-                .constraints
-                .span_or_empty(constrained.constraints)
-                .iter()
-                .any(|constraint| {
-                    matches!(
-                        constraint,
-                        symbol_resolved_trees::types::TypeConstraint::Domain(_)
-                    )
-                })
-                || names_declaration(program, program.child_type_reference(constrained.base_type))
-        }
-        TypeReference::FixedArray(fixed_array) => names_declaration(
-            program,
-            program.child_type_reference(fixed_array.element_type),
-        ),
-        TypeReference::Slice(slice) => {
-            names_declaration(program, program.child_type_reference(slice.element_type))
-        }
-        TypeReference::ConstExpression(_) | TypeReference::Unit => false,
-    }
-}
-
-/// Every declaration-owned symbol a type reference participates in, matching
-/// [`names_declaration`]'s walk: named data/domain/trait declarations, the
-/// declarations behind references, generic bases and arguments, array and
-/// slice elements, constrained bases, and the declared domains named by
-/// domain constraints. Domain constraint arguments parameterize the indexed
-/// family rather than joining it, so they are not homes.
-fn declared_operand_symbols(
-    program: &SymbolResolvedTrees,
-    type_reference: &TypeReference,
-) -> Vec<SymbolHandle> {
-    let mut symbols = Vec::new();
-    collect_declared_symbols(program, type_reference, &mut symbols);
-    symbols
-}
-
-fn collect_declared_symbols(
-    program: &SymbolResolvedTrees,
-    type_reference: &TypeReference,
-    symbols: &mut Vec<SymbolHandle>,
-) {
-    let is_declaration = |symbol: &SymbolHandle| {
-        symbol.is_valid()
-            && matches!(
-                program.symbols.get(*symbol).kind,
-                SymbolKind::Data | SymbolKind::Domain | SymbolKind::Trait
-            )
-    };
-    match type_reference {
-        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
-            if is_declaration(symbol) {
-                symbols.push(*symbol);
+            positions.push(TypePosition::Trait { symbol: *symbol });
+            if scope == ReadingScope::EveryArgument {
+                for argument in program.child_type_references(*arguments) {
+                    extend_name_positions(program, argument, scope, positions);
+                }
             }
         }
-        TypeReference::Generic(generic) => {
-            if is_declaration(&generic.base_symbol) {
-                symbols.push(generic.base_symbol);
-            }
-            for argument in program.child_type_references(generic.arguments) {
-                collect_declared_symbols(program, argument, symbols);
-            }
-        }
-        TypeReference::Reference(reference) => collect_declared_symbols(
+        TypeReference::Reference(inner) => extend_name_positions(
             program,
-            program.child_type_reference(reference.referee),
-            symbols,
+            program.child_type_reference(inner.referee),
+            scope,
+            positions,
         ),
         TypeReference::Constrained(constrained) => {
             for constraint in program
@@ -667,27 +560,126 @@ fn collect_declared_symbols(
                 .span_or_empty(constrained.constraints)
             {
                 if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint {
-                    symbols.extend(domains_named(program, domain.name.as_str()));
+                    positions.push(TypePosition::Domain {
+                        name: domain.name.as_str(),
+                    });
                 }
             }
-            collect_declared_symbols(
+            extend_name_positions(
                 program,
                 program.child_type_reference(constrained.base_type),
-                symbols,
+                scope,
+                positions,
             );
         }
-        TypeReference::FixedArray(fixed_array) => collect_declared_symbols(
-            program,
-            program.child_type_reference(fixed_array.element_type),
-            symbols,
-        ),
-        TypeReference::Slice(slice) => collect_declared_symbols(
+        TypeReference::FixedArray(fixed_array) if scope != ReadingScope::HeadChain => {
+            extend_name_positions(
+                program,
+                program.child_type_reference(fixed_array.element_type),
+                scope,
+                positions,
+            );
+        }
+        TypeReference::Slice(slice) if scope != ReadingScope::HeadChain => extend_name_positions(
             program,
             program.child_type_reference(slice.element_type),
-            symbols,
+            scope,
+            positions,
         ),
-        TypeReference::ConstExpression(_) | TypeReference::Unit => {}
+        TypeReference::FixedArray(_)
+        | TypeReference::Slice(_)
+        | TypeReference::ConstExpression(_)
+        | TypeReference::Unit => {}
     }
+}
+
+/// Whether `symbol` is an authored declaration that can own a closed
+/// family.
+fn is_declaration(program: &SymbolResolvedTrees, symbol: SymbolHandle) -> bool {
+    symbol.is_valid()
+        && matches!(
+            program.symbols.get(symbol).kind,
+            SymbolKind::Data | SymbolKind::Domain | SymbolKind::Trait
+        )
+}
+
+/// Whether `type_reference` names the declaration `home` anywhere in its
+/// structure: directly, behind a reference, as a generic base, as the
+/// constrained carrier, or as an array or slice element. Every argument
+/// position is read, including an instantiated `dyn` requirement's.
+fn names_symbol(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    home: SymbolHandle,
+) -> bool {
+    name_positions(program, type_reference, ReadingScope::EveryArgument)
+        .into_iter()
+        .any(|position| match position {
+            TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => symbol == home,
+            TypePosition::Domain { .. } => false,
+        })
+}
+
+/// Whether `type_reference` carries a domain constraint spelled as `domain_name`
+/// or its leaf (`i32 in Degrees` selects `i32::Degrees`), behind references,
+/// constrained bases, arrays and slices. Constraints are still names at this
+/// stage; the typed stage settles their symbols. An application's arguments
+/// are not constraint positions.
+fn qualified_by_domain(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    domain_name: &str,
+) -> bool {
+    let leaf = domain_name.rsplit("::").next().unwrap_or(domain_name);
+    name_positions(program, type_reference, ReadingScope::Chain)
+        .into_iter()
+        .any(|position| match position {
+            TypePosition::Domain { name } => name == domain_name || name == leaf,
+            TypePosition::Declaration { .. } | TypePosition::Trait { .. } => false,
+        })
+}
+
+/// Whether `type_reference` names any authored declaration or a declared
+/// domain constraint. Builtin primitives resolve to `BuiltinType` symbols and
+/// generic binders to `TypeParameter` symbols; neither is a declaration that
+/// can own a family, so a telescope of only those has no home. Generic
+/// application arguments are read; a `dyn` slot's arguments are left to the
+/// rule that reads that requirement.
+fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> bool {
+    name_positions(program, type_reference, ReadingScope::GenericArguments)
+        .into_iter()
+        .any(|position| match position {
+            TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
+                is_declaration(program, symbol)
+            }
+            // A constraint names a domain declaration; its spelling is settled
+            // against the declaration roster by `domains_named`.
+            TypePosition::Domain { .. } => true,
+        })
+}
+
+/// Every declaration-owned symbol a type reference participates in, over the
+/// walk [`names_declaration`] reads: named data/domain/trait declarations,
+/// the declarations behind references, generic bases and arguments, array and
+/// slice elements, constrained bases, and the declared domains named by
+/// domain constraints. Domain constraint arguments parameterize the indexed
+/// family rather than joining it, so they are not homes.
+fn declared_operand_symbols(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Vec<SymbolHandle> {
+    let mut symbols = Vec::new();
+    for position in name_positions(program, type_reference, ReadingScope::GenericArguments) {
+        match position {
+            TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
+                if is_declaration(program, symbol) {
+                    symbols.push(symbol);
+                }
+            }
+            TypePosition::Domain { name } => symbols.extend(domains_named(program, name)),
+        }
+    }
+    symbols
 }
 
 /// The declared domains a domain constraint spells. Constraint names match a
@@ -754,23 +746,17 @@ fn attached_domain<'program>(
 }
 
 /// The declaration a domain classifies: the named base of its target type,
-/// behind references and generic applications.
+/// behind references and constrained bases. An array or slice target has no
+/// carrier declaration -- the domain's own spelling qualifies an operand
+/// instead ([`qualified_by_domain`]).
 fn carrier_symbol(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> SymbolHandle {
-    match type_reference {
-        TypeReference::Named { symbol, .. } => *symbol,
-        TypeReference::Generic(generic) => generic.base_symbol,
-        TypeReference::Reference(reference) => {
-            carrier_symbol(program, program.child_type_reference(reference.referee))
-        }
-        TypeReference::Constrained(constrained) => {
-            carrier_symbol(program, program.child_type_reference(constrained.base_type))
-        }
-        TypeReference::DynamicTrait { .. }
-        | TypeReference::FixedArray(_)
-        | TypeReference::Slice(_)
-        | TypeReference::ConstExpression(_)
-        | TypeReference::Unit => SymbolHandle::invalid(),
-    }
+    name_positions(program, type_reference, ReadingScope::HeadChain)
+        .into_iter()
+        .find_map(|position| match position {
+            TypePosition::Declaration { symbol } => Some(symbol),
+            TypePosition::Trait { .. } | TypePosition::Domain { .. } => None,
+        })
+        .unwrap_or(SymbolHandle::invalid())
 }
 
 /// Give every domain that owns a token-bearing machine its denotation role,

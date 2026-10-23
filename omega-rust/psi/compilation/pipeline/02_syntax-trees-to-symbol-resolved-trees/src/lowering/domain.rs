@@ -207,33 +207,6 @@ fn lower_domain_operators(
     Ok(span)
 }
 
-/// The indexed application on a membership fact lowers exactly like a domain
-/// constraint's arguments: each argument becomes a child type reference and
-/// its retained const-argument selections keep their slot custody.
-fn lower_membership_domain_arguments(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
-) -> Result<arena::HandleSpan<symbol_resolved_trees::types::TypeReference>, Diagnostic> {
-    if arguments.is_empty() {
-        return Ok(arena::HandleSpan::empty());
-    }
-    let selection_start = lowerer.pending_const_argument_selections.len();
-    let lowered = crate::lowering::type_reference::lower_child_type_references(
-        lowerer,
-        syntax_trees,
-        arguments,
-    )?;
-    crate::lowering::type_reference::retain_const_argument_slots(
-        lowerer,
-        syntax_trees,
-        arguments,
-        lowered,
-        selection_start,
-    );
-    Ok(lowered)
-}
-
 pub(crate) fn lower_proof_facts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -285,11 +258,12 @@ pub(crate) fn lower_proof_facts_excluding(
                         .domain_path_members
                         .append_to_span(&mut domain, lower_name(syntax_trees, member));
                 }
-                let domain_arguments = lower_membership_domain_arguments(
-                    lowerer,
-                    syntax_trees,
-                    membership.domain_arguments,
-                )?;
+                let domain_arguments =
+                    crate::lowering::type_reference::lower_indexed_application_arguments(
+                        lowerer,
+                        syntax_trees,
+                        membership.domain_arguments,
+                    )?;
                 ProofFact::Membership(ProofMembershipFact {
                     value,
                     domain,

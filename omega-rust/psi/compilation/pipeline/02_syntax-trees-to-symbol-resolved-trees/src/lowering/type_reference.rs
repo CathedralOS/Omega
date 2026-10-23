@@ -249,15 +249,8 @@ fn lower_type_reference_node(
                 *arguments,
                 lowerer.constant_selection.as_ref(),
             )?;
-            let selection_start = lowerer.pending_const_argument_selections.len();
-            let lowered_arguments = lower_child_type_references(lowerer, syntax_trees, *arguments)?;
-            retain_const_argument_slots(
-                lowerer,
-                syntax_trees,
-                *arguments,
-                lowered_arguments,
-                selection_start,
-            );
+            let lowered_arguments =
+                lower_indexed_application_arguments(lowerer, syntax_trees, *arguments)?;
             Ok(TypeReference::Generic(GenericTypeReference {
                 storage: GenericTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
@@ -423,15 +416,8 @@ fn lower_type_constraint_handle(
             crate::lowering::name::lower_name(syntax_trees, name),
         )),
         syntax::types::TypeConstraintNode::Domain(domain) => {
-            let selection_start = lowerer.pending_const_argument_selections.len();
-            let arguments = lower_child_type_references(lowerer, syntax_trees, domain.arguments)?;
-            retain_const_argument_slots(
-                lowerer,
-                syntax_trees,
-                domain.arguments,
-                arguments,
-                selection_start,
-            );
+            let arguments =
+                lower_indexed_application_arguments(lowerer, syntax_trees, domain.arguments)?;
             Ok(TypeConstraint::Domain(
                 symbol_resolved_trees::types::DomainConstraint {
                     name: crate::lowering::name::lower_name(syntax_trees, &domain.name),
@@ -456,6 +442,22 @@ fn lower_type_constraint_handle(
             Ok(TypeConstraint::ArithmeticDomain(*domain))
         }
     }
+}
+
+/// Lower one indexed application's argument positions: every argument becomes
+/// a child type reference, and the const-argument selections the arguments
+/// retain receive the slot custody that ties each value to the parameter that
+/// received it. Ordinary data applications, indexed domain constraints and
+/// membership facts all read their arguments through this one operation.
+pub(crate) fn lower_indexed_application_arguments(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
+) -> Result<HandleSpan<TypeReference>, Diagnostic> {
+    let selection_start = lowerer.pending_const_argument_selections.len();
+    let lowered = lower_child_type_references(lowerer, syntax_trees, arguments)?;
+    retain_const_argument_slots(lowerer, syntax_trees, arguments, lowered, selection_start);
+    Ok(lowered)
 }
 
 // Both ordinary data applications and indexed domain constraints own their
