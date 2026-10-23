@@ -436,20 +436,12 @@ fn whole_program_member_type_position(
         }
     }
 
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return Some(MemberPosition::Reference(field.type_reference));
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program.data_payload_field_by_symbol(variant, symbol) {
-                        return Some(MemberPosition::Reference(field.type_reference));
-                    }
-                }
-                _ => {}
-            }
-        }
+    // The declaring row for either member kind comes from the
+    // representation's indexed field table: its first position per symbol is
+    // the first field a whole-roster walk visits, in definition, member and
+    // payload order.
+    if let Some((_, field)) = program.any_field_owner(symbol) {
+        return Some(MemberPosition::Reference(field.type_reference));
     }
 
     None

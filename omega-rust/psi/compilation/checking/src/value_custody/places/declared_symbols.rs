@@ -160,33 +160,21 @@ pub fn nearest_scoped_local(
 /// The checked identity string a place segment's member symbol carries: the
 /// field's declared `#identity` when present, else its authored name — the
 /// spelling `structural_parameter_place` produces, so a transported leaf
-/// resolves to the same canonical storage.
+/// resolves to the same canonical storage. The representation's indexed
+/// member tables answer both member kinds by symbol, so the declaring row
+/// comes from them rather than from a roster scan that repeats their order.
 pub fn structural_member_identity(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<checked_trees::CheckedMemberIdentity> {
-    program.data_definitions().iter().find_map(|data| {
-        program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    Some(field.member_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    Some(variant.member_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_field_by_symbol(variant, symbol)
-                    .map(|field| {
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        )
-                    }),
-                typed_trees::data::DataMember::Field(_) => None,
-            })
-    })
+    program
+        .any_field_owner(symbol)
+        .map(|(_, field)| field.member_identity())
+        .or_else(|| {
+            program
+                .variant_owner(symbol)
+                .map(|(_, variant)| variant.member_identity())
+        })
 }
 
 /// The field or variant member `member_name` declares on `data`, by symbol.
@@ -226,10 +214,12 @@ pub fn declared_data_type(
             if symbol.is_valid()
                 && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data =>
         {
+            // The declaration index answers the row; the authored name stays
+            // part of the premise, so a stale reference cannot borrow a row
+            // that carries the symbol under another spelling.
             program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol && definition.name == *name)
+                .data_definition_by_symbol(*symbol)
+                .filter(|definition| definition.name == *name)
         }
         _ => None,
     }

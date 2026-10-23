@@ -113,10 +113,7 @@ pub fn declared_case_projection_field<'program>(
             return applied_data_member_field(program, receiver_type, member);
         }
     };
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|definition| receiver_symbol.is_valid() && definition.symbol == receiver_symbol)?;
+    let data = program.data_definition_by_symbol(receiver_symbol)?;
     // Ordinary member symbols may identify synthesized accessors. Payload
     // symbols, when present, identify the field under this exact case.
     let field_symbol = if member.case_variant.is_some() {

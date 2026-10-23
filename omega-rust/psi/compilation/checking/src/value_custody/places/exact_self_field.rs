@@ -71,13 +71,6 @@ pub fn exact_attached_field<'program>(
     if !machine.symbol.is_valid() || !machine.attached_data_symbol.is_valid() {
         return None;
     }
-    let mut owners = program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == machine.attached_data_symbol);
-    let owner = owners.next()?;
-    if owners.next().is_some() {
-        return None;
-    }
+    let owner = super::unique_data_definition_by_symbol(program, machine.attached_data_symbol)?;
     exact_data_member_field(program, owner, field_symbol, field_name, None)
 }
