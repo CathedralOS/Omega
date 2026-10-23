@@ -8,6 +8,7 @@ mod compute;
 mod error;
 mod validation;
 
+use crate::WorkDefect;
 pub(crate) use error::FixedPrecoloredSplitRequirementError;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::FixedPrecoloredSplitRequirementPolicy;
@@ -158,7 +159,8 @@ pub(super) fn site_point(site: selected_instructions::VirtualFixedConstraintSite
 }
 
 /// Total early-clobber uses across a function's live ranges — the work
-/// accounting both passes charge identically.
+/// accounting both passes charge identically. The count stays exact: an
+/// overflow is a refusal through the shared work defect, not a wrapped total.
 pub(super) fn early_clobber_uses(
     ranges: &selected_instructions::FunctionLiveRanges,
 ) -> Result<usize, FixedPrecoloredSplitRequirementError> {
@@ -166,7 +168,7 @@ pub(super) fn early_clobber_uses(
     for row in &ranges.early_clobbers {
         use_count = use_count
             .checked_add(row.uses.len())
-            .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
+            .ok_or(WorkDefect::Overflow)?;
     }
     Ok(use_count)
 }

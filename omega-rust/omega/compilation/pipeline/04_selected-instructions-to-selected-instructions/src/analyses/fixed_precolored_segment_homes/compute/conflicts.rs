@@ -7,7 +7,7 @@ use register_homes::FixedPrecoloredHomeDomainId;
 use selected_instructions::{FunctionLiveRanges, VirtualInterference};
 
 use super::super::domains::Domain;
-use super::super::work::Work;
+use crate::work_accounting::Work;
 
 type DomainPair = (FixedPrecoloredHomeDomainId, FixedPrecoloredHomeDomainId);
 type ViewConflict = (
@@ -76,7 +76,8 @@ pub(super) fn build(
     let mut conflicting = BTreeMap::<DomainView, Vec<DomainView>>::new();
     for left_index in 0..domains.len() {
         for right_index in left_index + 1..domains.len() {
-            work.pair()?;
+            work.validation_steps(1)?;
+            work.iterations(1)?;
             let left = &domains[left_index];
             let right = &domains[right_index];
             if !live_overlap(left, right) || !registers_interfere(left, right, &ranges.interference)
@@ -87,7 +88,8 @@ pub(super) fn build(
             for &left_candidate in &left.candidates {
                 let left_view = checked_view(function, left, left_candidate, physical)?;
                 for &right_candidate in &right.candidates {
-                    work.candidate_pair()?;
+                    work.candidates(1)?;
+                    work.validation_steps(1)?;
                     let right_view = checked_view(function, right, right_candidate, physical)?;
                     if left_view.footprints_overlap(right_view) {
                         views.insert((left.id, left_candidate, right.id, right_candidate));

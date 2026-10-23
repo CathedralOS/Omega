@@ -7,8 +7,8 @@ use register_homes::{
 use selected_instructions::FunctionLiveRanges;
 
 use super::super::domains;
-use super::super::work::Work;
 use super::{conflicts, placement};
+use crate::work_accounting::Work;
 
 pub(super) fn derive(
     requirements: &[FunctionFixedPrecoloredSplitRequirements],

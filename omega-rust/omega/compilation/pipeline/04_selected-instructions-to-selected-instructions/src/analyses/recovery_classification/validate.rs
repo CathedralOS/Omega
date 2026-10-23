@@ -7,16 +7,12 @@ use register_homes::{
 };
 
 /// Admit a freshly produced plan with its receipt; the producer calls this
-/// instead of replaying its own output.
+/// instead of replaying its own output, and the work accounting this plan was
+/// produced under already admitted its exact total, so this seal does not
+/// repeat that admission.
 pub(crate) fn seal_recovery_classifications(
     plan: RecoveryClassificationPlan,
 ) -> Result<ValidatedRecoveryClassifications, RecoveryClassificationError> {
-    if !plan.usage.within(plan.budget) {
-        return Err(RecoveryClassificationError::BudgetExceeded {
-            required: plan.usage,
-            budget: plan.budget,
-        });
-    }
     let classification_count = plan
         .functions
         .iter()

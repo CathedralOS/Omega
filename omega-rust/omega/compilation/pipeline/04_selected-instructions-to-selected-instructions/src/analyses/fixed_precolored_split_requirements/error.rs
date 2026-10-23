@@ -1,4 +1,4 @@
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use crate::WorkDefect;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedPrecoloredSplitRequirementError {
@@ -51,11 +51,9 @@ pub enum FixedPrecoloredSplitRequirementError {
         function: usize,
         register: u32,
     },
-    WorkOverflow,
-    BudgetExceeded {
-        required: OptimizationWorkUsage,
-        budget: OptimizationWorkBudget,
-    },
+    /// Bounded work accounting refused: the logical receipt overflowed or
+    /// exceeded the selected budget.
+    Work(WorkDefect),
     UsageMismatch,
     NonCanonicalFunctions,
 }

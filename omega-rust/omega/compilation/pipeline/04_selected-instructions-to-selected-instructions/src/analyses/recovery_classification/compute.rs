@@ -24,13 +24,7 @@ pub(crate) fn compute_terminal_recovery_classifications<S: ValidatedSelectedAnal
     if policy != RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1 {
         return Err(RecoveryClassificationError::UnsupportedPolicy);
     }
-    let usage = work_usage::required(selected, ranges, spill_choices)?;
-    if !usage.within(budget) {
-        return Err(RecoveryClassificationError::BudgetExceeded {
-            required: usage,
-            budget,
-        });
-    }
+    let usage = work_usage::required(selected, ranges, spill_choices, budget)?;
     let functions = selected
         .selected_plan()
         .functions

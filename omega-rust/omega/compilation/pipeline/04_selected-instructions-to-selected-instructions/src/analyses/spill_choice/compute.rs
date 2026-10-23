@@ -9,6 +9,7 @@ use register_model::{
 };
 use selected_instructions::VirtualRegisterId;
 
+use crate::work_accounting::{Work, count};
 use crate::{SpillChoiceError, ValidatedAllocationLegality, ValidatedLiveRanges};
 use register_homes::{
     FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
@@ -23,32 +24,6 @@ struct ActiveHome {
     start: LiveRangePoint,
     end: LiveRangePoint,
     view: RegisterViewId,
-}
-
-#[derive(Default)]
-struct WorkCounter {
-    rule_evaluations: u64,
-    candidates: u64,
-    validation_steps: u64,
-    commits: u64,
-}
-
-impl WorkCounter {
-    fn add(value: &mut u64, amount: u64) -> Result<(), SpillChoiceError> {
-        *value = value
-            .checked_add(amount)
-            .ok_or(SpillChoiceError::WorkOverflow)?;
-        Ok(())
-    }
-    fn usage(&self) -> OptimizationWorkUsage {
-        OptimizationWorkUsage {
-            rule_evaluations: self.rule_evaluations,
-            candidates: self.candidates,
-            validation_steps: self.validation_steps,
-            commits: self.commits,
-            iterations: 1,
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -75,7 +50,12 @@ pub(crate) fn compute_terminal_spill_choices(
     if policy != SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1 {
         return Err(SpillChoiceError::UnsupportedPolicy);
     }
-    let mut work = WorkCounter::default();
+    // The stage's exact starting receipt; the iteration is part of the
+    // logical total the plan publishes, so it is never implicit.
+    let mut work = Work::new(OptimizationWorkUsage {
+        iterations: 1,
+        ..Default::default()
+    });
     let mut functions = Vec::with_capacity(legality.plan().functions.len());
     for (function_index, (legality_function, range_function)) in legality
         .plan()
@@ -93,13 +73,7 @@ pub(crate) fn compute_terminal_spill_choices(
             &mut work,
         )?);
     }
-    let usage = work.usage();
-    if !usage.within(budget) {
-        return Err(SpillChoiceError::BudgetExceeded {
-            required: usage,
-            budget,
-        });
-    }
+    let usage = work.finish(budget)?;
     Ok(SpillChoicePlan {
         legality: legality.receipt().identity(),
         ranges: ranges.receipt().identity(),
@@ -160,7 +134,7 @@ fn compute_function(
     legality: &register_homes::FunctionAllocationLegality,
     ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
-    work: &mut WorkCounter,
+    work: &mut Work,
 ) -> Result<FunctionSpillChoices, SpillChoiceError> {
     if legality.machine != ranges.machine
         || legality.virtual_registers.len() != ranges.virtual_registers.len()
@@ -192,7 +166,7 @@ fn compute_function(
     // early definition already seated still forbids an incoming use.
     let mut assigned = Vec::<(VirtualRegisterId, RegisterViewId)>::new();
     for (position, start, end) in order {
-        WorkCounter::add(&mut work.rule_evaluations, 1)?;
+        work.rule_evaluations(1)?;
         let register = &legality.virtual_registers[position];
         let range = ranges
             .virtual_registers
@@ -214,7 +188,7 @@ fn compute_function(
         let candidates = common_candidates(function_index, register)?;
         let mut selected = None;
         for candidate in &candidates {
-            WorkCounter::add(&mut work.validation_steps, 1)?;
+            work.validation_steps(1)?;
             let view = checked_view(
                 function_index,
                 register.virtual_register,
@@ -326,7 +300,7 @@ fn compute_function(
         for resident in &active {
             let mut reclaimed = None;
             for candidate in &candidates {
-                WorkCounter::add(&mut work.validation_steps, 1)?;
+                work.validation_steps(1)?;
                 let view = checked_view(
                     function_index,
                     register.virtual_register,
@@ -355,11 +329,8 @@ fn compute_function(
             }
         }
         contenders.sort_by_key(|contender| contender.virtual_register);
-        WorkCounter::add(
-            &mut work.candidates,
-            u64::try_from(contenders.len()).map_err(|_| SpillChoiceError::WorkOverflow)?,
-        )?;
-        WorkCounter::add(&mut work.commits, 1)?;
+        work.candidates(count(contenders.len())?)?;
+        work.commits(1)?;
         let selected_victim = contenders
             .iter()
             .max_by_key(|contender| (contender.exclusive_end, contender.virtual_register))

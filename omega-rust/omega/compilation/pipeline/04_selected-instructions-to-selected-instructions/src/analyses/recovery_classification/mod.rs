@@ -8,7 +8,7 @@ use register_homes::RecoveryClassificationPolicy;
 pub(crate) mod compute;
 pub(crate) mod validate;
 
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
     RecoveryClassificationPlan, SpillChoiceIdentity,
@@ -16,6 +16,8 @@ use register_homes::{
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
+
+use crate::WorkDefect;
 
 /// Classify an already selected pressure victim under one exact recovery
 /// eligibility policy without selecting or applying a recovery strategy.
@@ -103,11 +105,9 @@ impl ValidatedRecoveryClassifications {
 pub enum RecoveryClassificationError {
     RootMismatch,
     UnsupportedPolicy,
-    WorkOverflow,
-    BudgetExceeded {
-        required: OptimizationWorkUsage,
-        budget: OptimizationWorkBudget,
-    },
+    /// Bounded work accounting refused: the logical receipt overflowed or
+    /// exceeded the selected budget.
+    Work(WorkDefect),
     FunctionMismatch {
         function: usize,
     },

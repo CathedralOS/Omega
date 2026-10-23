@@ -13,7 +13,8 @@ use register_homes::{
 };
 use selected_instructions::{LiveRangeFragment, LiveRangePoint, VirtualLiveRange};
 
-use super::{cuts::CutIndex, topology, work::Work};
+use super::{cuts::CutIndex, topology};
+use crate::work_accounting::{Work, WorkDefect, count};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn register(
@@ -24,11 +25,12 @@ pub(super) fn register(
     tied: bool,
     work: &mut Work,
 ) -> Result<FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSplitRequirementError> {
-    work.register(
-        fixed.len(),
-        range.edge_connectors.len(),
-        legality.entry_transitions.len(),
-    )?;
+    work.rule_evaluations(1)?;
+    work.validation_steps(1)?;
+    work.validation_steps(count(fixed.len())?)?;
+    work.validation_steps(count(range.edge_connectors.len())?)?;
+    work.validation_steps(count(legality.entry_transitions.len())?)?;
+    work.iterations(1)?;
     let register = range.virtual_register.0;
     if range.virtual_register != legality.virtual_register || range.class != legality.class {
         return Err(FixedPrecoloredSplitRequirementError::RegisterMismatch { function, register });
@@ -70,7 +72,7 @@ pub(super) fn register(
                     let first = input.spans.first().expect("point domain established");
                     let (site, destination_view) = cuts.boundary(function, register, first)?;
                     cuts.require_transition(function, register, parent, site, destination_view)?;
-                    work.incompatible_boundary()?;
+                    work.commits(1)?;
                     (
                         first_domain,
                         FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
@@ -132,7 +134,16 @@ fn fragment(
     // Topology admitted exact nonempty coverage of this source fragment.
     // Repeating an intersection with the same domain cannot change it.
     for point in spans {
-        work.span(point.end.0 - point.start.0, point.candidates.len())?;
+        // Preserve the logical point-work receipt and its budget while the
+        // implementation visits one constant domain instead of every phase.
+        let points = u64::from(point.end.0 - point.start.0);
+        let candidates = count(point.candidates.len())?
+            .checked_mul(points)
+            .ok_or(WorkDefect::Overflow)?;
+        work.candidates(points)?;
+        work.validation_steps(points)?;
+        work.validation_steps(candidates)?;
+        work.iterations(points)?;
         if point.start == source.start {
             continue;
         }
@@ -154,7 +165,7 @@ fn fragment(
             work,
         )?;
         cuts.use_transition(&prior, site, destination_view);
-        work.incompatible_boundary()?;
+        work.commits(1)?;
         segment_start = point.start;
         opening = FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
             incoming: None,
@@ -228,5 +239,6 @@ fn push_segment(
         candidates: candidates.into_iter().collect(),
         opening,
     });
-    work.segment()
+    work.commits(1)?;
+    Ok(())
 }

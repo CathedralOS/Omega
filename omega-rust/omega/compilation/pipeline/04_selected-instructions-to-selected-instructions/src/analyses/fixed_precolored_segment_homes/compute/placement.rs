@@ -12,8 +12,8 @@ use register_homes::{
 use selected_instructions::FunctionLiveRanges;
 
 use super::super::domains::Domain;
-use super::super::work::Work;
 use super::conflicts::Conflicts;
+use crate::work_accounting::Work;
 
 pub(super) fn assign(
     function: usize,
@@ -64,7 +64,9 @@ pub(super) fn assign(
         assigned.insert(domain_index, view);
         viables.remove(&domain_index);
         for &(neighbor, conflicting_view) in conflicts.conflicting(domains[domain_index].id, view) {
-            work.viability_probe()?;
+            work.candidates(1)?;
+            work.validation_steps(1)?;
+            work.iterations(1)?;
             let Some(keeps) = by_id
                 .get(&neighbor)
                 .and_then(|index| viables.get_mut(index))
@@ -243,7 +245,8 @@ fn preferred_view(
         let mut guaranteed = 0usize;
         let mut votes = 0usize;
         for &(lower, upper) in incident.get(&domain_index).map_or(&[][..], Vec::as_slice) {
-            work.pair()?;
+            work.validation_steps(1)?;
+            work.iterations(1)?;
             let partner = if lower == domain_index { upper } else { lower };
             if assigned.get(&partner) == Some(&view) {
                 guaranteed += 1;
@@ -308,7 +311,8 @@ fn assigned_partner_views(
             continue;
         }
         for &(lower, upper) in incident.get(&member).map_or(&[][..], Vec::as_slice) {
-            work.pair()?;
+            work.validation_steps(1)?;
+            work.iterations(1)?;
             let other = if lower == member { upper } else { lower };
             if let Some(&home) = assigned.get(&other) {
                 *views.entry(member).or_default().entry(home).or_default() += 1;
@@ -339,7 +343,9 @@ fn stolen_coalesces(
         {
             continue;
         }
-        work.viability_probe()?;
+        work.candidates(1)?;
+        work.validation_steps(1)?;
+        work.iterations(1)?;
         if !conflicts.views(domains[neighbor].id, view, domains[domain_index].id, view) {
             continue;
         }
@@ -384,7 +390,8 @@ fn partner_outlooks(
 ) -> Result<BTreeMap<usize, PartnerOutlook>, FixedPrecoloredSegmentHomeError> {
     let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
     for &(lower, upper) in incident.get(&domain_index).map_or(&[][..], Vec::as_slice) {
-        work.pair()?;
+        work.validation_steps(1)?;
+        work.iterations(1)?;
         let partner = if lower == domain_index { upper } else { lower };
         if partner != domain_index
             && unassigned.contains(&partner)
@@ -395,7 +402,8 @@ fn partner_outlooks(
     }
     for (&member, outlook) in &mut outlooks {
         for &(lower, upper) in incident.get(&member).map_or(&[][..], Vec::as_slice) {
-            work.pair()?;
+            work.validation_steps(1)?;
+            work.iterations(1)?;
             let other = if lower == member { upper } else { lower };
             if let Some(&home) = assigned.get(&other) {
                 *outlook.assigned.entry(home).or_default() += 1;
@@ -519,9 +527,12 @@ fn propagate_forced(
     while cursor < forced.len() {
         let (member, home) = forced[cursor];
         cursor += 1;
-        work.pair()?;
+        work.validation_steps(1)?;
+        work.iterations(1)?;
         for &(neighbor, conflicting_view) in conflicts.conflicting(member, home) {
-            work.viability_probe()?;
+            work.candidates(1)?;
+            work.validation_steps(1)?;
+            work.iterations(1)?;
             let Some(keeps) = retained.get_mut(&neighbor) else {
                 continue;
             };

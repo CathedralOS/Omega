@@ -2,6 +2,7 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
+use crate::work_accounting::Work;
 use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
 use register_homes::{
     FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
@@ -16,21 +17,16 @@ pub(super) fn compute(
     budget: OptimizationWorkBudget,
 ) -> Result<FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalError> {
     roots(ranges, legality)?;
-    let mut usage = OptimizationWorkUsage {
+    let mut work = Work::new(OptimizationWorkUsage {
         iterations: 2,
         ..Default::default()
-    };
+    });
     let functions = family(
         &ranges.plan().functions,
         &legality.plan().functions,
-        &mut usage,
+        &mut work,
     )?;
-    if !usage.within(budget) {
-        return Err(FixedPrecoloredIntervalError::BudgetExceeded {
-            required: usage,
-            budget,
-        });
-    }
+    let usage = work.finish(budget)?;
     Ok(FixedPrecoloredIntervalPlan {
         ranges: ranges.receipt().identity(),
         legality: legality.receipt().identity(),
@@ -60,13 +56,13 @@ fn roots(
 fn family(
     ranges: &[std::sync::Arc<FunctionLiveRanges>],
     legality: &[std::sync::Arc<FunctionAllocationLegality>],
-    usage: &mut OptimizationWorkUsage,
+    work: &mut Work,
 ) -> Result<Vec<FunctionFixedPrecoloredIntervals>, FixedPrecoloredIntervalError> {
     ranges
         .iter()
         .zip(legality)
         .enumerate()
-        .map(|(function, (ranges, legality))| derive_function(function, ranges, legality, usage))
+        .map(|(function, (ranges, legality))| derive_function(function, ranges, legality, work))
         .collect()
 }
 
@@ -74,9 +70,9 @@ fn derive_function(
     function: usize,
     ranges: &FunctionLiveRanges,
     legality: &FunctionAllocationLegality,
-    usage: &mut OptimizationWorkUsage,
+    work: &mut Work,
 ) -> Result<FunctionFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
-    add(&mut usage.rule_evaluations, 1)?;
+    work.rule_evaluations(1)?;
     if ranges.machine != legality.machine
         || ranges.virtual_registers.len() != legality.virtual_registers.len()
     {
@@ -88,7 +84,7 @@ fn derive_function(
         .iter()
         .zip(&legality.virtual_registers)
     {
-        add(&mut usage.validation_steps, 1)?;
+        work.validation_steps(1)?;
         if range.virtual_register != legal.virtual_register || range.class != legal.class {
             return Err(FixedPrecoloredIntervalError::RegisterMismatch {
                 function,
@@ -97,8 +93,8 @@ fn derive_function(
         }
         for constraint in &range.fixed_constraints {
             reject_early_clobber_fixed(function, ranges, range, constraint.site)?;
-            add(&mut usage.candidates, 1)?;
-            add(&mut usage.validation_steps, 1)?;
+            work.candidates(1)?;
+            work.validation_steps(1)?;
             let (block, start) = resolve_point(function, range, constraint.site)?;
             require_view(
                 function,
@@ -124,7 +120,7 @@ fn derive_function(
                 end,
                 view: constraint.view,
             });
-            add(&mut usage.commits, 1)?;
+            work.commits(1)?;
         }
     }
     intervals.sort_by_key(interval_key);
@@ -253,11 +249,4 @@ fn access_key(access: register_model::RegisterOperandAccess) -> u8 {
         register_model::RegisterOperandAccess::Def => 1,
         register_model::RegisterOperandAccess::UseDef => 2,
     }
-}
-
-fn add(target: &mut u64, amount: u64) -> Result<(), FixedPrecoloredIntervalError> {
-    *target = target
-        .checked_add(amount)
-        .ok_or(FixedPrecoloredIntervalError::WorkOverflow)?;
-    Ok(())
 }

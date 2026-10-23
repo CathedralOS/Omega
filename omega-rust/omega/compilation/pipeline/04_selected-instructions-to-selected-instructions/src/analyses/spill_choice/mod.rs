@@ -11,11 +11,13 @@ use register_model::{
 pub(crate) mod compute;
 pub(crate) mod validate;
 
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use optimization_core::OptimizationWorkUsage;
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity, SpillChoicePlan,
 };
 use selected_instructions::LiveRangeIdentity;
+
+use crate::WorkDefect;
 
 /// Select the deterministic recovery victim at each first supported local
 /// pressure point without materializing spill or recovery instructions.
@@ -116,11 +118,9 @@ pub enum SpillChoiceError {
     UnsupportedEarlyClobber {
         function: usize,
     },
-    WorkOverflow,
-    BudgetExceeded {
-        required: OptimizationWorkUsage,
-        budget: OptimizationWorkBudget,
-    },
+    /// Bounded work accounting refused: the logical receipt overflowed or
+    /// exceeded the selected budget.
+    Work(WorkDefect),
     FunctionMismatch {
         function: usize,
     },

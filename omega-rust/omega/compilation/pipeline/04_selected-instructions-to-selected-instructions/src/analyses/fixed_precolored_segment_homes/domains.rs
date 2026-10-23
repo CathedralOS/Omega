@@ -10,7 +10,7 @@ use register_homes::{
 };
 use selected_instructions::LiveRangePoint;
 
-use super::work::Work;
+use crate::work_accounting::Work;
 
 #[derive(Debug, Clone)]
 pub(super) struct Segment {
@@ -52,15 +52,21 @@ pub(super) fn build(
     requirements: &FunctionFixedPrecoloredSplitRequirements,
     work: &mut Work,
 ) -> Result<Vec<Domain>, FixedPrecoloredSegmentHomeError> {
-    work.function()?;
+    work.rule_evaluations(1)?;
+    work.validation_steps(1)?;
+    work.iterations(1)?;
     let mut domains = Vec::<Domain>::new();
     for register in &requirements.registers {
-        work.register()?;
+        work.rule_evaluations(1)?;
+        work.validation_steps(1)?;
+        work.iterations(1)?;
         let mut closing_by_block = BTreeMap::<SelectedBlockId, usize>::new();
         for fragment in &register.fragments {
             let mut current = None;
             for segment in &fragment.segments {
-                work.segment()?;
+                work.validation_steps(1)?;
+                work.commits(1)?;
+                work.iterations(1)?;
                 let domain = match segment.opening {
                     FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1 => new_domain(
                         function,
@@ -134,7 +140,10 @@ fn new_domain(
             segment: 0,
         });
     }
-    work.domain()?;
+    work.rule_evaluations(1)?;
+    work.validation_steps(1)?;
+    work.commits(1)?;
+    work.iterations(1)?;
     domains.push(Domain {
         id: FixedPrecoloredHomeDomainId(raw),
         virtual_register,

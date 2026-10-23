@@ -6,7 +6,8 @@
 mod compute;
 mod validate;
 
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use crate::WorkDefect;
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::FixedPrecoloredIntervalPolicy;
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
@@ -118,11 +119,9 @@ pub enum FixedPrecoloredIntervalError {
         register: u32,
         point: u32,
     },
-    WorkOverflow,
-    BudgetExceeded {
-        required: OptimizationWorkUsage,
-        budget: OptimizationWorkBudget,
-    },
+    /// Bounded work accounting refused: the logical receipt overflowed or
+    /// exceeded the selected budget.
+    Work(WorkDefect),
     UsageMismatch,
     NonCanonicalFunctions,
 }

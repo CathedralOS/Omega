@@ -12,7 +12,8 @@ use register_homes::{
 };
 use selected_instructions::FunctionLiveRanges;
 
-use super::{partition, work::Work};
+use super::partition;
+use crate::work_accounting::{Work, count};
 
 pub(super) fn derive(
     function: usize,
@@ -23,11 +24,12 @@ pub(super) fn derive(
 ) -> Result<FunctionFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let tied = tied_registers(ranges);
     let early_uses = early_clobber_uses(ranges)?;
-    work.function(
-        ranges.tied_pairs.len(),
-        ranges.early_clobbers.len(),
-        early_uses,
-    )?;
+    work.rule_evaluations(1)?;
+    work.validation_steps(1)?;
+    work.validation_steps(count(ranges.tied_pairs.len())?)?;
+    work.validation_steps(count(ranges.early_clobbers.len())?)?;
+    work.validation_steps(count(early_uses)?)?;
+    work.iterations(1)?;
     if ranges.machine != legality.machine
         || ranges.machine != fixed.machine
         || ranges.virtual_registers.len() != legality.virtual_registers.len()

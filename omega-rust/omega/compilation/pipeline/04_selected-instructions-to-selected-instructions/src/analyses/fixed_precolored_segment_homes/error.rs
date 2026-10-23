@@ -1,4 +1,4 @@
-use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use crate::WorkDefect;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedPrecoloredSegmentHomeError {
@@ -34,11 +34,9 @@ pub enum FixedPrecoloredSegmentHomeError {
         register: u32,
         segment: u32,
     },
-    WorkOverflow,
-    BudgetExceeded {
-        required: OptimizationWorkUsage,
-        budget: OptimizationWorkBudget,
-    },
+    /// Bounded work accounting refused: the logical receipt overflowed or
+    /// exceeded the selected budget.
+    Work(WorkDefect),
     UsageMismatch,
     NonCanonicalFunctions,
 }

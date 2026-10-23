@@ -6,12 +6,14 @@ mod functions;
 mod placement;
 mod roots;
 
-use optimization_core::OptimizationWorkBudget;
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,
 };
+
+use crate::work_accounting::Work;
 
 use crate::{
     FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
@@ -48,7 +50,15 @@ pub(super) fn compute(
     match policy {
         FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1 => {}
     }
-    let mut work = super::work::Work::new();
+    // The stage's exact starting receipt; every charge below is one named
+    // visitor event of this pass.
+    let mut work = Work::new(OptimizationWorkUsage {
+        rule_evaluations: 1,
+        validation_steps: 1,
+        commits: 1,
+        iterations: 1,
+        ..Default::default()
+    });
     let functions = functions::derive(
         &requirements.plan().functions,
         &ranges.plan().functions,

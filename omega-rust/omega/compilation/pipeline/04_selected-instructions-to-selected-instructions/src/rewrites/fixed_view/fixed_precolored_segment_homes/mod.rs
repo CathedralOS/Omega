@@ -10,6 +10,7 @@ mod custody;
 use optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedAllocationLegality;
+use crate::WorkDefect;
 use crate::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
@@ -166,7 +167,7 @@ pub enum OptimizedFixedPrecoloredSegmentHomeCustodyError {
 /// The capacity verdict a borrow-only segment-home probe can report before
 /// the sequence commits: placement reached a domain with no viable physical
 /// view (`SegmentPressure`), or a front-end derivation exceeded its per-pass
-/// work budget (`BudgetExceeded`) before homes could be assigned. Both mean
+/// work budget (`WorkDefect::BudgetExceeded`) before homes could be assigned. Both mean
 /// the sequence cannot serve the program while runtime-spill recovery still
 /// can; shape and custody rejections are not declines and keep the staged
 /// error surface.
@@ -185,13 +186,15 @@ impl OptimizedFixedPrecoloredSegmentHomeCustodyError {
             Self::SegmentHomes(FixedPrecoloredSegmentHomeError::SegmentPressure { .. }) => {
                 Some(FixedPrecoloredSegmentHomeDecline::SegmentPressure)
             }
-            Self::FixedIntervals(FixedPrecoloredIntervalError::BudgetExceeded { .. })
-            | Self::SplitRequirements(FixedPrecoloredSplitRequirementError::BudgetExceeded {
-                ..
-            })
-            | Self::SegmentHomes(FixedPrecoloredSegmentHomeError::BudgetExceeded { .. }) => {
-                Some(FixedPrecoloredSegmentHomeDecline::BudgetExceeded)
-            }
+            Self::FixedIntervals(FixedPrecoloredIntervalError::Work(
+                WorkDefect::BudgetExceeded { .. },
+            ))
+            | Self::SplitRequirements(FixedPrecoloredSplitRequirementError::Work(
+                WorkDefect::BudgetExceeded { .. },
+            ))
+            | Self::SegmentHomes(FixedPrecoloredSegmentHomeError::Work(
+                WorkDefect::BudgetExceeded { .. },
+            )) => Some(FixedPrecoloredSegmentHomeDecline::BudgetExceeded),
             _ => None,
         }
     }

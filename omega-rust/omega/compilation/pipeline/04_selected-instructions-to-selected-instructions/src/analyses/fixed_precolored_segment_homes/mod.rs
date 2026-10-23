@@ -14,9 +14,9 @@ use selected_instructions::{
     VirtualRegisterId,
 };
 use std::collections::BTreeMap;
-use work::Work;
+
+use crate::work_accounting::Work;
 mod validation;
-mod work;
 
 pub(crate) use error::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredSegmentHomePolicy;
@@ -166,7 +166,8 @@ fn affinity_edges(
     }
     let mut edges = Vec::new();
     for affinity in &ranges.copy_affinities {
-        work.pair()?;
+        work.validation_steps(1)?;
+        work.iterations(1)?;
         let (Some(source), Some(destination)) = (
             by_register.get(&affinity.source).copied(),
             by_register.get(&affinity.destination).copied(),

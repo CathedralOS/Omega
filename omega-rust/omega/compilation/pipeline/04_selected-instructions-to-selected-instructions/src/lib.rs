@@ -63,6 +63,19 @@ macro_rules! validated_analysis_accessors {
     };
 }
 
+/// `From<WorkDefect>` for every bounded stage error that carries
+/// `Work(WorkDefect)`: a charge's `?` lands in the stage's own refusal surface
+/// without a per-stage adapter block or a per-site mapping.
+macro_rules! work_defect_conversion {
+    ($($error:ty),+ $(,)?) => {$(
+        impl From<WorkDefect> for $error {
+            fn from(defect: WorkDefect) -> Self {
+                Self::Work(defect)
+            }
+        }
+    )+};
+}
+
 /// `Display` for the crate's `<context> failed: {self:?}` error convention.
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {
@@ -79,6 +92,7 @@ mod codec_bytes;
 mod cursor;
 mod rewrites;
 mod selected_optimization;
+mod work_accounting;
 
 // The stage entry and the output it publishes.
 pub use selected_optimization::optimization_output::{
@@ -87,6 +101,9 @@ pub use selected_optimization::optimization_output::{
 };
 
 pub use selected_optimization::optimize_selected_instructions;
+
+// The refusal every bounded pass in this stage shares.
+pub use work_accounting::WorkDefect;
 
 // Current selected-program facts and their independent validation.
 pub(crate) use analyses::materialize_allocator_availability;
@@ -122,6 +139,15 @@ pub(crate) use analyses::{
     analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
     assign_fixed_precolored_segment_homes, stage_optimized_live_ranges, stage_optimized_liveness,
 };
+
+// The five bounded stages of this group carry the shared work refusal.
+work_defect_conversion!(
+    FixedPrecoloredIntervalError,
+    FixedPrecoloredSegmentHomeError,
+    FixedPrecoloredSplitRequirementError,
+    RecoveryClassificationError,
+    SpillChoiceError,
+);
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;

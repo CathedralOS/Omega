@@ -4,10 +4,10 @@ mod cuts;
 mod function;
 mod partition;
 mod topology;
-mod work;
 
-use optimization_core::OptimizationWorkBudget;
+use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
+use crate::work_accounting::Work;
 use crate::{
     FixedPrecoloredSplitRequirementError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
@@ -30,7 +30,13 @@ pub(super) fn compute(
     match policy {
         FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1 => {}
     }
-    let mut work = work::Work::new();
+    // The stage's exact starting receipt; every charge below is one named
+    // visitor event of this pass.
+    let mut work = Work::new(OptimizationWorkUsage {
+        validation_steps: 1,
+        iterations: 2,
+        ..Default::default()
+    });
     let functions = family(
         &ranges.plan().functions,
         &legality.plan().functions,
@@ -78,7 +84,7 @@ fn family(
     ranges: &[std::sync::Arc<FunctionLiveRanges>],
     legality: &[std::sync::Arc<FunctionAllocationLegality>],
     fixed: &[FunctionFixedPrecoloredIntervals],
-    work: &mut work::Work,
+    work: &mut Work,
 ) -> Result<Vec<FunctionFixedPrecoloredSplitRequirements>, FixedPrecoloredSplitRequirementError> {
     if ranges.len() != legality.len() || ranges.len() != fixed.len() {
         return Err(FixedPrecoloredSplitRequirementError::RootMismatch);
