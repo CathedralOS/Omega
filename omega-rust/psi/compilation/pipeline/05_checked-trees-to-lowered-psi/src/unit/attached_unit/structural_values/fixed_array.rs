@@ -9,6 +9,7 @@ use super::super::{
     LoweringError, Operation, OperationKind, PlaceId, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
 };
+use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
 use crate::emission::operation_emission::buffer::structural_result_declaration;
 use checked_trees::CheckedStructuralValueHandle;
@@ -67,17 +68,19 @@ impl emission::Emission<'_, '_, '_> {
         }
         claims.sort();
         let place = place_id(allocate_dense(self.environment.next_place)?);
-        self.environment.private_places.push(emit_completed(
-            place,
-            parent_type,
-            parent_multiplicity,
-            operands,
-            self.evaluation
-                .structural_parameters
-                .iter()
-                .map(|(_, parameter)| parameter),
-            self.operations,
-        )?);
+        self.environment
+            .private_places
+            .push(completed_aggregate::emit_completed(
+                place,
+                parent_type,
+                parent_multiplicity,
+                CompletedAggregate::Array { elements: operands },
+                self.evaluation
+                    .structural_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter),
+                self.operations,
+            )?);
         self.operations
             .set_structural_result_claims(place, claims)?;
         self.values.truncate(source_count);
@@ -112,51 +115,4 @@ impl emission::Emission<'_, '_, '_> {
             });
         Ok(place)
     }
-}
-
-/// Assemble already completed element owners. Unit sequencing and scalar
-/// continuations share this operation; each caller schedules evaluation before
-/// transferring those owners into the final array atomically.
-pub(crate) fn emit_completed<'parameter>(
-    place: PlaceId,
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    multiplicity: terminal_psi::StructuralMultiplicity,
-    elements: Vec<terminal_psi::StructuralArgument>,
-    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration> + Clone,
-    operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
-) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let mut projected_qualifications = Vec::new();
-    for (ordinal, argument) in elements.iter().enumerate() {
-        super::member_memberships::append(
-            argument,
-            &[terminal_psi::StructuralPathSegment::FixedIndex(
-                u64::try_from(ordinal)
-                    .map_err(|_| LoweringError::Unsupported("array ordinal overflow"))?,
-            )],
-            parameters.clone(),
-            operations,
-            &mut projected_qualifications,
-        );
-    }
-    projected_qualifications.sort();
-    projected_qualifications.dedup();
-    let mut result = structural_result_declaration(place, structural_type, multiplicity);
-    if let terminal_psi::OperationResult::Structural(result) = &mut result {
-        result.projected_qualifications = projected_qualifications;
-    }
-    let operation = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result,
-        kind: OperationKind::EstablishStructuralArray { elements },
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation,
-            structural_type,
-        },
-    })
 }

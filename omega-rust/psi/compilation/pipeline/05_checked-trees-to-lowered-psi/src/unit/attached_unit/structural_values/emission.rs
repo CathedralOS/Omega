@@ -1229,7 +1229,74 @@ impl ProjectionSource {
     }
 }
 
+/// The completion frontier an enclosing value resumes once one child's own
+/// establishment roster has run: the claims and direct introductions that
+/// were active before the child replaced them.
+struct EnclosingEstablishment {
+    claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    introductions: Vec<semantic_vocabulary::ClaimId>,
+}
+
 impl Emission<'_, '_, '_> {
+    /// Make one checked establishment frontier the active completion roster,
+    /// returning the enclosing one for `restore_establishment_claims`. The
+    /// child's own fresh identities and direct introductions are what its
+    /// operand producers may publish, and an enclosing arm's births never
+    /// leak into them.
+    fn install_establishment_claims(
+        &mut self,
+        prepared: &[crate::emission::claim_bindings::PreparedClaim],
+    ) -> Result<EnclosingEstablishment, LoweringError> {
+        let claims = crate::emission::claim_bindings::emit_establishment_claims(
+            prepared,
+            &mut self.calls.claims,
+        )?;
+        let introductions = crate::emission::claim_bindings::direct_establishment_claims(
+            prepared,
+            &self.calls.claims,
+        )?;
+        Ok(EnclosingEstablishment {
+            claims: std::mem::replace(&mut self.completion_claims, claims),
+            introductions: std::mem::replace(&mut self.direct_establishments, introductions),
+        })
+    }
+
+    fn restore_establishment_claims(&mut self, enclosing: EnclosingEstablishment) {
+        self.completion_claims = enclosing.claims;
+        self.direct_establishments = enclosing.introductions;
+    }
+
+    /// Evaluate one computed (non-place) source as its own child
+    /// establishment: its occurrence's checked frontier is the active roster
+    /// while its operand producers run, and the enclosing roster returns
+    /// afterwards. Backing is an independent owner, not a field stored in its
+    /// descriptor.
+    fn establish_computed_operand(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        source: CheckedStructuralValueHandle,
+        root_type: StructuralTypeId,
+        type_reference: checked_trees::types::TypeReferenceHandle,
+    ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
+        let node = self.structural_value_node(source);
+        let prepared = crate::emission::claim_bindings::prepare_establishment_claims(
+            identities,
+            self.checked,
+            self.machine,
+            self.state,
+            self.statement as usize,
+            facts::PlaceRoot::Expression(node.expression),
+            type_reference,
+            root_type,
+            self.structural_types,
+        )?;
+        let enclosing = self.install_establishment_claims(&prepared)?;
+        let completed =
+            self.child_constructor_operand(identities, root_type, source, type_reference, &[]);
+        self.restore_establishment_claims(enclosing);
+        completed
+    }
+
     /// Attach the checked establishment to the actual producer before any
     /// membership-preserving transfer. Binding only the final receiving place
     /// would make a move appear to introduce custody its source never owned.

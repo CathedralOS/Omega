@@ -170,40 +170,12 @@ impl Emission<'_, '_, '_> {
                 // The selected result's paths are relative to its leaf. The
                 // producing owner needs its own full checked frontier,
                 // including children left in the residual complement.
-                let prepared_claims =
-                    crate::emission::claim_bindings::prepare_establishment_claims(
-                        identities,
-                        self.checked,
-                        self.machine,
-                        self.state,
-                        self.statement as usize,
-                        facts::PlaceRoot::Expression(node.expression),
-                        node.type_reference,
-                        root_type,
-                        self.structural_types,
-                    )?;
-                let source_claims = crate::emission::claim_bindings::emit_establishment_claims(
-                    &prepared_claims,
-                    &mut self.calls.claims,
-                )?;
-                let source_introductions =
-                    crate::emission::claim_bindings::direct_establishment_claims(
-                        &prepared_claims,
-                        &self.calls.claims,
-                    )?;
-                let selected_claims = std::mem::replace(&mut self.completion_claims, source_claims);
-                let selected_introductions =
-                    std::mem::replace(&mut self.direct_establishments, source_introductions);
-                let completed = self.child_constructor_operand(
+                let completed = self.establish_computed_operand(
                     identities,
-                    root_type,
                     source,
+                    root_type,
                     node.type_reference,
-                    &[],
-                );
-                self.completion_claims = selected_claims;
-                self.direct_establishments = selected_introductions;
-                let completed = completed?;
+                )?;
                 if !completed.argument.path.is_empty()
                     || completed.argument.access != StructuralAccess::Owned
                 {

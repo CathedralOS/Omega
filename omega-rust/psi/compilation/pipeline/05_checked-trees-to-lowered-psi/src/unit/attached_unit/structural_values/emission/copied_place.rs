@@ -4,7 +4,7 @@
 
 use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
 use crate::emission::operation_emission::expressions::{emit_element_length, emit_scalar_leaf};
-use crate::expression_preparation::bindings::{ScalarBindings, StructuralScalarFieldBinding};
+use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
@@ -22,10 +22,7 @@ impl Emission<'_, '_, '_> {
             return super::unsupported("copied value requires readable source custody");
         }
         let authored = crate::declarations::state_declaration(self.checked, self.state)?;
-        let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
-            .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals)
-            .with_structural_observations(self.structural_types);
+        let bindings = self.structural_bindings();
         let parameters = self.checked.state_parameters(authored.1);
         let home = bindings.borrowed_structural_home(source, parameters)?;
         let root = bindings

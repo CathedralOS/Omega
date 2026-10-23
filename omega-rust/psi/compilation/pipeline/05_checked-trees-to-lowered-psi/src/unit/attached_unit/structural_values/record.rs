@@ -4,12 +4,11 @@
 //! the result rebases memberships from its completed operands, not field types.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ScalarType,
     StructuralTypeShape, ValueDeclaration, allocate_dense, place_id, unsupported,
 };
+use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
-use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 
@@ -87,70 +86,21 @@ impl emission::Emission<'_, '_, '_> {
                 }
                 continue;
             }
-            let value = match field.value {
-                checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
-                    let evaluated = self.scalar(
-                        identities,
-                        CheckedScalarExpressionRole::RecordField {
-                            expression: node.expression,
-                            field_ordinal: u32::try_from(ordinal).map_err(|_| {
-                                LoweringError::Unsupported("record field ordinal overflow")
-                            })?,
-                        },
-                        value,
-                        source_count,
-                    )?;
-                    self.scalar_field_value(
-                        identities,
-                        target,
-                        evaluated,
-                        &mut scalar_positions,
-                        initialized.len(),
-                    )?
-                }
-                checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                    if let Some(scalar_type) = target.field_type.scalar_type() {
-                        self.zeroed_scalar_field(
-                            identities,
-                            value,
-                            scalar_type,
-                            target,
-                            &mut scalar_positions,
-                            initialized.len(),
-                        )?
-                    } else {
-                        let child_type = super::field_carrier::resolve(
-                            identities,
-                            self.checked,
-                            self.structural_types,
-                            &target.field_type,
-                            field.type_reference,
-                        )?;
-                        let completed = self.child_constructor_operand(
-                            identities,
-                            child_type,
-                            value,
-                            field.type_reference,
-                            &[terminal_psi::StructuralPathSegment::Field(
-                                target.identity.clone(),
-                            )],
-                        )?;
-                        if self.multiplicity == StructuralMultiplicity::Affine {
-                            for claim in completed.claims {
-                                let mut path = vec![terminal_psi::StructuralPathSegment::Field(
-                                    target.identity.clone(),
-                                )];
-                                path.extend(claim.path);
-                                claims.push(terminal_psi::StructuralResultClaimBinding {
-                                    claim: claim.claim,
-                                    path,
-                                });
-                            }
-                        }
-                        terminal_psi::RecordFieldValue::Structural(completed.argument)
-                    }
-                }
-            };
+            let value = self.completed_member_value(
+                identities,
+                field,
+                target,
+                CheckedScalarExpressionRole::RecordField {
+                    expression: node.expression,
+                    field_ordinal: u32::try_from(ordinal)
+                        .map_err(|_| LoweringError::Unsupported("record field ordinal overflow"))?,
+                },
+                None,
+                &mut scalar_positions,
+                initialized.len(),
+                source_count,
+                &mut claims,
+            )?;
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {
@@ -166,22 +116,22 @@ impl emission::Emission<'_, '_, '_> {
         // linear record's whole-root claim is minted at its binding instead.
         claims.sort();
         let place = place_id(allocate_dense(self.environment.next_place)?);
-        let declaration = emit_completed(
+        let declaration = completed_aggregate::emit_completed(
             place,
             self.structural_type,
             self.multiplicity,
-            initialized.into_iter().map(|(_, field)| field).collect(),
-            &shape_fields,
+            CompletedAggregate::Record {
+                fields: initialized.into_iter().map(|(_, field)| field).collect(),
+                declarations: &shape_fields,
+            },
             self.evaluation
                 .structural_parameters
                 .iter()
                 .map(|(_, parameter)| parameter),
             self.operations,
         )?;
-        if !claims.is_empty() {
-            self.operations
-                .set_structural_result_claims(place, claims)?;
-        }
+        self.operations
+            .set_structural_result_claims(place, claims)?;
         self.environment.private_places.push(declaration);
         Ok(place)
     }
@@ -227,66 +177,6 @@ impl emission::Emission<'_, '_, '_> {
             field_index,
         )
     }
-}
-
-/// Commit completed, declaration-ordered fields. Both structural statement
-/// evaluation and scalar graphs use this operation; operand evaluation and
-/// source custody remain with their shared scalar/structural semantic owners.
-pub(crate) fn emit_completed<'parameter>(
-    place: PlaceId,
-    structural_type: StructuralTypeId,
-    multiplicity: StructuralMultiplicity,
-    fields: Vec<terminal_psi::RecordFieldInitializer>,
-    declarations: &[terminal_psi::StructuralFieldDeclaration],
-    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration> + Clone,
-    operations: &mut OperationBuffer,
-) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let mut projected_qualifications = Vec::new();
-    for field in &fields {
-        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-            continue;
-        };
-        let declaration = declarations
-            .iter()
-            .find(|declaration| declaration.id == field.field)
-            .ok_or(LoweringError::Unsupported(
-                "completed record field has no declaration",
-            ))?;
-        // Inline byte fields already retain their represented predicates in
-        // the carrier contract; projected rows describe nominal children.
-        if !matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
-            continue;
-        }
-        let identity = &declaration.identity;
-        super::member_memberships::append(
-            argument,
-            &[terminal_psi::StructuralPathSegment::Field(identity.clone())],
-            parameters.clone(),
-            operations,
-            &mut projected_qualifications,
-        );
-    }
-    projected_qualifications.sort();
-    projected_qualifications.dedup();
-    let mut result = structural_result_declaration(place, structural_type, multiplicity);
-    if let terminal_psi::OperationResult::Structural(result) = &mut result {
-        result.projected_qualifications = projected_qualifications;
-    }
-    let operation = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result,
-        kind: OperationKind::EstablishRecord { fields },
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation,
-            structural_type,
-        },
-    })
 }
 
 /// The declared scalar type's zero as one constant operation: the value

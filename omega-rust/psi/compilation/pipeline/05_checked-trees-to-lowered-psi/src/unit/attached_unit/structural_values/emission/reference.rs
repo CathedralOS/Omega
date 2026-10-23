@@ -63,39 +63,14 @@ impl Emission<'_, '_, '_> {
                 ),
             )?;
             // Backing is an independent owner, not a field stored in the
-            // descriptor. Bind its own checked completion claims instead of
-            // inheriting the descriptor's (usually empty) child claim roster.
-            let prepared = crate::emission::claim_bindings::prepare_establishment_claims(
+            // descriptor: its own checked completion frontier is the active
+            // roster while its operand producers run.
+            let completed = self.establish_computed_operand(
                 identities,
-                self.checked,
-                self.machine,
-                self.state,
-                self.statement as usize,
-                facts::PlaceRoot::Expression(node.expression),
-                node.type_reference,
-                root_type,
-                self.structural_types,
-            )?;
-            let claims = crate::emission::claim_bindings::emit_establishment_claims(
-                &prepared,
-                &mut self.calls.claims,
-            )?;
-            let direct = crate::emission::claim_bindings::direct_establishment_claims(
-                &prepared,
-                &self.calls.claims,
-            )?;
-            let parent_claims = std::mem::replace(&mut self.completion_claims, claims);
-            let parent_direct = std::mem::replace(&mut self.direct_establishments, direct);
-            let completed = self.child_constructor_operand(
-                identities,
-                root_type,
                 source_value,
+                root_type,
                 node.type_reference,
-                &[],
-            );
-            self.completion_claims = parent_claims;
-            self.direct_establishments = parent_direct;
-            let completed = completed?;
+            )?;
             // The loan and its later retirement name this exact home. Keep
             // its expression identity at establishment, not a reconstructed
             // initializer or a second evaluation during cleanup.

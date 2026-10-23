@@ -171,22 +171,10 @@ impl Emission<'_, '_, '_> {
                     )
                 })
                 .transpose()?;
-            let previous = if let Some(prepared) = arm_claims.filter(|claims| !claims.is_empty()) {
-                let claims = crate::emission::claim_bindings::emit_establishment_claims(
-                    &prepared,
-                    &mut self.calls.claims,
-                )?;
-                let introductions = crate::emission::claim_bindings::direct_establishment_claims(
-                    &prepared,
-                    &self.calls.claims,
-                )?;
-                Some((
-                    std::mem::replace(&mut self.completion_claims, claims),
-                    std::mem::replace(&mut self.direct_establishments, introductions),
-                ))
-            } else {
-                None
-            };
+            let previous = arm_claims
+                .filter(|claims| !claims.is_empty())
+                .map(|prepared| self.install_establishment_claims(&prepared))
+                .transpose()?;
             if position + 1 < arms.len() {
                 self.selection_route.push(
                     crate::emission::claim_bindings::selections::SelectedDecision {
@@ -207,9 +195,8 @@ impl Emission<'_, '_, '_> {
                     },
                 );
             }
-            if let Some((claims, introductions)) = previous {
-                self.completion_claims = claims;
-                self.direct_establishments = introductions;
+            if let Some(enclosing) = previous {
+                self.restore_establishment_claims(enclosing);
             }
             emitted?;
             self.restore_fallback(fallback);
