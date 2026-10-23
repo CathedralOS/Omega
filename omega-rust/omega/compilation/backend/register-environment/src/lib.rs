@@ -9,7 +9,8 @@
 //! `baseline_target_register_environment` is the setup entry. There is no
 //! decoded-environment replay API: allocation consumes the constructed model.
 //! `catalog` selects the target's physical register model, constraint catalog
-//! and baseline reservation profile; `validation` joins them into the
+//! and baseline reservation profile and resolves the target's selected
+//! constraint-key roster from its ISA owner; `validation` joins them into the
 //! `ValidatedTargetRegisterEnvironment` declared here; `abi_preservation`
 //! selects the ABI preservation facts the validated environment implies.
 

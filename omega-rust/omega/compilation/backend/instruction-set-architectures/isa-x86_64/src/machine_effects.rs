@@ -52,7 +52,8 @@ pub fn x86_64_machine_effect_catalog(
     {
         return Err(X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch);
     }
-    let selected_keys = selected_keys(target)?;
+    let selected_keys = x86_64_selected_constraint_keys(target)
+        .ok_or(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi)?;
     Ok(MachineEffectCatalog {
         target,
         register_constraints: constraints.identity(),
@@ -250,10 +251,16 @@ pub(crate) fn x86_64_selected_abi(
     }
 }
 
-fn selected_keys(
-    target: NativeTarget,
-) -> Result<SelectedConstraintKeys, X86_64MachineEffectCatalogValidationError> {
-    let abi = x86_64_selected_abi(target)?;
+/// The exact register-constraint key roster the x86-64 encoding matrix
+/// declares for one target: every constraint row this target's selected forms
+/// may use, selected by the ABI family its declared pair resolves to. The
+/// machine-effect catalog and the allocator register environment both consume
+/// this one roster instead of deriving their own, so the allocator cannot
+/// drift from the effect declarations. `None` means the pair has no x86-64 ABI.
+pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
+    let Ok(abi) = x86_64_selected_abi(target) else {
+        return None;
+    };
     let microsoft = abi == X86_64SelectedAbi::Microsoft;
     let return_i64 = match abi {
         X86_64SelectedAbi::SystemV => X86_64_SYSTEM_V_RETURN,
@@ -263,7 +270,7 @@ fn selected_keys(
         X86_64SelectedAbi::SystemV => X86_64_SYSTEM_V_RETURN_UNIT,
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
-    Ok(SelectedConstraintKeys {
+    Some(SelectedConstraintKeys {
         port_write: Some(crate::X86_64_PORT_WRITE),
         system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
         system_register_write: Some(crate::X86_64_FLAGS_RESTORE),

@@ -51,7 +51,8 @@ pub fn aarch64_machine_effect_catalog(
     {
         return Err(Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch);
     }
-    let selected_keys = selected_keys(target)?;
+    let selected_keys = aarch64_selected_constraint_keys(target)
+        .ok_or(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi)?;
     Ok(MachineEffectCatalog {
         target,
         register_constraints: constraints.identity(),
@@ -225,10 +226,16 @@ pub(crate) fn aarch64_selected_abi(
     }
 }
 
-fn selected_keys(
-    target: NativeTarget,
-) -> Result<SelectedConstraintKeys, Aarch64MachineEffectCatalogValidationError> {
-    let abi = aarch64_selected_abi(target)?;
+/// The exact register-constraint key roster the AArch64 encoding matrix
+/// declares for one target: every constraint row this target's selected forms
+/// may use, selected by the ABI family its declared pair resolves to. The
+/// machine-effect catalog and the allocator register environment both consume
+/// this one roster instead of deriving their own, so the allocator cannot
+/// drift from the effect declarations. `None` means the pair has no AArch64 ABI.
+pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
+    let Ok(abi) = aarch64_selected_abi(target) else {
+        return None;
+    };
     let darwin = abi == Aarch64SelectedAbi::Darwin;
     let return_i64 = match abi {
         Aarch64SelectedAbi::Aapcs64 => AARCH64_AAPCS64_RETURN,
@@ -238,7 +245,7 @@ fn selected_keys(
         Aarch64SelectedAbi::Aapcs64 => AARCH64_AAPCS64_RETURN_UNIT,
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
-    Ok(SelectedConstraintKeys {
+    Some(SelectedConstraintKeys {
         port_write: None,
         system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
         system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),

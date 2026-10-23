@@ -92,6 +92,7 @@ pub use import_thunk::{
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog, x86_64_normalized_foreign_call_declaration,
+    x86_64_selected_constraint_keys,
 };
 pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,
