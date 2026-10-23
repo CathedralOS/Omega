@@ -1,1 +1,1 @@
-error: cannot prove requires contract for call consume from probe: sum >= 50 && sum <= 100 (needs fact `forwarded >= 50 && forwarded <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+cannot prove requires contract for call consume from probe: sum >= 50 && sum <= 100 (needs fact `forwarded >= 50 && forwarded <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

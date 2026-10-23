@@ -2,7 +2,7 @@
 
 Fact: 32-bit signed wrapping addition lhs +% rhs with bounded interval 50i32 <= sum <= 100i32 establishes 50i32 <= sum <= 100i32 across all nine places so exact subtractions 100i32 - sum and sum - 50i32 are safe.
 
-Owning Task: `NUMERIC-SCALARS` / `CONSERVATION-CONTRACT` (`TASKS.md`)
+Owning Task: `ARITHMETIC-POLICY-REALIZATION` ([TASKS.md](../../../../TASKS.md)) — numeric-policy realization of the wrapping integer mode through stage 04 scalar checking, stage 05 expression preparation and the Terminal integer-policy representation ([numeric values](../../../../wiki/spec/language/numeric_values.md)). `CANONICALIZE-SCALAR-RANGE-CONTRACTS` owns the proposition-based scalar range surface these bounds ride on: machine/state `requires`, results `ensures`, and locals the facts from initializers, guards and calls.
 
 Every positive place and reject twin tests 32-bit signed wrapping addition (`i32 in Wrapping`).
 When bounded operands `lhs >= 40i32 && lhs <= 80i32` and `rhs >= 10i32 && rhs <= 20i32` are cast into the Wrapping arithmetic domain (`lhs as i32 in Wrapping` and `rhs as i32 in Wrapping`), their modular sum `wl + wr` produces a bounded result in `[50, 100]`.
@@ -23,6 +23,26 @@ Subsequent exact subtractions `headroom = 100i32 - sum` and `margin = sum - 50i3
 | another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the wrapping-added 32-bit signed value into a successor state |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the wrapping-added 32-bit signed value |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing the wrapping addition and subtractions |
+
+Match the fact sentence beside every place: each positive place is pinned as
+`tests/omega/pass/facts/signed_32bit_wrapping_arithmetic_bound_through_<place>_exit` and
+each reject twin as
+`tests/omega/fail/facts/signed_32bit_wrapping_arithmetic_bound_through_<place>_rejected`,
+byte-equal to the place and `invalid/` programs beside them.
+
+## Pinned Fixtures
+
+Nine positive fixtures (`main.omg`, `build.omg`, `expected_native_exit.txt` = `0`) and
+nine reject twins (`main.omg`, `build.omg`, `expected.txt`) are pinned in the compiler corpus:
+
+- `tests/omega/pass/facts/signed_32bit_wrapping_arithmetic_bound_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_exit/`
+- `tests/omega/fail/facts/signed_32bit_wrapping_arithmetic_bound_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_rejected/`
+
+Each positive fixture records `checked` with `check-target:macos_arm64` and each reject twin
+records `rejected expected` carrying its own diagnostic in `tests/omega/corpus_outcomes.txt`;
+the positive fixtures additionally record `built exit:0` in
+`tests/omega/corpus_native_macos_arm64.txt` and `built exit:0 interpreter-exit:0 interpreter:agrees`
+in `tests/omega/corpus_both_macos_arm64.txt`.
 
 ## Execution
 
@@ -59,17 +79,17 @@ Each place has an `invalid/` reject twin that widens the narrow input preconditi
 When `rhs == 21i32`, `sum` reaches `80 + 21 = 101i32 > 100i32`, making `100i32 - sum = -1i32`, which violates non-negativity and cannot be representably cast to `u32` (or violates caller contract bounds across place boundaries).
 The compiler strictly fails closed at compile time:
 
-| Place | `omega run --both` | Reject twin diagnostic |
+| Place | `omega run --both` | Reject twin diagnostic (exact, as pinned in `expected.txt`) |
 | --- | --- | --- |
-| `local` | native 0 / interp 0 | `error: Exact integer cast in machine \`probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
-| `field` | native 0 / interp 0 | `error: Exact integer cast in machine \`probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
-| `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume_sum from probe: sum >= 50 && sum <= 100` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from wrap_add at statement 3: result >= 50 && result <= 100` |
-| `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: sum >= 50 && sum <= 100 && 75 >= 50 && 75 <= 100` |
-| `const_name` | native 0 / interp 0 | `error: Exact integer cast in machine \`probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
-| `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: sum >= 50 && sum <= 100` |
-| `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_sum from probe: sum >= 50 && sum <= 100` |
-| `target_body` | native 0 / interp 0 | `error: Exact integer cast in machine \`target_probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `local` | native 0 / interp 0 | `Exact integer cast in machine \`probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `field` | native 0 / interp 0 | `Exact integer cast in machine \`probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `parameter` | native 0 / interp 0 | `cannot prove requires contract for call consume_sum from probe: sum >= 50 && sum <= 100 (needs fact \`forwarded >= 50 && forwarded <= 100\` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state \`entry\`` |
+| `call_result` | native 0 / interp 0 | `cannot prove ensures contract for exit from wrap_add at statement 3: result >= 50 && result <= 100` |
+| `match_join` | native 0 / interp 0 | `cannot prove requires contract for call choose from probe: sum >= 50 && sum <= 100 && 75 >= 50 && 75 <= 100 (needs fact \`first >= 50 && first <= 100 && second >= 50 && second <= 100\` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state \`entry\`` |
+| `const_name` | native 0 / interp 0 | `Exact integer cast in machine \`probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: sum >= 50 && sum <= 100 (needs fact \`forwarded >= 50 && forwarded <= 100\` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state \`entry\`` |
+| `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_sum from probe: sum >= 50 && sum <= 100 (needs fact \`mid >= 50 && mid <= 100\` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state \`entry\`` |
+| `target_body` | native 0 / interp 0 | `Exact integer cast in machine \`target_probe\` state \`entry\` from \`i32\` to \`u32\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
 
 ## Requirements and Evidence (AGENTS.md)
 

@@ -1,0 +1,42 @@
+// Fact: 8-bit signed bitwise AND mask raw & 63i8 with bounded interval 40i8 <= masked <= 63i8 establishes 40i8 <= masked <= 63i8 across all nine places so exact subtractions 63i8 - masked and masked - 40i8 are safe.
+// Place: match join. Both match arms yield the bounded 32-bit operand and join before bitwise AND mask and subtraction.
+// Expected exit: 0
+
+machine choose_raw(flag: bool) -> i8
+ensures result >= 116i8 && result <= 116i8
+{
+    match flag {
+        true -> 116i8,
+        false -> 116i8,
+    }
+}
+
+machine mask_match_join(mask: i8) -> i32
+requires mask == 63i8
+{
+    let raw: i8 = choose_raw(true);
+    let masked: i8 = raw & mask;
+    let headroom: i8 = 63i8 - masked;
+    let margin: i8 = masked - 40i8;
+    let check_h: u8 = headroom as u8;
+    let check_m: u8 = margin as u8;
+    transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() -> i32 { 0 }
+    state fail() -> i32 { 1 }
+}
+
+machine probe() -> i32 {
+    mask_match_join(63i8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

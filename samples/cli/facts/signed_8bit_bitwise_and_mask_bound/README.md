@@ -16,6 +16,26 @@
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards the bounded 8-bit operand and mask to the mask machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies masks the bounded 8-bit operand and performs exact subtractions |
 
+Match the fact sentence beside every place: each positive place is pinned as
+`tests/omega/pass/facts/signed_8bit_bitwise_and_mask_bound_through_<place>_exit` and
+each reject twin as
+`tests/omega/fail/facts/signed_8bit_bitwise_and_mask_bound_through_<place>_rejected`,
+byte-equal to the place and `invalid/` programs beside them.
+
+## Pinned Fixtures
+
+Nine positive fixtures (`main.omg`, `build.omg`, `expected_native_exit.txt` = `0`) and
+nine reject twins (`main.omg`, `build.omg`, `expected.txt`) are pinned in the compiler corpus:
+
+- `tests/omega/pass/facts/signed_8bit_bitwise_and_mask_bound_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_exit/`
+- `tests/omega/fail/facts/signed_8bit_bitwise_and_mask_bound_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_rejected/`
+
+Each positive fixture records `checked` with `check-target:macos_arm64` and each reject twin
+records `rejected expected` carrying its own diagnostic in `tests/omega/corpus_outcomes.txt`;
+the positive fixtures additionally record `built exit:0` in
+`tests/omega/corpus_native_macos_arm64.txt` and `built exit:0 interpreter-exit:0 interpreter:agrees`
+in `tests/omega/corpus_both_macos_arm64.txt`.
+
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
 `Expected exit: 0`.
@@ -51,20 +71,34 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/signed_8bit_bitwise_and_mask_bound/<place>/invalid/main.omg
 ```
 
+Each twin exits 1 at checking carrying its exact authored fragment (as pinned in `expected.txt`):
+
+| Place | Reject twin diagnostic (exact) |
+|---|---|
+| `local` | `Exact integer cast in machine \`mask_local\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `field` | `Exact integer cast in machine \`mask_field\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `parameter` | `Exact integer cast in machine \`mask_param\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `call_result` | `Exact integer cast in machine \`mask_call_result\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `match_join` | `Exact integer cast in machine \`mask_match_join\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `const_name` | `Exact integer cast in machine \`mask_const\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `other_state` | `Exact integer cast in machine \`mask_state\` state \`step\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `other_machine` | `Exact integer cast in machine \`perform_mask\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+| `target_body` | `Exact integer cast in machine \`mask_target\` state \`entry\` from \`i8\` to \`u8\` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.` |
+
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_8bit_bitwise_and_mask_bound --jobs 4
+python3 tools/sample_native_gate.py --cli <generation>/omega --filter cli/facts/signed_8bit_bitwise_and_mask_bound --jobs 2 < /dev/null
 ```
 
 `sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64`.
-- 9/9 intended-invalid controls match their authored rejection (`not provably representable`).
+- 10/10 samples meet their documented oracle (`native exit 0`, `interp exit: 0`).
+- 9/9 intended-invalid controls match their authored rejection (`Exact integer cast ... not provably representable`).
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` ([TASKS.md](../../../../TASKS.md)) — the proposition-based scalar range contract under which machine/state `requires`, results `ensures` and locals take their facts from initializers, guards and calls. `ARITHMETIC-POLICY-REALIZATION` supplies the operation-level numeric-policy realization of the 8-bit bitwise AND ([numeric values](../../../../wiki/spec/language/numeric_values.md)).
+- **Ticket:** `8154fadb8df5497d830a3f6f67f25c7d`.
 - **Requirement established:** Target-neutral compile-time 8-bit signed bitwise AND mask bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, bitwise AND masking (`&`) on a bounded 8-bit signed `i8` operand `raw` by constant mask `63i8` establishes the bounded interval `40i8 <= masked <= 63i8`, discharging both exact 8-bit subtractions `63i8 - masked` and `masked - 40i8` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**

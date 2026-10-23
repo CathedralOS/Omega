@@ -1,1 +1,1 @@
-error: cannot prove ensures contract for exit from wrap_add at statement 3: result >= 50 && result <= 100
+cannot prove ensures contract for exit from wrap_add at statement 3: result >= 50 && result <= 100

@@ -1,1 +1,1 @@
-reject
+Exact integer cast in machine `mask_local` state `entry` from `i8` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
