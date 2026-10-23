@@ -263,7 +263,7 @@ fn lower_item_with_exposure(
             }
             let initializer =
                 crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
-            let evaluated_value = if pending {
+            let evaluated_value = if pending || definition.pending_target_observation {
                 // Preparation retains a real unevaluated expression, never a
                 // placeholder value or manufactured public declaration identity.
                 None

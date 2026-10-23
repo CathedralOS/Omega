@@ -211,6 +211,19 @@ implementation dependencies. Provisional probe values/layouts never supply a
 selected dependency or published identity. Long dependency chains still require
 one frontend pass per layer; no performance improvement is claimed.
 
+A selected `size_of`/`align_of` dependency defers the entire scalar initializer,
+including arithmetic, aliases and ordinary helper closures. After Omega supplies
+the selected validated layouts, `const_initializers/target_observations.rs`
+uses the same checked scalar evaluator and invocation admission. Declaration
+values complete in dependency order; exact const uses consume those values,
+while detached expressions retain their source-call custody for replay. A
+helper call in that inventory does not select the parent arithmetic operator.
+The supported late destination is an unqualified builtin scalar; aggregate and
+qualified destinations still refuse. Native `code_layout` remains unavailable
+to same-product semantic evaluation. See the executable
+[target layout derived constant row](../../../../samples/cli/facts/target_layout_derived_constant/README.md).
+
+
 The source acceptance command is
 `cargo run -p omega -- --check tests/omega/pass/modules/computed_constant_initializers/main.omg`.
 Its checked body/index, module and package controls are

@@ -170,17 +170,6 @@ pub(crate) fn pending_const_initializer_leaves(
                     // floating declaration's literal validation owns its suffix.
                     ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => matches!(selection.builtin_type(syntax, name),
                         Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)),
-                    // `size_of<T>()`/`align_of<T>()` are answered from the
-                    // selected target's validated layout after settlement, not
-                    // by a Psi-stage probe: the leaf retains its authored call
-                    // and Omega materializes the `u64` literal there. An
-                    // authored declaration bearing the same name keeps the
-                    // ordinary call leaf.
-                    ExpressionNode::Call(call)
-                        if deferred_layout_query(syntax, Some(selection), call) =>
-                    {
-                        return Ok(());
-                    }
                     _ => false,
                 };
                 if !materialized {
@@ -478,22 +467,4 @@ fn name_selects_const(
         syntax,
         &syntax_trees::identifier::Identifier::new(name, reference),
     )
-}
-
-/// Layout queries remain deferred until target layout settlement. An authored
-/// declaration with the same spelling retains its ordinary call evaluation.
-pub(crate) fn deferred_layout_query(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
-    call: &syntax_trees::expression::TableCallExpression,
-) -> bool {
-    if call.receiver.is_valid()
-        || language_core::data_layout_queries::DataLayoutQueryKind::from_target_name(
-            call.target.as_str(syntax_trees),
-        )
-        .is_none()
-    {
-        return false;
-    }
-    selection.is_none_or(|selection| !selection.names_declaration(syntax_trees, &call.target))
 }

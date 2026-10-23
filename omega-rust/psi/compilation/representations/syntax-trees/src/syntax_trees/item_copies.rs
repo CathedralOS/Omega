@@ -338,6 +338,7 @@ impl SyntaxCopy<'_> {
                     is_public: constant.is_public,
                     type_reference,
                     value,
+                    pending_target_observation: constant.pending_target_observation,
                     normalization: constant.normalization.as_ref().map(|normalization| {
                         crate::item::ConstInitializerNormalization {
                             authored_custody: normalization.authored_custody.clone(),

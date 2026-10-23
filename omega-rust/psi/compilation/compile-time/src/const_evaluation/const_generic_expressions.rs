@@ -13,7 +13,7 @@
 //! operand. Nonscalar values retain their existing materialization path.
 
 mod call_custody;
-pub(crate) use call_custody::DependencyValue;
+pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls};
 pub(super) mod lexical_selection;
 pub(super) mod value;
 

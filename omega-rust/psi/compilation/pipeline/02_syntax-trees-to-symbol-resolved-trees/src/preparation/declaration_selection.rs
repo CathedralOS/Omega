@@ -700,28 +700,6 @@ impl<'base> ConstantSelection<'base> {
             )
     }
 
-    /// Whether one authored call-target name selects any visible declaration
-    /// in its source context. The compiler's `size_of`/`align_of` layout
-    /// spellings stay compiler-owned only when no authored declaration binds
-    /// them; this lookup owns that distinction before resolution assigns
-    /// symbols.
-    pub(crate) fn names_declaration(
-        &self,
-        syntax_trees: &syntax_trees::SyntaxTrees,
-        name: &Identifier,
-    ) -> bool {
-        !matches!(
-            self.symbols
-                .lookup_top_level_by_name_and_kinds_from_source_matching(
-                    name.as_str(syntax_trees),
-                    crate::selection::ANY_DECLARATION_LOOKUP_KINDS,
-                    name.source_span(),
-                    |_| true,
-                ),
-            symbols::SymbolLookup::NotFound
-        )
-    }
-
     /// The selected declaration's logical namespace path, for generated
     /// references that must re-resolve in another source's import scope.
     pub(crate) fn declaration_path(&self, symbol: symbols::SymbolHandle) -> String {

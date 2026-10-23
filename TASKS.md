@@ -6221,6 +6221,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)
   of the selected target, and close package review over
   [operator applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
+  - Provider-free observation applications still need their own target-closure
+    receipts. Late aggregate/qualified constants and arithmetic layout predicates
+    in ordinary call preconditions still need connected deferral and replay.
   - Package review has no supplied symbolic boundary-application closure
     (the unused one was deleted); a reviewed customer needs one that covers
     the complete reachable specialization closure including const
@@ -6229,15 +6232,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     target facts and admission after substitution; a review demand grants no
     install authority. Keep empty operator applications distinct from absent
     boundary-trait telescopes.
-  Acceptance: a fixture folding a target query under a non-host `--target`
-  yields the selected target's value (`samples/cli/facts/target_scoped_constant_realization`
-  carries target-scoped boundary-trait constant realization `const N: u64 = limit()`
-  and `size_of<Main>()` across all nine places (`local`, `field`, `parameter`,
-  `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`,
-  `target_body`) with `target_family_interface` return interval/recipe union in
-  `arrivals.rs` and target-dependent `const` observation recipes in `place.rs`,
-  pinned under `tests/omega/{pass,fail}/facts/target_scoped_constant_realization_*`);
-  package review over a generic provider
+  Acceptance: package review over a generic provider
   package reports the full reachable application set, and missing, extra or
   unresolved mappings reject. Keep provider-free evaluation, alternate-provider,
   false-result and unselected-provider controls; build dependency cycles

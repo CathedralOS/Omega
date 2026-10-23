@@ -296,6 +296,38 @@ pub(super) fn collect_pending_roots(
     )
 }
 
+/// A target-dependent initializer still contains its authored calls: no scalar
+/// replacement existed at source resolution. After queries close, retain the
+/// exact surviving lexical invocation inventory before private specialization.
+/// Collection checks every source selection, including unexecuted branches;
+/// this roster grants neither invocation admission nor a selected provider.
+pub(crate) fn retain_current_initializer_calls(
+    program: &mut TypedTrees,
+    owner: symbols::SymbolHandle,
+    root: ExpressionHandle,
+) -> Result<(), String> {
+    let machine = program
+        .machine(owner)
+        .ok_or("pending initializer lost its custody owner")?;
+    let [state] = program.machine_states(machine) else {
+        return Err("pending initializer lost its custody state".into());
+    };
+    let calls =
+        collect_internal(program, machine, state, &[root], false, None, false, true)?.call_targets;
+    for (reference, selected) in calls {
+        let occurrence = program.record_resolved_authored_declaration_selection_once(
+            reference,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            Kind::Call,
+            selected,
+        ).map_err(|reason| format!("pending initializer call custody cannot be retained: {reason:?}"))?;
+        program
+            .expression_table
+            .attach_authored_selection_occurrences(root, [occurrence]);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_retained(
     program: &TypedTrees,
     machine: &Machine,

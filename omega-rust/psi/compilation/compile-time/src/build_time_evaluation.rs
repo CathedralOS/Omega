@@ -359,6 +359,11 @@ impl EvaluatedPreCheck {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        const_initializers::settle_target_observations(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )?;
         const_initializers::validate_retained_invocations(
             typed,
             self.selection_authority,

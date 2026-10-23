@@ -82,6 +82,9 @@ pub struct ConstDefinition {
     pub is_public: bool,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub value: crate::expression::ExpressionHandle,
+    /// Declaration readiness found a target observation in this initializer
+    /// closure. This delays evaluation; it grants no target or call authority.
+    pub pending_target_observation: bool,
     /// Present when semantic evaluation has replaced the authored initializer.
     pub normalization: Option<ConstInitializerNormalization>,
     /// The compile-time owner's ordinary checked return judgment for this exact

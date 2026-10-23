@@ -127,6 +127,9 @@ pub fn requires_const_initializer_evaluation(
     definition: &ConstDefinition,
 ) -> bool {
     use syntax_trees::expression::ExpressionNode;
+    if definition.pending_target_observation {
+        return false;
+    }
     let mut pending = vec![definition.value];
     while let Some(expression) = pending.pop() {
         if direct_selector_literal(syntax, expression) {

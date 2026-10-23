@@ -154,7 +154,6 @@ pub(crate) fn public_declaration_value_encoding(
 pub(crate) fn validate_scalar_initializer(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
-    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
     use numerics::literals::{FloatFormat, FloatLiteral};
     use syntax_trees::expression::ExpressionNode;
@@ -173,13 +172,6 @@ pub(crate) fn validate_scalar_initializer(
         return Ok(());
     }
     let initializer = syntax.expressions.expression(constant.value);
-    // A deferred `size_of`/`align_of` leaf lands only after target selection;
-    // Psi cannot literal-validate it, and Omega materializes the `u64` there.
-    if let ExpressionNode::Call(call) = initializer
-        && crate::constant::initializer_leaves::deferred_layout_query(syntax, selection, call)
-    {
-        return Ok(());
-    }
     match carrier.as_str(syntax) {
         "f32" | "f64" => {
             let format = if carrier.as_str(syntax) == "f32" {
@@ -222,6 +214,38 @@ pub(crate) fn validate_const_definition(
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
+    if definition.pending_target_observation {
+        // The late scalar evaluator owns the same carrier landing once the
+        // target closes. Aggregate and qualified destinations need their own
+        // complete late value/qualification route; do not silently admit them.
+        let supported = syntax
+            .type_references
+            .type_reference(definition.type_reference)
+            .as_named()
+            .and_then(|name| selection.and_then(|selected| selected.builtin_type(syntax, name)))
+            .is_some_and(|atom| {
+                matches!(
+                    atom,
+                    symbols::BuiltinTypeAtom::I8
+                        | symbols::BuiltinTypeAtom::I16
+                        | symbols::BuiltinTypeAtom::I32
+                        | symbols::BuiltinTypeAtom::I64
+                        | symbols::BuiltinTypeAtom::U8
+                        | symbols::BuiltinTypeAtom::U16
+                        | symbols::BuiltinTypeAtom::U32
+                        | symbols::BuiltinTypeAtom::U64
+                        | symbols::BuiltinTypeAtom::Bool
+                        | symbols::BuiltinTypeAtom::F32
+                        | symbols::BuiltinTypeAtom::F64
+                )
+            });
+        return if supported {
+            Ok(())
+        } else {
+            Err(Diagnostic::error("target-dependent constant evaluation requires an unqualified builtin scalar destination")
+                .with_source_span(definition.name.source_span()))
+        };
+    }
     // An unused private declaration never acquires a use-site proof obligation.
     // Its constrained destination is still mandatory; failure to encode a
     // public/index value must not swallow a false declaration-site predicate.
@@ -263,22 +287,13 @@ pub(crate) fn validate_const_definition(
             .with_source_span(definition.name.source_span())
         })?;
     }
-    validate_scalar_initializer(syntax, definition, selection).map_err(|reason| {
+    validate_scalar_initializer(syntax, definition).map_err(|reason| {
         Diagnostic::error(format!(
             "scalar constant `{}` is invalid: {reason}",
             definition.name.as_str(syntax)
         ))
         .with_source_span(definition.name.source_span())
     })?;
-    // A deferred `size_of`/`align_of` leaf is not a literal yet; its `u64`
-    // materializes from the selected target's layout in Omega.
-    if matches!(
-        syntax.expressions.expression(definition.value),
-        syntax_trees::expression::ExpressionNode::Call(call)
-            if crate::constant::initializer_leaves::deferred_layout_query(syntax, selection, call)
-    ) {
-        return Ok(());
-    }
     validate_literal_initializer(syntax, definition, definition.value)
 }
 
@@ -303,17 +318,7 @@ pub(crate) fn retain_const_initializer(
                 .with_source_span(definition.name.source_span())
             })?;
         } else {
-            // A deferred `size_of`/`align_of` leaf is not a literal yet; its
-            // `u64` materializes from the selected target's layout in Omega.
-            let deferred = matches!(
-                syntax.expressions.expression(definition.value),
-                syntax_trees::expression::ExpressionNode::Call(call)
-                    if crate::constant::initializer_leaves::deferred_layout_query(syntax,
-                        lowerer.constant_selection.as_ref(),
-                        call,
-                    )
-            );
-            if !deferred {
+            if !definition.pending_target_observation {
                 validate_literal_initializer(syntax, definition, definition.value)?;
             }
         }

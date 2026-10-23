@@ -1156,7 +1156,10 @@ pub(super) struct LeafEvaluation {
     pub(super) warnings: Vec<Diagnostic>,
 }
 
-fn scalar_snapshot(value: &ScalarValue, carrier: PrimitiveType) -> Result<ExpressionNode, String> {
+pub(super) fn scalar_snapshot(
+    value: &ScalarValue,
+    carrier: PrimitiveType,
+) -> Result<ExpressionNode, String> {
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
     let value = match value {
         ScalarValue::UndeterminedNaN(_) => {

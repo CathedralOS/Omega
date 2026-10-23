@@ -261,36 +261,35 @@ fn close_constant_values(
     evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
     let closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
+    closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
+    closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);
+    closed_typed.plan_laid_schema_fields = std::mem::take(&mut evaluated.plan_laid_schema_fields);
     if !layout_queries.is_empty() {
-        // Evaluation already produced these answers under the selected target.
-        // Rejoin by canonical expression identity instead of asking the layout
-        // authority to rebuild the same output on the checked copy.
-        for expression in layout_queries {
-            let value = evaluated.expression_table.expression(*expression);
-            if !matches!(value, typed_trees::expression::ExpressionNode::Integer(_)) {
-                return Err(vec![Diagnostic::error(
-                    "retained layout query did not close at its canonical expression identity",
-                )]);
-            }
-            *closed_typed.expression_table.expression_mut(*expression) = value.clone();
-        }
+        // Preparation can append specialized query occurrences after the
+        // authored continuation was retained. Arena coordinates from the
+        // checked program are not identities in the authored forest: reading
+        // an appended handle there can silently select an unrelated literal.
+        // Close these actual checked subjects through the same layout owner,
+        // using this target's completed recipe and validated plan inputs.
+        let selection = typed_trees::references::DeclarationSelection::from_program(&closed_typed);
+        provider_planning::data_layout_queries::fold_data_layout_queries(
+            &mut closed_typed,
+            selected_target_profile,
+            opaque_representation_selections,
+            false,
+            &selection,
+        )?;
         closed_typed
             .tables
             .const_declarations
             .for_each_mut(|_, declaration| {
-                if layout_queries.contains(&declaration.materialized_initializer) {
+                if declaration.evaluated_value.is_none() {
                     declaration.evaluated_value = evaluated
                         .const_declaration_by_symbol(declaration.symbol)
                         .and_then(|closed| closed.evaluated_value.clone());
                 }
             });
     }
-    // The continuation owns validated plan installation. Preserve that
-    // result beside the closed constants before the checked program consumes
-    // a layout query or a plan-laid field.
-    closed_typed.plan_laid_layouts = evaluated.plan_laid_layouts;
-    closed_typed.plan_laid_target_layouts = evaluated.plan_laid_target_layouts;
-    closed_typed.plan_laid_schema_fields = evaluated.plan_laid_schema_fields;
     Ok(closed_typed)
 }
 

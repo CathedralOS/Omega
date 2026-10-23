@@ -562,6 +562,7 @@ pub fn has_builtin_anonymous_operands(
 ) -> bool {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind,
         AuthoredDeclarationSelectionLateBinding as LateBinding,
         AuthoredDeclarationSelectionTarget as Target,
     };
@@ -573,6 +574,15 @@ pub fn has_builtin_anonymous_operands(
                 .authored_declaration_selections()
                 .get(occurrence)
                 .is_some_and(|selection| match selection.target() {
+                    // A retained initializer inventories calls in its complete
+                    // subtree. Their own selected targets govern those calls,
+                    // not this parent arithmetic operator's meaning.
+                    Target::Resolved(resolved) if selection.kind() == Kind::Call => matches!(
+                        program.symbols.get(resolved.selected_symbol()).kind,
+                        symbols::SymbolKind::Machine
+                            | symbols::SymbolKind::State
+                            | symbols::SymbolKind::Operator
+                    ),
                     Target::Intrinsic(Intrinsic::BuiltinOperator)
                     | Target::LateBound(LateBinding::CheckedOperator) => true,
                     // A compile-time value declaration retains only

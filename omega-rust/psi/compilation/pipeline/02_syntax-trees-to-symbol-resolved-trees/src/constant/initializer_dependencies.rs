@@ -23,6 +23,8 @@ pub(crate) enum DependencyPurpose {
 /// even when execution later selects another branch.
 #[derive(Debug, Default)]
 pub struct ConstInitializerDependencies {
+    /// A selected layout observation remains symbolic until target closure.
+    pub pending_target_observation: bool,
     pub constants: Vec<(SourceSpan, SourceSpan)>,
     pub calls: Vec<(SourceSpan, SourceSpan)>,
     pub initializer_operators: Vec<SourceSpan>,
@@ -431,13 +433,14 @@ impl<'program> Collector<'program> {
                 // `size_of<T>()`/`align_of<T>()` carry no callee: the
                 // compiler answers them from the selected target's layout
                 // after constant dependency ordering has already run.
-                if !native_query
-                    && !language_core::data_layout_queries::is_data_layout_query_spelling(
+                let layout_query =
+                    language_core::data_layout_queries::is_data_layout_query_spelling(
                         call.target.as_str(),
                         call.target_symbol.is_valid(),
                         call.receiver.is_valid(),
-                    )
-                {
+                    );
+                self.dependencies.pending_target_observation |= layout_query;
+                if !native_query && !layout_query {
                     self.call(call.target_symbol, call.target.source_span())?;
                 }
                 if call.receiver.is_valid() {

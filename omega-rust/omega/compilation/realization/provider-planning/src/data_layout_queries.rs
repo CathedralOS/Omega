@@ -29,9 +29,8 @@ use language_core::data_layout_queries::DataLayoutQueryKind;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 
 /// Fold every selected declaration's retained `size_of`/`align_of` query in the typed program to
-/// its `u64` literal under `target`. Also stamps the canonical `u64` encoding
-/// on a `const` whose materialized initializer root was the query node, so
-/// the folded declaration joins ordinary constant identity.
+/// its `u64` literal under `target`. Psi then completes each retained scalar
+/// initializer through ordinary semantic evaluation, including derived expressions.
 ///
 /// A plan-laid operand's layout exists only once the deferred evaluation
 /// installs the validated plan (`compute_plan_laid_layouts_in`). With
@@ -161,27 +160,6 @@ pub fn fold_data_layout_queries(
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
             });
         *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
-        // A `const N: u64 = size_of<T>()` declaration carries the query node
-        // as its materialized root; folding the node in place materializes the
-        // constant, so stamp the same canonical `u64` encoding the scalar
-        // evaluator would have produced.
-        program
-            .tables
-            .const_declarations
-            .for_each_mut(|_, declaration| {
-                if declaration.materialized_initializer == handle
-                    && declaration.evaluated_value.is_none()
-                {
-                    declaration.evaluated_value = Some(
-                        language_semantics::const_value::CanonicalConstIdentity::integer(
-                            "u64",
-                            i128::from(value),
-                        )
-                        .encoding
-                        .into(),
-                    );
-                }
-            });
     }
     Ok(())
 }

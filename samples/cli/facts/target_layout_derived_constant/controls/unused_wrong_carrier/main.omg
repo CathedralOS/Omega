@@ -1,0 +1,34 @@
+// Expected exit: 0.
+// Fact: a target-selected layout query contributes to a derived constant whose result discharges exact subtraction and agrees with execution.
+boundary trait Answer { machine get() -> u64 terminates; }
+Small satisfies Answer { machine get() -> u64 { 4 } }
+Large satisfies Answer { machine get() -> u64 { 8 } }
+Same satisfies Answer { machine get() -> u64 { 4 } }
+data TargetProviders {}
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Answer, Small>(defaults);
+}
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Answer, Large>(defaults);
+}
+linux_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Answer, Small>(defaults);
+}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Answer, Large>(defaults);
+}
+machine limit() -> u64 { Answer::get() }
+data Main { values: [u8; limit()]; }
+const OBSERVED_SIZE: u64 = size_of<Main>() + 1u64;
+linux_x86_64 machine expected() -> u64 { 4 }
+windows_x86_64 machine expected() -> u64 { 8 }
+linux_arm64 machine expected() -> u64 { 4 }
+macos_arm64 machine expected() -> u64 { 8 }
+machine main() crashes Trap {
+    let observed: u64 = OBSERVED_SIZE;
+    let slack: u64 = observed - 5u64;
+    transition observed == expected() + 1u64 && slack == expected() - 4u64 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+const BAD: u8 = size_of<Main>() + 1u64;

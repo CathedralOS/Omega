@@ -1,5 +1,11 @@
 //! Declaration values are ready before index normalization asks for them.
 //!
+//! A target observation instead defers its complete selected initializer
+//! closure. `target_observations` resumes unqualified scalar declarations after
+//! layout closure, orders aliases by their actual dependencies and consumes
+//! completed values at exact selected uses. Source-call inventories remain
+//! separate from parent operator meaning and from invocation permission.
+//!
 //! Index the authored declarations without substituting pending values and
 //! complete only the helpers their initializer roots demand. Their
 //! exact source-owned dependencies determine evaluation order, including unused
@@ -60,9 +66,11 @@ use syntax_trees::types::ConstArgumentOrigin;
 mod invocations;
 mod materialize;
 mod replay;
+mod target_observations;
 
 pub(crate) use invocations::CheckedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
+pub(crate) use target_observations::settle as settle_target_observations;
 
 struct PendingLeaf {
     expression: ExpressionHandle,
@@ -173,9 +181,11 @@ pub(crate) fn evaluate(
             normalization_owners: Vec::new(),
         });
     }
+    let mut target_observations = vec![false; declarations.len()];
     for ordinal in 0..declarations.len() {
         let selected =
             preparation.initializer_dependencies(&syntax, &declarations[ordinal].definition)?;
+        target_observations[ordinal] = selected.pending_target_observation;
         let authored =
             preparation.initializer_authored_dependencies(&declarations[ordinal].definition)?;
         declarations[ordinal].authored_calls = authored.calls;
@@ -234,13 +244,44 @@ pub(crate) fn evaluate(
             declarations[ordinal].leaves[leaf_ordinal].calls = selected.calls;
         }
     }
+    // Readiness follows the complete selected dependency closure, including
+    // aliases and helper bodies. Keep whole expressions symbolic, rather than
+    // trying to evaluate a nested observation as an ordinary machine call.
+    loop {
+        let mut changed = false;
+        for (ordinal, declaration) in declarations.iter().enumerate() {
+            if !target_observations[ordinal]
+                && declaration
+                    .dependencies
+                    .iter()
+                    .any(|(_, dependency)| target_observations[*dependency])
+            {
+                target_observations[ordinal] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
+        declaration.definition.pending_target_observation = target_observations[ordinal];
+        if target_observations[ordinal] {
+            syntax.items.replace_item(
+                declaration.item,
+                Item::Const(declaration.definition.clone()),
+            );
+        }
+    }
     // Evaluation roots demand their complete declaration graph. A leafless
     // literal is not ready merely because it has nothing to execute: its
     // declared geometry may still depend on a pending computation. Keep that
     // distinction until canonicalization supplies the actual encoded value.
     let mut demanded = declarations
         .iter()
-        .map(|declaration| !declaration.leaves.is_empty())
+        .map(|declaration| {
+            !declaration.definition.pending_target_observation && !declaration.leaves.is_empty()
+        })
         .collect::<Vec<_>>();
     let mut pending = demanded
         .iter()
