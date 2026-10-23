@@ -60,7 +60,7 @@ Each place has an `invalid/` reject twin (and corresponding `controls/read_desti
 ## Pinned Fixtures
 
 - Positive passes: `tests/omega/pass/facts/returned_write_destination_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
-- Negative controls: `tests/omega/fail/facts/returned_write_destination_through_<place>_read` (all 9 places pinned, rejecting with write-only observation).
+- Negative controls: `tests/omega/fail/facts/returned_write_destination_through_<place>_rejected` (all 9 places pinned, rejecting with write-only observation).
 - Related borrow controls: `tests/omega/fail/borrow/returned_write_destination_read`, `returned_write_destination_argument_read`, `returned_write_destination_backing_conflict`, `returned_write_destination_carrier_conflict`, and `returned_write_destination_readable_access`.
 
 ## Requirements and Evidence

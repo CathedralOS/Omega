@@ -53,7 +53,7 @@ measurement in each target body, and every width that flows from such a
 measurement were refused. A non-Exact cast is not peeled:
 `tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected`
 keeps rejecting the same selection. The row is pinned by
-`tests/omega/{pass,fail}/facts/remainder_width_through_*` fixtures.
+`tests/omega/{pass,fail}/facts/remainder_width_index_through_*` fixtures.
 
 ## Requirements and Evidence
 
@@ -83,7 +83,7 @@ caller guards.
   only in widening the width relation to `buckets.len as u64 + 1` (and `5` at
   call sites where required by the widened contract).
 - **Soundness boundaries:** Every `invalid/` twin and corresponding
-  `tests/omega/fail/facts/remainder_width_through_*_rejected` fixture rejects at
+  `tests/omega/fail/facts/remainder_width_index_through_*_rejected` fixture rejects at
   `buckets[value % ...]` with `cannot prove index ... is within unknown slice length`,
   and non-Exact casts remain rejected by
   `tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected`.
