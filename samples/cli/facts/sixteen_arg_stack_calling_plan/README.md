@@ -67,6 +67,30 @@ omega --check samples/cli/facts/sixteen_arg_stack_calling_plan/<place>/invalid/m
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
 
+### Pinned Fixtures
+
+All nine positive places and nine reject twins are pinned as canonical corpus fixtures:
+- **Pass fixtures** (`tests/omega/pass/facts/`):
+  - `sixteen_arg_stack_calling_plan_through_local_exit/`
+  - `sixteen_arg_stack_calling_plan_through_field_exit/`
+  - `sixteen_arg_stack_calling_plan_through_parameter_exit/`
+  - `sixteen_arg_stack_calling_plan_through_call_result_exit/`
+  - `sixteen_arg_stack_calling_plan_through_match_join_exit/`
+  - `sixteen_arg_stack_calling_plan_through_const_name_exit/`
+  - `sixteen_arg_stack_calling_plan_through_other_state_exit/`
+  - `sixteen_arg_stack_calling_plan_through_other_machine_exit/`
+  - `sixteen_arg_stack_calling_plan_through_target_body_exit/`
+- **Fail fixtures** (`tests/omega/fail/facts/`):
+  - `sixteen_arg_stack_calling_plan_through_local_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_field_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_parameter_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_call_result_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_match_join_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_const_name_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_other_state_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_other_machine_rejected/`
+  - `sixteen_arg_stack_calling_plan_through_target_body_rejected/`
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS-STACK-BOUNDS` / `SIXTEEN-ARG-STACK-CALLING-PLAN` (`TASKS.md`)
@@ -86,5 +110,7 @@ omega --check samples/cli/facts/sixteen_arg_stack_calling_plan/<place>/invalid/m
 ### Verification Evidence
 
 - `sample_native_gate.py --filter cli/facts/sixteen_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+- Fresh replay 2026-10-23 on base `317bacd12b0a` with the shared generation producer (`gen-317bacd12b0`, opt-level 1, host `macos_arm64`, jobs=2): `sample_native_gate.py --programs-only --cli`: 10/10 samples meet their documented oracle (375s wall); `sample_gate.py --cli`: 19/19 checked with 9 intended-invalid controls matched; direct `omega run --both` on root + 9 places: exit 0 with `native exit 0` and `interp exit: 0`; 9/9 twins `omega --check`: exit 1 with the decision-17 diagnostic at the twin's own machine (`probe` state `entry`, `probe` state `step`, `check_call`, `forward16`, `evaluate16`).
+- Corpus goldens for the 18 pinned fixtures, recorded at anchor `4c23cc3391c` with the generation built from that exact revision (`gen-4c23cc3391c`; all 36 check, 18 native and 18 both rows stamped `@4c23cc3391c2+wt`) and spliced over the origin/main goldens (three legs, pure addition: 60 + 18 + 18 lines, zero deletions): check leg 18 `checked` (`check-target:macos_arm64`) + 18 `rejected` carrying the diagnostic; native leg all 18 pass fixtures `built` + `exit:0`; both leg all 18 `exit:0 interpreter-exit:0 interpreter:agrees`.
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
 - What remains open: multi-argument calls exceeding 16+ arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
