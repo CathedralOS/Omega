@@ -32,6 +32,8 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 
 Positive places are byte-identical to `tests/omega/pass/facts/may_write_computed_receiver_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_computed_receiver_through_<place>_overlapping`.
 
+Corpus rows (recorded at `8128744a9d77`): nine `checked` (check-target:macos_arm64) positives and nine `rejected` (`expected`) twins in `tests/omega/corpus_outcomes.txt`; nine `built ... exit:0` positives in `tests/omega/corpus_native_macos_arm64.txt`; nine `exit:0 interpreter-exit:0 interpreter:agrees` positives in `tests/omega/corpus_both_macos_arm64.txt`. The first native recording of the target-body place exposed a validation gap (production recorded the selected formation calls; artifact validation built its geometry from the portable catalog alone); that was repaired in `backend` commit `8128744a9d77` before these rows were recorded.
+
 ## Requirements and evidence
 
 Parent outcome: **R5** (`TASKS.md`), the computed-receiver row.

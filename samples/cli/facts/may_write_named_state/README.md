@@ -33,6 +33,12 @@ The same command covers `field`, `parameter`, `call_result`, `match_join`, `cons
 
 Each `invalid/` project is `intended-invalid`. The source differs only by passing `false` to `relay`. The overlapping index bound is then stale. The pinned diagnostic fragment is `cannot prove`.
 
+## Pinned fixtures
+
+Positive places are byte-identical to `tests/omega/pass/facts/may_write_named_state_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_named_state_through_<place>_overlapping`.
+
+Corpus rows: nine `checked` (check-target:macos_arm64) positives and nine `rejected` (`expected`) twins in `tests/omega/corpus_outcomes.txt`, recorded at `b9060c9ca30d` and re-measured clean; nine `built ... exit:0` positives in `tests/omega/corpus_native_macos_arm64.txt` and nine `exit:0 interpreter-exit:0 interpreter:agrees` positives in `tests/omega/corpus_both_macos_arm64.txt`, recorded at `8128744a9d77`.
+
 ## Requirements and evidence
 
 Parent outcome: **R5** (`TASKS.md`). This folder establishes named-state may-write summaries.
