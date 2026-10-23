@@ -2,7 +2,7 @@
 
 Fact: an 8-bit signed i8 division of bounded inputs (dividend >= 90i8 && dividend <= 90i8, divisor >= 3i8 && divisor <= 3i8) establishes quotient >= 30i8 && quotient <= 30i8 so exact 8-bit signed subtraction quotient - 30i8 is proved overflow-free across all nine places.
 
-Owning Task: `SIGNED-8BIT-DIVISION-QUOTIENT`
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` ([`TASKS.md`](../../../../TASKS.md))
 Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Instruction selection](wiki/spec/resources/storage.md)
 
 This fact row demonstrates that an 8-bit signed `i8` division of bounded inputs (`dividend >= 90i8 && dividend <= 90i8` and `divisor >= 3i8 && divisor <= 3i8`) establishes the exact quotient interval (`quotient >= 30i8 && quotient <= 30i8`) across all nine standard places. The compiler statically derives interval division bounds (`[90, 90] / [3, 3] = [30, 30]`), which directly discharges exact downstream subtraction `quotient - 30i8 == 0i8` and the contract `requires q >= 30i8 && q <= 30i8` of `verify_i8_quotient` without underflow, overflow, or runtime guard checks across both Terminal Psi and native targets.
@@ -60,9 +60,49 @@ omega --check samples/cli/facts/signed_8bit_division_quotient_bound/target_body/
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call verify_i8_quotient from ...: quotient >= 30 && quotient <= 30 (needs fact \`q >= 30 && q <= 30\` here; establish it before the call via a prior contract guarantee, domain membership, or guard)`
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_<place>_exit`
+and
+`tests/omega/fail/facts/signed_8bit_division_quotient_bound_through_<place>_rejected`
+for the nine places (`local`, `field`, `parameter`, `call_result`, `match_join`,
+`const_name`, `other_state`, `other_machine`, `target_body`). Each positive
+fixture is a byte-identical copy of its `<place>/main.omg` and `build.omg` plus
+`expected_native_exit.txt` = 0; it binds `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
+records native exit 0 with Terminal Psi agreement. Each reject twin is a
+byte-identical copy of its `<place>/invalid/main.omg` and `build.omg` plus the
+authored `expected.txt` fragments
+`cannot prove requires contract for call verify_i8_quotient` and
+`q >= 30 && q <= 30`; positive versus twin `git diff` changes only the
+`divisor` bound (`divisor <= 3i8` to `divisor <= 5i8`, or
+`const BASE_DIVISOR: i8 = 3i8` to `5i8`) with the matching intermediate
+contract endpoint, which is the fact's own domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer
+`gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`,
+corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report
+  `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with
+  `cannot prove requires contract for call verify_i8_quotient ...: quotient >= 30 && quotient <= 30 (needs fact \`q >= 30 && q <= 30\` here; ...)`.
+- The three corpus legs were recorded with the fixture and golden changes
+  staged at the published wave base `9b001b8f6afa`, so every row is stamped
+  `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained 36 rows
+  (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with
+  their diagnostic lines), `tests/omega/corpus_native_macos_arm64.txt` gained
+  18 `built ... exit:0` rows, and `tests/omega/corpus_both_macos_arm64.txt`
+  gained 18 `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
+  Every golden diff is a pure addition (numstat 60/0, 18/0, 18/0), all three
+  legs recorded 0 unimplemented rows, and no added row records a lost success.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `SIGNED-8BIT-DIVISION-QUOTIENT` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls". This row is one customer group's nine-place transport and execution of that settled proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 - **Requirement established:** End-to-end nine-place fact preservation for 8-bit signed `i8` division quotient interval synthesis (`dividend >= 90i8 && dividend <= 90i8`, `divisor >= 3i8 && divisor <= 3i8` -> `quotient >= 30i8 && quotient <= 30i8`), discharging exact downstream subtraction `quotient - 30i8` and contract `requires q >= 30i8 && q <= 30i8` across all nine language transport places with differential agreement between Terminal Psi and native execution across hosted targets.
 - **Authority:** [Numeric values](wiki/spec/language/numeric_values.md#exact-subtraction), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Control flow](wiki/spec/terminal-psi/control_flow.md).
 

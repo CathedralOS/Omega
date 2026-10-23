@@ -1,0 +1,33 @@
+// Fact: an 8-bit signed i8 division of bounded inputs (dividend >= 90i8 && dividend <= 90i8, divisor >= 3i8 && divisor <= 3i8) establishes quotient >= 30i8 && quotient <= 30i8 so exact 8-bit signed subtraction quotient - 30i8 is proved overflow-free across all nine places.
+// Expected exit: 0
+
+machine verify_i8_quotient(q: i8) -> i32
+requires q >= 30i8 && q <= 30i8
+{
+    let diff: i8 = q - 30i8;
+    transition diff == 0i8 {
+        true -> 0i32
+        _ -> 1i32
+    }
+}
+
+machine exercise(dividend: i8, divisor: i8) -> i32
+requires dividend >= 90i8 && dividend <= 90i8
+requires divisor >= 3i8 && divisor <= 5i8
+{
+    let quotient: i8 = dividend / divisor;
+    transition { _ -> step(quotient) }
+    state step(q: i8) -> i32 requires q >= 18i8 && q <= 30i8 {
+        verify_i8_quotient(q)
+    }
+}
+
+machine main() crashes Trap {
+    let exit_code: i32 = exercise(90i8, 3i8);
+    transition exit_code == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

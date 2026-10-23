@@ -70,13 +70,46 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_*` and
-`tests/omega/fail/facts/signed_8bit_division_remainder_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under
+`tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_<place>_exit`
+and
+`tests/omega/fail/facts/signed_8bit_division_remainder_bound_through_<place>_rejected`
+for the nine places (`local`, `field`, `parameter`, `call_result`, `match_join`,
+`const_name`, `other_state`, `other_machine`, `target_body`). Each positive
+fixture is a byte-identical copy of its `<place>/main.omg` and `build.omg` plus
+`expected_native_exit.txt` = 0; it binds `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
+records native exit 0 with Terminal Psi agreement. Each reject twin is a
+byte-identical copy of its `<place>/invalid/main.omg` and `build.omg` plus the
+authored `expected.txt` fragment
+`cannot prove requires contract for call verify_rem`; positive versus twin
+`git diff` changes only the `divisor` bound (`divisor <= 16` to
+`divisor <= 17`, or `const DIVISOR: i8 = 16` to `17`), which is the fact's own
+domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer
+`gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`,
+corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report
+  `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with
+  `cannot prove requires contract for call verify_rem ...: rem >= 0 && rem <= 15 (needs fact \`rem >= 0 && rem <= 15\` here; ...)`.
+- The three corpus legs were recorded with the fixture and golden changes
+  staged at the published wave base `9b001b8f6afa`, so every row is stamped
+  `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained 36 rows
+  (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with
+  their diagnostic lines), `tests/omega/corpus_native_macos_arm64.txt` gained
+  18 `built ... exit:0` rows, and `tests/omega/corpus_both_macos_arm64.txt`
+  gained 18 `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
+  Every golden diff is a pure addition (numstat 60/0, 18/0, 18/0), all three
+  legs recorded 0 unimplemented rows, and no added row records a lost success.
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls". This row is one customer group's nine-place transport and execution of that settled proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for 8-bit signed (`i8`) division remainder bounds (`[numeric values](wiki/spec/language/numeric_values.md)`). Specifically, exact 8-bit signed remainder operation on bounded inputs (`dividend >= 0i8 && dividend <= 100i8`, `divisor >= 16i8 && divisor <= 16i8`) statically establishes `rem >= 0i8 && rem <= 15i8`, discharging downstream contract requirement `rem >= 0 && rem <= 15` and exact subtraction `15i8 - rem` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
