@@ -68,6 +68,10 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/nested_thirtytwo_level_record_field_bound_through_<place>_exit` (nine positives: `main.omg`, `build.omg`, `expected_native_exit.txt`) and `tests/omega/fail/facts/nested_thirtytwo_level_record_field_bound_through_<place>_rejected` (nine reject twins: `main.omg`, `build.omg`, `expected.txt`). Every fixture is a byte-identical copy of its place program, so the sample and the fixture cannot drift apart; each twin differs from its positive only in the placeholder header lines and one contract line, `val <= 80` to `val <= 81`. The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Recorded on macOS arm64 from the shared opt-level 1 producer generation `gen-4c23cc3391c` (runner sha256 `a1de848f1bac`): `corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows whose diagnostics are the authored ``may overflow `u64` `` fragment at local `headroom` (the `target_body` twin declares four per-target bodies, four diagnostic lines), `corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows. The rows are stamped `@4c23cc3391c2+wt`, the published base this candidate sits on.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
