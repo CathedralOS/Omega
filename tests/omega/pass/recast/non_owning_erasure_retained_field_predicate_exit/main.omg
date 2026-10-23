@@ -1,0 +1,14 @@
+// Expected exit: 0
+domain u32::Small(value) requires value <= 10;
+data Holder { slot: u32 in Small; }
+machine overwrite(holder: &mut Holder) {
+    let view: &mut u32 in Small = &mut holder.slot as &mut u32 in Small;
+    view = 7;
+}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { slot: 0 };
+    overwrite(&mut holder);
+    transition holder.slot == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

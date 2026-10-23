@@ -1,0 +1,6 @@
+domain u32::Small(value) requires value <= 10;
+machine corrupt(values: &write [u32 in Small; 2]) {
+    let view: &write u32 = values[0] as &write u32;
+    view = 73;
+}
+machine main() {}

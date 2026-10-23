@@ -79,7 +79,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 if !referent.is_valid() {
                     return None;
                 }
-                let mut paths = validation::field_domains::declared_result_field_domain_paths(
+                let paths = validation::field_domains::declared_result_field_domain_paths(
                     program, referent,
                 );
                 // Normal-return checking proves these exact field obligations
@@ -88,17 +88,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 // receives its restored field promise, not a resurrection of
                 // the value removed on entry. Captured referents below bind
                 // that promise to the actual storage passed to this call.
-                // Root and field handback share the same normal-return
-                // obligation. The declaration is a callee obligation, not
-                // permission to repair an unrelated caller occurrence.
-                paths.extend(
-                    validation::field_domains::domain_constraint_identities(
-                        program,
-                        parameter.type_reference,
-                    )
-                    .into_iter()
-                    .map(|(domain, identity)| (Vec::new(), domain, identity)),
-                );
+                // Additional root qualifications are input preconditions,
+                // not normal-return promises. Reintroducing them here would
+                // resurrect routed membership after an unissued replacement
+                // and conceal corruption of a caller's qualified field.
+                // Explicit guarantees and unchanged observations are joined
+                // independently below and in call-parameter contract facts.
                 if paths.is_empty() {
                     None
                 } else {
@@ -113,11 +108,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
-            for (position, domain, identity, declared) in
+            for (position, domain, identity) in
                 parameter_claims.iter().flat_map(|claims| claims.iter())
             {
                 if *position == argument_position
-                    && !declared
                     && validation::field_domains::domain_requires_provenance(program, *domain)
                 {
                     let row = (Vec::new(), *domain, *identity);
@@ -143,9 +137,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     && parameter_claims
                         .iter()
                         .flat_map(|claims| claims.iter())
-                        .any(|(position, domain, identity, declared)| {
+                        .any(|(position, domain, identity)| {
                             *position == argument_position
-                                && !declared
                                 && *domain == *domain_symbol
                                 && *identity == *semantic_domain
                         });

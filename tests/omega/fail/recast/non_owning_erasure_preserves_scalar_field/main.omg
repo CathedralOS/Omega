@@ -1,0 +1,7 @@
+domain u32::Small(value) requires value <= 10;
+data Holder { slot: u32 in Small; }
+machine corrupt(holder: &write Holder) {
+    let view: &write u32 = holder.slot as &write u32;
+    view = 73;
+}
+machine main() {}

@@ -1,1 +1,0 @@
-in BOTH directions for mutable storage

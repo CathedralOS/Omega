@@ -95,10 +95,8 @@ impl<'program> ParameterQualificationJoin<'program> {
         for (position, parameter) in parameters.iter().enumerate() {
             let mut promised = identities
                 .iter()
-                .filter(|(declared, _, _, from_declared_type)| {
-                    *declared == position && (checked_body || !*from_declared_type)
-                })
-                .map(|(_, domain, instance, _)| (Vec::new(), *domain, *instance))
+                .filter(|(argument_position, _, _)| *argument_position == position)
+                .map(|(_, domain, instance)| (Vec::new(), *domain, *instance))
                 .collect::<Vec<_>>();
             let referent = crate::checks::contracts::exclusive_referent_type(
                 program,

@@ -282,6 +282,76 @@ pub(super) fn expression_origins_before_statement(
         .collect()
 }
 
+/// Declared storage obligations at every exact original lender. Root input
+/// qualifications are preconditions, while a selected field/element's declared
+/// qualification is a persistent obligation. Retained recast coordinates name
+/// the original declaration namespace; interpreting target fields against that
+/// namespace would silently lose or invent lender obligations.
+pub(super) fn expression_lender_declarations_before_statement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Result<Vec<TypeReferenceHandle>, &'static str> {
+    let (state, _, statement_index) = caller_aliases::caller_statement_owner(
+        program,
+        machine,
+        caller_aliases::CallerWriteSite::Statement(before),
+    )
+    .ok_or("the recast has no exact statement owner")?;
+    let origins = expression_origins_before_statement(
+        program,
+        machine,
+        symbols,
+        before,
+        expression,
+        collections,
+    )
+    .filter(|origins| !origins.is_empty())
+    .ok_or("the recast has no complete exact lender origins")?;
+    let mut declarations = Vec::new();
+    for source in origins {
+        let segments = source
+            .recasts
+            .first()
+            .map(|recast| recast.segments.as_slice())
+            .unwrap_or(&source.segments);
+        let root = source_root_type(program, state, statement_index, source.root)
+            .ok_or("the original lender declaration is unavailable")?;
+        validate_owned_projection(program, root, segments)
+            .ok_or("the original lender projection is not exact")?;
+        let storage = carrier_storage_declaration(program, root)
+            .ok_or("the original lender storage declaration is unavailable")?;
+        let presentations = std::iter::once((storage, segments)).chain(
+            source
+                .recasts
+                .iter()
+                .filter_map(|recast| recast.representation.as_ref())
+                .chain(source.representation.iter())
+                .map(|(reference, segments)| (*reference, segments.as_slice())),
+        );
+        for (reference, segments) in presentations {
+            if segments.is_empty() {
+                // Carrier/default-field validity is checked independently even
+                // when an additional qualification of this root may expire.
+                continue;
+            }
+            let declaration = crate::value_custody::places::project_type_reference_from_segments(
+                program, reference, segments,
+            )
+            .ok_or("a retained lender projection has no declared type")?;
+            if !declarations.contains(&declaration) {
+                declarations.push(declaration);
+            }
+        }
+    }
+    Ok(declarations)
+}
+
 pub(super) fn local_origin(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

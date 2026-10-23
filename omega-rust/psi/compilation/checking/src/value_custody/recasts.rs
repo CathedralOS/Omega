@@ -303,6 +303,7 @@ use crate::value_custody::recasts::recast_judgments::{
 
 pub(crate) fn validate_recasts(
     program: &dyn crate::CheckingInput,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The blessed positions: direct initializers of reference-typed lets
@@ -345,6 +346,7 @@ pub(crate) fn validate_recasts(
                             blessed.push(initializer);
                             judge_scalar_recast(
                                 program,
+                                call_frames,
                                 machine,
                                 state,
                                 statement_index,
@@ -400,6 +402,7 @@ pub(crate) fn validate_recasts(
                         judged_inline.push(handle);
                         judge_scalar_recast(
                             program,
+                            call_frames,
                             machine,
                             state,
                             statement_index,

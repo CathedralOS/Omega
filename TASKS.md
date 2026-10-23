@@ -1914,7 +1914,9 @@ defines the complete product bar.
   This does not gate policy transport or access-demand checking: access restrictions
   survive independently of invalidated membership facts. Keep the
   `additional_input_domain_mutation` fact row as the prerequisite distinction
-  between an extra input qualification and a declared field/default invariant.
+  between an extra input qualification and a declared field/default invariant;
+  `non_owning_reference_erasure` carries that distinction through explicit
+  writable views without minting membership or discarding lender obligations.
 
   Acceptance: the same policy survives the ordinary fact/loan transport places,
   nested fields, whole-place replacement, requirement dispatch, helper calls,

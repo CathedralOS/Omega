@@ -1,0 +1,1 @@
+writable qualification erasure cannot preserve lender validity

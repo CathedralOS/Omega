@@ -1,0 +1,6 @@
+data Storage { value: u32; }
+machine corrupt(storage: &Storage, choice: bool) {
+    let view: &Storage = match choice { true -> storage as &Storage, false -> storage as &Storage };
+    view.value = 73;
+}
+machine main() {}

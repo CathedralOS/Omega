@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Fact: explicit non-owning reference erasure writes 73 to the original record without minting routed membership.
+data Storage { value: u32; }
+
+domain Storage::Issued established by issue;
+
+machine issue(value: u32) -> Storage in Issued {
+    Storage { value: value }
+}
+
+machine write(storage: &write Storage in Issued) {
+    let view: &write Storage = storage as &write Storage;
+    view.value = 73;
+}
+
+machine observed_exit() -> u32 {
+    let mut storage: Storage in Issued = issue(0);
+    write(&write storage);
+    transition storage.value == 73 { true -> 0 _ -> 1 }
+}
+
+machine main() crashes Trap {
+    transition observed_exit() == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

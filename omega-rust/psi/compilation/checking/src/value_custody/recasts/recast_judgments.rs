@@ -30,6 +30,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// scalar fragment).
 pub(crate) fn judge_scalar_recast(
     program: &dyn crate::CheckingInput,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -60,6 +61,7 @@ pub(crate) fn judge_scalar_recast(
         let alternative = crate::LayoutCheckingContext::new(program, target);
         judge_scalar_recast_alternative(
             &alternative,
+            call_frames,
             machine,
             state,
             statement_index,
@@ -76,6 +78,7 @@ pub(crate) fn judge_scalar_recast(
 #[allow(clippy::too_many_arguments)]
 fn judge_scalar_recast_alternative(
     program: &dyn crate::CheckingInput,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -173,30 +176,60 @@ fn judge_scalar_recast_alternative(
     )
     .is_some_and(|representation| representation.permits_shared_mutation());
     let qualification_compatible = source_type.and_then(|source| {
-        super::qualification_views::qualification_view_compatible(
-            program,
-            source,
-            let_referee,
-            writable_view || shared_mutation,
-        )
+        super::qualification_views::qualification_view_compatible(program, source, let_referee)
     });
     if qualification_compatible == Some(false) {
         diagnostics.push(Diagnostic::error(format!(
-                "{context}: a qualification reference view must retain existing source qualifications{}; `as` cannot mint routed provenance",
-                if writable_view { " in BOTH directions for mutable storage" } else { "" },
+                "{context}: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance",
             )).with_source_span(source_span));
         return;
+    }
+    if qualification_compatible == Some(true)
+        && (writable_view || shared_mutation)
+        && source_type.is_some_and(|source| {
+            super::qualification_views::qualification_view_compatible(program, let_referee, source)
+                != Some(true)
+        })
+    {
+        let statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index);
+        let declarations = statement
+            .ok_or("the recast statement is unavailable")
+            .and_then(|statement| {
+                call_frames
+                    .ok_or("the exact lender resolver is unavailable")?
+                    .reference_lender_declarations_before_statement(machine, statement, cast.value)
+            });
+        let refusal = match declarations {
+            Err(reason) => Some(reason),
+            Ok(declarations) => declarations
+                .iter()
+                .any(|declaration| {
+                    super::qualification_views::lender_qualifications_implied(
+                        program,
+                        let_referee,
+                        *declaration,
+                    ) != Some(true)
+                })
+                .then_some(
+                    "the target does not preserve declared lender field/element qualifications",
+                ),
+        };
+        if let Some(reason) = refusal {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: writable qualification erasure cannot preserve lender validity: {reason}"
+            )).with_source_span(source_span));
+            return;
+        }
     }
     // Membership and representation are independent obligations. Even an
     // identical carrier must continue through place-specific field bounds,
     // access and geometry checks; a qualified view is not an early success.
     let representation_carrier = |reference| {
-        if qualification_compatible == Some(true)
-            && program.primitive_type_reference(reference).is_none()
-        {
-            program
-                .type_reference_table
-                .unconstrained_type_reference(reference)
+        if qualification_compatible == Some(true) {
+            super::qualification_views::qualification_carrier(program, reference)
         } else {
             reference
         }
@@ -440,7 +473,9 @@ fn judge_scalar_recast_alternative(
     }
 
     let source_facts = source_type
-        .and_then(|type_reference| mutable_scalar_representation_facts(program, type_reference))
+        .and_then(|type_reference| {
+            mutable_scalar_representation_facts(program, representation_carrier(type_reference))
+        })
         .map(|mut facts| {
             // A field's `where` clauses narrow what the place stores just as a
             // type-attached range would; fold them in so equivalence does not
@@ -460,7 +495,8 @@ fn judge_scalar_recast_alternative(
             }
             facts
         });
-    let target_facts = mutable_scalar_representation_facts(program, let_referee);
+    let target_facts =
+        mutable_scalar_representation_facts(program, representation_carrier(let_referee));
     let target_is_fact_free = target_facts.as_ref().is_some_and(|target_facts| {
         target_facts.domains.is_empty()
             && target_facts.values

@@ -644,11 +644,10 @@ fn append_call_parameter_domain_facts<'plans>(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,
     );
-    for (position, domain_symbol, semantic_domain, declared) in claims.iter() {
-        // Declared root and field obligations are handed back together by
-        // call_phases::referents. This publisher owns authored routed ensures.
-        if *declared
-            || argument_sources.is_some_and(|sources| sources.referent_places(*position).is_some())
+    for (position, domain_symbol, semantic_domain) in claims.iter() {
+        // Declared child obligations belong to call_phases::referents. This
+        // publisher owns authored routed ensures, never input annotations.
+        if argument_sources.is_some_and(|sources| sources.referent_places(*position).is_some())
             || !argument_sources.is_some_and(|sources| sources.observation_survives(*position, &[]))
         {
             continue;
@@ -941,19 +940,12 @@ fn append_ensures_result_rows(
 /// callable's signature contracts, keyed by the named non-self parameter's
 /// argument position. The reserved `result` subject belongs to the result
 /// obligation vocabulary above and is not repeated here.
-/// The domains a call's parameters carry on RETURN, each with the parameter
-/// position and whether the claim came from the parameter's declared type
-/// rather than an authored `ensures`.
+/// Additional input annotations are not part of this output vocabulary.
 pub(crate) fn call_parameter_qualification_identities(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     selected: Option<&typed_trees::signature::StateSignature>,
-) -> Vec<(
-    usize,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-    bool,
-)> {
+) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(parameters) = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| validation::call_target_parameters(program, target))
@@ -979,12 +971,7 @@ fn call_parameter_qualification_identities_indexed<'plans>(
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
     selected: Option<&'plans typed_trees::signature::StateSignature>,
-) -> Vec<(
-    usize,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-    bool,
-)> {
+) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(parameters) = selected
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, target))
@@ -1006,12 +993,7 @@ fn parameter_identity_rows(
     program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     contracts: &[&typed_trees::signature::SignatureContract],
-) -> Vec<(
-    usize,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-    bool,
-)> {
+) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let mut rows = Vec::new();
     for contract in contracts
         .iter()
@@ -1029,38 +1011,7 @@ fn parameter_identity_rows(
                 position,
                 membership.domain_symbol,
                 membership.semantic_domain,
-                false,
             );
-            if !rows.contains(&row) {
-                rows.push(row);
-            }
-        }
-    }
-    // A mutable reference parameter's DECLARED domain is the callee's
-    // postcondition as much as its precondition: the write check owes it on
-    // every write through the reference, and entry required it of the caller.
-    // A shared reference cannot be written, so its declared domain says
-    // nothing the caller did not already have to prove.
-    let mut position = 0;
-    for parameter in parameters {
-        let argument_position = position;
-        position += 1;
-        if !matches!(
-            program
-                .type_reference_table
-                .type_reference(parameter.type_reference),
-            typed_trees::types::TypeReferenceNode::Reference { access, .. }
-                if access.is_exclusive()
-        ) {
-            continue;
-        }
-        for (domain_symbol, semantic_domain) in
-            validation::field_domains::domain_constraint_identities(
-                program,
-                parameter.type_reference,
-            )
-        {
-            let row = (argument_position, domain_symbol, semantic_domain, true);
             if !rows.contains(&row) {
                 rows.push(row);
             }

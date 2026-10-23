@@ -371,7 +371,7 @@ fn validate<'program>(
         );
     });
     phase_profile::scope("05.d.2.a.1a5d.recasts_wire_operators", || {
-        recasts::validate_recasts(program, &mut diagnostics);
+        recasts::validate_recasts(program, call_frames.as_ref(), &mut diagnostics);
         wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
         operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
     });

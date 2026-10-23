@@ -412,14 +412,16 @@ pub(super) fn referent_projection<'path>(
             (result.structural_type, result.multiplicity)
         } else {
             let parameter = super::arrival_parameter_input::parameter(function, place)?;
-            if !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || function
-                    .structural
-                    .as_ref()?
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == place)
+            // The exact arrival declaration retains qualifications just as
+            // an operation result does. Membership metadata neither grants
+            // referent access nor changes its address; rejecting its presence
+            // only here breaks otherwise identical references at joins.
+            if function
+                .structural
+                .as_ref()?
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == place)
             {
                 return None;
             }

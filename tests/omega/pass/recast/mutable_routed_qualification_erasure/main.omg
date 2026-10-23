@@ -1,3 +1,5 @@
+// An additional non-owning input qualification may be explicitly erased.
+// It is not a declared field obligation or an automatic return promise.
 data Ticket [copy] { number: u64; }
 domain Ticket::Issued established by issue;
 machine issue() -> Ticket in Ticket::Issued { Ticket { number: 17 } }

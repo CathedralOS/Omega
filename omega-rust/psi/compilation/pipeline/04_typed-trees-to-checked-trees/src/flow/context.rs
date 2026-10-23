@@ -163,14 +163,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// program-pure contract collection as `call_result_identities`.
     pub(super) call_parameter_identities: HashMap<
         (SymbolHandle, SymbolHandle, usize, usize),
-        Rc<
-            Vec<(
-                usize,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-                bool,
-            )>,
-        >,
+        Rc<Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)>>,
     >,
     /// Provable `(field path, domain)` reseed rows a readable `&mut`
     /// parameter's declared referent type hands back at return; `None` marks

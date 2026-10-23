@@ -1,0 +1,9 @@
+data Storage { value: u32; }
+domain Storage::Issued established by issue;
+machine issue(value: u32) -> Storage in Issued { Storage { value: value } }
+data Holder { slot: Storage in Issued; }
+machine corrupt(holder: &write Holder) {
+    let view: &write Storage = holder.slot as &write Storage;
+    view = Storage { value: 73 };
+}
+machine main() {}

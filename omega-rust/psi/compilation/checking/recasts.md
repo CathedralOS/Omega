@@ -6,10 +6,17 @@ supported source subset; their restrictions are not new language semantics.
 
 An explicit reference qualification change keeps its descriptor, exact backing
 loan and live routed evidence. Same-carrier domain implication permits forgetting
-non-owning qualifications, not minting provenance. Mutable views and shared
-views with atomic mutation require implication in both directions. Indexed
+non-owning qualifications, not minting provenance. Writable views and shared
+views with atomic mutation retain the actual lender's declared field/element
+obligations in the reverse direction, independently of physical representation
+equivalence. An additional input domain is a precondition, not an automatic
+handback promise. Exact original backing and retained presentation coordinates
+distinguish those input facts from projected storage declarations, including
+stored and reborrowed aliases. Indexed
 domains retain their exact semantic arguments; the occurrence checker still
-demands current membership after intervening writes.
+demands current membership after intervening writes. Qualification normalization
+removes only discharged domain layers for scratch physical comparison; it does
+not remove ranges, schema field bounds, access, claims or the durable types.
 
 Qualification-only changes retain the original storage declaration instead of
 creating a byte interpretation. This preserves atomic field protocols and

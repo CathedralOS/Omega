@@ -491,6 +491,24 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Persistent field/element declarations of the original lender and every
+    /// retained view, without observing write-only contents or granting access.
+    pub(crate) fn reference_lender_declarations_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Result<Vec<typed_trees::types::TypeReferenceHandle>, &'static str> {
+        super::reference_subjects::expression_lender_declarations_before_statement(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            expression,
+            &self.caches.state_write_shared_collections,
+        )
+    }
+
     /// Preserve all exact captured alternatives instead of requiring a
     /// singleton identity when the consumer accepts an origin family.
     pub fn local_reference_origins_before_statement(

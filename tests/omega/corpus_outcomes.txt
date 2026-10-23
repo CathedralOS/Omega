@@ -12967,8 +12967,6 @@ fail/recast/interior_recast_footprint_rejected rejected 2935ms expected @a9ae30e
 fail/recast/interior_slice_exclusive_backing_read rejected 2074ms expected @a9ae30e1c334+wt
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 880ms expected @a9ae30e1c334+wt
 fail/recast/local_stored_byte_region_escape rejected 661ms expected @8fd8af53161a+wt
-fail/recast/mutable_routed_qualification_erasure rejected 675ms expected @8137d4f697de+wt
-	machine `weaken` state `entry`: a qualification reference view must retain existing source qualifications in BOTH directions for mutable storage; `as` cannot mint routed provenance
 fail/recast/qualified_reference_local_escape rejected 6044ms expected @8137d4f697de+wt
 	machine `escape` returns a view borrowing the local `ticket`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/recast/qualified_reference_stale_membership rejected 5024ms expected @8137d4f697de+wt

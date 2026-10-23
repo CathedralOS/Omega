@@ -1,2 +1,1 @@
-a qualification reference view must retain existing source qualifications in BOTH directions for mutable storage
-`as` cannot mint routed provenance
+writable qualification erasure cannot preserve lender validity

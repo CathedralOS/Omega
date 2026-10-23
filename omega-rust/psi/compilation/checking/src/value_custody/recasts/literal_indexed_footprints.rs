@@ -72,8 +72,10 @@ fn literal_indexed_recast_preamble<'program>(
     }
 
     let mut diagnostics = Vec::new();
+    let call_frames = crate::CallFrameResolver::new(program);
     judge_scalar_recast(
         program,
+        call_frames.as_ref(),
         machine,
         state,
         statement_index,
