@@ -18,6 +18,18 @@ use typed_trees::types::PrimitiveType;
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
+fn extend_distinct_carrier_facts(
+    retained_facts: &mut Vec<Comparison>,
+    carrier_bounds: [Comparison; 2],
+) {
+    // Repeated reads of one observed value carry the same intrinsic bounds.
+    for comparison in carrier_bounds {
+        if !retained_facts.contains(&comparison) {
+            retained_facts.push(comparison);
+        }
+    }
+}
+
 struct ObservedOperation {
     operator: BinaryOperator,
     primitives: [PrimitiveType; 2],
@@ -59,14 +71,17 @@ impl IntegerObservations<'_> {
                 BinaryOperator::LessOrEqual,
             )
         };
-        self.carrier_facts.extend([
-            (
-                BinaryOperator::GreaterOrEqual,
-                value.clone(),
-                Polynomial::constant(minimum),
-            ),
-            (upper_operator, value.clone(), maximum),
-        ]);
+        extend_distinct_carrier_facts(
+            &mut self.carrier_facts,
+            [
+                (
+                    BinaryOperator::GreaterOrEqual,
+                    value.clone(),
+                    Polynomial::constant(minimum),
+                ),
+                (upper_operator, value.clone(), maximum),
+            ],
+        );
         Some(())
     }
 
@@ -670,5 +685,63 @@ fn negate(operator: BinaryOperator) -> BinaryOperator {
         BinaryOperator::Greater => BinaryOperator::LessOrEqual,
         BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
         _ => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod carrier_fact_tests {
+    use super::{BigInt, BinaryOperator, Polynomial, extend_distinct_carrier_facts};
+
+    #[test]
+    fn repeated_bounds_preserve_distinct_values_operators_and_limits() {
+        let value = Polynomial::atom("observed".into());
+        let signed_lower = (
+            BinaryOperator::GreaterOrEqual,
+            value.clone(),
+            Polynomial::constant(BigInt::from_i64(-128)),
+        );
+        let upper = (
+            BinaryOperator::LessOrEqual,
+            value.clone(),
+            Polynomial::constant(BigInt::from_i64(127)),
+        );
+        let unsigned_lower = (
+            BinaryOperator::GreaterOrEqual,
+            value.clone(),
+            Polynomial::constant(BigInt::zero()),
+        );
+        let narrower_upper = (
+            BinaryOperator::LessOrEqual,
+            value.clone(),
+            Polynomial::constant(BigInt::from_i64(63)),
+        );
+        let other_value = (
+            BinaryOperator::LessOrEqual,
+            Polynomial::atom("other_observed".into()),
+            Polynomial::constant(BigInt::from_i64(127)),
+        );
+        let opposite_operator = (
+            BinaryOperator::LessOrEqual,
+            value,
+            Polynomial::constant(BigInt::zero()),
+        );
+        let mut facts = Vec::new();
+        for _ in 0..100 {
+            extend_distinct_carrier_facts(&mut facts, [signed_lower.clone(), upper.clone()]);
+        }
+        assert_eq!(facts, vec![signed_lower.clone(), upper.clone()]);
+        extend_distinct_carrier_facts(&mut facts, [unsigned_lower.clone(), narrower_upper.clone()]);
+        extend_distinct_carrier_facts(&mut facts, [other_value.clone(), opposite_operator.clone()]);
+        assert_eq!(
+            facts,
+            vec![
+                signed_lower,
+                upper,
+                unsigned_lower,
+                narrower_upper,
+                other_value,
+                opposite_operator
+            ]
+        );
     }
 }

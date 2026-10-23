@@ -2,7 +2,7 @@
 //! seeding and transitive closure, nonzero-difference proofs, interval
 //! reads of polynomials, and substitution across the polynomial surface.
 use super::super::BigInt;
-use super::{Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
+use super::{BTreeMap, Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 
 impl<'program> Engine<'program> {
@@ -320,30 +320,7 @@ impl<'program> Engine<'program> {
     }
 
     pub(super) fn close_matrix(&mut self) {
-        let atoms: Vec<String> = self.matrix.keys().cloned().collect();
-        for via in &atoms {
-            for from in &atoms {
-                let Some(first) = self.matrix_bound(from, via) else {
-                    continue;
-                };
-                for to in &atoms {
-                    let Some(second) = self.matrix_bound(via, to) else {
-                        continue;
-                    };
-                    let combined = first.add(&second);
-                    if from == to {
-                        if !combined.is_negative() && !combined.is_zero() {
-                            self.requires_unsatisfiable = true;
-                        }
-                        continue;
-                    }
-                    let current = self.matrix_bound(from, to);
-                    if current.is_none() || combined > current.unwrap() {
-                        self.record_difference(from, to, combined);
-                    }
-                }
-            }
-        }
+        close_difference_matrix(&mut self.matrix, &mut self.requires_unsatisfiable);
     }
 
     pub(super) fn harvest_substitution(&mut self, left: &Polynomial, right: &Polynomial) {
@@ -367,15 +344,131 @@ impl<'program> Engine<'program> {
         &self,
         polynomial: &Polynomial,
     ) -> Polynomial {
-        let mut current = polynomial.clone();
+        polynomial.clone().into_substituted(&self.substitutions)
+    }
+}
+
+fn close_difference_matrix(
+    matrix: &mut BTreeMap<String, BTreeMap<String, BigInt>>,
+    requires_unsatisfiable: &mut bool,
+) {
+    let atoms: Vec<String> = matrix.keys().cloned().collect();
+    let count = atoms.len();
+    // Bound quadratic scratch storage; large sparse rosters keep the symbolic walk.
+    if count > 1024 {
+        close_symbolic_difference_matrix(matrix, requires_unsatisfiable);
+        return;
+    }
+    let mut rows: Vec<Vec<Option<BigInt>>> = atoms
+        .iter()
+        .map(|from| {
+            atoms
+                .iter()
+                .map(|to| {
+                    if from == to {
+                        Some(BigInt::zero())
+                    } else {
+                        matrix.get(from).and_then(|row| row.get(to)).cloned()
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    for via in 0..count {
+        for from in 0..count {
+            // The original walk snapshots this edge before visiting destinations.
+            let Some(first) = rows[from][via].clone() else {
+                continue;
+            };
+            for to in 0..count {
+                let Some(second) = &rows[via][to] else {
+                    continue;
+                };
+                let combined = first.add(second);
+                if from == to {
+                    if !combined.is_negative() && !combined.is_zero() {
+                        *requires_unsatisfiable = true;
+                    }
+                    continue;
+                }
+                let current = &mut rows[from][to];
+                if current.as_ref().is_none_or(|bound| combined > *bound) {
+                    *current = Some(combined);
+                }
+            }
+        }
+    }
+    for (from, row) in rows.into_iter().enumerate() {
+        for (to, bound) in row.into_iter().enumerate() {
+            if from != to
+                && let Some(bound) = bound
+            {
+                matrix
+                    .get_mut(&atoms[from])
+                    .unwrap()
+                    .insert(atoms[to].clone(), bound);
+            }
+        }
+    }
+}
+
+fn close_symbolic_difference_matrix(
+    matrix: &mut BTreeMap<String, BTreeMap<String, BigInt>>,
+    requires_unsatisfiable: &mut bool,
+) {
+    let atoms: Vec<String> = matrix.keys().cloned().collect();
+    let bound =
+        |matrix: &BTreeMap<String, BTreeMap<String, BigInt>>, from: &String, to: &String| {
+            if from == to {
+                Some(BigInt::zero())
+            } else {
+                matrix.get(from).and_then(|row| row.get(to)).cloned()
+            }
+        };
+    for via in &atoms {
+        for from in &atoms {
+            let Some(first) = bound(matrix, from, via) else {
+                continue;
+            };
+            for to in &atoms {
+                let Some(second) = bound(matrix, via, to) else {
+                    continue;
+                };
+                let combined = first.add(&second);
+                if from == to {
+                    if !combined.is_negative() && !combined.is_zero() {
+                        *requires_unsatisfiable = true;
+                    }
+                    continue;
+                }
+                if bound(matrix, from, to).is_none_or(|current| combined > current) {
+                    matrix.get_mut(from).unwrap().insert(to.clone(), combined);
+                }
+            }
+        }
+    }
+}
+
+impl Polynomial {
+    pub(super) fn into_substituted(self, substitutions: &BTreeMap<String, Polynomial>) -> Self {
+        let mut current = self;
         for _ in 0..SUBSTITUTION_ROUNDS {
+            // Canonical terms without replacements already have their final form.
+            if current.terms.iter().all(|(monomial, coefficient)| {
+                !coefficient.is_zero()
+                    && monomial
+                        .iter()
+                        .all(|(atom, power)| *power > 0 && !substitutions.contains_key(atom))
+            }) {
+                break;
+            }
             let mut changed = false;
             let mut next = Polynomial::default();
             let mut overflowed = false;
             for (monomial, coefficient) in &current.terms {
                 let mut piece = Polynomial::constant(coefficient.clone());
                 for (atom, power) in monomial {
-                    let base = match self.substitutions.get(atom) {
+                    let base = match substitutions.get(atom) {
                         Some(replacement) => {
                             changed = true;
                             replacement.clone()
@@ -398,7 +491,7 @@ impl<'program> Engine<'program> {
                 if overflowed {
                     break;
                 }
-                next = next.add(&piece);
+                next.add_assign(&piece);
             }
             if overflowed {
                 return current;
@@ -409,5 +502,49 @@ impl<'program> Engine<'program> {
             }
         }
         current
+    }
+}
+
+#[cfg(test)]
+mod closure_tests {
+    use super::{BTreeMap, BigInt, close_difference_matrix, close_symbolic_difference_matrix};
+
+    #[test]
+    fn indexed_closure_matches_symbolic_order_with_cycles_and_large_integers() {
+        let scale = BigInt::from_u64(u64::MAX).mul(&BigInt::from_u64(u64::MAX));
+        for count in 0..9 {
+            for seed in 0..64u64 {
+                let atoms: Vec<_> = (0..count).map(|index| format!("atom_{index}")).collect();
+                let mut matrix: BTreeMap<_, BTreeMap<_, _>> = atoms
+                    .iter()
+                    .map(|atom| (atom.clone(), BTreeMap::new()))
+                    .collect();
+                let mut random = seed + 1;
+                for from in &atoms {
+                    for to in &atoms {
+                        random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                        if random % 4 == 0 {
+                            continue;
+                        }
+                        let value = BigInt::from_i64((random % 21) as i64 - 10);
+                        let value = if seed % 2 == 0 {
+                            value.mul(&scale)
+                        } else {
+                            value
+                        };
+                        matrix.get_mut(from).unwrap().insert(to.clone(), value);
+                    }
+                }
+                let mut reference = matrix.clone();
+                let mut actual_unsatisfiable = seed % 3 == 0;
+                let mut expected_unsatisfiable = actual_unsatisfiable;
+                for _ in 0..2 {
+                    close_difference_matrix(&mut matrix, &mut actual_unsatisfiable);
+                    close_symbolic_difference_matrix(&mut reference, &mut expected_unsatisfiable);
+                    assert_eq!(matrix, reference, "count={count}, seed={seed}");
+                    assert_eq!(actual_unsatisfiable, expected_unsatisfiable);
+                }
+            }
+        }
     }
 }

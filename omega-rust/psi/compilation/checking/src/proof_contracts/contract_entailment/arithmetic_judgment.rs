@@ -81,15 +81,22 @@ impl Polynomial {
     }
 
     pub(super) fn add(&self, other: &Self) -> Self {
-        let mut terms = self.terms.clone();
+        let mut result = self.clone();
+        result.add_assign(other);
+        result
+    }
+
+    fn add_assign(&mut self, other: &Self) {
         for (monomial, coefficient) in &other.terms {
-            let entry = terms.entry(monomial.clone()).or_insert_with(BigInt::zero);
+            let entry = self
+                .terms
+                .entry(monomial.clone())
+                .or_insert_with(BigInt::zero);
             *entry = entry.add(coefficient);
             if entry.is_zero() {
-                terms.remove(monomial);
+                self.terms.remove(monomial);
             }
         }
-        Self { terms }
     }
 
     fn neg(&self) -> Self {
@@ -843,12 +850,12 @@ impl<'program> Engine<'program> {
         // while earlier inequalities keep an atom the goal no longer uses.
         let mut lower_bounds = std::mem::take(&mut self.bounds);
         for (polynomial, _) in &mut lower_bounds {
-            *polynomial = self.substituted(polynomial);
+            *polynomial = std::mem::take(polynomial).into_substituted(&self.substitutions);
         }
         let mut nonzero_differences = Vec::new();
         for (operator, left, right) in comparisons {
-            let left = self.substituted(&left);
-            let right = self.substituted(&right);
+            let left = left.into_substituted(&self.substitutions);
+            let right = right.into_substituted(&self.substitutions);
             let difference_rl = right.sub(&left);
             let difference_lr = left.sub(&right);
             match operator {
@@ -1812,4 +1819,119 @@ pub fn integer_embedding_sources_equal(
     };
     left_carrier.primitive == right_carrier.primitive
         && integer_source_identity(program, left) == integer_source_identity(program, right)
+}
+
+#[cfg(test)]
+mod polynomial_accumulation_tests {
+    use super::{BTreeMap, BigInt, Monomial, Polynomial, SUBSTITUTION_ROUNDS};
+
+    #[test]
+    fn accumulation_cancels_exact_coefficients_without_changing_inputs() {
+        let atom = Polynomial::atom("x".into());
+        let coefficient = BigInt::from_u64(u64::MAX).mul(&BigInt::from_u64(u64::MAX));
+        let constant = Polynomial::constant(coefficient);
+        let square = atom.checked_mul(&atom).unwrap();
+        let term = square.checked_mul(&constant).unwrap();
+        let original = term.add(&constant);
+        let remaining = Polynomial::atom("y".into());
+        let replacement = term.neg().add(&remaining).sub(&constant);
+        let snapshot = original.clone();
+
+        let mut accumulated = original.clone();
+        accumulated.add_assign(&replacement);
+        assert_eq!(accumulated, remaining);
+        assert_eq!(original.add(&replacement), remaining);
+        assert_eq!(original, snapshot);
+        accumulated.add_assign(&Polynomial::default());
+        assert_eq!(accumulated, remaining);
+        accumulated.add_assign(&remaining.neg());
+        assert!(accumulated.terms.is_empty());
+    }
+
+    #[test]
+    fn substitution_preserves_untouched_terms_and_expands_matching_atoms() {
+        let atom = Polynomial::atom("x".into());
+        let other = Polynomial::atom("y".into());
+        let one = Polynomial::constant(BigInt::from_i64(1));
+        let substitutions = BTreeMap::from([("x".into(), other.add(&one))]);
+        assert_eq!(other.clone().into_substituted(&substitutions), other);
+        let difference = atom
+            .checked_mul(&atom)
+            .unwrap()
+            .sub(&other.checked_mul(&other).unwrap());
+        assert_eq!(
+            difference.into_substituted(&substitutions),
+            other.add(&other).add(&one)
+        );
+
+        let zero_power = Polynomial {
+            terms: BTreeMap::from([(BTreeMap::from([("y".into(), 0)]), BigInt::from_i64(3))]),
+        };
+        assert_eq!(
+            zero_power.into_substituted(&substitutions),
+            Polynomial::constant(BigInt::from_i64(3))
+        );
+    }
+
+    #[test]
+    fn substitution_preserves_round_and_exponent_overflow_boundaries() {
+        let substitutions = (0..=SUBSTITUTION_ROUNDS)
+            .map(|position| {
+                (
+                    format!("atom_{position}"),
+                    Polynomial::atom(format!("atom_{}", position + 1)),
+                )
+            })
+            .collect();
+        assert_eq!(
+            Polynomial::atom("atom_0".into()).into_substituted(&substitutions),
+            Polynomial::atom(format!("atom_{SUBSTITUTION_ROUNDS}"))
+        );
+
+        let atom = Polynomial::atom("x".into());
+        let square = atom.checked_mul(&atom).unwrap();
+        let expected = square.clone();
+        let replacement = Polynomial {
+            terms: BTreeMap::from([(
+                Monomial::from([("y".into(), u32::MAX)]),
+                BigInt::from_i64(1),
+            )]),
+        };
+        assert_eq!(
+            square.into_substituted(&BTreeMap::from([("x".into(), replacement)])),
+            expected
+        );
+    }
+
+    #[test]
+    fn untouched_substitution_preserves_owned_atom_storage() {
+        let polynomial = Polynomial::atom("unaffected_bound_atom".into());
+        let atom_storage = polynomial
+            .terms
+            .keys()
+            .next()
+            .unwrap()
+            .keys()
+            .next()
+            .unwrap()
+            .as_ptr();
+        let substitutions = BTreeMap::from([(
+            "other_bound_atom".into(),
+            Polynomial::constant(BigInt::from_i64(1)),
+        )]);
+        let result = polynomial.into_substituted(&substitutions);
+        assert_eq!(
+            result
+                .terms
+                .keys()
+                .next()
+                .unwrap()
+                .keys()
+                .next()
+                .unwrap()
+                .as_ptr(),
+            atom_storage
+        );
+        assert_eq!(result, Polynomial::atom("unaffected_bound_atom".into()));
+    }
 }
