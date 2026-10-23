@@ -56,20 +56,10 @@ pub(super) fn encode_call(
 
 pub(super) fn decode_call(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
     let callee = reader.id("MachineId")?;
-    let argument_count = reader.count()?;
-    let mut arguments =
-        Vec::with_capacity(usize::try_from(argument_count).expect("u32 count fits usize"));
-    for _ in 0..argument_count {
-        arguments.push(reader.id("ValueId")?);
-    }
+    let arguments = decode_ids(reader, "ValueId")?;
     let erased_arguments = decode_scalar_terms(reader)?;
     let erased_proof_arguments = decode_proof_terms(reader)?;
-    let requirement_count = reader.count()?;
-    let mut requirement_obligations =
-        Vec::with_capacity(usize::try_from(requirement_count).expect("u32 count fits usize"));
-    for _ in 0..requirement_count {
-        requirement_obligations.push(reader.id("ObligationId")?);
-    }
+    let requirement_obligations = decode_ids(reader, "ObligationId")?;
     let crash_continuations = decode_crash_routes(reader)?;
     Ok(OperationKind::Call {
         callee,

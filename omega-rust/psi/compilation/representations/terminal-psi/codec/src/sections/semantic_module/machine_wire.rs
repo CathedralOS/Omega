@@ -164,13 +164,12 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         2 => TerminalMachineResult::Structural(decode_function_result(reader)?),
         tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
     };
-    let count = reader.count()?;
-    let mut structural_places = Vec::new();
-    for _ in 0..count {
-        let id = reader.id("PlaceId")?;
-        let kind = decode_structural_place_kind(reader)?;
-        structural_places.push(StructuralPlaceDeclaration { id, kind });
-    }
+    let structural_places = decode_counted(reader, |reader| {
+        Ok(StructuralPlaceDeclaration {
+            id: reader.id("PlaceId")?,
+            kind: decode_structural_place_kind(reader)?,
+        })
+    })?;
     let entry_claims = decode_counted(reader, |reader| {
         Ok(EntryClaim {
             claim: reader.id("ClaimId")?,
@@ -202,27 +201,12 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let declared_service_reach = decode_ids(reader, "ServiceId")?;
     let published_service_ceiling = decode_ids(reader, "ServiceId")?;
     let closed_reach_application = super::reach_application_wire::decode(reader)?;
-    let count = reader.count()?;
-    let mut content_entry_claims = Vec::new();
-    for _ in 0..count {
-        content_entry_claims.push(decode_content_entry_claim(reader)?);
-    }
-    let count = reader.count()?;
-    let mut content_identity_reshuffles = Vec::new();
-    for _ in 0..count {
-        content_identity_reshuffles.push(decode_content_identity_reshuffle(reader)?);
-    }
-    let count = reader.count()?;
-    let mut content_partition_compositions = Vec::new();
-    for _ in 0..count {
-        content_partition_compositions.push(decode_content_partition_composition(reader)?);
-    }
+    let content_entry_claims = decode_counted(reader, decode_content_entry_claim)?;
+    let content_identity_reshuffles = decode_counted(reader, decode_content_identity_reshuffle)?;
+    let content_partition_compositions =
+        decode_counted(reader, decode_content_partition_composition)?;
     let entry = reader.id("BlockId")?;
-    let block_count = reader.count()?;
-    let mut blocks = Vec::new();
-    for _ in 0..block_count {
-        blocks.push(super::block_wire::decode_block(reader)?);
-    }
+    let blocks = decode_counted(reader, super::block_wire::decode_block)?;
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
         assembly_target_requirement,
@@ -328,12 +312,7 @@ fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc
 pub(crate) fn decode_declarations(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<ValueDeclaration>, CodecError> {
-    let count = reader.count()?;
-    let mut declarations = Vec::new();
-    for _ in 0..count {
-        declarations.push(decode_declaration(reader)?);
-    }
-    Ok(declarations)
+    decode_counted(reader, decode_declaration)
 }
 
 pub(crate) fn decode_declaration(reader: &mut Reader<'_>) -> Result<ValueDeclaration, CodecError> {

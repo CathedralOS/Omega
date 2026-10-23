@@ -62,7 +62,7 @@ use crate::sections::semantic_module::module_wire::recursive_component_wire::{
 use crate::sections::semantic_module::module_wire::task_activation_wire::{
     decode_demands, encode_demands,
 };
-use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
+use crate::sections::semantic_module::wire::{decode_bytes, decode_counted, decode_ids};
 
 pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
@@ -310,8 +310,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         let ensure_ordinal = reader.u32()?;
         let evidence_source_position = reader.u32()?;
         let type_identity = TerminalIdentityIndex(reader.u32()?);
-        let count = usize::try_from(reader.count()?).expect("u32 fits usize");
-        let certificate = reader.take(count)?.to_vec();
+        let certificate = decode_bytes(reader)?;
         super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
         let assumption_closure = decode_counted(reader, |reader| reader.u32())?;
         if assumption_closure.windows(2).any(|pair| pair[0] >= pair[1]) || type_identity.is_absent()
@@ -331,8 +330,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     })?;
     let mathematical_carriers = decode_counted(reader, |reader| {
         let type_identity = TerminalIdentityIndex(reader.u32()?);
-        let count = usize::try_from(reader.count()?).expect("u32 fits usize");
-        let carrier_key = reader.take(count)?.to_vec();
+        let carrier_key = decode_bytes(reader)?;
         let decoded =
             super::mathematical_certificate_wire::decode_mathematical_certificate(&carrier_key)?;
         if !decoded
@@ -379,16 +377,8 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, float_meaning_wire::decode_float_meaning_projection)?;
     let float_meaning_equalities =
         decode_counted(reader, float_meaning_wire::decode_float_meaning_equality)?;
-    let count = reader.count()?;
-    let mut proposition_declarations = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        proposition_declarations.push(decode_proposition_declaration(reader)?);
-    }
-    let count = reader.count()?;
-    let mut proposition_applications = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        proposition_applications.push(decode_proposition_application(reader)?);
-    }
+    let proposition_declarations = decode_counted(reader, decode_proposition_declaration)?;
+    let proposition_applications = decode_counted(reader, decode_proposition_application)?;
     let evidence_terms = decode_counted(reader, evidence_wire::decode_evidence_term)?;
     let evidence_contract_lanes =
         decode_counted(reader, evidence_wire::decode_evidence_contract_lane)?;
@@ -411,11 +401,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reader,
         operation_crash_contract_wire::decode_operation_crash_contract,
     )?;
-    let machine_count = reader.count()?;
-    let mut machines = Vec::new();
-    for _ in 0..machine_count {
-        machines.push(super::machine_wire::decode_machine(reader)?);
-    }
+    let machines = decode_counted(reader, super::machine_wire::decode_machine)?;
     let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
     let target_layout_applications = decode_counted(reader, target_layout_wire::decode)?;
     let boundary_application_demands =

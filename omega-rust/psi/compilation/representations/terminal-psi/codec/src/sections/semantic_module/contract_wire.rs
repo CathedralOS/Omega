@@ -23,7 +23,7 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_affine_cleanup_action, decode_structural_arguments, decode_structural_path,
     encode_affine_cleanup_action, encode_structural_arguments, encode_structural_path,
 };
-use crate::sections::semantic_module::wire::decode_counted;
+use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 
 pub(crate) fn encode_successor_edge(
     writer: &mut Writer,
@@ -151,11 +151,7 @@ pub(crate) fn encode_crash_predicate(
 pub(crate) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, CodecError> {
     let edge = reader.id("EdgeId")?;
     let target = reader.id("BlockId")?;
-    let argument_count = reader.count()?;
-    let mut arguments = Vec::new();
-    for _ in 0..argument_count {
-        arguments.push(reader.id("ValueId")?);
-    }
+    let arguments = decode_ids(reader, "ValueId")?;
     Ok(SuccessorEdge {
         edge,
         target,
@@ -172,24 +168,14 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
     let crash_routes = decode_crash_routes(reader)?;
     let erased_scalar_formals = decode_declarations(reader)?;
     let erased_proof_formals = decode_proof_formals(reader)?;
-    let requires_count = reader.count()?;
-    let mut requires = Vec::new();
-    for _ in 0..requires_count {
-        requires.push(decode_proposition(reader, 0)?);
-    }
-    let source_checked_requires_count = reader.count()?;
-    let mut source_checked_requires = Vec::new();
-    for _ in 0..source_checked_requires_count {
-        source_checked_requires.push(decode_proposition(reader, 0)?);
-    }
-    let ensures_count = reader.count()?;
-    let mut ensures = Vec::new();
-    for _ in 0..ensures_count {
-        ensures.push(ContractClause {
+    let requires = decode_counted(reader, |reader| decode_proposition(reader, 0))?;
+    let source_checked_requires = decode_counted(reader, |reader| decode_proposition(reader, 0))?;
+    let ensures = decode_counted(reader, |reader| {
+        Ok(ContractClause {
             obligation: reader.id("ObligationId")?,
             proposition: decode_proposition(reader, 0)?,
-        });
-    }
+        })
+    })?;
     let outcome_specific_ensures = decode_counted(reader, |reader| {
         let guard = decode_outcome_guard(reader)?;
         let position = reader.u32()?;
@@ -255,12 +241,7 @@ fn decode_outcome_guard(reader: &mut Reader<'_>) -> Result<OutcomeSpecificGuard,
 pub(crate) fn decode_crash_routes(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<CrashRouteBucket>, CodecError> {
-    let count = reader.count()?;
-    let mut crash_routes = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        crash_routes.push(decode_crash_route_bucket(reader)?);
-    }
-    Ok(crash_routes)
+    decode_counted(reader, decode_crash_route_bucket)
 }
 
 pub(crate) fn decode_crash_route_bucket(
@@ -271,15 +252,11 @@ pub(crate) fn decode_crash_route_bucket(
         2 => CrashCause::Abort,
         tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
     };
-    let alternative_count = reader.count()?;
-    let mut alternatives = Vec::with_capacity(alternative_count as usize);
-    for _ in 0..alternative_count {
-        alternatives.push(match reader.u8()? {
-            0 => CrashRouteGuard::Truth,
-            1 => CrashRouteGuard::Predicate(decode_crash_predicate(reader)?),
-            tag => return Err(CodecError::InvalidTag("CrashRouteGuard", tag)),
-        });
-    }
+    let alternatives = decode_counted(reader, |reader| match reader.u8()? {
+        0 => Ok(CrashRouteGuard::Truth),
+        1 => Ok(CrashRouteGuard::Predicate(decode_crash_predicate(reader)?)),
+        tag => Err(CodecError::InvalidTag("CrashRouteGuard", tag)),
+    })?;
     Ok(CrashRouteBucket {
         cause,
         alternatives,

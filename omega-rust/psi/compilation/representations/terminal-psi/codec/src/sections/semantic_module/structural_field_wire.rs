@@ -18,7 +18,7 @@ use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
     encode_integer_value, encode_scalar_type,
 };
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, decode_counted};
 use terminal_psi::TerminalIdentityIndex;
 
 pub(crate) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
@@ -138,21 +138,19 @@ pub(crate) fn decode_canonical_structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), CodecError> {
     let root = reader.id("PlaceId")?;
-    let count = reader.count()?;
-    let mut path = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        path.push(match reader.u8()? {
-            1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
-            2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
-            3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "CanonicalStructuralPathSegment",
-                    tag,
-                ));
-            }
-        });
-    }
+    let path = decode_counted(reader, |reader| match reader.u8()? {
+        1 => Ok(CanonicalStructuralPathSegment::Field(
+            reader.id("StructuralFieldId")?,
+        )),
+        2 => Ok(CanonicalStructuralPathSegment::FixedIndex(reader.u64()?)),
+        3 => Ok(CanonicalStructuralPathSegment::Case(
+            reader.id("StructuralCaseId")?,
+        )),
+        tag => Err(CodecError::InvalidTag(
+            "CanonicalStructuralPathSegment",
+            tag,
+        )),
+    })?;
     Ok((root, path))
 }
 

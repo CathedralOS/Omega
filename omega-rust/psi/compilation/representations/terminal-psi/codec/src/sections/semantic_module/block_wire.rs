@@ -824,11 +824,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     let erased_scalar_formals = decode_declarations(reader)?;
     let erased_proof_formals = decode_proof_formals(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
-    let operation_count = reader.count()?;
-    let mut operations = Vec::new();
-    for _ in 0..operation_count {
-        operations.push(decode_operation(reader)?);
-    }
+    let operations = decode_counted(reader, decode_operation)?;
     let terminator = terminator_wire::decode_terminator(reader)?;
     Ok(Block {
         id,

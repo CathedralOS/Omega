@@ -3,7 +3,7 @@
 
 use super::super::CodecError;
 use super::super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
-use super::super::wire::{Reader, Writer};
+use super::super::wire::{Reader, Writer, decode_counted};
 use semantic_vocabulary::IeeeFloatFormat;
 use terminal_psi::{
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
@@ -228,21 +228,18 @@ pub(super) fn decode_float_meaning_projection(
                     commitment: reader.array()?,
                 };
                 let format = decode_ieee_format(reader)?;
-                let operand_count = reader.count()?;
-                let mut operands =
-                    Vec::with_capacity(usize::try_from(operand_count).unwrap_or(usize::MAX));
-                for _ in 0..operand_count {
-                    operands.push(match reader.u8()? {
-                        1 => FloatSemanticApplicationOperand::Format(decode_ieee_format(reader)?),
-                        2 => FloatSemanticApplicationOperand::Meaning(ProofValueId(reader.u32()?)),
-                        tag => {
-                            return Err(CodecError::InvalidTag(
-                                "FloatSemanticApplicationOperand",
-                                tag,
-                            ));
-                        }
-                    });
-                }
+                let operands = decode_counted(reader, |reader| match reader.u8()? {
+                    1 => Ok(FloatSemanticApplicationOperand::Format(decode_ieee_format(
+                        reader,
+                    )?)),
+                    2 => Ok(FloatSemanticApplicationOperand::Meaning(ProofValueId(
+                        reader.u32()?,
+                    ))),
+                    tag => Err(CodecError::InvalidTag(
+                        "FloatSemanticApplicationOperand",
+                        tag,
+                    )),
+                })?;
                 FloatMeaningSource::SemanticApplication(FloatSemanticApplication {
                     contract,
                     format,

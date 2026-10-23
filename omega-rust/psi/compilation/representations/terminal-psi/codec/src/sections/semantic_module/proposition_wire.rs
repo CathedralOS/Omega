@@ -19,7 +19,7 @@ use super::structural_field_wire::{
     encode_byte_sequence_field, encode_canonical_structural_field,
     encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
 };
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, decode_counted};
 use super::{CodecError, MAX_PROPOSITION_DEPTH, decode_scalar_term, encode_scalar_term};
 
 pub(crate) fn encode_proposition(
@@ -169,11 +169,7 @@ pub(crate) fn decode_proposition(
             decode_scalar_term(reader, 0)?,
         ),
         7 => {
-            let count = reader.count()?;
-            let mut conjuncts = Vec::new();
-            for _ in 0..count {
-                conjuncts.push(decode_proposition(reader, depth + 1)?);
-            }
+            let conjuncts = decode_counted(reader, |reader| decode_proposition(reader, depth + 1))?;
             Proposition::Conjunction(conjuncts)
         }
         8 => Proposition::Implication {
@@ -187,11 +183,7 @@ pub(crate) fn decode_proposition(
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
         }
         10 => {
-            let count = reader.count()?;
-            let mut disjuncts = Vec::new();
-            for _ in 0..count {
-                disjuncts.push(decode_proposition(reader, depth + 1)?);
-            }
+            let disjuncts = decode_counted(reader, |reader| decode_proposition(reader, depth + 1))?;
             Proposition::Disjunction(disjuncts)
         }
         11 => Proposition::IeeeFloatComparison {

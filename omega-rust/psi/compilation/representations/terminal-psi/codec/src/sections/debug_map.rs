@@ -7,7 +7,7 @@
 
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::sections::semantic_module::wire::{Reader, Writer};
+use crate::sections::semantic_module::wire::{Reader, Writer, bounded_count};
 use crate::{CodecError, terminal_psi_identity};
 pub use terminal_psi::{
     DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -54,8 +54,8 @@ pub fn decode_debug_map(
         DebugMapError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
     )?;
     let program_fingerprint = SemanticFingerprint::from_bytes(reader.array()?);
-    let file_count = reader.count()?;
-    let mut files = Vec::with_capacity(file_count as usize);
+    let file_count = bounded_count(&mut reader, 1).map_err(DebugMapError::from)?;
+    let mut files = Vec::with_capacity(file_count);
     for _ in 0..file_count {
         let raw_file = reader.u32()?;
         let id = DebugFileId::new(raw_file).ok_or(DebugMapError::ZeroFileIdentity)?;
@@ -75,8 +75,8 @@ pub fn decode_debug_map(
             path,
         });
     }
-    let site_count = reader.count()?;
-    let mut sites = Vec::with_capacity(site_count as usize);
+    let site_count = bounded_count(&mut reader, 1).map_err(DebugMapError::from)?;
+    let mut sites = Vec::with_capacity(site_count);
     for _ in 0..site_count {
         let subject = decode_subject(&mut reader)?;
         let raw_file = reader.u32()?;

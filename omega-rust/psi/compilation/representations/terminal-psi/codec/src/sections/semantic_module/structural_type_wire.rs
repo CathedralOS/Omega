@@ -14,7 +14,7 @@ use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_field_wire::{decode_structural_field, encode_structural_field};
 use super::wire::{Reader, Writer};
-use crate::sections::semantic_module::wire::decode_counted;
+use crate::sections::semantic_module::wire::{bounded_count, decode_counted};
 
 pub(crate) fn encode_structural_type(
     writer: &mut Writer,
@@ -318,8 +318,12 @@ pub(crate) fn decode_authored_field_storage(
             byte_offset: reader.u64()?,
         }),
         6 => {
-            let count = usize::try_from(reader.u32()?).map_err(|_| CodecError::UnexpectedEnd)?;
-            if count == 0 || count > reader.remaining() / 40 {
+            let count = bounded_count(reader, 40).map_err(|_| {
+                CodecError::MalformedStructuralFoundation(
+                    "fragmented field requires a complete recipe",
+                )
+            })?;
+            if count == 0 {
                 return Err(CodecError::MalformedStructuralFoundation(
                     "fragmented field requires a complete recipe",
                 ));

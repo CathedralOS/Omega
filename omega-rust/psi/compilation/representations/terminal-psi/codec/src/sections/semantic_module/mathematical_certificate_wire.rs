@@ -40,7 +40,7 @@ use proof_admission::{
 };
 
 use super::CodecError;
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, bounded_count, decode_counted};
 
 const MAGIC: &[u8; 8] = b"PSICORE\0";
 /// Format 3 adds the declaration signature and `Term::Constant`; format 2
@@ -140,10 +140,7 @@ pub fn decode_mathematical_certificate(
         return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
     let level_arity = reader.u32()?;
-    let node_count = usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
-    if node_count > reader.remaining() {
-        return Err(CodecError::UnexpectedEnd);
-    }
+    let node_count = bounded_count(&mut reader, 1)?;
     let mut arena = TermArena::new();
     let mut handles = Vec::with_capacity(node_count);
     let mut depths = Vec::with_capacity(node_count);
@@ -157,13 +154,9 @@ pub fn decode_mathematical_certificate(
         depths.push(depth);
         handles.push(arena.insert(term));
     }
-    let signature_count =
-        usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
-    // A declaration occupies at least nine bytes (arity, statement index,
-    // body flag), so a count beyond the remaining input cannot parse.
-    if signature_count > reader.remaining() {
-        return Err(CodecError::UnexpectedEnd);
-    }
+    // A declaration occupies at least one byte on the wire, so a count
+    // beyond the remaining input cannot parse.
+    let signature_count = bounded_count(&mut reader, 1)?;
     let mut signature = Vec::with_capacity(signature_count);
     for _ in 0..signature_count {
         let level_arity = reader.u32()?;
@@ -179,10 +172,7 @@ pub fn decode_mathematical_certificate(
             body,
         });
     }
-    let context_count = usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
-    if context_count > reader.remaining() {
-        return Err(CodecError::UnexpectedEnd);
-    }
+    let context_count = bounded_count(&mut reader, 1)?;
     let mut context = Vec::with_capacity(context_count);
     for _ in 0..context_count {
         context.push(decode_root(&mut reader, &handles)?);
@@ -683,18 +673,7 @@ fn decode_term(
         }
         20 => {
             let declaration = reader.u32()?;
-            let level_count = usize::try_from(reader.count()?).map_err(|_| {
-                CodecError::MalformedMathematicalCertificate("constant level count too large")
-            })?;
-            // Every level expression takes at least one byte, so a count
-            // beyond the remaining input cannot parse.
-            if level_count > reader.remaining() {
-                return Err(CodecError::UnexpectedEnd);
-            }
-            let mut levels = Vec::with_capacity(level_count);
-            for _ in 0..level_count {
-                levels.push(decode_level(reader, 0)?);
-            }
+            let levels = decode_counted(reader, |reader| decode_level(reader, 0))?;
             (
                 Term::Constant {
                     declaration,

@@ -212,11 +212,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
         14 => {
             let edge = reader.id("EdgeId")?;
             let target = reader.id("BlockId")?;
-            let argument_count = reader.count()?;
-            let mut arguments = Vec::new();
-            for _ in 0..argument_count {
-                arguments.push(reader.id("ValueId")?);
-            }
+            let arguments = decode_ids(reader, "ValueId")?;
             Terminator::Jump {
                 edge,
                 target,
@@ -244,16 +240,8 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                 2 => CrashCause::Abort,
                 tag => return Err(CodecError::InvalidTag("CrashCause", tag)),
             };
-            let guard_count = reader.count()?;
-            let mut site_guard = Vec::with_capacity(guard_count as usize);
-            for _ in 0..guard_count {
-                site_guard.push(decode_crash_predicate(reader)?);
-            }
-            let claim_count = reader.count()?;
-            let mut frontier_lower_bound = Vec::with_capacity(claim_count as usize);
-            for _ in 0..claim_count {
-                frontier_lower_bound.push(reader.id("ClaimId")?);
-            }
+            let site_guard = decode_counted(reader, decode_crash_predicate)?;
+            let frontier_lower_bound = decode_ids(reader, "ClaimId")?;
             Terminator::Crash {
                 edge,
                 cause,

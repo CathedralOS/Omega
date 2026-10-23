@@ -37,6 +37,8 @@ pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
 
 #[cfg(test)]
+mod counted_collection_bound_tests;
+#[cfg(test)]
 mod routed_scalar_tests;
 #[cfg(test)]
 mod target_family_tests;

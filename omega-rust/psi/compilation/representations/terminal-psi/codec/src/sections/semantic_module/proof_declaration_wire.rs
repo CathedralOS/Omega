@@ -133,9 +133,7 @@ pub(crate) fn decode_proposition_declaration(
 ) -> Result<PropositionDeclaration, CodecError> {
     let id = reader.id("PropositionId")?;
     let name = reader.string("proposition name")?;
-    let binder_count = reader.count()?;
-    let mut binders = Vec::with_capacity(binder_count as usize);
-    for _ in 0..binder_count {
+    let binders = decode_counted(reader, |reader| {
         let name = reader.string("proposition binder name")?;
         let kind = match reader.u8()? {
             1 => PropositionBinderKind::Type,
@@ -145,13 +143,10 @@ pub(crate) fn decode_proposition_declaration(
             3 => PropositionBinderKind::Machine,
             tag => return Err(CodecError::InvalidTag("PropositionBinderKind", tag)),
         };
-        binders.push(PropositionBinderDeclaration { name, kind });
-    }
-    let parameter_count = reader.count()?;
-    let mut parameter_types = Vec::with_capacity(parameter_count as usize);
-    for _ in 0..parameter_count {
-        parameter_types.push(reader.string("proposition parameter type")?);
-    }
+        Ok(PropositionBinderDeclaration { name, kind })
+    })?;
+    let parameter_types =
+        decode_counted(reader, |reader| reader.string("proposition parameter type"))?;
     let evidence = match reader.u8()? {
         1 => PropositionEvidence::FactOnly,
         2 => PropositionEvidence::Witness {
@@ -173,9 +168,7 @@ pub(crate) fn decode_proposition_application(
 ) -> Result<PropositionApplicationIdentity, CodecError> {
     let id = reader.id("PropositionId")?;
     let declaration = reader.id("PropositionId")?;
-    let binder_count = reader.count()?;
-    let mut binder_arguments = Vec::with_capacity(binder_count as usize);
-    for _ in 0..binder_count {
+    let binder_arguments = decode_counted(reader, |reader| {
         let kind = match reader.u8()? {
             1 => PropositionBinderArgumentKind::Type,
             2 => PropositionBinderArgumentKind::Const,
@@ -199,17 +192,15 @@ pub(crate) fn decode_proposition_application(
             ),
             tag => return Err(CodecError::InvalidTag("PropositionBinderArgument", tag)),
         };
-        binder_arguments.push(PropositionBinderArgumentIdentity {
+        Ok(PropositionBinderArgumentIdentity {
             kind,
             identity,
             evidence_projection,
-        });
-    }
-    let argument_count = reader.count()?;
-    let mut arguments = Vec::with_capacity(argument_count as usize);
-    for _ in 0..argument_count {
-        arguments.push(reader.string("proposition application argument")?);
-    }
+        })
+    })?;
+    let arguments = decode_counted(reader, |reader| {
+        reader.string("proposition application argument")
+    })?;
     let evidence_interface = match reader.u8()? {
         0 => None,
         1 => Some(decode_evidence_interface(reader)?),

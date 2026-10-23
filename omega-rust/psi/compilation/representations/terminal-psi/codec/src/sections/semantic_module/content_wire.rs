@@ -265,30 +265,22 @@ pub(crate) fn decode_content_partition_composition(
 ) -> Result<ContentPartitionComposition, CodecError> {
     let producer_operation = reader.id("OperationId")?;
     let source_report_fingerprint = reader.u64()?;
-    let source_place_count = reader.count()?;
-    let mut source_structural_places = Vec::new();
-    for _ in 0..source_place_count {
+    let source_structural_places = decode_counted(reader, |reader| {
         let id = reader.id("PlaceId")?;
         let kind = decode_structural_place_kind(reader)?;
         if matches!(kind, StructuralPlaceKind::BlockParameter { .. }) {
             return Err(CodecError::InvalidTag("ContentStructuralPlaceKind", 8));
         }
-        source_structural_places.push(StructuralPlaceDeclaration { id, kind });
-    }
+        Ok(StructuralPlaceDeclaration { id, kind })
+    })?;
     let source = decode_content_conservation(reader)?;
-    let input_claim_count = reader.count()?;
-    let mut input_claims = Vec::new();
-    for _ in 0..input_claim_count {
-        input_claims.push(reader.id("ClaimId")?);
-    }
-    let substitution_count = reader.count()?;
-    let mut substitutions = Vec::new();
-    for _ in 0..substitution_count {
-        substitutions.push(ContentPlaceSubstitution {
+    let input_claims = decode_counted(reader, |reader| reader.id("ClaimId"))?;
+    let substitutions = decode_counted(reader, |reader| {
+        Ok(ContentPlaceSubstitution {
             source: decode_content_structural_place(reader)?,
             target: decode_content_structural_place(reader)?,
-        });
-    }
+        })
+    })?;
     let derived = decode_content_conservation(reader)?;
     Ok(ContentPartitionComposition {
         producer_operation,
@@ -347,18 +339,15 @@ pub(crate) fn decode_content_identity_reshuffle(
 fn decode_claim_content_projections(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<ClaimContentProjection>, CodecError> {
-    let count = reader.count()?;
-    let mut projections = Vec::new();
-    for _ in 0..count {
-        projections.push(ClaimContentProjection {
+    decode_counted(reader, |reader| {
+        Ok(ClaimContentProjection {
             projection: ContentProjectionIdentity {
                 domain: reader.id("ContentDomainId")?,
                 projection_report_fingerprint: reader.u64()?,
             },
             algebra: decode_content_algebra(reader)?,
-        });
-    }
-    Ok(projections)
+        })
+    })
 }
 
 pub(crate) fn decode_content_algebra(
@@ -394,11 +383,7 @@ pub(crate) fn decode_content_term(
             }
         }
         2 => {
-            let count = reader.count()?;
-            let mut terms = Vec::new();
-            for _ in 0..count {
-                terms.push(decode_content_term(reader, depth + 1)?);
-            }
+            let terms = decode_counted(reader, |reader| decode_content_term(reader, depth + 1))?;
             ContentTerm::separate(terms).map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ContentTerm", tag)),
@@ -414,16 +399,12 @@ fn decode_content_structural_place(
         tag => return Err(CodecError::InvalidTag("ContentPlaceVersion", tag)),
     };
     let root = reader.id("PlaceId")?;
-    let count = reader.count()?;
-    let mut segments = Vec::new();
-    for _ in 0..count {
-        segments.push(match reader.u8()? {
-            1 => ContentPlaceSegment::Field(reader.string("content case")?),
-            2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
-            3 => ContentPlaceSegment::Case(reader.string("content case")?),
-            tag => return Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
-        });
-    }
+    let segments = decode_counted(reader, |reader| match reader.u8()? {
+        1 => Ok(ContentPlaceSegment::Field(reader.string("content case")?)),
+        2 => Ok(ContentPlaceSegment::FixedIndex(reader.u64()?)),
+        3 => Ok(ContentPlaceSegment::Case(reader.string("content case")?)),
+        tag => Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
+    })?;
     Ok(ContentStructuralPlace {
         version,
         root,

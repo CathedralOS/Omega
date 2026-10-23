@@ -141,8 +141,14 @@ impl<'bytes> Reader<'bytes> {
     }
 
     pub(crate) fn strings(&mut self, label: &'static str) -> Result<Vec<String>, CodecError> {
-        let count = self.count()?;
-        (0..count).map(|_| self.string(label)).collect()
+        // Every string carries at least its own four-byte length prefix, so a
+        // roster is never sized from a count the remaining input cannot hold.
+        let count = bounded_count(self, 4)?;
+        let mut values = Vec::with_capacity(count);
+        for _ in 0..count {
+            values.push(self.string(label)?);
+        }
+        Ok(values)
     }
 
     pub(crate) fn id<T: PsiSemanticId>(&mut self, label: &'static str) -> Result<T, CodecError> {
@@ -161,15 +167,36 @@ pub(crate) fn encode_optional_id<I: PsiSemanticId>(writer: &mut Writer, id: Opti
     }
 }
 
+/// Read a `u32` collection count and refuse one the remaining input cannot
+/// hold before any caller reserves capacity for it: every wire element
+/// occupies at least one byte, so `count > remaining` cannot parse and a
+/// collection is never sized from an unvalidated count. `min_element_bytes`
+/// is the family's own encoded minimum where it is larger than one byte
+/// (`u32` roots, fixed 40-byte fragments), which only tightens the same
+/// refusal. This is the one place the bound is decided; callers that must
+/// build a sibling index table while materializing their rows read their
+/// count here rather than re-deriving the arithmetic.
+pub(crate) fn bounded_count(
+    reader: &mut Reader<'_>,
+    min_element_bytes: usize,
+) -> Result<usize, CodecError> {
+    debug_assert!(
+        min_element_bytes > 0,
+        "every encoded element occupies at least one byte"
+    );
+    let count = reader.count()?;
+    let count = usize::try_from(count).map_err(|_| CodecError::UnexpectedEnd)?;
+    if count > reader.remaining() / min_element_bytes {
+        return Err(CodecError::UnexpectedEnd);
+    }
+    Ok(count)
+}
+
 pub(crate) fn decode_counted<T>(
     reader: &mut Reader<'_>,
     mut decode: impl FnMut(&mut Reader<'_>) -> Result<T, CodecError>,
 ) -> Result<Vec<T>, CodecError> {
-    let count = reader.count()?;
-    let count = usize::try_from(count).map_err(|_| CodecError::UnexpectedEnd)?;
-    if count > reader.remaining() {
-        return Err(CodecError::UnexpectedEnd);
-    }
+    let count = bounded_count(reader, 1)?;
     let mut values = Vec::with_capacity(count);
     for _ in 0..count {
         values.push(decode(reader)?);
@@ -182,6 +209,14 @@ pub(crate) fn decode_ids<I: PsiSemanticId>(
     label: &'static str,
 ) -> Result<Vec<I>, CodecError> {
     decode_counted(reader, |reader| reader.id(label))
+}
+
+/// Read a length-prefixed byte payload: a `u32` length the remaining input
+/// must hold, then exactly those bytes. A length and a count share the one
+/// bound above; this is its materializing form for an owned payload.
+pub(crate) fn decode_bytes(reader: &mut Reader<'_>) -> Result<Vec<u8>, CodecError> {
+    let len = bounded_count(reader, 1)?;
+    Ok(reader.take(len)?.to_vec())
 }
 
 pub(crate) fn decode_optional_id<I: PsiSemanticId>(

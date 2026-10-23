@@ -12,7 +12,7 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_path, encode_structural_path,
 };
 use crate::sections::semantic_module::wire::{
-    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
+    decode_bytes, decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
 use semantic_vocabulary::{
     IeeeFloatValue, IntegerValue, PlaceId, StructuralCaseId, StructuralDomainId, ValueId,
@@ -112,10 +112,7 @@ pub(super) fn decode_establish_byte_sequence_literal(
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::EstablishByteSequenceLiteral {
         destination: reader.id("PlaceId")?,
-        bytes: {
-            let len = usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
-            reader.take(len)?.to_vec()
-        },
+        bytes: decode_bytes(reader)?,
         qualifications: decode_ids(reader, "StructuralDomainId")?,
     })
 }

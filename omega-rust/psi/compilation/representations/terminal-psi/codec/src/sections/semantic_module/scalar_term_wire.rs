@@ -294,12 +294,7 @@ pub(crate) fn encode_scalar_term(
 }
 
 pub(crate) fn decode_scalar_terms(reader: &mut Reader<'_>) -> Result<Vec<ScalarTerm>, CodecError> {
-    let count = reader.count()?;
-    let mut terms = Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
-    for _ in 0..count {
-        terms.push(decode_scalar_term(reader, 0)?);
-    }
-    Ok(terms)
+    decode_counted(reader, |reader| decode_scalar_term(reader, 0))
 }
 
 fn encode_typed_binary_term(

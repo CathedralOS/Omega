@@ -10,7 +10,7 @@ use terminal_psi::ErasedProofFormal;
 use terminal_psi::TerminalIdentityIndex;
 
 use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, bounded_count, decode_bytes, decode_counted};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 
 const PROOF_TERM_CONSTRUCTION: u8 = 1;
@@ -147,12 +147,7 @@ fn encode_proof_term_field(
 }
 
 pub(crate) fn decode_proof_terms(reader: &mut Reader<'_>) -> Result<Vec<ProofTerm>, CodecError> {
-    let count = reader.count()?;
-    let mut terms = Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
-    for _ in 0..count {
-        terms.push(decode_proof_term(reader, 0)?);
-    }
-    Ok(terms)
+    decode_counted(reader, |reader| decode_proof_term(reader, 0))
 }
 
 fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm, CodecError> {
@@ -162,8 +157,7 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
     match reader.u8()? {
         PROOF_TERM_MATHEMATICAL => {
             let type_identity = reader.string("proof term type identity")?;
-            let length = usize::try_from(reader.count()?).expect("u32 fits usize");
-            let certificate = reader.take(length)?.to_vec();
+            let certificate = decode_bytes(reader)?;
             super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
             let term = ProofTerm::Mathematical {
                 type_identity,
@@ -174,23 +168,19 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
         }
         tag @ (PROOF_TERM_MATHEMATICAL_APPLICATION | PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION) => {
             let type_identity = reader.string("proof term type identity")?;
-            let length = usize::try_from(reader.count()?).expect("u32 fits usize");
-            let certificate = reader.take(length)?.to_vec();
+            let certificate = decode_bytes(reader)?;
             super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
             let formal_scope = match reader.u8()? {
                 0 => ProofFormalScope::Block,
                 1 => ProofFormalScope::Invocation,
                 tag => return Err(CodecError::InvalidTag("proof formal scope", tag)),
             };
-            let count = usize::try_from(reader.count()?).expect("u32 fits usize");
             let minimum_argument_bytes = if tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION {
                 5
             } else {
                 4
             };
-            if count > reader.remaining() / minimum_argument_bytes {
-                return Err(CodecError::UnexpectedEnd);
-            }
+            let count = bounded_count(reader, minimum_argument_bytes)?;
             let mut arguments = Vec::with_capacity(count);
             for _ in 0..count {
                 let kind = if tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION {
@@ -225,16 +215,12 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
             } else {
                 None
             };
-            let field_count = reader.count()?;
-            let mut fields =
-                Vec::with_capacity(usize::try_from(field_count).expect("u32 count fits usize"));
-            for _ in 0..field_count {
-                let field_identity = reader.string("proof term field identity")?;
-                fields.push(ProofTermField {
-                    field_identity,
+            let fields = decode_counted(reader, |reader| {
+                Ok(ProofTermField {
+                    field_identity: reader.string("proof term field identity")?,
                     term: decode_proof_term(reader, depth + 1)?,
-                });
-            }
+                })
+            })?;
             let term = ProofTerm::Construction {
                 type_identity,
                 case_identity,
@@ -245,12 +231,7 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
         }
         PROOF_TERM_ARRAY => {
             let type_identity = reader.string("proof term type identity")?;
-            let count = reader.count()?;
-            let mut elements =
-                Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
-            for _ in 0..count {
-                elements.push(decode_proof_term(reader, depth + 1)?);
-            }
+            let elements = decode_counted(reader, |reader| decode_proof_term(reader, depth + 1))?;
             let term = ProofTerm::Array {
                 type_identity,
                 elements,
@@ -288,9 +269,7 @@ pub(crate) fn encode_proof_formals(
 pub(crate) fn decode_proof_formals(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<ErasedProofFormal>, CodecError> {
-    let count = reader.count()?;
-    let mut formals = Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
-    for _ in 0..count {
+    decode_counted(reader, |reader| {
         let source_position = reader.u32()?;
         let type_identity = TerminalIdentityIndex(reader.u32()?);
         if type_identity.is_absent() {
@@ -298,12 +277,11 @@ pub(crate) fn decode_proof_formals(
                 "empty erased proof formal type",
             ));
         }
-        formals.push(ErasedProofFormal {
+        Ok(ErasedProofFormal {
             source_position,
             type_identity,
-        });
-    }
-    Ok(formals)
+        })
+    })
 }
 
 #[cfg(test)]

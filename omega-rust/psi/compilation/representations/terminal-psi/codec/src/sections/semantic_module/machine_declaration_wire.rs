@@ -1,6 +1,6 @@
 //! The same portable callable identity is used by bodies and demands.
 
-use super::{CodecError, Reader, Writer};
+use super::{CodecError, Reader, Writer, decode_counted};
 use terminal_psi::{
     CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
     TerminalIdentityIndex,
@@ -34,10 +34,8 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CheckedMachineDeclaratio
     let machine = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let state = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let semantic_declaration = TerminalIdentityIndex(reader.u32()?);
-    let mut parameter_types = Vec::new();
-    for _ in 0..reader.count()? {
-        parameter_types.push(TerminalIdentityIndex(reader.u32()?));
-    }
+    let parameter_types =
+        decode_counted(reader, |reader| Ok(TerminalIdentityIndex(reader.u32()?)))?;
     let callable = TerminalIdentityIndex(reader.u32()?);
     let result_type = TerminalIdentityIndex(reader.u32()?);
     let contract = reader.array()?;
