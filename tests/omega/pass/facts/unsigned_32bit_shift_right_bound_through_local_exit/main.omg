@@ -1,0 +1,25 @@
+// Fact: a 32-bit unsigned u32 logical right shift of a bounded input (val >= 240u32 && val <= 240u32) by 2u32 bits establishes shifted >= 60u32 && shifted <= 60u32 so exact 32-bit subtraction shifted - 60u32 is proved underflow-free across all nine places.
+// Place: local. The 32-bit operand and shift count are copied into locals before right shift and subtraction.
+// Expected exit: 0
+
+machine shift_local(val: u32, shift: u32) -> u32
+requires val >= 240 && val <= 240 && shift == 2
+{
+    let local_val: u32 = val;
+    let local_shift: u32 = shift;
+    let shifted: u32 = local_val >> local_shift;
+    shifted - 60u32
+}
+
+machine probe() -> u32 {
+    shift_local(240u32, 2)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

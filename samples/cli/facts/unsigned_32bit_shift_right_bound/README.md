@@ -42,6 +42,16 @@ omega run --both samples/cli/facts/unsigned_32bit_shift_right_bound/target_body/
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
+Measured 2026-10-23 on macOS arm64 with the factsr1 shared generation producer
+`gen-d3b0020bf6a` (`omega` sha256
+`c6dff3ba4be3a38c720ee83b522d251743afde9c174ca6881390c5812920e344`, `corpus_runner`
+sha256 `65225cae2bf62dec8f705339afaef606c0bac0e611c005dae984488e67ffa301`; 0 `.rs`
+delta to the landing base `f28130ba26ee`): the root and all nine places report
+`native exit 0` and `interp exit: 0` (10/10), and all nine twins exit 1 at checking
+with the runner-emitted diagnostic below. The first measurement
+(`gen-f1b0d3326d2` at `f1b0d3326d2`) agreed on all 38 runs; its golden rows were
+re-recorded at the integrated base, because main had moved 25 `.rs` files.
+
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
@@ -54,20 +64,56 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/unsigned_32bit_shift_right_bound/<place>/invalid/main.omg
 ```
 
-### Acceptance Gate
+## Pinned Corpus Fixtures
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omegauild\omega-latest.exe --filter cli/facts/unsigned_32bit_shift_right_bound --jobs 4
-```
+Nine positive fixtures under `tests/omega/pass/facts/` and nine reject twins under
+`tests/omega/fail/facts/`, each authored byte-for-byte from its place's `main.omg`
+and `build.omg`; the positives also carry `expected_native_exit.txt` `0`:
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 9/9 intended-invalid controls match their authored rejection (`may overflow \`u32\``).
+- `unsigned_32bit_shift_right_bound_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_exit`
+- `unsigned_32bit_shift_right_bound_through_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_rejected`
+
+### Invalid controls and reject twins
+
+Each place has an `invalid/` twin that weakens only the operand's lower bound
+(`val >= 240u32` -> `val >= 200u32`, or the `const_name` constant), so `shifted`
+can evaluate to `50u32` and exact subtraction `shifted - 60u32` can underflow
+`u32`. Every twin fails closed at checking; the pinned fragment is
+`may overflow \`u32\``.
+
+| Place | Reject twin diagnostic (runner-emitted, fragment satisfied) |
+| --- | --- |
+| `local` | `exact arithmetic in machine \`shift_local\` state \`entry\` terminal expression may overflow \`u32\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)...` |
+| `field` | `exact arithmetic in machine \`shift_field\` state \`entry\` terminal expression may overflow \`u32\`...` |
+| `parameter` | `exact arithmetic in machine \`shift_param\` state \`entry\` terminal expression may overflow \`u32\`...` |
+| `call_result` | `exact arithmetic in machine \`shift_call_result\` state \`entry\` terminal expression may overflow \`u32\`...` |
+| `match_join` | `exact arithmetic in machine \`shift_match_join\` state \`entry\` terminal expression may overflow \`u32\`...` |
+| `const_name` | `exact arithmetic in machine \`shift_const\` state \`entry\` terminal expression may overflow \`u32\`...` |
+| `other_state` | `exact arithmetic in machine \`shift_state\` state \`step\` terminal expression may overflow \`u32\`...` |
+| `other_machine` | `exact arithmetic in machine \`perform_shift\` state \`entry\` terminal expression may overflow \`u32\`...` |
+| `target_body` | `exact arithmetic in machine \`shift_target\` state \`entry\` terminal expression may overflow \`u32\`...` (4 diagnostics, one per target-scoped body) |
+
+### Golden rows
+
+The three corpus legs were recorded with the generation producer above, the tree
+staged at the integrated published base `f28130ba26ee`, so every row is stamped
+`@f28130ba26ee+wt`:
+
+- `tests/omega/corpus_outcomes.txt`: +18 rows -- 9 `checked` rows carrying
+  `check-target:macos_arm64` and 9 `rejected` rows carrying their diagnostics with
+  the pinned fragments satisfied -- plus 24 diagnostic continuation lines, 0 deletions;
+- `tests/omega/corpus_native_macos_arm64.txt`: +9 rows, `built ... exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: +9 rows,
+  `built ... exit:0 interpreter-exit:0 interpreter:agrees`.
+
+The runner's realized check rows use the check-leg target preference (`macos_arm64`,
+first of the four bound targets), so such a row names the target it is a verdict
+about rather than the recording host.
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Tickets:** `c748de1b32944b76a08992df45b6ec83` (row authoring); `951b027d89d840af9fc286cde2abfd31` (factsr1-pins-fc pass: fixtures, twins, goldens).
 - **Requirement established:** Target-neutral compile-time 32-bit unsigned logical right shift bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, logical right shift (`>>`) on a bounded 32-bit unsigned `u32` value (`val >= 240u32 && val <= 240u32`) by `2u32` bits establishes the exact post-shift bound (`shifted >= 60u32 && shifted <= 60u32`), discharging exact 32-bit subtraction `shifted - 60u32 == 0u32` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
