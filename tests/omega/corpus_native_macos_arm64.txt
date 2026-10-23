@@ -1134,6 +1134,7 @@ pass/domains/utf8_field_write_from_param built 5023ms exit:0 @51cd9b31baf0
 pass/domains/vacuous_domain_qualification checked 203ms
 pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
 pass/domains/write_domain_store checked 9253ms @5041ef1af684+wt
+pass/domains/zero_array_inactive_payload_exit built 988ms exit:0 @febcad4dcb18
 pass/drops/borrowed_temporary_normal_completion_exit built 5226ms exit:0 @c3f6e1b1295c+wt
 pass/drops/case_subject_root_cleanup checked 9520ms @5041ef1af684+wt
 pass/drops/cleanup_machine_drop_shape checked 749ms @9beb2be72f2d+wt

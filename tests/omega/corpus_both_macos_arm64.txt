@@ -490,6 +490,7 @@ pass/domains/scalar_field_membership_snapshot built 9302ms exit:0 interpreter-ex
 pass/domains/target_generic_issuer_forwarding_exit built 2205ms exit:0 interpreter-exit:0 interpreter:agrees @8fdb0071edab
 pass/domains/unit_membership_postcondition_exit built 2713ms exit:70 interpreter-exit:70 interpreter:agrees @3d64278a43eb
 pass/domains/utf8_field_write_from_param built 5058ms exit:0 interpreter-exit:0 interpreter:agrees @51cd9b31baf0
+pass/domains/zero_array_inactive_payload_exit built 1067ms exit:0 interpreter-exit:0 interpreter:agrees @febcad4dcb18
 pass/domains/zero_value_membership_occurrences_exit built 3526ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/drops/borrowed_projection_captures_before_sibling_write_exit built 3849ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
 pass/drops/borrowed_projection_earlier_call_capture_exit built 3965ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb

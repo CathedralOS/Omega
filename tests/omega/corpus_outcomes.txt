@@ -1864,6 +1864,10 @@ fail/domains/unit_membership_postcondition_unestablished rejected 1497ms expecte
 fail/domains/vacuous_tag_argument_other_domain rejected 189ms expected @2012446ad74a+wt
 fail/domains/view_field_store_literal_outside_domain rejected 1611ms expected @a9ae30e1c334+wt
 fail/domains/view_local_qualified_store_unproven rejected 5197ms expected @a9ae30e1c334+wt
+fail/domains/zero_array_active_payload_unestablished rejected 539ms expected @febcad4dcb18
+	cannot prove default-domain field requirement for call consume from main::entry: parameter frames[1]::Ready.value requires u64::PositiveSmall
+fail/domains/zero_case_tag_replaced_rejected rejected 535ms expected @febcad4dcb18
+	cannot prove requires contract for call require_empty from main: frames[1] == constructor:5:Frame10:name:Empty (needs fact `frames[1] == Frame::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/zero_field_call_requires_establishment rejected 217ms expected @4eedaeefe771+wt
 fail/drops/authored_cleanup_static_argument_rejected rejected 733ms expected @a9ae30e1c334+wt
 fail/drops/borrowed_projection_capture_after_source_write rejected 1718ms expected @dec223be05fb
@@ -11122,6 +11126,7 @@ pass/domains/utf8_field_write_from_param checked 4757ms check-target:macos_arm64
 pass/domains/vacuous_domain_qualification checked 1751ms @a9ae30e1c334+wt
 pass/domains/view_field_literal_store_reads_exit checked 12827ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/write_domain_store checked 9451ms @5041ef1af684+wt
+pass/domains/zero_array_inactive_payload_exit checked 850ms check-target:macos_arm64 @febcad4dcb18
 pass/domains/zero_value_membership_occurrences_exit checked 3381ms check-target:macos_arm64 @7c138f5545aa
 pass/drops/borrowed_projection_captures_before_sibling_write_exit checked 8036ms check-target:macos_arm64 @dec223be05fb
 pass/drops/borrowed_projection_earlier_call_capture_exit checked 8208ms check-target:macos_arm64 @dec223be05fb
