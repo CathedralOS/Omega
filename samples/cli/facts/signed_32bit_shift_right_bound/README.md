@@ -24,6 +24,29 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_32bit_shift_right_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_32bit_shift_right_bound_through_<place>_rejected` for the nine
+places. Every pinned `main.omg`, `build.omg`, `expected.txt` and `expected_native_exit.txt` is
+byte-identical to the sample place it names, each positive fixture carries
+`expected_native_exit.txt` = `0`, declares `Expected exit: 0`, and binds `ProgramEntry` for
+`windows_x86_64`, `linux_x86_64`, `macos_arm64` and `linux_arm64`.
+
+Measured on macOS arm64 (Darwin 27.0.1) with the `gen-9b001b8f6af` producer (`omega` sha256
+`6d24393125b7…`, `corpus_runner` sha256 `cee00bbdce17…`) at revision `9b001b8f6af`:
+
+- 10/10 applications (`main.omg` and the nine places) pass `omega run --both`
+  (`native exit 0`, `interp exit: 0`);
+- 9/9 reject twins exit 1 under `omega --check`: eight with the authored fragment
+  `cannot prove requires contract`; the `call_result` twin weakens the same input bound but
+  surfaces it at `produce_shifted`'s exit, so its `expected.txt` carries
+  `cannot prove ensures contract` (`cannot prove ensures contract for exit from produce_shifted
+  at statement 0: result >= 75 && result <= 75`);
+- corpus goldens: nine `checked` rows carrying `check-target:macos_arm64`, nine `rejected`
+  rows satisfying their `expected.txt`, nine native `built` rows with `exit:0`, and nine
+  Terminal-agreement rows carrying `interpreter-exit:0`/`interpreter:agrees`.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` ([TASKS.md](../../../../TASKS.md)).
