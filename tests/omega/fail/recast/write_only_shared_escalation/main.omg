@@ -1,0 +1,10 @@
+data Original { value: u32; }
+data Viewed { value: u32; }
+machine observe(storage: &write Original) -> u32 {
+    let view: &Viewed = storage as &Viewed;
+    view.value
+}
+machine main() crashes Trap {
+    let mut original: Original = Original { value: 0 };
+    let observed: u32 = observe(&write original);
+}

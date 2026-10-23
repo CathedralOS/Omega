@@ -200,7 +200,7 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Borrow(inner) => {
                 // `&mut place as &mut View` can survive typed-tree rewriting as
-                // `Mutable(Cast(RecastMutable))` in a guard or forwarded value.
+                // `Borrow(Cast(Recast(access)))` in a guard or forwarded value.
                 // In value position evaluate the recast view itself; argument
                 // and assignment seams separately preserve its mutable alias.
                 if matches!(

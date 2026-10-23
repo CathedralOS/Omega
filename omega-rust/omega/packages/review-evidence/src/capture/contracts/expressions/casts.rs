@@ -4,6 +4,7 @@ use crate::capture::semantics::declarations::{nominal_identity, reviewed_package
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractExpression,
+    PackageReviewReferenceAccess,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -72,9 +73,16 @@ pub(crate) fn project_contract_cast(
             .collect::<Result<Vec<_>, _>>()?,
         form: match cast.form {
             language_core::cast_form::CastForm::Value => PackageReviewCastForm::Value,
-            language_core::cast_form::CastForm::RecastShared => PackageReviewCastForm::RecastShared,
-            language_core::cast_form::CastForm::RecastMutable => {
-                PackageReviewCastForm::RecastMutable
+            language_core::cast_form::CastForm::Recast(access) => {
+                PackageReviewCastForm::Recast(match access {
+                    language_core::ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
+                    language_core::ReferenceAccess::Mutable => {
+                        PackageReviewReferenceAccess::Mutable
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        PackageReviewReferenceAccess::WriteOnly
+                    }
+                })
             }
         },
     })

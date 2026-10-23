@@ -40,6 +40,40 @@ mod codec_tests {
     use super::*;
 
     #[test]
+    fn recast_access_keeps_distinct_stable_wire_tags() {
+        use crate::record::{
+            PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewReferenceAccess,
+            PackageReviewTypeIdentity,
+        };
+        for (access, tag) in [
+            (PackageReviewReferenceAccess::Shared, 1),
+            (PackageReviewReferenceAccess::Mutable, 2),
+            (PackageReviewReferenceAccess::WriteOnly, 3),
+        ] {
+            let canonical = "named(name(u32))";
+            let expression = PackageReviewContractExpression::Cast {
+                value: Box::new(PackageReviewContractExpression::Result),
+                target: PackageReviewTypeIdentity {
+                    canonical: canonical.to_owned(),
+                },
+                arithmetic_domain: PackageReviewArithmeticDomain::Exact,
+                semantic_domain: None,
+                semantic_domain_arguments: Vec::new(),
+                form: PackageReviewCastForm::Recast(access),
+            };
+            let mut expected = vec![9, 3];
+            expected.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
+            expected.extend_from_slice(canonical.as_bytes());
+            expected.extend_from_slice(&[0, 0]);
+            expected.extend_from_slice(&0u64.to_le_bytes());
+            expected.push(tag);
+            let mut encoder = Encoder::bounded(expected.len());
+            encode_contract_expression(&mut encoder, &expression).unwrap();
+            assert_eq!(encoder.finish().unwrap(), expected);
+        }
+    }
+
+    #[test]
     fn builtin_carrier_member_has_a_closed_wire_identity() {
         let expression = PackageReviewContractExpression::BuiltinTypeMember(
             symbols::BuiltinTypeMember::AddressBound,

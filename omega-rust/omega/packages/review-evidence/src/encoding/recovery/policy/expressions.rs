@@ -21,6 +21,35 @@ mod codec_tests {
     use super::*;
 
     #[test]
+    fn recast_access_recovers_exact_modes_and_rejects_unknown_tags() {
+        for (tag, access) in [
+            (1, PackageReviewReferenceAccess::Shared),
+            (2, PackageReviewReferenceAccess::Mutable),
+            (3, PackageReviewReferenceAccess::WriteOnly),
+        ] {
+            let canonical = "named(name(u32))";
+            let mut bytes = vec![9, 3];
+            bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(canonical.as_bytes());
+            bytes.extend_from_slice(&[0, 0]);
+            bytes.extend_from_slice(&0u64.to_le_bytes());
+            bytes.push(tag);
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            let recovered = expression(&mut reader).unwrap();
+            assert!(matches!(recovered, PackageReviewContractExpression::Cast {
+                form: PackageReviewCastForm::Recast(recovered_access), ..
+            } if recovered_access == access));
+            reader.finish().unwrap();
+            bytes.pop();
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+            bytes.push(4);
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+    }
+
+    #[test]
     fn builtin_carrier_member_recovers_without_nominal_ownership() {
         let bytes = [25, 0];
         let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
@@ -85,8 +114,9 @@ pub(in crate::encoding::recovery) fn expression(
                 semantic_domain_arguments: reader.sequence(8, type_identity)?,
                 form: super::tag!(reader => {
                     0 => PackageReviewCastForm::Value,
-                    1 => PackageReviewCastForm::RecastShared,
-                    2 => PackageReviewCastForm::RecastMutable,
+                    1 => PackageReviewCastForm::Recast(crate::record::PackageReviewReferenceAccess::Shared),
+                    2 => PackageReviewCastForm::Recast(crate::record::PackageReviewReferenceAccess::Mutable),
+                    3 => PackageReviewCastForm::Recast(crate::record::PackageReviewReferenceAccess::WriteOnly),
                 }),
             },
             10 => Expression::DomainSubject,

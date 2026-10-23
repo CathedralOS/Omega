@@ -926,13 +926,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
-                let TypeReferenceNode::Reference {
-                    referee,
-                    access:
-                        language_semantics::ReferenceAccess::Shared
-                        | language_semantics::ReferenceAccess::Mutable,
-                    ..
-                } = program
+                let TypeReferenceNode::Reference { referee, .. } = program
                     .type_reference_table
                     .type_reference(local.type_reference)
                 else {

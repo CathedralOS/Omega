@@ -1,0 +1,12 @@
+data Original { value: u32; }
+data Viewed { value: u32; }
+machine overwrite(storage: &write Original) {
+    let first: &write Viewed = storage as &write Viewed;
+    let second: &write Viewed = storage as &write Viewed;
+    first.value = 73;
+    second.value = 73;
+}
+machine main() crashes Trap {
+    let mut original: Original = Original { value: 0 };
+    overwrite(&write original);
+}

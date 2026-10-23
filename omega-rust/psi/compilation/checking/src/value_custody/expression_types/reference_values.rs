@@ -922,7 +922,7 @@ pub(crate) fn place_permits_reference_borrow(
             access: source_access,
             ..
         } => reference_access_permits(*source_access, access),
-        _ => owned_root_is_writable || projection.crossed_reference,
+        _ => !access.is_exclusive() || owned_root_is_writable || projection.crossed_reference,
     }
 }
 

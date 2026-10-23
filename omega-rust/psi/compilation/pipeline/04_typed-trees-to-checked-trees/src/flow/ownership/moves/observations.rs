@@ -40,13 +40,7 @@ pub(in crate::flow::ownership) fn append(
                 source,
             );
         }
-        ExpressionNode::Cast(cast)
-            if matches!(
-                cast.form,
-                language_core::cast_form::CastForm::RecastShared
-                    | language_core::cast_form::CastForm::RecastMutable
-            ) =>
-        {
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             append(program, sink, state, statement, cast.value, source);
         }
         ExpressionNode::Borrow(borrow) => {

@@ -1,0 +1,16 @@
+// Expected exit: 0
+// Fact: a write-only representation view writes 73 to the original record without granting observation.
+data Original { value: u32; }
+data Viewed { value: u32; }
+data Envelope { view: &write Viewed; }
+machine overwrite(storage: &write Original) {
+    let envelope: Envelope = Envelope { view: storage as &write Viewed };
+    envelope.view.value = 73;
+}
+machine main() crashes Trap {
+    let mut original: Original = Original { value: 0 };
+    overwrite(&write original);
+    transition original.value == 73 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

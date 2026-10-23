@@ -9,18 +9,22 @@ pub enum CastForm {
     /// `x as T` — value conversion (decision 17's domain retag rides here).
     #[default]
     Value,
-    /// `&x as &T` — the borrowed place's bytes revealed under the stated
-    /// shape. Address identity at runtime; legality is the static §5b
-    /// judgment (size/align/fact implication, source→target).
-    RecastShared,
-    /// `&mut x as &mut T` — as above, writable: the judgment requires fact
-    /// implication in BOTH directions (writes through the view must leave
-    /// the source valid at release).
-    RecastMutable,
+    /// Re-view the same backing with the stated reference access. Shared
+    /// views require source-to-target validity; both exclusive access modes
+    /// require reverse validity as well. Write-only access remains distinct
+    /// from readable mutable access at formation, transport and observation.
+    Recast(crate::ReferenceAccess),
 }
 
 impl CastForm {
     pub fn is_recast(self) -> bool {
-        !matches!(self, Self::Value)
+        matches!(self, Self::Recast(_))
+    }
+
+    pub const fn recast_access(self) -> Option<crate::ReferenceAccess> {
+        match self {
+            Self::Value => None,
+            Self::Recast(access) => Some(access),
+        }
     }
 }

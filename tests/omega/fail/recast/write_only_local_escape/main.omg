@@ -1,0 +1,10 @@
+data Original { value: u32; }
+data Viewed { value: u32; }
+machine escape() -> &write Viewed {
+    let mut original: Original = Original { value: 0 };
+    original as &write Viewed
+}
+machine main() crashes Trap {
+    let view: &write Viewed = escape();
+    view.value = 73;
+}

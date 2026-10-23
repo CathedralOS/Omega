@@ -278,15 +278,7 @@ pub fn reference_formation_source(
         _ => (expression, None),
     };
     if let Some(cast) = program.expression_table.cast_node(operand) {
-        let access = match cast.form {
-            language_core::cast_form::CastForm::RecastShared => {
-                language_core::ReferenceAccess::Shared
-            }
-            language_core::cast_form::CastForm::RecastMutable => {
-                language_core::ReferenceAccess::Mutable
-            }
-            language_core::cast_form::CastForm::Value => return None,
-        };
+        let access = cast.form.recast_access()?;
         if borrowed_access.is_some_and(|borrowed| borrowed != access) {
             return None;
         }
@@ -342,9 +334,9 @@ pub(crate) fn validate_recasts(
                     // node the sweep checks. The outermost Borrow still
                     // spells the authored source access: `&x as &mut T`
                     // would mint an exclusive view from a shared borrow.
-                    let spelled_borrow_exclusive =
+                    let spelled_borrow_access =
                         match program.expression_table.expression(local.initial_value) {
-                            ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+                            ExpressionNode::Borrow(borrow) => Some(borrow.access),
                             _ => None,
                         };
                     let initializer = strip_mutable(program, local.initial_value);
@@ -359,8 +351,8 @@ pub(crate) fn validate_recasts(
                                 cast,
                                 initializer,
                                 *referee,
-                                access.is_exclusive(),
-                                spelled_borrow_exclusive,
+                                *access,
+                                spelled_borrow_access,
                                 diagnostics,
                             );
                         }
@@ -392,16 +384,16 @@ pub(crate) fn validate_recasts(
                 // Borrow: the authored `&`/`&mut` source spelling of a recast
                 // operand must agree with the view polarity the `as` form
                 // claims (`&x as &mut T` is escalation, not a shared view).
-                let mut pending: Vec<(ExpressionHandle, Option<bool>)> =
+                let mut pending: Vec<(ExpressionHandle, Option<language_core::ReferenceAccess>)> =
                     roots.iter().map(|root| (*root, None)).collect();
                 while let Some((handle, enclosing_borrow)) = pending.pop() {
                     let node = program.expression_table.expression(handle);
                     let enclosing_borrow = match node {
-                        ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+                        ExpressionNode::Borrow(borrow) => Some(borrow.access),
                         _ => enclosing_borrow,
                     };
                     if let ExpressionNode::Cast(cast) = node
-                        && cast.form.is_recast()
+                        && let Some(view_access) = cast.form.recast_access()
                         && !blessed.contains(&handle)
                         && !judged_inline.contains(&handle)
                     {
@@ -414,7 +406,7 @@ pub(crate) fn validate_recasts(
                             cast,
                             handle,
                             cast.target_type,
-                            cast.form == language_core::cast_form::CastForm::RecastMutable,
+                            view_access,
                             enclosing_borrow,
                             diagnostics,
                         );

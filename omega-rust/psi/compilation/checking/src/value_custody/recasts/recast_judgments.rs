@@ -1,4 +1,9 @@
-//! Scalar and slice recast judgments and reference pun reports.
+//! Representation compatibility is independent from reference access.
+//!
+//! Formation retains the exact access mode; exclusivity is used only for the
+//! reverse representation implication owed by both writable modes. In
+//! particular, a write-only view neither observes the source contents nor
+//! becomes readable merely because its validity judgment is bidirectional.
 
 use crate::value_custody::recasts::raw_byte_region::{
     ByteRegionFootprint, InteriorByteRegion, byte_region_allows_arbitrary_writes,
@@ -31,8 +36,8 @@ pub(crate) fn judge_scalar_recast(
     cast: &TableCastExpression,
     cast_handle: ExpressionHandle,
     let_referee: TypeReferenceHandle,
-    let_is_mutable: bool,
-    source_borrow_exclusive: Option<bool>,
+    receiving_access: language_core::ReferenceAccess,
+    source_borrow_access: Option<language_core::ReferenceAccess>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let source = strip_mutable(program, cast.value);
@@ -61,8 +66,8 @@ pub(crate) fn judge_scalar_recast(
             cast,
             cast_handle,
             let_referee,
-            let_is_mutable,
-            source_borrow_exclusive,
+            receiving_access,
+            source_borrow_access,
             diagnostics,
         );
     }
@@ -77,8 +82,8 @@ fn judge_scalar_recast_alternative(
     cast: &TableCastExpression,
     cast_handle: ExpressionHandle,
     let_referee: TypeReferenceHandle,
-    let_is_mutable: bool,
-    source_borrow_exclusive: Option<bool>,
+    receiving_access: language_core::ReferenceAccess,
+    source_borrow_access: Option<language_core::ReferenceAccess>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let context = format!(
@@ -88,12 +93,20 @@ fn judge_scalar_recast_alternative(
     );
     let source_span = program.expression_table.source_span(cast_handle);
 
-    let mutable_recast = cast.form == language_core::cast_form::CastForm::RecastMutable;
-    if mutable_recast != let_is_mutable {
+    let Some(view_access) = cast.form.recast_access() else {
+        diagnostics.push(Diagnostic::error(
+            "reference-view judgment requires a recast form",
+        ));
+        return;
+    };
+    // Exclusivity controls writable representation validity, never readable
+    // permission. Keep the exact source/view/receiving axes at admission.
+    let writable_view = view_access.is_exclusive();
+    if view_access != receiving_access {
         diagnostics.push(
             Diagnostic::error(format!(
                 "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \
-                 view or `&mut x as &mut T` for a writable view"
+                 view or `&mut x as &mut T` for a writable view; `&write x as &write T` retains write-only access"
             ))
             .with_source_span(source_span),
         );
@@ -105,16 +118,16 @@ fn judge_scalar_recast_alternative(
     // escalation; `&mut x as &T` mismatches in the other direction. A bare
     // `x as &T` has no source borrow to disagree with, and the target-side
     // `as &mut` suffix still marks the view exclusive for the loan walk.
-    let source_borrow_exclusive =
-        source_borrow_exclusive.or_else(|| match program.expression_table.expression(cast.value) {
-            ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+    let source_borrow_access =
+        source_borrow_access.or_else(|| match program.expression_table.expression(cast.value) {
+            ExpressionNode::Borrow(borrow) => Some(borrow.access),
             _ => None,
         });
-    if source_borrow_exclusive.is_some_and(|exclusive| exclusive != mutable_recast) {
+    if source_borrow_access.is_some_and(|source| source != view_access) {
         diagnostics.push(
             Diagnostic::error(format!(
                 "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \
-                 view or `&mut x as &mut T` for a writable view"
+                 view or `&mut x as &mut T` for a writable view; `&write x as &write T` retains write-only access"
             ))
             .with_source_span(source_span),
         );
@@ -164,13 +177,13 @@ fn judge_scalar_recast_alternative(
             program,
             source,
             let_referee,
-            mutable_recast || shared_mutation,
+            writable_view || shared_mutation,
         )
     });
     if qualification_compatible == Some(false) {
         diagnostics.push(Diagnostic::error(format!(
                 "{context}: a qualification reference view must retain existing source qualifications{}; `as` cannot mint routed provenance",
-                if mutable_recast { " in BOTH directions for mutable storage" } else { "" },
+                if writable_view { " in BOTH directions for mutable storage" } else { "" },
             )).with_source_span(source_span));
         return;
     }
@@ -209,7 +222,7 @@ fn judge_scalar_recast_alternative(
             source_span,
             *element_type,
             let_referee,
-            mutable_recast,
+            view_access,
             diagnostics,
             &context,
         );
@@ -233,7 +246,7 @@ fn judge_scalar_recast_alternative(
                     Diagnostic::error(format!(
                         "{context}: the let's declared type must restate the recast target \
                          `&{}{target_name}`",
-                        if mutable_recast { "mut " } else { "" },
+                        view_access.borrow_modifier(),
                     ))
                     .with_source_span(source_span),
                 );
@@ -251,7 +264,7 @@ fn judge_scalar_recast_alternative(
                 return;
             }
             if let ByteRegionFootprint::Contained = interior {
-                if mutable_recast
+                if writable_view
                     && !byte_region_allows_arbitrary_writes(program, machine, state, source)
                 {
                     diagnostics.push(Diagnostic::error(format!(
@@ -265,7 +278,7 @@ fn judge_scalar_recast_alternative(
                             "{context}: byte-region recast target `{target_name}` must be recursively \
                              fact-free; unchecked bytes cannot establish constrained fields, bool, \
                              or record invariants{}",
-                            if mutable_recast {
+                            if writable_view {
                                 "; mutable views require fact implication in BOTH directions"
                             } else {
                                 ""
@@ -281,7 +294,7 @@ fn judge_scalar_recast_alternative(
                 && let Some(source_representation) =
                     type_representation(program, representation_carrier(source_type))
             {
-                let compatible = if mutable_recast {
+                let compatible = if writable_view {
                     mutable_record_representations_equivalent(
                         program,
                         &source_representation,
@@ -301,8 +314,8 @@ fn judge_scalar_recast_alternative(
                     Diagnostic::error(format!(
                         "{context}: {} aggregate aliases require identical layout geometry and {}; \
                          the source and target `{target_name}` are not representation-compatible",
-                        if mutable_recast { "mutable" } else { "shared" },
-                        if mutable_recast {
+                        if writable_view { "mutable" } else { "shared" },
+                        if writable_view {
                             "leaf fact implication in BOTH directions"
                         } else {
                             "source leaf facts implying every target leaf fact"
@@ -357,7 +370,7 @@ fn judge_scalar_recast_alternative(
         return;
     }
     if let ByteRegionFootprint::Contained = interior {
-        if mutable_recast && !byte_region_allows_arbitrary_writes(program, machine, state, source) {
+        if writable_view && !byte_region_allows_arbitrary_writes(program, machine, state, source) {
             diagnostics.push(Diagnostic::error(format!(
                 "{context}: a mutable byte-region recast must preserve the source element's representation facts in BOTH directions"
             )).with_source_span(source_span));
@@ -370,7 +383,7 @@ fn judge_scalar_recast_alternative(
             values: ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(target)),
         };
         let compatible = target_facts.as_ref().is_some_and(|target_facts| {
-            if mutable_recast {
+            if writable_view {
                 mutable_scalar_representation_facts_equivalent(program, &raw_facts, target_facts)
             } else {
                 scalar_representation_facts_imply(program, &raw_facts, target_facts)
@@ -381,8 +394,8 @@ fn judge_scalar_recast_alternative(
                 Diagnostic::error(format!(
                     "{context}: a {} recast {}; a raw byte region cannot establish the target's \
                      representation facts",
-                    if mutable_recast { "mutable" } else { "shared" },
-                    if mutable_recast {
+                    if writable_view { "mutable" } else { "shared" },
+                    if writable_view {
                         "must prove fact implication in BOTH directions"
                     } else {
                         "may weaken established facts but cannot strengthen them"
@@ -456,7 +469,7 @@ fn judge_scalar_recast_alternative(
     let source_atomic = source_type
         .and_then(|reference| super::representation_types::scalar_is_atomic(program, reference));
     let target_atomic = super::representation_types::scalar_is_atomic(program, let_referee);
-    if !mutable_recast
+    if !writable_view
         && source_atomic
             .zip(target_atomic)
             .is_some_and(|(source, target)| source != target)
@@ -471,7 +484,7 @@ fn judge_scalar_recast_alternative(
     }
     let shared_observation_compatible =
         source_atomic == Some(false) && target_atomic == Some(false);
-    let compatible = if !mutable_recast && target_is_fact_free && shared_observation_compatible {
+    let compatible = if !writable_view && target_is_fact_free && shared_observation_compatible {
         // A shared view may always forget source facts. This remains safe even
         // when the source uses a fact family (such as a float interval) whose
         // precise representation set is not yet modeled.
@@ -481,7 +494,7 @@ fn judge_scalar_recast_alternative(
             .as_ref()
             .zip(target_facts.as_ref())
             .is_some_and(|(source_facts, target_facts)| {
-                if mutable_recast {
+                if writable_view {
                     mutable_scalar_representation_facts_equivalent(
                         program,
                         source_facts,
@@ -494,7 +507,7 @@ fn judge_scalar_recast_alternative(
     };
     if !compatible {
         diagnostics.push(
-            Diagnostic::error(if mutable_recast {
+            Diagnostic::error(if writable_view {
                 format!(
                     "{context}: a mutable recast must prove fact implication in BOTH directions; \
                      source and target constraints are not proven representation-equivalent"
@@ -559,10 +572,11 @@ fn judge_slice_recast(
     source_span: source::SourceSpan,
     element_type: TypeReferenceHandle,
     let_referee: TypeReferenceHandle,
-    mutable_recast: bool,
+    view_access: language_core::ReferenceAccess,
     diagnostics: &mut Vec<Diagnostic>,
     context: &str,
 ) {
+    let writable_view = view_access.is_exclusive();
     let target_label = program.display_type_reference(cast.target_type);
     if program.normalized_type_identity(let_referee)
         != program.normalized_type_identity(cast.target_type)
@@ -571,7 +585,7 @@ fn judge_slice_recast(
             Diagnostic::error(format!(
                 "{context}: the let's declared type must restate the recast target \
                  `&{}{target_label}`",
-                if mutable_recast { "mut " } else { "" },
+                view_access.borrow_modifier(),
             ))
             .with_source_span(source_span),
         );
@@ -744,8 +758,8 @@ fn judge_slice_recast(
         && target_fact_free
         && !source_representation.permits_shared_mutation()
     {
-        !mutable_recast || source_fact_free
-    } else if mutable_recast {
+        !writable_view || source_fact_free
+    } else if writable_view {
         mutable_record_representations_equivalent(
             program,
             &source_representation,
@@ -759,7 +773,7 @@ fn judge_slice_recast(
             Diagnostic::error(format!(
                 "{context}: slice recast `{target_label}` does not preserve exact byte tiling and {}; \
                  raw storage cannot establish element facts",
-                if mutable_recast {
+                if writable_view {
                     "fact implication in BOTH directions"
                 } else {
                     "source-to-target fact implication"

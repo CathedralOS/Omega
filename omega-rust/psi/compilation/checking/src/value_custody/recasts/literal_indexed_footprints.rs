@@ -61,8 +61,8 @@ fn literal_indexed_recast_preamble<'program>(
     ExpressionHandle,
     &'program TableIndexedExpression,
 )> {
-    let spelled_borrow_exclusive = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+    let spelled_borrow_access = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => Some(borrow.access),
         _ => None,
     };
     let initializer = strip_mutable(program, expression);
@@ -80,8 +80,8 @@ fn literal_indexed_recast_preamble<'program>(
         cast,
         initializer,
         viewed_type,
-        access.is_exclusive(),
-        spelled_borrow_exclusive,
+        access,
+        spelled_borrow_access,
         &mut diagnostics,
     );
     if !diagnostics.is_empty() {

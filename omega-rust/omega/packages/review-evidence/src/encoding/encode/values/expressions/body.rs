@@ -240,8 +240,17 @@ pub(super) fn encode_contract_expression_body(
             encoder.field("form", |encoder| {
                 match form {
                     PackageReviewCastForm::Value => encoder.tag("value", 0),
-                    PackageReviewCastForm::RecastShared => encoder.tag("recast_shared", 1),
-                    PackageReviewCastForm::RecastMutable => encoder.tag("recast_mutable", 2),
+                    PackageReviewCastForm::Recast(access) => match access {
+                        crate::record::PackageReviewReferenceAccess::Shared => {
+                            encoder.tag("recast_shared", 1)
+                        }
+                        crate::record::PackageReviewReferenceAccess::Mutable => {
+                            encoder.tag("recast_mutable", 2)
+                        }
+                        crate::record::PackageReviewReferenceAccess::WriteOnly => {
+                            encoder.tag("recast_write_only", 3)
+                        }
+                    },
                 };
                 Ok(())
             })?;

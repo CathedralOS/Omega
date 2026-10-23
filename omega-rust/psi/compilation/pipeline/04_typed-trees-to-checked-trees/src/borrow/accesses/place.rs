@@ -26,11 +26,7 @@ pub(crate) fn borrow_access_place(
         ) {
             let machine = program.machine_by_symbol(machine_symbol)?;
             let state = program.state_by_symbol(state_symbol)?;
-            let access = if cast.form == language_core::cast_form::CastForm::RecastMutable {
-                language_semantics::ReferenceAccess::Mutable
-            } else {
-                language_semantics::ReferenceAccess::Shared
-            };
+            let access = cast.form.recast_access()?;
             if let Some(footprint) = validation::validate_literal_indexed_recast_footprint(
                 program,
                 machine,

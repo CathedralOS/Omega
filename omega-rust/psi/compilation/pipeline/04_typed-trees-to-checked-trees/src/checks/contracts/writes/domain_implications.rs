@@ -383,8 +383,8 @@ pub(super) fn value_proves_domain_in_contexts(
 }
 
 /// The viewed place expression behind an admitted recast view: `&x as &T` is a
-/// `Cast` whose `form` is a borrow re-view spelling (`RecastShared` or
-/// `RecastMutable`), and the `&mut x as &mut T` pun wraps that cast in the
+/// `Cast` whose `form` retains a reference re-view's exact access, and the
+/// `&mut x as &mut T` pun wraps that cast in the
 /// unary `&mut`. Borrow shells peel in both directions so either spelling
 /// reduces to the source place `x`. Validation only admits a recast in the
 /// blessed `let` initializer position, so a non-recast value -- a conversion

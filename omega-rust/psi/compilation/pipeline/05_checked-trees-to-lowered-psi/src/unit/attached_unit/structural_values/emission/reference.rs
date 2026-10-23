@@ -260,14 +260,14 @@ impl Emission<'_, '_, '_> {
                 self.direct_borrow(argument)
             };
         }
-        let (storage, value) = super::super::super::reference_results::publish_storage(
+        // The offset is an operand of this carrier establishment, not a live
+        // scalar result of the enclosing expression. Keeping it in `values`
+        // would send an arm-private temporary to an already-sized value join.
+        let (storage, _) = super::super::super::reference_results::publish_storage(
             storage,
             self.next_value,
             self.operations,
         )?;
-        if let Some(value) = value {
-            self.values.push(value);
-        }
         let carrier = super::super::super::reference_results::emit_carrier(
             identities,
             formation,

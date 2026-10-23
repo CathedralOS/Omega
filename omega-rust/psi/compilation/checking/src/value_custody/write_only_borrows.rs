@@ -1771,6 +1771,11 @@ fn validate_expression(
             validate_expression(program, machine, state, binary.left, roots, diagnostics);
             validate_expression(program, machine, state, binary.right, roots, diagnostics);
         }
+        ExpressionNode::Cast(cast)
+            if cast.form.recast_access() == Some(ReferenceAccess::WriteOnly) =>
+        {
+            validate_reference_address(program, machine, state, cast.value, roots, diagnostics)
+        }
         ExpressionNode::Cast(cast) => {
             validate_expression(program, machine, state, cast.value, roots, diagnostics)
         }
@@ -1789,8 +1794,9 @@ fn validate_expression(
 }
 
 /// Collection metadata does not observe payload content, but computing its
-/// address still evaluates selectors and producers. Walk the address spine
-/// without reading its referent; ordinary expressions retain their checks.
+/// receiver still evaluates selectors and producers. Static length lookup
+/// through a stored descriptor is not permission to form its referent address;
+/// reference formation below uses the separate typed projection judgment.
 fn validate_metadata_receiver(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1826,6 +1832,34 @@ fn validate_metadata_receiver(
     }
 }
 
+/// A write-only view uses the same typed address judgment as a write-only
+/// subloan: inline fields and indexes need no read, but following a stored
+/// pointer does. Unsupported producers retain ordinary expression validation.
+fn validate_reference_address(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut sources = roots.to_vec();
+    sources.extend(projection_sources(program, state, None));
+    if receiver::nonobserving_projection(
+        program,
+        machine,
+        state,
+        expression,
+        &sources,
+        roots,
+        diagnostics,
+    )
+    .is_none()
+    {
+        validate_expression(program, machine, state, expression, roots, diagnostics);
+    }
+}
+
 /// A selected leaf and its projection receiver both retain declared access.
 /// Do not inspect all fields/elements of a carrier: moving its descriptors or
 /// reading a different leaf does not observe their write-only referents.
@@ -1839,7 +1873,9 @@ fn validate_observation_access(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let node = program.expression_table.expression(expression);
-    if matches!(node, ExpressionNode::Borrow(_)) {
+    if matches!(node, ExpressionNode::Borrow(_))
+        || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
+    {
         return false;
     }
     let receiver = match node {

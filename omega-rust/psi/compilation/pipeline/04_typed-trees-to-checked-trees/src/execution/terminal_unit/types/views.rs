@@ -74,55 +74,8 @@ pub(crate) fn borrowed_named_view(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    borrowed_view_referent(
-        program,
-        type_reference,
-        language_semantics::ReferenceAccess::Shared,
-    )
-    .is_some()
-}
-
-/// A non-primitive exclusive stored reference or mutable slice view: the exclusive-loan
-/// sibling of `borrowed_named_view`/`borrowed_slice_view`. The referent's
-/// storage lives in the caller's frame the same way, but writes flow
-/// through the loan — `parts` keeps the primitive-referent case.
-pub(crate) fn mutable_borrowed_view(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    borrowed_view_referent(
-        program,
-        type_reference,
-        language_semantics::ReferenceAccess::Mutable,
-    )
-    .is_some()
-}
-
-/// The referee lent under exactly `access`. Stored pointers use the shared
-/// storage judgment rather than a whitelist of source referent families.
-/// Constraints and the original reference shell remain in the checked plan;
-/// ShapeCollector separately demands the actual backing representation.
-/// Mutable slices retain their descriptor route, and primitive mutable loans
-/// retain `parts`. Write-only results keep their separate result contract.
-pub(crate) fn borrowed_view_referent(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    access: language_semantics::ReferenceAccess,
-) -> Option<TypeReferenceHandle> {
-    let shell = validation::reference_shell(program, type_reference)
-        .filter(|shell| shell.access == access)?;
-    let stored =
-        validation::reference_result_custody::stored_loan_parts(program, type_reference).is_some();
-    let lends_view = match access {
-        language_semantics::ReferenceAccess::Shared => stored,
-        language_semantics::ReferenceAccess::Mutable => {
-            let carrier = validation::peel_declared_constraints(program, shell.referee);
-            program.primitive_type_reference(carrier).is_none()
-                && (stored || borrowed_slice_result(program, type_reference))
-        }
-        language_semantics::ReferenceAccess::WriteOnly => false,
-    };
-    lends_view.then_some(shell.referee)
+    validation::reference_result_custody::stored_loan_parts(program, type_reference)
+        .is_some_and(|(_, access)| access == CheckedStructuralAccess::SharedBorrow)
 }
 
 pub(crate) use validation::byte_sequence_carrier;

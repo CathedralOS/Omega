@@ -257,12 +257,16 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let mut form = language_core::cast_form::CastForm::Value;
             if input.at_punctuation(PunctuationKind::Ampersand) {
                 input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-                form = if input.at_contextual("mut") {
+                let access = if input.at_contextual("mut") {
                     input = input.take_contextual("mut")?;
-                    language_core::cast_form::CastForm::RecastMutable
+                    language_core::ReferenceAccess::Mutable
+                } else if input.at_contextual("write") {
+                    input = input.take_contextual("write")?;
+                    language_core::ReferenceAccess::WriteOnly
                 } else {
-                    language_core::cast_form::CastForm::RecastShared
+                    language_core::ReferenceAccess::Shared
                 };
+                form = language_core::cast_form::CastForm::Recast(access);
             }
             let target_start = input;
             let (target_type, rest) = parse_cast_target_type_reference_handle(syntax_trees, input)?;

@@ -35,6 +35,22 @@ qualification repair. Their restrictions must survive erasure when that policy
 is admitted; predicate/issuer vacuity is not evidence of unrestricted access.
 The current frontend rejects those clauses before a reference view can form.
 
+Reference views retain the full shared/mutable/write-only access axis.
+`storage as &write Viewed` forms an exclusive, non-observing view; exclusivity
+requires the same two-way representation validity as a mutable view but never
+grants readability. Formation uses the typed address judgment shared with
+write-only subloans: inline fields and independently checked indexes may locate
+storage, while loading a stored pointer through write-only storage is a read.
+The receiving access judgment checks shared as well as exclusive formations,
+so changing the target to a shared view cannot recover observation permission.
+Local storage catalogs, returned pointer bindings and package-review codecs keep
+that exact access rather than reconstructing it from a mutable/not-mutable bit.
+
+An expression's representation-offset constant belongs to its reference-carrier
+operation, not the enclosing scalar result roster. In a selected reference value
+it stays arm-private; only the already-declared live scalars and completed
+reference cross the continuation join.
+
 Shared scalar, bounded byte-region, and recursively nested record/array views
 are supported. Mutable typed aliases require equal geometry and equivalent
 leaf representation sets. Integer range leaves normalize to exact

@@ -102,7 +102,6 @@ pub(crate) fn receiving_reference_access_refusal(
             )
         });
     if let Some(borrow) = &completed_borrow
-        && borrow.access.is_exclusive()
         && let Some(refusal) = borrow_source_access_refusal(
             program,
             machine,
@@ -315,9 +314,9 @@ fn value_forwarded_exclusive_reference_access(
     )
 }
 
-/// Every exclusive borrowing operation lends its source place's own access. A representation
-/// recast (`&mut place as &mut [T]`) lends the place it views, exactly as
-/// borrow admission resolves it; the viewed type grants no writability.
+/// Every borrowing operation lends its source place's own access. A
+/// representation view grants neither readability nor writability; shared
+/// formation must reject a write-only source just as mutable formation does.
 fn borrow_source_access_refusal(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -329,7 +328,12 @@ fn borrow_source_access_refusal(
     let Some((root, binding_type, owned_root_is_writable)) =
         source_place_root(program, machine, state, prior_statements, source)
     else {
-        return Some(ReferenceAccessRefusal::NamedPlaceRequired { access });
+        // Shared borrows may lend a computed value's temporary storage; its
+        // producer and lifetime checks own that case. Exclusive loans still
+        // require a named writable place.
+        return access
+            .is_exclusive()
+            .then_some(ReferenceAccessRefusal::NamedPlaceRequired { access });
     };
     (!crate::value_custody::expression_types::place_permits_reference_borrow(
         program,
@@ -339,7 +343,11 @@ fn borrow_source_access_refusal(
         owned_root_is_writable,
         access,
     ))
-    .then_some(ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access })
+    .then_some(if access == language_semantics::ReferenceAccess::Shared {
+        ReferenceAccessRefusal::WriteOnlyMayNotRead
+    } else {
+        ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access }
+    })
 }
 
 /// Assignment permission follows the typed access route. A range or incoming

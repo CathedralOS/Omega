@@ -216,27 +216,14 @@ pub(crate) fn checked_structural_result_type(
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<CheckedUnitStructuralResultBindingPlan> {
-    if validation::reference_result_custody::parts(program, result_type).is_some() {
+    // Pointer custody is independent of its access and referent family. Use
+    // the stored-loan classifier once rather than accepting primitive,
+    // shared-named and mutable-named results through separate recognizers.
+    if validation::reference_result_custody::stored_loan_parts(program, result_type).is_some() {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
             type_identity: shapes.add_reference_type(result_type, binders)?,
-            multiplicity: Multiplicity::Affine,
-            local: Default::default(),
-        });
-    }
-    // A `&'a V` named view carries its reference shell in the plan and loans
-    // the referent's storage, the same custody shape a `&mut` primitive
-    // reference result carries.
-    if crate::execution::terminal_unit::types::borrowed_named_view(program, result_type) {
-        return Some(CheckedUnitStructuralResultBindingPlan {
-            statement_index: 0,
-            binding_ordinal: 0,
-            type_identity: shapes.add_view_type(
-                result_type,
-                binders,
-                language_semantics::ReferenceAccess::Shared,
-            )?,
             multiplicity: Multiplicity::Affine,
             local: Default::default(),
         });
@@ -253,25 +240,6 @@ pub(crate) fn checked_structural_result_type(
                 program,
                 result_type,
             ),
-            local: Default::default(),
-        });
-    }
-    // A named `&mut R` exclusive structural view is the exclusive-loan
-    // analog of the shared views above: affine custody against the callee's
-    // storage. Like `parts` and the named views it keeps its reference shell
-    // — the `Reference` shape is exactly the custody the result carries.
-    // `parts` already covers the primitive-referent case; this arm is what
-    // `let cell: &mut Cell = self.pick(bag)` needs to bind.
-    if crate::execution::terminal_unit::types::mutable_borrowed_view(program, result_type) {
-        return Some(CheckedUnitStructuralResultBindingPlan {
-            statement_index: 0,
-            binding_ordinal: 0,
-            type_identity: shapes.add_view_type(
-                result_type,
-                binders,
-                language_semantics::ReferenceAccess::Mutable,
-            )?,
-            multiplicity: Multiplicity::Affine,
             local: Default::default(),
         });
     }

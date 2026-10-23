@@ -419,8 +419,11 @@ pub(crate) fn snapshot_expression_handle(
             arithmetic_domain: cast.domain.name(),
             form: match cast.form {
                 language_core::cast_form::CastForm::Value => "value",
-                language_core::cast_form::CastForm::RecastShared => "recast_shared",
-                language_core::cast_form::CastForm::RecastMutable => "recast_mutable",
+                language_core::cast_form::CastForm::Recast(access) => match access {
+                    language_core::ReferenceAccess::Shared => "recast_shared",
+                    language_core::ReferenceAccess::Mutable => "recast_mutable",
+                    language_core::ReferenceAccess::WriteOnly => "recast_write_only",
+                },
             },
             semantic_domain: snapshot_identifier_slice(
                 syntax_trees,
