@@ -34,16 +34,16 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/twenty-fourone_variant_enum_payload_bound/target_body/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/local/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/field/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/parameter/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/call_result/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/match_join/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/const_name/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/other_state/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/other_machine/main.omg
+omega run --both samples/cli/facts/twentyfour_variant_enum_payload_bound/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
@@ -67,7 +67,7 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 47: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
