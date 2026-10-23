@@ -11678,6 +11678,48 @@ fail/facts/unsigned_8bit_shift_left_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `shift_target` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_target` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_target` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_call_result_rejected rejected 1004ms expected @f1b0d3326d2d+wt
+	cannot prove ensures contract for exit from produce_prod at statement 1: result >= 40 && result <= 150
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_const_name_rejected rejected 1026ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_prod from main: prod >= 40 && prod <= 150 (needs fact `prod >= 40 && prod <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_field_rejected rejected 1017ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_prod from main: carrier.prod >= 40 && carrier.prod <= 150 (needs fact `prod >= 40 && prod <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_local_rejected rejected 1031ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_prod from main: local_prod >= 40 && local_prod <= 150 (needs fact `prod >= 40 && prod <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_match_join_rejected rejected 1080ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_prod from main: joined >= 40 && joined <= 150 (needs fact `prod >= 40 && prod <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_other_machine_rejected rejected 1062ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call runner from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_other_state_rejected rejected 1110ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_prod from main: forwarded >= 40 && forwarded <= 150 (needs fact `prod >= 40 && prod <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_parameter_rejected rejected 1090ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call check_param from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_multiplication_bound_through_target_body_rejected rejected 1142ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_call_result_rejected rejected 1023ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_diff from wrap_call_result: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_const_name_rejected rejected 1002ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_diff from wrap_const: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_field_rejected rejected 1066ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_diff from wrap_field: box.val >= 60 && box.val <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_local_rejected rejected 1113ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_diff from wrap_local: loc >= 60 && loc <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_match_join_rejected rejected 1059ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_diff from wrap_match_join: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_other_machine_rejected rejected 1038ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call forward_wrap from wrap_machine: lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40 (needs fact `lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_other_state_rejected rejected 1043ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call step from wrap_state: lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40 (needs fact `l >= 100 && l <= 180 && r >= 20 && r <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_parameter_rejected rejected 1032ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call consume_param from wrap_param: diff >= 60 && diff <= 160 (needs fact `param >= 60 && param <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_wrapping_subtraction_bound_through_target_body_rejected rejected 1097ms expected @f1b0d3326d2d+wt
+	cannot prove requires contract for call verify_diff from wrap_target: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from wrap_target: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from wrap_target: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from wrap_target: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_division_quotient_through_call_result_rejected rejected 2311ms expected @595562a958b4+wt
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_division_quotient_through_const_name_rejected rejected 2194ms expected @595562a958b4+wt
@@ -19943,6 +19985,24 @@ pass/facts/unsigned_8bit_shift_left_bound_through_other_machine_exit checked 394
 pass/facts/unsigned_8bit_shift_left_bound_through_other_state_exit checked 2728ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_shift_left_bound_through_parameter_exit checked 2729ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_shift_left_bound_through_target_body_exit checked 3890ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_call_result_exit checked 1195ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_const_name_exit checked 1197ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_field_exit checked 1191ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_local_exit checked 1221ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_match_join_exit checked 1219ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_other_machine_exit checked 1217ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_other_state_exit checked 1195ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_parameter_exit checked 1142ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_multiplication_bound_through_target_body_exit checked 1206ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_call_result_exit checked 1175ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_const_name_exit checked 1170ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_field_exit checked 1517ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_local_exit checked 1159ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_match_join_exit checked 1167ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_other_machine_exit checked 1170ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_other_state_exit checked 1186ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_parameter_exit checked 1543ms check-target:macos_arm64 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_wrapping_subtraction_bound_through_target_body_exit checked 1186ms check-target:macos_arm64 @f1b0d3326d2d+wt
 pass/facts/unsigned_division_quotient_through_call_result_exit checked 3401ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/unsigned_division_quotient_through_const_name_exit checked 3371ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/unsigned_division_quotient_through_field_exit checked 3391ms check-target:macos_arm64 @595562a958b4+wt
