@@ -1,5 +1,6 @@
 //! Structural policy consistency, not compiler proof or acceptance authority.
 
+use crate::record::validation::ordered;
 use crate::record::{
     PackagePolicyCallableRole, PackagePolicyCallables, PackageReviewCallableSupply,
     PackageReviewCheckedServiceReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
@@ -31,7 +32,7 @@ impl PackagePolicyCallables {
         }
         for callable in &self.callables {
             callable.target_context.validate_canonical_structure()?;
-            nominal(&callable.identity)?;
+            callable.identity.validate_resolved()?;
             if callable.identity.owner != PackageReviewNominalOwner::Package(self.package) {
                 return Err("callable policy contains a foreign-owned callable");
             }
@@ -119,24 +120,10 @@ impl PackagePolicyCallables {
     }
 }
 
-fn nominal(identity: &PackageReviewNominalIdentity) -> Result<(), &'static str> {
-    if identity.path.is_empty() || identity.owner == PackageReviewNominalOwner::Unresolved {
-        return Err("callable policy nominal is empty or unresolved");
-    }
-    Ok(())
-}
-
-fn ordered<T: Ord>(values: &[T]) -> Result<(), &'static str> {
-    if values.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err("callable policy set is repeated or out of order");
-    }
-    Ok(())
-}
-
 fn nominal_set(values: &[PackageReviewNominalIdentity]) -> Result<(), &'static str> {
     ordered(values)?;
     for value in values {
-        nominal(value)?;
+        value.validate_resolved()?;
     }
     Ok(())
 }

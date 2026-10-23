@@ -13,7 +13,6 @@ use crate::record::PackageReviewPropositionShape;
 use crate::record::PackageReviewPublicPropositionBody;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::package::callable_policy::validation::signature::lifetimes;
-use crate::record::package::callable_policy::validation::signature::nominal;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::package::callable_policy::validation::signature::value_type;
 use crate::record::validation::behavior;
@@ -103,7 +102,7 @@ pub(super) fn conformance(
 }
 
 pub(super) fn conformance_scope(value: &PackagePolicyConformanceShape) -> Result {
-    nominal(&value.identity)?;
+    value.identity.validate_resolved()?;
     let scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);
     signatures::parameters(&scope, 0)?;
     contracts::evidence(&value.interface, &scope)
@@ -132,7 +131,7 @@ pub(super) fn domain(value: &PackagePolicyDomainShape) -> Result {
         ordered(atoms)?;
         for atom in atoms {
             if let PackageReviewDomainAliasAtom::Declared(value) = atom {
-                nominal(value)?;
+                value.validate_resolved()?;
             }
         }
     }
@@ -149,7 +148,7 @@ pub(super) fn domain(value: &PackagePolicyDomainShape) -> Result {
                 requirement_identity,
             } => owned_pair(trait_identity, requirement_identity)?,
             PackageReviewDomainEstablishmentRoute::ExactMachine { machine_identity } => {
-                nominal(machine_identity)?
+                machine_identity.validate_resolved()?
             }
         }
     }
@@ -188,7 +187,7 @@ fn application(
     scope: &Scope<'_>,
     api: &PackagePolicyPublicApi,
 ) -> Result {
-    nominal(identity)?;
+    identity.validate_resolved()?;
     lifetimes(lifetime_arguments, scope)?;
     for argument in arguments {
         value_type(argument)?;

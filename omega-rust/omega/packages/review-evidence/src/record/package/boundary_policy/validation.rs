@@ -49,8 +49,8 @@ impl PackagePolicyBoundaryApplications {
             return Err("symbolic demands repeat or are out of canonical order");
         }
         for demand in &self.demands {
-            nominal(demand.operator_coordinate.identity())?;
-            nominal(&demand.producer_callable)?;
+            demand.operator_coordinate.identity().validate_resolved()?;
+            demand.producer_callable.validate_resolved()?;
             if demand.producer_callable.owner != PackageReviewNominalOwner::Package(package)
                 || demand.arguments.is_empty()
             {
@@ -74,7 +74,10 @@ impl PackagePolicyBoundaryApplications {
             return Err("closed applications repeat or are out of canonical order");
         }
         for realization in &self.realizations {
-            nominal(realization.operator_coordinate.identity())?;
+            realization
+                .operator_coordinate
+                .identity()
+                .validate_resolved()?;
             if realization.requirement_identity.is_empty() {
                 return Err("closed application has no requirement identity");
             }
@@ -153,21 +156,13 @@ impl PackagePolicyBoundaryApplications {
     }
 }
 
-fn nominal(value: &PackageReviewNominalIdentity) -> Result<(), &'static str> {
-    if value.path.is_empty() || matches!(value.owner, PackageReviewNominalOwner::Unresolved) {
-        Err("application policy has an unresolved or empty declaration")
-    } else {
-        Ok(())
-    }
-}
-
 fn checked_body(
     row: &crate::record::PackagePolicyProviderRow,
     declaration: &PackageReviewNominalIdentity,
     callable: &PackageReviewNominalIdentity,
 ) -> Result<(), &'static str> {
-    nominal(declaration)?;
-    nominal(callable)?;
+    declaration.validate_resolved()?;
+    callable.validate_resolved()?;
     if row.realization() != Some(declaration)
         || declaration.owner != callable.owner
         || !matches!(

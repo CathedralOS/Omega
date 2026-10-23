@@ -1,6 +1,4 @@
-use super::{
-    PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted, validate_nominal,
-};
+use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted};
 use crate::record::{
     PackageReviewBoundaryShapeClass as Shape, PackageReviewBoundaryShapeGraph,
     PackageReviewOpaqueRepresentationMovementRole as Role,
@@ -106,10 +104,10 @@ pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &
         {
             return Err("calling opaque selection has no build lifetime telescope");
         }
-        validate_nominal(&use_.opaque)?;
-        validate_nominal(&use_.carrier)?;
-        validate_nominal(&use_.application.declaration)?;
-        validate_nominal(&use_.application.trait_identity)?;
+        use_.opaque.validate_resolved()?;
+        use_.carrier.validate_resolved()?;
+        use_.application.declaration.validate_resolved()?;
+        use_.application.trait_identity.validate_resolved()?;
         if use_.selection_owner == crate::record::PackageReviewNominalOwner::Unresolved {
             return Err("calling opaque selection owner is unresolved");
         }

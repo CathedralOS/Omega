@@ -1,6 +1,4 @@
-use super::{
-    PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted, validate_nominal,
-};
+use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted};
 use crate::record::{
     PackagePolicyCallbackDestination as Destination, PackagePolicyTypeParameterKind,
     PackageReviewBoundaryShapeClass,
@@ -28,8 +26,8 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
         return Err("calling callback catalogs are not canonical");
     }
     for binder in &callbacks.binders {
-        validate_nominal(&binder.parameter)?;
-        validate_nominal(&binder.requirement)?;
+        binder.parameter.validate_resolved()?;
+        binder.requirement.validate_resolved()?;
         let ordinal = binder.static_parameter_ordinal as usize;
         if !matches!(
             policy
@@ -49,7 +47,7 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
         }
     }
     for (index, demand) in callbacks.demands.iter().enumerate() {
-        validate_nominal(&demand.requirement)?;
+        demand.requirement.validate_resolved()?;
         if callbacks.demands[..index]
             .iter()
             .any(|prior| prior.destination == demand.destination)
@@ -110,10 +108,10 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
     for (index, layout) in callbacks.layouts.iter().enumerate() {
         super::validate_application_lifetimes(policy, &layout.terminal_slot)?;
         if let Some(policy) = &layout.root_layout.policy {
-            validate_nominal(policy)?;
+            policy.validate_resolved()?;
         }
-        validate_nominal(&layout.terminal_slot.declaration)?;
-        validate_nominal(&layout.terminal_slot.trait_identity)?;
+        layout.terminal_slot.declaration.validate_resolved()?;
+        layout.terminal_slot.trait_identity.validate_resolved()?;
         let native = policy
             .native_parameters
             .get(layout.native_ordinal as usize)
@@ -139,9 +137,9 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
         let mut base = 0u64;
         let mut terminal_owner = &layout.root_layout;
         for field in &layout.inline_fields {
-            validate_nominal(&field.field)?;
+            field.field.validate_resolved()?;
             if let Some(policy) = &field.child_layout.policy {
-                validate_nominal(policy)?;
+                policy.validate_resolved()?;
             }
             if field.extent != field.child_layout.byte_size
                 || field.alignment != field.child_layout.alignment

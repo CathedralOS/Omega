@@ -1,5 +1,4 @@
 //! Exact authority sets and entry-rooted operational declarations.
-use super::nominal;
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableRole;
 use crate::record::PackagePolicyCrashGuard;
@@ -61,7 +60,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
     }
     ordered(&callable.unresolved_installation_reaches)?;
     for reach in &callable.unresolved_installation_reaches {
-        nominal(&reach.requirement)?;
+        reach.requirement.validate_resolved()?;
         nominal_set(&reach.upper_bound)?;
     }
     if let Some(ceiling) = &callable.declared_synchronous_invocations {
@@ -82,7 +81,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
             return Err("callable capability facts are repeated or out of order");
         }
         for flow in flows {
-            nominal(&flow.capability)?;
+            flow.capability.validate_resolved()?;
         }
     }
     if callable.capability_flows.iter().any(|flow| {
@@ -161,7 +160,7 @@ fn invocations(
     ordered(values)?;
     for value in values {
         match value {
-            PackageReviewSynchronousInvocation::Service(service) => nominal(service)?,
+            PackageReviewSynchronousInvocation::Service(service) => service.validate_resolved()?,
             PackageReviewSynchronousInvocation::Parameter(position)
                 if *position as usize >= count =>
             {
@@ -183,21 +182,23 @@ fn progress(
     ordered(premises)?;
     let count = callable.parameters.len();
     for premise in premises {
-        nominal(&premise.profile)?;
+        premise.profile.validate_resolved()?;
         match &premise.subject {
-            PackageReviewProgressSubject::Declaration(declaration) => nominal(declaration)?,
+            PackageReviewProgressSubject::Declaration(declaration) => {
+                declaration.validate_resolved()?
+            }
             PackageReviewProgressSubject::Parameter(position) if *position as usize >= count => {
                 return Err("callable progress subject lies outside its telescope");
             }
             PackageReviewProgressSubject::Parameter(_) => {}
         }
         for projection in &premise.projections {
-            nominal(projection)?;
+            projection.validate_resolved()?;
         }
         ordered(&premise.establishment_routes)?;
         for route in &premise.establishment_routes {
-            nominal(&route.requirement_owner)?;
-            nominal(&route.requirement)?;
+            route.requirement_owner.validate_resolved()?;
+            route.requirement.validate_resolved()?;
             if route.requirement.owner != route.requirement_owner.owner {
                 return Err("callable progress route changes its declaration owner");
             }

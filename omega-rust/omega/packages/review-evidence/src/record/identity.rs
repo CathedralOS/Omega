@@ -52,6 +52,18 @@ impl PackageReviewNominalIdentity {
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    /// Review evidence accepts a nominal identity only when it names a path
+    /// and an exact owner: absence is the `Unresolved` owner, never merely an
+    /// empty path. Every record family consumes this one predicate instead of
+    /// restating it.
+    pub(crate) fn validate_resolved(&self) -> Result<(), &'static str> {
+        if self.path.is_empty() || self.owner == PackageReviewNominalOwner::Unresolved {
+            Err("nominal identity is empty or unresolved")
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

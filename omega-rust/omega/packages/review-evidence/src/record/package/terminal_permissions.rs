@@ -3,9 +3,7 @@
 mod generics;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};
-use crate::record::{
-    PackagePolicyTypeParameter, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-};
+use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
 use effects::TerminalAuthorityDisposition;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -48,8 +46,7 @@ impl PackagePolicyTerminalPermissions {
                 return Err("terminal permission service has empty or noncanonical permissions");
             }
             for permission in &service.permissions {
-                if permission.requirement.path.is_empty()
-                    || permission.requirement.owner == PackageReviewNominalOwner::Unresolved
+                if permission.requirement.validate_resolved().is_err()
                     || !service
                         .methods
                         .iter()

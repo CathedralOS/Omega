@@ -6,7 +6,6 @@ use crate::record::PackageReviewConformanceBound;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::package::callable_policy::validation::signature::depth;
 use crate::record::package::callable_policy::validation::signature::lifetimes;
-use crate::record::package::callable_policy::validation::signature::nominal;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::package::callable_policy::validation::signature::text;
 use crate::record::package::callable_policy::validation::signature::value_type;
@@ -134,7 +133,7 @@ pub(in crate::record) fn bounds(
         next = next
             .checked_add(1)
             .ok_or("public conformance binder count overflows")?;
-        nominal(&value.trait_identity)?;
+        value.trait_identity.validate_resolved()?;
         lifetimes(&value.trait_lifetime_arguments, scope)?;
         for argument in &value.arguments {
             value_type(argument)?;

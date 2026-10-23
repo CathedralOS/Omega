@@ -10,10 +10,9 @@ use crate::record::PackagePolicyTypeParameterKind;
 use crate::record::PackageReviewCallableSupply;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewNominalOwner;
-use crate::record::PackageReviewRepresentationTargetProfile;
 use crate::record::PackageReviewSemanticDependencyExposure;
 use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
-use target::TargetProfile;
+use crate::record::validation::ordered;
 
 impl PackagePolicyBaseline {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
@@ -24,7 +23,7 @@ impl PackagePolicyBaseline {
             || self.terminal_permissions.package != self.package
             || self.terminal_permissions.target != self.target
             || self.representation.package != self.package
-            || representation_profile(self.representation.target.profile()) != self.target
+            || self.representation.target.profile().backend_profile() != self.target
         {
             return Err("package policy components disagree about package or target");
         }
@@ -46,10 +45,10 @@ impl PackagePolicyBaseline {
         ordered(&self.semantic_dependencies)?;
         ordered(&self.service_audits)?;
         for service in &self.service_audits {
-            nominal(service)?;
+            service.validate_resolved()?;
         }
         for supply in &self.external_supplies {
-            nominal(supply.callable())?;
+            supply.callable().validate_resolved()?;
             if supply.callable().owner() != PackageReviewNominalOwner::Package(self.package) {
                 return Err("external policy callable belongs to another package");
             }
@@ -71,7 +70,7 @@ impl PackagePolicyBaseline {
             }
         }
         for authority in &self.dangerous_capabilities {
-            nominal(&authority.service)?;
+            authority.service.validate_resolved()?;
             if authority.class == crate::record::PackageReviewDangerousAuthorityClass::ConsumerAudit
                 && !self.service_audits.contains(&authority.service)
             {
@@ -87,7 +86,7 @@ impl PackagePolicyBaseline {
             }
         }
         for slack in &self.slack_uses {
-            nominal(&slack.service)?;
+            slack.service.validate_resolved()?;
             let callable = self
                 .callables
                 .callables
@@ -116,7 +115,7 @@ impl PackagePolicyBaseline {
             }
         }
         for dependency in &self.semantic_dependencies {
-            nominal(&dependency.dependency)?;
+            dependency.dependency.validate_resolved()?;
             match &dependency.consumer {
                 PackagePolicySemanticDependencyConsumer::Callable(identity) => {
                     self.callable(identity)?;
@@ -215,32 +214,4 @@ pub(super) fn exposes(
             .realized_synchronous_invocations()
             .iter()
             .any(|value| value.service() == Some(service))
-}
-
-fn nominal(identity: &PackageReviewNominalIdentity) -> Result<(), &'static str> {
-    if identity.path.is_empty() || identity.owner == PackageReviewNominalOwner::Unresolved {
-        return Err("package policy nominal is empty or unresolved");
-    }
-    Ok(())
-}
-
-fn ordered<T: Ord>(rows: &[T]) -> Result<(), &'static str> {
-    if rows.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err("package policy rows are repeated or out of order");
-    }
-    Ok(())
-}
-
-fn representation_profile(profile: PackageReviewRepresentationTargetProfile) -> TargetProfile {
-    use PackageReviewRepresentationTargetProfile as Profile;
-    match profile {
-        Profile::LinuxArm64 => TargetProfile::LinuxArm64,
-        Profile::LinuxX64 => TargetProfile::LinuxX64,
-        Profile::MacosArm64 => TargetProfile::MacosArm64,
-        Profile::MacosX64 => TargetProfile::MacosX64,
-        Profile::WindowsX64 => TargetProfile::WindowsX64,
-        Profile::UefiX64 => TargetProfile::UefiX64,
-        Profile::CrossPlatformCli => TargetProfile::CrossPlatformCli,
-        Profile::LocalUnchecked => TargetProfile::LocalUnchecked,
-    }
 }

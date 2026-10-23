@@ -6,10 +6,10 @@ use super::{
 };
 use crate::record::{
     PackagePolicyCallable, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
-    PackageReviewContractExpression, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewOperatorCoordinate, PackageReviewPropositionBinder,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionParameterSignature,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
+    PackageReviewContractExpression, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
+    PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionParameterSignature, PackageReviewTypeIdentity,
+    PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 
 pub(in crate::record) type Result = std::result::Result<(), &'static str>;
@@ -128,7 +128,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
             return Err("conformance evidence binders are not declaration ordered");
         }
         next_evidence += 1;
-        nominal(&bound.trait_identity)?;
+        bound.trait_identity.validate_resolved()?;
         lifetimes(&bound.trait_lifetime_arguments, &scope)?;
         for argument in &bound.arguments {
             value_type(argument)?;
@@ -180,7 +180,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
         }
     }
     for realization in &callable.requirement_realizations {
-        nominal(&realization.requirement_identity)?;
+        realization.requirement_identity.validate_resolved()?;
         if let Some(alias) = &realization.alias {
             text(alias)?;
         }
@@ -207,20 +207,12 @@ pub(in crate::record) fn text(value: &str) -> Result {
 pub(in crate::record) fn value_type(value: &PackageReviewTypeIdentity) -> Result {
     text(&value.canonical)
 }
-pub(in crate::record) fn nominal(value: &PackageReviewNominalIdentity) -> Result {
-    text(&value.path)?;
-    if value.owner == PackageReviewNominalOwner::Unresolved {
-        Err("signature nominal has no exact owner")
-    } else {
-        Ok(())
-    }
-}
 pub(in crate::record) fn owned_pair(
     owner: &PackageReviewNominalIdentity,
     member: &PackageReviewNominalIdentity,
 ) -> Result {
-    nominal(owner)?;
-    nominal(member)?;
+    owner.validate_resolved()?;
+    member.validate_resolved()?;
     if owner.owner != member.owner {
         Err("signature member changes its declaring package owner")
     } else {
@@ -228,7 +220,7 @@ pub(in crate::record) fn owned_pair(
     }
 }
 pub(in crate::record) fn operator(value: &PackageReviewOperatorCoordinate) -> Result {
-    nominal(&value.identity)?;
+    value.identity.validate_resolved()?;
     // Empty result dispatch is exact meaning for operand-directed operators.
     text(&value.parameter_dispatch)
 }
