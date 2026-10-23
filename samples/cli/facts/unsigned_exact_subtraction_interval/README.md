@@ -70,14 +70,41 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_exact_subtraction_interval_through_*` and
-`tests/omega/fail/facts/unsigned_exact_subtraction_interval_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned by 18 fixtures:
+`tests/omega/pass/facts/unsigned_exact_subtraction_interval_through_<place>_exit` and
+`tests/omega/fail/facts/unsigned_exact_subtraction_interval_through_<place>_rejected` for each of the nine
+places. Each positive fixture is its place program copied byte-identical, binds `ProgramEntry` for all four
+hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries
+`expected_native_exit.txt` = 0; each reject twin is the place's invalid program and `build.omg` copied
+byte-identical, with `expected.txt` carrying the row's own `may overflow \`u64\`` fragment. The `git diff`
+of a positive place against its twin moves only the construct's own bound and the transport contract that
+carries it: `minuend >= 80` vs `minuend >= 79` in seven places, the bounded constant `minuend >= 74` in
+`const_name`, and the helper's `ensures result >= 50`/`>= 49` interval in `call_result`.
+
+Every row was recorded with the shared generation producer (gen-d3b0020bf6a, revision d3b0020bf6a, macOS
+arm64 host, jobs 4) on 2026-10-23, re-measured against current main's compiler and recorded with the
+fixture and golden changes staged at that published base, so each row is stamped `@e42d5379cc30+wt`:
+
+- `tests/omega/corpus_outcomes.txt`: nine `checked` rows carrying `check-target:macos_arm64` and nine
+  `rejected` rows carrying each twin's own diagnostic line with its `may overflow \`u64\`` fragment
+  satisfied (12 diagnostic continuation lines; `target_body` reports four target-scoped diagnostics per
+  twin and the other eight one);
+- `tests/omega/corpus_native_macos_arm64.txt`: nine `built` rows with `exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: nine `built` rows with `exit:0`, `interpreter-exit:0` and
+  `interpreter:agrees`.
+
+Measured with the same base producer before the record: the root and all nine places run `omega run --both`
+with `native exit 0` and `interp exit: 0` (10/10), and all nine twins reject with that fragment (9/9).
+`python tools/sample_gate.py --filter cli/facts/unsigned_exact_subtraction_interval --cli <generation
+omega>` reports 28/28 projects checked on Darwin arm64, 18 of them matched intended rejection controls
+(the nine per-place twins and their nine `invalid/<place>/` mirrors).
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for unsigned `u64` exact subtraction interval synthesis and consuming bound discharge. Specifically, subtracting two bounded unsigned integers (`80u64 <= minuend <= 100u64` and `20u64 <= subtrahend <= 30u64`) statically establishes the difference interval `50u64 <= diff <= 80u64`, discharging both exact unsigned subtractions `diff - 50u64` (lower bound safety) and `80u64 - diff` (upper bound safety) across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
+
+- **Pinned fixtures:** the 18 fixtures named above; nine `checked` and nine `rejected` rows in `tests/omega/corpus_outcomes.txt`, nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, and nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `tests/omega/corpus_both_macos_arm64.txt`, all stamped `@e42d5379cc30+wt`.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Bounded integer preconditions (`requires minuend >= 80 && minuend <= 100 && subtrahend >= 20 && subtrahend <= 30`) introduce exact interval facts for unsigned operands. The subtraction expression `minuend - subtrahend` synthesizes the exact difference interval `[80 - 30, 100 - 20] = [50, 80]` directly upon evaluation, discharging both downstream exact subtractions `diff - 50` and `80 - diff` without requiring any post-hoc caller equality guard (`transition x == 65`).

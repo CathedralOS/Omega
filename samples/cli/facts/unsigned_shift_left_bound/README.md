@@ -64,11 +64,43 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned by 18 fixtures:
+`tests/omega/pass/facts/unsigned_shift_left_bound_through_<place>_exit` and
+`tests/omega/fail/facts/unsigned_shift_left_bound_through_<place>_rejected` for each of the nine places.
+Each positive fixture is its place program copied byte-identical, binds `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries
+`expected_native_exit.txt` = 0; each reject twin is the place's invalid program and `build.omg` copied
+byte-identical, with `expected.txt` carrying the row's own `may overflow \`u64\`` fragment. The `git diff`
+of a positive place against its twin moves only the construct's own operand bound (`val >= 25 && val <= 25`
+vs `24u64`, `packet.val` in `field`, the helper's `ensures result >= 25` in `call_result`, `match_join`,
+`const VAL: u64 = 25u64` in `const_name`, the forwarded argument in `other_machine`/`target_body`) plus the
+call sites that feed it.
+
+Every row was recorded with the shared generation producer (gen-d3b0020bf6a, revision d3b0020bf6a, macOS
+arm64 host, jobs 4) on 2026-10-23, re-measured against current main's compiler and recorded with the
+fixture and golden changes staged at that published base, so each row is stamped `@e42d5379cc30+wt`:
+
+- `tests/omega/corpus_outcomes.txt`: nine `checked` rows carrying `check-target:macos_arm64` and nine
+  `rejected` rows carrying each twin's own diagnostic line with its `may overflow \`u64\`` fragment
+  satisfied (12 diagnostic continuation lines; `target_body` reports four target-scoped diagnostics per
+  twin and the other eight one);
+- `tests/omega/corpus_native_macos_arm64.txt`: nine `built` rows with `exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: nine `built` rows with `exit:0`, `interpreter-exit:0` and
+  `interpreter:agrees`.
+
+Measured with the same base producer before the record: the root and all nine places run `omega run --both`
+with `native exit 0` and `interp exit: 0` (10/10), and all nine twins reject with that fragment (9/9).
+`python tools/sample_gate.py --filter cli/facts/unsigned_shift_left_bound --cli <generation omega>` reports
+19/19 projects checked on Darwin arm64, nine of them matched intended rejection controls.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Ticket:** `8bfead69f1114e37831c300710f126ca`.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for logical left shift (`<<`) bounds. Specifically, logical left shift on a bounded unsigned `u64` value (`25u64 << 2`) establishes the exact post-shift interval (`100u64`), discharging exact subtraction `shifted - 100u64` directly across all nine language places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
+- **Pinned fixtures:** the 18 fixtures named above; nine `checked` and nine `rejected` rows in `tests/omega/corpus_outcomes.txt`, nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, and nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `tests/omega/corpus_both_macos_arm64.txt`, all stamped `@e42d5379cc30+wt`.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** The precondition contract `val >= 25 && val <= 25 && shift == 2` bounds the unsigned operand and specifies an in-range shift count strictly less than 64 (`shift < 64`). The logical left shift operation (`val << shift`) directly establishes the post-shift interval `[100, 100]` (`100u64`), discharging exact subtraction `shifted - 100u64` without requiring any post-hoc caller equality guard (`transition x == 0`).
