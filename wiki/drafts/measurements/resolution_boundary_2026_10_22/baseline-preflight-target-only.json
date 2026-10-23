@@ -1,0 +1,19 @@
+{
+  "producer_sha256": "b0f43188ac2593634f6a3a30f7d262a83d734acaca9eeea268b4c5752d893d5c",
+  "purpose": "functional baseline preflight; no performance claim",
+  "observations": [
+    {
+      "command": [
+        "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolution-measurement/omega-baseline",
+        "run",
+        "--both",
+        "--target",
+        "macos_arm64",
+        "samples/cli/facts/length/local/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "compiled for target `macos_arm64` OK (/var/folders/9p/klx8m25d1b30w7dj2lddtlzr0000gn/T/omega-probe-40840-0)\n"
+    }
+  ]
+}

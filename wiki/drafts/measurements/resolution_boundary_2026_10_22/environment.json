@@ -1,0 +1,20 @@
+{
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "load_average": [
+    87.86328125,
+    80.19677734375,
+    64.77734375
+  ],
+  "processor": "Apple M4",
+  "logical_cpus": 10,
+  "memory_bytes": 17179869184,
+  "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "mbx": "mbx 1.25.0",
+  "environment": {},
+  "queue_observation": {
+    "elapsed_minutes_since_baseline_request": 36.9,
+    "baseline_started": false
+  },
+  "baseline_build_observed_start_utc": "2026-10-22T23:33:56Z",
+  "final_poll_wait_seconds": 282
+}

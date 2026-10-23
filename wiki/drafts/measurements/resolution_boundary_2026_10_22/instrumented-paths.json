@@ -1,0 +1,19 @@
+[
+  "omega-rust/psi/compilation/representations/syntax-trees/src/lib.rs",
+  "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs",
+  "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs",
+  "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/mod.rs",
+  "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/mod.rs",
+  "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution/body_completion.rs",
+  "omega-rust/psi/compilation/compile-time/src/build_time_evaluation.rs",
+  "omega-rust/psi/compilation/compile-time/src/const_evaluation/const_initializers.rs",
+  "omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_expressions.rs",
+  "omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_calls.rs",
+  "omega-rust/psi/compilation/compile-time/src/const_evaluation/range_arguments.rs",
+  "omega-rust/psi/compilation/compile-time/src/const_evaluation/const_qualifications.rs",
+  "omega-rust/psi/compilation/compile-time/src/syntax_probes.rs",
+  "omega-rust/psi/compilation/driver/src/source_compilation.rs",
+  "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees.rs",
+  "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs",
+  "omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs"
+]
