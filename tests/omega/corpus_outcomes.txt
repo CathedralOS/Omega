@@ -4923,6 +4923,27 @@ fail/facts/mutable_borrow_field_writeback_through_target_body_unproved rejected 
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/mutable_slice_element_write_bound_through_call_result_unproved rejected 2563ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `view` in mutate_call_result::entry
+fail/facts/mutable_slice_element_write_bound_through_const_name_unproved rejected 1004ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `bytes` in mutate_const::entry
+fail/facts/mutable_slice_element_write_bound_through_field_unproved rejected 993ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `view` in mutate_field::entry
+fail/facts/mutable_slice_element_write_bound_through_local_unproved rejected 1013ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `v` in mutate_local::entry
+fail/facts/mutable_slice_element_write_bound_through_match_join_unproved rejected 1010ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `view` in mutate_match_join::entry
+fail/facts/mutable_slice_element_write_bound_through_other_machine_unproved rejected 1010ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `view` in forward_mutate::entry
+fail/facts/mutable_slice_element_write_bound_through_other_state_unproved rejected 1003ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `view` in mutate_other_state::active
+fail/facts/mutable_slice_element_write_bound_through_parameter_unproved rejected 991ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `bytes` in mutate_parameter::entry
+fail/facts/mutable_slice_element_write_bound_through_target_body_unproved rejected 961ms expected @e8ef090fcaf4
+	cannot prove index `2` is within unknown slice length of `bytes` in mutate_target::entry
+	cannot prove index `2` is within unknown slice length of `bytes` in mutate_target::entry
+	cannot prove index `2` is within unknown slice length of `bytes` in mutate_target::entry
+	cannot prove index `2` is within unknown slice length of `bytes` in mutate_target::entry
 fail/facts/named_conformance_dispatch_through_call_result_rejected rejected 3631ms expected @45cbafd80d9c
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= supply(b) && supply(b) <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/named_conformance_dispatch_through_const_name_rejected rejected 3689ms expected @45cbafd80d9c
@@ -12579,6 +12600,15 @@ pass/facts/mutable_borrow_field_writeback_through_other_machine_exit checked 971
 pass/facts/mutable_borrow_field_writeback_through_other_state_exit checked 98453ms check-target:macos_arm64 @4490555c71ae
 pass/facts/mutable_borrow_field_writeback_through_parameter_exit checked 97695ms check-target:macos_arm64 @4490555c71ae
 pass/facts/mutable_borrow_field_writeback_through_target_body_exit checked 97468ms check-target:macos_arm64 @4490555c71ae
+pass/facts/mutable_slice_element_write_bound_through_call_result_exit checked 4394ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_const_name_exit checked 4373ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_field_exit checked 5806ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_local_exit checked 5762ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_match_join_exit checked 4030ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_other_machine_exit checked 3988ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_other_state_exit checked 3188ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_parameter_exit checked 3180ms check-target:macos_arm64 @e8ef090fcaf4
+pass/facts/mutable_slice_element_write_bound_through_target_body_exit checked 2767ms check-target:macos_arm64 @e8ef090fcaf4
 pass/facts/named_conformance_dispatch_through_call_result_exit checked 7863ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/named_conformance_dispatch_through_const_name_exit checked 7911ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/named_conformance_dispatch_through_field_exit checked 7801ms check-target:macos_arm64 @45cbafd80d9c
