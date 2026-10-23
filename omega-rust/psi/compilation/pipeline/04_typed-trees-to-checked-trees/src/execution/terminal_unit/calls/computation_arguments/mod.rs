@@ -316,11 +316,7 @@ pub(crate) fn borrowed_storage_argument(
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
     let target_shell = validation::reference_shell(program, target.type_reference)?;
-    let target_access = match target_shell.access {
-        language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
-        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-    };
+    let target_access = CheckedStructuralAccess::from(target_shell.access);
     // Referent shape, contents, identity and the exact loan below decide
     // admission. Primitive leaves and aggregates borrow the same original
     // home; declaration spelling is not an additional eligibility rule.

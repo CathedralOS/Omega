@@ -70,6 +70,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
         BorrowedInitializerKind::Reference { access } => {
+            let kind = checked_trees::BorrowAccessKind::from(access);
             if let Some(mut loans) = super::returned_carriers::result_loans(
                 program,
                 state_symbol,
@@ -80,7 +81,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 &initializer.owner_path,
                 loan_trackers,
             ) {
-                super::returned_carriers::attenuate(&mut loans, &super::borrow_access_kind(access));
+                super::returned_carriers::attenuate(&mut loans, &kind);
                 return loans;
             }
             if let Some(mut loans) = stored_reference_loans(
@@ -93,7 +94,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 &initializer.owner_path,
                 loan_trackers,
             ) {
-                super::returned_carriers::attenuate(&mut loans, &super::borrow_access_kind(access));
+                super::returned_carriers::attenuate(&mut loans, &kind);
                 return loans;
             }
             // Aggregate leaves obey the same source-selection law as call
@@ -129,7 +130,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                         source,
                         &rebased,
                     ),
-                    kind: super::borrow_access_kind(access),
+                    kind: kind.clone(),
                     call_result: false,
                 })
                 .collect()

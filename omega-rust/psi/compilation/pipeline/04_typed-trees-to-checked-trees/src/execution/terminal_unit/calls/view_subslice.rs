@@ -800,12 +800,12 @@ fn borrowed_view_access(
         return None;
     }
     if let Some(borrow) = program.expression_table.borrow_expression(expression) {
-        let authored = match borrow.access {
-            language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
-            language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-            language_core::ReferenceAccess::WriteOnly => return None,
-        };
-        if authored != access {
+        // A write-only borrow never forms a readable view argument; every
+        // readable authored access comes from the shared checked conversion.
+        if borrow.access == language_core::ReferenceAccess::WriteOnly {
+            return None;
+        }
+        if CheckedStructuralAccess::from(borrow.access) != access {
             return None;
         }
     }

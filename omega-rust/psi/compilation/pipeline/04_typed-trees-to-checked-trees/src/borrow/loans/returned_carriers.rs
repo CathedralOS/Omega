@@ -486,7 +486,7 @@ pub(super) fn relative_result_loans(
                 if validation::reference_shell(program, target_type).is_none() {
                     return None;
                 }
-                access_limits.push(super::borrow_access_kind(borrow.access));
+                access_limits.push(checked_trees::BorrowAccessKind::from(borrow.access));
                 expression = borrow.target;
                 continue;
             }

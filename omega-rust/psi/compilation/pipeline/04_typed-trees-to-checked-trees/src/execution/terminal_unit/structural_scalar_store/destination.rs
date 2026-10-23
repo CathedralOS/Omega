@@ -435,15 +435,13 @@ impl<'a> Destination<'a> {
             return None;
         }
         let expected_access = match validation::reference_shell(program, parameter.type_reference) {
-            Some(shell) => match shell.access {
-                language_semantics::ReferenceAccess::Mutable => {
-                    CheckedStructuralAccess::MutableBorrow
-                }
-                language_semantics::ReferenceAccess::WriteOnly => {
-                    CheckedStructuralAccess::WriteOnlyBorrow
-                }
-                language_semantics::ReferenceAccess::Shared => return None,
-            },
+            // This slot stores only through an exclusive reference; a shared
+            // borrow is not a storable access here. The exclusive accesses
+            // themselves come from the shared checked conversion.
+            Some(shell) if shell.access.is_exclusive() => {
+                CheckedStructuralAccess::from(shell.access)
+            }
+            Some(_) => return None,
             None => CheckedStructuralAccess::Owned,
         };
         (plan.access == expected_access).then_some(())

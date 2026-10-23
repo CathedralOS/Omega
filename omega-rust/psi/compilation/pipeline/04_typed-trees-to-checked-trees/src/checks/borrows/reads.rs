@@ -25,7 +25,6 @@ use checked_trees::{
     StateBorrowFact,
 };
 use diagnostics::Diagnostic;
-use language_semantics::ReferenceAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use validation::CanonicalPlace;
@@ -286,11 +285,7 @@ pub(super) fn check_storage_read<'p>(
             ExpressionNode::Borrow(borrow) => Some(borrow.access),
             _ => None,
         });
-    let kind = match borrow {
-        Some(ReferenceAccess::Mutable) => BorrowAccessKind::Mutable,
-        Some(ReferenceAccess::WriteOnly) => BorrowAccessKind::WriteOnly,
-        Some(ReferenceAccess::Shared) | None => BorrowAccessKind::Read,
-    };
+    let kind = borrow.map_or(BorrowAccessKind::Read, BorrowAccessKind::from);
     let verb = if borrow.is_some() { "borrows" } else { "reads" };
     let backings = place_access::place_backings(
         program,

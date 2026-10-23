@@ -199,11 +199,7 @@ fn collect_formal_argument_accesses(
         {
             return None;
         }
-        Some(match formal.access {
-            language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
-            language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-            language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-        })
+        Some(BorrowAccessKind::from(formal.access))
     })();
     if let Some(kind) = forwarded_access
         && let Some(place) = collection.borrow_access_place(argument)
@@ -257,19 +253,11 @@ fn collect_argument_accesses(
             if let Some(access_place) = collection.borrow_access_place(expression) {
                 collection.append_argument_access(
                     access_place,
-                    borrow_access_kind(inner_expression.access),
+                    BorrowAccessKind::from(inner_expression.access),
                     expression,
                 );
             }
         }
         _ => collect_read_accesses(collection, expression),
-    }
-}
-
-fn borrow_access_kind(access: language_semantics::ReferenceAccess) -> BorrowAccessKind {
-    match access {
-        language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-        language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-        language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
     }
 }

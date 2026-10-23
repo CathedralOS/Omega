@@ -144,6 +144,19 @@ pub enum BorrowAccessKind {
     WriteOnly,
 }
 
+impl From<language_core::ReferenceAccess> for BorrowAccessKind {
+    /// An authored reference's loan access. Every producer that turns a `&T`
+    /// occurrence into a loan needs this one translation; repeating the arms
+    /// per producer is how an exclusive loan becomes a shared observation.
+    fn from(access: language_core::ReferenceAccess) -> Self {
+        match access {
+            language_core::ReferenceAccess::Shared => Self::Read,
+            language_core::ReferenceAccess::Mutable => Self::Mutable,
+            language_core::ReferenceAccess::WriteOnly => Self::WriteOnly,
+        }
+    }
+}
+
 impl BorrowAccessKind {
     pub fn is_exclusive(&self) -> bool {
         matches!(self, Self::Mutable | Self::WriteOnly)

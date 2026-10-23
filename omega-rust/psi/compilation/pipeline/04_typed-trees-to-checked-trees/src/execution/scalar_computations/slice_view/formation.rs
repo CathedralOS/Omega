@@ -17,17 +17,13 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
     ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
-        let (kind, access) = match expected_access {
-            language_semantics::ReferenceAccess::Shared => (
-                BorrowAccessKind::Read,
-                CheckedStructuralAccess::SharedBorrow,
-            ),
-            language_semantics::ReferenceAccess::Mutable => (
-                BorrowAccessKind::Mutable,
-                CheckedStructuralAccess::MutableBorrow,
-            ),
-            language_semantics::ReferenceAccess::WriteOnly => return None,
-        };
+        // A write-only view has no observation to form here; both readable
+        // accesses come from the shared checked conversions.
+        if expected_access == language_semantics::ReferenceAccess::WriteOnly {
+            return None;
+        }
+        let kind = BorrowAccessKind::from(expected_access);
+        let access = CheckedStructuralAccess::from(expected_access);
         let state = self.borrow.with_state_index(|index| {
             index
                 .bucket(self.machine, self.state)

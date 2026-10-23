@@ -129,7 +129,7 @@ pub(super) fn loans(
                     } else {
                         checked_trees::BorrowLoanLineage::UnretainedDerived
                     },
-                    kind: super::borrow_access_kind(
+                    kind: checked_trees::BorrowAccessKind::from(
                         source.lifetime_access.unwrap_or(effect.access),
                     ),
                     call_result: true,

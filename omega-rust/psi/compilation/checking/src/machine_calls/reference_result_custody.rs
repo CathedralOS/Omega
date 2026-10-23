@@ -371,11 +371,7 @@ pub fn borrowed_initializer_source(
     let Some(borrow) = program.expression_table.borrow_expression(expression) else {
         return None;
     };
-    let authored_access = match borrow.access {
-        language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
-        language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        language_core::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-    };
+    let authored_access = CheckedStructuralAccess::from(borrow.access);
     if authored_access != access {
         return None;
     }
@@ -2426,13 +2422,7 @@ pub fn result_loans(
     }
     let return_type = crate::call_target_return_type(program, call.target_symbol)?;
     let shell = crate::reference_shell(program, return_type)?;
-    let expected_kind = match shell.access {
-        language_semantics::ReferenceAccess::Shared => checked_trees::BorrowAccessKind::Read,
-        language_semantics::ReferenceAccess::Mutable => checked_trees::BorrowAccessKind::Mutable,
-        language_semantics::ReferenceAccess::WriteOnly => {
-            checked_trees::BorrowAccessKind::WriteOnly
-        }
-    };
+    let expected_kind = checked_trees::BorrowAccessKind::from(shell.access);
     let borrowing =
         facts
             .borrow
