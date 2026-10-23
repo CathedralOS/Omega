@@ -34,10 +34,9 @@ pub(in crate::function_fragments) fn establish_geometry(
     }) {
         return Ok(());
     }
-    let mut graph = backing_geometry::graph(abstracted).ok_or(super::Error::Mismatch(
-        "placed formation has no complete reference-origin graph",
-    ))?;
-    backing_geometry::record_selected_formation_calls(abstracted, targeted, &mut graph);
+    let graph = backing_geometry::completed_graph(abstracted, targeted).ok_or(
+        super::Error::Mismatch("placed formation has no complete reference-origin graph"),
+    )?;
     let mut geometry =
         backing_geometry::BackingGeometry::new(abstracted, selected, targeted, &graph);
     for function in &targeted.functions {

@@ -169,7 +169,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::EstablishPlacedReference { .. }
             )
         })
-        .then(|| placed_reference::backing_geometry::graph(abstract_plan))
+        .then(|| {
+            placed_reference::backing_geometry::completed_graph(
+                abstract_plan,
+                current.optimized_target().target_operations(),
+            )
+        })
         .flatten();
     let mut geometry = geometry_graph.as_ref().map(|graph| {
         placed_reference::backing_geometry::BackingGeometry::new(

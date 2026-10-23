@@ -179,6 +179,23 @@ pub(in crate::function_fragments::source) fn graph(
     )
 }
 
+/// The complete graph placed-reference geometry is discharged against: the
+/// portable reference catalog plus the selected machine calls that name each
+/// placed formation's actual arguments. Production (`establish_geometry`) and
+/// independent validation (the source admission) both consume this graph; a
+/// consumer that stops at the portable catalog cannot name the referent a
+/// computed receiver selected, which is the one distinction the
+/// retained-artifact admission exists to check. Keep them on this one builder
+/// so the two readers of the same evidence cannot diverge.
+pub(in crate::function_fragments::source) fn completed_graph(
+    source: &AbstractOperationPlan,
+    targeted: &target_operations::TargetOperationPlan,
+) -> Option<Vec<DescriptorMachine>> {
+    let mut graph = graph(source)?;
+    record_selected_formation_calls(source, targeted, &mut graph);
+    Some(graph)
+}
+
 impl<'a> BackingGeometry<'a> {
     pub(in crate::function_fragments::source) fn new(
         abstracted: &'a AbstractOperationPlan,
