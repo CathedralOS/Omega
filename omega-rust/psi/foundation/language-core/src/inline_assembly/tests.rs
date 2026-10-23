@@ -288,7 +288,10 @@ fn catalog_names_semantic_refusal_classes() {
     let Some(AsmCatalogEntry::Contract(branch)) = asm_catalog_entry("jnz") else {
         panic!("jnz retains its checked zero-flag edge");
     };
-    assert_eq!(branch.shape, AsmInstructionShape::JumpNonZero);
+    assert_eq!(
+        branch.shape,
+        AsmInstructionShape::JumpZeroFlag { when_set: false }
+    );
     assert_eq!(branch.flags_data_flow, AsmFlagsDataFlow::ZeroFlagBranch);
     for mnemonic in [
         "ret", "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd", "iretw",
@@ -296,9 +299,9 @@ fn catalog_names_semantic_refusal_classes() {
         "b", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab", "blraaz",
         "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz", "loop", "loope",
         "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1", "int3", "into", "je",
-        "jne", "jz", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg", "jge", "jl",
-        "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp", "jpe", "jnp", "jpo",
-        "jc", "jnc",
+        "jne", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg", "jge", "jl", "jle",
+        "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp", "jpe", "jnp", "jpo", "jc",
+        "jnc",
     ] {
         assert_eq!(
             asm_catalog_entry(mnemonic),
@@ -959,5 +962,26 @@ fn every_intrinsic_name_answers_with_its_contracted_mnemonic() {
     // A mnemonic is not an intrinsic name, and ordinary builtins have none.
     for spelling in ["hlt", "in", "read_cr0", "max", "sqrt", "old", "asm#", ""] {
         assert_eq!(asm_intrinsic_mnemonic(spelling), None, "{spelling:?}");
+    }
+}
+
+#[test]
+fn zero_flag_branches_retain_polarity_without_effects_or_authority() {
+    for (mnemonic, when_set) in [("jz", true), ("jnz", false)] {
+        let Some(AsmCatalogEntry::Contract(contract)) = asm_catalog_entry(mnemonic) else {
+            panic!("zero-flag branch needs a catalog contract");
+        };
+        assert_eq!(
+            contract.shape,
+            AsmInstructionShape::JumpZeroFlag { when_set }
+        );
+        assert_eq!(contract.flags_data_flow, AsmFlagsDataFlow::ZeroFlagBranch);
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.target, AsmTargetApplicability::X86_64);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.clobbers.is_empty());
     }
 }

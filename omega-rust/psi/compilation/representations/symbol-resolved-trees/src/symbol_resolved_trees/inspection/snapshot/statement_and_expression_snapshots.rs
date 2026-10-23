@@ -97,7 +97,7 @@ pub struct AssemblyBlockSnapshot {
     pub ensures: Vec<ExpressionSnapshot>,
     pub instructions: Vec<StatementSnapshot>,
     pub jump: Option<String>,
-    pub conditional_nonzero: bool,
+    pub zero_flag_when_set: Option<bool>,
     pub enclosing_transition: bool,
 }
 
@@ -284,15 +284,15 @@ pub(crate) fn statement_snapshot(
                             .collect(),
                         jump: match block.exit {
                             crate::statement::AssemblyExit::Jump(target)
-                            | crate::statement::AssemblyExit::NonZero(target) => {
+                            | crate::statement::AssemblyExit::ZeroFlag(target, _) => {
                                 Some(declarations.assembly_blocks.get(target).label.to_string())
                             }
                             _ => None,
                         },
-                        conditional_nonzero: matches!(
-                            block.exit,
-                            crate::statement::AssemblyExit::NonZero(_)
-                        ),
+                        zero_flag_when_set: match block.exit {
+                            crate::statement::AssemblyExit::ZeroFlag(_, when_set) => Some(when_set),
+                            _ => None,
+                        },
                         enclosing_transition: matches!(
                             block.exit,
                             crate::statement::AssemblyExit::EnclosingTransition

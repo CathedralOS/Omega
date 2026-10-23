@@ -82,8 +82,8 @@ pub(crate) fn lower(
             exit: match block.exit {
                 resolved::statement::AssemblyExit::Fallthrough => AssemblyExit::Fallthrough,
                 resolved::statement::AssemblyExit::Jump(_) => AssemblyExit::Jump(Handle::invalid()),
-                resolved::statement::AssemblyExit::NonZero(_) => {
-                    AssemblyExit::NonZero(Handle::invalid())
+                resolved::statement::AssemblyExit::ZeroFlag(_, when_set) => {
+                    AssemblyExit::ZeroFlag(Handle::invalid(), when_set)
                 }
                 resolved::statement::AssemblyExit::EnclosingTransition => {
                     AssemblyExit::EnclosingTransition
@@ -116,7 +116,7 @@ pub(crate) fn lower(
         body[table.assembly_block(target_handle).start as usize] =
             StatementNode::Assembly(AssemblyControlPoint::Label(target_handle));
         if let resolved::statement::AssemblyExit::Jump(target)
-        | resolved::statement::AssemblyExit::NonZero(target) =
+        | resolved::statement::AssemblyExit::ZeroFlag(target, _) =
             declarations.assembly_blocks.get(source_handle).exit
         {
             let Some(index) = source_blocks.handles().position(|handle| handle == target) else {
@@ -124,14 +124,14 @@ pub(crate) fn lower(
                     "assembly jump escaped its declaring graph",
                 ));
             };
-            table.assembly_block_mut(target_handle).exit = if matches!(
-                declarations.assembly_blocks.get(source_handle).exit,
-                resolved::statement::AssemblyExit::NonZero(_)
-            ) {
-                AssemblyExit::NonZero(blocks.handle_at(index as u32))
-            } else {
-                AssemblyExit::Jump(blocks.handle_at(index as u32))
-            };
+            table.assembly_block_mut(target_handle).exit =
+                if let resolved::statement::AssemblyExit::ZeroFlag(_, when_set) =
+                    declarations.assembly_blocks.get(source_handle).exit
+                {
+                    AssemblyExit::ZeroFlag(blocks.handle_at(index as u32), when_set)
+                } else {
+                    AssemblyExit::Jump(blocks.handle_at(index as u32))
+                };
         }
     }
     let statement_count = u32::try_from(body.len())

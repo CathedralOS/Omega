@@ -1,0 +1,22 @@
+// Expected exit: 0.
+// The checked seed-2 mov/sub/jz CFG takes its zero edge with eax == 0 and stores output == 0.
+machine main() crashes Trap { forward(2); }
+machine forward(seed: u32) requires seed == 2 crashes Trap { countdown(seed); }
+machine countdown(seed: u32) requires seed == 2 crashes Trap {
+ let mut output: u32 = 99;
+ asm {
+ entry:
+  mov eax, seed;
+  jmp loop;
+ loop requires eax > 0:
+  sub eax, 1;
+  jz done;
+ repeat requires eax > 0:
+  jmp loop;
+ done requires eax == 1:
+  mov output, eax
+ }
+ transition output == 0 { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}

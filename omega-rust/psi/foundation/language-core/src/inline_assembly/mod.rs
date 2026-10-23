@@ -31,7 +31,9 @@ pub enum AsmInstructionShape {
     /// remain unavailable until their complete state semantics are modeled.
     Subtract,
     /// Local conditional transfer consuming the latest zero flag.
-    JumpNonZero,
+    JumpZeroFlag {
+        when_set: bool,
+    },
     Halt,
     PortOut,
     PortIn,
@@ -1164,9 +1166,14 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: &["rflags"],
             ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
         }),
-        "jnz" => Contract(AsmInstructionContract {
+        "jnz" | "jz" => Contract(AsmInstructionContract {
             flags_data_flow: AsmFlagsDataFlow::ZeroFlagBranch,
-            ..AsmInstructionContract::without_side_effects(AsmInstructionShape::JumpNonZero, X86_64)
+            ..AsmInstructionContract::without_side_effects(
+                AsmInstructionShape::JumpZeroFlag {
+                    when_set: mnemonic == "jz",
+                },
+                X86_64,
+            )
         }),
         "jmp" => Contract(AsmInstructionContract::without_side_effects(JumpState, Any)),
         "hlt" => Contract(AsmInstructionContract::machine_authority(
@@ -1405,9 +1412,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
         | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
         | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"
-        | "jne" | "jz" | "jnz" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe"
-        | "jg" | "jge" | "jl" | "jle" | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js"
-        | "jns" | "jp" | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
+        | "jne" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe" | "jg" | "jge"
+        | "jl" | "jle" | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js" | "jns" | "jp"
+        | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
 
         // The register-only move is the structured decoding of `mov`: both
         // operands are ordinary Omega expressions (a writable destination place

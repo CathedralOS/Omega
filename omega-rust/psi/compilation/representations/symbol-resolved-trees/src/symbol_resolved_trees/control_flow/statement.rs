@@ -69,7 +69,8 @@ pub enum AssemblyExit {
     #[default]
     Fallthrough,
     Jump(Handle<AssemblyBlock>),
-    NonZero(Handle<AssemblyBlock>),
+    /// Local destination and required ZF polarity (true for set, false for clear).
+    ZeroFlag(Handle<AssemblyBlock>, bool),
     EnclosingTransition,
 }
 

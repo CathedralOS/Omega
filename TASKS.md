@@ -232,7 +232,10 @@ helper that passes does not close an item.
   `ensures` guarantees and exhaustive match joins;
   `samples/cli/facts/checked_asm_flag_snapshot` covers all nine standard places
   plus mechanism probes and false-invariant/clobber/write-invalidation controls
-  with native/Terminal x86 agreement. An x86 mov through a typed view index
+  with native/Terminal x86 agreement. Shared ZF edges retain set/clear polarity
+  for `jz` and `jnz`; `samples/cli/facts/checked_asm_zero_branch` carries the
+  zero edge, non-taken backedge and exact clobber obligations across nine places.
+  An x86 mov through a typed view index
   copies the indexed element by the place's ordinary assignment;
   `samples/cli/facts/checked_asm_view_move` exits 0 on both Windows engines,
   and bracketed `[address]` stays refused. Structured popfq restores a saved

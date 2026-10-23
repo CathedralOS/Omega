@@ -98,7 +98,7 @@ pub struct AssemblyBlockSnapshot {
     pub start: u32,
     pub count: u32,
     pub jump: Option<usize>,
-    pub conditional_nonzero: bool,
+    pub zero_flag_when_set: Option<bool>,
     pub enclosing_transition: bool,
 }
 
@@ -291,15 +291,15 @@ pub(crate) fn statement_snapshot(
                         count: block.count,
                         jump: match block.exit {
                             crate::statement::AssemblyExit::Jump(target)
-                            | crate::statement::AssemblyExit::NonZero(target) => {
+                            | crate::statement::AssemblyExit::ZeroFlag(target, _) => {
                                 graph.blocks.handles().position(|handle| handle == target)
                             }
                             _ => None,
                         },
-                        conditional_nonzero: matches!(
-                            block.exit,
-                            crate::statement::AssemblyExit::NonZero(_)
-                        ),
+                        zero_flag_when_set: match block.exit {
+                            crate::statement::AssemblyExit::ZeroFlag(_, when_set) => Some(when_set),
+                            _ => None,
+                        },
                         enclosing_transition: matches!(
                             block.exit,
                             crate::statement::AssemblyExit::EnclosingTransition

@@ -32,7 +32,8 @@ pub enum AssemblyExit {
     #[default]
     Fallthrough,
     Jump(Identifier),
-    NonZero(Identifier),
+    /// Local destination and required ZF polarity (true for set, false for clear).
+    ZeroFlag(Identifier, bool),
     /// An ordinary checked instruction transfers out of this assembly body.
     /// It is retained as the block's last instruction, never a label edge.
     EnclosingTransition,

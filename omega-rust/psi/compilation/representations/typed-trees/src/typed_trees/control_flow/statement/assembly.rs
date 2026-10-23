@@ -39,7 +39,8 @@ pub enum AssemblyExit {
     #[default]
     Fallthrough,
     Jump(Handle<AssemblyBlock>),
-    NonZero(Handle<AssemblyBlock>),
+    /// Local destination and required ZF polarity (true for set, false for clear).
+    ZeroFlag(Handle<AssemblyBlock>, bool),
     EnclosingTransition,
 }
 
@@ -80,7 +81,7 @@ impl StatementTable {
         let blocks =
             self.insert_assembly_blocks(source.assembly_blocks(graph.blocks).iter().cloned());
         for handle in blocks.handles() {
-            if let AssemblyExit::Jump(target) | AssemblyExit::NonZero(target) =
+            if let AssemblyExit::Jump(target) | AssemblyExit::ZeroFlag(target, _) =
                 self.assembly_blocks.get(handle).exit
             {
                 let index = graph
@@ -88,14 +89,14 @@ impl StatementTable {
                     .handles()
                     .position(|handle| handle == target)
                     .expect("assembly copy retains only graph-local edges");
-                self.assembly_blocks.get_mut(handle).exit = if matches!(
-                    self.assembly_blocks.get(handle).exit,
-                    AssemblyExit::NonZero(_)
-                ) {
-                    AssemblyExit::NonZero(blocks.handle_at(index as u32))
-                } else {
-                    AssemblyExit::Jump(blocks.handle_at(index as u32))
-                };
+                self.assembly_blocks.get_mut(handle).exit =
+                    if let AssemblyExit::ZeroFlag(_, when_set) =
+                        self.assembly_blocks.get(handle).exit
+                    {
+                        AssemblyExit::ZeroFlag(blocks.handle_at(index as u32), when_set)
+                    } else {
+                        AssemblyExit::Jump(blocks.handle_at(index as u32))
+                    };
             }
         }
         self.insert_assembly(AssemblyControlFlow {

@@ -17,6 +17,7 @@ including pause/resume, effect and rejection controls for the claimed profile.
 
 | Catalog family | Current structured operands and distinctions |
 | --- | --- |
+| x86 `sub`, `jz`, `jnz` | Modeled u32 GPR subtraction establishes immutable arithmetic/ZF versions. Local `jz` and `jnz` edges consume opposite polarities of the same latest ZF version, retain both successor obligations and carry no clobber or authority of their own. |
 | `jmp`, `hlt` | State-target transition or halt; no local post-state. |
 | `mov` / `movq` | Structured data move between a writable Omega place and a readable value; lowers to an ordinary checked assignment, so the copy's provenance, permission and exact-type obligations are the assignment's. Bracketed `[address]` operands keep refusing as unmodeled memory access; authorized memory data moves through a typed view index. |
 | AArch64 `ldr` / `str` | Unordered memory transfers whose memory operand is a typed Omega place: `ldr <dest>, <place>` is `<dest> = <place>` and `str <value>, <place>` is `<place> = <value>` — the place carries the provenance, permission and exact-type contract a raw address cannot. Width-suffixed (`ldrb`/`strh`/...), offset/unscaled, ordered (acquire/release) and multi-register spellings are each a different contract and stay refused. |

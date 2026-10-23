@@ -53,7 +53,9 @@ pub(super) fn lower(
                 syntax::AssemblyExit::Fallthrough => AssemblyExit::Fallthrough,
                 syntax::AssemblyExit::EnclosingTransition => AssemblyExit::EnclosingTransition,
                 syntax::AssemblyExit::Jump(_) => AssemblyExit::Jump(Handle::invalid()),
-                syntax::AssemblyExit::NonZero(_) => AssemblyExit::NonZero(Handle::invalid()),
+                syntax::AssemblyExit::ZeroFlag(_, when_set) => {
+                    AssemblyExit::ZeroFlag(Handle::invalid(), when_set)
+                }
             },
         });
     }
@@ -75,7 +77,7 @@ pub(super) fn lower(
     let blocks = declarations.assembly_blocks.insert_many(blocks);
     let handles: Vec<_> = blocks.handles().collect();
     for (handle, source_block) in handles.iter().copied().zip(source_blocks) {
-        if let syntax::AssemblyExit::Jump(label) | syntax::AssemblyExit::NonZero(label) =
+        if let syntax::AssemblyExit::Jump(label) | syntax::AssemblyExit::ZeroFlag(label, _) =
             &source_block.exit
         {
             let Some(index) = source_blocks
@@ -88,8 +90,8 @@ pub(super) fn lower(
                 )));
             };
             declarations.assembly_blocks.get_mut(handle).exit =
-                if matches!(source_block.exit, syntax::AssemblyExit::NonZero(_)) {
-                    AssemblyExit::NonZero(handles[index])
+                if let syntax::AssemblyExit::ZeroFlag(_, when_set) = source_block.exit {
+                    AssemblyExit::ZeroFlag(handles[index], when_set)
                 } else {
                     AssemblyExit::Jump(handles[index])
                 };

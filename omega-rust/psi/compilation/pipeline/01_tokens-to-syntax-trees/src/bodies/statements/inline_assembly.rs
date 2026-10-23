@@ -127,27 +127,30 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
         // A bare destination is local to this assembly CFG. The existing
         // parenthesized `jmp state(...)` remains an ordinary machine edge.
-        if input.at_contextual("jmp") || input.at_contextual("jnz") {
-            let conditional = input.at_contextual("jnz");
-            let after_jump = input.take_contextual(if conditional { "jnz" } else { "jmp" })?;
-            if let Ok((label, rest)) = after_jump.take_identifier()
-                && (rest.at_punctuation(PunctuationKind::Semicolon)
-                    || rest.at_punctuation(PunctuationKind::RightBrace))
-            {
-                block.exit = if conditional {
-                    // The explicit ZF operand is retained even though jnz has no spelled value operand.
-                    scratch::name(syntax_trees, "zf");
-                    syntax_trees::statement::AssemblyExit::NonZero(label)
-                } else {
-                    syntax_trees::statement::AssemblyExit::Jump(label)
-                };
-                block.instruction_count += 1;
-                input = rest;
-                if input.at_punctuation(PunctuationKind::Semicolon) {
-                    input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-                }
-                continue;
+        if let Ok((mnemonic, after_jump)) = input.take_identifier()
+            && let Some(AsmCatalogEntry::Contract(contract)) =
+                asm_catalog_entry(mnemonic.as_str(syntax_trees))
+            && matches!(
+                contract.shape,
+                AsmInstructionShape::JumpState | AsmInstructionShape::JumpZeroFlag { .. }
+            )
+            && let Ok((label, rest)) = after_jump.take_identifier()
+            && (rest.at_punctuation(PunctuationKind::Semicolon)
+                || rest.at_punctuation(PunctuationKind::RightBrace))
+        {
+            block.exit = if let AsmInstructionShape::JumpZeroFlag { when_set } = contract.shape {
+                // Both polarities consume the same explicit modeled ZF version.
+                scratch::name(syntax_trees, "zf");
+                syntax_trees::statement::AssemblyExit::ZeroFlag(label, when_set)
+            } else {
+                syntax_trees::statement::AssemblyExit::Jump(label)
+            };
+            block.instruction_count += 1;
+            input = rest;
+            if input.at_punctuation(PunctuationKind::Semicolon) {
+                input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             }
+            continue;
         }
         let (instruction, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
         realized_clobbers.extend(instruction.contract.clobbers.iter().copied());
@@ -262,7 +265,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             )));
         }
         if let syntax_trees::statement::AssemblyExit::Jump(label)
-        | syntax_trees::statement::AssemblyExit::NonZero(label) = &block.exit
+        | syntax_trees::statement::AssemblyExit::ZeroFlag(label, _) = &block.exit
             && !blocks
                 .iter()
                 .any(|target| target.label.as_str(syntax_trees) == label.as_str(syntax_trees))
@@ -734,9 +737,10 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     }
 
     match contract.shape {
-        AsmInstructionShape::JumpNonZero => {
-            Err(mnemonic_site.error_here("jnz requires a declared local assembly label"))
-        }
+        AsmInstructionShape::JumpZeroFlag { .. } => Err(mnemonic_site.error_here(format!(
+            "{} requires a declared local assembly label",
+            mnemonic.as_str(syntax_trees)
+        ))),
         AsmInstructionShape::Subtract | AsmInstructionShape::RegisterMove => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;

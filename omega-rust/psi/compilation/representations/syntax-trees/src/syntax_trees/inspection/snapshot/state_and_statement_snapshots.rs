@@ -138,7 +138,7 @@ pub struct AssemblyBlockSnapshot {
 pub enum AssemblyExitSnapshot {
     Fallthrough,
     Jump(IdentifierSnapshot),
-    NonZero(IdentifierSnapshot),
+    ZeroFlag(IdentifierSnapshot, bool),
     EnclosingTransition,
 }
 
@@ -347,11 +347,11 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                             crate::statement::AssemblyExit::Fallthrough => {
                                 AssemblyExitSnapshot::Fallthrough
                             }
-                            crate::statement::AssemblyExit::NonZero(label) => {
-                                AssemblyExitSnapshot::NonZero(snapshot_identifier(
-                                    syntax_trees,
-                                    label,
-                                ))
+                            crate::statement::AssemblyExit::ZeroFlag(label, when_set) => {
+                                AssemblyExitSnapshot::ZeroFlag(
+                                    snapshot_identifier(syntax_trees, label),
+                                    *when_set,
+                                )
                             }
                             crate::statement::AssemblyExit::Jump(label) => {
                                 AssemblyExitSnapshot::Jump(snapshot_identifier(syntax_trees, label))

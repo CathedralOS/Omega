@@ -98,7 +98,7 @@ fn successors(
     };
     Ok(match blocks[index].exit {
         AssemblyExit::Jump(target) => vec![locate(target)?],
-        AssemblyExit::NonZero(target) => {
+        AssemblyExit::ZeroFlag(target, _) => {
             let mut targets = vec![locate(target)?];
             if index + 1 < blocks.len() {
                 targets.push(index + 1);
@@ -277,12 +277,13 @@ fn check_register_flow(
                 defined |= 1 << register;
             }
         }
-        if matches!(block.exit, AssemblyExit::NonZero(_))
+        if let AssemblyExit::ZeroFlag(_, when_set) = block.exit
             && defined & (1 << ASM_ZERO_FLAG_SLOT) == 0
         {
             return Err(Diagnostic::error(format!(
-                "assembly label `{}` jnz reads uninitialized ZF",
-                block.label
+                "assembly label `{}` {} reads uninitialized ZF",
+                block.label,
+                if when_set { "jz" } else { "jnz" }
             )));
         }
     }
@@ -423,7 +424,7 @@ fn exit(
         }
     };
     let destination = match block.exit {
-        AssemblyExit::Jump(handle) | AssemblyExit::NonZero(handle) => {
+        AssemblyExit::Jump(handle) | AssemblyExit::ZeroFlag(handle, _) => {
             let ordinal = graph
                 .blocks
                 .handles()
@@ -449,22 +450,25 @@ fn exit(
         target: destination,
         ..Default::default()
     };
-    if matches!(block.exit, AssemblyExit::NonZero(_)) {
+    if let AssemblyExit::ZeroFlag(_, when_set) = block.exit {
         let old_flag = root(program, graph.scratch[ASM_ZERO_FLAG_SLOT])
-            .ok_or_else(|| Diagnostic::error("jnz has no modeled zero flag"))?;
+            .ok_or_else(|| Diagnostic::error("zero-flag branch has no modeled zero flag"))?;
         let flag = mapping
             .iter()
             .find(|(source, _)| *source == old_flag)
-            .ok_or_else(|| Diagnostic::error("jnz lost its zero flag version"))?
+            .ok_or_else(|| Diagnostic::error("zero-flag branch lost its zero flag version"))?
             .1;
         let operand = name(program, flag);
-        let condition =
+        let condition = if when_set {
+            operand
+        } else {
             program
                 .expression_table
                 .insert(ExpressionNode::Unary(TableUnaryExpression {
                     operator: UnaryOperator::LogicalNot,
                     operand,
-                }));
+                }))
+        };
         transition.guard = TransitionGuardNode::When(condition);
         let continuation = next(program);
         Ok(vec![
@@ -536,7 +540,7 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
                     .statement_table
                     .assembly_blocks(graph.blocks)
                     .iter()
-                    .any(|block| matches!(block.exit, AssemblyExit::NonZero(_)))
+                    .any(|block| matches!(block.exit, AssemblyExit::ZeroFlag(_, _)))
                 {
                     let graph_window = HandleSpan::from_parts(
                         state.statement_nodes.handle_at(cursor as u32),
@@ -691,7 +695,7 @@ fn normalize_graph(
     }
     let blocks = source.statement_table.assembly_blocks(graph.blocks);
     let successors = successors(source, graph, 0)?;
-    let conditional_entry = matches!(blocks[0].exit, AssemblyExit::NonZero(_));
+    let conditional_entry = matches!(blocks[0].exit, AssemblyExit::ZeroFlag(_, _));
     let mut reachable = vec![false; blocks.len()];
     let mut pending = successors.clone();
     while let Some(index) = pending.pop() {
