@@ -1,6 +1,6 @@
 // Fact: a 16-level nested structural record RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { l6: Level6 { l7: Level7 { l8: Level8 { l9: Level9 { l10: Level10 { l11: Level11 { l12: Level12 { l13: Level13 { l14: Level14 { l15: Level15 { val: u64 } } } } } } } } } } } } } } } preserves the leaf field bound 40u64 <= root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.val <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
-// Place: local. The 16-level nested record is copied to a local variable before leaf projection and interval discharge.
-// Expected exit: 0
+// Place: local (invalid twin). The leaf upper bound is widened to 81u64 so res reaches 81u64, underflowing 80u64 - res.
+// Expected diagnostic: may overflow `u64`
 
 data Level15 [copy] {
     val: u64;
