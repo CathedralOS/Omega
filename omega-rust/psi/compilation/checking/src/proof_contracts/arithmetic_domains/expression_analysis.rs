@@ -187,6 +187,44 @@ pub(super) fn analyze(
     CheckedAnalysis { value, decisions }
 }
 
+/// The state-arrival walk's analysis: the flow facts and one-callee body
+/// inference of `analyze`, without the formation obligations. Arrival only
+/// records the value an expression delivers to the next state; its
+/// diagnostics are discarded, so proving that an exact operation fits buys
+/// nothing there, and the occurrence proof it would run walks the structural
+/// prefix and closes a difference matrix per leaf. Under a parameter with
+/// thousands of integer places that closure never finished (three
+/// `x + 1` arrivals pinned a 5,000-machine check for hours).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn analyze_arrival(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
+    owner: &str,
+    infer_call_bodies: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> CheckedAnalysis {
+    let mut decisions = ArithmeticDecisions::default();
+    let value = ExpressionWalk {
+        program,
+        machine,
+        state,
+        environment,
+        target_primitive,
+        target_domain,
+        owner,
+        infer_call_bodies,
+        checks_trap_coverage: false,
+        checks_occurrence_fit: false,
+    }
+    .analyze(expression, diagnostics, &mut decisions);
+    CheckedAnalysis { value, decisions }
+}
+
 /// A carrier/policy meaning query over `expression` with no flow facts: the
 /// walk an ordered-value operand or a relational range proof asks for the
 /// primitive and arithmetic domain of a composite. It declines body inference

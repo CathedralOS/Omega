@@ -12,7 +12,9 @@ use super::{
 };
 use crate::CallFrameResolver;
 use crate::proof_contracts::arithmetic_domains::CopiedIntegerValue;
-use crate::proof_contracts::arithmetic_domains::expression_analysis::{CheckedAnalysis, analyze};
+use crate::proof_contracts::arithmetic_domains::expression_analysis::{
+    CheckedAnalysis, analyze, analyze_arrival,
+};
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
