@@ -37,6 +37,36 @@ pub(super) struct Summary {
     pub(super) effects: Vec<DescriptorStoredEffect>,
     pub(super) invalidates_contents: bool,
 }
+
+/// The completion summary a target states directly. A machine target has none:
+/// its summary comes from replaying that body, so callers resolve it first and
+/// fall back here only for admitted boundaries and public requirements. Both
+/// live and cached readings of one call ask the same operation, keeping the two
+/// contracts' contributions in one place.
+fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
+    match target {
+        DescriptorInvocationTarget::Machine(_) => None,
+        DescriptorInvocationTarget::Provider {
+            results,
+            effects,
+            invalidates_contents,
+        } => Some(Summary {
+            result: Some(results.clone()),
+            effects: effects.clone(),
+            invalidates_contents: *invalidates_contents,
+        }),
+        DescriptorInvocationTarget::Public {
+            results,
+            invalidates_contents,
+            ..
+        } => Some(Summary {
+            result: Some(results.clone()),
+            effects: Vec::new(),
+            invalidates_contents: *invalidates_contents,
+        }),
+    }
+}
+
 pub(super) struct Replay<'a> {
     pub(super) types: &'a [StructuralTypeDeclaration],
     pub(super) slot_kind: DescriptorSlotKind,
@@ -823,48 +853,14 @@ impl<'a> Replay<'a> {
     ) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
-            DescriptorInvocationTarget::Provider {
-                results,
-                effects,
-                invalidates_contents,
-            } => Some(Summary {
-                result: Some(results.clone()),
-                effects: effects.clone(),
-                invalidates_contents: *invalidates_contents,
-            }),
-            DescriptorInvocationTarget::Public {
-                results,
-                invalidates_contents,
-                ..
-            } => Some(Summary {
-                result: Some(results.clone()),
-                effects: Vec::new(),
-                invalidates_contents: *invalidates_contents,
-            }),
+            target => direct_target_summary(target),
         }
     }
 
     pub(super) fn cached_invocation_summary(&self, call: &DescriptorInvocation) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summaries.get(machine)?.clone(),
-            DescriptorInvocationTarget::Provider {
-                results,
-                effects,
-                invalidates_contents,
-            } => Some(Summary {
-                result: Some(results.clone()),
-                effects: effects.clone(),
-                invalidates_contents: *invalidates_contents,
-            }),
-            DescriptorInvocationTarget::Public {
-                results,
-                invalidates_contents,
-                ..
-            } => Some(Summary {
-                result: Some(results.clone()),
-                effects: Vec::new(),
-                invalidates_contents: *invalidates_contents,
-            }),
+            target => direct_target_summary(target),
         }
     }
 

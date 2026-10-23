@@ -262,19 +262,7 @@ fn may_contain_descriptor(
             terminal_psi::StructuralFieldType::Structural(ty) => {
                 may_contain_descriptor(kind, scope, types, ty, active)
             }
-            _ => {
-                kind == DescriptorSlotKind::Views
-                    && field
-                        .field_type
-                        .byte_sequence_carrier()
-                        .is_some_and(|carrier| {
-                            matches!(
-                                carrier,
-                                ByteSequenceCarrier::BorrowedView { .. }
-                                    | ByteSequenceCarrier::BoundedView { .. }
-                            )
-                        })
-            }
+            _ => kind.is_view_field_slot(&field.field_type),
         })
     };
     let contains = match &declaration.shape {
@@ -325,6 +313,16 @@ impl DescriptorSlotKind {
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. })
             }),
         }
+    }
+    /// Under the view inventory, a field whose carrier borrows caller storage
+    /// is itself a materialized slot of the enclosing value. View geometry does
+    /// not depend on the access the view carries, so the carrier's own shape
+    /// judgment answers the layout and each field declaration keeps its access.
+    pub(super) fn is_view_field_slot(self, field_type: &terminal_psi::StructuralFieldType) -> bool {
+        self == Self::Views
+            && field_type
+                .byte_sequence_carrier()
+                .is_some_and(|carrier| carrier.is_borrowed())
     }
     pub fn slots(
         self,
@@ -488,20 +486,7 @@ fn indirect_contents_contain_slot(
             terminal_psi::StructuralFieldType::Structural(child) => {
                 indirect_contents_contain_slot(kind, types, child, behind_view, active)
             }
-            _ => {
-                behind_view
-                    && kind == DescriptorSlotKind::Views
-                    && field
-                        .field_type
-                        .byte_sequence_carrier()
-                        .is_some_and(|carrier| {
-                            matches!(
-                                carrier,
-                                ByteSequenceCarrier::BorrowedView { .. }
-                                    | ByteSequenceCarrier::BoundedView { .. }
-                            )
-                        })
-            }
+            _ => behind_view && kind.is_view_field_slot(&field.field_type),
         })
     };
     let contains = match &declaration.shape {
@@ -670,19 +655,7 @@ fn slot_inventory(
                         terminal_psi::StructuralFieldType::Structural(ty) => {
                             walk(kind, scope, types, ty, child, active, result)?
                         }
-                        _ if kind == DescriptorSlotKind::Views
-                            && field.field_type.byte_sequence_carrier().is_some_and(
-                                |carrier| {
-                                    matches!(
-                                        carrier,
-                                        ByteSequenceCarrier::BorrowedView { .. }
-                                            | ByteSequenceCarrier::BoundedView { .. }
-                                    )
-                                },
-                            ) =>
-                        {
-                            result.slots.push(child)
-                        }
+                        _ if kind.is_view_field_slot(&field.field_type) => result.slots.push(child),
                         _ => {}
                     }
                 }
@@ -721,19 +694,7 @@ fn slot_inventory(
                         terminal_psi::StructuralFieldType::Structural(ty) => {
                             walk(kind, scope, types, ty, child, active, result)?
                         }
-                        _ if kind == DescriptorSlotKind::Views
-                            && field.field_type.byte_sequence_carrier().is_some_and(
-                                |carrier| {
-                                    matches!(
-                                        carrier,
-                                        ByteSequenceCarrier::BorrowedView { .. }
-                                            | ByteSequenceCarrier::BoundedView { .. }
-                                    )
-                                },
-                            ) =>
-                        {
-                            result.slots.push(child)
-                        }
+                        _ if kind.is_view_field_slot(&field.field_type) => result.slots.push(child),
                         _ => {}
                     }
                 }

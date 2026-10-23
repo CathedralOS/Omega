@@ -948,31 +948,15 @@ pub(super) fn adapt(
                         }
                     }
                     if !exact_arguments {
-                        step.may_escape = true;
-                        if structural_arguments.iter().any(|actual| {
-                            graph
-                                .place_types
-                                .get(&actual.place)
-                                .is_none_or(|root_type| {
-                                    slot_kind.may_write_indirect_contents(
-                                        &module.structural_types,
-                                        *root_type,
-                                        actual,
-                                    )
-                                })
-                        }) {
-                            graph.unresolved_contents_writes.insert(position);
-                        }
-                        for actual in structural_arguments
-                            .iter()
-                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                        {
-                            step.definitions.extend(slot_kind.slots(
-                                &module.structural_types,
-                                actual.place,
-                                *graph.place_types.get(&actual.place)?,
-                            )?);
-                        }
+                        mark_opaque_call_occupancy(
+                            &graph.place_types,
+                            &mut graph.unresolved_contents_writes,
+                            &mut step,
+                            slot_kind,
+                            &module.structural_types,
+                            position,
+                            structural_arguments,
+                        )?;
                     }
                     graph.calls.insert(
                         position,
@@ -1036,31 +1020,15 @@ pub(super) fn adapt(
                     if !preserves_placed_token
                         && !boundary_call_preserves_descriptor_storage(module, machine, operation)
                     {
-                        step.may_escape = true;
-                        if structural_arguments.iter().any(|actual| {
-                            graph
-                                .place_types
-                                .get(&actual.place)
-                                .is_none_or(|root_type| {
-                                    slot_kind.may_write_indirect_contents(
-                                        &module.structural_types,
-                                        *root_type,
-                                        actual,
-                                    )
-                                })
-                        }) {
-                            graph.unresolved_contents_writes.insert(position);
-                        }
-                        for actual in structural_arguments
-                            .iter()
-                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                        {
-                            step.definitions.extend(slot_kind.slots(
-                                &module.structural_types,
-                                actual.place,
-                                *graph.place_types.get(&actual.place)?,
-                            )?);
-                        }
+                        mark_opaque_call_occupancy(
+                            &graph.place_types,
+                            &mut graph.unresolved_contents_writes,
+                            &mut step,
+                            slot_kind,
+                            &module.structural_types,
+                            position,
+                            structural_arguments,
+                        )?;
                     }
                     let mut declarations = module
                         .boundary_machines
@@ -1372,4 +1340,41 @@ fn destination_root(kind: &OperationKind) -> Option<&PlaceId> {
         OperationKind::EstablishByteSequenceLiteral { destination, .. } => Some(destination),
         _ => None,
     }
+}
+
+/// Record an opaque call's occupancy over its actual arguments: it may replace
+/// the caller slots those arguments address, and an argument whose carrier type
+/// is unknown, or whose view backing the callee may write through, retires
+/// contents this analysis cannot resolve. The judgment owns the caller's place
+/// types and the positions whose contents writes stay unresolved, and nothing
+/// else in the graph. Exact direct calls and boundaries whose completion
+/// preserves descriptor storage keep their own treatment and never reach it.
+fn mark_opaque_call_occupancy(
+    place_types: &BTreeMap<PlaceId, StructuralTypeId>,
+    unresolved_contents_writes: &mut BTreeSet<DescriptorPosition>,
+    step: &mut DescriptorFlowStep,
+    slot_kind: DescriptorSlotKind,
+    types: &[StructuralTypeDeclaration],
+    position: DescriptorPosition,
+    actuals: &[StructuralArgument],
+) -> Option<()> {
+    step.may_escape = true;
+    if actuals.iter().any(|actual| {
+        place_types.get(&actual.place).is_none_or(|root_type| {
+            slot_kind.may_write_indirect_contents(types, *root_type, actual)
+        })
+    }) {
+        unresolved_contents_writes.insert(position);
+    }
+    for actual in actuals
+        .iter()
+        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+    {
+        step.definitions.extend(slot_kind.slots(
+            types,
+            actual.place,
+            *place_types.get(&actual.place)?,
+        )?);
+    }
+    Some(())
 }

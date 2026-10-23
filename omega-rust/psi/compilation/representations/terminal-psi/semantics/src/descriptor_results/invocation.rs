@@ -176,13 +176,7 @@ fn public_input_origin(
                 .is_some_and(|row| is_descriptor(types.iter(), row.id))
                 || crate::runtime_structural_field(types.iter(), formal.structural_type, prefix)
                     .and_then(|field| field.field_type.byte_sequence_carrier())
-                    .is_some_and(|carrier| {
-                        matches!(
-                            carrier,
-                            ByteSequenceCarrier::BorrowedView { .. }
-                                | ByteSequenceCarrier::BoundedView { .. }
-                        )
-                    }));
+                    .is_some_and(|carrier| carrier.is_borrowed()));
         let pointer_crossing = shape
             .as_ref()
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::Reference { .. }))
