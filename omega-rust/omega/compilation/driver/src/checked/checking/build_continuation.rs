@@ -191,15 +191,28 @@ pub(super) fn complete_product_frontend(
         &computed_build_config.generated_sources,
     )? {
         let (sources, units) = extension.parse(&base_sources, timings)?;
-        source.extend(
-            psi_compiler::SourceExtensionRequest {
-                units,
-                sources,
-                first_source: source::SourceId(base_sources.len()),
-                selection_authority: Arc::new(package_inputs.clone()),
-            },
-            &mut terminal_production::PsiStageTimings::new(timings),
-        )?
+        // Extension failures can name generated units absent from base_sources.
+        // Resolve their spans before consuming the only map that owns those bytes;
+        // the outer authored-source handler preserves resolved locations.
+        let diagnostic_sources = Arc::clone(&sources);
+        source
+            .extend(
+                psi_compiler::SourceExtensionRequest {
+                    units,
+                    sources,
+                    first_source: source::SourceId(base_sources.len()),
+                    selection_authority: Arc::new(package_inputs.clone()),
+                },
+                &mut terminal_production::PsiStageTimings::new(timings),
+            )
+            .map_err(|mut diagnostics| {
+                super::attribute_diagnostics(
+                    &mut diagnostics,
+                    &diagnostic_sources,
+                    Some(package_inputs),
+                );
+                diagnostics
+            })?
     } else {
         source.finish()
     };

@@ -658,6 +658,12 @@ that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
 `stderr:match|differs|unavailable` facts. Use it with `--filter` for
 backend-visible changes.
 
+`expected_source_locations.txt` can accompany a diagnostic fixture. Each
+nonempty line contains a relative path suffix, a one-based line, and a one-based
+column, separated by whitespace. Each row must match a compiler diagnostic's
+resolved source location; message text containing the location is insufficient.
+The runner combines this oracle with `expected.txt` fragment satisfaction.
+
 A build-only pass fixture can separately require native publication to refuse
 with `expected_native_rejection.txt`: each nonempty line is a required diagnostic
 fragment, and the observed status must be `rejected`. This oracle is independent

@@ -1814,21 +1814,51 @@ fn check_leg_realization_target(root_path: &Path) -> Option<String> {
 /// with a fixture that rejected for the WRONG reason, which is the condition
 /// this field exists to report. A fail-tier fixture that stops rejecting is
 /// still visible: its `status` moves to `checked` against the golden.
+/// A source-location oracle independently requires resolved diagnostic custody;
+/// matching words containing a path cannot satisfy a missing location record.
 fn expected_fragment_satisfied(
     fixture_dir: &Path,
     errors: &[diagnostics::Diagnostic],
 ) -> Option<bool> {
-    let expected = fs::read_to_string(fixture_dir.join("expected.txt")).ok()?;
+    let expected = fs::read_to_string(fixture_dir.join("expected.txt")).ok();
+    let locations = fs::read_to_string(fixture_dir.join("expected_source_locations.txt")).ok();
+    if expected.is_none() && locations.is_none() {
+        return None;
+    }
     if errors.is_empty() {
         return None;
     }
     let rendered: Vec<String> = errors.iter().map(|error| error.message.clone()).collect();
     Some(
         expected
+            .as_deref()
+            .unwrap_or("")
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty())
-            .all(|fragment| rendered.iter().any(|text| text.contains(fragment))),
+            .all(|fragment| rendered.iter().any(|text| text.contains(fragment)))
+            && locations.as_deref().is_none_or(|locations| {
+                locations
+                    .lines()
+                    .filter(|line| !line.trim().is_empty())
+                    .all(|line| {
+                        let parts = line.split_whitespace().collect::<Vec<_>>();
+                        let [path, line, column] = parts.as_slice() else {
+                            return false;
+                        };
+                        let (Ok(line), Ok(column)) = (line.parse::<u32>(), column.parse::<u32>())
+                        else {
+                            return false;
+                        };
+                        errors.iter().any(|error| {
+                            error.resolved_location.as_ref().is_some_and(|location| {
+                                location.path.ends_with(path)
+                                    && location.line == line
+                                    && location.column == column
+                            })
+                        })
+                    })
+            }),
     )
 }
 

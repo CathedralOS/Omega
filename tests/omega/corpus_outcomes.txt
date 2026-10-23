@@ -725,6 +725,8 @@ fail/boundary/opaque_result_requires_representation rejected 732ms expected @f07
 	`main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`; in state `main::entry`, statement 0
 fail/build/artifact_only_rollback_overlay_refused rejected 35259ms expected published:none @a9ae30e1c334+wt
 fail/build/artifact_only_unsealed_output_refused rejected 5741ms expected published:none @a9ae30e1c334+wt
+fail/build/authored_resolution_source_location rejected 34ms expected @67191f681c81+wt
+	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/boundary_acceptance_fabricated_activation rejected 2566ms expected @a9ae30e1c334+wt
 fail/build/build_effects_undeclared rejected 2766ms expected @a9ae30e1c334+wt
 fail/build/build_fuel_exhausted rejected 10711ms expected @a9ae30e1c334+wt
@@ -750,6 +752,8 @@ fail/build/elf_interpreter_relative_path rejected 2563ms expected @a9ae30e1c334+
 fail/build/entry_static_premise_does_not_establish_context rejected 3445ms expected @ba06013a36ec+wt
 fail/build/explicit_lifetime_entry_context_shared rejected 5462ms expected @a9ae30e1c334+wt
 fail/build/explicit_lifetime_entry_context_unestablished_reference rejected 20803ms expected @a9ae30e1c334+wt
+fail/build/generated_resolution_source_location rejected 321ms expected @67191f681c81+wt
+	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 5522ms expected published:none @a9ae30e1c334+wt
 fail/build/generated_source_base_reference_refused rejected 5456ms expected published:none @a9ae30e1c334+wt
 fail/build/generated_source_undeclared_call_refused rejected 2929ms expected published:none @ca002ac106ad+wt

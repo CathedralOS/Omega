@@ -1,0 +1,3 @@
+// The duplicate is in authored source.
+local_unchecked machine selected() {}
+local_unchecked machine selected() {}
