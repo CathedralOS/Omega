@@ -1,0 +1,40 @@
+// Fact: 8-bit signed wrapping multiplication lhs *% rhs with bounded interval 40i8 <= prod <= 96i8 establishes 40i8 <= prod <= 96i8 across all nine places so exact subtractions 96i8 - prod and prod - 40i8 are safe.
+// Place: field. The wrapping product result is stored and loaded through a record field.
+// Expected exit: 0
+machine verify_prod(value: i8) -> i8
+    requires value >= 40 && value <= 96
+{
+    let head: i8 = 96 - value;
+    let tail: i8 = value - 40;
+    head + tail
+}
+
+data Carrier {
+    prod: i8;
+}
+
+machine compute_field(lhs: i8, rhs: i8) -> i8
+    requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
+{
+    let a: i8 in Wrapping = lhs as i8 in Wrapping;
+    let b: i8 in Wrapping = rhs as i8 in Wrapping;
+    let wrapped: i8 in Wrapping = a * b;
+    let prod: i8 = wrapped as i8;
+    let c: Carrier = Carrier { prod: prod };
+    let transported: i8 = c.prod;
+    verify_prod(transported)
+}
+
+machine evaluate() -> i8 {
+    compute_field(10, 7)
+}
+
+machine main() crashes Trap {
+    let res: i8 = evaluate();
+    transition res == 56 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

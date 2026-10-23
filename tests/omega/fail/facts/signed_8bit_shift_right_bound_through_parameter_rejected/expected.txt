@@ -1,0 +1,1 @@
+cannot prove requires contract for call verify_parameter from compute_param: val >> shift >= 25 && val >> shift <= 25 (needs fact `shifted >= 25 && shifted <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

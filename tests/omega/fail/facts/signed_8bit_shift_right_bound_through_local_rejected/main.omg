@@ -1,0 +1,31 @@
+// Fact: an 8-bit signed i8 arithmetic right shift of a bounded input (val >= 100i8 && val <= 100i8) by 2u32 bits establishes shifted >= 25i8 && shifted <= 25i8 so exact 8-bit signed subtraction shifted - 25i8 is proved overflow-free across all nine places.
+// Invalid: widening input val <= 104i8 allows shifted 26i8, violating verify_shifted contract. Place: local.
+// Expected diagnostic: cannot prove requires contract for call verify_shifted
+
+machine verify_shifted(shifted: i8) -> i32
+requires shifted >= 25i8 && shifted <= 25i8
+{
+    let check: i8 = shifted - 25i8;
+    0i32
+}
+
+machine compute_local(val: i8, shift: u32) -> i32
+requires val >= 100i8 && val <= 104i8 && shift == 2u32
+{
+    let s: i8 = val >> shift;
+    let shifted: i8 = s;
+    verify_shifted(shifted)
+}
+
+machine probe() -> i32 {
+    compute_local(104i8, 2u32)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

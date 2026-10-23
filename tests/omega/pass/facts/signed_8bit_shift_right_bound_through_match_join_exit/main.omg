@@ -1,0 +1,39 @@
+// Fact: an 8-bit signed i8 arithmetic right shift of a bounded input (val >= 100i8 && val <= 100i8) by 2u32 bits establishes shifted >= 25i8 && shifted <= 25i8 so exact 8-bit signed subtraction shifted - 25i8 is proved overflow-free across all nine places.
+// Place: match_join. Both match arms produce the shifted result joining into subtraction verification.
+// Expected exit: 0
+
+machine verify_shifted(shifted: i8) -> i32
+requires shifted >= 25i8 && shifted <= 25i8
+{
+    let check: i8 = shifted - 25i8;
+    0i32
+}
+
+machine choose_shifted(flag: bool, val: i8, shift: u32) -> i8
+requires val >= 100i8 && val <= 100i8 && shift == 2u32
+ensures result >= 25i8 && result <= 25i8
+{
+    match flag {
+        true -> val >> shift,
+        false -> val >> shift,
+    }
+}
+
+machine compute_join(val: i8, shift: u32) -> i32
+requires val >= 100i8 && val <= 100i8 && shift == 2u32
+{
+    verify_shifted(choose_shifted(true, val, shift))
+}
+
+machine probe() -> i32 {
+    compute_join(100i8, 2u32)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
