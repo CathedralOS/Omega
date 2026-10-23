@@ -1,0 +1,22 @@
+// Unit transition computations execute each selected call once, in order.
+// Expected exit: 0
+data Counter { value: u64; }
+machine step(counter: &mut Counter) -> bool {
+    counter.value = ((counter.value as u64 in Wrapping) + 1) as u64;
+    counter.value == 1
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 0 };
+    transition false && step(&mut counter) {
+        true -> bad()
+        false -> selected(&mut counter)
+    }
+    state selected(counter: &mut Counter) {
+        transition counter.value == 0 && step(&mut counter) && counter.value == 1 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

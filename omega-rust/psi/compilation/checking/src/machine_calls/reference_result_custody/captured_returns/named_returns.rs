@@ -26,7 +26,35 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
         let frames = crate::CallFrameResolver::new(self.program)?;
-        let relative = frames.reference_result_leaf_origins(target.symbol)?;
+        let transports = frames.reference_result_transports(target.symbol)?;
+        let mut relative = Vec::new();
+        for transport in transports {
+            match transport {
+                crate::ReferenceResultTransport::Reference(leaf) => relative.push(leaf),
+                crate::ReferenceResultTransport::Value {
+                    result_path,
+                    source,
+                    type_reference,
+                } => {
+                    // Enumerate possible descriptor slots, not their pointees.
+                    // captured_input_sources below must establish each slot's
+                    // actual presence and substitute this edge's completed
+                    // operand. The returned-loan join still owns authority.
+                    for leaf in declared_carrier_references(self.program, type_reference)? {
+                        let suffix =
+                            origin_place_segments(self.program, type_reference, leaf.path)?;
+                        let mut destination = result_path.clone();
+                        destination.extend_from_slice(&suffix);
+                        let mut source = source.clone();
+                        source.segments.extend(suffix);
+                        relative.push(crate::ReferenceResultLeafOrigin {
+                            result_path: destination,
+                            source,
+                        });
+                    }
+                }
+            }
+        }
         let leaves = self.reference_leaves(state)?;
         let parameters = self.program.state_parameters(target);
         let operands = self

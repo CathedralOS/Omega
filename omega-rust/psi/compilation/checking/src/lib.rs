@@ -218,9 +218,10 @@ pub use crate::machine_calls::call_cycles::{
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceViewFormation, ScalarStorageCoordinate, ValidatedSelfCallDescent,
-    assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
-    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
+    ReferenceResultTransport, ReferenceViewFormation, ScalarStorageCoordinate,
+    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
+    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    state_reference_parameter_binding_is_stable,
 };
 pub use crate::machine_calls::denotational_calls::{
     admit_specification_calls, checked_value_call_candidate, expression_values_have_call_identity,

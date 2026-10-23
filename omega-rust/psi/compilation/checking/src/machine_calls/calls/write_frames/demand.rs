@@ -6,6 +6,7 @@
 
 mod call_origins;
 mod normal_subjects;
+mod result_transport;
 
 pub(crate) use normal_subjects::InvocationReferenceSubject;
 
@@ -110,6 +111,8 @@ pub(crate) struct CallFrameCaches {
     >,
     reference_result_origins: Mutex<HashMap<SymbolHandle, Option<Vec<LocalWriteSource>>>>,
     reference_result_leaves: Mutex<HashMap<SymbolHandle, Option<Vec<ReferenceResultLeafOrigin>>>>,
+    reference_result_transports:
+        Mutex<HashMap<SymbolHandle, Option<Vec<super::ReferenceResultTransport>>>>,
     stable_expression_bindings: Mutex<HashMap<(SymbolHandle, ExpressionHandle), bool>>,
     stable_call_bindings: Mutex<HashMap<(SymbolHandle, usize), bool>>,
     caller_isolated_proof_values: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
@@ -570,30 +573,14 @@ impl<'program> CallFrameResolver<'program> {
         state: SymbolHandle,
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
         memoized(&self.caches.reference_result_leaves, state, || {
-            let state = self.program.state_by_symbol(state)?;
-            let machine = self.program.machine_holding_state(state.symbol)?;
-            let relation = super::result_origins::state_result_origins(
-                self.program,
-                machine,
-                state,
-                state.return_type,
-                &self.tables.symbols,
-                &mut FrameInference::default(),
-                true,
-            )?;
-            // A moved subtree cannot be flattened into invented field origins.
-            // Its existing source relation must be resolved before publication.
-            if !relation.moves.is_empty() {
-                return None;
-            }
-            relation
-                .references
+            self.reference_result_transports(state)?
                 .into_iter()
-                .map(|leaf| {
-                    Some(ReferenceResultLeafOrigin {
-                        result_path: leaf.local_segments,
-                        source: LocalWriteSource::from(leaf.origin?),
-                    })
+                .map(|transport| match transport {
+                    super::ReferenceResultTransport::Reference(leaf) => Some(leaf),
+                    // Flat consumers cannot choose the active payload of an
+                    // opaque moved value. Capture-aware consumers use the
+                    // transport relation and retain that input identity.
+                    super::ReferenceResultTransport::Value { .. } => None,
                 })
                 .collect()
         })

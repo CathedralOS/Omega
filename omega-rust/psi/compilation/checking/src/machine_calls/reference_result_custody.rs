@@ -19,8 +19,8 @@
 
 use crate::type_applications::DeclarationScopes;
 use checked_trees::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
-    ReferenceCustodyFacts, ReferenceCustodyRow,
+    CheckFacts, CheckedReferenceResultSourcePlan, CheckedStructuralAccess,
+    CheckedUnitStructuralResultBindingPlan, ReferenceCustodyFacts, ReferenceCustodyRow,
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
@@ -34,6 +34,7 @@ mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
 mod declared_returns;
+mod incoming_replacement;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 pub use declared_returns::returned_sources as declared_return_sources;
@@ -1356,11 +1357,44 @@ pub fn initial_parameter_reference_establishment(
     (!loans.is_empty()).then_some(established)
 }
 
-/// A stored reference's old occurrence retired by this exact replacement.
-/// Loan death is not an owned-referent disposition: it authorizes ending only
-/// the selected descriptor. Select the complete historical formation group,
-/// including every possible origin, before making that distinction executable.
+/// The current descriptor retired by this exact replacement: either a complete
+/// installed formation/weakening group or an unchanged admitted input leaf.
+/// Neither evidence kind grants disposal of the referent or its other aliases.
 pub fn replaced_reference_carrier(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    owner: facts::PlaceRoot,
+    statement_index: u32,
+    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<CheckedReferenceResultSourcePlan> {
+    replaced_stored_reference_carrier(
+        program,
+        facts,
+        machine,
+        state,
+        owner,
+        statement_index,
+        selection,
+    )
+    .map(|(carrier, _)| carrier)
+    .or_else(|| {
+        incoming_replacement::carrier(
+            program,
+            facts,
+            machine,
+            state,
+            owner,
+            statement_index,
+            selection,
+        )
+    })
+}
+
+/// Installed descriptors owe their complete historical formation group and
+/// exact weakening occurrence, including every possible supplying origin.
+fn replaced_stored_reference_carrier(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,

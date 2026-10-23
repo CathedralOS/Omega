@@ -686,7 +686,13 @@ defines the complete product bar.
   - **Aggregate construction, replacement and reads.** Finish runtime/case
     projections of stored references and opaque incoming referents that need
     retained inner-loan evidence; a reference-shaped type alone must not
-    invent it. Unbounded `UInt`/`Int` fields have no runtime
+    invent it. Preserve `samples/cli/facts/case_payload_stored_loan`: all nine
+    places write 41 through the returned active payload to its original backing,
+    preserve the sibling and reject overlapping access. Mixed constructed/moved
+    return routes and reordered state inputs retain their exact completed
+    operands. Owned-input descriptor replacement preserves independent copies;
+    replacement whose RHS also changes that descriptor still needs native
+    structural-destination support. Unbounded `UInt`/`Int` fields have no runtime
     representation and stay rejected. `pass/filesystem/windows_canonicalize_exit`
     is recorded rejected ("performed write has unknown destination origins")
     and needs its stored UnitResult; coordinate **FILESYSTEM-RELEASE-CONTRACT**,
@@ -742,11 +748,11 @@ defines the complete product bar.
     its actual overlapping-write twins retire the observation. Permission to
     write is not an extra write in a complete body frame. Case-payload,
     generic-field and reference-local probes preserve the same observation.
-    Float probes cover local, field, parameter, match join, const name and
-    another state, with actual overlapping-write twins. Float call result,
-    other machine and target body still fail that equality with no loan;
-    those transports and remaining case/generic/reference composition stay
-    open.
+    Fresh optimized `60453171ca5` executes all nine float places in both
+    engines and rejects their actual overlapping-write twins; the former
+    call-result, other-machine and target-body refusal frontier is stale.
+    Those three float fixture pairs still need pinning before float-row closure;
+    remaining case/generic/reference composition stays open.
     `samples/cli/facts/copied_call_argument_snapshot`: the first copied 7
     must survive a later operand overwriting its former home with 9. Callee
     inputs consume the retained completion constraints, not a source reread;

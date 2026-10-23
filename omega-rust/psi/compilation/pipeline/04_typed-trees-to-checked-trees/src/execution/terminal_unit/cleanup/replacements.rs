@@ -104,7 +104,7 @@ pub(super) fn actions(
         *statement_index,
         &destination.path,
     );
-    let carrier_discard = if let Some((carrier, _)) = carrier_death {
+    let carrier_discard = if let Some(carrier) = carrier_death {
         let declaration = shapes.types.get(&destination.type_identity)?;
         // Loan provenance names the full source type; stored views use the
         // shared storage identity with access on their occurrence. Rejoin both

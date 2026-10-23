@@ -699,9 +699,9 @@ fn owned_argument(
         ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if target.is_mutable {
-        return None;
-    }
+    // `mut value: T` changes the callee's binding, not the transfer's access.
+    // Source admission and the exact call roster own the move; the owned
+    // storage/type/path checks below still exclude every borrowed referent.
     let parameters = program.state_parameters(state);
     let source_symbol = place.root.as_symbol()?;
     let (source, source_type) = if let Some(position) = parameters
@@ -709,7 +709,7 @@ fn owned_argument(
         .position(|source| source.symbol == source_symbol)
     {
         let parameter = &parameters[position];
-        if parameter.is_const || parameter.is_mutable {
+        if parameter.is_const {
             return None;
         }
         (

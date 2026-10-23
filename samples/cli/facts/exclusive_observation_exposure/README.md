@@ -45,9 +45,12 @@ original sources and diagnostics.
 Float call result, other machine, and target body carry a saved observation
 that the kept float is 7 across an exclusive loan of the other float. The
 callee reads that saved record. Each twin stores through the loan of the kept
-float. Call result and target body reject `cannot prove requires contract`.
-Other machine rejects `cannot prove ensures contract` on the returned record.
-A non-writing loan of the kept float still keeps the equality.
+float. Fresh optimized `60453171ca5f23df9feff9c236a4667d47f4456f` executes
+all nine float positives with native and Terminal exit 0 and rejects all nine
+actual overlapping-write twins. The earlier equality refusals are historical,
+not the current frontier; no additional float repair was needed. The three
+call-result, other-machine and target-body fixture pairs remain unpinned, so
+this replay alone does not close the float row.
 
 - **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
 - **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.

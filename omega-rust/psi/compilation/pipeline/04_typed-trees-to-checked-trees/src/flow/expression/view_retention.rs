@@ -2,6 +2,9 @@
 //! Declaration relations keep every input lifetime, including inputs a body
 //! does not select. Actual operand captures substitute those lifetimes once;
 //! they never turn a declaration fallback into an address or extent proof.
+//! An unchanged state input already owns its admitted reference frontier.
+//! Retain those leaves against the input owner even when no local store has
+//! produced a capture; selecting a case payload cannot erase that dependency.
 use super::Execution;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
@@ -213,6 +216,96 @@ impl Execution<'_, '_, '_> {
         self.stored_retention_at_place(&source)
     }
 
+    /// State admission establishes each reference leaf of its exact input.
+    /// A whole-owner binding query ignores descendant field stores, so check
+    /// each leaf's reaching value independently: replacements retain their
+    /// completed capture, unknown writes stay unknown, and only an unchanged
+    /// leaf retains the input owner. None supplies an address or new access.
+    fn incoming_value_retention(
+        &mut self,
+        source: &CanonicalPlace,
+    ) -> Option<Handle<FlowOperandRetention>> {
+        let parameter = self
+            .program
+            .state_parameter_by_symbol(self.state, source.root.as_symbol()?)?;
+        let paths = validation::borrow_contracts::borrow_carrying_owner_paths(
+            self.program,
+            parameter.type_reference,
+        )?;
+        let statements = super::super::reference_spans::appended_span_since(
+            &self.context.control.statements,
+            self.context.state_statements_start,
+        );
+        let mut leaves = Vec::new();
+        for path in paths {
+            let path = crate::borrow::owner_place_segments(&path);
+            if path.len() < source.segments.len()
+                || !source.segments.iter().zip(&path).all(|(left, right)| {
+                    super::super::canonical_place_segments_equal(self.program, *left, *right)
+                })
+            {
+                continue;
+            }
+            let leaf = CanonicalPlace {
+                root: source.root,
+                segments: path.clone(),
+            };
+            let retention = match super::super::stored_views::capture_before_statement(
+                self.program,
+                self.semantic,
+                &self.context.control,
+                self.state,
+                statements,
+                self.statement_index,
+                self.entry_origin_writes,
+                self.entry_origin_unknown_write,
+                &leaf,
+            ) {
+                Some(super::super::stored_values::StoredOperand::Value {
+                    capture,
+                    projection,
+                    ..
+                }) => super::super::operand_values::captured_retention_at_path(
+                    self.program,
+                    &self.context.control,
+                    self.context.control.operands.get(capture),
+                    &projection,
+                ),
+                Some(super::super::stored_values::StoredOperand::Unavailable) => Handle::invalid(),
+                None => self.append_retention(&[source.root]),
+            };
+            let remaining = &path[source.segments.len()..];
+            if remaining.is_empty() {
+                return Some(retention);
+            }
+            let path = self
+                .context
+                .control
+                .operand_retained_paths
+                .insert_many(remaining.iter().copied());
+            leaves.push(checked_trees::FlowOperandRetainedLeaf { path, retention });
+        }
+        if leaves.is_empty() {
+            return None;
+        }
+        let leaves = self
+            .context
+            .control
+            .operand_retained_leaves
+            .insert_many(leaves);
+        Some(
+            self.context
+                .control
+                .operand_retentions
+                .insert(FlowOperandRetention {
+                    roots: HandleSpan::empty(),
+                    leaves,
+                    stored_value: Handle::invalid(),
+                    stored_projection: HandleSpan::empty(),
+                }),
+        )
+    }
+
     pub(super) fn capture_storage_retention(
         &mut self,
         capture: &FlowOperandFact,
@@ -324,7 +417,11 @@ impl Execution<'_, '_, '_> {
                     }
                 }
                 Some(_) => return self.append_retention(&roots),
-                None => {}
+                None => {
+                    if let Some(retention) = self.incoming_value_retention(&source) {
+                        value.retention = retention;
+                    }
+                }
             }
         }
         let stored_value = self.context.control.operands.insert(value);
@@ -371,11 +468,7 @@ impl Execution<'_, '_, '_> {
                 &self.context.control.statements,
                 self.context.state_statements_start,
             );
-            let Some(super::super::stored_values::StoredOperand::Value {
-                capture,
-                projection,
-                ..
-            }) = super::super::stored_views::capture_before_statement(
+            match super::super::stored_views::capture_before_statement(
                 self.program,
                 self.semantic,
                 &self.context.control,
@@ -385,15 +478,28 @@ impl Execution<'_, '_, '_> {
                 self.entry_origin_writes,
                 self.entry_origin_unknown_write,
                 &source,
-            )
-            else {
-                return Handle::invalid();
-            };
-            let capture = *self.context.control.operands.get(capture);
-            if projection.is_empty() {
-                value = capture;
-            } else {
-                value.retention = self.projected_value_retention(capture, &projection);
+            ) {
+                Some(super::super::stored_values::StoredOperand::Value {
+                    capture,
+                    projection,
+                    ..
+                }) => {
+                    let capture = *self.context.control.operands.get(capture);
+                    if projection.is_empty() {
+                        value = capture;
+                    } else {
+                        value.retention = self.projected_value_retention(capture, &projection);
+                    }
+                }
+                None => {
+                    let Some(retention) = self.incoming_value_retention(&source) else {
+                        return Handle::invalid();
+                    };
+                    value.retention = retention;
+                }
+                Some(super::super::stored_values::StoredOperand::Unavailable) => {
+                    return Handle::invalid();
+                }
             }
         }
         let Some(roots) = super::super::operand_values::captured_lifetime_roots(

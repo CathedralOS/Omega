@@ -140,6 +140,19 @@ pub struct ReferenceResultLeafOrigin {
     pub source: LocalWriteSource,
 }
 
+/// A normal result transports either a formed reference or a whole moved
+/// value. A moved sum keeps its case selection coupled to its input; its
+/// declaration's possible payloads are not independently present references.
+#[derive(Debug, Clone)]
+pub enum ReferenceResultTransport {
+    Reference(ReferenceResultLeafOrigin),
+    Value {
+        result_path: Vec<facts::PlaceSegment>,
+        source: LocalWriteSource,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+    },
+}
+
 impl LocalWriteSource {
     fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
         super::place_paths::project_write_path(

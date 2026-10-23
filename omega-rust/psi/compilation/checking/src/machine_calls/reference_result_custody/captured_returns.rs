@@ -1661,7 +1661,7 @@ fn captured_address_refines(
     remaining.is_empty()
 }
 
-fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
+pub(super) fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
     for (left, right) in left.iter().zip(right) {
         if left == right {
             continue;
