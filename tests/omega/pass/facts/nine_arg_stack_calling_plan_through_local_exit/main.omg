@@ -1,0 +1,50 @@
+// Fact: passing nine bounded integer arguments (`a1` through `a9` with `a9 <= 92u64`) across register and stack ABI slots on all four hosted targets (including AArch64 stack overflow past `X0–X7`) preserves the 9th argument's static bound (`a9 <= 92u64`), discharging exact subtraction `92u64 - a9` across all nine places.
+// Place: local. Nine arguments are held in local variables before passing to the call.
+// Expected exit: 0
+
+machine calling_plan_nine(
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    a7: u64,
+    a8: u64,
+    a9: u64
+) -> u64
+requires
+    a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 &&
+    a6 == 60u64 && a7 == 70u64 && a8 == 80u64 && a9 <= 92u64
+ensures
+    result <= 92u64 && result == a9
+{
+    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
+    (prefix - 360) + a9
+}
+
+machine probe() -> u64
+ensures
+    result == 0u64
+{
+    let v1: u64 = 10;
+    let v2: u64 = 20;
+    let v3: u64 = 30;
+    let v4: u64 = 40;
+    let v5: u64 = 50;
+    let v6: u64 = 60;
+    let v7: u64 = 70;
+    let v8: u64 = 80;
+    let v9: u64 = 92;
+    let val: u64 = calling_plan_nine(v1, v2, v3, v4, v5, v6, v7, v8, v9);
+    92u64 - val
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

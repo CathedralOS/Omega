@@ -6069,6 +6069,27 @@ fail/facts/nested_three_level_record_field_bound_through_target_body_rejected re
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 559ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_const_name_rejected rejected 368ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_field_rejected rejected 378ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_local_rejected rejected 418ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_match_join_rejected rejected 405ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_other_machine_rejected rejected 447ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_other_state_rejected rejected 438ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `step` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_parameter_rejected rejected 493ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_target_body_rejected rejected 803ms expected @50abcdce8fe6+wt
+	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `calling_plan_nine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8513ms expected @d698b30fd9ab+wt
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 9112ms expected @d698b30fd9ab+wt
@@ -7763,6 +7784,27 @@ fail/facts/temporary_case_cleanup_through_parameter_rejected rejected 1096ms exp
 	machine `main` state `entry` value call to `through_parameter` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
 fail/facts/temporary_case_cleanup_through_target_body_rejected rejected 1676ms expected @46f72294c589
 	cannot prove ensures contract for exit from produced at statement 0: result.value == 2
+fail/facts/ten_arg_stack_calling_plan_through_call_result_rejected rejected 1480ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_call_result: transported >= 40 && transported <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_const_name_rejected rejected 1487ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_const: carried >= 40 && carried <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_field_rejected rejected 1307ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_field: transported >= 40 && transported <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_local_rejected rejected 1413ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_local: transported >= 40 && transported <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_match_join_rejected rejected 1375ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_match_join: joined >= 40 && joined <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_other_machine_rejected rejected 1332ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_other_machine: transported >= 40 && transported <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_other_state_rejected rejected 1464ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_other_state: c >= 40 && c <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/ten_arg_stack_calling_plan_through_parameter_rejected rejected 1415ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_parameter: transported >= 40 && transported <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ten_arg_stack_calling_plan_through_target_body_rejected rejected 1437ms expected @50abcdce8fe6+wt
+	cannot prove requires contract for call verify_carried from compute_target_body: carried >= 40 && carried <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_carried from compute_target_body: carried >= 40 && carried <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_carried from compute_target_body: carried >= 40 && carried <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_carried from compute_target_body: carried >= 40 && carried <= 80 (needs fact `carried >= 40 && carried <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/thirteen_arg_stack_calling_plan_through_call_result_rejected rejected 702ms expected @183d46e52111+wt
 	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/thirteen_arg_stack_calling_plan_through_const_name_rejected rejected 740ms expected @183d46e52111+wt
@@ -14211,6 +14253,15 @@ pass/facts/nested_three_level_record_field_bound_through_other_machine_exit chec
 pass/facts/nested_three_level_record_field_bound_through_other_state_exit checked 1230ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/nested_three_level_record_field_bound_through_parameter_exit checked 1228ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/nested_three_level_record_field_bound_through_target_body_exit checked 1164ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/nine_arg_stack_calling_plan_through_call_result_exit checked 1285ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_const_name_exit checked 1306ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_field_exit checked 1321ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_local_exit checked 1314ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_match_join_exit checked 1452ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_other_machine_exit checked 1373ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_other_state_exit checked 1336ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_parameter_exit checked 1929ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/nine_arg_stack_calling_plan_through_target_body_exit checked 2449ms check-target:macos_arm64 @50abcdce8fe6+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 19461ms check-target:macos_arm64 @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 19457ms check-target:macos_arm64 @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 19596ms check-target:macos_arm64 @d698b30fd9ab+wt
@@ -14883,6 +14934,15 @@ pass/facts/temporary_case_cleanup_through_other_machine_exit checked 3644ms chec
 pass/facts/temporary_case_cleanup_through_other_state_exit checked 3644ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_parameter_exit checked 3645ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_target_body_exit checked 3646ms check-target:macos_arm64 @46f72294c589
+pass/facts/ten_arg_stack_calling_plan_through_call_result_exit checked 1514ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_const_name_exit checked 1415ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_field_exit checked 1417ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_local_exit checked 1479ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_match_join_exit checked 1484ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_other_machine_exit checked 1465ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_other_state_exit checked 1501ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_parameter_exit checked 1523ms check-target:macos_arm64 @50abcdce8fe6+wt
+pass/facts/ten_arg_stack_calling_plan_through_target_body_exit checked 1484ms check-target:macos_arm64 @50abcdce8fe6+wt
 pass/facts/thirteen_arg_stack_calling_plan_through_call_result_exit checked 1836ms check-target:macos_arm64 @183d46e52111+wt
 pass/facts/thirteen_arg_stack_calling_plan_through_const_name_exit checked 2205ms check-target:macos_arm64 @183d46e52111+wt
 pass/facts/thirteen_arg_stack_calling_plan_through_field_exit checked 2344ms check-target:macos_arm64 @183d46e52111+wt

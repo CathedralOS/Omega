@@ -16,6 +16,12 @@ Every place performs the same operation: invoke a nine-argument scalar function 
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards all nine arguments |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute on each hosted platform |
 
+Match the fact sentence beside every place: each positive place is pinned as
+`tests/omega/pass/facts/nine_arg_stack_calling_plan_through_<place>_exit` and
+each reject twin as
+`tests/omega/fail/facts/nine_arg_stack_calling_plan_through_<place>_rejected`,
+byte-equal to the place and `invalid/` programs beside them.
+
 ## Execution
 
 Each positive place is an application that exits 0, and every positive place (and the root `main.omg`) carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
@@ -62,7 +68,7 @@ omega --check samples/cli/facts/nine_arg_stack_calling_plan/<place>/invalid/main
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` / `CALLING-PLAN-STACK-DISCHARGE` (`TASKS.md`)
+- **Parent outcome:** `NORMALIZED-ABI-LOWERING` ([TASKS.md](../../../../TASKS.md)) — register/stack argument placement under the [calling-plan contract](../../../../wiki/spec/build/calling_plans.md).
 - **Requirement established:** Passing nine integer arguments across ABI calling boundaries on all four hosted targets preserves static interval bounds (`a9 <= 92u64`) on stack-passed spill slots (specifically exercising stack parameter passing beyond AAPCS64's `X0–X7` register window on ARM64 as well as Windows x86_64 and Linux x86_64 stack spill slots), discharging exact subtraction (`92u64 - a9`) across all nine language places without runtime arithmetic underflow.
 
 ### Full 8-Layer Specification and Lowering Evidence
@@ -79,5 +85,7 @@ omega --check samples/cli/facts/nine_arg_stack_calling_plan/<place>/invalid/main
 ### Verification Evidence
 
 - `sample_native_gate.py --filter cli/facts/nine_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow `u64``).
+- Re-measured on macOS arm64 at producer revision `317bacd12b0a` (shared generation producer, `--jobs 2` over both stack-calling-plan rows): 20/20 samples — both roots and all eighteen places — meet their documented oracle with 0 unscored, and 27/27 intended-invalid controls match their authored rejection (nine 9, ten 18 including its `invalid/<place>/` mirrors). `omega run --both` exits 0 with `native exit 0` and `interp exit: 0` for this row's root and nine places (10/10).
+- Pinned record at `50abcdce8fe6+wt`: 18 fixture families (`..._through_<place>_{exit,rejected}`), byte-equal to the sample tree — 9 `checked` rows with `check-target:macos_arm64` and 9 `rejected ... expected` rows carrying the decision-17 `may overflow `u64`` diagnostic in `corpus_outcomes.txt`; 9 `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; 9 `exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail fixtures that did not reject.
 - Discrimination: modifying `probe()` expectation from 0 to 1 causes runtime traps with `native signal 5` and `interp crash: Trap` (exit 255), proving the exit 0 oracle actively discriminates computation outcomes.
-- What remains open: 10+ argument calling plans, struct splitting across stack boundaries, and SIMD/float vector register calling spill plans.
+- What remains open: aggregate struct argument splitting across register/stack boundaries, indirect aggregate (`sret`) return homes, and SIMD/float vector register calling spill plans. The ten-argument stack row carries its own folder and pinned family.

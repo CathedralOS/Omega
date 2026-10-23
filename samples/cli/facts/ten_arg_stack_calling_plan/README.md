@@ -23,6 +23,12 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
 `Expected exit: 0`.
 
+Match the fact sentence beside every place: each positive place is pinned as
+`tests/omega/pass/facts/ten_arg_stack_calling_plan_through_<place>_exit` and
+each reject twin as
+`tests/omega/fail/facts/ten_arg_stack_calling_plan_through_<place>_rejected`,
+byte-equal to the place and `invalid/` programs beside them.
+
 ## Execution
 
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
@@ -61,22 +67,35 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/ten_arg_stack_calling_plan --jobs 4
+python3 tools/sample_native_gate.py --filter cli/facts/nine_arg_stack_calling_plan,cli/facts/ten_arg_stack_calling_plan --jobs 2
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 18/18 intended-invalid controls match their authored rejection (`cannot prove requires contract for call verify_carried`).
+Re-measured on macOS arm64 at producer revision `317bacd12b0a` (shared
+generation producer): 20/20 samples (both stack-calling-plan rows' roots and
+eighteen places) meet their documented oracle with 0 unscored, and 27/27
+intended-invalid controls match their authored rejection — ten's nine places,
+ten's nine `invalid/<place>/` mirrors, and nine's nine twins. The row author's
+earlier run on a Windows host recorded this row at 10/10 samples with 18/18
+controls.
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/ten_arg_stack_calling_plan_through_*` and
-`tests/omega/fail/facts/ten_arg_stack_calling_plan_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under
+`tests/omega/pass/facts/ten_arg_stack_calling_plan_through_<place>_exit` and
+`tests/omega/fail/facts/ten_arg_stack_calling_plan_through_<place>_rejected`
+fixtures for the nine places, byte-equal to the place and `invalid/` programs
+beside them. The positive fixtures bind `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`).
+Recorded at `50abcdce8fe6+wt`: nine `_exit` positions carry `checked`
+(`check-target:macos_arm64`), `built ... exit:0` and
+`interpreter-exit:0 interpreter:agrees` rows; nine `_rejected` twins carry the
+`cannot prove requires contract for call verify_carried` diagnostic. 0 keys
+lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail
+fixtures that did not reject.
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Parent outcome:** `NORMALIZED-ABI-LOWERING` ([TASKS.md](../../../../TASKS.md)) — register/stack argument placement under the [calling-plan contract](../../../../wiki/spec/build/calling_plans.md).
 - **Requirement established:** End-to-end nine-place fact preservation and target calling plan realization for 10-argument function calls across register and stack ABI lanes (`wiki/spec/build/calling_plans.md`). Specifically, a 10-argument machine call across register and stack ABI lanes preserves the 10th stack-spilled argument bound `40u64 <= a10 <= 80u64` across all nine places so `80u64 - carried` and `carried - 40u64` are safe without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
