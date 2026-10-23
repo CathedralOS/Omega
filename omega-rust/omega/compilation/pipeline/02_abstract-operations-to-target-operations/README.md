@@ -40,9 +40,12 @@ to preserve their historical test counts.
 
 ## Independent checking
 
-[Validation](src/validation/mod.rs) rejoins the target, semantic entry, complete
-function roster, structural signatures, and selected settlements. This receipt
-does not establish body correctness; there is no whole-function family catalog.
+The stage admits its inputs while it lowers: settlement bindings, the
+installation join, the selected call index and each function's ABIs are bound in
+[coordination](src/lowering/coordination.rs) as the program is produced, and a
+raw fused-multiply-add plan is rejected there. The output is not re-validated in
+the same compile; a program that violates this stage's contract is a bug in this
+stage, for the corpus and the tests to find.
 
 The target-to-selected
 [independent audit](../03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
@@ -69,11 +72,11 @@ referents without inventing a physical result home; aggregates retain their
 exact storage. Only Unit has no result. The independent audit reconstructs the
 result against pre-call custody; production retains the resulting origins for
 later storage joins.
-One [direct-call lowering](src/lowering/control_flow/direct_calls.rs) produces
+One [direct-call lowering](src/lowering/control_flow/calls.rs) produces
 every such row: it resolves the callee contract and each operand's storage,
 then commits moves and publishes the result. The result kind does not choose
 argument transport. Published scalar operations additionally retain their
-standalone ABI contract. Validation replays those rows through one
+standalone ABI contract. The independent audit replays those rows through one
 `direct_call` replay with a tail per result kind.
 Source-specific semantic restrictions remain checked independently. Foreign
 calls still have their own carriers; this is not a claim that the full call
@@ -237,8 +240,10 @@ implementation.
 
 ## Acceptance
 
-[Scalar value regressions](src/tests/scalar/shared_values.rs) check bounded
-per-operation storage and once-only definitions.
+The crate's Rust tests cover
+[placed container geometry](src/lowering/structural_layout.rs).
+The corpus (`tests/omega/{pass,fail,run}`) exercises this stage end to end,
+including the arithmetic and storage fixtures.
 The corpus native leg (`python3 tools/corpus_gate.py --native`) builds source
 programs through this stage and executes the `run` tier and `*_exit` fixtures on
 the host; cross-emission is not host-execution evidence.

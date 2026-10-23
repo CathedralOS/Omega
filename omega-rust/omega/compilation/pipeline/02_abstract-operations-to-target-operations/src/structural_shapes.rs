@@ -558,7 +558,7 @@ fn align(value: u32, alignment: u32) -> Result<u32, InvalidStructuralShape> {
         .ok_or(InvalidStructuralShape)
 }
 
-pub(super) fn scalar_shape(scalar: ScalarType) -> ValueShape {
+fn scalar_shape(scalar: ScalarType) -> ValueShape {
     match scalar {
         ScalarType::Boolean => ValueShape::integer(1, 1),
         ScalarType::Integer(integer) => {

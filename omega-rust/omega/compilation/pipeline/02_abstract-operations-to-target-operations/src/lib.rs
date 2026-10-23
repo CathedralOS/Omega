@@ -3,16 +3,13 @@
 //!
 //! Production enters through `lower_optimized_to_target_operations`
 //! (`lowering/optimized.rs`). It takes a validated optimized abstract plan and
-//! its admitted settlements, lowers it, joins the provider installation, and
-//! retains the lowered program beside those inputs. Provider installation
-//! identity is joined before publication; translation replay belongs to the
-//! independent audit, not this producer's default route.
-//! `lower_to_target_operations` (`lowering.rs`) is the unvalidated lowering
-//! core that entrance calls; tests use it directly. Beneath it,
-//! `lowering/coordination.rs` binds settlements and lowers each function by
-//! result family. Stage 00 owns the admitted settlement facts. The
-//! `placed_view_inputs` route is the in-progress direct-entry placed-view
-//! slice (TASKS.md PLAN-LAID-VIEWS).
+//! its admitted settlements, binds the admitted provider executions, lowers the
+//! plan through `lowering/coordination.rs`, and retains the lowered program
+//! beside those inputs. Provider installation identity is joined while the
+//! program is produced; translation replay belongs to the independent audit,
+//! not this producer's default route. Stage 00 owns the admitted settlement
+//! facts. The `placed_view_inputs` route is the in-progress direct-entry
+//! placed-view slice (TASKS.md PLAN-LAID-VIEWS).
 //!
 //! Operation dispatch does not preflight borrow legality, and calls transport
 //! the existing descriptor leaves of owned operands rather than reconstructing
@@ -25,7 +22,7 @@
 //! to Psi; physical type, layout and ABI constraints remain native-owned.
 
 mod lowering;
-mod validation;
+mod structural_shapes;
 
 pub use lowering::descriptor_input_guard::{
     DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
@@ -39,9 +36,7 @@ pub use lowering::optimized::{
     lower_optimized_to_target_operations,
 };
 pub use lowering::placed_view_inputs;
-pub(crate) use lowering::{TargetLoweringRequest, lower_to_target_operations};
-pub(crate) use validation::AbstractToTargetTranslationValidationError;
 
 // Receiving stages reconstruct ABI classes from their own declaration inputs,
 // using the same boundary classification rather than a second type roster.
-pub use validation::structural_shapes::classified_boundary_shape;
+pub use structural_shapes::classified_boundary_shape;

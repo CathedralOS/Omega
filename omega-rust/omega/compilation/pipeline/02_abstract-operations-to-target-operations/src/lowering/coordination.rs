@@ -3,28 +3,23 @@
 //! convention, then lower every function.
 //!
 //! `lower_to_target_operations_with_settlements_and_installation` is the
-//! entry; `lowering::lower_to_target_operations` calls it after binding the
-//! admitted provider executions into settlement bindings. It runs, in order:
+//! entry; `lowering::optimized` binds the admitted provider executions into
+//! settlement bindings before calling it. It runs, in order:
 //!
-//! 1. rejection of a plan with projected structural qualifications
-//!    (`projected_qualifications`) or with no function for its entry machine;
+//! 1. the requirement that the plan has a function for its entry machine;
 //! 2. the fixed scalar ABI and the mixed structural scalar ABI of each
 //!    function that has one (`scalar_abi`);
 //! 3. the settlement index (`settlement_roster`), rejection of unsupported
-//!    raw IEEE float fused-multiply-add operations, the
-//!    installed provider call and boundary call indexes
-//!    (`installed_provider_calls`), and the native callback argument binding
-//!    (`native_callbacks`);
+//!    raw IEEE float fused-multiply-add operations, the installed provider
+//!    call and boundary call indexes (`installed_provider_calls`), the
+//!    selected call index (`selected_boundary_calls`), and the native callback
+//!    argument binding (`native_callbacks`);
 //! 4. validation of the installed provider calls against their boundary
 //!    calls, then of the settlement roster: every required boundary settled
 //!    exactly once, none unused, and none also served by an installed
 //!    provider;
-//! 5. `function::lower_function` for each function, with its ABIs attached;
-//! 6. a check that the lowered plan retains every bound native callback
-//!    argument row.
-//!
-//! `lower_to_target_operations_with_settlements` is a test entry with no
-//! installation, float settlements or native callbacks.
+//! 5. the borrowed-source and stored-effect catalogs (`references`);
+//! 6. `function::lower_function` for each function, with its ABIs attached.
 
 use super::function::lower_function;
 use super::scalar_abi::{

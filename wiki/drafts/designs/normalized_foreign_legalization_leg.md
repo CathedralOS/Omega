@@ -16,10 +16,10 @@ and descriptor argument classes with their mirrored witnesses.
 ## Landed state — do not rebuild
 
 The a2t admission contract is complete and witnessed. A normalized foreign
-call's structural formal is classified at
-`02_abstract-operations-to-target-operations/src/validation/structural_call_arguments.rs::normalized_foreign_call`
-(~:1101) against the calling policy using
-`validation/structural_shapes.rs::boundary_formal_shape` (:372):
+call's structural formal is classified during lowering at
+`02_abstract-operations-to-target-operations/src/lowering/unit/boundary_call/normalized_foreign.rs`
+against the calling policy using
+`02_abstract-operations-to-target-operations/src/structural_shapes.rs::classified_boundary_shape`:
 
 - `StructuralAccess::Owned` → `classified_boundary_shape` (:407) — the
   policy's by-value aggregate classification (scalar-leaf classes under

@@ -32,7 +32,6 @@ pub enum LoweringError {
     },
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
-    TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     PlacedViewInput(PlacedViewInputTranslationError),
     /// A call demand cannot be discharged by pointer geometry or a matching
     /// carrier alone. The caller must retain its captured interpretation.
@@ -299,12 +298,6 @@ pub enum PlacedViewInputTranslationError {
 impl From<PlacedViewInputTranslationError> for LoweringError {
     fn from(error: PlacedViewInputTranslationError) -> Self {
         Self::PlacedViewInput(error)
-    }
-}
-
-impl From<crate::AbstractToTargetTranslationValidationError> for LoweringError {
-    fn from(error: crate::AbstractToTargetTranslationValidationError) -> Self {
-        Self::TranslationValidation(error)
     }
 }
 
