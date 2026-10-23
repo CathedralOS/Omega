@@ -126,7 +126,7 @@ failure. The full stopped-tree judgment remains required even when original
 PIDs are unavailable: record that limitation, never invent PIDs, and supply
 actual executor/process evidence for the judgment.
 
-This conservative path accepts only a complete exit-zero observation with no
+The default `accepted` disposition accepts only a complete exit-zero observation with no
 invalidations, still applicable to its exact definition, command, source,
 artifacts, producer profiles, environment and separate stream hashes. It
 requires the original capture's source reference, stamp rosters, timestamp and
@@ -150,6 +150,29 @@ not every external recovery-provenance reference recursively.
 Assess normally afterward: recovery does not waive
 ordinary check applicability, final review, package acceptance or the exact
 landing build.
+
+For a completed **nonaccepted** capture, use `recover-completed --disposition
+nonaccepted` instead. This covers an unexpected integer exit or any retained
+invalidation, including a command that changed a declared baseline-cache
+artifact before a disk-full state update. An unfinished/unknown exit is not
+eligible: interruption recovery applies only without an existing completed
+receipt. Neither path may turn an already-written incomplete receipt into a
+complete capture. A clean passing capture cannot use this disposition.
+The independent completed-recovery review must explicitly name
+`"disposition":"nonaccepted"`, and both its exact binding and the process
+evidence's binding carry that same field. Approval authorizes bookkeeping only,
+not acceptance of the check.
+
+This disposition uses the same original-candidate, receipt, stream, fresh
+full-process-tree and atomic state-update custody. It preserves every original
+capture field, especially its exit, invalidations, source/artifact identities,
+profiles and historical stamps. Changed or missing artifacts need not match
+their old digests; their current path/link state, including absence, must stay
+stable during registration. No command reexecutes and no old input is repaired
+or reconstructed. A separate immutable recovery receipt records the disposition;
+ordinary assessment still reports `prior_run_not_accepted` and requires a fresh
+qualifying run. Preserve the failed attempt and prepare mutable caches outside
+that new frozen capture.
 
 Set `final:true` for checks that must observe the exact integrated candidate,
 including user-required final review. Dependency equality cannot carry these

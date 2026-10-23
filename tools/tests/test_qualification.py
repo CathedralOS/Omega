@@ -1189,13 +1189,20 @@ class CompletedQualificationTests(unittest.TestCase):
     git = QualificationTests.git
     commit = QualificationTests.commit
 
-    def completed_orphan(self):
+    def completed_orphan(self, *, mutate_artifact=False, exit_code=0):
         # The subprocess really completes and writes once. ENOSPC occurs only
         # when its already-written immutable receipt is indexed in state.
         self.counter = self.root / "command-count"
         code = ("import os\nfrom pathlib import Path\np=Path(" + repr(str(self.counter)) + ")\n"
                 "p.write_text(str(int(p.read_text())+1) if p.exists() else '1')\n"
                 "print('pid:' + str(os.getpid()))\n")
+        if mutate_artifact:
+            self.cache = self.root / "baseline-cache"
+            self.cache.write_text("before")
+            self.config["checks"][0]["artifacts"].append(str(self.cache))
+            code += ("if p.read_text() == '1':\n    Path(" + repr(str(self.cache))
+                     + ").write_text('measured baseline')\n")
+        code += "raise SystemExit(" + str(exit_code) + ")\n"
         self.base = self.commit("check.py", code)
         self.config["checks"][0]["producer"] = dict(
             revision=self.base, inputs=["src"], executables=[str(self.library)])
@@ -1213,15 +1220,18 @@ class CompletedQualificationTests(unittest.TestCase):
         record = qualification.load(self.state)
         receipt = self.state.with_suffix(".records") / (record["running"]["id"] + ".json")
         capture = json.loads(receipt.read_text())
-        self.assertEqual(capture["exit"], 0)
-        self.assertEqual(capture["invalidations"], [])
+        self.assertEqual(capture["exit"], exit_code)
+        self.assertEqual(capture["invalidations"],
+                         ["artifact_changed_during_run", "artifact_mutated_during_run"] if mutate_artifact else [])
         self.assertEqual(self.counter.read_text(), "1")
         return record, receipt, capture
 
-    def completed_review(self, record, receipt, stopped_pids=None):
+    def completed_review(self, record, receipt, stopped_pids=None, *, disposition="accepted"):
         binding = dict(state=str(self.state.resolve()), state_sha256=qualification.file_digest(self.state),
             state_revision=record["revision"], running=record["running"], config_digest=record["config_digest"],
             original_receipt=dict(path=str(receipt.resolve()), sha256=qualification.file_digest(receipt)))
+        if disposition == "nonaccepted":
+            binding["disposition"] = disposition
         if stopped_pids is None:
             capture = json.loads(receipt.read_text())
             stopped_pids = [int(Path(capture["stdout"]["path"]).read_text().strip().split(":")[1])]
@@ -1234,11 +1244,135 @@ class CompletedQualificationTests(unittest.TestCase):
         qualification.atomic_json(review, dict(schema="qualification-completed-recovery-review-v1",
             accepted=True, reviewer="independent test executor adapter", rationale="Real subprocess exited; no descendants",
             recovered_at_head=self.base, binding=binding,
-            process_evidence=dict(path=str(evidence), sha256=qualification.file_digest(evidence))))
+            process_evidence=dict(path=str(evidence), sha256=qualification.file_digest(evidence)),
+            **({"disposition": disposition} if disposition == "nonaccepted" else {})))
         return review, evidence
 
-    def recover(self, record, review):
-        return qualification.recover_completed(self.repository, self.state, record["revision"], review)
+    def recover(self, record, review, *, disposition="accepted"):
+        return qualification.recover_completed(self.repository, self.state, record["revision"], review,
+                                               disposition=disposition)
+
+    def test_invalidated_completion_is_recorded_once_and_still_requires_a_fresh_run(self):
+        record, receipt, capture = self.completed_orphan(mutate_artifact=True)
+        review, _ = self.completed_review(record, receipt)
+        before = self.state.read_bytes(); original = receipt.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "uninvalidated exit-zero"):
+            self.recover(record, review)
+        with self.assertRaisesRegex(qualification.RecoveryError, "disposition mismatch"):
+            self.recover(record, review, disposition="nonaccepted")
+        self.assertEqual(self.state.read_bytes(), before)
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        result = self.recover(record, review, disposition="nonaccepted")
+        recovered = result["runs"][-1]
+        self.assertIsNone(result["running"])
+        self.assertEqual({key:value for key,value in recovered.items() if key not in {"recovery", "receipt"}}, capture)
+        self.assertEqual(recovered["recovery"]["disposition"], "nonaccepted")
+        self.assertEqual(receipt.read_bytes(), original)
+        self.assertEqual(self.counter.read_text(), "1")
+        assessed = qualification.assess(self.repository, self.state, result["revision"], self.base)
+        self.assertEqual(assessed["assessments"][-1]["checks"][0]["action"], "rerun")
+        self.assertIn("prior_run_not_accepted", assessed["assessments"][-1]["checks"][0]["reasons"])
+        with self.assertRaises(qualification.RecoveryError):
+            qualification.validate(self.repository, self.state, self.base, self.base)
+        completed, accepted = qualification.run_check(self.repository, self.state, assessed["revision"], "values")
+        self.assertTrue(accepted)
+        self.assertEqual(self.counter.read_text(), "2")
+        self.assertEqual(completed["runs"][-2]["invalidations"], capture["invalidations"])
+        self.assertNotEqual(completed["runs"][-1]["id"], capture["id"])
+
+    def test_nonaccepted_completion_recovers_an_unexpected_integer_exit(self):
+        record, receipt, capture = self.completed_orphan(exit_code=7)
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        with self.assertRaisesRegex(qualification.RecoveryError, "disposition mismatch"):
+            self.recover(record, review)
+        result = self.recover(record, review, disposition="nonaccepted")
+        self.assertEqual(result["runs"][-1]["exit"], 7)
+        self.assertEqual(result["runs"][-1]["invalidations"], [])
+        self.assertEqual(self.counter.read_text(), "1")
+
+    def test_nonaccepted_disposition_refuses_clean_success_unfinished_exit_and_wrong_command(self):
+        record, receipt, capture = self.completed_orphan()
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "requires a completed nonaccepted"):
+            self.recover(record, review, disposition="nonaccepted")
+        capture["exit"] = None
+        qualification.atomic_json(receipt, capture)
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        with self.assertRaisesRegex(qualification.RecoveryError, "complete capture exit"):
+            self.recover(record, review, disposition="nonaccepted")
+        with mock.patch("sys.stderr", new=io.StringIO()):
+            self.assertEqual(qualification.main(["status", "--disposition", "nonaccepted"]), 1)
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_nonaccepted_cli_retains_missing_artifacts_without_promoting_the_capture(self):
+        record, receipt, capture = self.completed_orphan(mutate_artifact=True)
+        self.cache.unlink()
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(qualification.main(["recover-completed", "--repository", str(self.repository),
+                "--state", str(self.state), "--revision", str(record["revision"]), "--review", str(review),
+                "--disposition", "nonaccepted"]), 0)
+        result = qualification.load(self.state)
+        self.assertEqual(result["runs"][-1]["artifacts"], capture["artifacts"])
+        self.assertEqual(result["runs"][-1]["invalidations"], capture["invalidations"])
+        self.assertEqual(self.counter.read_text(), "1")
+
+    def test_nonaccepted_recovery_keeps_custody_and_stopped_process_guards(self):
+        record, receipt, capture = self.completed_orphan(mutate_artifact=True)
+        before = self.state.read_bytes()
+        review, _ = self.completed_review(record, receipt, [os.getpid()], disposition="nonaccepted")
+        with self.assertRaisesRegex(qualification.RecoveryError, "still live"):
+            self.recover(record, review, disposition="nonaccepted")
+        review, evidence = self.completed_review(record, receipt, disposition="nonaccepted")
+        process = json.loads(evidence.read_text()); process["binding"].pop("disposition")
+        qualification.atomic_json(evidence, process)
+        document = json.loads(review.read_text())
+        document["process_evidence"]["sha256"] = qualification.file_digest(evidence)
+        qualification.atomic_json(review, document)
+        with self.assertRaisesRegex(qualification.RecoveryError, "exact state, reservation"):
+            self.recover(record, review, disposition="nonaccepted")
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        with self.assertRaisesRegex(qualification.RecoveryError, "stale qualification"):
+            qualification.recover_completed(self.repository, self.state, record["revision"] - 1,
+                                             review, disposition="nonaccepted")
+        stream = Path(capture["stdout"]["path"]); saved = stream.read_bytes()
+        stream.write_bytes(saved + b"tampered")
+        with self.assertRaisesRegex(qualification.RecoveryError, "stream mismatch"):
+            self.recover(record, review, disposition="nonaccepted")
+        stream.write_bytes(saved)
+        receipt.write_bytes(receipt.read_bytes() + b" ")
+        with self.assertRaisesRegex(qualification.RecoveryError, "exact state, reservation"):
+            self.recover(record, review, disposition="nonaccepted")
+        self.assertEqual(self.state.read_bytes(), before)
+
+    def test_nonaccepted_recovery_detects_replaced_and_restored_inputs_and_retains_failed_writes(self):
+        record, receipt, _ = self.completed_orphan(mutate_artifact=True)
+        review, _ = self.completed_review(record, receipt, disposition="nonaccepted")
+        before = self.state.read_bytes(); atomic = qualification.atomic_json
+        saved = self.cache.read_bytes()
+        def replace_after_receipt(path, *arguments, **keywords):
+            result = atomic(path, *arguments, **keywords)
+            if str(path).endswith(".completed-recovery.json"):
+                self.cache.write_bytes(b"temporary"); self.cache.write_bytes(saved)
+            return result
+        with mock.patch.object(qualification, "atomic_json", side_effect=replace_after_receipt):
+            with self.assertRaisesRegex(qualification.RecoveryError, "inputs or streams changed"):
+                self.recover(record, review, disposition="nonaccepted")
+        self.assertEqual(self.state.read_bytes(), before)
+        def fail_state(path, *arguments, **keywords):
+            if Path(path).resolve() == self.state.resolve():
+                raise OSError(errno.ENOSPC, "second disk full")
+            return atomic(path, *arguments, **keywords)
+        with mock.patch.object(qualification, "atomic_json", side_effect=fail_state):
+            with self.assertRaisesRegex(OSError, "second disk full"):
+                self.recover(record, review, disposition="nonaccepted")
+        orphans = {path: path.read_bytes() for path in self.state.with_suffix(".records").glob("*.completed-recovery.json")}
+        self.assertEqual(len(orphans), 2)
+        result = self.recover(record, review, disposition="nonaccepted")
+        self.assertIsNone(result["running"])
+        self.assertTrue(all(path.read_bytes() == payload for path, payload in orphans.items()))
+        self.assertEqual(self.counter.read_text(), "1")
 
     def test_enospc_recovery_indexes_complete_command_once_and_assesses_normally(self):
         # Earlier successful records remain untouched too.

@@ -64,7 +64,7 @@ def is_capture_link(information):
     return stat.S_ISLNK(information.st_mode) or tag in {mount, symbolic}
 
 
-def capture_path_chain(value):
+def capture_path_chain(value, *, allow_missing=False):
     path = Path(value).absolute()
     places = {path}
     current = Path(path.anchor)
@@ -78,7 +78,13 @@ def capture_path_chain(value):
         if component == ".":
             continue
         selected = current / component
-        information = selected.lstat()
+        try:
+            information = selected.lstat()
+        except FileNotFoundError:
+            if not allow_missing:
+                raise
+            places.add(selected)
+            break
         if is_capture_link(information):
             places.add(selected)
             links += 1
@@ -95,7 +101,7 @@ def capture_path_chain(value):
     return places
 
 
-def artifact_stamps(paths):
+def artifact_stamps(paths, *, allow_missing=False):
     # A concurrent writer may restore identical bytes before command exit.
     # Inode identity and kernel change timestamps still expose that mutation;
     # byte equality alone cannot establish a stable capture interval. These
@@ -105,9 +111,15 @@ def artifact_stamps(paths):
     for value in paths:
         # Record the declared link and every traversed link, not only its
         # resolved referent. A restored link can otherwise hide another input.
-        places.update(capture_path_chain(value))
+        places.update(capture_path_chain(value, allow_missing=allow_missing))
     for path in sorted(places):
-        stat = path.lstat()
+        try:
+            stat = path.lstat()
+        except FileNotFoundError:
+            if not allow_missing:
+                raise
+            result[str(path)] = None
+            continue
         result[str(path)] = [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
     return result
 
@@ -196,7 +208,7 @@ def input_paths(check):
     return sorted(set(check["inputs"] + check.get("producer", {}).get("inputs", [])))
 
 
-def source_stamps(repository, commit, paths):
+def source_stamps(repository, commit, paths, *, allow_missing=False):
     names = git(repository, "ls-tree", "-r", "-z", "--name-only", commit, "--", *paths).split("\0")
     root = Path(repository).resolve()
     places = {root / path for path in paths}
@@ -208,7 +220,7 @@ def source_stamps(repository, commit, paths):
         # Declared source trees also bind directory membership during the run.
         # This catches add/read/remove even if Git is clean again at exit.
         places.update(parent for parent in leaf.parents if parent != root and root in parent.parents)
-    return artifact_stamps([str(path) for path in places])
+    return artifact_stamps([str(path) for path in places], allow_missing=allow_missing)
 
 
 def artifacts(repository, check):
@@ -593,13 +605,16 @@ def recover_interrupted(repository, path, expected, review_path):
     return update(path, expected, change)
 
 
-def recover_completed(repository, path, expected, review_path):
+def recover_completed(repository, path, expected, review_path, *, disposition="accepted"):
     """Index an authenticated complete capture left behind by a failed state write.
 
     This never executes the command or repairs its observation. The original
     immutable receipt remains authoritative capture data; a new receipt retains
     every field and adds only independent recovery provenance.
+    Nonaccepted disposition records a completed failure, never reusable success;
+    changed or missing old inputs remain historical evidence, not repaired facts.
     """
+    require(disposition in {"accepted", "nonaccepted"}, "unknown completed recovery disposition")
     path, review_path = Path(path).resolve(), Path(review_path).resolve()
     head = clean_head(repository)
     review_hash = file_digest(review_path)
@@ -610,6 +625,8 @@ def recover_completed(repository, path, expected, review_path):
             and isinstance(review.get("reviewer"), str) and review["reviewer"].strip()
             and isinstance(review.get("rationale"), str) and review["rationale"].strip(),
             "independent completed-capture recovery review required")
+    require(review.get("disposition", "accepted") == disposition,
+            "completed recovery review disposition mismatch")
     evidence_reference, evidence_path, evidence, observed, require_stopped_processes = _stopped_process_tree(review)
 
     def change(record):
@@ -633,6 +650,8 @@ def recover_completed(repository, path, expected, review_path):
         binding = dict(state=str(path), state_sha256=file_digest(path), state_revision=expected,
                        running=running, config_digest=record["config_digest"],
                        original_receipt=original_reference)
+        if disposition == "nonaccepted":
+            binding["disposition"] = disposition
         require(review.get("binding") == binding and evidence.get("binding") == binding,
                 "completed recovery review must bind the exact state, reservation and original receipt")
         require(review.get("recovered_at_head") == head,
@@ -651,10 +670,18 @@ def recover_completed(repository, path, expected, review_path):
         require(capture["id"] == operation and capture["check"] == check["id"]
                 and capture["revision"] == head and capture["command"] == check["command"],
                 "completed capture identity or command mismatch")
-        # This recovery serves successful captures only. A nonzero/invalidated
-        # observation remains preserved and requires its own disposition.
-        require(type(capture["exit"]) is int and capture["exit"] == check["expected_exit"] == 0
-                and capture["invalidations"] == [], "completed recovery needs an uninvalidated exit-zero capture")
+        require(capture["definition"] == digest(check) and capture["producer"] == check.get("producer")
+                and capture["source_inputs"] == source_inputs(repository, head, input_paths(check)),
+                "completed capture definition, producer or source identity mismatch")
+        require(type(capture["exit"]) is int and isinstance(capture["invalidations"], list)
+                and all(isinstance(reason, str) and reason for reason in capture["invalidations"]),
+                "complete capture exit and invalidations required")
+        if disposition == "nonaccepted":
+            require(capture["exit"] != check["expected_exit"] or capture["invalidations"],
+                    "nonaccepted recovery requires a completed nonaccepted capture")
+        else:
+            require(capture["exit"] == check["expected_exit"] == 0 and capture["invalidations"] == [],
+                    "completed recovery needs an uninvalidated exit-zero capture")
         require(type(capture["duration_seconds"]) in {int, float}
                 and 0 <= capture["duration_seconds"] < float("inf")
                 and type(capture["repeated_work"]) is bool, "complete capture timing required")
@@ -675,21 +702,27 @@ def recover_completed(repository, path, expected, review_path):
         # Use ordinary assessment's definition/source/artifact/environment and
         # profile binding rules on the original receipt, not synthesized facts.
         indexed = dict(capture, receipt=original_reference)
-        require(not reasons(repository, record, check, indexed, head),
-                "completed capture is not applicable to the current definition and inputs")
-        try:
-            profiles = [require_optimized(binary) for binary in check.get("producer", {}).get("executables", [])]
-        except CompilerProfileError as error:
-            raise RecoveryError(str(error)) from error
-        require(capture["compiler_profiles"] == profiles, "completed compiler profile changed")
-        require(all(capture["artifacts"].get(profile["build_receipt"]["path"])
-                    == profile["build_receipt"]["sha256"] for profile in profiles if profile.get("build_receipt")),
-                "completed compiler build receipt is not bound to captured artifacts")
-        current_source = source_stamps(repository, head, input_paths(check))
-        current_artifacts = artifact_stamps(capture["artifacts"])
+        if disposition == "accepted":
+            require(not reasons(repository, record, check, indexed, head),
+                    "completed capture is not applicable to the current definition and inputs")
+            try:
+                profiles = [require_optimized(binary) for binary in check.get("producer", {}).get("executables", [])]
+            except CompilerProfileError as error:
+                raise RecoveryError(str(error)) from error
+            require(capture["compiler_profiles"] == profiles, "completed compiler profile changed")
+            require(all(capture["artifacts"].get(profile["build_receipt"]["path"])
+                        == profile["build_receipt"]["sha256"] for profile in profiles if profile.get("build_receipt")),
+                    "completed compiler build receipt is not bound to captured artifacts")
+        # Authenticating a failed capture does not make its old inputs current.
+        # Record today's complete path/link state separately and require it to
+        # remain stable while registering, including explicitly absent paths.
+        nonaccepted = disposition == "nonaccepted"
+        current_source = source_stamps(repository, head, input_paths(check), allow_missing=nonaccepted)
+        current_artifacts = artifact_stamps(capture["artifacts"], allow_missing=nonaccepted)
+        current_streams = artifact_stamps([capture[name]["path"] for name in ("stdout", "stderr")])
         for name, current in (("source_stamps", current_source), ("artifact_stamps", current_artifacts)):
             stamps = capture[name]
-            require(isinstance(stamps, dict) and stamps.keys() == current.keys()
+            require(isinstance(stamps, dict) and stamps and (nonaccepted or stamps.keys() == current.keys())
                     and all(isinstance(values, list) and len(values) == 5
                             and all(type(value) is int for value in values) for values in stamps.values()),
                     "complete original capture stamps required: " + name)
@@ -703,10 +736,14 @@ def recover_completed(repository, path, expected, review_path):
                     and file_digest(original) == original_reference["sha256"]
                     and git(repository, "rev-parse", capture["source_ref"]) == head,
                     "completed recovery review, receipt or source changed")
-            require(not reasons(repository, record, check, indexed, head)
-                    and current_source == source_stamps(repository, head, input_paths(check))
-                    and current_artifacts == artifact_stamps(capture["artifacts"]),
+            require((nonaccepted or not reasons(repository, record, check, indexed, head))
+                    and current_source == source_stamps(repository, head, input_paths(check), allow_missing=nonaccepted)
+                    and current_artifacts == artifact_stamps(capture["artifacts"], allow_missing=nonaccepted)
+                    and current_streams == artifact_stamps([capture[name]["path"] for name in ("stdout", "stderr")]),
                     "completed recovery inputs or streams changed")
+            for name in ("stdout", "stderr"):
+                require(capture[name]["sha256"] == file_digest(capture[name]["path"]),
+                        "completed capture stream mismatch: " + name)
 
         still_bound()
         observation = copy.deepcopy(capture)
@@ -714,6 +751,8 @@ def recover_completed(repository, path, expected, review_path):
             utc=datetime.now(timezone.utc).isoformat(), binding=binding,
             original_receipt=original_reference,
             review=dict(path=str(review_path), sha256=review_hash), process_evidence=evidence_reference)
+        if nonaccepted:
+            observation["recovery"]["disposition"] = disposition
         destination = directory / (uuid.uuid4().hex + ".completed-recovery.json")
         require(not destination.exists(), "completed recovery receipt already exists")
         atomic_json(destination, observation)
@@ -1131,8 +1170,12 @@ def main(arguments=None):
     parser.add_argument("--role", choices=("implementation", "review", "continuation"))
     parser.add_argument("--previous", help="prior handoff JSON for focused continuation fingerprint comparison")
     parser.add_argument("--review", help="independent source-reuse or capture recovery review JSON with the exact binding")
+    parser.add_argument("--disposition", choices=("accepted", "nonaccepted"),
+                        help="completed recovery only: retain success or explicitly record a nonaccepted capture")
     options = parser.parse_args(arguments)
     try:
+        require(options.disposition is None or options.command == "recover-completed",
+                "--disposition is only valid for recover-completed")
         repository = Path(options.repository).resolve()
         if options.command in {"context", "handoff"}:
             record = None
@@ -1179,7 +1222,8 @@ def main(arguments=None):
                 return 0
             if options.command == "recover-completed":
                 require(options.review, "completed recovery needs --review")
-                result = recover_completed(repository, path, options.revision, options.review)
+                result = recover_completed(repository, path, options.revision, options.review,
+                                           disposition=options.disposition or "accepted")
                 print(state_output(result, path, options.summary_output))
                 return 0
             if options.command == "amend":
