@@ -1,0 +1,64 @@
+// Fact: 16-bit unsigned wrapping addition lhs +% rhs with bounded interval 350u16 <= sum <= 600u16 establishes 350u16 <= sum <= 600u16 across all nine places so exact subtractions 600u16 - sum and sum - 350u16 are safe.
+// Invalid: target bodies compute with lhs 501u16 and rhs 100u16, causing 600u16 - sum to underflow. Place: target_body.
+// Expected diagnostic: may overflow `u16`
+
+linux_x86_64 machine verify_target() -> i32 {
+    let lhs: u16 = 501u16;
+    let rhs: u16 = 100u16;
+    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
+    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
+    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
+    let sum: u16 = sum_wrap as u16;
+    let headroom: u16 = 600u16 - sum;
+    let margin: u16 = sum - 350u16;
+    0i32
+}
+
+linux_arm64 machine verify_target() -> i32 {
+    let lhs: u16 = 501u16;
+    let rhs: u16 = 100u16;
+    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
+    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
+    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
+    let sum: u16 = sum_wrap as u16;
+    let headroom: u16 = 600u16 - sum;
+    let margin: u16 = sum - 350u16;
+    0i32
+}
+
+macos_arm64 machine verify_target() -> i32 {
+    let lhs: u16 = 501u16;
+    let rhs: u16 = 100u16;
+    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
+    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
+    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
+    let sum: u16 = sum_wrap as u16;
+    let headroom: u16 = 600u16 - sum;
+    let margin: u16 = sum - 350u16;
+    0i32
+}
+
+windows_x86_64 machine verify_target() -> i32 {
+    let lhs: u16 = 501u16;
+    let rhs: u16 = 100u16;
+    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
+    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
+    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
+    let sum: u16 = sum_wrap as u16;
+    let headroom: u16 = 600u16 - sum;
+    let margin: u16 = sum - 350u16;
+    0i32
+}
+
+machine probe() -> i32 {
+    verify_target()
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

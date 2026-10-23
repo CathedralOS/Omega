@@ -1,0 +1,47 @@
+// Fact: 16-bit unsigned saturating addition lhs +| rhs with bounded interval 350u16 <= sum <= 600u16 establishes 350u16 <= sum <= 600u16 across all nine places so exact subtractions 600u16 - sum and sum - 350u16 are safe.
+// Place: local (invalid twin).
+
+machine compute_sum(lhs: u16, rhs: u16) -> u16
+requires lhs >= 300u16 && lhs <= 500u16
+    && rhs >= 50u16 && rhs <= 101u16
+ensures result >= 350u16 && result <= 601u16
+{
+    let sat_lhs: u16 in Saturating = lhs as u16 in Saturating;
+    let sat_rhs: u16 in Saturating = rhs as u16 in Saturating;
+    let sat_sum: u16 in Saturating = sat_lhs + sat_rhs;
+    sat_sum as u16
+}
+
+machine verify_sum(sum: u16) -> u16 crashes Trap
+requires sum >= 350u16 && sum <= 600u16
+ensures result == 0u16
+{
+    let headroom: u16 = 600u16 - sum;
+    let margin: u16 = sum - 350u16;
+    transition headroom == 120u16 && margin == 130u16 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok() {
+        0u16
+    }
+    state bad() {
+        crash Trap;
+    }
+}
+
+machine probe() -> u16 crashes Trap
+ensures result == 0u16
+{
+    let sum: u16 = compute_sum(500u16, 101u16);
+    verify_sum(sum)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0u16 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

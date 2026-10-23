@@ -1,2 +1,1 @@
-cannot check prepared project: checked compilation failed for package `unsigned_16bit_saturating_arithmetic_bound_other_state_invalid` with 1 diagnostic(s)
-  error: cannot prove requires contract for call step from probe: sum >= 350 && sum <= 600 (needs fact `sum >= 350 && sum <= 600` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+cannot prove requires contract

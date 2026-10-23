@@ -6,17 +6,17 @@ Every place computes or transports a 16-bit unsigned saturating sum `sum = (lhs 
 
 Only the transport mechanism of the bounded saturating sum changes across the nine places.
 
-| Place | Positive Project | Reject Twin | Transport Mechanism |
-| --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | bounded saturating sum is computed and held in a local variable before subtraction |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the bounded saturating sum is stored in a struct field before subtraction |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the bounded saturating sum is passed to a machine parameter with contract |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a helper machine returns the bounded saturating sum with guaranteed contract |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both branches of pattern matching evaluate the bounded saturating sum and join |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded inputs for saturating addition |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded saturating sum to a successor state |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives and verifies the saturating sum |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies evaluate the bounded saturating sum on each hosted target |
+| Place | Positive Project | Reject Twin | Transport Mechanism | Pinned Pass Fixture | Pinned Reject Fixture |
+| --- | --- | --- | --- | --- | --- |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | bounded saturating sum is computed and held in a local variable before subtraction | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_local_rejected` |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the bounded saturating sum is stored in a struct field before subtraction | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_field_rejected` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the bounded saturating sum is passed to a machine parameter with contract | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_parameter_rejected` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a helper machine returns the bounded saturating sum with guaranteed contract | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_call_result_rejected` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both branches of pattern matching evaluate the bounded saturating sum and join | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_match_join_rejected` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded inputs for saturating addition | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_const_name_rejected` |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded saturating sum to a successor state | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_state_rejected` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives and verifies the saturating sum | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_machine_rejected` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies evaluate the bounded saturating sum on each hosted target | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_target_body_rejected` |
 
 ## Execution
 
@@ -62,9 +62,45 @@ omega --check samples/cli/facts/unsigned_16bit_saturating_arithmetic_bound/<plac
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract` |
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_<place>_exit`
+and `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_<place>_rejected` for the
+nine places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy of
+its place twin's `main.omg`/`build.omg`/`expected.txt`, whose single line is the runner-emitted fragment
+`cannot prove requires contract` (the twin's `expected.txt` previously carried the CLI's
+`cannot check prepared project:` wrapper text, which the corpus diagnostic route never emits; correcting
+it is what lets the row weigh `expected` instead of `unexpected`). Every `sample.json`
+`rejection_contains` fragment (`cannot prove requires contract`, `sum <= 600`) remains present in the
+twins' diagnostics on the sample route. Positive versus twin `git diff` moves only the fact's own bound
+(`rhs <= 100u16` to `rhs <= 101u16`, the `ensures` upper bound `600u16` to `601u16`, and the operands
+`(400u16, 80u16)` to `(500u16, 101u16)`).
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 exit 1 carrying `cannot prove requires contract` with the
+  per-place callee (`verify_sum`, `check_param`, `step`, `forward`) and its `sum >= 350 && sum <= 600` fact.
+- Perturbing the root oracle (one token: `transition probe() == 0` -> `== 1`) exits 255 with
+  `native signal 5` and `interp crash: Trap (host presentation agrees)`.
+- `python3 tools/sample_gate.py --cli <generation omega> --filter unsigned_16bit_saturating_arithmetic_bound,unsigned_16bit_wrapping_arithmetic_bound`
+  records 38/38 projects checked on Darwin arm64 with 18 of these matched intended rejection controls.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `9b001b8f6afa`, so every row is stamped `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained
+  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` carrying their diagnostics
+  with the expected fragments satisfied, 24 diagnostic continuation lines),
+  `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
+  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); the legs exited 0 with
+  36/36, 18/18 and 18/18 fixtures done, 0 unimplemented rows and 0 rows recording a lost success.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `EXACT-ARITHMETIC-UNSIGNED-DISCHARGE` / `UNSIGNED-16BIT-SATURATING-ARITHMETIC-BOUND` (`TASKS.md`)
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls. This row is one customer group's nine-place transport and execution of that settled proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 - **Requirement established:** 16-bit unsigned saturating addition (`u16 in Saturating` addition, `lhs +| rhs`, `[numeric values](wiki/spec/language/numeric_values.md)`) of bounded inputs (`lhs in [300u16..500u16]`, `rhs in [50u16..100u16]`) statically establishes interval bounds `[350u16..600u16]`, proving exact 16-bit unsigned subtractions `600u16 - sum` and `sum - 350u16` overflow/underflow-free without runtime checks across all nine language places.
 
 ### Full 8-Layer Specification and Lowering Evidence
@@ -82,4 +118,4 @@ omega --check samples/cli/facts/unsigned_16bit_saturating_arithmetic_bound/<plac
 
 - `sample_native_gate.py --filter cli/facts/unsigned_16bit_saturating_arithmetic_bound`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
 - Discrimination: modifying transition conditions in `verify_sum` causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
-- What remains open: 8-bit, 32-bit, and 64-bit saturating integer arithmetic bounds, saturating subtraction `lhs -| rhs` bounds, and signed saturating arithmetic interval arithmetic.
+- What remains open in the parent outcome: the other numeric-policy fact rows (other widths and policy carriers) at their own nine places; `ARITHMETIC-POLICY-REALIZATION` keeps the underlying numeric-policy realization.
