@@ -54,6 +54,10 @@ pub struct CheckedRuntimeMembershipSubject {
     pub fact_ordinal: u32,
     pub membership: crate::domain::ProofMembershipFact,
     pub subject: crate::CheckedScalarExpression,
+    /// Number of complete predicate slots produced for this exact source
+    /// membership. Lowering consumes that roster, not a fresh source projection
+    /// after checking's mathematical application view has been discarded.
+    pub predicate_count: u32,
 }
 
 /// The published and body-derived halves of CRASH-CONTRACT remain independent:

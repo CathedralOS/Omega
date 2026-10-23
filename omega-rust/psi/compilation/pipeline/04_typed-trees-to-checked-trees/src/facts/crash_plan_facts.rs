@@ -322,13 +322,15 @@ fn build_structural_runtime_requirements(
                     membership.value,
                     primitive,
                 )?;
-                requirements.extend(validation::scalar_membership_predicates(
-                    program, membership, &subject,
-                )?);
+                let predicates =
+                    validation::scalar_membership_predicates(program, membership, &subject)?;
+                let predicate_count = u32::try_from(predicates.len()).ok()?;
+                requirements.extend(predicates);
                 subjects.push(checked_trees::CheckedRuntimeMembershipSubject {
                     fact_ordinal: u32::try_from(fact_ordinal).ok()?,
                     membership: *membership,
                     subject,
+                    predicate_count,
                 });
             }
             typed_trees::domain::ProofFact::Proposition(_) => return None,

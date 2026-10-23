@@ -748,15 +748,9 @@ pub(crate) fn type_atoms(
                         // predicate-free membership atom in this catalog.
                         TypeConstraintNode::Domain(domain)
                             if domain.predicate_body.is_present()
-                                && validation::scalar_domain_predicate(
-                                    &checked.typed,
-                                    domain,
-                                    checked_trees::CheckedScalarExpression::Parameter {
-                                        position: 0,
-                                        primitive_type: primitive,
-                                    },
-                                )
-                                .is_some() => {}
+                                && retained_scalar_domain_predicate(
+                                    checked, current, primitive,
+                                ) => {}
                         TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && !domain.predicate_body.is_present() =>
@@ -796,6 +790,44 @@ pub(crate) fn type_atoms(
     atoms.sort_by_key(|(_, identity)| identity.0);
     atoms.dedup();
     Ok((primitive, atoms))
+}
+
+/// The source checker retained the complete receiving restriction before its
+/// temporary mathematical view expired. Its exact source type identity includes
+/// every qualification; equal primitive layout alone supplies no restriction.
+fn retained_scalar_domain_predicate(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+    primitive: PrimitiveType,
+) -> bool {
+    checked.primitive_type_reference(reference) == Some(primitive)
+        && matches!(
+            retained_scalar_restriction(checked, reference),
+            Some(
+                checked_trees::CheckedUnitStructuralFieldType::RefinedScalar { .. }
+                    | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
+            )
+        )
+}
+
+pub(crate) fn retained_scalar_restriction(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&checked_trees::CheckedUnitStructuralFieldType> {
+    let primitive = checked.primitive_type_reference(reference)?;
+    let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter()
+        .find(|plan| {
+            plan.identity == identity
+                && plan.shape
+                    == checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+        })
+        .and_then(|plan| plan.scalar_restriction.as_ref())
 }
 
 pub(crate) fn declared_atoms(

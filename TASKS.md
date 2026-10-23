@@ -4672,9 +4672,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   subtracts that fragment only; the general mathematics and delivery controls
   below remain open.
 
-  - Complete body denotation and applied carriers, including mathematical
-    member-call resolution and non-integer ordering, keeping interpreted
-    operations distinct from opaque carrier assumptions. Resolve non-type
+  - Complete remaining body denotation and applied carriers beyond named
+    integer-predicate negation (`samples/cli/facts/negated_mathematical_order`),
+    including mathematical member-call resolution and non-integer ordering. Keep
+    interpreted operations distinct from opaque carrier assumptions. Resolve non-type
     `core::*` occurrences by canonical symbol identity and remove
     `proof/fixed_core_vocabulary.rs`'s unresolved-spelling fallback.
   - Replace `proposition`/hidden-witness routes (including

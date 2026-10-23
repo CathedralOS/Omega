@@ -8,6 +8,7 @@ pub use expressions::{definition_roots, erased_initializer_nodes, expression_nod
 mod logical_bodies;
 pub use logical_bodies::{indexed_contract_is_proved, is_indexed_logical_machine};
 mod prepared;
+mod scalar_predicates;
 pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
@@ -15,6 +16,7 @@ pub use prepared::{
     PreparedSourceCarrier, PreparedSourceConstructor, PreparedSourceEvidence,
     integer_embedding_meaning,
 };
+pub use scalar_predicates::scalar_predicate;
 
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};

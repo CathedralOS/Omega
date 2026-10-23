@@ -701,7 +701,9 @@ impl Evaluation {
         let predicate = crate::scalar_lowering::contracts::clauses(
             identities,
             &clauses,
-            values,
+            std::slice::from_ref(values.last().ok_or(LoweringError::Unsupported(
+                "local refinement lost its completed subject",
+            ))?),
             &self.erased_scalar_formals,
             &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
         )?

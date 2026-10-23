@@ -104,15 +104,35 @@ fn read_term(
                 // Captures already retain the source carrier. The checked
                 // embedding preserves that value; it does not land it again.
                 (PreparedConstantMeaning::IntegerEmbedding { .. }, [argument]) => read(*argument),
-                (PreparedConstantMeaning::Negation, [proposition]) => Some(binary(
-                    BinaryOperator::Equal,
-                    read(*proposition)?,
-                    StructuralTerm::Constructor {
-                        data: "bool".to_owned(),
-                        case: "false".to_owned(),
-                        fields: Vec::new(),
-                    },
-                )),
+                (PreparedConstantMeaning::Negation, [proposition]) => {
+                    let operand = read(*proposition)?;
+                    // MathematicalBinary comparisons here come only from
+                    // authenticated integer relations/identity, never IEEE or
+                    // a selected custom comparison. Retain their exact
+                    // complement instead of hiding it in Boolean equality.
+                    if let StructuralTerm::MathematicalBinary {
+                        operator,
+                        left,
+                        right,
+                    } = &operand
+                        && let Some(operator) = operator.complement()
+                    {
+                        return Some(StructuralTerm::MathematicalBinary {
+                            operator,
+                            left: left.clone(),
+                            right: right.clone(),
+                        });
+                    }
+                    Some(binary(
+                        BinaryOperator::Equal,
+                        operand,
+                        StructuralTerm::Constructor {
+                            data: "bool".to_owned(),
+                            case: "false".to_owned(),
+                            fields: Vec::new(),
+                        },
+                    ))
+                }
                 // Opaque and source-selected operations have no builtin
                 // arithmetic law merely because their kernel result is Int.
                 _ => None,

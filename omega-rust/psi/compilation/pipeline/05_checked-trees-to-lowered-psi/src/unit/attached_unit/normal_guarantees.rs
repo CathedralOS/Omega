@@ -23,7 +23,7 @@ pub(crate) fn lower(
     views: &ContractViewNamespace<'_>,
     next_obligation: &mut u64,
 ) -> Result<Vec<ContractClause>, LoweringError> {
-    let (source, _) = crate::declarations::state_declaration(checked, state)?;
+    let (source, source_state) = crate::declarations::state_declaration(checked, state)?;
     let contract = checked
         .facts
         .contract_plans
@@ -35,8 +35,23 @@ pub(crate) fn lower(
     // checked consequence roster serves every result shape; an absent scalar
     // reading is not an absent source proof. In particular a selected operation
     // cannot be reinterpreted as builtin arithmetic to fill that absence.
+    // General receiving predicates were completed while mathematical
+    // preparation was available. Their subject is formal zero; bind that
+    // namespace directly to this exact returned value, not to entry formals.
+    let retained_result = result.scalar().and_then(|_| {
+        match crate::expression_preparation::qualifications::retained_scalar_restriction(
+            checked,
+            source_state.return_type,
+        ) {
+            Some(checked_trees::CheckedUnitStructuralFieldType::RefinedScalar {
+                predicate,
+                ..
+            }) => Some(predicate),
+            _ => None,
+        }
+    });
     let refined;
-    let ensures = if result.scalar().is_some() {
+    let ensures = if result.scalar().is_some() && retained_result.is_none() {
         refined = contracts::with_result_range(
             checked,
             state,
@@ -54,23 +69,22 @@ pub(crate) fn lower(
     // loan: the declaration predicate roster's restored rows follow the
     // authored guarantees as the same kind of obligation, rederived from the
     // entry parameters' declared storage rather than read from a package.
-    let mut guarantees = contracts::projected_guarantees(ensures)
+    let guarantees = contracts::projected_guarantees(ensures)
         .cloned()
         .collect::<Vec<_>>();
-    guarantees.extend(
-        validation::machine_declaration_predicates(
-            &checked.typed,
-            &checked.facts.operators,
-            source,
-        )
-        .into_iter()
-        .filter(|row| row.restored_on_return)
-        .map(|row| {
-            Some(checked_trees::ClosedScalarContractValue::Predicate(
-                row.predicate,
-            ))
-        }),
-    );
+    let restored_guarantees = validation::machine_declaration_predicates(
+        &checked.typed,
+        &checked.facts.operators,
+        source,
+    )
+    .into_iter()
+    .filter(|row| row.restored_on_return)
+    .map(|row| {
+        Some(checked_trees::ClosedScalarContractValue::Predicate(
+            row.predicate,
+        ))
+    })
+    .collect::<Vec<_>>();
     let mut namespace = parameters.to_vec();
     namespace.extend(result.scalar());
     // The result observation has a distinct structural identity; returning an
@@ -96,7 +110,33 @@ pub(crate) fn lower(
         },
         ..*views
     };
-    contracts::clauses(identities, &guarantees, &namespace, erased, &views)?
+    let mut propositions = contracts::clauses(identities, &guarantees, &namespace, erased, &views)?;
+    if let Some(predicate) = retained_result {
+        let result_predicate = contracts::proposition(
+            identities,
+            predicate,
+            result.scalar().as_slice(),
+            &[],
+            &ContractViewNamespace::EMPTY,
+        )?;
+        propositions = Some(match propositions {
+            Some(previous) => {
+                crate::proofs::contract_predicates::connective(previous, result_predicate, true)?
+            }
+            None => result_predicate,
+        });
+    }
+    if let Some(restored) =
+        contracts::clauses(identities, &restored_guarantees, &namespace, erased, &views)?
+    {
+        propositions = Some(match propositions {
+            Some(previous) => {
+                crate::proofs::contract_predicates::connective(previous, restored, true)?
+            }
+            None => restored,
+        });
+    }
+    propositions
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {

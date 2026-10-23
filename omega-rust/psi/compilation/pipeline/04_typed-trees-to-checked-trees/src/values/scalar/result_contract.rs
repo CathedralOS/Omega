@@ -742,6 +742,19 @@ impl ContractPredicates<'_, '_> {
         }
         *self.remaining -= 1;
         let program = self.program;
+        if program
+            .prepared_mathematics()
+            .is_some_and(|view| view.application(expression).is_some())
+        {
+            return validation::mathematical_applications::scalar_predicate(
+                program,
+                expression,
+                |capture| {
+                    self.numeric_term(capture, depth + 1)
+                        .map(|(value, _)| value)
+                },
+            );
+        }
         if let Some(membership) =
             super::case_membership::lower(program, self.parameters, expression).or_else(|| {
                 self.allow_result

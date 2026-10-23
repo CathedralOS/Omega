@@ -1,0 +1,12 @@
+// Fact: a named negated integer-order predicate establishes value <= 5 for exact 5u64 - value.
+// Expected exit: 0
+let within(limit: u64, value: u64): core::Strict<0> = !(value > limit);
+domain u64::Small(value) requires within(5, value);
+machine main() crashes Trap {
+    let mut value: u64 in Small = 0;
+    value = 3;
+    let remaining: u64 = 5u64 - value;
+    transition remaining == 2 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

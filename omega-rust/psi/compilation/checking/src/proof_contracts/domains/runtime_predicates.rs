@@ -198,6 +198,17 @@ impl Predicate<'_> {
         {
             return None;
         }
+        if self
+            .program
+            .prepared_mathematics()
+            .is_some_and(|view| view.application(expression).is_some())
+        {
+            return crate::mathematical_applications::scalar_predicate(
+                self.program,
+                expression,
+                |capture| self.scalar(capture, depth + 1),
+            );
+        }
         if matches!(self.primitive, PrimitiveType::F32 | PrimitiveType::F64) {
             return self.float_boolean(expression, depth);
         }

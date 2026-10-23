@@ -1,0 +1,7 @@
+data Number [copy] { value: u64; }
+machine > Number::greater(left: Number, right: Number) -> bool { false }
+let below(value: Number): core::Strict<0> = !(value > Number { value: 5 });
+machine unjustified(value: Number) -> u64
+requires below(value)
+{ 5u64 - value.value }
+machine main() {}

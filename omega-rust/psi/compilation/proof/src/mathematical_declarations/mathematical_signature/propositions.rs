@@ -4,7 +4,7 @@
 
 use proof_admission::{Term, TermHandle, shift};
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, UnaryOperator,
 };
 
 use super::{Elaborator, ScalarCarrier};
@@ -18,7 +18,7 @@ impl<'a> Elaborator<'a> {
     /// denotes `Not` applied to the same `Id`, `&&`
     /// denotes a right-nested `Σ`, `||` the tagged `Two` sum, `true` and
     /// `false` the `Two` identities, and any `bool`-carried subject — a
-    /// name, a call result, `!b`, a field or a cast — means
+    /// name, a call result, a field or a cast — means
     /// `subject = true`, the same proposition `lower_proposition` forms.
     pub(super) fn elaborate_proposition(
         &mut self,
@@ -26,6 +26,16 @@ impl<'a> Elaborator<'a> {
     ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Boolean(value) => Ok(Some(self.boolean_proposition(*value))),
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                // Preserve the operand's selected proposition meaning before
+                // negating it. An opaque Boolean for the whole expression
+                // loses integer bounds when a named predicate is applied.
+                // IEEE/custom comparisons still denote opaque operations in
+                // their own branches; negation gives them no integer law.
+                let operand = unary.operand;
+                self.elaborate_proposition(operand)
+                    .map(|proposition| proposition.map(|term| self.negated_proposition(term)))
+            }
             ExpressionNode::Name(..)
             | ExpressionNode::Call(..)
             | ExpressionNode::Unary(..)
@@ -96,12 +106,19 @@ impl<'a> Elaborator<'a> {
         binary: TableBinaryExpression,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
         let equality = self.equality_proposition(handle, binary)?;
+        Ok(self.negated_proposition(equality))
+    }
+
+    /// Logical `!` and `!=` share the existing proposition-negation
+    /// vocabulary. Consumers retain its polarity and exact operand instead
+    /// of reconstructing an authored definition or assuming a new fact.
+    fn negated_proposition(&mut self, proposition: TermHandle) -> TermHandle {
         let position = self.proposition_negation();
         let function = self.constant(position);
-        Ok(self.arena.insert(Term::Apply {
+        self.arena.insert(Term::Apply {
             function,
-            argument: equality,
-        }))
+            argument: proposition,
+        })
     }
 
     /// `l = r : Type 0` — `Id` over the operands' shared scalar carrier.
