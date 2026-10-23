@@ -1,0 +1,1518 @@
+{
+  "baseline": "a1ad64980f53c002ca7f9d9c83e3c18c8f3ba935",
+  "selection": {
+    "variant": "compact",
+    "status": "promoted to full compilation validation; not yet accepted or published",
+    "arena_sha256": "f0b000dc71491cbfaa0e838557a1f9669b2815981f59f638c414519814cb3509",
+    "measured_source_sha256": "508e49ff40cfee872901bb518b7a60d0f56b70fc46be8d4080e89c2afc138702",
+    "reason": "Same exact parser/error/custody observations; implicit metadata reduces heap storage and traffic; cold owner reduces arena/forest sizes. The measured clear-loop regression was removed by borrowing its block once. First-retirement latency is retained as an explicit tradeoff. Whole-batch speedup magnitude remains uncertain under contention; full assembly and compilation still required.",
+    "before_iterator_refinement_sha256": "56f560409374981050c3791916a3499e4f34e651887a955a6bcfb51a4bf46354",
+    "iterator_refinement": "Consuming iterator retains only occupancy; generation/free-list buffers and cold owner release immediately. Historical measurements precede this ownership correction; fresh integrated tests/runtime and focused allocation observation follow."
+  },
+  "parser": {
+    "syntax": {
+      "files": 463,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 205625,
+        "requested_bytes": 63456771,
+        "live_requested_bytes": 30745944
+      },
+      "candidate": {
+        "allocation_requests": 178225,
+        "requested_bytes": 59663523,
+        "live_requested_bytes": 28770528
+      }
+    },
+    "lookahead": {
+      "files": 1792,
+      "exact_observations": true,
+      "baseline": {
+        "allocation_requests": 797848,
+        "requested_bytes": 212660373,
+        "live_requested_bytes": 104515106
+      },
+      "candidate": {
+        "allocation_requests": 635702,
+        "requested_bytes": 199495005,
+        "live_requested_bytes": 97459298
+      }
+    }
+  },
+  "baseline_layout": {
+    "arena_row112": 232,
+    "arena_u64": 128,
+    "expression_node": 112,
+    "syntax_forest": 18504
+  },
+  "candidate_layout": {
+    "arena_row112": 168,
+    "arena_u64": 64,
+    "expression_node": 112,
+    "syntax_forest": 15240
+  },
+  "baseline_failures": {
+    "same_failures": [
+      "parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission",
+      "sample_projects_ignore_local_build_output",
+      "tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements",
+      "tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once",
+      "tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source",
+      "tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests",
+      "tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections"
+    ],
+    "normalized_diagnostics": [
+      "thread 'parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parameters/generic_parameters_tests.rs:<line>:<column>:\n    assertion failed: parameters.type_parameters.is_empty()",
+      "thread 'sample_projects_ignore_local_build_output' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/tests/sample_files.rs:<line>:<column>:\n    failed to read <ROOT>/samples/cli/algorithms/record_range_search/.gitignore: No such file or directory (os error 2)",
+      "thread 'tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/expression_stack.rs:<line>:<column>:\n    borrow",
+      "thread 'tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:<line>:<column>:\n    assertion `left == right` failed\n      left: 3\n     right: 2",
+      "thread 'tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:<line>:<column>:\n    assertion failed: !parsed.expressions.iter_expressions().any(|(_, expression)|\n                {\n                    matches!(expression, ExpressionNode::Atomic(atomic) if\n                        matches!(atomic.ordering,\n                        language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce\n                        { .. }))\n                })",
+      "thread 'tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:<line>:<column>:\n    authored transition",
+      "thread 'tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections' panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/type_constraints.rs:<line>:<column>:\n    [Element; -1]"
+    ],
+    "normalization": "checkout roots, Rust source coordinates and thread IDs only"
+  },
+  "initial_histories": {
+    "baseline": "a1ad64980f53c002ca7f9d9c83e3c18c8f3ba935",
+    "binary_hashes": {
+      "baseline": "1917ff1571c61b41fb6fef8b5faadc2741471a3cde97bbcf31da2cedf76ebe52",
+      "candidate": "4543b11b8c3d80fc61f7a09d912c386d2429acbbb9dab2ba57cf0042b3ab7dc3",
+      "compact": "ba4779a7fa6e4365678bc7bf05afa02aaa46a440660a1875728061635cbc0e57"
+    },
+    "summary": [
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "append-read-drop",
+        "baseline": {
+          "min_ns": 679.6875,
+          "median_ns": 1554.6875,
+          "mean_ns": 1273.06330837975,
+          "max_ns": 352395.8125,
+          "trials": 133214,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 390.625,
+          "median_ns": 1093.75,
+          "mean_ns": 836.5619503782251,
+          "max_ns": 394661.5,
+          "trials": 175689,
+          "quiet_rounds": 1
+        },
+        "compact": {
+          "min_ns": 393.1875,
+          "median_ns": 414.0625,
+          "mean_ns": 786.0064614289112,
+          "max_ns": 318953.125,
+          "trials": 176596,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "insert-free-reuse-drop",
+        "baseline": {
+          "min_ns": 817.6875,
+          "median_ns": 1716.125,
+          "mean_ns": 1525.0578664193317,
+          "max_ns": 539112.0,
+          "trials": 126549,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 625.0,
+          "median_ns": 1364.5625,
+          "mean_ns": 1168.6552664253231,
+          "max_ns": 346281.25,
+          "trials": 116984,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 638.0,
+          "median_ns": 1419.25,
+          "mean_ns": 1254.9781970083263,
+          "max_ns": 1101096.375,
+          "trials": 154930,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "insert-clear-drop",
+        "baseline": {
+          "min_ns": 903.6875,
+          "median_ns": 2106.8125,
+          "mean_ns": 1868.183011938177,
+          "max_ns": 641377.5625,
+          "trials": 111156,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 742.1875,
+          "median_ns": 1825.5,
+          "mean_ns": 1704.2438464521226,
+          "max_ns": 3171466.125,
+          "trials": 102512,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 1023.4375,
+          "median_ns": 1062.5,
+          "mean_ns": 1981.2777428158413,
+          "max_ns": 274854.1875,
+          "trials": 80246,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "clone-read-drop",
+        "baseline": {
+          "min_ns": 932.3125,
+          "median_ns": 1955.75,
+          "mean_ns": 1703.3208538201345,
+          "max_ns": 351263.0,
+          "trials": 86031,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 617.1875,
+          "median_ns": 1427.0625,
+          "mean_ns": 1217.746998040759,
+          "max_ns": 848161.4375,
+          "trials": 116882,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 606.75,
+          "median_ns": 1377.625,
+          "mean_ns": 1141.8031983135443,
+          "max_ns": 584562.5,
+          "trials": 191941,
+          "quiet_rounds": 1
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "first-free",
+        "baseline": {
+          "min_ns": 5.1875,
+          "median_ns": 18.1875,
+          "mean_ns": 19.90104350511825,
+          "max_ns": 285914.0625,
+          "trials": 130318,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 96.3125,
+          "median_ns": 114.625,
+          "mean_ns": 157.60079813693338,
+          "max_ns": 201619.8125,
+          "trials": 172887,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 101.5625,
+          "median_ns": 122.4375,
+          "mean_ns": 168.93066549817777,
+          "max_ns": 384580.75,
+          "trials": 161890,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "first-clear",
+        "baseline": {
+          "min_ns": 250.0,
+          "median_ns": 729.1875,
+          "mean_ns": 599.4990511125646,
+          "max_ns": 365442.75,
+          "trials": 79501,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 341.125,
+          "median_ns": 385.4375,
+          "mean_ns": 682.7853072509935,
+          "max_ns": 474158.875,
+          "trials": 123059,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 648.4375,
+          "median_ns": 1588.5,
+          "mean_ns": 1323.7035894258968,
+          "max_ns": 680690.0625,
+          "trials": 78087,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "reuse-cycles-drop",
+        "baseline": {
+          "min_ns": 950.5,
+          "median_ns": 2080.75,
+          "mean_ns": 1889.4138682844527,
+          "max_ns": 901919.3125,
+          "trials": 131579,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 763.0,
+          "median_ns": 1744.75,
+          "mean_ns": 1512.5883210509453,
+          "max_ns": 1352770.875,
+          "trials": 93630,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 859.375,
+          "median_ns": 2028.625,
+          "mean_ns": 1655.3220599933493,
+          "max_ns": 834554.6875,
+          "trials": 153367,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "reset-cycles-drop",
+        "baseline": {
+          "min_ns": 1835.9375,
+          "median_ns": 4705.75,
+          "mean_ns": 3807.8981207622164,
+          "max_ns": 229479.1875,
+          "trials": 42770,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 960.9375,
+          "median_ns": 3320.3125,
+          "mean_ns": 2412.357956054169,
+          "max_ns": 243929.6875,
+          "trials": 60256,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 963.5,
+          "median_ns": 3348.9375,
+          "mean_ns": 2393.2073731355063,
+          "max_ns": 221398.4375,
+          "trials": 63355,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "clone-from-reuse-drop",
+        "baseline": {
+          "min_ns": 1380.1875,
+          "median_ns": 3148.4375,
+          "mean_ns": 2672.8557726058757,
+          "max_ns": 267703.125,
+          "trials": 131050,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 726.5625,
+          "median_ns": 2075.5,
+          "mean_ns": 1581.1489115850177,
+          "max_ns": 1112856.75,
+          "trials": 87570,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 723.9375,
+          "median_ns": 2067.6875,
+          "mean_ns": 1570.8651672007513,
+          "max_ns": 224945.3125,
+          "trials": 108597,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "append-read-drop",
+        "baseline": {
+          "min_ns": 1098.9375,
+          "median_ns": 2880.1875,
+          "mean_ns": 2352.4015963569127,
+          "max_ns": 252898.4375,
+          "trials": 67333,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 846.375,
+          "median_ns": 2135.375,
+          "mean_ns": 1755.191866229063,
+          "max_ns": 316510.4375,
+          "trials": 110450,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 835.9375,
+          "median_ns": 2130.1875,
+          "mean_ns": 1688.607608332114,
+          "max_ns": 208794.25,
+          "trials": 95678,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "insert-free-reuse-drop",
+        "baseline": {
+          "min_ns": 1242.1875,
+          "median_ns": 3036.4375,
+          "mean_ns": 2460.6679794590614,
+          "max_ns": 215695.3125,
+          "trials": 97756,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 1101.5625,
+          "median_ns": 2502.625,
+          "mean_ns": 2012.0300701180347,
+          "max_ns": 157901.0625,
+          "trials": 107426,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 1088.5625,
+          "median_ns": 2562.5,
+          "mean_ns": 2135.0032857282513,
+          "max_ns": 746755.25,
+          "trials": 86948,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "insert-clear-drop",
+        "baseline": {
+          "min_ns": 1580.6875,
+          "median_ns": 3802.0625,
+          "mean_ns": 3046.155472547898,
+          "max_ns": 234549.5,
+          "trials": 76934,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 1445.3125,
+          "median_ns": 3250.0,
+          "mean_ns": 2628.696465287428,
+          "max_ns": 342468.75,
+          "trials": 70522,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 1682.3125,
+          "median_ns": 4033.875,
+          "mean_ns": 3261.3181988871465,
+          "max_ns": 460104.125,
+          "trials": 52927,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "clone-read-drop",
+        "baseline": {
+          "min_ns": 1476.5625,
+          "median_ns": 4028.625,
+          "mean_ns": 3068.4997943331396,
+          "max_ns": 410044.3125,
+          "trials": 55004,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 1171.875,
+          "median_ns": 3143.1875,
+          "mean_ns": 2406.880199133026,
+          "max_ns": 192174.4375,
+          "trials": 92275,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 1156.25,
+          "median_ns": 3122.375,
+          "mean_ns": 2403.1511080988553,
+          "max_ns": 250268.1875,
+          "trials": 62799,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "first-free",
+        "baseline": {
+          "min_ns": 5.1875,
+          "median_ns": 20.8125,
+          "mean_ns": 19.479753150115542,
+          "max_ns": 18018.25,
+          "trials": 68807,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 96.375,
+          "median_ns": 169.25,
+          "mean_ns": 155.25132726124937,
+          "max_ns": 204005.1875,
+          "trials": 87916,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 101.5625,
+          "median_ns": 182.3125,
+          "mean_ns": 173.6014705795054,
+          "max_ns": 96187.5,
+          "trials": 84227,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "first-clear",
+        "baseline": {
+          "min_ns": 559.875,
+          "median_ns": 1239.5625,
+          "mean_ns": 1056.142146314061,
+          "max_ns": 185289.0625,
+          "trials": 57855,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 643.25,
+          "median_ns": 1385.375,
+          "mean_ns": 1243.397441382209,
+          "max_ns": 253580.75,
+          "trials": 66618,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 927.125,
+          "median_ns": 2140.625,
+          "mean_ns": 1824.2864091440013,
+          "max_ns": 1042479.125,
+          "trials": 59930,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "reuse-cycles-drop",
+        "baseline": {
+          "min_ns": 1559.875,
+          "median_ns": 3598.9375,
+          "mean_ns": 2883.4668229912227,
+          "max_ns": 599674.5,
+          "trials": 90117,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 1395.8125,
+          "median_ns": 3078.125,
+          "mean_ns": 2608.8150950844765,
+          "max_ns": 227138.0625,
+          "trials": 51612,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 1406.25,
+          "median_ns": 3335.9375,
+          "mean_ns": 2695.701138574307,
+          "max_ns": 185414.0625,
+          "trials": 71965,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "reset-cycles-drop",
+        "baseline": {
+          "min_ns": 2838.5,
+          "median_ns": 7526.0625,
+          "mean_ns": 5691.141800006719,
+          "max_ns": 840406.25,
+          "trials": 44654,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 2153.625,
+          "median_ns": 5111.9375,
+          "mean_ns": 4109.3515138494495,
+          "max_ns": 319276.0,
+          "trials": 40146,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 2143.1875,
+          "median_ns": 5114.5625,
+          "mean_ns": 4400.458761697374,
+          "max_ns": 212036.4375,
+          "trials": 30883,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "clone-from-reuse-drop",
+        "baseline": {
+          "min_ns": 3231.75,
+          "median_ns": 8734.375,
+          "mean_ns": 6859.7730177865615,
+          "max_ns": 107231.75,
+          "trials": 31625,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 2651.0,
+          "median_ns": 7010.375,
+          "mean_ns": 5789.147608794197,
+          "max_ns": 216526.0625,
+          "trials": 37502,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 2656.25,
+          "median_ns": 6966.125,
+          "mean_ns": 5502.5666539542135,
+          "max_ns": 325763.0,
+          "trials": 45559,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "append-read-drop",
+        "baseline": {
+          "min_ns": 82833.0,
+          "median_ns": 207417.0,
+          "mean_ns": 213318.37195443915,
+          "max_ns": 2823042.0,
+          "trials": 13257,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 70625.0,
+          "median_ns": 166583.0,
+          "mean_ns": 171332.62067201964,
+          "max_ns": 5537667.0,
+          "trials": 19553,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 71000.0,
+          "median_ns": 178187.5,
+          "mean_ns": 185337.57812864135,
+          "max_ns": 4698709.0,
+          "trials": 17164,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "insert-free-reuse-drop",
+        "baseline": {
+          "min_ns": 87333.0,
+          "median_ns": 245042.0,
+          "mean_ns": 243073.34576415495,
+          "max_ns": 2831333.0,
+          "trials": 11745,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 82250.0,
+          "median_ns": 168000.0,
+          "mean_ns": 199377.38296618286,
+          "max_ns": 17105125.0,
+          "trials": 13573,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 82042.0,
+          "median_ns": 157020.5,
+          "mean_ns": 202651.81814084508,
+          "max_ns": 2961000.0,
+          "trials": 17750,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "insert-clear-drop",
+        "baseline": {
+          "min_ns": 112166.0,
+          "median_ns": 132125.0,
+          "mean_ns": 201735.05063795854,
+          "max_ns": 3217417.0,
+          "trials": 12540,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 106542.0,
+          "median_ns": 229895.5,
+          "mean_ns": 222724.00357964713,
+          "max_ns": 4371958.0,
+          "trials": 15644,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 124709.0,
+          "median_ns": 163709.0,
+          "mean_ns": 229488.42249463042,
+          "max_ns": 4266125.0,
+          "trials": 19089,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "clone-read-drop",
+        "baseline": {
+          "min_ns": 122083.0,
+          "median_ns": 144625.0,
+          "mean_ns": 261285.8674522891,
+          "max_ns": 5546208.0,
+          "trials": 9589,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 106583.0,
+          "median_ns": 124625.0,
+          "mean_ns": 224082.84174104905,
+          "max_ns": 3570417.0,
+          "trials": 9971,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 107125.0,
+          "median_ns": 120083.0,
+          "mean_ns": 199049.00740865467,
+          "max_ns": 4342833.0,
+          "trials": 11878,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "first-free",
+        "baseline": {
+          "min_ns": 0.0,
+          "median_ns": 42.0,
+          "mean_ns": 107.62340064744875,
+          "max_ns": 7417.0,
+          "trials": 12974,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 4750.0,
+          "median_ns": 8458.0,
+          "mean_ns": 9188.037119962291,
+          "max_ns": 4298459.0,
+          "trials": 16972,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 4791.0,
+          "median_ns": 8333.0,
+          "mean_ns": 8140.708546913305,
+          "max_ns": 505542.0,
+          "trials": 17948,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "first-clear",
+        "baseline": {
+          "min_ns": 34791.0,
+          "median_ns": 80083.0,
+          "mean_ns": 73517.13522919359,
+          "max_ns": 2498084.0,
+          "trials": 20114,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 39292.0,
+          "median_ns": 84959.0,
+          "mean_ns": 76248.13621683237,
+          "max_ns": 2346667.0,
+          "trials": 15791,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 57458.0,
+          "median_ns": 132250.0,
+          "mean_ns": 107859.19427731915,
+          "max_ns": 2657709.0,
+          "trials": 14294,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "reuse-cycles-drop",
+        "baseline": {
+          "min_ns": 87375.0,
+          "median_ns": 130229.0,
+          "mean_ns": 217035.54787955072,
+          "max_ns": 4301916.0,
+          "trials": 20656,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 83334.0,
+          "median_ns": 227375.0,
+          "mean_ns": 228578.71423550087,
+          "max_ns": 5081458.0,
+          "trials": 14225,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 83167.0,
+          "median_ns": 184645.5,
+          "mean_ns": 211512.8393574297,
+          "max_ns": 4383958.0,
+          "trials": 13944,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "reset-cycles-drop",
+        "baseline": {
+          "min_ns": 232834.0,
+          "median_ns": 290916.0,
+          "mean_ns": 471615.8362885178,
+          "max_ns": 22314042.0,
+          "trials": 5809,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 186333.0,
+          "median_ns": 216771.0,
+          "mean_ns": 336986.1924414561,
+          "max_ns": 3638250.0,
+          "trials": 8626,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 187333.0,
+          "median_ns": 226667.0,
+          "mean_ns": 354438.7625498008,
+          "max_ns": 5896584.0,
+          "trials": 12550,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "clone-from-reuse-drop",
+        "baseline": {
+          "min_ns": 258917.0,
+          "median_ns": 313542.0,
+          "mean_ns": 517156.56093066116,
+          "max_ns": 4881458.0,
+          "trials": 4341,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 232917.0,
+          "median_ns": 291000.0,
+          "mean_ns": 503203.1049967342,
+          "max_ns": 3467083.0,
+          "trials": 6124,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 226083.0,
+          "median_ns": 285020.5,
+          "mean_ns": 491645.84609375,
+          "max_ns": 4036375.0,
+          "trials": 6400,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16,
+        "row_bytes": 8,
+        "mode": "append-read-drop",
+        "baseline": {
+          "min_ns": 110.0234375,
+          "median_ns": 217.7734375,
+          "mean_ns": 179.7317654749657,
+          "max_ns": 17717.12109375,
+          "trials": 61965,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 53.3828125,
+          "median_ns": 62.01171875,
+          "mean_ns": 85.97284345935009,
+          "max_ns": 14364.2578125,
+          "trials": 149127,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 51.921875,
+          "median_ns": 104.16796875,
+          "mean_ns": 87.32632005867123,
+          "max_ns": 11462.890625,
+          "trials": 178239,
+          "quiet_rounds": 1
+        }
+      },
+      {
+        "count": 16,
+        "row_bytes": 8,
+        "mode": "first-free",
+        "baseline": {
+          "min_ns": 7.8125,
+          "median_ns": 17.578125,
+          "mean_ns": 14.957566877378108,
+          "max_ns": 2064.453125,
+          "trials": 56505,
+          "quiet_rounds": 2
+        },
+        "candidate": {
+          "min_ns": 27.01953125,
+          "median_ns": 48.6640625,
+          "mean_ns": 44.69297728064263,
+          "max_ns": 20893.5546875,
+          "trials": 88651,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 32.38671875,
+          "median_ns": 61.19921875,
+          "mean_ns": 55.790344953055595,
+          "max_ns": 12281.41015625,
+          "trials": 66861,
+          "quiet_rounds": 2
+        }
+      }
+    ]
+  },
+  "clear_refinement": {
+    "binary_hashes": {
+      "baseline": "1917ff1571c61b41fb6fef8b5faadc2741471a3cde97bbcf31da2cedf76ebe52",
+      "inline": "4543b11b8c3d80fc61f7a09d912c386d2429acbbb9dab2ba57cf0042b3ab7dc3",
+      "compact-before-clear-refinement": "ba4779a7fa6e4365678bc7bf05afa02aaa46a440660a1875728061635cbc0e57",
+      "compact": "bd6d67577f82d3caad153aafd7cc4da84770d7c3cd329c84eec3a8eb4f893361"
+    },
+    "summary": [
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "first-clear",
+        "baseline": {
+          "min_ns": 250.0,
+          "median_ns": 265.625,
+          "mean_ns": 503.7860847813538,
+          "max_ns": 113773.4375,
+          "trials": 119531,
+          "quiet_rounds": 2
+        },
+        "inline": {
+          "min_ns": 341.125,
+          "median_ns": 854.125,
+          "mean_ns": 644.0489402004423,
+          "max_ns": 151880.1875,
+          "trials": 141088,
+          "quiet_rounds": 2
+        },
+        "compact-before-clear-refinement": {
+          "min_ns": 648.4375,
+          "median_ns": 1591.125,
+          "mean_ns": 1204.3104212877677,
+          "max_ns": 103622.375,
+          "trials": 79797,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 382.8125,
+          "median_ns": 830.6875,
+          "mean_ns": 655.5477922724248,
+          "max_ns": 129260.4375,
+          "trials": 177326,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 8,
+        "mode": "insert-clear-drop",
+        "baseline": {
+          "min_ns": 901.0625,
+          "median_ns": 960.9375,
+          "mean_ns": 1568.717494040479,
+          "max_ns": 231421.875,
+          "trials": 131722,
+          "quiet_rounds": 2
+        },
+        "inline": {
+          "min_ns": 742.1875,
+          "median_ns": 773.4375,
+          "mean_ns": 1330.0650173271345,
+          "max_ns": 816455.75,
+          "trials": 104749,
+          "quiet_rounds": 2
+        },
+        "compact-before-clear-refinement": {
+          "min_ns": 1020.8125,
+          "median_ns": 1049.4375,
+          "mean_ns": 1739.4471063024664,
+          "max_ns": 188502.5625,
+          "trials": 84697,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 757.8125,
+          "median_ns": 783.875,
+          "mean_ns": 1303.4509389885097,
+          "max_ns": 96033.875,
+          "trials": 140031,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "first-clear",
+        "baseline": {
+          "min_ns": 559.875,
+          "median_ns": 614.5625,
+          "mean_ns": 1053.5624816008112,
+          "max_ns": 875036.4375,
+          "trials": 61144,
+          "quiet_rounds": 2
+        },
+        "inline": {
+          "min_ns": 643.25,
+          "median_ns": 1362.0,
+          "mean_ns": 1198.4285679643042,
+          "max_ns": 406221.375,
+          "trials": 61856,
+          "quiet_rounds": 2
+        },
+        "compact-before-clear-refinement": {
+          "min_ns": 932.25,
+          "median_ns": 968.75,
+          "mean_ns": 1574.06167778837,
+          "max_ns": 90213.5625,
+          "trials": 52450,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 635.375,
+          "median_ns": 666.6875,
+          "mean_ns": 1027.313045191063,
+          "max_ns": 95648.4375,
+          "trials": 71076,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 256,
+        "row_bytes": 112,
+        "mode": "insert-clear-drop",
+        "baseline": {
+          "min_ns": 1578.125,
+          "median_ns": 1632.8125,
+          "mean_ns": 3444.4512384178593,
+          "max_ns": 3637825.5,
+          "trials": 48782,
+          "quiet_rounds": 2
+        },
+        "inline": {
+          "min_ns": 1445.3125,
+          "median_ns": 1505.25,
+          "mean_ns": 3285.282813942004,
+          "max_ns": 2368434.875,
+          "trials": 61763,
+          "quiet_rounds": 2
+        },
+        "compact-before-clear-refinement": {
+          "min_ns": 1690.125,
+          "median_ns": 1880.1875,
+          "mean_ns": 4314.734810272429,
+          "max_ns": 3363526.0625,
+          "trials": 48820,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 1460.9375,
+          "median_ns": 1515.625,
+          "mean_ns": 2494.61763518075,
+          "max_ns": 1798187.5,
+          "trials": 62213,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "first-clear",
+        "baseline": {
+          "min_ns": 34500.0,
+          "median_ns": 43209.0,
+          "mean_ns": 65483.944902897565,
+          "max_ns": 2453667.0,
+          "trials": 16117,
+          "quiet_rounds": 2
+        },
+        "inline": {
+          "min_ns": 39166.0,
+          "median_ns": 85958.0,
+          "mean_ns": 86159.726580178,
+          "max_ns": 42117833.0,
+          "trials": 13258,
+          "quiet_rounds": 2
+        },
+        "compact-before-clear-refinement": {
+          "min_ns": 57708.0,
+          "median_ns": 121125.5,
+          "mean_ns": 113939.17095639944,
+          "max_ns": 14921083.0,
+          "trials": 14220,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 39000.0,
+          "median_ns": 78729.5,
+          "mean_ns": 86140.92677525361,
+          "max_ns": 107180584.0,
+          "trials": 13998,
+          "quiet_rounds": 2
+        }
+      },
+      {
+        "count": 16384,
+        "row_bytes": 112,
+        "mode": "insert-clear-drop",
+        "baseline": {
+          "min_ns": 112875.0,
+          "median_ns": 163916.0,
+          "mean_ns": 215461.08453438876,
+          "max_ns": 3588583.0,
+          "trials": 13391,
+          "quiet_rounds": 2
+        },
+        "inline": {
+          "min_ns": 107167.0,
+          "median_ns": 142062.5,
+          "mean_ns": 197323.24724264705,
+          "max_ns": 9539625.0,
+          "trials": 13056,
+          "quiet_rounds": 2
+        },
+        "compact-before-clear-refinement": {
+          "min_ns": 125917.0,
+          "median_ns": 162625.0,
+          "mean_ns": 225429.41194141944,
+          "max_ns": 4965417.0,
+          "trials": 15978,
+          "quiet_rounds": 2
+        },
+        "compact": {
+          "min_ns": 106417.0,
+          "median_ns": 190333.0,
+          "mean_ns": 218004.9777504689,
+          "max_ns": 97951292.0,
+          "trials": 15461,
+          "quiet_rounds": 2
+        }
+      }
+    ]
+  },
+  "in_place_batch": {
+    "baseline": "a1ad64980f53c002ca7f9d9c83e3c18c8f3ba935",
+    "binary_hashes": {
+      "baseline": "db26f0233ab8bb2c37640ef29a68ae39add4fa1461d2439940d24634e4a8bb76",
+      "candidate": "2f24a3e9705e7bc87327bca787dbc1f3ba94841b4a47ffab550e35a3f038d4e3",
+      "compact": "ee131661a53ecae73fd23c6ed982cc3b78c45d1b61ec855d7e40337a8e3aa959"
+    },
+    "summary": {
+      "baseline": {
+        "min_ms": 5.920292,
+        "median_ms": 12.473728999999999,
+        "mean_ms": 14.162978229457364,
+        "max_ms": 63.564958,
+        "trials": 2580
+      },
+      "candidate": {
+        "min_ms": 4.983667,
+        "median_ms": 10.992396,
+        "mean_ms": 12.280729104995375,
+        "max_ms": 168.975333,
+        "trials": 2162
+      },
+      "compact": {
+        "min_ms": 5.106042,
+        "median_ms": 11.5648125,
+        "mean_ms": 12.800984286210317,
+        "max_ms": 214.2205,
+        "trials": 2016
+      }
+    }
+  },
+  "assembly": {
+    "unique": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 5412022,
+        "requested_bytes": 2179412012
+      },
+      "candidate": {
+        "allocation_requests": 4871250,
+        "requested_bytes": 2050273025
+      }
+    },
+    "shared": {
+      "files": 289,
+      "different": [],
+      "baseline": {
+        "allocation_requests": 5471364,
+        "requested_bytes": 2187918465
+      },
+      "candidate": {
+        "allocation_requests": 4929781,
+        "requested_bytes": 2056576052
+      }
+    }
+  },
+  "whole_compile": {
+    "arguments": [
+      "omega-arena-measurement",
+      "--timings",
+      "--target",
+      "macos_arm64",
+      "--build-dir",
+      "/Users/jarod/.codex/worktrees/ingress-ownership/Omega/build/arena-metadata/compile-timing-output",
+      "samples/cli/facts/length/local/main.omg"
+    ],
+    "binary_hashes": {
+      "baseline": "2798cac08c2d5e6f619c151ab38e9ad734fa93dc70b0d78aeb9fd4dd0be1c0b7",
+      "candidate": "36069029358b3a9b6074d99576e3e48fc40dcd6aaded403113cf37dc8a7286a6"
+    },
+    "summary": {
+      "baseline": {
+        "wall_ms": {
+          "min": 2083.048625,
+          "median": 2306.259708,
+          "mean": 2330.428666736842,
+          "max": 2800.423458
+        },
+        "trials": 19,
+        "phases": {
+          "Source ingress: SourceFiles -> SyntaxTrees": {
+            "min": 7.823,
+            "median": 17.948,
+            "mean": 23.085473684210527,
+            "max": 66.152
+          },
+          "Stage 03: SyntaxTrees -> SymbolResolvedTrees": {
+            "min": 14.242,
+            "median": 23.903,
+            "mean": 23.075315789473684,
+            "max": 28.158
+          },
+          "Stage 04: SymbolResolvedTrees -> TypedTrees": {
+            "min": 33.362,
+            "median": 45.571,
+            "mean": 47.47963157894737,
+            "max": 82.909
+          },
+          "Stage 05: TypedTrees -> CheckedTrees": {
+            "min": 1743.071,
+            "median": 1897.115,
+            "mean": 1925.3005789473684,
+            "max": 2277.614
+          },
+          "Step: assemble: PreparedSources -> AssembledSyntax": {
+            "min": 7.499,
+            "median": 21.701,
+            "mean": 24.363526315789475,
+            "max": 72.839
+          },
+          "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": {
+            "min": 186.282,
+            "median": 243.796,
+            "mean": 262.2552105263158,
+            "max": 395.828
+          },
+          "Step: settle: CheckedTrees -> SelectedExecution": {
+            "min": 50.158,
+            "median": 59.639,
+            "mean": 60.355105263157895,
+            "max": 74.272
+          },
+          "compile: sources -> requested product": {
+            "min": 2053.844,
+            "median": 2254.281,
+            "mean": 2287.3328421052634,
+            "max": 2649.163
+          },
+          "prepare: project -> prepared sources": {
+            "min": 5.841,
+            "median": 8.583,
+            "mean": 12.439105263157895,
+            "max": 59.136
+          },
+          "publish: retained product -> published product": {
+            "min": 0.743,
+            "median": 1.322,
+            "mean": 1.4620526315789475,
+            "max": 2.329
+          },
+          "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": {
+            "min": 0.034,
+            "median": 0.079,
+            "mean": 0.10621052631578948,
+            "max": 0.298
+          },
+          "terminal-production/lowering: CheckedTrees -> LoweredPsi": {
+            "min": 1.686,
+            "median": 3.661,
+            "mean": 9.084315789473685,
+            "max": 43.077
+          },
+          "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": {
+            "min": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "max": 0.0
+          },
+          "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": {
+            "min": 0.112,
+            "median": 0.221,
+            "mean": 0.6431578947368422,
+            "max": 3.504
+          },
+          "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": {
+            "min": 0.055,
+            "median": 0.116,
+            "mean": 0.16047368421052632,
+            "max": 0.644
+          },
+          "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": {
+            "min": 1.906,
+            "median": 4.079,
+            "mean": 10.068052631578947,
+            "max": 46.985
+          },
+          "total elapsed": {
+            "min": 2061.686,
+            "median": 2277.035,
+            "mean": 2302.7666315789475,
+            "max": 2719.352
+          }
+        }
+      },
+      "candidate": {
+        "wall_ms": {
+          "min": 1970.084042,
+          "median": 2278.8815,
+          "mean": 2422.6660022222222,
+          "max": 3854.431041
+        },
+        "trials": 18,
+        "phases": {
+          "Source ingress: SourceFiles -> SyntaxTrees": {
+            "min": 7.728,
+            "median": 13.4455,
+            "mean": 20.131888888888888,
+            "max": 53.149
+          },
+          "Stage 03: SyntaxTrees -> SymbolResolvedTrees": {
+            "min": 14.974,
+            "median": 24.808500000000002,
+            "mean": 26.050944444444443,
+            "max": 59.916
+          },
+          "Stage 04: SymbolResolvedTrees -> TypedTrees": {
+            "min": 29.069,
+            "median": 43.3915,
+            "mean": 45.991,
+            "max": 61.124
+          },
+          "Stage 05: TypedTrees -> CheckedTrees": {
+            "min": 1662.132,
+            "median": 1881.6354999999999,
+            "mean": 2022.1225,
+            "max": 3420.743
+          },
+          "Step: assemble: PreparedSources -> AssembledSyntax": {
+            "min": 10.518,
+            "median": 15.4295,
+            "mean": 21.550333333333334,
+            "max": 55.011
+          },
+          "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": {
+            "min": 184.904,
+            "median": 236.852,
+            "mean": 240.9116111111111,
+            "max": 354.675
+          },
+          "Step: settle: CheckedTrees -> SelectedExecution": {
+            "min": 48.943,
+            "median": 56.9095,
+            "mean": 61.566833333333335,
+            "max": 108.82
+          },
+          "compile: sources -> requested product": {
+            "min": 1941.774,
+            "median": 2242.524,
+            "mean": 2382.980611111111,
+            "max": 3818.471
+          },
+          "prepare: project -> prepared sources": {
+            "min": 5.583,
+            "median": 10.044,
+            "mean": 11.174666666666667,
+            "max": 23.275
+          },
+          "publish: retained product -> published product": {
+            "min": 0.712,
+            "median": 1.554,
+            "mean": 1.6831666666666667,
+            "max": 3.525
+          },
+          "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": {
+            "min": 0.034,
+            "median": 0.0755,
+            "mean": 0.08094444444444444,
+            "max": 0.2
+          },
+          "terminal-production/lowering: CheckedTrees -> LoweredPsi": {
+            "min": 1.55,
+            "median": 3.4565,
+            "mean": 6.719055555555555,
+            "max": 38.761
+          },
+          "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": {
+            "min": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "max": 0.0
+          },
+          "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": {
+            "min": 0.111,
+            "median": 0.219,
+            "mean": 0.4663333333333333,
+            "max": 2.765
+          },
+          "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": {
+            "min": 0.056,
+            "median": 0.1095,
+            "mean": 0.13327777777777777,
+            "max": 0.385
+          },
+          "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": {
+            "min": 1.765,
+            "median": 3.962,
+            "mean": 7.449111111111111,
+            "max": 41.687
+          },
+          "total elapsed": {
+            "min": 1952.487,
+            "median": 2256.4295,
+            "mean": 2396.9976666666666,
+            "max": 3827.293
+          }
+        }
+      }
+    }
+  },
+  "decision": "Retain for reduced allocation traffic and retained storage; no precise application latency benefit established. Initial selection status below is historical.",
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_load": [
+      65.294921875,
+      42.36572265625,
+      41.8203125
+    ],
+    "hardware": {
+      "hw.model": "Mac16,10",
+      "machdep.cpu.brand_string": "Apple M4",
+      "hw.ncpu": "10",
+      "hw.memsize": "17179869184"
+    },
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1\n",
+    "allocator": "mimalloc; default-features=false",
+    "profile": "dev opt-level=1, debug=0 in standalone probes; ordinary pinned optimized workspace profiles for CLI"
+  },
+  "per_input_peak": {
+    "syntax": {
+      "per_input_peak_comparison": {
+        "lower": 463,
+        "same": 0,
+        "higher": 0
+      },
+      "sum_of_individual_peaks_baseline_candidate": [
+        30838645,
+        28862293
+      ]
+    },
+    "lookahead": {
+      "per_input_peak_comparison": {
+        "lower": 1792,
+        "same": 0,
+        "higher": 0
+      },
+      "sum_of_individual_peaks_baseline_candidate": [
+        104815563,
+        97764008
+      ]
+    }
+  },
+  "consuming_iterator": {
+    "baseline": {
+      "before_bytes": 213008,
+      "iterator_bytes": 147456,
+      "after_bytes": 0
+    },
+    "before": {
+      "before_bytes": 213080,
+      "iterator_bytes": 213080,
+      "after_bytes": 0
+    },
+    "after": {
+      "before_bytes": 213080,
+      "iterator_bytes": 147456,
+      "after_bytes": 0
+    }
+  }
+}

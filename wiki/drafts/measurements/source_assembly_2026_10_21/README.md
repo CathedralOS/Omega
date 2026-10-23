@@ -105,3 +105,5 @@ session's timing comparison or establish performance on other hosts.
 [Bounded binary storage and first-prefix retention](../source_assembly_2026_10_22/expression_scratch/README.md) remove 3,971 allocator requests on the original workload with exact syntax/diagnostics. Timing is inconclusive.
 
 [Worker-owned child lists](../source_assembly_2026_10_22/child_list_storage/README.md): four variants preserve exact observations and reduce allocation traffic, but CPU benefit remains unresolved. The implementation is not retained; full results and the worker-batch comparison are preserved.
+
+- [Uniform arena slot metadata](../source_assembly_2026_10_22/arena_slot_metadata/README.md): eliminate uniform per-row metadata and compact cold ownership; first-retirement tradeoff measured.

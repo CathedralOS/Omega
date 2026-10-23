@@ -3,6 +3,8 @@
 //! Arena storage primitives for Psi-owned source representations.
 //!
 //! `Arena` builds one dense node-kind page linked by `Handle` and `HandleSpan`.
+//! Uniform slot identity stays on that page until retirement requires per-slot
+//! metadata; the first retirement pays its initialization, and reuse retains it.
 //! `PagedArenaSet` retains several independently built dense pages behind the
 //! same direct handle surface, while `PagedArena` and `GenerationalPagedArena`
 //! serve sequential hierarchy and reusable-slot ownership respectively.

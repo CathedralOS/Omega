@@ -279,22 +279,26 @@ fn clone_from_reuses_storage_and_nested_payload_capacity_when_source_fits() {
     *source.get_mut(Handle::invalid()) = vec!["dummy".to_owned()];
 
     let mut copied = Arena::with_capacity(8);
-    copied.free_indices.reserve(8);
+    copied.slot_metadata_mut().free_indices.reserve(8);
     for _ in 0..4 {
         copied.append(vec!["longer destination payload".to_owned()]);
     }
+    // A retired source needs explicit slot metadata. Make that capacity part
+    // of the destination before asserting that clone_from reuses it.
+    let retired = copied.append(vec!["retired destination payload".to_owned()]);
+    assert!(copied.free(retired));
     *copied.get_mut(Handle::invalid()) = vec!["longer destination dummy".to_owned()];
     let storage_pointers = (
         copied.items.as_ptr(),
-        copied.generations.as_ptr(),
-        copied.occupied.as_ptr(),
-        copied.free_indices.as_ptr(),
+        copied.slot_metadata().generations.as_ptr(),
+        copied.slot_metadata().occupied.as_ptr(),
+        copied.slot_metadata().free_indices.as_ptr(),
     );
     let capacities = (
         copied.items.capacity(),
-        copied.generations.capacity(),
-        copied.occupied.capacity(),
-        copied.free_indices.capacity(),
+        copied.slot_metadata().generations.capacity(),
+        copied.slot_metadata().occupied.capacity(),
+        copied.slot_metadata().free_indices.capacity(),
     );
     let nested_pointer = copied.items[0].as_ptr();
     let payload_pointer = copied.items[0][0].as_ptr();
@@ -307,18 +311,18 @@ fn clone_from_reuses_storage_and_nested_payload_capacity_when_source_fits() {
         storage_pointers,
         (
             copied.items.as_ptr(),
-            copied.generations.as_ptr(),
-            copied.occupied.as_ptr(),
-            copied.free_indices.as_ptr(),
+            copied.slot_metadata().generations.as_ptr(),
+            copied.slot_metadata().occupied.as_ptr(),
+            copied.slot_metadata().free_indices.as_ptr(),
         )
     );
     assert_eq!(
         capacities,
         (
             copied.items.capacity(),
-            copied.generations.capacity(),
-            copied.occupied.capacity(),
-            copied.free_indices.capacity(),
+            copied.slot_metadata().generations.capacity(),
+            copied.slot_metadata().occupied.capacity(),
+            copied.slot_metadata().free_indices.capacity(),
         )
     );
     assert_eq!(nested_pointer, copied.items[0].as_ptr());
@@ -345,12 +349,12 @@ impl Clone for PanicOnClone {
 }
 
 fn assert_usable_after_clone_panic(arena: &mut Arena<PanicOnClone>) {
-    assert_eq!(arena.items.len(), arena.generations.len());
-    assert_eq!(arena.items.len(), arena.occupied.len());
+    assert_eq!(arena.items.len(), arena.slot_metadata().generations.len());
+    assert_eq!(arena.items.len(), arena.slot_metadata().occupied.len());
     assert_eq!(arena.len(), arena.iter().count());
-    for arena_index in &arena.free_indices {
+    for arena_index in &arena.slot_metadata().free_indices {
         let index = super::storage_index_from_arena_index(*arena_index);
-        assert!(!arena.occupied[index]);
+        assert!(!arena.slot_metadata().occupied[index]);
     }
     for (handle, value) in arena.iter() {
         assert!(arena.is_valid(handle));
@@ -395,8 +399,14 @@ fn clone_from_payload_panic_after_shrinking_preserves_arena_structure() {
 
     assert!(result.is_err());
     assert_eq!(copied.items.len(), 3);
-    assert_eq!(copied.generations, source.generations);
-    assert_eq!(copied.free_indices, source.free_indices);
+    assert_eq!(
+        copied.slot_metadata().generations,
+        source.slot_metadata().generations
+    );
+    assert_eq!(
+        copied.slot_metadata().free_indices,
+        source.slot_metadata().free_indices
+    );
     assert_usable_after_clone_panic(&mut copied);
 }
 
@@ -419,7 +429,7 @@ fn clone_from_payload_panic_after_partial_growth_preserves_arena_structure() {
 
     assert!(result.is_err());
     assert_eq!(copied.items.len(), 2);
-    assert!(copied.free_indices.is_empty());
+    assert!(copied.slot_metadata().free_indices.is_empty());
     assert_usable_after_clone_panic(&mut copied);
 }
 
@@ -450,4 +460,104 @@ fn span_resolution_rechecks_rows_once_a_slot_was_freed() {
     arena.reset_retain_capacity();
     let fresh = arena.insert_many(["delta".to_owned(), "echo".to_owned()]);
     assert_eq!(arena.span(fresh).map(<[String]>::len), Some(2));
+}
+
+#[test]
+fn uniform_page_retirement_preserves_unretired_handles_and_rejects_stale_slot() {
+    let mut arena = Arena::with_capacity_and_generation(8, 17);
+    let span = arena.insert_many([10_u32, 20, 30]);
+    let first = span.handle_at(0);
+    let retired = span.handle_at(1);
+    let last = span.handle_at(2);
+    assert_eq!(arena.clone().into_items().collect::<Vec<_>>(), [10, 20, 30]);
+    arena.for_each_mut(|_, value| *value += 1);
+    assert!(arena.free(retired));
+    let replacement = arena.insert(42);
+    assert_eq!(replacement.arena_index(), retired.arena_index());
+    assert_ne!(replacement.generation(), retired.generation());
+    assert!(!arena.is_valid(retired));
+    assert_eq!(*arena.get(first), 11);
+    assert_eq!(*arena.get(last), 31);
+    assert!(arena.span(span).is_none());
+    let copy = arena.clone().map(u64::from);
+    assert_eq!(copy.into_items().collect::<Vec<_>>(), [11, 42, 31]);
+    arena.clear();
+    for handle in [first, retired, last, replacement] {
+        assert!(!arena.is_valid(handle));
+    }
+    assert_eq!(arena.into_items().count(), 0);
+}
+
+#[test]
+fn uniform_source_clone_unwind_keeps_the_initialized_prefix_usable() {
+    let mut source = Arena::new();
+    for value in 0..6 {
+        source.append(PanicOnClone {
+            value,
+            panic_on_clone: value == 2,
+        });
+    }
+    let mut copied = Arena::new();
+    let retired = copied.insert(PanicOnClone::default());
+    copied.free(retired);
+    let result =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| copied.clone_from(&source)));
+    assert!(result.is_err());
+    assert_eq!(
+        copied
+            .iter()
+            .map(|(_, value)| value.value)
+            .collect::<Vec<_>>(),
+        [0, 1]
+    );
+    assert_eq!(copied.len(), 2);
+    let handle = copied.insert(PanicOnClone {
+        value: 10,
+        ..Default::default()
+    });
+    assert_eq!(copied.get(handle).value, 10);
+    assert!(copied.free(handle));
+    assert!(!copied.is_valid(handle));
+}
+
+#[test]
+fn failed_first_retirement_preserves_logical_equality() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct Payload(u32);
+    thread_local! { static FAIL_DEFAULT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+    impl Default for Payload {
+        fn default() -> Self {
+            assert!(
+                !FAIL_DEFAULT.with(|flag| flag.get()),
+                "requested default panic"
+            );
+            Self(0)
+        }
+    }
+    for clear_all in [false, true] {
+        let mut rows = Arena::new();
+        let handle = rows.append(Payload(42));
+        let expected = rows.clone();
+        FAIL_DEFAULT.with(|flag| flag.set(true));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if clear_all {
+                rows.clear();
+            } else {
+                rows.free(handle);
+            }
+        }));
+        FAIL_DEFAULT.with(|flag| flag.set(false));
+        assert!(result.is_err());
+        assert_eq!(rows, expected);
+        assert!(rows.equal_by(&expected, |left, right| left == right));
+        assert!(expected.equal_by(&rows, |left, right| left == right));
+        // Refusal before changing a payload preserves append-only rewind,
+        // even when clear has already materialized uniform slot metadata.
+        rows.rewind_appended(1);
+        let next = rows.append(Payload(7));
+        assert_eq!(rows.get(handle), &Payload(42));
+        assert_eq!(rows.get(next), &Payload(7));
+        assert!(rows.free(handle));
+        assert!(!rows.is_valid(handle));
+    }
 }
