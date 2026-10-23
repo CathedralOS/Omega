@@ -24,9 +24,62 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Execution
+
+Run each positive place with `omega run --both`:
+
+```sh
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/local/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/field/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/parameter/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/call_result/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/match_join/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/const_name/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/other_state/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/other_machine/main.omg
+omega run --both samples/cli/facts/signed_16bit_exact_multiplication_bound/target_body/main.omg
+```
+
+All 10 applications pass with `native exit 0` and `interp exit: 0`.
+
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_16bit_exact_multiplication_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_16bit_exact_multiplication_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
+of its place twin's `main.omg`/`build.omg`/`expected.txt` (eight places pin `cannot prove requires
+contract`; `call_result` pins `cannot prove ensures contract for exit from produce_prod`). Positive
+versus twin `git diff` changes only the `rhs` bound (`rhs <= 20` to `rhs <= 21`), the concrete inputs
+admitted under it (`lhs = 25i16`, `rhs = 21i16`), the named constants in `const_name` (`20`/`15` to
+`25`/`21`), and the leading invalid-control comment - all of them the fact's own input or domain. The
+concrete inputs matter: this row's places multiply literal-bound locals, whose exact values the checker
+folds, so the bound alone leaves `prod = 300i16` in contract; the twin's inputs place `prod` at
+`525i16`, which is what `500i16 - prod` cannot survive.
+
+Re-measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`) after psi integer-range literal
+handling, the scalar-predicate projection and the where-fact-interval proof paths moved past the
+previous generation (gen-4c23cc3391c); the same 20 positive places and 18 twins were re-run against it.
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse - eight at the consuming requires contract
+  (`cannot prove requires contract for call verify_prod/check_param/runner/exercise from ...`) and
+  `call_result` at `cannot prove ensures contract for exit from produce_prod`.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `9b001b8f6afa`, so every row is stamped `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained
+  60 lines (36 rows: 18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with 24
+  diagnostic continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ...
+  exit:0` rows and `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0
+  interpreter-exit:0 interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); all
+  three legs exited 0 with 0 unimplemented rows and 0 rows recording a lost success.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` ([TASKS.md](../../../../TASKS.md)): "machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls". This row is one customer group's nine-place transport and execution of that settled proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 - **Requirement established:** 16-bit signed integer exact multiplication bounds proof and realization (`Psi 05–07` / `Omega 00–09`), verifying that multiplying bounded `i16` values (`lhs >= 15i16 && lhs <= 25i16`, `rhs >= 10i16 && rhs <= 20i16`) establishes the bounded interval `prod >= 150i16 && prod <= 500i16`, which proves that exact signed subtraction `let headroom: i16 = 500i16 - prod` is provably overflow-free and within 16-bit signed bounds across all nine standard places.
 
 Full 8-layer specification and lowering evidence:
@@ -43,11 +96,11 @@ Full 8-layer specification and lowering evidence:
   - `other_state`: multiplication result is passed across a transition edge into successor state `step(forwarded: i16)`.
   - `other_machine`: multiplication result is forwarded through intermediate machine `runner()`.
   - `target_body`: multiplication result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
-  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the `rhs` bound to `rhs >= 10 && rhs <= 21` (where `prod` reaches `525i16 > 500i16`), proving that downstream contract verification `requires prod >= 150 && prod <= 500` strictly fails closed when the post-multiplication bound exceeds 500.
-- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: cannot prove ... contract ...: ... <= 500`, confirming that the proof engine soundly detects that when `prod` can be 525, contract satisfaction cannot be established.
+  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the `rhs` bound to `rhs >= 10 && rhs <= 21` and in the concrete inputs admitted under it (`lhs = 25i16`, `rhs = 21i16`, so `prod` is `525i16 > 500i16`), proving that downstream contract verification `requires prod >= 150 && prod <= 500` strictly fails closed when the post-multiplication bound exceeds 500.
+- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`), confirming that the proof engine soundly detects that when `prod` can reach 525 the contract cannot be established. Eight places reject at the consuming requires contract (`error: cannot prove requires contract for call verify_prod/check_param/runner/exercise from ...: <carried value> >= 150 && <carried value> <= 500`); `call_result` rejects at the producer's own postcondition (`error: cannot prove ensures contract for exit from produce_prod at statement 0: result >= 150 && result <= 500`), and its fixture oracle pins that exact fragment.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. Integer multiplications are lowered with verified exact integer arithmetic certificates (`[-32768, 32767]`), proving absence of overflow and erasing proof tags. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 2-byte `i16` scalar storage and alignment, while calling plans assign 16-bit register homes (`ax`/`di`/`si` on x86_64, `w0`/`w1` on arm64) for passing values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA multiplication instructions: 16-bit signed `imul r16, r16` on `x86_64` and sign-extended 16-bit multiplication `mul w, w, w` on `arm64`. Exact signed subtraction lowers to 16-bit `sub`, and register allocation assigns register homes and disjoint stack activation frames honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open under NUMERIC-VALUES: dynamic runtime multiplication overflow trapping certificates, 64-bit to 128-bit widening signed multiplication, and SIMD packed signed multiplication kernels.
+Remaining open: dynamic runtime multiplication overflow trapping certificates, 64-bit to 128-bit widening signed multiplication, and SIMD packed signed multiplication kernels.

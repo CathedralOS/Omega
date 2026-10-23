@@ -2,7 +2,7 @@
 
 Fact: adding two bounded 16-bit signed i16 values (lhs >= 100i16 && lhs <= 200i16 and rhs >= 150i16 && rhs <= 250i16) establishes the exact post-addition interval (sum >= 250i16 && sum <= 450i16), discharging a downstream contract requiring sum >= 250i16 && sum <= 450i16 (and exact subtraction 450i16 - sum) across all nine places.
 
-Owning Task: `SIGNED-16BIT-EXACT-ARITHMETIC`
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`); `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Instruction selection](wiki/spec/resources/storage.md)
 
 This fact row demonstrates that adding two bounded 16-bit signed `i16` integers (`lhs >= 100i16 && lhs <= 200i16` and `rhs >= 150i16 && rhs <= 250i16`) establishes the exact post-addition interval (`sum >= 250i16 && sum <= 450i16`) across all nine standard places. The compiler statically derives interval addition bounds (`[100, 200] + [150, 250] = [250, 450]`), which directly discharges exact downstream subtraction `margin = 450i16 - sum` and the contract `requires v >= 0i16 && v <= 200i16` of `verify_i16_margin` without underflow, overflow, or runtime guard checks across both Terminal Psi and native targets.
@@ -43,7 +43,7 @@ omega run --both samples/cli/facts/signed_16bit_exact_arithmetic_bound/target_bo
 
 All 10 samples report `native exit 0` and `interp exit: 0`.
 
-Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the rhs operand or contract bound is widened to `251i16` (yielding `sum <= 451i16`), causing `margin = 450i16 - sum` to reach `-1i16` and failing to discharge `requires v >= 0i16 && v <= 200i16`. Check each twin with:
+Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the rhs bound (and, where the place restates it, the consumer contract) is widened to `251i16` (`sum <= 451i16`), causing `margin = 450i16 - sum` to reach `-1i16` and failing to discharge `requires v >= 0i16 && v <= 200i16`; `const_name` widens its named operand constants to `200i16`/`251i16`, because that place has no parameter bound. The concrete inputs stay `150i16`/`200i16` in every twin, so each positive-vs-twin `git diff` changes only the bound or the constants. Check each twin with:
 
 ```sh
 omega --check samples/cli/facts/signed_16bit_exact_arithmetic_bound/local/invalid/main.omg
@@ -60,9 +60,39 @@ omega --check samples/cli/facts/signed_16bit_exact_arithmetic_bound/target_body/
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call verify_i16_margin from ...: margin >= 0 && margin <= 200 (needs fact \`v >= 0 && v <= 200\` here; establish it before the call via a prior contract guarantee, domain membership, or guard)`
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_16bit_exact_arithmetic_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_16bit_exact_arithmetic_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
+of its place twin's `main.omg`/`build.omg`/`expected.txt` (`cannot prove requires contract for call
+verify_i16_margin` and `v >= 0 && v <= 200`). Positive versus twin `git diff` changes only the `rhs`
+bound (`rhs <= 250i16` to `rhs <= 251i16`, with the restated consumer contract widened to `451i16`
+where the place carries one), or - in `const_name` - the named operand constants (`150i16`/`200i16` to
+`200i16`/`251i16`), which is the fact's own domain.
+
+Re-measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`) after psi integer-range literal
+handling, the scalar-predicate projection and the where-fact-interval proof paths moved past the
+previous generation (gen-4c23cc3391c); the same 20 positive places and 18 twins were re-run against it.
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with `cannot prove requires contract for call
+  verify_i16_margin ... (needs fact \`v >= 0 && v <= 200\` here)`.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `9b001b8f6afa`, so every row is stamped `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained
+  60 lines (36 rows: 18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with 24
+  diagnostic continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ...
+  exit:0` rows and `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0
+  interpreter-exit:0 interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); all
+  three legs exited 0 with 0 unimplemented rows and 0 rows recording a lost success.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `SIGNED-16BIT-EXACT-ARITHMETIC` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls". This row is one customer group's nine-place transport and execution of that settled proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy realization.
 - **Requirement established:** End-to-end nine-place fact preservation for 16-bit signed `i16` addition interval synthesis (`lhs >= 100i16 && lhs <= 200i16` + `rhs >= 150i16 && rhs <= 250i16` -> `sum >= 250i16 && sum <= 450i16`) discharging exact subtraction `450i16 - sum` and downstream contract `v >= 0i16 && v <= 200i16` across all nine language transport places with differential agreement between Terminal Psi and native execution across hosted targets.
 - **Authority:** [Numeric values](wiki/spec/language/numeric_values.md#exact-subtraction), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Control flow](wiki/spec/terminal-psi/control_flow.md).
 
