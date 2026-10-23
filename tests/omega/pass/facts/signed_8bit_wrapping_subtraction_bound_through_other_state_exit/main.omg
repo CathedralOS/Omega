@@ -1,0 +1,55 @@
+// Fact: 8-bit signed wrapping subtraction lhs -% rhs with bounded interval 40i8 <= diff <= 90i8 establishes 40i8 <= diff <= 90i8 across all nine places so exact subtractions 90i8 - diff and diff - 40i8 are safe.
+// Place: other state. A state transition forwards the bounded wrapping difference to a successor state.
+// Expected exit: 0
+
+machine compute_diff(lhs: i8, rhs: i8) -> i8
+requires lhs >= 60i8 && lhs <= 100i8
+    && rhs >= 10i8 && rhs <= 20i8
+ensures result >= 40i8 && result <= 90i8
+{
+    let wrap_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
+    let wrap_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+    let wrap_diff: i8 in Wrapping = wrap_lhs - wrap_rhs;
+    wrap_diff as i8
+}
+
+machine verify_diff(diff: i8) -> i8 crashes Trap
+requires diff >= 40i8 && diff <= 90i8
+ensures result == 0i8
+{
+    let headroom: i8 = 90i8 - diff;
+    let margin: i8 = diff - 40i8;
+    transition headroom == 25i8 && margin == 25i8 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok() {
+        0i8
+    }
+    state bad() {
+        crash Trap;
+    }
+}
+
+machine probe() -> i8 crashes Trap
+ensures result == 0i8
+{
+    let diff: i8 = compute_diff(80i8, 15i8);
+    transition {
+        _ -> step(diff)
+    }
+    state step(diff: i8) -> i8
+    requires diff >= 40i8 && diff <= 90i8
+    {
+        verify_diff(diff)
+    }
+}
+
+machine main() crashes Trap {
+    transition probe() == 0i8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

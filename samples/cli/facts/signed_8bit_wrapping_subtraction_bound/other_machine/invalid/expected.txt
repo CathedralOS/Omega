@@ -1,2 +1,1 @@
-cannot check prepared project: checked compilation failed for package `signed_8bit_wrapping_subtraction_bound_other_machine_invalid` with 1 diagnostic(s)
-  error: cannot prove requires contract for call forward from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+cannot prove requires contract for call forward from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
