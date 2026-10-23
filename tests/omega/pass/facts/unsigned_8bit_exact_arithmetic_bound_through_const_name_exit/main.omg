@@ -1,0 +1,27 @@
+// Fact: an 8-bit unsigned u8 exact addition of bounded inputs (lhs >= 30u8 && lhs <= 80u8, rhs >= 40u8 && rhs <= 100u8) establishes sum >= 70u8 && sum <= 180u8 so exact 8-bit subtractions 180u8 - sum and sum - 70u8 are proved overflow-free across all nine places.
+// Place: const_name. Named 8-bit constants define the sum before discharging exact subtractions.
+// Expected exit: 0
+
+const LHS: u8 = 50u8;
+const RHS: u8 = 70u8;
+const SUM: u8 = LHS + RHS;
+
+machine probe() -> i32 {
+    let sum: u8 = SUM;
+    let headroom: u8 = 180u8 - sum;
+    let margin: u8 = sum - 70u8;
+    let total: u8 = headroom + margin;
+    match total == 110u8 {
+        true -> 0i32,
+        false -> 1i32,
+    }
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

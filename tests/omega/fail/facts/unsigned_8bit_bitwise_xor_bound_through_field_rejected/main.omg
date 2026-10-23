@@ -1,0 +1,36 @@
+// Fact: 8-bit unsigned bitwise XOR raw ^ 15u8 with bounded interval 40u8 <= xored <= 63u8 establishes 40u8 <= xored <= 63u8 across all nine places so exact subtractions 63u8 - xored and xored - 40u8 are safe.
+// Place: field. The bitwise XOR result is stored and loaded through a record field.
+// Expected exit: 0
+machine verify_xored(res: u8) -> i32
+    requires res >= 40 && res <= 63
+{
+    let head: u8 = 63 - res;
+    let tail: u8 = res - 40;
+    let sum: i32 = (head as i32) + (tail as i32);
+    sum - 23
+}
+
+data Carrier {
+    xored: u8;
+}
+
+machine compute_field(raw: u8) -> i32
+    requires raw >= 64 && raw <= 64
+{
+    let c: Carrier = Carrier { xored: raw ^ 15 };
+    verify_xored(c.xored)
+}
+
+machine evaluate() -> i32 {
+    compute_field(64)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
