@@ -1,0 +1,21 @@
+// Fact: a 32-bit unsigned u32 logical left shift of a bounded input (val >= 20u32 && val <= 20u32) by 2u32 bits establishes shifted >= 80u32 && shifted <= 80u32 so exact 32-bit subtraction shifted - 80u32 is proved underflow-free across all nine places.
+
+const BASE_OFFSET: u32 = 80u32;
+
+machine probe(val: u32) -> u32
+    requires val >= 15u32 && val <= 20u32
+{
+    let shifted: u32 = val << 2u32;
+    let check: u32 = shifted - BASE_OFFSET;
+    check
+}
+
+machine main() crashes Trap {
+    let check: u32 = probe(20u32);
+    transition check == 0u32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

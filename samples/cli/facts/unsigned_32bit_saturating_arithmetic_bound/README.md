@@ -6,18 +6,18 @@ Every place performs the same operation: add bounded 32-bit unsigned operands (`
 
 ## Places
 
-| Place | Positive Project | Reject Twin | Transport Mechanism |
-| --- | --- | --- | --- |
-| (root) | [`main.omg`](main.omg) | — | root 32-bit unsigned saturating addition, headroom subtraction, and margin discharge |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the 32-bit operands are copied into locals before saturating addition and interval discharge |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the 32-bit operands are stored in record fields before saturating addition and interval discharge |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit machine parameters receive bounded 32-bit operands before saturating addition and interval discharge |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 32-bit operands before saturating addition and interval discharge |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 32-bit operands and join before saturating addition and interval discharge |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 32-bit operands before saturating addition and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 32-bit operands before saturating addition and interval discharge |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 32-bit operands to saturating addition |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies adds bounded 32-bit operands with saturation and discharges interval |
+| Place | Positive Project | Reject Twin | Transport Mechanism | Pinned Pass Fixture | Pinned Reject Fixture |
+| --- | --- | --- | --- | --- | --- |
+| (root) | [`main.omg`](main.omg) | — | root 32-bit unsigned saturating addition, headroom subtraction, and margin discharge | — | — |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the 32-bit operands are copied into locals before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_local_rejected` |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the 32-bit operands are stored in record fields before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_field_rejected` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit machine parameters receive bounded 32-bit operands before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_parameter_rejected` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 32-bit operands before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_call_result_rejected` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 32-bit operands and join before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_match_join_rejected` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 32-bit operands before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_const_name_rejected` |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 32-bit operands before saturating addition and interval discharge | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_other_state_rejected` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 32-bit operands to saturating addition | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_other_machine_rejected` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies adds bounded 32-bit operands with saturation and discharges interval | `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_target_body_rejected` |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -63,6 +63,44 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u32\``).
+
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/unsigned_32bit_saturating_arithmetic_bound_through_<place>_exit`
+and `tests/omega/fail/facts/unsigned_32bit_saturating_arithmetic_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`,
+`target_body`). Each pass fixture is a byte-identical copy of its place's `main.omg`/`build.omg` plus
+`expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy of its place twin's
+`main.omg`/`build.omg`/`expected.txt`, whose single line is the runner-emitted fragment
+`may overflow \`u32\``. Positive versus twin `git diff` moves only the construct's own operand bound
+(`lhs <= 80u32` to `lhs <= 81u32`).
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d3326d2` (omega sha256
+`4e3950e53eb15fbb3b54868f9c8964e23e7efc5bdced336e07f18eb27e28ac4a`, corpus_runner sha256
+`c25372101a8cd22676fc23b3b80b2387a58609a988353552f158251c65650b96`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega run --both` over the nine twins: 9/9 fail closed at checking (`may overflow \`u32\``, decision 17);
+  the `omega run` route exits 200 with the checked-compilation diagnostic, none reaches native execution.
+- Perturbing the root oracle (one token: `transition res == 50` -> `transition res == 51`) exits 255 with
+  `native signal 5` and `interp crash: Trap (host presentation agrees)`.
+- `python3 tools/sample_gate.py --cli <generation omega> --filter unsigned_32bit_saturating_arithmetic_bound,unsigned_32bit_shift_left_bound`
+  records 38/38 projects checked on Darwin arm64 with 18 of these matched intended rejection controls.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `f1b0d3326d2d`, so every row is stamped `@f1b0d3326d2d+wt`: `tests/omega/corpus_outcomes.txt` gained
+  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` carrying their diagnostics
+  with the expected fragments satisfied, 24 diagnostic continuation lines),
+  `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
+  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); the legs exited 0 with
+  36/36, 18/18 and 18/18 fixtures done, 0 unimplemented rows and no newly recorded row carrying a lost
+  success (the native golden's 2 `regressed-from` rows predate this series).
+
+- Re-measured clean after the rebase onto `e42d5379cc3` with the factsr1 generation producer
+  `gen-d3b0020bf6a` (revision `d3b0020bf6a`; the range `d3b0020bf6a..e42d5379cc3` changes 0 `.rs`
+  files, so its compiler inputs equal the rebased base's): the same 36 fixtures weigh 18 `checked` /
+  18 `rejected` with 0 expected-fragment misses, 18 `built exit:0` and 18 `interpreter-exit:0
+  interpreter:agrees`.
 
 ## Requirements and Evidence
 

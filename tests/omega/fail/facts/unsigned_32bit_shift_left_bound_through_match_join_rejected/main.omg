@@ -1,0 +1,30 @@
+// Fact: a 32-bit unsigned u32 logical left shift of a bounded input (val >= 20u32 && val <= 20u32) by 2u32 bits establishes shifted >= 80u32 && shifted <= 80u32 so exact 32-bit subtraction shifted - 80u32 is proved underflow-free across all nine places.
+
+machine choose(flag: bool, first: u32, second: u32) -> u32
+    requires first >= 80u32 && first <= 80u32 && second >= 80u32 && second <= 80u32
+    ensures result >= 80u32 && result <= 80u32
+{
+    transition flag {
+        true -> first
+        false -> second
+    }
+}
+
+machine probe(flag: bool, val: u32) -> u32
+    requires val >= 15u32 && val <= 20u32
+{
+    let shifted: u32 = val << 2u32;
+    let joined: u32 = choose(flag, shifted, 80u32);
+    let check: u32 = joined - 80u32;
+    check
+}
+
+machine main() crashes Trap {
+    let check: u32 = probe(true, 20u32);
+    transition check == 0u32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
