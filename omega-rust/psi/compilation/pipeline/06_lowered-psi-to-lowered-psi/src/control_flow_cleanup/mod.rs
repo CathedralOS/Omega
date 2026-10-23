@@ -67,10 +67,7 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
             sidecar_values.insert(value);
         });
     }
-    for occurrence in &before.selected_ieee_float_comparison_occurrences {
-        sidecar_operations.insert(occurrence.terminal_operation);
-    }
-    for occurrence in &before.selected_integer_comparison_occurrences {
+    for occurrence in &before.selected_comparison_occurrences {
         sidecar_operations.insert(occurrence.terminal_operation);
     }
     let mut evidence = retention::block_local_evidence(&before.semantic_module);

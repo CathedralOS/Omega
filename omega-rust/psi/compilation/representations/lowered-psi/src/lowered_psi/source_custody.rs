@@ -20,28 +20,33 @@ impl LoweredSourceCallOccurrence {
     }
 }
 
-/// Exact selected source comparison joined to one emitted operation. Provider
-/// authority is independently rejoined by Omega before execution is admitted.
+/// One exact selected source comparison joined to the Terminal operation it
+/// emitted, carrying the two facts no other record holds: which emitted
+/// operation answers for the checked `operator_use`, and where that operation
+/// reads the authored scalar operands.
+///
+/// IEEE and integer comparisons share this row because every consumer reads
+/// the same fields: boundary applications join the selected requirement
+/// application through `application_site`/`requirement_operator` and the
+/// emitted operation through `terminal_operation`, and operation crash
+/// contracts join the checked crash site through `operator_use`. The emitted
+/// operation itself carries the comparison's meaning — `IeeeFloatCompare`'s
+/// comparison, the integer operation's own variant, and for `!=` the
+/// `BooleanNot` over its result — and the checked operator use keeps the
+/// source coordinate; the row restates neither. Provider authority is
+/// independently rejoined by Omega before execution is admitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LoweredSelectedIeeeFloatComparisonOccurrence {
+pub struct LoweredSelectedComparisonOccurrence {
     pub operator_use: checked_trees::CheckedOperatorUseHandle,
     pub application_site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_operator: symbols::SymbolHandle,
     pub terminal_machine: MachineId,
     pub terminal_operation: OperationId,
-    pub comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
-    pub format: semantic_vocabulary::IeeeFloatFormat,
-}
-
-/// The Terminal integer comparison operations a selected comparison emits.
-/// The row always names the operation actually written; how that operation
-/// reads the authored operands, and whether the authored meaning negates it,
-/// are the separate exact facts below.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LoweredSelectedIntegerComparisonOperation {
-    Equal,
-    LessThan,
-    LessOrEqual,
+    /// Where the emitted operation reads each authored scalar operand. IEEE
+    /// comparisons emit the authored comparison itself, so they always record
+    /// `Authored`; `>` and `>=` emit the reversed
+    /// `IntegerLessThan`/`IntegerLessOrEqual`.
+    pub operand_order: LoweredSelectedComparisonOperandOrder,
 }
 
 /// Where the emitted Terminal operation reads each authored scalar operand.
@@ -53,7 +58,7 @@ pub enum LoweredSelectedIntegerComparisonOperation {
 /// swapped emission must reindex them before publication or the verifier's
 /// positional substitution would read the wrong operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LoweredSelectedIntegerComparisonOperandOrder {
+pub enum LoweredSelectedComparisonOperandOrder {
     /// Terminal operand position `k` is authored scalar operand ordinal `k`.
     Authored,
     /// Terminal operand position `k` is authored scalar operand ordinal
@@ -61,7 +66,7 @@ pub enum LoweredSelectedIntegerComparisonOperandOrder {
     Swapped,
 }
 
-impl LoweredSelectedIntegerComparisonOperandOrder {
+impl LoweredSelectedComparisonOperandOrder {
     /// The Terminal operand position holding one authored scalar operand
     /// ordinal, within an emitted operand roster of `operand_count`. A roster
     /// this mapping cannot address exactly has no position, so callers fail
@@ -88,60 +93,6 @@ impl LoweredSelectedIntegerComparisonOperandOrder {
             }
         }
     }
-}
-
-impl LoweredSelectedIntegerComparisonOperation {
-    /// The one admitted emission for an authored integer comparison spelling:
-    /// the Terminal operation written, where it reads the authored operands,
-    /// and whether the authored meaning is that operation's negation.
-    ///
-    /// This roster is exhaustive and is the only producer of these triples, so
-    /// no other combination can be recorded: `==`, `<` and `<=` emit their own
-    /// operation over the authored order; `>` and `>=` emit the swapped
-    /// `IntegerLessThan`/`IntegerLessOrEqual`; `!=` emits `IntegerEqual` over
-    /// the authored order and negates its result. It mirrors the checked
-    /// stage's own comparison normalization, so a selected operator and a
-    /// builtin comparison denote the same operation. Any other binary operator
-    /// has no admitted emission and fails closed.
-    pub const fn admitted_emission(
-        operator: checked_trees::expression::BinaryOperator,
-    ) -> Option<(Self, LoweredSelectedIntegerComparisonOperandOrder, bool)> {
-        use LoweredSelectedIntegerComparisonOperandOrder::{Authored, Swapped};
-        use checked_trees::expression::BinaryOperator;
-        match operator {
-            BinaryOperator::Equal => Some((Self::Equal, Authored, false)),
-            BinaryOperator::NotEqual => Some((Self::Equal, Authored, true)),
-            BinaryOperator::Less => Some((Self::LessThan, Authored, false)),
-            BinaryOperator::LessOrEqual => Some((Self::LessOrEqual, Authored, false)),
-            BinaryOperator::Greater => Some((Self::LessThan, Swapped, false)),
-            BinaryOperator::GreaterOrEqual => Some((Self::LessOrEqual, Swapped, false)),
-            _ => None,
-        }
-    }
-}
-
-/// Exact selected integer comparison joined to one emitted operation: the
-/// integer counterpart of [`LoweredSelectedIeeeFloatComparisonOccurrence`].
-/// Operation crash contracts join a checked operator crash site to its
-/// emitted operation only through this row's `operator_use`; provider
-/// authority is independently rejoined by Omega before execution is admitted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LoweredSelectedIntegerComparisonOccurrence {
-    pub operator_use: checked_trees::CheckedOperatorUseHandle,
-    pub application_site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
-    pub requirement_operator: symbols::SymbolHandle,
-    pub terminal_machine: MachineId,
-    pub terminal_operation: OperationId,
-    pub comparison: LoweredSelectedIntegerComparisonOperation,
-    /// Where the emitted operation reads each authored scalar operand, so the
-    /// operation crash contract can reindex the operator declaration's
-    /// authored formal telescope into the operation's positional one.
-    pub operand_order: LoweredSelectedIntegerComparisonOperandOrder,
-    /// The authored comparison is the emitted operation's negation, completed
-    /// by one `BooleanNot` over its result. The crash contract stays on the
-    /// emitted comparison, which is the operation owning the scalar operands.
-    pub negated: bool,
-    pub integer_type: semantic_vocabulary::IntegerType,
 }
 
 /// One scalar value in the checked source environment at a call. Source

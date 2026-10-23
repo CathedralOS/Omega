@@ -262,10 +262,9 @@ pub(crate) struct OperationBuffer {
     /// Source-proved singleton values keyed by their exact selector occurrence
     /// and immutable SSA value. These refine overlap only, not bounds or authority.
     pub(crate) scalar_index_coordinates: Vec<(ObligationId, ValueId, u64)>,
-    pub(crate) selected_ieee_float_comparisons:
-        Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
-    pub(crate) selected_integer_comparisons:
-        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    /// One row per emitted selected comparison, joining the checked operator
+    /// use to the operation it produced.
+    pub(crate) selected_comparisons: Vec<lowered_psi::LoweredSelectedComparisonOccurrence>,
     /// Formation obligations of operations whose source occurrence checking
     /// decided. The module's proof bundle carries each as source-checked
     /// evidence; a route that drops them leaves certificate search to prove
@@ -486,8 +485,7 @@ impl OperationBuffer {
             quotient_calls: Vec::new(),
             loan_captures: Vec::new(),
             loan_completions: Vec::new(),
-            selected_ieee_float_comparisons: Vec::new(),
-            selected_integer_comparisons: Vec::new(),
+            selected_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),
             claim_edge_bindings: Vec::new(),

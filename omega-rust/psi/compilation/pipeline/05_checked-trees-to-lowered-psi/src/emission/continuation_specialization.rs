@@ -13,10 +13,7 @@ use crate::lowering_error::LoweringError;
 use crate::terminal_identities::{
     allocate_dense, block_id, claim_id, edge_id, obligation_id, operation_id, place_id, value_id,
 };
-use lowered_psi::{
-    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
-    LoweredSourceCallOccurrence,
-};
+use lowered_psi::{LoweredSelectedComparisonOccurrence, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{BlockId, EdgeId, ObligationId, StructuralPlaceKind};
 use terminal_psi::{
     ScalarBlockInvariant, ScalarQualificationCoercion, StructuralTypeDeclaration, TerminalMachine,
@@ -33,10 +30,7 @@ pub(crate) struct CompanionRows<'a> {
     pub(crate) source_calls: &'a mut Vec<LoweredSourceCallOccurrence>,
     pub(crate) scalar_block_invariants: &'a mut Vec<ScalarBlockInvariant>,
     pub(crate) qualification_coercions: &'a mut Vec<ScalarQualificationCoercion>,
-    pub(crate) selected_ieee_float_comparisons:
-        &'a mut Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
-    pub(crate) selected_integer_comparisons:
-        &'a mut Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    pub(crate) selected_comparisons: &'a mut Vec<LoweredSelectedComparisonOccurrence>,
     pub(crate) source_checked_obligations: &'a mut Vec<ObligationId>,
     pub(crate) claim_introductions: &'a [super::claim_bindings::ClaimIntroduction],
     pub(crate) claim_edge_bindings: &'a [super::claim_bindings::ClaimEdgeBinding],

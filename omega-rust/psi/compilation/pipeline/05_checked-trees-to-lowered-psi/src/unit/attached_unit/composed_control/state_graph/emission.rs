@@ -996,8 +996,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             source_calls: &mut occurrences.source_calls,
             scalar_block_invariants: &mut scalar_block_invariants,
             qualification_coercions: &mut qualification_coercions,
-            selected_ieee_float_comparisons: &mut occurrences.selected_ieee_float_comparisons,
-            selected_integer_comparisons: &mut occurrences.selected_integer_comparisons,
+            selected_comparisons: &mut occurrences.selected_comparisons,
             source_checked_obligations: &mut occurrences.source_checked_obligations,
         },
         crate::emission::continuation_specialization::Counters {

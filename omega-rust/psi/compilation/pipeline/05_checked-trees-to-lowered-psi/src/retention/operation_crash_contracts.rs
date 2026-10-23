@@ -22,9 +22,9 @@
 //! Nothing here is inferred from the emitted operation: the published routes
 //! come from the checked site and must agree with the operator declaration's
 //! own contract plan when one exists; the operation is found only through
-//! the exact source-occurrence join emission recorded (the selected IEEE
-//! float and selected integer comparison occurrence rosters, both keyed by
-//! the checked `operator_use`); and every crash-qualified use inside the
+//! the exact source-occurrence join emission recorded (the selected
+//! comparison occurrence roster, keyed by the checked `operator_use`); and
+//! every crash-qualified use inside the
 //! closure must produce a row, so a use whose join or contract cannot be
 //! reconstructed fails closed instead of lowering as a crash-free operation.
 //!
@@ -44,7 +44,7 @@ use checked_trees::signature::{SignatureContract, SignatureContractKind};
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorUseHandle, CheckedTrees, CheckedValueOrigin,
 };
-use lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperandOrder};
+use lowered_psi::{LoweredPsi, LoweredSelectedComparisonOperandOrder};
 use semantic_vocabulary::{MachineId, OperationId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine, TerminalOperationCrashContract};
 
@@ -342,26 +342,16 @@ fn emitted_operation(
     (
         MachineId,
         OperationId,
-        LoweredSelectedIntegerComparisonOperandOrder,
+        LoweredSelectedComparisonOperandOrder,
     ),
     LoweringError,
 > {
     let operator_use: CheckedOperatorUseHandle = site.operator_use;
-    // `IeeeFloatCompare` carries its own comparison identity, so an IEEE
-    // comparison is always emitted over the authored operand order.
-    let float_joins = lowered
-        .selected_ieee_float_comparison_occurrences
-        .iter()
-        .filter(|occurrence| occurrence.operator_use == operator_use)
-        .map(|occurrence| {
-            (
-                occurrence.terminal_machine,
-                occurrence.terminal_operation,
-                LoweredSelectedIntegerComparisonOperandOrder::Authored,
-            )
-        });
-    let integer_joins = lowered
-        .selected_integer_comparison_occurrences
+    // Every selected comparison records where its emitted operation reads the
+    // authored operands: IEEE float rows always read the authored order, and
+    // `>`/`>=` integer rows record `Swapped`.
+    let mut joins = lowered
+        .selected_comparison_occurrences
         .iter()
         .filter(|occurrence| occurrence.operator_use == operator_use)
         .map(|occurrence| {
@@ -371,7 +361,6 @@ fn emitted_operation(
                 occurrence.operand_order,
             )
         });
-    let mut joins = float_joins.chain(integer_joins);
     match (joins.next(), joins.next()) {
         (Some(join), None) => Ok(join),
         (None, _) => unsupported(

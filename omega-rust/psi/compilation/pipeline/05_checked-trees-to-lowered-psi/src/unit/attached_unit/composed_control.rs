@@ -39,10 +39,8 @@ pub(in crate::unit::attached_unit) struct ComposedOccurrences {
     pub(in crate::unit::attached_unit) quotient_calls:
         Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,
     pub(in crate::unit::attached_unit) source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    pub(in crate::unit::attached_unit) selected_ieee_float_comparisons:
-        Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
-    pub(in crate::unit::attached_unit) selected_integer_comparisons:
-        Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    pub(in crate::unit::attached_unit) selected_comparisons:
+        Vec<lowered_psi::LoweredSelectedComparisonOccurrence>,
     pub(in crate::unit::attached_unit) source_checked_obligations:
         Vec<semantic_vocabulary::ObligationId>,
     /// The header block of each live state, in plan order.
@@ -63,10 +61,8 @@ impl ComposedOccurrences {
         self.quotient_adaptations
             .extend(operations.quotient_adaptations);
         self.quotient_calls.extend(operations.quotient_calls);
-        self.selected_ieee_float_comparisons
-            .extend(operations.selected_ieee_float_comparisons);
-        self.selected_integer_comparisons
-            .extend(operations.selected_integer_comparisons);
+        self.selected_comparisons
+            .extend(operations.selected_comparisons);
         self.source_checked_obligations
             .extend(operations.source_checked_obligations);
     }

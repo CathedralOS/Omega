@@ -22,9 +22,7 @@ use buffer::OperationBuffer;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
 use expressions::LoweredDirectExpression;
 pub(crate) use expressions::emit_direct_expression;
-use lowered_psi::{
-    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
-};
+use lowered_psi::LoweredSelectedComparisonOperandOrder;
 use semantic_vocabulary::{QualifiedScalarType, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 
@@ -125,16 +123,18 @@ pub(crate) fn emit_scalar_binding(
             // names: a selected use that reached emission without one would
             // be indistinguishable from a builtin comparison downstream.
             let (kind, negated) = match occurrence.meaning {
-                SelectedComparisonMeaning::IeeeFloat { comparison, format } => {
-                    operations.selected_ieee_float_comparisons.push(
-                        lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence {
+                SelectedComparisonMeaning::IeeeFloat { comparison, .. } => {
+                    operations.selected_comparisons.push(
+                        lowered_psi::LoweredSelectedComparisonOccurrence {
                             operator_use: occurrence.operator_use,
                             application_site: occurrence.application_site,
                             requirement_operator: occurrence.requirement_operator,
-                            comparison,
-                            format,
                             terminal_machine,
                             terminal_operation: operation,
+                            // `IeeeFloatCompare` carries the authored comparison
+                            // itself, so the emitted operation always reads the
+                            // authored operand order.
+                            operand_order: LoweredSelectedComparisonOperandOrder::Authored,
                         },
                     );
                     (
@@ -150,19 +150,16 @@ pub(crate) fn emit_scalar_binding(
                     comparison,
                     operand_order,
                     negated,
-                    integer_type,
+                    ..
                 } => {
-                    operations.selected_integer_comparisons.push(
-                        lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
+                    operations.selected_comparisons.push(
+                        lowered_psi::LoweredSelectedComparisonOccurrence {
                             operator_use: occurrence.operator_use,
                             application_site: occurrence.application_site,
                             requirement_operator: occurrence.requirement_operator,
-                            comparison,
-                            operand_order,
-                            negated,
-                            integer_type,
                             terminal_machine,
                             terminal_operation: operation,
+                            operand_order,
                         },
                     );
                     // Both operands are already completed above in authored
@@ -170,30 +167,10 @@ pub(crate) fn emit_scalar_binding(
                     // positional roster follows the recorded mapping, exactly
                     // as the checked stage normalizes a builtin `>` or `>=`.
                     let (first, second) = match operand_order {
-                        LoweredSelectedIntegerComparisonOperandOrder::Authored => (left, right),
-                        LoweredSelectedIntegerComparisonOperandOrder::Swapped => (right, left),
+                        LoweredSelectedComparisonOperandOrder::Authored => (left, right),
+                        LoweredSelectedComparisonOperandOrder::Swapped => (right, left),
                     };
-                    let kind = match comparison {
-                        LoweredSelectedIntegerComparisonOperation::Equal => {
-                            OperationKind::IntegerEqual {
-                                left: first,
-                                right: second,
-                            }
-                        }
-                        LoweredSelectedIntegerComparisonOperation::LessThan => {
-                            OperationKind::IntegerLessThan {
-                                left: first,
-                                right: second,
-                            }
-                        }
-                        LoweredSelectedIntegerComparisonOperation::LessOrEqual => {
-                            OperationKind::IntegerLessOrEqual {
-                                left: first,
-                                right: second,
-                            }
-                        }
-                    };
-                    (kind, negated)
+                    (comparison.operation(first, second), negated)
                 }
             };
             operations.push(Operation {

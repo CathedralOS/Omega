@@ -55,10 +55,7 @@ use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-use lowered_psi::{
-    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
-    LoweredSourceCallOccurrence,
-};
+use lowered_psi::{LoweredSelectedComparisonOccurrence, LoweredSourceCallOccurrence};
 
 /// What the closure keeps for every ordinary machine emitter: the identity
 /// rosters, boundary parameters, signatures and requirement counts, plus the
@@ -153,8 +150,7 @@ pub(super) struct EmittedMachine {
     pub(super) quotient_adaptations:
         Vec<crate::emission::operation_emission::buffer::SourceQuotientAdaptation>,
     pub(super) quotient_calls: Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,
-    pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
-    pub(super) selected_integer_comparisons: Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    pub(super) selected_comparisons: Vec<LoweredSelectedComparisonOccurrence>,
     pub(super) source_checked_obligations: Vec<semantic_vocabulary::ObligationId>,
 }
 
@@ -1108,8 +1104,7 @@ pub(super) fn emit(
         quotient_adaptations,
         quotient_calls,
         loan_completions,
-        mut selected_ieee_float_comparisons,
-        mut selected_integer_comparisons,
+        mut selected_comparisons,
         mut source_checked_obligations,
         ..
     } = operations;
@@ -1249,8 +1244,7 @@ pub(super) fn emit(
             source_calls: &mut source_calls,
             scalar_block_invariants: &mut scalar_block_invariants,
             qualification_coercions: &mut evaluation.qualification_coercions,
-            selected_ieee_float_comparisons: &mut selected_ieee_float_comparisons,
-            selected_integer_comparisons: &mut selected_integer_comparisons,
+            selected_comparisons: &mut selected_comparisons,
             source_checked_obligations: &mut source_checked_obligations,
         },
         crate::emission::continuation_specialization::Counters {
@@ -1289,8 +1283,7 @@ pub(super) fn emit(
         source_calls,
         quotient_adaptations,
         quotient_calls,
-        selected_ieee_float_comparisons,
-        selected_integer_comparisons,
+        selected_comparisons,
         source_checked_obligations,
     })
 }

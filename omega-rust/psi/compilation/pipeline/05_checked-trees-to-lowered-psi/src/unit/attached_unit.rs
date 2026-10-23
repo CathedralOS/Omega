@@ -488,11 +488,7 @@ pub(crate) fn lower_unit_closure(
             occurrences.quotient_calls.extend(composed.quotient_calls);
             occurrences.source_returns.extend(composed.source_returns);
             machines.push(machine);
-            occurrences.retain(
-                composed.source_calls,
-                composed.selected_ieee_float_comparisons,
-                composed.selected_integer_comparisons,
-            );
+            occurrences.retain(composed.source_calls, composed.selected_comparisons);
             occurrences
                 .source_checked_obligations
                 .extend(composed.source_checked_obligations);
@@ -528,11 +524,7 @@ pub(crate) fn lower_unit_closure(
         occurrences.quotient_calls.extend(emitted.quotient_calls);
         machines.push(emitted.machine);
         occurrences.source_returns.extend(emitted.source_returns);
-        occurrences.retain(
-            emitted.source_calls,
-            emitted.selected_ieee_float_comparisons,
-            emitted.selected_integer_comparisons,
-        );
+        occurrences.retain(emitted.source_calls, emitted.selected_comparisons);
         occurrences
             .source_checked_obligations
             .extend(emitted.source_checked_obligations);
@@ -684,8 +676,7 @@ pub(crate) fn lower_unit_closure(
         debug_map: None,
         retained_roots,
         source_call_occurrences: occurrences.source_calls,
-        selected_ieee_float_comparison_occurrences: occurrences.ieee_float_comparisons,
-        selected_integer_comparison_occurrences: occurrences.integer_comparisons,
+        selected_comparison_occurrences: occurrences.selected_comparisons,
         state_blocks: occurrences.state_blocks,
     };
     crate::producer_result::SourceMappedLowered::new(
@@ -709,8 +700,7 @@ struct ClosureOccurrences {
         Vec<crate::emission::operation_emission::buffer::SourceQuotientAdaptation>,
     quotient_calls: Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,
     source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
-    integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    selected_comparisons: Vec<lowered_psi::LoweredSelectedComparisonOccurrence>,
     source_checked_obligations: Vec<semantic_vocabulary::ObligationId>,
     state_blocks: Vec<lowered_psi::LoweredStateBlock>,
 }
@@ -719,12 +709,10 @@ impl ClosureOccurrences {
     fn retain(
         &mut self,
         source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-        ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
-        integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+        selected_comparisons: Vec<lowered_psi::LoweredSelectedComparisonOccurrence>,
     ) {
         self.source_calls.extend(source_calls);
-        self.ieee_float_comparisons.extend(ieee_float_comparisons);
-        self.integer_comparisons.extend(integer_comparisons);
+        self.selected_comparisons.extend(selected_comparisons);
     }
 }
 

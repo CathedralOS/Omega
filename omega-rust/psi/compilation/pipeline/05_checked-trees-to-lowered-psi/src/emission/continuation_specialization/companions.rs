@@ -16,8 +16,7 @@ pub(super) fn instantiate(
 ) -> Result<(), LoweringError> {
     let calls = std::mem::take(rows.source_calls);
     let returns = std::mem::take(rows.source_returns);
-    let comparisons = std::mem::take(rows.selected_integer_comparisons);
-    let float_comparisons = std::mem::take(rows.selected_ieee_float_comparisons);
+    let comparisons = std::mem::take(rows.selected_comparisons);
     let completions = std::mem::take(&mut machine.loan_completions);
     let invariants = std::mem::take(rows.scalar_block_invariants);
     let coercions = std::mem::take(rows.qualification_coercions);
@@ -59,18 +58,7 @@ pub(super) fn instantiate(
             {
                 let mut comparison = *original;
                 comparison.terminal_operation = *target;
-                rows.selected_integer_comparisons.push(comparison);
-            }
-        }
-        for original in &float_comparisons {
-            if let Some((_, target)) = namespace
-                .operations
-                .iter()
-                .find(|(source, _)| *source == original.terminal_operation)
-            {
-                let mut comparison = *original;
-                comparison.terminal_operation = *target;
-                rows.selected_ieee_float_comparisons.push(comparison);
+                rows.selected_comparisons.push(comparison);
             }
         }
         for original in &completions {

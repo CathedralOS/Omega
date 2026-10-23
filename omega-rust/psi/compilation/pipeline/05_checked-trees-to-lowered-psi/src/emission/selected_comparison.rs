@@ -1,11 +1,12 @@
 //! A selected comparison occurrence and its Terminal meaning (IEEE float or
 //! authored-order integer), read from the checked operator use.
 
+use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::types::PrimitiveType;
-use lowered_psi::LoweredSelectedIntegerComparisonOperation;
+use lowered_psi::LoweredSelectedComparisonOperandOrder;
 
 /// Checked occurrence before emission assigns real Terminal identities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,8 +30,8 @@ pub(crate) enum SelectedComparisonMeaning {
         format: semantic_vocabulary::IeeeFloatFormat,
     },
     Integer {
-        comparison: lowered_psi::LoweredSelectedIntegerComparisonOperation,
-        operand_order: lowered_psi::LoweredSelectedIntegerComparisonOperandOrder,
+        comparison: LoweredIntegerComparisonKind,
+        operand_order: LoweredSelectedComparisonOperandOrder,
         negated: bool,
         integer_type: semantic_vocabulary::IntegerType,
     },
@@ -92,9 +93,7 @@ fn selected_meaning(
     else {
         return unsupported("comparison has no exact selected Terminal meaning");
     };
-    let Some((comparison, operand_order, negated)) =
-        LoweredSelectedIntegerComparisonOperation::admitted_emission(operation)
-    else {
+    let Some((comparison, operand_order, negated)) = admitted_integer_emission(operation) else {
         return unsupported(
             "selected integer comparison has no admitted Terminal operation and operand mapping to join",
         );
@@ -108,4 +107,40 @@ fn selected_meaning(
         negated,
         integer_type,
     })
+}
+
+/// The one admitted emission for an authored integer comparison spelling: the
+/// Terminal operation written, where it reads the authored operands, and
+/// whether the authored meaning is that operation's negation.
+///
+/// This roster is exhaustive and is the only producer of these triples, so no
+/// other combination can be emitted: `==`, `<` and `<=` emit their own
+/// operation over the authored order; `>` and `>=` emit the swapped
+/// `IntegerLessThan`/`IntegerLessOrEqual`; `!=` emits `IntegerEqual` over the
+/// authored order and negates its result. It mirrors the checked stage's own
+/// comparison normalization, so a selected operator and a builtin comparison
+/// denote the same operation. Any other binary operator has no admitted
+/// emission and fails closed.
+fn admitted_integer_emission(
+    operator: checked_trees::expression::BinaryOperator,
+) -> Option<(
+    LoweredIntegerComparisonKind,
+    LoweredSelectedComparisonOperandOrder,
+    bool,
+)> {
+    use LoweredSelectedComparisonOperandOrder::{Authored, Swapped};
+    use checked_trees::expression::BinaryOperator;
+    match operator {
+        BinaryOperator::Equal => Some((LoweredIntegerComparisonKind::Equal, Authored, false)),
+        BinaryOperator::NotEqual => Some((LoweredIntegerComparisonKind::Equal, Authored, true)),
+        BinaryOperator::Less => Some((LoweredIntegerComparisonKind::LessThan, Authored, false)),
+        BinaryOperator::LessOrEqual => {
+            Some((LoweredIntegerComparisonKind::LessOrEqual, Authored, false))
+        }
+        BinaryOperator::Greater => Some((LoweredIntegerComparisonKind::LessThan, Swapped, false)),
+        BinaryOperator::GreaterOrEqual => {
+            Some((LoweredIntegerComparisonKind::LessOrEqual, Swapped, false))
+        }
+        _ => None,
+    }
 }

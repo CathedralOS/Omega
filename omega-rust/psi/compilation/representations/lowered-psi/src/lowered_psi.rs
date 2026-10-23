@@ -2,8 +2,7 @@
 
 mod source_custody;
 pub use source_custody::{
-    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
-    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+    LoweredSelectedComparisonOccurrence, LoweredSelectedComparisonOperandOrder,
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
     LoweredSourceLoanCapture, LoweredSourceScalarBinding, LoweredSourceStructuralBinding,
     LoweredStateBlock,
@@ -20,8 +19,6 @@ pub struct LoweredSourceCustody {
 /// Semantic module and source companions produced by the Psi frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
-    pub selected_ieee_float_comparison_occurrences:
-        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub semantic_module: TerminalModule,
     /// Explicit application roots kept through optimization. Publication need
     /// not encode this producer demand: entry receipts name the exact retained
@@ -36,12 +33,13 @@ pub struct LoweredPsi {
     /// before publication and retains these joins only for optimization and
     /// explicit source-correspondence audits.
     pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-    /// Ephemeral exact joins from selected checked integer comparison uses to
-    /// the Terminal operations they produced, the integer counterpart of
-    /// `selected_ieee_float_comparison_occurrences`. Operation crash contracts
-    /// are joined through these rows before the source companions are gone;
-    /// Publication discards them; native settlement reads canonical demands.
-    pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    /// Ephemeral exact joins from selected checked comparison uses to the
+    /// Terminal operations they produced, including where each emitted
+    /// operation reads the authored operands. Operation crash contracts and
+    /// boundary applications are joined through these rows before the source
+    /// companions are gone; publication discards them; native settlement
+    /// reads canonical demands.
+    pub selected_comparison_occurrences: Vec<LoweredSelectedComparisonOccurrence>,
     /// Ephemeral joins from each emitted state graph state to its header
     /// block. Proof publication reads them; Omega does not.
     pub state_blocks: Vec<LoweredStateBlock>,

@@ -25,15 +25,7 @@ pub(super) fn retain(
     lowered: &mut LoweredPsi,
 ) -> Result<(), &'static str> {
     let mut occurrences = Vec::new();
-    for comparison in &lowered.selected_ieee_float_comparison_occurrences {
-        occurrences.push(application_occurrence(
-            checked,
-            comparison.application_site,
-            comparison.requirement_operator,
-            comparison.terminal_operation,
-        )?);
-    }
-    for comparison in &lowered.selected_integer_comparison_occurrences {
+    for comparison in &lowered.selected_comparison_occurrences {
         occurrences.push(application_occurrence(
             checked,
             comparison.application_site,
