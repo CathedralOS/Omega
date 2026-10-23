@@ -560,6 +560,9 @@ helper that passes does not close an item.
     the existing exact owner-authorized disposition, uniqueness, consuming-edge
     custody, non-callable hook boundary and operational guarantees. Do not
     replace it with ambient conformance discovery or delete automatic cleanup.
+    The replacement authored nominal-disposition authorization is
+    **OWNER-BLOCKED** on [Q2](OWNER_QUESTIONS.md#q2-how-does-a-type-owner-authorize-an-independent-nominal-cleanup-operation);
+    ordinary static-machine migration and existing cleanup repairs continue.
     **EXPLICIT-ENTRY-STORAGE** owns retiring the separate automatic entry-context
     allocation path; preserve actual platform handoff and storage authority.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
