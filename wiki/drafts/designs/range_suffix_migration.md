@@ -68,6 +68,23 @@ Do not use later reduced occurrence counts as completion evidence: they include
 unaudited rewrites. Completion requires the history-derived inventory to record
 each original declaration and its canonical replacement.
 
+The live surface at `abda3e427bc` is four `.omg` uses, and every one of them is
+retained for a measured reason rather than an unaudited rewrite:
+
+| Live use | Why it cannot migrate yet |
+|---|---|
+| `pass/providers/provider_const_endpoint:26`, `pass/comptime/provider_boundary_range_endpoint_exit:33`, `fail/comptime/recipe_endpoint_membership_refused_at_closure:26` | `requires <param> <= limit()` needs the clause endpoint closed for the caller, and a contract clause has no recipe position: the three retained positions are discovered as type-reference work roots. Compiler gap, not a language decision — the decision table already calls a runtime-dependent endpoint an ordinary call proposition. |
+| `fail/proofs/mathematical_constrained_scalar_formal:2` | The negative pin for a range-constrained mathematical formal. Its canonical domain-constraint replacement is *accepted*, so retargeting erases the pinned refusal instead of migrating it. It becomes a parse-refusal pin when the parser deletion lands. |
+
+The parser path, `TypeConstraintNode::Range` and the range-shell inference stay
+while those four spell the suffix. The constraint node carries no position
+information, so no sub-position can be removed ahead of them, and no diagnostic
+recommends the revoked spelling. Closing the provider-dependent position needs a
+contract-expression work-root class in the constant-recipe machinery plus a
+fold-publication site in the contract fact, feeding the existing
+`evaluate_pending` continuation and the existing `constant_recipe_obligations.rs`
+discharge; the obligation row itself (`AtLeast`/`AtMost`) already exists.
+
 ## Audited whole-slice customer
 
 The five scalar positions in `samples/cli/probes/slice_view_whole` at
