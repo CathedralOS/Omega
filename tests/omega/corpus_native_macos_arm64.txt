@@ -8,6 +8,24 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 11.76, "load1_start": 11.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/facts/twenty_variant_enum_payload_bound_through_call_result_exit built 2203ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_const_name_exit built 2266ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_field_exit built 2203ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_local_exit built 2588ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_match_join_exit built 2642ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_other_machine_exit built 2711ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_other_state_exit built 2981ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_parameter_exit built 2861ms exit:0 @ec3119fdcb11+wt
+pass/facts/twenty_variant_enum_payload_bound_through_target_body_exit built 3100ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_call_result_exit built 12799ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_const_name_exit built 23577ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_field_exit built 26782ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_local_exit built 22484ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_match_join_exit built 74422ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_other_machine_exit built 25062ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_other_state_exit built 23823ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_parameter_exit built 23379ms exit:0 @ec3119fdcb11+wt
+pass/facts/twentyeight_arg_stack_calling_plan_through_target_body_exit built 74651ms exit:0 @ec3119fdcb11+wt
 pass/facts/twentyfour_variant_enum_payload_bound_through_call_result_exit built 19271ms exit:0 @9b001b8f6afa+wt
 pass/facts/twentyfour_variant_enum_payload_bound_through_const_name_exit built 19292ms exit:0 @9b001b8f6afa+wt
 pass/facts/twentyfour_variant_enum_payload_bound_through_field_exit built 19625ms exit:0 @9b001b8f6afa+wt
