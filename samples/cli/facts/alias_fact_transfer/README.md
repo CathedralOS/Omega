@@ -61,7 +61,7 @@ Every twin rejects with `cannot prove requires contract for call inspect` (or `c
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` / `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and domain contract alias transfer. An established domain fact on record storage (`main.player in Player::Alive`) transfers to a copied scalar/record value alias and satisfies downstream call contracts naming that alias across all nine program places, with exact agreement between Terminal Psi and native execution across hosted targets.
-- **Pinned fixtures:** positive places and reject twins under `tests/omega/pass/facts/alias_fact_transfer_through_*_compile` and `tests/omega/fail/facts/alias_fact_transfer_through_*_rejected`.
+- **Pinned fixtures:** positive places and reject twins under `tests/omega/pass/facts/alias_fact_transfer_through_*_exit` and `tests/omega/fail/facts/alias_fact_transfer_through_*_rejected`.
 - **Authority:** [Domains and specifications](../../../../wiki/spec/language/domains.md) (domain membership as proposition), [state contracts](../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals) (all-predecessor joins and contract substitution), and [ownership and loans](../../../../wiki/spec/terminal-psi/ownership.md) (copyable value transfer and alias fact lifetime).
 
 Full 8-layer specification and lowering evidence:

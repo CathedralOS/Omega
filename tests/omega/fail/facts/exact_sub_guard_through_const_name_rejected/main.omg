@@ -1,3 +1,5 @@
+// Invalid control for the const-name place. A const name of 1 does not
+// prove operand order, so `REMAINING - 2` is not exact u64.
 const REMAINING: u64 = 1;
 
 machine walk() -> u64

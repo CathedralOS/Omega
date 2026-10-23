@@ -1,3 +1,6 @@
+// Invalid control for the other-machine place. `requires remaining <= 5` does not prove
+// `remaining >= 2`, so `remaining - 2` is not exact u64. No domain, no `as`.
+
 machine publish(remaining: u64) -> u64
 requires
     remaining <= 5;

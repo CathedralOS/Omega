@@ -78,7 +78,7 @@ omega --check samples/cli/facts/exact_sub_guard/target_body/invalid/main.omg
 
 - **Parent outcome:** Exact integer arithmetic without underflow / [numeric values](../../../../wiki/spec/language/numeric_values.md).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/exact_sub_guard_through_<place>_compile`
+  - Positive passes: `tests/omega/pass/facts/exact_sub_guard_through_<place>_exit`
   - Negative controls: `tests/omega/fail/facts/exact_sub_guard_through_<place>_rejected`
 
 ### Specification and Lowering Layers
