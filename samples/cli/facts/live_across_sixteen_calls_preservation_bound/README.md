@@ -64,6 +64,11 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`underflow`).
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/live_across_sixteen_calls_preservation_bound_through_<place>_exit` (nine positives: `main.omg`, `build.omg`, `expected_native_exit.txt`) and `tests/omega/fail/facts/live_across_sixteen_calls_preservation_bound_through_<place>_rejected` (nine reject twins: `main.omg`, `build.omg`, `expected.txt`). Each fixture is authored byte-for-byte from its place program: `main.omg` and the oracle files are byte-identical copies, and `build.omg` differs only in the application name its declaration registers (`<fact>_<place>` and `<fact>_<place>_invalid`), so the sample and the fixture cannot drift apart.
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Recorded from the shared opt-level 1 producer on macOS arm64: `corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows with their own diagnostic line, `corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).

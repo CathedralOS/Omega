@@ -64,6 +64,11 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`underflow`).
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/live_across_fifteen_calls_preservation_bound_through_<place>_exit` (nine positives: `main.omg`, `build.omg`, `expected_native_exit.txt`) and `tests/omega/fail/facts/live_across_fifteen_calls_preservation_bound_through_<place>_rejected` (nine reject twins: `main.omg`, `build.omg`, `expected.txt`). Each fixture is authored byte-for-byte from its place program: `main.omg` and the oracle files are byte-identical copies, and `build.omg` differs only in the application name its declaration registers (`<fact>_<place>` and `<fact>_<place>_invalid`), so the sample and the fixture cannot drift apart.
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Recorded from the shared opt-level 1 producer on macOS arm64: `corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows with their own diagnostic line, `corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
@@ -79,4 +84,4 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions, assigns callee-saved register homes (such as `rbx`/`r12-r15` on `x86_64`; `x19-x28` on `arm64`) or spill slots in the activation frame, and emits prologues and epilogues restoring callee-saved registers according to the `StatePlan`. Fifteen sequential calls exert sustained pressure on callee-saved allocation, spill slot allocation, and worst-case stack usage (WCSU) activation frame sizing.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions encode into machine bytes, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
-- **What remains open:** Values live across 16 or more sequential calls with extreme register pressure forcing multi-slot stack frame spill reallocation, live-across-call floating point scalar preservation, and live-across-call vector register preservation.
+- **What remains open:** Values live across 17 or more sequential calls with extreme register pressure forcing multi-slot stack frame spill reallocation, live-across-call floating point scalar preservation, and live-across-call vector register preservation.
