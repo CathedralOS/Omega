@@ -72,7 +72,9 @@ pub(super) fn parse_arguments(
                 });
             }
             Some("--input") => {
-                let file = arguments.next().ok_or("--input requires a file")?;
+                // A missing path must not swallow --both and silently turn a
+                // compared case run into native-only execution.
+                let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;
                 input_files.push(std::path::PathBuf::from(file));
             }
             Some(flag @ ("--inputs" | "--outputs")) => {
@@ -84,8 +86,7 @@ pub(super) fn parse_arguments(
                 if slot.is_some() {
                     return Err(format!("duplicate {flag}"));
                 }
-                let directory = arguments
-                    .next()
+                let directory = super::option_value(&mut arguments)
                     .ok_or_else(|| format!("{flag} requires a directory"))?;
                 *slot = Some(std::path::PathBuf::from(directory));
             }
