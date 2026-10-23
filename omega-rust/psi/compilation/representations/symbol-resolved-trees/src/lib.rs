@@ -7,9 +7,9 @@
 //! Source-shaped Psi trees after name and symbol identity resolution.
 //!
 //! Start at `symbol_resolved_trees::SymbolResolvedTrees`; its modules own the
-//! program's concepts: declarations, control flow, calls, names, evidence, and
-//! inspection snapshots. Every name is a `SymbolHandle` here; types and
-//! signatures are still unjudged and belong to the typing stage.
+//! program's concepts: declarations, control flow, calls, names, and evidence.
+//! Every name is a `SymbolHandle` here; types and signatures are still unjudged
+//! and belong to the typing stage.
 
 pub mod declaration_selection {
     pub use language_semantics::declaration_selection::{
@@ -30,7 +30,6 @@ pub use symbol_resolved_trees::declarations::{
     constant, data, domain, measure, operator, trait_definition, wire,
 };
 pub use symbol_resolved_trees::evidence::{mathematical, proposition};
-pub use symbol_resolved_trees::inspection::snapshot;
 pub use symbol_resolved_trees::lookup_indexes;
 pub use symbol_resolved_trees::names::name;
 pub use symbol_resolved_trees::storage::tables;
@@ -46,7 +45,6 @@ pub use declaration_selection::{
     AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
     ResolvedAuthoredDeclarationSelection,
 };
-pub use snapshot::SymbolResolvedTreesSnapshot;
 pub use symbol_resolved_trees::{
     AuthoredSelectionExtensionFrontier, AuthoredSelectionExtensionRebaseError,
     AuthoredSelectionOccurrenceStore, SymbolResolvedBodyStorage, SymbolResolvedDeclarationStorage,

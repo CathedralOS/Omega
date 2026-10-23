@@ -2088,8 +2088,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
- "serde",
- "serde_json",
  "source",
  "symbols",
 ]

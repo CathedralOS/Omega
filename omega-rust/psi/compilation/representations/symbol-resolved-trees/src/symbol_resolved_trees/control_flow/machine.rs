@@ -224,9 +224,8 @@ pub struct TraitConformance {
 }
 
 #[cfg(test)]
-/// One guarded-transition state in a fresh program: the snapshot and
-/// table-rebuild tests start from the same fixture.
-#[cfg(test)]
+/// One guarded-transition state in a fresh program: the table-rebuild test
+/// starts from this fixture.
 pub(crate) fn test_program_with_guarded_transition()
 -> (crate::SymbolResolvedTrees, HandleSpan<Handle<State>>) {
     let mut program = crate::SymbolResolvedTrees::default();

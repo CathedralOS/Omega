@@ -1,7 +1,7 @@
 //! The current symbol resolved trees program and its concept-owned storage.
 //!
-//! Declarations, executable control flow, values, type references and retained
-//! inspection data are subordinate to this root, not separate pipeline outputs.
+//! Declarations, executable control flow, values and type references are
+//! subordinate to this root, not separate pipeline outputs.
 
 /// Every `X`/`XStorage` pair in this crate derefs the owned row wrapper to its
 /// embedded storage record; declare each pair in one line beside the structs.
@@ -27,7 +27,6 @@ pub mod calls;
 pub mod control_flow;
 pub mod declarations;
 pub mod evidence;
-pub mod inspection;
 pub mod lookup_indexes;
 pub mod names;
 pub mod storage;
@@ -38,11 +37,10 @@ use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
     AuthoredDeclarationSelectionRecordError, AuthoredDeclarationSelections, data, domain,
-    expression, mathematical, measure, operator, proposition, signature, snapshot, state,
-    statement, tables, types, wire,
+    expression, mathematical, measure, operator, proposition, signature, state, statement, tables,
+    types, wire,
 };
 use arena::{Arena, Handle, HandleSpan, OrderedRootArena};
-use diagnostics::PhaseSnapshot;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionSuffixRebase, AuthoredDeclarationSelectionSuffixRebaseError,
 };
@@ -962,10 +960,6 @@ impl SymbolResolvedTrees {
         self.tables.bodies.statements = tables.bodies.statements;
         self.tables.types.references = tables.types.references;
     }
-
-    pub fn snapshot(&self) -> snapshot::SymbolResolvedTreesSnapshot {
-        snapshot::SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(self)
-    }
 }
 
 fn tree_statement_occurrences(
@@ -1030,14 +1024,6 @@ fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
         .expect("proof fact source-span index exceeds usize")
         .checked_sub(1)
         .expect("proof fact source-span handle must be valid")
-}
-
-impl PhaseSnapshot for SymbolResolvedTrees {
-    type Snapshot = snapshot::SymbolResolvedTreesSnapshot;
-
-    fn snapshot(&self) -> Self::Snapshot {
-        SymbolResolvedTrees::snapshot(self)
-    }
 }
 
 impl Deref for SymbolResolvedTrees {

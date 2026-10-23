@@ -16,5 +16,3 @@ language-semantics = { path = "../../../foundation/language-semantics" }
 numerics = { path = "../../../foundation/numerics" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
