@@ -7868,6 +7868,48 @@ fail/facts/signed_32bit_division_remainder_bound_through_target_body_rejected re
 	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_call_result_rejected rejected 17506ms expected @47168d09ee17+wt
+	cannot prove ensures contract for exit from compute_sum at statement 0: result >= 35 && result <= 60
+fail/facts/signed_32bit_exact_arithmetic_bound_through_const_name_rejected rejected 18984ms expected @47168d09ee17+wt
+	cannot prove requires contract for call consume_i32_margin from probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_field_rejected rejected 15509ms expected @47168d09ee17+wt
+	cannot prove requires contract for call consume_i32_margin from probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_local_rejected rejected 16497ms expected @47168d09ee17+wt
+	cannot prove requires contract for call consume_i32_margin from probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_match_join_rejected rejected 31287ms expected @47168d09ee17+wt
+	cannot prove requires contract for call choose from probe: sum >= 35 && sum <= 60 && 45 >= 35 && 45 <= 60 (needs fact `first >= 35 && first <= 60 && second >= 35 && second <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_other_machine_rejected rejected 32785ms expected @47168d09ee17+wt
+	cannot prove requires contract for call forward_sum from probe: sum >= 35 && sum <= 60 (needs fact `mid >= 35 && mid <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_other_state_rejected rejected 25750ms expected @47168d09ee17+wt
+	cannot prove requires contract for call consume from probe: sum >= 35 && sum <= 60 (needs fact `forwarded_sum >= 35 && forwarded_sum <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_parameter_rejected rejected 23139ms expected @47168d09ee17+wt
+	cannot prove requires contract for call subtract_and_consume from probe: sum >= 35 && sum <= 60 (needs fact `forwarded_sum >= 35 && forwarded_sum <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_arithmetic_bound_through_target_body_rejected rejected 44845ms expected @47168d09ee17+wt
+	cannot prove requires contract for call consume_i32_margin from target_probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume_i32_margin from target_probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume_i32_margin from target_probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume_i32_margin from target_probe: margin >= 0 && margin <= 25 (needs fact `m >= 0 && m <= 25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_call_result_rejected rejected 35435ms expected @47168d09ee17+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_const_name_rejected rejected 27395ms expected @47168d09ee17+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_field_rejected rejected 31878ms expected @47168d09ee17+wt
+	cannot prove requires contract for call verify_prod from probe: held.prod >= 150 && held.prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_local_rejected rejected 26511ms expected @47168d09ee17+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_match_join_rejected rejected 27976ms expected @47168d09ee17+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_other_machine_rejected rejected 28473ms expected @47168d09ee17+wt
+	cannot prove requires contract for call forward from probe: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_other_state_rejected rejected 30517ms expected @47168d09ee17+wt
+	cannot prove requires contract for call step from probe: prod >= 150 && prod <= 500 (needs fact `p >= 150 && p <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_parameter_rejected rejected 26746ms expected @47168d09ee17+wt
+	cannot prove requires contract for call check_param from probe: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_exact_multiplication_bound_through_target_body_rejected rejected 12518ms expected @47168d09ee17+wt
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_exact_subtraction_bound_through_call_result_rejected rejected 10987ms expected @f599323d1427+wt
 	cannot prove requires contract for call verify_diff from compute_call_result: transported >= 40 && transported <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_exact_subtraction_bound_through_const_name_rejected rejected 10822ms expected @f599323d1427+wt
@@ -16222,6 +16264,24 @@ pass/facts/signed_32bit_division_remainder_bound_through_other_machine_exit chec
 pass/facts/signed_32bit_division_remainder_bound_through_other_state_exit checked 45738ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_parameter_exit checked 43771ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_target_body_exit checked 47414ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_call_result_exit checked 11125ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_const_name_exit checked 9901ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_field_exit checked 12164ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_local_exit checked 14716ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_match_join_exit checked 11816ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_other_machine_exit checked 12412ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_other_state_exit checked 11397ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_parameter_exit checked 17651ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_arithmetic_bound_through_target_body_exit checked 19918ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_call_result_exit checked 21131ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_const_name_exit checked 21505ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_field_exit checked 24025ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_local_exit checked 27829ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_match_join_exit checked 27588ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_other_machine_exit checked 25653ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_other_state_exit checked 22978ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_parameter_exit checked 30118ms check-target:macos_arm64 @47168d09ee17+wt
+pass/facts/signed_32bit_exact_multiplication_bound_through_target_body_exit checked 19365ms check-target:macos_arm64 @47168d09ee17+wt
 pass/facts/signed_32bit_exact_subtraction_bound_through_call_result_exit checked 27832ms check-target:macos_arm64 @f599323d1427+wt
 pass/facts/signed_32bit_exact_subtraction_bound_through_const_name_exit checked 27768ms check-target:macos_arm64 @f599323d1427+wt
 pass/facts/signed_32bit_exact_subtraction_bound_through_field_exit checked 21356ms check-target:macos_arm64 @f599323d1427+wt

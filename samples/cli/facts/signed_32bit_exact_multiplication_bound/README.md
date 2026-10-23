@@ -62,6 +62,38 @@ omega --check samples/cli/facts/signed_32bit_exact_multiplication_bound/<place>/
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract` |
 
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_multiplication_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt` = that place's `cannot prove requires contract ... prod <= 500` fragment):**
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_multiplication_bound_through_target_body_rejected/`
+
+Each fixture is a byte-for-byte copy of its place program and oracle from this
+sample tree (`main.omg`, `build.omg`, `expected_native_exit.txt` / `expected.txt`),
+so the sample and the fixture cannot drift apart. The nine positives record
+`checked` with `check-target:macos_arm64` (check leg), `built ... exit:0`
+(native leg) and `built ... exit:0 interpreter-exit:0 interpreter:agrees`
+(Terminal Psi agreement leg); the nine twins record `rejected` with their
+authored diagnostic fragment satisfied.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `EXACT-ARITHMETIC-SIGNED-DISCHARGE` / `SIGNED-32BIT-MULTIPLICATION-BOUND` (`TASKS.md`)

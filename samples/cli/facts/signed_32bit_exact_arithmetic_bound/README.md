@@ -3,7 +3,7 @@
 Fact: Adding two bounded 32-bit signed i32 values (base >= 20i32 && base <= 35i32 and delta >= 15i32 && delta <= 25i32) establishes the exact post-addition interval (sum >= 35i32 && sum <= 60i32), discharging exact subtraction 60i32 - sum across all nine places.
 
 Owning Task: `NUMERIC-SCALARS` / `CONSERVATION-CONTRACT` (`TASKS.md`)
-Claim Ticket: `c8d19472e3914a2b91d8fc678f1a3b32`
+Claim Ticket: `4067474ccd9141908616ff6df3de44e9`
 
 ## Places
 
@@ -67,6 +67,38 @@ The compiler strictly fails closed at compile time with:
 | `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: sum >= 35 && sum <= 60` |
 | `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_sum from probe: sum >= 35 && sum <= 60` |
 | `target_body` | native 0 / interp 0 | `cannot prove requires contract for call consume_i32_margin from target_probe: margin >= 0 && margin <= 25` |
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_32bit_exact_arithmetic_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt` = that place's `cannot prove requires contract ...` fragment):**
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_exact_arithmetic_bound_through_target_body_rejected/`
+
+Each fixture is a byte-for-byte copy of its place program and oracle from this
+sample tree (`main.omg`, `build.omg`, `expected_native_exit.txt` / `expected.txt`),
+so the sample and the fixture cannot drift apart. The nine positives record
+`checked` with `check-target:macos_arm64` (check leg), `built ... exit:0`
+(native leg) and `built ... exit:0 interpreter-exit:0 interpreter:agrees`
+(Terminal Psi agreement leg); the nine twins record `rejected` with their
+authored diagnostic fragment satisfied.
 
 ## Requirements and Evidence (AGENTS.md)
 
