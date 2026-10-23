@@ -19,7 +19,9 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     expression: ExpressionHandle,
     _exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    let parameters = super::entry_parameters(program, machine)?;
+    // Unread static/evidence binders do not erase concrete entry clauses.
+    // Reader rejoins every observed leaf to its exact formal type and meaning.
+    let parameters = super::authored_entry_parameters(program, machine)?;
     let predicate = Reader {
         program,
         operators,
@@ -307,7 +309,12 @@ impl<'program> Reader<'program> {
                 {
                     return None;
                 }
-                if subject.path.is_empty() {
+                if subject.path.is_empty()
+                    && super::super::occupies_scalar_position(
+                        self.program,
+                        &self.parameters[subject.parameter_position],
+                    )
+                {
                     Some(CheckedBooleanExpression::Parameter {
                         position: self.scalar_position(subject.parameter_position, depth + 1)?,
                     })
@@ -698,18 +705,25 @@ impl<'program> Reader<'program> {
         primitive_type: PrimitiveType,
         depth: usize,
     ) -> Option<CheckedScalarExpression> {
-        Some(if subject.path.is_empty() {
-            CheckedScalarExpression::Parameter {
-                position: self.scalar_position(subject.parameter_position, depth + 1)?,
-                primitive_type,
-            }
-        } else {
-            CheckedScalarExpression::StructuralParameterField {
-                parameter_position: u32::try_from(subject.parameter_position).ok()?,
-                path: subject.path.clone(),
-                primitive_type,
-            }
-        })
+        Some(
+            if subject.path.is_empty()
+                && super::super::occupies_scalar_position(
+                    self.program,
+                    &self.parameters[subject.parameter_position],
+                )
+            {
+                CheckedScalarExpression::Parameter {
+                    position: self.scalar_position(subject.parameter_position, depth + 1)?,
+                    primitive_type,
+                }
+            } else {
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position: u32::try_from(subject.parameter_position).ok()?,
+                    path: subject.path.clone(),
+                    primitive_type,
+                }
+            },
+        )
     }
 
     fn scalar_position(&mut self, position: usize, depth: usize) -> Option<usize> {
@@ -751,7 +765,19 @@ impl<'program> Reader<'program> {
             Some(FieldPath {
                 parameter_position: position,
                 path: Vec::new(),
-                type_reference: self.parameters[position].type_reference,
+                // A bare reference formal observes its readable referent in
+                // the structural lane, including an empty projection path.
+                // It never becomes an invented dense scalar parameter.
+                type_reference: validation::field_domains::readable_type_reference(
+                    self.program,
+                    super::super::structural_fields::readable_entry_parameter_path(
+                        self.program,
+                        self.parameters,
+                        u32::try_from(position).ok()?,
+                        &[],
+                        &mut self.remaining,
+                    )?,
+                )?,
             })
         } else {
             self.field_path(expression, depth)

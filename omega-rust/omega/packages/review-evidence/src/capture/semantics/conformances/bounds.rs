@@ -1,9 +1,10 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::capture::semantics::types::review_signature_type_identity_with_binders;
+use crate::capture::semantics::types::signature_type_identity;
 use crate::record::PackageReviewConformanceBound;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use validation::CheckingProjection;
 
 pub(crate) fn project_conformance_bounds(
     compilation: &PackageReviewInput<'_>,
@@ -27,18 +28,6 @@ pub(crate) fn project_conformance_bounds(
         })?;
         let trait_symbol = bound.trait_symbol;
         let trait_lifetime_arguments = Vec::new();
-        let trait_arguments = bound
-            .arguments
-            .iter()
-            .map(|argument| {
-                review_signature_type_identity_with_binders(
-                    compilation,
-                    *argument,
-                    binders,
-                    lifetime_binders,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         let matching_traits = compilation
             .traits()
             .iter()
@@ -63,6 +52,49 @@ pub(crate) fn project_conformance_bounds(
                 trait_lifetime_arguments.len(),
                 trait_definition.lifetime_parameters.len(),
             ))]);
+        }
+        // The trait owns each argument's category. A const value is not a
+        // nominal structural type: reify exact checked named constants through
+        // the same canonical-value projector used by selected conformance
+        // policy. Borrow source custody from the original checked input.
+        let parameters = compilation.trait_type_parameters(trait_definition);
+        if parameters.len() != bound.arguments.len() {
+            return Err(vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` conformance bound has {} static argument(s), expected {}",
+                bound.arguments.len(),
+                parameters.len(),
+            ))]);
+        }
+        let mut instantiated = CheckingProjection::new(compilation.checking_input);
+        let mut trait_arguments = Vec::with_capacity(parameters.len());
+        for (parameter, argument) in parameters.iter().zip(&bound.arguments) {
+            let const_argument = parameter.kind.is_const_or_value();
+            let reference = if const_argument
+                && matches!(
+                    compilation.type_reference_table.type_reference(*argument),
+                    typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                        if symbol.is_valid() && compilation.symbols.get(*symbol).kind == symbols::SymbolKind::Const
+                ) {
+                let selected = compilation
+                    .checking_input
+                    .typed_program()
+                    .static_operand_from_type_reference(*argument)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                super::argument_type_reference(
+                    instantiated.program_mut(),
+                    &selected,
+                    &parameter.kind,
+                    0,
+                )?
+            } else {
+                *argument
+            };
+            trait_arguments.push(signature_type_identity(
+                compilation, &instantiated,
+                compilation.custody.sources().exact_toolchain_sources(),
+                reference, binders, lifetime_binders, &[], &[], const_argument,
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+            )?);
         }
         projected.push(PackageReviewConformanceBound {
             binder_ordinal,

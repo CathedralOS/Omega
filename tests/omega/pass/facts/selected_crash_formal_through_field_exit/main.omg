@@ -1,0 +1,20 @@
+// Expected exit: 0
+// Fact: a generic selected Reader<Zero>::read call preserves the entry i32 >= 0 fact to discharge its authored value < Zero Trap route.
+public const Zero: i32 = 0;
+public trait Reader<const Limit: i32> {
+    machine read(value: i32) -> i32 crashes Trap value < Limit;
+}
+Provider<const Bound: i32> satisfies Reader<Bound> {
+    machine read(value: i32) -> i32 { value }
+}
+public data Input { value: i32; }
+public machine safe<Implementation satisfies Reader<Zero>>(input: &Input) -> i32
+requires input.value >= 0
+{ Implementation::read(input.value) }
+machine main() crashes Trap {
+    let input: Input = (Input { value: 7 });
+    let observed: i32 = safe<Provider<Zero>>(&input);
+    transition observed == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

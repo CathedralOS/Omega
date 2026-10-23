@@ -1,8 +1,8 @@
-//! Exact integer entry equations refine only authenticated invocation operands.
+//! Exact entry equations and comparison polarity refine authenticated operands.
 //! A current actual first crosses the shared capture/provenance boundary. Entry
-//! requirements then substitute closed literal values into those original
-//! operands, independently of subsequent writes. Neither an unknown origin nor
-//! an unselected arithmetic spelling can become an entry equation.
+//! requirements substitute closed literal values and retain checked comparison
+//! polarity over those original operands, independently of subsequent writes.
+//! Unknown origins and unselected arithmetic supply no entry evidence.
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CrashPredicateExpression as Expression,
@@ -24,6 +24,7 @@ pub(super) fn refine(
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect::<Vec<_>>();
     let mut equations = Vec::new();
+    let mut excluded = Vec::new();
     for contract in program
         .machine_contracts(machine)
         .iter()
@@ -51,9 +52,12 @@ pub(super) fn refine(
                 None,
             );
             collect(&checked, &identity, &mut equations);
+            if super::summary_predicates::executable_entry_predicate(&checked) {
+                excluded.extend(excluded_comparisons(&checked, &identity, false, 0));
+            }
         }
     }
-    if equations.is_empty() {
+    if equations.is_empty() && excluded.is_empty() {
         return;
     }
     for bucket in buckets.iter_mut() {
@@ -66,10 +70,84 @@ pub(super) fn refine(
                 return true;
             }
             let substituted = substitute(&predicate.identity, &equations);
-            super::summary_predicates::summary_boolean_value(&substituted) != Some(false)
+            !excluded.contains(&substituted)
+                && super::summary_predicates::summary_boolean_value(&substituted) != Some(false)
         });
     }
     buckets.retain(|bucket| !bucket.alternative_guards.is_empty());
+}
+
+/// Only checked fixed-integer comparisons admit ordered complementation.
+/// IEEE unordered relations, erased mathematics and selected authored operators
+/// never supply these keys. Conjuncts combine; disjuncts retain common keys.
+/// The keys refer to invocation-entry identities, not current storage.
+fn excluded_comparisons(
+    checked: &Boolean,
+    identity: &Expression,
+    negated: bool,
+    depth: usize,
+) -> Vec<Expression> {
+    use typed_trees::expression::UnaryOperator;
+    if depth >= 64 {
+        return Vec::new();
+    }
+    match (checked, identity) {
+        (Boolean::Not(inner), Expression::Unary { operator, operand })
+            if *operator == UnaryOperator::LogicalNot as u8 =>
+        {
+            excluded_comparisons(inner, operand, !negated, depth + 1)
+        }
+        (
+            Boolean::And { left, right } | Boolean::Or { left, right },
+            Expression::Binary {
+                operator,
+                left: a,
+                right: b,
+            },
+        ) if (*operator == BinaryOperator::And as u8 && matches!(checked, Boolean::And { .. }))
+            || (*operator == BinaryOperator::Or as u8 && matches!(checked, Boolean::Or { .. })) =>
+        {
+            let mut left = excluded_comparisons(left, a, negated, depth + 1);
+            let right = excluded_comparisons(right, b, negated, depth + 1);
+            if matches!(checked, Boolean::And { .. }) != negated {
+                left.extend(right);
+            } else {
+                left.retain(|key| right.contains(key));
+            }
+            left
+        }
+        (
+            Boolean::IntegerComparison { .. },
+            Expression::Binary {
+                operator,
+                left,
+                right,
+            },
+        ) => {
+            let complement = [
+                (BinaryOperator::Equal, BinaryOperator::NotEqual),
+                (BinaryOperator::NotEqual, BinaryOperator::Equal),
+                (BinaryOperator::Less, BinaryOperator::GreaterOrEqual),
+                (BinaryOperator::LessOrEqual, BinaryOperator::Greater),
+                (BinaryOperator::Greater, BinaryOperator::LessOrEqual),
+                (BinaryOperator::GreaterOrEqual, BinaryOperator::Less),
+            ]
+            .into_iter()
+            .find_map(|(original, complement)| {
+                (*operator == original as u8).then_some(if negated { original } else { complement })
+            });
+            complement
+                .map(|operator| {
+                    vec![Expression::Binary {
+                        operator: operator as u8,
+                        left: left.clone(),
+                        right: right.clone(),
+                    }]
+                })
+                .unwrap_or_default()
+        }
+        _ => Vec::new(),
+    }
 }
 
 fn collect(
@@ -174,31 +252,45 @@ pub(super) fn completed_operand(
     contexts: &[facts::FactContextHandle],
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<Expression> {
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        caller.state_symbol,
-        statement,
-        argument,
-    )?;
-    let (_, state) =
-        validation::machine_state_by_symbols(program, caller.machine_symbol, caller.state_symbol)?;
-    let containing = program.statement_table.statement_at(state, statement)?;
-    if crate::facts::crash_entry_values::statement_may_overwrite_place(
-        program,
-        caller.machine_symbol,
-        containing,
-        &place,
+    // A direct value already names its producer occurrence. A storage read
+    // instead rejoins that occurrence through live capture facts and its write
+    // boundary. Both use the same completed-guarantee query below.
+    let result = if matches!(
+        program.expression_table.expression(argument),
+        typed_trees::expression::ExpressionNode::Call(_)
     ) {
-        return None;
-    }
-    let captured =
-        crate::checks::contracts::captured_guarantee_place(program, semantic, contexts, place)?;
-    let facts::PlaceRoot::Expression(result) = captured.root else {
-        return None;
+        argument
+    } else {
+        let place = validation::canonical_place_from_expression_in_state(
+            program,
+            caller.state_symbol,
+            statement,
+            argument,
+        )?;
+        let (_, state) = validation::machine_state_by_symbols(
+            program,
+            caller.machine_symbol,
+            caller.state_symbol,
+        )?;
+        let containing = program.statement_table.statement_at(state, statement)?;
+        if crate::facts::crash_entry_values::statement_may_overwrite_place(
+            program,
+            caller.machine_symbol,
+            containing,
+            &place,
+        ) {
+            return None;
+        }
+        let captured =
+            crate::checks::contracts::captured_guarantee_place(program, semantic, contexts, place)?;
+        let facts::PlaceRoot::Expression(result) = captured.root else {
+            return None;
+        };
+        if !captured.segments.is_empty() {
+            return None;
+        }
+        result
     };
-    if !captured.segments.is_empty() {
-        return None;
-    }
     let mut agreed = None;
     for fact in contexts.iter().flat_map(|context| {
         semantic
@@ -225,7 +317,7 @@ pub(super) fn completed_operand(
         if fact.origin != facts::FactOrigin::CallEnsures
             || machine_symbol != caller.machine_symbol
             || state_symbol != caller.state_symbol
-            || statement_index >= statement
+            || statement_index > statement
         {
             continue;
         }

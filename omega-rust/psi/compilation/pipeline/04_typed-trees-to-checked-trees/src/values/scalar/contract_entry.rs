@@ -17,28 +17,6 @@ pub(crate) use crash_entry::{
     lower_entry_predicate, lower_entry_scalar, lower_machine_entry_crash_contract_expression,
 };
 
-/// The structural crash reader additionally needs a closed signature. This is
-/// execution eligibility, not the identity of a concrete scalar contract leaf
-/// on a generic declaration awaiting application.
-pub(crate) fn entry_parameters<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> Option<&'program [StateParameter]> {
-    let parameters = authored_entry_parameters(program, machine)?;
-    if !program.machine_type_parameters(machine).is_empty()
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.conformance_bounds.is_empty()
-        || program.data_definitions().iter().any(|owner| {
-            owner.symbol == machine.attached_data_symbol
-                && (!program.data_type_parameters(owner).is_empty()
-                    || !owner.lifetime_parameters.is_empty())
-        })
-    {
-        return None;
-    }
-    Some(parameters)
-}
-
 /// Scalar contracts and structural crash predicates share exact authored
 /// machine/state/formal identity, without borrowing each other's leaf vocabulary
 /// or eligibility policy. Unread type parameters do not erase concrete clauses.

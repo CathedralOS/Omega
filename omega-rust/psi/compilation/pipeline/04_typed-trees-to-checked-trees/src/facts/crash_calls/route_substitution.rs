@@ -1889,27 +1889,32 @@ pub(crate) fn refine_published_crash_routes(
                     let expression = *route_expressions.get(identity).expect(
                         "a canonical published crash route retains its typed producer expression",
                     );
-                    // The token-only predicate identity does not select operator
-                    // meaning. Retain authority only from this exact local owner.
-                    let builtin_meaning = !identity
-                        .expression()
-                        .is_some_and(CrashPredicateExpression::contains_structural_identity)
-                        && program
-                            .machines()
-                            .iter()
-                            .find_map(|machine| {
-                                program.state_in_machine(machine, target_state_symbol).map(
-                                    |state| {
-                                        validation::has_builtin_bound_expression_meaning(
-                                            program,
-                                            machine,
-                                            Some(state),
-                                            expression,
-                                        )
-                                    },
-                                )
-                            })
-                            .unwrap_or(false);
+                    // Bodyless selected requirements carry their own checked
+                    // entry annotation. It authenticates executable meaning
+                    // without borrowing a provider body's narrower behavior.
+                    // Token-only routes still need their exact local owner.
+                    let builtin_meaning = identity
+                        .scalar_expression()
+                        .is_some_and(super::summary_predicates::executable_entry_predicate)
+                        || !identity
+                            .expression()
+                            .is_some_and(CrashPredicateExpression::contains_structural_identity)
+                            && program
+                                .machines()
+                                .iter()
+                                .find_map(|machine| {
+                                    program.state_in_machine(machine, target_state_symbol).map(
+                                        |state| {
+                                            validation::has_builtin_bound_expression_meaning(
+                                                program,
+                                                machine,
+                                                Some(state),
+                                                expression,
+                                            )
+                                        },
+                                    )
+                                })
+                                .unwrap_or(false);
                     if builtin_meaning
                         && crate::facts::operator_crashes::statement_entry_route_is_false(
                             program,

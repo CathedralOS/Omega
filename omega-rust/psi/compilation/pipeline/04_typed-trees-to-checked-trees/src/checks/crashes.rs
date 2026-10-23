@@ -605,8 +605,10 @@ pub(crate) fn check_published_ceiling_coverage(
                 }
                 let target_name = program
                     .machine_by_symbol(call.target_machine())
-                    .map(|machine| machine.name.as_str())
-                    .unwrap_or("<unknown>");
+                    .map(|machine| machine.name.as_str().to_owned())
+                    .unwrap_or_else(|| {
+                        crate::labels::call_target_label(program, call.target_state())
+                    });
                 diagnostics.push(Diagnostic::error(format!(
                     "call from `{caller_name}` to `{target_name}` at statement {} call {} has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
                     call.location().statement_ordinal(),

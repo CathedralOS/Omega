@@ -2082,8 +2082,12 @@ defines the complete product bar.
 
   - Selected-use joins for remaining intrinsic spellings, generic telescopes
     and provider-backed structural calls need exact operand mapping and provider
-    commitment. Extend these remaining generic/structural-formal routes through
-    portable predicates and execution, keeping the original guard.
+    commitment. `facts/selected_crash_formal` covers selected evidence calls under
+    a concrete const trait application, preserving fixed-integer entry guards,
+    nested normal results and saved scalar arguments. Extend the remaining
+    generic/structural-formal routes through portable predicates and execution,
+    keeping the original guard; open const guards in generic provider bodies
+    still need crash-site coverage.
     Preserve authored public ceilings independently of executable applications;
     `pass/providers/finite_requirement_boolean_const_exit` and
     `pass/providers/calling_application_region_scopes_exit` constrain package
