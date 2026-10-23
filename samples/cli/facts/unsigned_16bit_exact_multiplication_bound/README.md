@@ -64,6 +64,31 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omegauild\o
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u16\``).
 
+## Pinned Fixtures
+
+The row is pinned by 18 fixtures:
+`tests/omega/pass/facts/unsigned_16bit_exact_multiplication_bound_through_<place>_exit` and
+`tests/omega/fail/facts/unsigned_16bit_exact_multiplication_bound_through_<place>_rejected` for each of the
+nine places. Each positive fixture is its place program copied byte-identical, binds `ProgramEntry` for all
+four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries
+`expected_native_exit.txt` = 0; each reject twin is the place's invalid program and `build.omg` copied
+byte-identical, with `expected.txt` carrying the row's own `may overflow \`u16\`` fragment (`mul_state` in
+state `step` for `other_state`; the four target-scoped bodies of `target_body` report four diagnostics).
+
+Every row was recorded with the shared generation producer (gen-9b001b8f6af, revision 9b001b8f6af, macOS
+arm64 host, jobs 4) on 2026-10-23, anchored at that base with the fixture and golden changes staged, so
+each row is stamped `@9b001b8f6afa+wt`:
+
+- `tests/omega/corpus_outcomes.txt`: nine `checked` rows carrying `check-target:macos_arm64` and nine
+  `rejected` rows carrying each twin's own diagnostic line with its `may overflow \`u16\`` fragment
+  satisfied;
+- `tests/omega/corpus_native_macos_arm64.txt`: nine `built` rows with `exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: nine `built` rows with `exit:0`, `interpreter-exit:0` and
+  `interpreter:agrees`.
+
+Measured with the same base producer before the record: the root and all nine places run `omega run --both`
+with `native exit 0` and `interp exit: 0` (10/10), and all nine twins reject with that fragment (9/9).
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
