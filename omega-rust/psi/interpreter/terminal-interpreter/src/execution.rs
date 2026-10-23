@@ -121,6 +121,11 @@ pub struct TerminalExecution<'artifact> {
     /// Their field homes survive borrowed calls independently of frame-local IDs.
     pub(crate) structural_element_view_fields:
         BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    /// Ordinary byte descriptors at exact typed homes, including indexed
+    /// aggregate slots. Bindings retain backing, window and access independently
+    /// of descriptor ownership; activation-claim descriptors stay with their owner.
+    pub(crate) structural_byte_descriptors:
+        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     /// Completed byte payloads addressed by exact typed storage home. Fixed
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
@@ -437,6 +442,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             aggregate_argument_backings: BTreeMap::new(),
             reference_referents: BTreeMap::new(),
             structural_element_view_fields: BTreeMap::new(),
+            structural_byte_descriptors: BTreeMap::new(),
             structural_primitive_storage: BTreeMap::new(),
             structural_primitive_entry_places: BTreeMap::new(),
             local_structural_identities,

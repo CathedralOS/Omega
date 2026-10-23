@@ -128,8 +128,9 @@ pub struct FlowOwnedSelectionReceipt {
     pub death: language_semantics::PermissionEventSource,
 }
 
-/// An exact established source, or an earlier selected destination whose
-/// incoming receipt preserves its alternative origins without copying them.
+/// One named carrier home used by a selection. This roster coordinates its
+/// physical storage and conditional residual; it grants no value or claim
+/// authority. Each transfer retains its actual post-predicate occurrence below.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnedSelectionSource {
     pub symbol: SymbolHandle,
@@ -138,12 +139,6 @@ pub struct FlowOwnedSelectionSource {
     /// retains potentially live storage for the selected residual schedule;
     /// a source count alone cannot establish whether any complement survives.
     pub retains_storage: bool,
-    pub provenance: language_semantics::PermissionProvenance,
-    pub claim_identity: language_semantics::PermissionClaimIdentity,
-    /// Zero means the source has the direct provenance above. A nonzero handle
-    /// is authoritative for the source's alternative origins; Unknown alone
-    /// never authorizes a transfer.
-    pub origin_selection: arena::Handle<FlowOwnedSelectionReceipt>,
 }
 
 /// One selected place occurrence. Nested arm scopes are reconstructed from the
@@ -153,6 +148,12 @@ pub struct FlowOwnedSelectionTransfer {
     pub expression: typed_trees::expression::ExpressionHandle,
     pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     pub source: arena::Handle<FlowOwnedSelectionSource>,
+    /// The evaluated occurrence, not an invariant of the named home. These
+    /// rows preserve plain affine/descriptor custody even with no child claims.
+    /// Linear contents additionally retain their exact per-claim frontier.
+    pub provenance: language_semantics::PermissionProvenance,
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+    pub origin_selection: arena::Handle<FlowOwnedSelectionReceipt>,
     /// Exact moved path below the source root. Empty selects the whole local;
     /// a nonempty path (fields and literal fixed indexes only) selects one
     /// affine child while the root's residual custody dies on the same edge.

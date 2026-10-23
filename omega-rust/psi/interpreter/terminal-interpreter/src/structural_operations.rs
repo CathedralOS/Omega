@@ -307,6 +307,7 @@ impl TerminalExecution<'_> {
         crate::structural_storage::prune(&mut self.structural_host_atoms, from);
         crate::structural_storage::prune(&mut self.structural_scalar_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
+        crate::structural_storage::prune(&mut self.structural_byte_descriptors, from);
         crate::structural_storage::prune(&mut self.structural_byte_storage, from);
         crate::structural_storage::prune(&mut self.structural_cases, from);
         crate::structural_storage::prune(&mut self.reference_referents, from);
@@ -1004,7 +1005,7 @@ impl TerminalExecution<'_> {
             projected_qualifications: selected.projected_qualifications,
             path: Vec::new(),
         };
-        self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved));
+        self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved))?;
         self.structural_values.insert(result.place, moved);
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
@@ -1450,7 +1451,7 @@ impl TerminalExecution<'_> {
         from: &StructuralRuntimePlace,
         to: &StructuralRuntimePlace,
         vacate: bool,
-    ) {
+    ) -> Result<(), TerminalInterpretError> {
         let retarget = |parent: &StructuralRuntimePlace| {
             (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
                 .then(|| StructuralRuntimePlace {
@@ -1479,6 +1480,17 @@ impl TerminalExecution<'_> {
             crate::structural_storage::cells(&self.structural_byte_storage, from)
                 .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
                 .collect();
+        let staged_byte_descriptors =
+            crate::structural_storage::cells(&self.structural_byte_descriptors, from)
+                .map(|(home, binding)| {
+                    if !vacate && !matches!(binding, ByteSequenceBinding::Immutable(_)) {
+                        return Err(malformed());
+                    }
+                    let target = retarget(home).ok_or_else(malformed)?;
+                    let binding = binding.relocated_descriptor(home, &target)?;
+                    Ok((target, binding))
+                })
+                .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
         let staged_atoms: Vec<_> =
             crate::structural_storage::cells(&self.structural_host_atoms, from)
                 .filter_map(|(home, atom)| retarget(home).map(|home| (home, *atom)))
@@ -1510,25 +1522,36 @@ impl TerminalExecution<'_> {
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
         self.structural_byte_storage.extend(staged_arrays);
+        self.structural_byte_descriptors
+            .extend(staged_byte_descriptors);
         self.structural_cases.extend(staged_cases);
         self.structural_host_atoms.extend(staged_atoms);
         self.reference_referents.extend(staged_referents);
         self.structural_element_view_fields
             .extend(staged_element_views);
         self.structural_primitive_storage.extend(staged_primitives);
+        Ok(())
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under
     /// `to`. Cells are staged before removal so the source region is never
     /// partially vacated.
-    fn relocate_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
+    fn relocate_subtree(
+        &mut self,
+        from: &StructuralRuntimePlace,
+        to: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
         self.transplant_subtree(from, to, true)
     }
 
     /// Copy every runtime cell under `from` to the same subtree suffix under
     /// `to`, leaving `from` intact. The `Unrestricted` leaf's cells duplicate
     /// beneath the result's own opaque identity; nothing vacates.
-    fn clone_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
+    fn clone_subtree(
+        &mut self,
+        from: &StructuralRuntimePlace,
+        to: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
         self.transplant_subtree(from, to, false)
     }
 
@@ -1933,7 +1956,7 @@ impl TerminalExecution<'_> {
         self.clone_subtree(
             &StructuralRuntimePlace::from(&leaf),
             &StructuralRuntimePlace::from(&copied),
-        );
+        )?;
         self.structural_values.insert(result.place, copied);
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)

@@ -1,0 +1,17 @@
+// Expected exit: 0
+machine observe(windows: &mut [&mut [u8]; 1]) -> bool
+requires windows[0].len == 1
+{
+    windows[0][0] == 19 && windows[0].len == 1
+}
+
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let mut windows: [&mut [u8]; 1] = [&mut backing[..]];
+    let first: bool = observe(&mut windows);
+    let second: bool = observe(&mut windows);
+    let observed: bool = first && second && windows[0][0] == 19;
+    transition observed { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

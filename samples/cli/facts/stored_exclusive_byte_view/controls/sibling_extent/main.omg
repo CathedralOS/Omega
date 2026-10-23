@@ -1,0 +1,10 @@
+// Expected rejection: a sibling descriptor does not supply this descriptor's length.
+machine observe(windows: [&mut [u8]; 2])
+requires windows[0].len == windows[1].len
+{}
+machine main() {
+    let mut first: [u8; 1] = [19];
+    let mut second: [u8; 2] = [29, 41];
+    let windows: [&mut [u8]; 2] = [&mut first[..], &mut second[..]];
+    observe(windows);
+}

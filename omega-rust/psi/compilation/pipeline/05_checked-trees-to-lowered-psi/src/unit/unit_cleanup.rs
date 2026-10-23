@@ -204,10 +204,15 @@ pub(crate) fn prepare_checked_cleanup_regions<'action>(
         .into_iter()
         .map(|action| {
             let (place, path) = storage(identities, action.source(), action.path())?;
+            let retires_home = matches!(
+                action,
+                checked_trees::CheckedNormalCleanupAction::RetireHome { .. }
+            );
             let selected = selected_regions
                 .iter()
                 .filter(|region| {
-                    region.source == *action.source() && action.path().starts_with(&region.path)
+                    region.source == *action.source()
+                        && (retires_home || action.path().starts_with(&region.path))
                 })
                 .max_by_key(|region| region.path.len());
             // Selected custody authorizes this source, not whole-value use
@@ -216,10 +221,8 @@ pub(crate) fn prepare_checked_cleanup_regions<'action>(
             // receiver scope, including prerequisites and case observations.
             if nominal_scope.as_ref().is_some_and(|(source, prefix)| {
                 source != action.source() || !action.path().starts_with(prefix)
-            }) || matches!(
-                action,
-                checked_trees::CheckedNormalCleanupAction::RetireHome { .. }
-            ) {
+            }) || retires_home
+            {
                 nominal_scope = None;
             }
             let selected_region = if selected.is_some() {
@@ -231,9 +234,18 @@ pub(crate) fn prepare_checked_cleanup_regions<'action>(
                 {
                     nominal_scope = Some((action.source().clone(), action.path().to_vec()));
                 }
-                let scope = nominal_scope
-                    .as_ref()
-                    .map_or(action.path(), |(_, path)| path);
+                // A selected child can leave its containing storage absent or
+                // partially held. Retirement therefore selects residency of
+                // the home itself, independently of that child's whole-value
+                // cleanup. Using the child prefix here either makes retirement
+                // unconditional or asks a moved value to authorize its home.
+                let scope = if retires_home {
+                    &[][..]
+                } else {
+                    nominal_scope
+                        .as_ref()
+                        .map_or(action.path(), |(_, path)| path)
+                };
                 let (place, path) = storage(identities, action.source(), scope)?;
                 Some(terminal_psi::StructuralArgument {
                     place,

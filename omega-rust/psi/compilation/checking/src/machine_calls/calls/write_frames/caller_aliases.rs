@@ -154,7 +154,7 @@ pub enum ReferenceResultTransport {
 }
 
 impl LocalWriteSource {
-    fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
+    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
         super::place_paths::project_write_path(
             program,
             &FramePlaceOrigin {
@@ -346,6 +346,41 @@ pub(super) fn assignment_storage_origins(
     ) {
         return None;
     }
+    // A place reached entirely through owned cells names those cells even
+    // when the installed value is a reference. The initializer-origin query
+    // deliberately follows the last descriptor to its referent and therefore
+    // cannot identify a descriptor replacement's destination.
+    let receiving = super::reference_subjects::assignment_stored_value_type(
+        program, machine, state, assignment,
+    )?;
+    if let Some(place) =
+        inline_owned_assignment_place(program, machine, state, assignment.target, receiving)
+    {
+        let root = place.root.as_symbol()?;
+        let (path, precision) = super::place_paths::coordinate_storage_path(
+            program,
+            program.symbols.name(root),
+            &place.segments,
+        );
+        return Some(AssignmentStorageOrigins {
+            destinations: vec![LocalWriteSource {
+                is_image_storage: false,
+                recasts: Vec::new(),
+                representation: None,
+                path,
+                collection_coarse: precision == FramePathPrecision::CollectionCoarse,
+                root,
+                segments: place.segments,
+            }],
+            references: prefix_reference_origins(
+                program,
+                Some((state, index)),
+                &evidence.stored,
+                &evidence.aliases,
+                &evidence.divergent,
+            ),
+        });
+    }
     let origins = super::alias_origins::stable_alias_initializer_origins(
         program,
         machine,
@@ -388,6 +423,46 @@ pub(super) fn assignment_storage_origins(
             &evidence.divergent,
         ),
     })
+}
+
+/// Inline cell coordinates need no reference-origin substitution. Stop before
+/// the final cell's value: replacing a descriptor writes its home, whereas a
+/// projection crossing that descriptor still needs the ordinary backing join.
+fn inline_owned_assignment_place(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    target: ExpressionHandle,
+    receiving: super::TypeReferenceHandle,
+) -> Option<crate::CanonicalPlace> {
+    // Canonicalization alone erases recasts and does not select operator
+    // meaning. Reuse the coordinate owner before claiming raw inline geometry.
+    crate::place_has_builtin_coordinates(program, machine, Some(state), target).then_some(())?;
+    let place = crate::canonical_place_from_expression(program, target)?;
+    let mut reference = crate::declaration_type_reference(program, place.root.as_symbol()?)?;
+    for segment in &place.segments {
+        if crate::reference_shell(program, reference).is_some() {
+            return None;
+        }
+        reference = crate::project_type_reference_from_segments(
+            program,
+            reference,
+            std::slice::from_ref(segment),
+        )?;
+    }
+    if place.segments.is_empty() && crate::reference_shell(program, reference).is_some() {
+        return None;
+    }
+    // A final reference cell may be the address of a referent store instead.
+    // Only the performed store's receiving contract decides which operation
+    // occurred; the target's reference type alone cannot authorize rebinding.
+    if crate::reference_shell(program, reference).is_some()
+        && program.normalized_type_identity(reference)
+            != program.normalized_type_identity(receiving)
+    {
+        return None;
+    }
+    Some(place)
 }
 
 fn assignment_evidence(

@@ -1,5 +1,10 @@
 //! Recording permission events: crash frontiers, proven case membership
 //! and the statically inactive call results that shape which events count.
+//!
+//! Every statement follows one lifecycle: evaluate its ordered occurrences,
+//! bind selected arrivals from actual operand snapshots, then complete
+//! its receiving write. A match does not bypass ordinary call/loan completion
+//! or sample source custody before its subject and conditional patterns run.
 
 use super::cleanup_dispositions::RemainingCustody;
 use crate::checks::multiplicity::claim_outcomes::{
@@ -12,8 +17,8 @@ use crate::checks::multiplicity::linear_obligations::{
 use crate::checks::multiplicity::linear_validation::{
     append_borrow_permission_events, append_owned_cleanup_permission_events,
     apply_recorded_state_entry_events, apply_recorded_statement_events,
-    apply_statement_permission_production, initial_linear_places, reserve_owner_places,
-    select_static_case_alternative,
+    complete_statement_permissions, evaluate_statement_permissions, initial_linear_places,
+    reserve_owner_places, select_static_case_alternative,
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
@@ -349,61 +354,6 @@ pub(crate) fn prepare_permission_events(
                                 selection_diagnostics.push(diagnostic);
                                 return;
                             }
-                            if owned_selection::may_record_statement(
-                                program,
-                                state,
-                                statement_index,
-                                &statements[statement_index],
-                            ) {
-                                let before_selection = places.clone();
-                                match owned_selection::record_statement(
-                                    program,
-                                    facts,
-                                    machine,
-                                    state,
-                                    statement_index,
-                                    &statements[statement_index],
-                                    places,
-                                    &mut claim_identities,
-                                ) {
-                                    Ok(true) => {
-                                        if let Some((handle, receipt)) =
-                                            facts.flow.ownership.owned_selection_at(
-                                                state.symbol,
-                                                statement_index as u32,
-                                            )
-                                        {
-                                            if let Err(diagnostic) = selected_cleanup
-                                                .observe_selection(
-                                                    program,
-                                                    handle,
-                                                    &facts.flow.ownership,
-                                                    &before_selection,
-                                                    remaining,
-                                                )
-                                            {
-                                                selection_diagnostics.push(diagnostic);
-                                                return;
-                                            }
-                                            selections.consume(
-                                                program,
-                                                &facts.flow.ownership,
-                                                receipt,
-                                            );
-                                            for place in selections.unavailable_places() {
-                                                remaining
-                                                    .transfer_storage(place.root, &place.segments);
-                                            }
-                                        }
-                                        return;
-                                    }
-                                    Ok(false) => {}
-                                    Err(diagnostic) => {
-                                        selection_diagnostics.push(diagnostic);
-                                        return;
-                                    }
-                                }
-                            }
                         }
                         let occurrences =
                             crate::checks::ownership_occurrences::statement_steps_at_evaluation(
@@ -431,7 +381,7 @@ pub(crate) fn prepare_permission_events(
                             .collect::<Vec<_>>();
                         let event_start = permission_events.len();
                         remaining.reserve(program, &statements[statement_index]);
-                        let produced_storage = match apply_statement_permission_production(
+                        let evaluated = match evaluate_statement_permissions(
                             program,
                             facts,
                             state_flow.machine_symbol,
@@ -455,7 +405,51 @@ pub(crate) fn prepare_permission_events(
                             &mut cleanup_dispositions,
                             claim_outcomes,
                         ) {
-                            Ok(establishments) => establishments,
+                            Ok(Some(evaluated)) => evaluated,
+                            Ok(None) => return,
+                            Err(diagnostic) => {
+                                selection_diagnostics.push(diagnostic);
+                                return;
+                            }
+                        };
+                        if !matches!(
+                            evaluation,
+                            checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+                        ) {
+                            if let Err(diagnostic) = owned_selection::record_statement(
+                                program,
+                                facts,
+                                machine,
+                                state,
+                                statement_index,
+                                &statements[statement_index],
+                                places,
+                                &evaluated.observations,
+                                &mut claim_identities,
+                            ) {
+                                selection_diagnostics.push(diagnostic);
+                                return;
+                            }
+                        }
+                        let produced_storage = match complete_statement_permissions(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            &statements[statement_index],
+                            evaluation,
+                            evaluated,
+                            places,
+                            remaining,
+                            &mut permission_events,
+                            &mut claim_identities,
+                            &mut conditional_carrier_transfers,
+                            selections,
+                            &mut cleanup_dispositions,
+                            claim_outcomes,
+                        ) {
+                            Ok(produced) => produced,
                             Err(diagnostic) => {
                                 selection_diagnostics.push(diagnostic);
                                 return;
@@ -522,6 +516,14 @@ pub(crate) fn prepare_permission_events(
                             ) {
                                 selection_diagnostics.push(diagnostic);
                             }
+                        }
+                        if let Some((selection, receipt)) = facts
+                            .flow
+                            .ownership
+                            .owned_selection_at(state.symbol, statement_index as u32)
+                        {
+                            selections.consume(program, &facts.flow.ownership, receipt);
+                            selected_cleanup.transfer_captured_storage(selection, remaining);
                         }
                     }
                     super::permission_schedule::PermissionStep::Exit {
@@ -709,19 +711,6 @@ pub(crate) fn record_crash_frontier_lower_bounds(
                         statement,
                         evaluation,
                     } => {
-                        if evaluation == checked_trees::FlowPermissionEvaluation::Statement
-                            && let Some((_, receipt)) = facts
-                                .flow
-                                .ownership
-                                .owned_selection_at(state.symbol, statement as u32)
-                        {
-                            owned_selection::apply_availability(
-                                &facts.flow.ownership,
-                                receipt,
-                                places,
-                            );
-                            return;
-                        }
                         apply_recorded_statement_events(
                             program,
                             facts,

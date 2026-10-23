@@ -1130,16 +1130,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                                 )
                             }),
                     )
-                } else if self.call_expression.is_valid()
-                    && !entry.judge.frame_resolver().is_some_and(|frames| {
-                        frames.proof_value_is_caller_isolated(parameter.type_reference)
-                    })
-                {
-                    // Partial reference-subject capture does not turn an
-                    // owned carrier's live reference leaves into detached
-                    // values. This consumer owes isolation for each such
-                    // formal, independently of its reference neighbors.
-                    None
+                } else if self.call_expression.is_valid() {
+                    entry
+                        .judge
+                        .owned_argument_observation(parameter.type_reference, value)
                 } else {
                     Some(value.clone())
                 };

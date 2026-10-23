@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-pub(super) use availability::{apply_availability, may_record_statement, record_statement};
+pub(super) use availability::record_statement;
 pub(in crate::checks) use operands::reachable_arms;
 use operands::*;
 mod availability;

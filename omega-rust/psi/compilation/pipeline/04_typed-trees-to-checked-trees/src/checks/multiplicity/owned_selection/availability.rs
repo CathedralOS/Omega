@@ -1,4 +1,9 @@
-//! availability slice of owned_selection.
+//! Bind selected result paths to the occurrences actually transferred.
+//!
+//! The ordinary evaluator owns effect order and captures each source before
+//! its move on that arm. Static leaf discovery supplies result geometry, not
+//! availability. This receipt joins those arrivals without borrowing an old
+//! declaration's provenance or executing predicates a second time.
 
 use super::{leaves::*, operands::*};
 use super::{place_paths_overlap, source_needs_loan_closure, stored_contents, unsupported};
@@ -19,27 +24,6 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
-pub(in crate::checks::multiplicity) fn may_record_statement(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    statement: &StatementNode,
-) -> bool {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let expression = match statement {
-        StatementNode::LocalData(local) if !local.is_mutable => local.initial_value,
-        StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
-            *expression
-        }
-        _ => return false,
-    };
-    expression.is_valid()
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Match(_)
-        )
-}
-
 pub(in crate::checks::multiplicity) fn record_statement(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
@@ -48,6 +32,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
+    evaluated_observations: &[super::super::linear_validation::ObservedCustody],
     claim_identities: &mut super::super::linear_obligations::ClaimIdentityAllocator,
 ) -> Result<bool, Diagnostic> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -186,28 +171,22 @@ pub(in crate::checks::multiplicity) fn record_statement(
         }
     }
     let mut sources = Vec::new();
-    for (_, _, root, _, _) in &leaves {
+    let mut source_arrivals = Vec::new();
+    for (leaf_expression, source_arm, root, leaf_path, leaf_type) in &leaves {
         // A call's structural product roots its own once-evaluated custody;
         // only whole-local roots carry a roster source.
         let Some(symbol) = root.as_symbol() else {
             continue;
         };
-        if sources
-            .iter()
-            .any(|source: &FlowOwnedSelectionSource| source.symbol == symbol)
-        {
-            continue;
-        }
+        let places =
+            evaluated_source_places(*leaf_expression, *root, leaf_path, evaluated_observations)?;
         // The exact claims this source's leaves consume, in canonical frontier
         // order: each claim path is the leaf's moved path extended by the
         // claim's position below the leaf. Distinct claim paths can never
         // overlap inside one frontier, so overlapping-but-distinct entries
         // here mean the leaf set disagrees with itself.
         let mut consumed_paths: Vec<Vec<facts::PlaceSegment>> = Vec::new();
-        for (_, _, leaf_root, leaf_path, leaf_type) in &leaves {
-            if *leaf_root != facts::PlaceRoot::Symbol(symbol) {
-                continue;
-            }
+        {
             for template in &leaf_frontier(*leaf_type) {
                 let mut claim_path = leaf_path.clone();
                 claim_path.extend_from_slice(&template.path);
@@ -227,8 +206,44 @@ pub(in crate::checks::multiplicity) fn record_statement(
         }
         // A source is established storage in the current permission context.
         // Mutability grants reassignment, not copying or weaker move rules.
-        // Parameters carry their authored position as the
-        // source ordinal and their state-entry establishment as provenance.
+        // Parameters keep their authored position as the source ordinal;
+        // provenance comes from the actual evaluated occurrence below.
+        // A carrier source has no tracked root place: its linear children
+        // are the custody roster. Their provenance is the single
+        // establishment event the declaration's write recorded, and any
+        // disagreement means the set was not established by one write.
+        let provenance = if consumed_paths.is_empty() {
+            places
+                .iter()
+                .find(|place| {
+                    place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty()
+                })
+                .ok_or_else(unsupported)?
+                .provenance
+        } else {
+            let provenances = consumed_paths
+                .iter()
+                .map(|claim_path| {
+                    places
+                        .iter()
+                        .find(|place| {
+                            place.root == facts::PlaceRoot::Symbol(symbol)
+                                && place.path == *claim_path
+                        })
+                        .and_then(|place| place.provenance)
+                        .unwrap_or(PermissionProvenance::Unknown)
+                })
+                .collect::<Vec<_>>();
+            if provenances
+                .iter()
+                .any(|provenance| *provenance != provenances[0])
+            {
+                return Err(Diagnostic::error(
+                    "owned match source claims must share one establishment provenance",
+                ));
+            }
+            Some(provenances[0])
+        };
         let parameter = program
             .state_parameters(state)
             .iter()
@@ -247,11 +262,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             (
                 position,
                 parameter.type_reference,
-                PermissionProvenance::Established {
-                    machine_symbol: machine.symbol,
-                    state_symbol: state.symbol,
-                    source: PermissionEventSource::StateEntry,
-                },
+                provenance.unwrap_or(PermissionProvenance::Unknown),
                 Handle::invalid(),
             )
         } else {
@@ -259,46 +270,48 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 .state_local_declaration(state, symbol)
                 .filter(|&(ordinal, _)| ordinal < statement_index)
                 .ok_or_else(unsupported)?;
-            // A carrier source has no tracked root place: its linear children
-            // are the custody roster. Their provenance is the single
-            // establishment event the declaration's write recorded, and any
-            // disagreement means the set was not established by one write.
-            let provenance = if consumed_paths.is_empty() {
-                places
-                    .iter()
-                    .find(|place| {
-                        place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty()
-                    })
-                    .ok_or_else(unsupported)?
-                    .provenance
-            } else {
-                let provenances = consumed_paths
-                    .iter()
-                    .map(|claim_path| {
-                        places
-                            .iter()
-                            .find(|place| {
-                                place.root == facts::PlaceRoot::Symbol(symbol)
-                                    && place.path == *claim_path
-                            })
-                            .and_then(|place| place.provenance)
-                            .unwrap_or(PermissionProvenance::Unknown)
-                    })
-                    .collect::<Vec<_>>();
-                if provenances
-                    .iter()
-                    .any(|provenance| *provenance != provenances[0])
-                {
-                    return Err(Diagnostic::error(
-                        "owned match source claims must share one establishment provenance",
-                    ));
-                }
-                Some(provenances[0])
-            };
             let origin_selection = facts
                 .flow
                 .ownership
                 .owned_selection_at(state.symbol, source_ordinal as u32)
+                .filter(|(_, receipt)| {
+                    receipt.destination == symbol
+                        && if consumed_paths.is_empty() {
+                            provenance
+                                == Some(PermissionProvenance::Established {
+                                    machine_symbol: machine.symbol,
+                                    state_symbol: state.symbol,
+                                    source: PermissionEventSource::Statement {
+                                        statement_index: source_ordinal,
+                                    },
+                                })
+                        } else {
+                            consumed_paths.iter().all(|path| {
+                                places
+                                    .iter()
+                                    .find(|place| place.root == *root && place.path == *path)
+                                    .is_some_and(|place| {
+                                        facts
+                                            .flow
+                                            .ownership
+                                            .selection_result_claims
+                                            .span_or_empty(receipt.result_claims)
+                                            .iter()
+                                            .any(|claim| {
+                                                facts
+                                                    .flow
+                                                    .ownership
+                                                    .segments
+                                                    .span_or_empty(claim.path)
+                                                    == *path
+                                                    && Some(claim.claim_identity)
+                                                        == place.claim_identity
+                                                    && Some(claim.provenance) == place.provenance
+                                            })
+                                    })
+                            })
+                        }
+                })
                 .map(|(handle, _)| handle)
                 .unwrap_or_default();
             (
@@ -391,7 +404,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 "owned match source has no exact incoming origin",
             ));
         }
-        // The source row names one claim identity only when the transfer set
+        // The transfer names one claim identity only when its consumed set
         // consumes exactly one; a whole carrier's claim set has no single
         // identity, and the per-claim rows on each transfer carry the exact
         // consumed evidence instead.
@@ -402,32 +415,63 @@ pub(in crate::checks::multiplicity) fn record_statement(
         } else {
             PermissionClaimIdentity::Unknown
         };
-        sources.push(FlowOwnedSelectionSource {
+        let source = FlowOwnedSelectionSource {
             symbol,
             statement_ordinal: u32::try_from(source_ordinal).map_err(|_| unsupported())?,
-            retains_storage: leaves
-                .iter()
-                .filter(|(_, _, root, path, _)| {
-                    *root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
-                })
-                .count()
-                != terminal_count,
+            retains_storage: true,
+        };
+        let source_ordinal =
+            if let Some(ordinal) = sources.iter().position(|candidate| *candidate == source) {
+                ordinal
+            } else {
+                let ordinal = sources.len();
+                sources.push(source);
+                ordinal
+            };
+        source_arrivals.push((
+            *leaf_expression,
+            *source_arm,
+            *root,
+            leaf_path.clone(),
+            source_ordinal,
             provenance,
             claim_identity,
             origin_selection,
-        });
+        ));
+    }
+    // Every terminal edge moving the whole current occupant leaves no skipped
+    // carrier in this home. Predicate effects may have installed different
+    // occupants: their distinct claim evidence remains on the transfers, not
+    // this physical-home roster.
+    for (source_ordinal, source) in sources.iter_mut().enumerate() {
+        let mut whole_arms = Vec::new();
+        for (_, arm, _, path, arrival, _, _, _) in &source_arrivals {
+            if *arrival == source_ordinal && path.is_empty() && !whole_arms.contains(arm) {
+                whole_arms.push(*arm);
+            }
+        }
+        source.retains_storage = whole_arms.len() != terminal_count;
     }
     // Reverse establishment order: locals in descending statement order, then
     // parameters in descending authored position, since parameters are
     // established at state entry before every statement local.
-    sources.sort_by_key(|source| {
+    let mut sources = sources.into_iter().enumerate().collect::<Vec<_>>();
+    sources.sort_by_key(|(_, source)| {
         let is_local = program
             .state_parameters(state)
             .iter()
             .all(|parameter| parameter.symbol != source.symbol);
         std::cmp::Reverse((is_local, source.statement_ordinal))
     });
-    let sources = facts.flow.ownership.selection_sources.insert_many(sources);
+    let source_ordinals = sources
+        .iter()
+        .map(|(ordinal, _)| *ordinal)
+        .collect::<Vec<_>>();
+    let sources = facts
+        .flow
+        .ownership
+        .selection_sources
+        .insert_many(sources.into_iter().map(|(_, source)| source));
     let mut transfers = Vec::new();
     let selection_expression = expression;
     for (expression, source_arm, root, path, leaf_type) in leaves {
@@ -438,15 +482,42 @@ pub(in crate::checks::multiplicity) fn record_statement(
             expression,
             type_reference,
         )?;
-        let (source, claims) = match root {
+        let (source, claims, provenance, claim_identity, origin_selection) = match root {
             facts::PlaceRoot::Symbol(symbol) => {
-                let ordinal = facts
-                    .flow
-                    .ownership
-                    .selection_sources
-                    .span_or_empty(sources)
+                let places =
+                    evaluated_source_places(expression, root, &path, evaluated_observations)?;
+                let (source_ordinal, provenance, claim_identity, origin_selection) =
+                    source_arrivals
+                        .iter()
+                        .find_map(
+                            |(
+                                candidate,
+                                arm,
+                                candidate_root,
+                                candidate_path,
+                                ordinal,
+                                provenance,
+                                claim_identity,
+                                origin_selection,
+                            )| {
+                                (*candidate == expression
+                                    && *arm == source_arm
+                                    && *candidate_root == root
+                                    && *candidate_path == path)
+                                    .then_some((
+                                        *ordinal,
+                                        *provenance,
+                                        *claim_identity,
+                                        *origin_selection,
+                                    ))
+                            },
+                        )
+                        .ok_or_else(|| {
+                            Diagnostic::error("selected source lost its evaluated occurrence")
+                        })?;
+                let ordinal = source_ordinals
                     .iter()
-                    .position(|source| source.symbol == symbol)
+                    .position(|candidate| *candidate == source_ordinal)
                     .ok_or_else(unsupported)?;
                 let source = sources.handle_at(ordinal as u32);
                 // Each leaf consumes the leaf type's whole linear frontier
@@ -477,7 +548,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
                         })
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
-                (source, claims)
+                (source, claims, provenance, claim_identity, origin_selection)
             }
             // A call-product root is identified by the transfer expression's
             // authored place, not a roster source.
@@ -487,7 +558,13 @@ pub(in crate::checks::multiplicity) fn record_statement(
                     ExpressionNode::Call(_)
                 ) =>
             {
-                (Handle::invalid(), Vec::new())
+                (
+                    Handle::invalid(),
+                    Vec::new(),
+                    PermissionProvenance::Unknown,
+                    PermissionClaimIdentity::Unknown,
+                    Handle::invalid(),
+                )
             }
             _ => return Err(unsupported()),
         };
@@ -495,6 +572,9 @@ pub(in crate::checks::multiplicity) fn record_statement(
             expression,
             source_arm,
             source,
+            provenance,
+            claim_identity,
+            origin_selection,
             path: facts.flow.ownership.segments.insert_many(path),
             result_path: facts.flow.ownership.segments.insert_many(result_path),
             claims: facts
@@ -537,68 +617,28 @@ pub(in crate::checks::multiplicity) fn record_statement(
         &receipt,
         claim_identities,
     )?;
-    apply_availability(&facts.flow.ownership, &receipt, places);
     facts.flow.ownership.owned_selections.append(receipt);
     Ok(true)
 }
 
-pub(in crate::checks::multiplicity) fn apply_availability(
-    ownership: &checked_trees::FlowOwnershipFacts,
-    receipt: &FlowOwnedSelectionReceipt,
-    places: &mut [LinearPlace],
-) {
-    // `live` here is the all-path availability summary, not disposition. The
-    // conditional complement remains owed in the receipt's source roster.
-    for source in ownership.selection_sources.span_or_empty(receipt.sources) {
-        if let Some(place) = places.iter_mut().find(|place| {
-            place.root == facts::PlaceRoot::Symbol(source.symbol) && place.path.is_empty()
-        }) {
-            place.live = false;
-        }
-    }
-    // Each transfer names the exact claims it consumes on its edge. Uniform
-    // selection means every named claim is gone on every path, so the precise
-    // `(symbol, path)` place is dead even when the source root survives as
-    // residual custody — the affine root lookup above only covers whole-place
-    // sources.
-    for transfer in ownership
-        .selection_transfers
-        .span_or_empty(receipt.transfers)
-    {
-        if !transfer.source.is_valid() {
-            continue;
-        }
-        let source = ownership.selection_sources.get(transfer.source);
-        for claim in ownership
-            .selection_transfer_claims
-            .span_or_empty(transfer.claims)
-        {
-            let claim_path = ownership.segments.span_or_empty(claim.path);
-            if let Some(place) = places.iter_mut().find(|place| {
-                place.root == facts::PlaceRoot::Symbol(source.symbol) && place.path == claim_path
-            }) {
-                place.live = false;
-            }
-        }
-    }
-    // Bind by destination path, never source catalogue position. An invariant
-    // source keeps its name; differing arms use the receipt's joined name,
-    // whose alternatives remain on the exact selected transfer graph.
-    if receipt.destination.is_valid() {
-        for place in places
-            .iter_mut()
-            .filter(|place| place.root == facts::PlaceRoot::Symbol(receipt.destination))
-        {
-            let binding = ownership
-                .selection_result_claims
-                .span_or_empty(receipt.result_claims)
-                .iter()
-                .find(|claim| ownership.segments.span_or_empty(claim.path) == place.path);
-            place.live = true;
-            place.case_excluded = false;
-            place.ever_established = true;
-            place.provenance = binding.map(|claim| claim.provenance);
-            place.claim_identity = binding.map(|claim| claim.claim_identity);
-        }
-    }
+/// The evaluator captured this operand before its move or reborrow, after
+/// preceding calls and conditional pattern effects on the same route. The
+/// source spelling and the joined post-expression inventory cannot replace it.
+fn evaluated_source_places<'evaluation>(
+    expression: typed_trees::expression::ExpressionHandle,
+    root: facts::PlaceRoot,
+    path: &[facts::PlaceSegment],
+    observations: &'evaluation [super::super::linear_validation::ObservedCustody],
+) -> Result<&'evaluation [LinearPlace], Diagnostic> {
+    let mut arrivals = observations.iter().filter(|observation| {
+        observation.expression == expression
+            && observation.place.root == root
+            && observation.place.segments == path
+    });
+    let (Some(arrival), None) = (arrivals.next(), arrivals.next()) else {
+        return Err(Diagnostic::error(
+            "selected source has no unique evaluated operand arrival",
+        ));
+    };
+    Ok(&arrival.places)
 }

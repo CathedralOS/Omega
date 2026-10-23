@@ -95,7 +95,12 @@ pub(crate) fn apply_recorded_statement_events(
             && event.evaluation == evaluation
             && event.kind != PermissionEventKind::AffineDrop
     }) {
-        if let Err(diagnostic) = selected.enter(routes.event(event, calls), &mut current, join) {
+        if let Err(diagnostic) = selected.enter(
+            routes.event(event, calls),
+            &mut current,
+            |_, _| Ok(()),
+            join,
+        ) {
             diagnostics.push(diagnostic);
             return;
         }
@@ -155,7 +160,7 @@ pub(crate) fn apply_recorded_statement_events(
             PermissionEventKind::AffineDrop => {}
         }
     }
-    if let Err(diagnostic) = selected.enter(&[], &mut current, join) {
+    if let Err(diagnostic) = selected.enter(&[], &mut current, |_, _| Ok(()), join) {
         diagnostics.push(diagnostic);
         return;
     }

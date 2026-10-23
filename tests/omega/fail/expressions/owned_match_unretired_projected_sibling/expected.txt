@@ -1,0 +1,1 @@
+original.fourth does not establish Token::drop

@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let windows: [[&mut [u8]; 1]; 1] = [[&mut backing[..]]];
+    let moved: [[&mut [u8]; 1]; 1] = windows;
+    let observed: bool = moved[0][0].len == 1 && moved[0][0][0] == 19;
+    transition observed { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

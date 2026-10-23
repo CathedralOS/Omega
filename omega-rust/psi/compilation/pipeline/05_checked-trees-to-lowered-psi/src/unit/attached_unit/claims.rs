@@ -174,8 +174,10 @@ pub(super) fn lower_owned_transfer_claims(
 /// Resolve one consumed occurrence, not every move from its source place in
 /// the same statement. A constructor's exact operand can inherit either a
 /// statement consumer or a call consumer; its checked events must name one
-/// unique coordinate. Conditional operands use their selection receipt instead
-/// of importing the unconditional permission stream into an arm.
+/// unique coordinate. A selected operand's receipt authenticates these same
+/// actual move events; it is not a second claim frontier to append or a
+/// substitute for evaluating an arm. Exact expression coordinates retain the
+/// arm's custody without importing moves from another alternative.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_owned_operand_claims(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -208,7 +210,7 @@ pub(super) fn lower_owned_operand_claims(
     } else {
         (facts::PlaceRoot::Expression(expression), [].as_slice())
     };
-    let transfers = checked
+    let evaluated_transfers = checked
         .facts
         .flow
         .ownership
@@ -247,8 +249,7 @@ pub(super) fn lower_owned_operand_claims(
         false
     };
     // Borrowed carriers transport their loans, not an owned claim frontier.
-    // Selected operands carry their custody outside the ordinary event stream.
-    if transfers.is_empty() && !has_selected_transfer {
+    if evaluated_transfers.is_empty() && !has_selected_transfer {
         return Ok(Vec::new());
     }
     let root_type = if let Some(place) = &place {
@@ -272,7 +273,7 @@ pub(super) fn lower_owned_operand_claims(
     let mut claims = Vec::new();
     let mut consumer = expected_source;
     let mut evaluation = expected_evaluation;
-    for event in transfers {
+    for event in &evaluated_transfers {
         if event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
             || evaluation.is_some_and(|lane| lane != event.evaluation)
         {
@@ -328,8 +329,11 @@ pub(super) fn lower_owned_operand_claims(
             .iter()
             .filter(|transfer| transfer.expression == expression);
         if let Some(transfer) = matching.next() {
-            if matching.next().is_some() || !claims.is_empty() || expected_source.is_some() {
+            if matching.next().is_some() {
                 return unsupported("owned operand has ambiguous selected custody");
+            }
+            if !transfer.source.is_valid() {
+                return unsupported("selected owned operand has no named source custody");
             }
             let source = checked
                 .facts
@@ -364,7 +368,26 @@ pub(super) fn lower_owned_operand_claims(
                 .ok_or(LoweringError::Unsupported(
                     "owned operand selection claims are stale",
                 ))?;
+            let mut selected_claims = Vec::new();
             for claim in selected {
+                if !evaluated_transfers.iter().any(|event| {
+                    event.claim_identity == claim.claim_identity
+                        && event.provenance == claim.provenance
+                        && checked
+                            .facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(event.segments)
+                            == checked
+                                .facts
+                                .flow
+                                .ownership
+                                .segments
+                                .span_or_empty(claim.path)
+                }) {
+                    return unsupported("selected claim has no matching evaluated transfer");
+                }
                 let path = validation::structural_claim_path(
                     &checked.typed,
                     root_type,
@@ -381,7 +404,7 @@ pub(super) fn lower_owned_operand_claims(
                         .ok_or(LoweringError::Unsupported(
                             "selected claim is outside its operand",
                         ))?;
-                claims.push(terminal_psi::StructuralResultClaimBinding {
+                selected_claims.push(terminal_psi::StructuralResultClaimBinding {
                     claim: lookup_claim_id(bindings, claim.claim_identity)?,
                     path: lower_static_argument_path(
                         identities,
@@ -390,6 +413,11 @@ pub(super) fn lower_owned_operand_claims(
                         structural_types,
                     )?,
                 });
+            }
+            claims.sort();
+            selected_claims.sort();
+            if claims != selected_claims {
+                return unsupported("selected custody differs from its evaluated claim frontier");
             }
         }
     }

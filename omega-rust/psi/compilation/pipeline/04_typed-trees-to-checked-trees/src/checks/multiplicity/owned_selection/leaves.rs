@@ -1,4 +1,5 @@
-//! leaves slice of owned_selection.
+//! Static moved-leaf and result geometry for an owned selection. Evaluation
+//! and its captured source custody are independently owned by permission production.
 
 use super::operands::*;
 use super::{owned_source, source_multiplicity, stored_contents, unsupported};
@@ -6,7 +7,7 @@ use crate::checks::multiplicity::linear_obligations::type_reference_is_reference
 use arena::Handle;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern, TableMatchArm};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchArm};
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn has_owned_leaf(
@@ -277,50 +278,9 @@ pub(super) fn collect_leaves(
             )
         }
         ExpressionNode::Match(dispatch) => {
-            // Selection predicates cannot introduce ownership effects hidden
-            // outside the selected value graph. Scalar calls need their own
-            // captured effect/loan sequence before joining this route, so a
-            // predicate call stays rejected even when its arguments move no
-            // ownership.
-            let mut predicate_roots = vec![dispatch.subject];
-            for (_, arm) in reachable_arms(program, dispatch.arms) {
-                if let MatchPattern::Value(pattern) = arm.pattern {
-                    predicate_roots.push(pattern);
-                }
-            }
-            let operands = predicate_roots
-                .iter()
-                .flat_map(|root| expression_nodes(program, *root))
-                .collect::<Vec<_>>();
-            if operands.iter().any(|operand| {
-                matches!(
-                    program.expression_table.expression(*operand),
-                    ExpressionNode::Call(_) | ExpressionNode::Borrow(_) | ExpressionNode::Atomic(_)
-                )
-            }) {
-                return Err(unsupported());
-            }
-            let tag_operands = case_tag_operands(program, machine, state, &operands);
-            if predicate_roots
-                .iter()
-                .flat_map(|root| predicate_value_nodes(program, machine, state, *root))
-                .any(|operand| {
-                    matches!(
-                        program.expression_table.expression(operand),
-                        ExpressionNode::Name(_)
-                    ) && !tag_operands.contains(&operand)
-                        && validation::expression_result_type_reference(
-                            program, machine, state, operand,
-                        )
-                        .is_none_or(|reference| {
-                            program.type_multiplicity(reference) != Multiplicity::Unrestricted
-                        })
-                })
-            {
-                return Err(Diagnostic::error(
-                    "owned match predicates require unrestricted operands without hidden ownership transfers",
-                ));
-            }
+            // Predicates have already executed in the ordinary occurrence
+            // schedule. Their actual arm-entry transfers, not syntax or a
+            // purity exception, establish availability below.
             for (source_arm, arm) in reachable_arms(program, dispatch.arms) {
                 collect_leaves(
                     program,

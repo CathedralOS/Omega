@@ -62,20 +62,31 @@ pub(in crate::proof_contracts::contract_entailment) fn indexed_term_in_scope(
         return None;
     }
     let element_type = expression_type(expression)?;
-    // An indexed reference result is a descriptor, not observed contents.
-    // Produced reference collections likewise need a separate live-origin
-    // receipt before their elements can be related to an input observation.
-    if crate::reference_shell(program, element_type).is_some()
-        || !super::scalar_operand_is_observed(program, references[0]?, &collection)
+    // The collection's storage must be observed before selecting its element.
+    // A stored reference contributes descriptor identity only: selecting it
+    // supplies no live-origin receipt for the contents behind that permission.
+    if !super::scalar_operand_is_observed(program, references[0]?, &collection)
         || references[1]
             .is_some_and(|reference| !super::scalar_operand_is_observed(program, reference, &index))
     {
         return None;
     }
-    Some(StructuralTerm::IndexedValue {
+    let owned = super::owned_observation_type(program, &collection).is_some();
+    let selected = StructuralTerm::IndexedValue {
         element_type,
         element_identity: program.normalized_type_identity(element_type),
-        collection: Box::new(collection),
+        collection: Box::new(if owned {
+            collection.into_semantic_value()
+        } else {
+            collection
+        }),
         index: Box::new(index),
+    };
+    Some(if crate::reference_shell(program, element_type).is_some() {
+        super::descriptor_only_observation(element_type, selected)
+    } else if owned {
+        super::owned_projection_observation(program, element_type, selected)
+    } else {
+        selected
     })
 }

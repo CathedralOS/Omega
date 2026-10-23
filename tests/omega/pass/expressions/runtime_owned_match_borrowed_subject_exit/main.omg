@@ -1,0 +1,21 @@
+// An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
+// Place: match_join.
+// Expected exit: 0
+machine choose(windows: &[&mut [u8]; 1]) -> bool { windows.len == 1 }
+
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let windows: [&mut [u8]; 1] = [&mut backing[..]];
+    let selected: [&mut [u8]; 1] = match choose(&windows) {
+        true -> windows
+        false -> windows
+    };
+    let length: u64 = selected[0].len;
+    let observed: bool = selected[0][0] == 19 && length == 1;
+    transition observed {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

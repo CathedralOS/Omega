@@ -1,0 +1,13 @@
+// Expected exit: 0
+machine length(bytes: &mut [u8]) -> u64 { bytes.len }
+
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let view: &mut [u8] = &mut backing[..];
+    let first: u64 = length(view);
+    let second: u64 = length(view);
+    let observed: bool = first == 1 && second == 1 && view[0] == 19;
+    transition observed { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

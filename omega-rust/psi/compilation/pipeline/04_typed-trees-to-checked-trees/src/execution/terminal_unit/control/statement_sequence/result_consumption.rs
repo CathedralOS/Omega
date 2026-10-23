@@ -4,7 +4,7 @@
 //! Producers and prior retirement receipts share the retained value-call
 //! inventory: nesting cannot hide a completed release or authorize a second one.
 
-use super::super::super::{CheckedUnitStructuralArgumentSourcePlan, PermissionProvenance};
+use super::super::super::CheckedUnitStructuralArgumentSourcePlan;
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralResultBindingPlan, Multiplicity, PermissionEventSource, StatementNode,
@@ -1240,13 +1240,10 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
         // A state-entry source (an owned parameter) has no producing
         // operation to unmark: its residual custody already rides the
         // receipt's selected edges instead of an unconditional return drop.
-        if matches!(
-            source.provenance,
-            PermissionProvenance::Established {
-                source: PermissionEventSource::StateEntry,
-                ..
-            }
-        ) {
+        if program
+            .state_parameter_by_symbol(state, source.symbol)
+            .is_some()
+        {
             continue;
         }
         let storage =

@@ -1,1 +1,1 @@
-returns a view whose access cannot be supplied by matching input
+cannot transfer a non-copy value out of borrowed storage

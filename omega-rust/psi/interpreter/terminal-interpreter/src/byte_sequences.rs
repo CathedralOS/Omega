@@ -66,6 +66,10 @@ impl ByteSequenceView {
         self
     }
 
+    pub(crate) fn descriptor_home(&self) -> Option<&crate::values::TerminalStructuralValue> {
+        self.descriptor_home.as_ref()
+    }
+
     pub(crate) fn detached_descriptor(&self) -> Self {
         let mut descriptor = self.clone();
         descriptor.descriptor_home = None;

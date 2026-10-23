@@ -6,7 +6,9 @@
 //! This environment belongs to one executed normal-return path; it is neither
 //! a loop invariant nor permission to replay mutable storage observations.
 
+mod array_elements;
 mod operand_types;
+mod owned_arguments;
 
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
@@ -204,10 +206,13 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Projection { subject, path } => {
                 let subject = self.completed_value_identity_at(*subject, depth + 1);
                 path.split('.')
-                    .try_fold(
-                        subject.clone(),
-                        super::super::observed_projections::project_field,
-                    )
+                    .try_fold(subject.clone(), |value, field| {
+                        super::super::observed_projections::project_declared_field(
+                            self.program,
+                            value,
+                            field,
+                        )
+                    })
                     .unwrap_or(StructuralTerm::Projection {
                         subject: Box::new(subject),
                         path,
@@ -1114,6 +1119,9 @@ impl<'program> StructuralJudge<'program> {
                         None => return None,
                     };
                 }
+                if let ExpressionNode::ArrayLiteral(elements) = node {
+                    judge.intake_completed_array_elements(&value, elements.count(), &inputs);
+                }
                 if let ExpressionNode::Binary(_) = node {
                     let [(_, left), (_, right)] = inputs.as_slice() else {
                         return None;
@@ -1390,7 +1398,7 @@ impl<'program> StructuralJudge<'program> {
         Some(value)
     }
 
-    fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
+    pub(super) fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
         std::sync::Arc::make_mut(&mut self.normal_guarantees).push((left.clone(), right.clone()));
         self.intake_equation(left, right, 0);
     }
@@ -1687,10 +1695,7 @@ impl<'program> StructuralJudge<'program> {
                             }),
                     )?
                 } else {
-                    if !frames?.proof_value_is_caller_isolated(parameter.type_reference) {
-                        return None;
-                    }
-                    value.clone()
+                    self.owned_argument_observation(parameter.type_reference, value)?
                 };
                 Some((parameter.symbol, value))
             })

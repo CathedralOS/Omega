@@ -64,49 +64,68 @@ pub(in crate::checks::multiplicity) fn enter_produced(
     site: SelectionSite,
     ownership: &mut FlowOwnershipFacts,
     identities: &mut ClaimIdentityAllocator,
+    mut leave: impl FnMut(
+        EvaluationBranch,
+        &mut (Vec<LinearPlace>, RemainingCustody),
+        &mut FlowOwnershipFacts,
+    ) -> Result<(), Diagnostic>,
 ) -> Result<(), Diagnostic> {
-    selected.enter(route, current, |branch, current, sibling| {
-        join_places(&mut current.0, &sibling.0, |place, other| {
-            let (selected, remaining) = alternatives(branch, place, other)?;
-            let source = PermissionEventSource::Statement {
-                statement_index: site.statement,
-            };
-            let claim_identity = identities.mint(site.machine, site.state, source);
-            let PermissionClaimIdentity::Established { ordinal, .. } = claim_identity else {
-                return Err(Diagnostic::error(
-                    "selected storage binding has no destination name",
+    // Cleanup may use ownership's segment arena at each departing scope.
+    // Stage join bindings until that ordered walk completes so both
+    // operations have one visible mutable owner rather than aliased callbacks.
+    let mut bindings = Vec::new();
+    selected.enter(
+        route,
+        current,
+        |branch, current| leave(branch, current, ownership),
+        |branch, current, sibling| {
+            join_places(&mut current.0, &sibling.0, |place, other| {
+                let (selected, remaining) = alternatives(branch, place, other)?;
+                let source = PermissionEventSource::Statement {
+                    statement_index: site.statement,
+                };
+                let claim_identity = identities.mint(site.machine, site.state, source);
+                let PermissionClaimIdentity::Established { ordinal, .. } = claim_identity else {
+                    return Err(Diagnostic::error(
+                        "selected storage binding has no destination name",
+                    ));
+                };
+                let destination = FlowSelectionPlaceArrival {
+                    claim_identity,
+                    provenance: PermissionProvenance::Joined {
+                        machine_symbol: site.machine,
+                        state_symbol: site.state,
+                        source,
+                        ordinal,
+                    },
+                };
+                bindings.push((
+                    place.path.clone(),
+                    FlowSelectionPlaceBinding {
+                        machine: site.machine,
+                        state: site.state,
+                        statement_ordinal: site.statement,
+                        evaluation: site.evaluation,
+                        expression: branch.expression(),
+                        decision: branch.decision(),
+                        root: place.root,
+                        path: Default::default(),
+                        selected,
+                        remaining,
+                        destination,
+                    },
                 ));
-            };
-            let destination = FlowSelectionPlaceArrival {
-                claim_identity,
-                provenance: PermissionProvenance::Joined {
-                    machine_symbol: site.machine,
-                    state_symbol: site.state,
-                    source,
-                    ordinal,
-                },
-            };
-            let path = ownership.segments.insert_many(place.path.iter().copied());
-            ownership
-                .selection_place_bindings
-                .insert(FlowSelectionPlaceBinding {
-                    machine: site.machine,
-                    state: site.state,
-                    statement_ordinal: site.statement,
-                    evaluation: site.evaluation,
-                    expression: branch.expression(),
-                    decision: branch.decision(),
-                    root: place.root,
-                    path,
-                    selected,
-                    remaining,
-                    destination,
-                });
-            Ok(destination)
-        })?;
-        current.1.join(&sibling.1);
-        Ok(())
-    })
+                Ok(destination)
+            })?;
+            current.1.join(&sibling.1);
+            Ok(())
+        },
+    )?;
+    for (path, mut binding) in bindings {
+        binding.path = ownership.segments.insert_many(path);
+        ownership.selection_place_bindings.insert(binding);
+    }
+    Ok(())
 }
 
 pub(in crate::checks::multiplicity) fn join_recorded_places(

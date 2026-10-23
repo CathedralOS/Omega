@@ -18,7 +18,7 @@ use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LinearPlace {
     /// Custody is rooted at a real named place or producer expression. An
     /// anonymous owner does not acquire a fabricated local to carry claims.

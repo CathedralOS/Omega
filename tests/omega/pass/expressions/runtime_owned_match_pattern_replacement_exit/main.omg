@@ -1,0 +1,20 @@
+// Expected exit: 0
+data Payload { value: u64; }
+machine replace(payload: &mut Payload) -> u64 {
+    payload = Payload { value: 23 };
+    1
+}
+machine through(choice: u64) -> bool {
+    let mut payload: Payload = Payload { value: 19 };
+    let selected: Payload = match choice {
+        0 -> payload
+        replace(&mut payload) -> payload
+        _ -> payload
+    };
+    (choice == 0 && selected.value == 19) || (choice != 0 && selected.value == 23)
+}
+machine main() crashes Trap {
+    transition through(0) && through(1) && through(2) { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

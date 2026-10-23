@@ -162,6 +162,7 @@ pub(super) struct CapturedStorageValue {
 pub(super) struct CapturedStoreDestination {
     coordinate: Option<CapturedStorageCoordinate>,
     frame: facts::NormalizedWriteFrame,
+    stored_type: TypeReferenceHandle,
 }
 
 fn expression_exposure_path(
@@ -529,11 +530,16 @@ impl StructuralJudge<'_> {
                     value.clone(),
                     &stored.coordinate.segments[coordinate.segments.len()..],
                 )?;
-                Some((projection, current))
+                let projected_type = stored.coordinate.segments[coordinate.segments.len()..]
+                    .iter()
+                    .try_fold(reference, |reference, segment| {
+                        segment.projected_type(self.program, reference)
+                    })?;
+                Some((projected_type, projection, current))
             })
             .collect::<Vec<_>>();
-        for (projection, current) in equations {
-            self.intake_equation(projection, current, 0);
+        for (declared, projection, current) in equations {
+            self.assume_completed_value_equation(declared, projection, current);
         }
     }
 
@@ -717,13 +723,23 @@ impl StructuralJudge<'_> {
         let frame = self
             .frame_resolver()?
             .assignment_write_frame(machine, statement);
+        let stored_type = crate::assignment_stored_value_type(
+            self.program,
+            machine,
+            state,
+            statement.as_assignment()?,
+        )?;
         let coordinate = frame
             .complete_paths()
             .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
         if coordinate.is_none() && !self.requires_value_preservation() {
             return None;
         }
-        Some(CapturedStoreDestination { coordinate, frame })
+        Some(CapturedStoreDestination {
+            coordinate,
+            frame,
+            stored_type,
+        })
     }
 
     /// Exact post-store value equations require a single authenticated backing.
@@ -740,13 +756,7 @@ impl StructuralJudge<'_> {
         self.ordinary_storage_path(Some((machine, state)), assignment.target)
             .then_some(())?;
         let program = self.program;
-        let reference = crate::assignment_stored_value_type(program, machine, state, assignment)?;
         let frames = self.frame_resolver()?;
-        // Reference-bearing replacement needs its own carried-origin operation;
-        // a storage coordinate alone cannot establish its loans or descriptor.
-        if !frames.value_is_reference_free(reference) {
-            return None;
-        }
         let origins = frames.assignment_storage_origins(machine, statement)?;
         let place = match origins.destinations.as_slice() {
             [origin]
@@ -791,7 +801,11 @@ impl StructuralJudge<'_> {
             .captured_assignment_destination_remains_current(machine, statement, &place)
             .then_some(())?;
         let root = place.root.as_symbol()?;
-        let footprint = crate::frame_coordinate_path(program, root, &place.segments)?;
+        let footprint = match origins.destinations.as_slice() {
+            [destination] => destination.write_path(program),
+            [] => crate::frame_coordinate_path(program, root, &place.segments)?,
+            _ => return None,
+        };
         if written != [footprint] {
             return None;
         }
@@ -808,6 +822,18 @@ impl StructuralJudge<'_> {
     ) -> Option<()> {
         self.observe_storage_effects(state, destination.frame.complete_paths())?;
         if let Some(coordinate) = destination.coordinate {
+            let value = if self
+                .frame_resolver()
+                .is_some_and(|frames| frames.value_is_reference_free(destination.stored_type))
+            {
+                value
+            } else {
+                super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    destination.stored_type,
+                    value,
+                )
+            };
             self.retain_storage_value(coordinate, value, false);
         }
         Some(())

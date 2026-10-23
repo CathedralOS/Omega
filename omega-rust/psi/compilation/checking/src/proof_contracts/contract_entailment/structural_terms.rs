@@ -22,6 +22,8 @@ mod constructors;
 mod equality;
 mod indexed;
 pub(super) use indexed::indexed_term_in_scope;
+mod owned_observations;
+pub(super) use owned_observations::{owned_observation_type, owned_projection_observation};
 mod scalar_operands;
 pub(super) use binary::{
     binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,

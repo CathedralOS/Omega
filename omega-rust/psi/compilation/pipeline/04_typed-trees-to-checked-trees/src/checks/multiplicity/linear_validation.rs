@@ -27,8 +27,9 @@ pub(crate) use claim_frontier::{
 };
 pub(crate) use claim_provenance::{completed_statement_values, written_linear_targets};
 pub(crate) use permission_production::{
-    apply_statement_permission_production, established_provenance, event_statement_index,
-    permission_source, record_conditional_carrier_transfer, select_static_case_alternative,
+    ObservedCustody, complete_statement_permissions, established_provenance,
+    evaluate_statement_permissions, event_statement_index, permission_source,
+    record_conditional_carrier_transfer, select_static_case_alternative,
 };
 
 use crate::checks::multiplicity::owned_selection;
@@ -124,31 +125,8 @@ pub(crate) fn validate_linear_permission_events(
                         statement,
                         evaluation,
                     } => {
-                        // The recording pass already decided which statements are
-                        // owned selections and kept one receipt for each. Apply
-                        // that receipt's availability exactly as recording did,
-                        // instead of recording the selection a second time.
-                        if !matches!(
-                            evaluation,
-                            checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
-                        ) && let Some((_, receipt)) = facts
-                            .flow
-                            .ownership
-                            .owned_selection_at(state.symbol, statement as u32)
-                        {
-                            if events.iter().any(|event| {
-                                permission_event_statement_index(event.source) == Some(statement)
-                            }) {
-                                diagnostics.push(Diagnostic::error("owned selection acquired unconditional transfer, establishment, or residual cleanup events"));
-                            }
-                            selections.consume(program, &facts.flow.ownership, receipt);
-                            owned_selection::apply_availability(
-                                &facts.flow.ownership,
-                                receipt,
-                                places,
-                            );
-                            return;
-                        }
+                        // Replay the same ordered expression events before binding
+                        // selected arrivals; predicates are not skipped for matches.
                         if let Err(diagnostic) = selections.replay_statement(
                             program,
                             state,
@@ -171,6 +149,13 @@ pub(crate) fn validate_linear_permission_events(
                             places,
                             &mut diagnostics,
                         );
+                        if let Some((_, receipt)) = facts
+                            .flow
+                            .ownership
+                            .owned_selection_at(state.symbol, statement as u32)
+                        {
+                            selections.consume(program, &facts.flow.ownership, receipt);
+                        }
                     }
                     super::permission_schedule::PermissionStep::Exit {
                         coordinate,

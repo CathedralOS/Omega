@@ -1,0 +1,13 @@
+// Expected exit: 0
+data Slot<'storage> { value: &'storage mut u8; }
+machine write(mut slot: Slot) {
+    slot.value = 23;
+}
+machine main() crashes Trap {
+    let mut backing: u8 = 19;
+    let slot: Slot = Slot { value: &mut backing };
+    write(slot);
+    transition backing == 23 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

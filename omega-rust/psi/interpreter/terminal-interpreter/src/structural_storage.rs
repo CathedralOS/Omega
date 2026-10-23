@@ -240,6 +240,7 @@ impl crate::execution::TerminalExecution<'_> {
             || !self.byte_sequence_values.is_empty()
             || !self.element_view_values.is_empty()
             || !self.structural_element_view_fields.is_empty()
+            || !self.structural_byte_descriptors.is_empty()
             || self
                 .aggregate_argument_backings
                 .values()
@@ -327,6 +328,7 @@ impl crate::execution::TerminalExecution<'_> {
             .chain(self.structural_primitive_storage.keys())
             .chain(self.structural_primitive_entry_places.values())
             .chain(self.structural_byte_storage.keys())
+            .chain(self.structural_byte_descriptors.keys())
             .chain(self.structural_cases.keys())
         {
             roots.insert(key.opaque_identity);

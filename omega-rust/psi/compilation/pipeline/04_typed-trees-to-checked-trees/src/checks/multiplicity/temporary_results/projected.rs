@@ -35,7 +35,7 @@ pub(in crate::checks::multiplicity) fn append_cleanup(
         }
         retired.push(retire_owner(
             program,
-            facts,
+            &mut facts.flow.ownership,
             machine,
             state,
             ProjectedConsumer {
@@ -72,7 +72,7 @@ pub(in crate::checks::multiplicity) struct ProjectedConsumer {
 #[allow(clippy::too_many_arguments)]
 pub(in crate::checks::multiplicity) fn retire_owner(
     program: &dyn validation::CheckingInput,
-    facts: &mut CheckFacts,
+    ownership: &mut checked_trees::FlowOwnershipFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     consumer: ProjectedConsumer,
@@ -137,7 +137,7 @@ pub(in crate::checks::multiplicity) fn retire_owner(
             segments: Default::default(),
             obligation_live: false,
         },
-        &mut facts.flow.ownership.segments,
+        &mut ownership.segments,
         permissions,
     );
     if permissions.len() == start {

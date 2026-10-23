@@ -77,12 +77,6 @@ impl SelectionOccurrences {
         }
     }
 
-    pub(in crate::checks::multiplicity) fn unavailable_places(
-        &self,
-    ) -> impl Iterator<Item = &CanonicalPlace> {
-        self.consumed.iter().map(|region| &region.place)
-    }
-
     /// Observe actual reads, not the names nested inside projections or a
     /// whole assignment destination. A strict child write cannot fill its
     /// unavailable containing owner, even if no later read occurs.
@@ -152,6 +146,11 @@ impl SelectionOccurrences {
     ) -> Result<(), Diagnostic> {
         for event in events {
             if event.access == PermissionAccess::Owned
+                // An affine death names a storage home, not entitlement to
+                // every child. Contextual cleanup applies its exact remaining
+                // partition; a moved selection leaf is already excluded. It
+                // must not be mistaken for a second whole-value transfer.
+                && event.kind != language_semantics::PermissionEventKind::AffineDrop
                 && self
                     .conflict(event.root, segments.span_or_empty(event.segments))
                     .is_some()

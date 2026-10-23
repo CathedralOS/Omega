@@ -1,0 +1,44 @@
+// Expected exit: 0
+use omega::language::core::drop;
+data Counter { value: u64; }
+data Payload { value: u64; }
+data Guard { output: &mut Counter; code: u64; }
+data Pair { first: Payload; second: Guard; }
+machine Guard::drop(guard: &mut Guard) { guard.output.value = guard.code; }
+machine change(pair: &mut Pair, incoming: Guard) -> u64 {
+    let old: Guard = pair.second;
+    drop(old);
+    pair.second = incoming;
+    1
+}
+machine select(output: &mut Counter, next: &mut Counter, spare: &mut Counter, choice: u64) -> u64 {
+    let mut original: Pair = Pair {
+        first: Payload { value: 7 }, second: Guard { output: output, code: 19 }
+    };
+    let alternate: Pair = Pair {
+        first: Payload { value: 11 }, second: Guard { output: spare, code: 41 }
+    };
+    let incoming: Guard = Guard { output: next, code: 23 };
+    let selected: Payload = match choice {
+        0 -> original.first
+        change(&mut original, incoming) -> alternate.first
+        _ -> alternate.first
+    };
+    selected.value
+}
+machine exercise(choice: u64) -> bool {
+    let mut output: Counter = Counter { value: 0 };
+    let mut next: Counter = Counter { value: 0 };
+    let mut spare: Counter = Counter { value: 0 };
+    let observed: u64 = select(&mut output, &mut next, &mut spare, choice);
+    ((choice == 0 && observed == 7) || (choice != 0 && observed == 11))
+        && output.value == 19 && next.value == 23 && spare.value == 41
+}
+machine main() crashes Trap {
+    transition exercise(0) && exercise(1) && exercise(2) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

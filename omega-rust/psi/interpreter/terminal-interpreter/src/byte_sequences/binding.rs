@@ -114,6 +114,27 @@ impl ByteSequenceBinding {
         }
         self
     }
+
+    /// Relocate one authenticated stored descriptor, never its backing. The
+    /// caller separately proves whether this is an owned move or a shared copy.
+    pub(crate) fn relocated_descriptor(
+        &self,
+        source: &crate::values::StructuralRuntimePlace,
+        destination: &crate::values::StructuralRuntimePlace,
+    ) -> Result<Self, TerminalInterpretError> {
+        let home = match self {
+            Self::Immutable(bytes) => bytes.descriptor_home(),
+            binding => binding.descriptor_home(),
+        }
+        .ok_or_else(malformed)?;
+        if crate::values::StructuralRuntimePlace::from(home) != *source {
+            return Err(malformed());
+        }
+        let mut relocated = home.clone();
+        relocated.opaque_identity = destination.opaque_identity;
+        relocated.path = destination.path.clone();
+        Ok(self.clone().with_descriptor_home(relocated))
+    }
     pub(crate) fn immutable(&self) -> Result<&ByteSequenceView, TerminalInterpretError> {
         match self {
             Self::Immutable(view) => Ok(view),
@@ -406,6 +427,19 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             return Ok(binding.clone());
+        }
+        if let Some(binding) = self
+            .structural_byte_descriptors
+            .get(&crate::values::StructuralRuntimePlace::from(selected))
+        {
+            let home = match binding {
+                ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
+                binding => binding.descriptor_home(),
+            }
+            .ok_or_else(malformed)?;
+            return matches(binding, home)
+                .then(|| capture(binding))
+                .ok_or_else(malformed);
         }
         if argument.path.is_empty()
             && let Some(binding) = self.byte_sequence_values.get(&argument.place)

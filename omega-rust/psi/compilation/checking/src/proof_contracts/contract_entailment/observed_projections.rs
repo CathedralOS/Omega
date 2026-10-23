@@ -15,6 +15,11 @@ pub(super) fn project_observed_value(
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
     for segment in path {
+        let owned = super::structural_terms::owned_observation_type(program, &value).is_some();
+        if owned && !super::structural_terms::scalar_operand_is_observed(program, reference, &value)
+        {
+            return None;
+        }
         readable_projection_crossings(program, reference, &value)?;
         let projected = crate::value_custody::places::project_type_reference_from_segments(
             program,
@@ -25,7 +30,19 @@ pub(super) fn project_observed_value(
             PlaceSegment::Field { symbol }
                 if symbol.is_valid() && program.any_field_owner(*symbol).is_some() =>
             {
-                value = project_field(value, program.symbols.name(*symbol))?;
+                value = project_field(
+                    if owned {
+                        value.into_semantic_value()
+                    } else {
+                        value
+                    },
+                    program.symbols.name(*symbol),
+                )?;
+                if owned {
+                    value = super::structural_terms::owned_projection_observation(
+                        program, projected, value,
+                    );
+                }
             }
             PlaceSegment::Case { variant }
                 if variant.is_valid() && program.variant_owner(*variant).is_some() =>
@@ -51,6 +68,12 @@ pub(super) fn project_observed_value(
 }
 
 pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<StructuralTerm> {
+    // This untyped helper cannot authorize crossing an observation shell.
+    // The typed path owner above unwraps owned inline storage and masks the
+    // selected reference child before any subsequent projection.
+    if matches!(value, StructuralTerm::ObservedValue { .. }) {
+        return None;
+    }
     match value.into_semantic_value() {
         StructuralTerm::Constructor { fields, .. } => fields
             .into_iter()
@@ -93,6 +116,34 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
     }
 }
 
+/// A substituted contract retains the owned argument's declared shell. Resolve
+/// its field through that declaration just as an executing member expression
+/// does; the untyped field algebra cannot authorize this crossing.
+pub(super) fn project_declared_field(
+    program: &dyn crate::CheckingInput,
+    value: StructuralTerm,
+    field_name: &str,
+) -> Option<StructuralTerm> {
+    let Some(reference) = super::structural_terms::owned_observation_type(program, &value) else {
+        return project_field(value, field_name);
+    };
+    let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
+    let mut fields = program
+        .data_member_fields(program.data_members(data))
+        .filter(|field| field.name.as_str() == field_name);
+    let (Some(field), None) = (fields.next(), fields.next()) else {
+        return None;
+    };
+    project_observed_value(
+        program,
+        reference,
+        value,
+        &[PlaceSegment::Field {
+            symbol: field.symbol,
+        }],
+    )
+}
+
 /// Observe an authenticated builtin element of a completed collection value.
 /// The caller owns the captured selector and storage revision. A descriptor
 /// whose referent was not observed cannot supply contents by projection.
@@ -108,11 +159,21 @@ pub(super) fn project_index(
     }
     let element_type =
         crate::value_custody::places::collection_element_type_reference(program, reference)?;
-    Some(StructuralTerm::IndexedValue {
+    let owned = super::structural_terms::owned_observation_type(program, &value).is_some();
+    let selected = StructuralTerm::IndexedValue {
         element_type,
         element_identity: program.normalized_type_identity(element_type),
-        collection: Box::new(value),
+        collection: Box::new(if owned {
+            value.into_semantic_value()
+        } else {
+            value
+        }),
         index: Box::new(index),
+    };
+    Some(if owned {
+        super::structural_terms::owned_projection_observation(program, element_type, selected)
+    } else {
+        selected
     })
 }
 

@@ -684,8 +684,7 @@ defines the complete product bar.
     `pass/borrows/local_reference_record_transfer_exit` (70),
     `pass/borrows/projected_reference_record_{argument,residual}_exit` (29).
   - **Aggregate construction, replacement and reads.** Finish runtime/case
-    projections of stored references, nested byte observations below exclusive
-    descriptor arrays, and opaque incoming referents that need
+    projections of stored references and opaque incoming referents that need
     retained inner-loan evidence; a reference-shaped type alone must not
     invent it. Preserve `samples/cli/facts/case_payload_stored_loan`: all nine
     places write 41 through the returned active payload to its original backing,
@@ -694,7 +693,10 @@ defines the complete product bar.
     operands. Preserve captured-slot replacement, post-RHS descriptor retirement
     and independent copy custody across
     `samples/cli/facts/descriptor_replacement_order` when extending stored-reference
-    composition. Unbounded `UInt`/`Int` fields have no runtime
+    composition. Keep `samples/cli/facts/stored_exclusive_byte_view`: stored
+    exclusive array descriptors retain exact extent, byte and original backing
+    across all nine places; empty/sibling/stale extents and duplicate exclusive
+    moves still reject. Unbounded `UInt`/`Int` fields have no runtime
     representation and stay rejected. `pass/filesystem/windows_canonicalize_exit`
     is recorded rejected ("performed write has unknown destination origins")
     and needs its stored UnitResult; coordinate **FILESYSTEM-RELEASE-CONTRACT**,

@@ -139,24 +139,6 @@ pub(super) fn expression_nodes(
     expression_read_nodes(program, root, |_| false)
 }
 
-/// A scalar/copy projection reads its selected value, not its containing
-/// owner's value. Retain every selector expression as a value input: skipping
-/// an aggregate receiver must not hide a move or effect in its index.
-pub(super) fn predicate_value_nodes(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    root: ExpressionHandle,
-) -> Vec<ExpressionHandle> {
-    expression_read_nodes(program, root, |expression| {
-        validation::expression_result_type_reference(program, machine, state, expression)
-            .is_some_and(|reference| {
-                program.type_multiplicity(reference)
-                    == language_semantics::Multiplicity::Unrestricted
-            })
-    })
-}
-
 fn place_selector_inputs(
     program: &dyn ::validation::CheckingInput,
     mut place: ExpressionHandle,

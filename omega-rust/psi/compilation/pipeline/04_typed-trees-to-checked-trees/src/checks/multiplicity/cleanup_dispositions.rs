@@ -47,6 +47,58 @@ pub(crate) struct TransferCustody {
 }
 
 impl RemainingCustody {
+    /// Compare the retained complement after the receipt's authenticated
+    /// transfers. Successive operands of one construction have different
+    /// pre-move holes but still owe one death of the same untouched sibling.
+    /// Case, construction and zero-image evidence must still match exactly.
+    pub(super) fn same_storage_after_transfers(
+        &self,
+        other: &Self,
+        root: PlaceRoot,
+        paths: &[Vec<PlaceSegment>],
+    ) -> bool {
+        let mut left = self.clone();
+        let mut right = other.clone();
+        for path in paths {
+            left.transfer_storage(root, path);
+            right.transfer_storage(root, path);
+        }
+        left.same_storage_custody(&right, root)
+    }
+
+    /// Identical claim names alone do not establish identical cleanup. Compare
+    /// every custody component for this storage root, including case exclusions
+    /// and incomplete/zero construction. Other roots do not own this disposal.
+    pub(super) fn same_storage_custody(&self, other: &Self, root: PlaceRoot) -> bool {
+        // Holes are a set, not an effect schedule. Opposite operand orders
+        // can create the same exact complement in different insertion order.
+        self.excluded
+            .iter()
+            .filter(|(candidate, _)| *candidate == root)
+            .all(|entry| other.excluded.contains(entry))
+            && other
+                .excluded
+                .iter()
+                .filter(|(candidate, _)| *candidate == root)
+                .all(|entry| self.excluded.contains(entry))
+            && self
+                .inactive_cases
+                .iter()
+                .filter(|(candidate, _)| *candidate == root)
+                .eq(other
+                    .inactive_cases
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == root))
+            && self
+                .constructing
+                .iter()
+                .filter(|(candidate, _)| *candidate == root)
+                .eq(other
+                    .constructing
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == root))
+            && self.zero_images.contains(&root) == other.zero_images.contains(&root)
+    }
     /// Ordinary post-selection availability is the intersection. Selected
     /// cleanup retains the exact skipped-path frontier separately; this join
     /// never turns possible custody into unconditional disposal authority.
@@ -326,7 +378,7 @@ impl RemainingCustody {
             Ok(())
         };
         for (ordinal, event) in events.iter().enumerate() {
-            selected.enter(routes.event(event, calls), self, join)?;
+            selected.enter(routes.event(event, calls), self, |_, _| Ok(()), join)?;
             let receiving = establishments
                 .iter()
                 .filter(|establishment| establishment.event_ordinal == ordinal)
@@ -345,7 +397,7 @@ impl RemainingCustody {
                 false,
             );
         }
-        selected.enter(&[], self, join)
+        selected.enter(&[], self, |_, _| Ok(()), join)
     }
 
     #[allow(clippy::too_many_arguments)]

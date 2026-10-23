@@ -44,7 +44,7 @@ pub(super) fn zero_image_inactive_case<'path>(
     None
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct ConstructionFrontier {
     reference: TypeReferenceHandle,
     pub(super) established: Vec<Vec<PlaceSegment>>,

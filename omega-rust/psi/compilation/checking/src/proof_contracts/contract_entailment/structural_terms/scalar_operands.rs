@@ -25,6 +25,13 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
     declared: TypeReferenceHandle,
     term: &StructuralTerm,
 ) -> bool {
+    if let Some(observed) = super::owned_observation_type(program, term) {
+        // Owned observation permits reading inline carrier cells only. The
+        // projection owner masks each reference child before another crossing;
+        // this cannot turn a borrowed referent into an owned snapshot.
+        return crate::reference_shell(program, declared).is_none()
+            && crate::declared_carriers_match(program, declared, observed);
+    }
     if term_is_unobserved_descriptor(program, term) {
         return false;
     }

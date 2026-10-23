@@ -66,14 +66,15 @@ pub(super) fn explicit_path<'a>(
     let mut selected_case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
     let mut result = Vec::with_capacity(path.len());
     let mut canonical = Some(Vec::with_capacity(path.len()));
-    let mut scalar_field = None;
+    let mut scalar_field: Option<&terminal_psi::StructuralFieldDeclaration> = None;
     for segment in path {
-        let (declaration, crossings) = readable_carrier(
-            selected.ok_or(LoweringError::Unsupported(
-                "field observation descends below a scalar",
-            ))?,
-            declarations,
-        )?;
+        let (declaration, crossings) = match selected {
+            Some(selected) => {
+                let (declaration, crossings) = readable_carrier(selected, declarations)?;
+                (Some(declaration), crossings)
+            }
+            None => (None, 0),
+        };
         result.extend(std::iter::repeat_n(
             CheckedUnitStructuralPathSegment::Referent,
             crossings,
@@ -81,6 +82,51 @@ pub(super) fn explicit_path<'a>(
         if crossings != 0 {
             canonical = None;
         }
+        // Inline byte fields and declared byte descriptors have the same
+        // element geometry. Selecting a byte still owes its own live extent
+        // observation and index obligation when the prepared path is emitted.
+        let byte_carrier = declaration
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                _ => None,
+            })
+            .or_else(|| scalar_field.and_then(|field| field.field_type.byte_sequence_carrier()));
+        if let Some(carrier) = byte_carrier {
+            match segment {
+                Source::FixedIndex(index) => {
+                    if matches!(
+                        carrier,
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. }
+                            if *index >= capacity
+                    ) {
+                        return unsupported("byte observation index exceeds its storage capacity");
+                    }
+                    result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
+                }
+                Source::RuntimeIndex(index) => {
+                    result.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        index.clone(),
+                    ));
+                }
+                _ => return unsupported("byte observation requires an element selector"),
+            }
+            let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
+                typed_trees::types::PrimitiveType::U8,
+            )?;
+            let element = StructuralFieldType::Scalar(scalar_type)
+                .leaf_declaration(declarations.iter())
+                .ok_or(LoweringError::Unsupported(
+                    "byte observation has no unique retained element declaration",
+                ))?;
+            selected = Some(element.id);
+            scalar_field = None;
+            canonical = None;
+            continue;
+        }
+        let declaration = declaration.ok_or(LoweringError::Unsupported(
+            "field observation descends below a scalar",
+        ))?;
         selected = match (segment, &declaration.shape) {
             (
                 Source::Case(identity),

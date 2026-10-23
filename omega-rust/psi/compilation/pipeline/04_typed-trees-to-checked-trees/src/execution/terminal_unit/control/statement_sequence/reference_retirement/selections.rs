@@ -115,9 +115,20 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
             || receipt.state != retirement.state.symbol
             || receipt.statement_ordinal >= retirement.statement_index
             || !receipt.destination.is_valid()
+            || !retirement
+                .facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .any(|source| source.retains_storage)
         {
             continue;
         }
+        // A source moved whole on every terminal edge has no skipped carrier
+        // cohort. Its selected destination retires normally; asking lowering
+        // to release a nonexistent complement would invent another owner.
         let Some(groups) = validation::reference_result_custody::local_record_loans(
             retirement.program,
             retirement.facts,

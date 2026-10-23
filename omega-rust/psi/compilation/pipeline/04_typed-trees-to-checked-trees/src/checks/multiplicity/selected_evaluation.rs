@@ -111,6 +111,7 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
         &mut self,
         route: &[EvaluationBranch],
         current: &mut Custody,
+        mut leave: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
         mut join: impl FnMut(EvaluationBranch, &mut Custody, &Custody) -> Result<(), Diagnostic>,
     ) -> Result<(), Diagnostic> {
         let common = self
@@ -126,6 +127,11 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
             .is_some_and(|(decision, branch)| decision.branch.same_decision(*branch));
         let retained = common + usize::from(sibling);
         while self.decisions.len() > retained {
+            if let Some(decision) = self.decisions.last() {
+                // Close one actual scope before joining it. An outer owner
+                // must see all inner alternatives joined, not only the last.
+                leave(decision.branch, current)?;
+            }
             if let Some(decision) = self.decisions.pop() {
                 join(
                     decision.branch,
@@ -142,6 +148,7 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
                     "permission occurrence revisits an already evaluated expression branch",
                 ));
             }
+            leave(decision.branch, current)?;
             decision.sibling = Some(std::mem::replace(current, decision.entry.clone()));
             decision.branch = route[common];
         }

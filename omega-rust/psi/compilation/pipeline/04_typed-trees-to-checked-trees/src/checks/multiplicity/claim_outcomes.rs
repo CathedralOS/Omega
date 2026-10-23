@@ -1030,7 +1030,6 @@ fn selection_alternatives(
                 if !transfer.source.is_valid() {
                     continue;
                 }
-                let source = ownership.selection_sources.get(transfer.source);
                 for claim in ownership
                     .selection_transfer_claims
                     .span_or_empty(transfer.claims)
@@ -1043,27 +1042,17 @@ fn selection_alternatives(
                         .span_or_empty(transfer.result_path)
                         .to_vec();
                     output_path.extend_from_slice(suffix);
-                    let origin = if program
-                        .state_parameter_by_symbol(state, source.symbol)
-                        .is_some()
-                    {
-                        CheckedClaimOutcomeSource::Input {
-                            parameter_symbol: source.symbol,
-                            path: claim_path.to_vec(),
-                        }
-                    } else {
-                        claim_outcome_source_for_event(
-                            program,
-                            state,
-                            &FlowPermissionEventFact {
-                                claim_identity: claim.claim_identity,
-                                provenance: claim.provenance,
-                                ..Default::default()
-                            },
-                            &ownership.segments,
-                            events,
-                        )
-                    };
+                    // The source home may still be a parameter after its
+                    // old claim was consumed and replaced. Only the actual
+                    // transferred identity/provenance can name an entry input.
+                    let origin = claim_outcome_source_for_identity(
+                        program,
+                        state,
+                        claim.claim_identity,
+                        claim.provenance,
+                        &ownership.segments,
+                        events,
+                    );
                     entries.push(CheckedClaimOutcomeEntry {
                         output_path,
                         source: origin,

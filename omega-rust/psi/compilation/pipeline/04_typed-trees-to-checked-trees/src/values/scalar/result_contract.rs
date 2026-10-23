@@ -167,6 +167,29 @@ pub(crate) fn lower_callable_scalar_membership_value(
 }
 
 impl ContractPredicates<'_, '_> {
+    /// A selector has the collection's count context even when an anonymous
+    /// literal has no independently inferred comparison carrier. Keep this
+    /// namespace common to scalar reads and descriptor metadata contracts.
+    fn selector_term(
+        &self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<CheckedScalarExpression> {
+        if depth >= 64 {
+            return None;
+        }
+        self.numeric_term(expression, depth + 1)
+            .map(|(term, _)| term)
+            .or_else(|| {
+                lower_contract_integer_literal(
+                    self.program,
+                    self.operators,
+                    expression,
+                    PrimitiveType::U64,
+                )
+            })
+    }
+
     /// Scalar storage observations share the formal-place and access check.
     /// Selectors use this contract's exact scalar namespace; the shared read
     /// planner retains builtin meaning, declaration geometry and occurrences.
@@ -241,18 +264,7 @@ impl ContractPredicates<'_, '_> {
             self.operators,
             expression,
             self.parameters,
-            |_, selector, _| {
-                self.numeric_term(selector, depth + 1)
-                    .map(|(term, _)| term)
-                    .or_else(|| {
-                        lower_contract_integer_literal(
-                            self.program,
-                            self.operators,
-                            selector,
-                            PrimitiveType::U64,
-                        )
-                    })
-            },
+            |_, selector, _| self.selector_term(selector, depth + 1),
         )?;
         let position = match &term {
             CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } => {
@@ -502,10 +514,7 @@ impl ContractPredicates<'_, '_> {
                     self.operators,
                     self.parameters,
                     expression,
-                    |_, operand, _| {
-                        self.numeric_term(operand, depth + 1)
-                            .map(|(value, _)| value)
-                    },
+                    |_, operand, _| self.selector_term(operand, depth + 1),
                 ) {
                     // Only parameter-rooted descriptors belong to the closed
                     // contract namespace. Their checked field path is retained
@@ -685,7 +694,7 @@ impl ContractPredicates<'_, '_> {
                     self.operators,
                     self.parameters,
                     row.argument,
-                    |_, operand, _| self.numeric_term(operand, depth + 1).map(|(term, _)| term),
+                    |_, operand, _| self.selector_term(operand, depth + 1),
                 )?;
                 if let CheckedScalarExpression::StructuralSequenceLength { root, path } = &term {
                     root.parameter()?;

@@ -32,74 +32,22 @@ impl SelectedCleanup {
         self.owners.is_empty()
     }
 
-    /// A value join transfers one candidate, while its complementary owners
-    /// remain owed. Keep the pre-transfer occurrences in the ordinary selected
-    /// cleanup inventory; all-path unavailability is not a disposal permit.
-    pub(super) fn observe_selection(
-        &mut self,
-        program: &dyn validation::CheckingInput,
+    /// The captured candidate now owns this occurrence's complete death.
+    /// Ordinary custody must not also retain a Local/Parameter alias of the
+    /// same home. A later authenticated replacement establishes a new occupant
+    /// normally; it does not redirect the saved candidate's cleanup.
+    pub(super) fn transfer_captured_storage(
+        &self,
         selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
-        ownership: &FlowOwnershipFacts,
-        places: &[LinearPlace],
-        remaining: &RemainingCustody,
-    ) -> Result<(), diagnostics::Diagnostic> {
-        let receipt = ownership.owned_selections.get(selection);
-        if receipt.sources.count() <= 1 {
-            // One source has no unselected whole owner. The chosen source's
-            // projected complement retains its separate incoming-edge debt.
-            return Ok(());
+        remaining: &mut RemainingCustody,
+    ) {
+        for owner in self
+            .owners
+            .iter()
+            .filter(|owner| owner.selection == selection && owner.path.is_empty())
+        {
+            remaining.transfer_storage(owner.root, &[]);
         }
-        for source in ownership.selection_sources.span_or_empty(receipt.sources) {
-            if !source.retains_storage {
-                // Construction may consume several whole sources on every
-                // arm. None of those sources leaves an unselected owner.
-                continue;
-            }
-            let root = PlaceRoot::Symbol(source.symbol);
-            let reference = validation::canonical_place_type_reference(
-                program,
-                receipt.state,
-                receipt.statement_ordinal as usize,
-                &validation::CanonicalPlace {
-                    root,
-                    segments: Vec::new(),
-                },
-            )
-            .ok_or_else(|| {
-                diagnostics::Diagnostic::error(
-                    "selected complement has no exact established source type",
-                )
-            })?;
-            let established = places
-                .iter()
-                .filter(|place| place.root == root)
-                .cloned()
-                .collect();
-            self.owners.push(Owner {
-                selection,
-                root,
-                path: Vec::new(),
-                reference,
-                origin: FlowPermissionEventFact {
-                    machine_symbol: receipt.machine,
-                    state_symbol: receipt.state,
-                    source: PermissionEventSource::Statement {
-                        statement_index: receipt.statement_ordinal as usize,
-                    },
-                    expression: receipt.expression,
-                    kind: PermissionEventKind::Transfer,
-                    multiplicity: language_semantics::Multiplicity::Affine,
-                    access: PermissionAccess::Owned,
-                    provenance: source.provenance,
-                    claim_identity: source.claim_identity,
-                    root,
-                    ..Default::default()
-                },
-                places: established,
-                remaining: remaining.clone(),
-            });
-        }
-        Ok(())
     }
 
     pub(super) fn observe(
@@ -244,14 +192,7 @@ impl SelectedCleanup {
             // consumer, including a state guard, sees the same disposition.
             // Cleanup action selection decides whether any code is required;
             // absence of a hook is not absence of ownership.
-            if self
-                .owners
-                .iter()
-                .any(|owner| owner.root == event.root && owner.path == path)
-            {
-                continue;
-            }
-            let established = transfer
+            let mut established = transfer
                 .places
                 .iter()
                 .filter(|place| place.root == event.root)
@@ -317,14 +258,190 @@ impl SelectedCleanup {
             // the retained region's death in reverse establishment order
             // beside the root's later establishments: `finish` orders every
             // death of a reserved root by the merged establishment history.
+            let selected_source =
+                ownership
+                    .owned_selections
+                    .iter()
+                    .find_map(|(handle, receipt)| {
+                        if receipt.machine != event.machine_symbol
+                            || receipt.state != event.state_symbol
+                        {
+                            return None;
+                        }
+                        ownership
+                            .selection_transfers
+                            .span_or_empty(receipt.transfers)
+                            .iter()
+                            .find_map(|transfer| {
+                                if transfer.expression != event.expression
+                                    || !transfer.source.is_valid()
+                                    || !path.starts_with(
+                                        ownership.segments.span_or_empty(transfer.path),
+                                    )
+                                {
+                                    return None;
+                                }
+                                let source = ownership.selection_sources.get(transfer.source);
+                                let exact_frontier = carrier
+                                    && exact_claims
+                                    && !transfer.claims.is_empty()
+                                    && ownership
+                                        .selection_transfer_claims
+                                        .span_or_empty(transfer.claims)
+                                        .iter()
+                                        .all(|claim| {
+                                            established.iter().any(|place| {
+                                                place.path
+                                                    == ownership.segments.span_or_empty(claim.path)
+                                                    && place.claim_identity
+                                                        == Some(claim.claim_identity)
+                                                    && place.provenance == Some(claim.provenance)
+                                            })
+                                        });
+                                (facts::PlaceRoot::Symbol(source.symbol) == event.root
+                                    && (transfer.provenance == event.provenance || exact_frontier))
+                                    .then_some((handle, source.retains_storage))
+                            })
+                    });
+            if selected_source.is_some_and(|(_, retains)| !retains) {
+                // Every terminal edge moved this whole occurrence. There is no
+                // complementary owner to capture or dispose at a later death.
+                continue;
+            }
+            let selection = selected_source
+                .map(|(handle, _)| handle)
+                .unwrap_or_default();
+            // The selected occurrence barrier determines capture geometry.
+            // An affine result makes the whole source home unavailable, even
+            // when an arm extracts only one field: its skipped value and its
+            // moved-path complement belong to ONE candidate death. Saving only
+            // that field would leave ordinary residual custody scheduling a
+            // second retirement of this same home. Linear selections instead
+            // consume exact claims and leave their siblings ordinarily usable.
+            let capture_home = selection.is_valid()
+                && program
+                    .type_multiplicity(ownership.owned_selections.get(selection).type_reference)
+                    != language_semantics::Multiplicity::Linear;
+            let (path, reference) = if capture_home {
+                let reference = validation::canonical_place_type_reference(
+                    program,
+                    event.state_symbol,
+                    statement,
+                    &validation::CanonicalPlace {
+                        root: event.root,
+                        segments: Vec::new(),
+                    },
+                )
+                .ok_or_else(|| {
+                    unsupported(program, event, "selected home has no exact declared type")
+                })?;
+                (Vec::new(), reference)
+            } else {
+                (path, reference)
+            };
+            let mut captured_remaining = before_transfer.clone();
+            if capture_home {
+                let receipt = ownership.owned_selections.get(selection);
+                for place in &mut established {
+                    if place.multiplicity != language_semantics::Multiplicity::Linear {
+                        continue;
+                    }
+                    // Receipt construction's claim_edges judgment requires
+                    // each consumed root/path on EVERY terminal arm. Match an
+                    // actual arrival's identity AND provenance as well: a
+                    // replacement on another arm may carry a different claim.
+                    // Transferred claims remain on the ordinary move ledger;
+                    // the containing cleanup owes neither their drop nor their
+                    // old prerequisites. Never remove an unmatched sibling.
+                    let transferred = ownership
+                        .selection_transfers
+                        .span_or_empty(receipt.transfers)
+                        .iter()
+                        .filter(|transfer| {
+                            transfer.source.is_valid()
+                                && Some(ownership.selection_sources.get(transfer.source).symbol)
+                                    == event.root.as_symbol()
+                        })
+                        .flat_map(|transfer| {
+                            ownership
+                                .selection_transfer_claims
+                                .span_or_empty(transfer.claims)
+                        })
+                        .any(|claim| {
+                            place.path == ownership.segments.span_or_empty(claim.path)
+                                && place.claim_identity == Some(claim.claim_identity)
+                                && place.provenance == Some(claim.provenance)
+                        });
+                    if transferred {
+                        place.live = false;
+                        captured_remaining.transfer_storage(event.root, &place.path);
+                    }
+                }
+            }
+            let transferred_paths = if capture_home {
+                let receipt = ownership.owned_selections.get(selection);
+                ownership
+                    .selection_transfers
+                    .span_or_empty(receipt.transfers)
+                    .iter()
+                    .filter(|transfer| {
+                        transfer.source.is_valid()
+                            && Some(ownership.selection_sources.get(transfer.source).symbol)
+                                == event.root.as_symbol()
+                    })
+                    .map(|transfer| ownership.segments.span_or_empty(transfer.path).to_vec())
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            if selection.is_valid()
+                && self.owners.iter().any(|owner| {
+                    owner.selection == selection
+                        && owner.root == event.root
+                        && owner.path == path
+                        && if capture_home {
+                            // Compare every actual claim identity/provenance,
+                            // not the two different leaf events' identities.
+                            // Only liveness of receipt-transferred children
+                            // may differ between their ordered snapshots.
+                            owner.places.len() == established.len()
+                                && owner.places.iter().zip(&established).all(|(left, right)| {
+                                    let mut left = left.clone();
+                                    let mut right = right.clone();
+                                    if transferred_paths
+                                        .iter()
+                                        .any(|path| left.path.starts_with(path))
+                                    {
+                                        left.live = false;
+                                        right.live = false;
+                                    }
+                                    left == right
+                                })
+                                && owner.remaining.same_storage_after_transfers(
+                                    &captured_remaining,
+                                    event.root,
+                                    &transferred_paths,
+                                )
+                        } else {
+                            owner.origin.provenance == event.provenance
+                                && owner.origin.claim_identity == event.claim_identity
+                                && owner.places == established
+                                && owner
+                                    .remaining
+                                    .same_storage_custody(&captured_remaining, event.root)
+                        }
+                })
+            {
+                continue;
+            }
             self.owners.push(Owner {
-                selection: Default::default(),
+                selection,
                 root: event.root,
                 path,
                 reference,
                 origin: event.clone(),
                 places: established,
-                remaining: before_transfer.clone(),
+                remaining: captured_remaining,
             });
         }
         self.retire_transferred(routes, calls, events, ownership)
@@ -357,7 +474,12 @@ impl SelectedCleanup {
             .iter()
             .filter(|event| event.access == PermissionAccess::Owned)
         {
-            selection.enter(routes.event(event, calls), &mut present, join)?;
+            selection.enter(
+                routes.event(event, calls),
+                &mut present,
+                |_, _| Ok(()),
+                join,
+            )?;
             let path = ownership.segments.span_or_empty(event.segments);
             for (owner, present) in self.owners.iter().zip(&mut present) {
                 if !owner.selection.is_valid()
@@ -379,7 +501,7 @@ impl SelectedCleanup {
                 }
             }
         }
-        selection.enter(&[], &mut present, join)?;
+        selection.enter(&[], &mut present, |_, _| Ok(()), join)?;
         let mut presence = present.into_iter();
         self.owners.retain(|_| presence.next().unwrap_or(true));
         Ok(())

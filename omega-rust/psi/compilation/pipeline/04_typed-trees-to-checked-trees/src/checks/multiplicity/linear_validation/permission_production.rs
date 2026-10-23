@@ -1,6 +1,6 @@
 //! Permission production follows the shared source occurrence inventory.
 //! Operand moves, invocation completion and anonymous result establishment
-//! happen before the next occurrence; only named receiving writes wait for
+//! happen before the next occurrence; the statement's receiving writes wait for
 //! the expression join. Grouping calls separately from statement moves would
 //! establish a temporary after its consuming branch had already reconverged.
 //! The emitted ledger retains exact producer identities for outcome mapping
@@ -28,6 +28,9 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
+mod projected_scopes;
+use projected_scopes::ProjectedScopes;
+
 pub(crate) struct ProducedStorage {
     pub(crate) establishments: Vec<StorageEstablishment>,
     pub(crate) transfers: Vec<TransferCustody>,
@@ -36,8 +39,32 @@ pub(crate) struct ProducedStorage {
     pub(crate) evaluated_events: usize,
 }
 
+/// Expression evaluation has joined, but the receiving statement has not
+/// installed its value. Keep the actual transfer snapshots and pending targets
+/// across this cut: selection binding consumes evaluated arrivals, never a
+/// second walk of the source or the statement's entry custody.
+pub(crate) struct EvaluatedStorage {
+    pub(crate) transfers: Vec<TransferCustody>,
+    pub(crate) observations: Vec<ObservedCustody>,
+    event_start: usize,
+    checked_through: usize,
+    written_targets: Vec<(WrittenLinearTarget, PermissionEventSource)>,
+    calls: Vec<checked_trees::FlowCallFact>,
+    projected_scopes: ProjectedScopes,
+}
+
+/// Custody at an actual operand read, before its following move or reborrow.
+/// Reference bindings have ordinary reborrow usage and need not emit a value
+/// Transfer event. Their selected permission still needs the same post-effect
+/// arrival cut as an owned aggregate; an absent event is not an absent read.
+pub(crate) struct ObservedCustody {
+    pub(crate) expression: typed_trees::expression::ExpressionHandle,
+    pub(crate) place: validation::CanonicalPlace,
+    pub(crate) places: Vec<LinearPlace>,
+}
+
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn apply_statement_permission_production(
+pub(crate) fn evaluate_statement_permissions(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
@@ -66,16 +93,12 @@ pub(crate) fn apply_statement_permission_production(
     selections: &mut super::super::owned_selection::SelectionOccurrences,
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
-) -> Result<ProducedStorage, diagnostics::Diagnostic> {
+) -> Result<Option<EvaluatedStorage>, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
     if matches!(statement, StatementNode::LocalData(local) if local.role == language_core::LocalBindingRole::ArmPattern)
     {
-        return Ok(ProducedStorage {
-            establishments: Vec::new(),
-            transfers: Vec::new(),
-            evaluated_events: 0,
-        });
+        return Ok(None);
     }
 
     let event_start = permission_events.len();
@@ -162,19 +185,20 @@ pub(crate) fn apply_statement_permission_production(
         .collect::<Vec<_>>();
     let mut storage_establishments = Vec::new();
     let mut transfers = Vec::new();
+    let mut observations = Vec::new();
     let copy_completions = copy_source_completions(
         program,
         facts,
         machine_symbol,
         state_symbol,
         statement_index,
-        &occurrences,
+        occurrences,
         temporary_owners,
     );
     let mut checked_through = event_start;
     let mut custody = (places.to_vec(), remaining.clone());
     let mut selected = SelectedEvaluation::new();
-    let mut projected_temporaries = Vec::new();
+    let mut projected_scopes = ProjectedScopes::default();
     let selection_site = SelectionSite {
         machine: machine_symbol,
         state: state_symbol,
@@ -185,11 +209,45 @@ pub(crate) fn apply_statement_permission_production(
     // them before construction moves delays anonymous custody past joins.
     for occurrence in occurrences {
         match occurrence.step {
-            StatementStep::Observe { .. } => continue,
+            StatementStep::Observe {
+                ref place,
+                expression,
+            } => {
+                enter_produced(
+                    &mut selected,
+                    &occurrence.route,
+                    &mut custody,
+                    selection_site,
+                    &mut facts.flow.ownership,
+                    claim_identities,
+                    |branch, current, ownership| {
+                        projected_scopes.retire_scope(
+                            program,
+                            selection_site,
+                            Some(branch),
+                            &mut current.0,
+                            &mut current.1,
+                            ownership,
+                            permission_events,
+                            cleanup_dispositions,
+                        )
+                    },
+                )?;
+                observations.push(ObservedCustody {
+                    expression,
+                    place: place.clone(),
+                    places: custody
+                        .0
+                        .iter()
+                        .filter(|candidate| candidate.root == place.root)
+                        .cloned()
+                        .collect(),
+                });
+            }
             StatementStep::Move {
                 event,
                 ordered,
-                conditional,
+                conditional: _,
             } => {
                 let event = &moves[event];
                 if event.evaluation != evaluation {
@@ -248,24 +306,30 @@ pub(crate) fn apply_statement_permission_production(
                     selection_site,
                     &mut facts.flow.ownership,
                     claim_identities,
+                    |branch, current, ownership| {
+                        projected_scopes.retire_scope(
+                            program,
+                            selection_site,
+                            Some(branch),
+                            &mut current.0,
+                            &mut current.1,
+                            ownership,
+                            permission_events,
+                            cleanup_dispositions,
+                        )
+                    },
                 )?;
                 let (places, remaining) = &mut custody;
-                // Moving a subtree out of an anonymous owner is that owner's
-                // last use. A call that receives the subtree directly retires
-                // the owner at its own continuation (temporary owners); any
-                // other consumer leaves it to this statement's completion.
-                if let facts::PlaceRoot::Expression(expression) = event.root
-                    && !event.segments.is_empty()
-                {
-                    projected_temporaries.push((
-                        expression,
-                        facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments)
-                            .to_vec(),
-                    ));
+                // A transition's selected exit owns its residual schedule.
+                // Ordinary consumers close anonymous scopes before each join;
+                // call-held projections retain their exact call continuation.
+                if !matches!(statement, StatementNode::Transition(_)) {
+                    projected_scopes.observe_move(
+                        occurrences,
+                        temporary_owners,
+                        event,
+                        facts.flow.ownership.segments.span_or_empty(event.segments),
+                    )?;
                 }
                 if matches!(event.root, facts::PlaceRoot::Expression(_))
                     && !places.iter().any(|place| place.root == event.root)
@@ -314,7 +378,7 @@ pub(crate) fn apply_statement_permission_production(
                 // Storage custody moves once at the authored carrier path;
                 // nested linear claims retain their separate exact transfers.
                 let projected_start = permission_events.len();
-                let transfer_snapshot = conditional.then(|| {
+                let transfer_snapshot = {
                     let position = transfers.len();
                     let start = projected_start - event_start;
                     transfers.push(TransferCustody {
@@ -323,7 +387,7 @@ pub(crate) fn apply_statement_permission_production(
                         remaining: remaining.clone(),
                     });
                     position
-                });
+                };
                 projected_affine::append_transfer(
                     program,
                     facts,
@@ -335,9 +399,7 @@ pub(crate) fn apply_statement_permission_production(
                     remaining,
                     permission_events,
                 );
-                if let Some(position) = transfer_snapshot {
-                    transfers[position].events.end = permission_events.len() - event_start;
-                }
+                transfers[transfer_snapshot].events.end = permission_events.len() - event_start;
                 // A projected affine subtree may have no tracked claim leaf.
                 // Its captured storage transfer still changes this branch's
                 // cleanup complement before any enclosing join.
@@ -401,9 +463,7 @@ pub(crate) fn apply_statement_permission_production(
                     });
                     place.live = false;
                 }
-                if let Some(position) = transfer_snapshot {
-                    transfers[position].events.end = permission_events.len() - event_start;
-                }
+                transfers[transfer_snapshot].events.end = permission_events.len() - event_start;
                 remaining.transfer_storage(event.root, &event_path);
             }
 
@@ -415,6 +475,18 @@ pub(crate) fn apply_statement_permission_production(
                     selection_site,
                     &mut facts.flow.ownership,
                     claim_identities,
+                    |branch, current, ownership| {
+                        projected_scopes.retire_scope(
+                            program,
+                            selection_site,
+                            Some(branch),
+                            &mut current.0,
+                            &mut current.1,
+                            ownership,
+                            permission_events,
+                            cleanup_dispositions,
+                        )
+                    },
                 )?;
                 let (places, remaining) = &mut custody;
                 // Invalid handles are the standalone statement/named-target
@@ -514,6 +586,11 @@ pub(crate) fn apply_statement_permission_production(
                 let (completed, pending): (Vec<_>, Vec<_>) =
                     written_targets.into_iter().partition(|(target, _)| {
                         target.root == facts::PlaceRoot::Expression(expression)
+                            && !completed_statement_values(program, statement).iter().any(
+                                |(receiving, source)| {
+                                    *receiving == expression && *source == evaluation
+                                },
+                            )
                     });
                 written_targets = pending;
                 let establishment_start = permission_events.len();
@@ -562,37 +639,25 @@ pub(crate) fn apply_statement_permission_production(
                     evaluation,
                     permission_events,
                 );
-                let body_conservations = crate::checks::content::observe_body_completion(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    statement_index,
-                    expression,
-                    evaluation,
-                    places,
-                    permission_events,
-                    &permission_events[event_start..],
-                );
-                let transformation_start = permission_events.len();
-                // An unavailable transaction grants nothing. Ordinary domain
-                // and custody checks still judge the completed expression.
-                let _ = super::super::content_transformations::commit(
-                    program,
-                    facts,
-                    &body_conservations,
-                    places,
-                    permission_events,
-                );
-                remaining.observe_ordinary(
-                    program,
-                    &permission_events[transformation_start..],
-                    &facts.flow.ownership.segments,
-                    cleanup_dispositions,
-                    checked_trees::FlowClaimJoinExit::default(),
-                    &[],
-                    false,
-                );
+                if !completed_statement_values(program, statement)
+                    .iter()
+                    .any(|(receiving, source)| *receiving == expression && *source == evaluation)
+                {
+                    complete_body_custody(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        evaluation,
+                        places,
+                        remaining,
+                        permission_events,
+                        event_start,
+                        cleanup_dispositions,
+                    );
+                }
                 for completion in copy_completions
                     .iter()
                     .filter(|completion| completion.expression == expression)
@@ -710,82 +775,81 @@ pub(crate) fn apply_statement_permission_production(
         selection_site,
         &mut facts.flow.ownership,
         claim_identities,
+        |branch, current, ownership| {
+            projected_scopes.retire_scope(
+                program,
+                selection_site,
+                Some(branch),
+                &mut current.0,
+                &mut current.1,
+                ownership,
+                permission_events,
+                cleanup_dispositions,
+            )
+        },
     )?;
     places.clone_from_slice(&custody.0);
     *remaining = custody.1;
-    // An anonymous owner's untouched complement dies when the statement that
-    // moved its selected subtree completes: nothing can name the owner again.
-    // A transition completes only at its selected exit, which retains that
-    // owner's residual as an ordinary exit disposition.
-    if !matches!(statement, StatementNode::Transition(_)) {
-        for (expression, path) in projected_temporaries {
-            let root = facts::PlaceRoot::Expression(expression);
-            // Call-consumed owners and whole moves keep their own disposition;
-            // only a transferred subtree of a still-held owner leaves one here.
-            // A linear complement is refused by the partial-move check.
-            if temporary_owners
-                .iter()
-                .any(|owner| owner.expression == expression)
-                || remaining.is_present(root, &path)
-                || !remaining.is_present(root, &[])
-                || temporary_results::projectable_owner(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    expression,
-                )
-                .is_none()
-            {
-                continue;
-            }
-            let Some(producer) = permission_events
-                .iter()
-                .rev()
-                .find(|event| {
-                    event.kind == PermissionEventKind::Establish
-                        && event.machine_symbol == machine_symbol
-                        && event.state_symbol == state_symbol
-                        && event.root == root
-                })
-                .map(|event| event.provenance)
-            else {
-                continue;
-            };
-            let retirement_start = permission_events.len();
-            temporary_results::retire_owner(
-                program,
-                facts,
-                machine_symbol,
-                state_symbol,
-                temporary_results::ProjectedConsumer {
-                    source: statement_source,
-                    evaluation,
-                    producer,
-                },
-                expression,
-                &path,
-                places,
-                remaining,
-                permission_events,
-            )?;
-            remaining.observe_ordinary(
-                program,
-                &permission_events[retirement_start..],
-                &facts.flow.ownership.segments,
-                cleanup_dispositions,
-                checked_trees::FlowClaimJoinExit::default(),
-                &[],
-                false,
-            );
-            remaining.retire_storage(
-                root,
-                machine_symbol,
-                state_symbol,
-                statement_source,
-                cleanup_dispositions,
-            );
-        }
-    }
+    Ok(Some(EvaluatedStorage {
+        transfers,
+        observations,
+        event_start,
+        checked_through,
+        written_targets,
+        calls,
+        projected_scopes,
+    }))
+}
+
+/// Finish the receiving write only after all evaluated source arrivals have
+/// been retained. The selected-value binder may supply its exact receiving
+/// claims at this seam; ordinary destinations use the same pending targets.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn complete_statement_permissions(
+    program: &dyn validation::CheckingInput,
+    facts: &mut CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    evaluated: EvaluatedStorage,
+    places: &mut [LinearPlace],
+    remaining: &mut super::super::cleanup_dispositions::RemainingCustody,
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+    claim_identities: &mut ClaimIdentityAllocator,
+    conditional_carrier_transfers: &mut Vec<usize>,
+    selections: &mut super::super::owned_selection::SelectionOccurrences,
+    cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
+    claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
+) -> Result<ProducedStorage, diagnostics::Diagnostic> {
+    let EvaluatedStorage {
+        transfers,
+        observations: _,
+        event_start,
+        mut checked_through,
+        written_targets,
+        calls,
+        mut projected_scopes,
+    } = evaluated;
+    let statement_source = PermissionEventSource::Statement { statement_index };
+    // Branch-born owners already closed at their individual route exits.
+    // Only root-scope owners wait for this normal statement completion.
+    projected_scopes.retire_scope(
+        program,
+        SelectionSite {
+            machine: machine_symbol,
+            state: state_symbol,
+            statement: statement_index,
+            evaluation,
+        },
+        None,
+        places,
+        remaining,
+        &mut facts.flow.ownership,
+        permission_events,
+        cleanup_dispositions,
+    )?;
     let evaluated_events = permission_events.len() - event_start;
     // Calls have already joined their branch-local custody. Replaying their
     // flattened event roster here would import transfers from sibling arms.
@@ -828,6 +892,46 @@ pub(crate) fn apply_statement_permission_production(
         &mut storage_establishments,
         claim_outcomes,
     )?;
+    // Nested anonymous owners complete in evaluation; named and returned
+    // owners complete at this receiving cut. Retry their call correspondence
+    // before body custody and return transfer, now that the frontier exists.
+    for call in &calls {
+        crate::checks::content::observe_call_completion(
+            program,
+            facts,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call.authored_expression,
+            evaluation,
+            permission_events,
+        );
+    }
+    for (expression, source) in completed_statement_values(program, statement) {
+        if source != evaluation {
+            continue;
+        }
+        let (machine, state) = program
+            .machine_by_symbol(machine_symbol)
+            .zip(program.state_by_symbol(state_symbol))
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error("receiving completion has no owning machine/state")
+            })?;
+        complete_body_custody(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            expression,
+            evaluation,
+            places,
+            remaining,
+            permission_events,
+            event_start,
+            cleanup_dispositions,
+        );
+    }
     // Returning a completed expression transfers its established frontier;
     // it is not an implicit cleanup of a freshly created linear value.
     if let Some((expression, _)) = completed_statement_values(program, statement)
@@ -879,21 +983,6 @@ pub(crate) fn apply_statement_permission_production(
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;
     }
-    // A named destination receives its claim when the store completes, while
-    // anonymous storage receives it at expression completion above. Both join
-    // the same call receipt; neither may invent a claim before its receiver.
-    for call in &calls {
-        crate::checks::content::observe_call_completion(
-            program,
-            facts,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            call.authored_expression,
-            evaluation,
-            permission_events,
-        );
-    }
     selections.check_events(
         &permission_events[checked_through..],
         &facts.flow.ownership.segments,
@@ -903,6 +992,54 @@ pub(crate) fn apply_statement_permission_production(
         transfers,
         evaluated_events,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn complete_body_custody(
+    program: &dyn validation::CheckingInput,
+    facts: &mut CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    places: &mut [LinearPlace],
+    remaining: &mut super::super::cleanup_dispositions::RemainingCustody,
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+    event_start: usize,
+    cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
+) {
+    let body_conservations = crate::checks::content::observe_body_completion(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        expression,
+        evaluation,
+        places,
+        permission_events,
+        &permission_events[event_start..],
+    );
+    let transformation_start = permission_events.len();
+    // A missing conservation grants nothing; ordinary checking still owns
+    // admission. Invoke this consumer only once its receiving frontier exists.
+    let _ = super::super::content_transformations::commit(
+        program,
+        facts,
+        &body_conservations,
+        places,
+        permission_events,
+    );
+    remaining.observe_ordinary(
+        program,
+        &permission_events[transformation_start..],
+        &facts.flow.ownership.segments,
+        cleanup_dispositions,
+        checked_trees::FlowClaimJoinExit::default(),
+        &[],
+        false,
+    );
 }
 
 struct CopySourceCompletion {
@@ -1057,15 +1194,47 @@ fn establish_targets(
 ) -> Result<(), diagnostics::Diagnostic> {
     for (target, source) in written_targets {
         let place_index = target.place_index;
-        let obligation_live = target.obligation_live;
-        let claim_identity = target.claim_identity.unwrap_or_else(|| {
-            if obligation_live {
-                claim_identities.mint(machine_symbol, state_symbol, source)
-            } else {
-                PermissionClaimIdentity::Unknown
-            }
-        });
-        let provenance = target.provenance;
+        let selected_binding = facts
+            .flow
+            .ownership
+            .owned_selection_at(state_symbol, statement_index as u32)
+            .and_then(|(_, receipt)| {
+                (target.root
+                    == if receipt.destination.is_valid() {
+                        facts::PlaceRoot::Symbol(receipt.destination)
+                    } else {
+                        facts::PlaceRoot::Expression(receipt.expression)
+                    })
+                .then(|| {
+                    facts
+                        .flow
+                        .ownership
+                        .selection_result_claims
+                        .span_or_empty(receipt.result_claims)
+                        .iter()
+                        .find(|binding| {
+                            facts.flow.ownership.segments.span_or_empty(binding.path)
+                                == places[place_index].path
+                        })
+                        .cloned()
+                })
+                .flatten()
+            });
+        let obligation_live = selected_binding.is_some() || target.obligation_live;
+        let claim_identity = selected_binding
+            .as_ref()
+            .map(|binding| binding.claim_identity)
+            .or(target.claim_identity)
+            .unwrap_or_else(|| {
+                if obligation_live {
+                    claim_identities.mint(machine_symbol, state_symbol, source)
+                } else {
+                    PermissionClaimIdentity::Unknown
+                }
+            });
+        let provenance = selected_binding
+            .map(|binding| binding.provenance)
+            .or(target.provenance);
         let claim_path = places[place_index].path.clone();
         let segments = facts.flow.ownership.segments.insert_many(claim_path);
         let place = &mut places[place_index];

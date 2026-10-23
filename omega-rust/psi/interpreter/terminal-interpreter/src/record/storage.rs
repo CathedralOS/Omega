@@ -266,6 +266,8 @@ pub(crate) struct ConstructorStorage {
         crate::byte_sequences::binding::ByteSequenceBinding,
     >,
     views: BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    byte_descriptors:
+        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
@@ -704,6 +706,35 @@ impl ConstructorStorage {
             return Ok(());
         }
 
+        if let Some(declaration) = execution
+            .program
+            .structural_types()
+            .get(&child.structural_type)
+            && declaration.shape.is_borrowed_byte_carrier()
+        {
+            let shared = declaration.shape.is_shared_readable_byte_view();
+            if !transfers_custody && !shared {
+                return Err(malformed());
+            }
+            let binding = if shared {
+                crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
+                    execution.shared_byte_descriptor(argument, child)?,
+                )
+            } else {
+                execution.byte_descriptor_binding(argument, child)?
+            };
+            let mut descriptor = child.clone();
+            descriptor.opaque_identity = destination.opaque_identity;
+            descriptor.path = destination.path.clone();
+            self.byte_descriptors.insert(
+                destination.clone(),
+                binding.with_descriptor_home(descriptor),
+            );
+            // A descriptor owns its permission carrier, not a subtree of its
+            // backing. Relocating backing cells would manufacture ownership.
+            return Ok(());
+        }
+
         if execution
             .program
             .structural_types()
@@ -714,16 +745,6 @@ impl ConstructorStorage {
                 destination.clone(),
                 execution.element_view_argument(argument, child)?.clone(),
             );
-        }
-        if execution
-            .program
-            .structural_types()
-            .get(&child.structural_type)
-            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
-        {
-            let bytes = execution.shared_byte_descriptor(argument, child)?;
-            self.byte_arrays
-                .insert(destination.clone(), bytes.detached_descriptor());
         }
         if execution
             .program
@@ -836,6 +857,22 @@ impl ConstructorStorage {
                 descriptor.path = target.path.clone();
                 self.activation_descriptors
                     .insert(target, binding.clone().with_descriptor_home(descriptor));
+            }
+        }
+        for (home, binding) in
+            crate::structural_storage::cells(&execution.structural_byte_descriptors, source)
+        {
+            if let Some(target) = relocate(home) {
+                if !transfers_custody
+                    && !matches!(
+                        binding,
+                        crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_)
+                    )
+                {
+                    return Err(malformed());
+                }
+                self.byte_descriptors
+                    .insert(target.clone(), binding.relocated_descriptor(home, &target)?);
             }
         }
         for (home, descriptor) in
@@ -954,6 +991,9 @@ impl ConstructorStorage {
         execution.structural_scalar_fields.extend(self.scalars);
         execution.structural_byte_sequence_fields.extend(self.bytes);
         execution.structural_element_view_fields.extend(self.views);
+        execution
+            .structural_byte_descriptors
+            .extend(self.byte_descriptors);
         execution.reference_referents.extend(self.references);
         execution
             .structural_primitive_storage

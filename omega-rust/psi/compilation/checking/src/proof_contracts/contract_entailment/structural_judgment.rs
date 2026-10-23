@@ -13,6 +13,7 @@ mod licenses;
 pub(super) mod normal_returns;
 mod selected_contracts;
 mod storage_effects;
+mod value_correspondence;
 mod value_predicates;
 
 pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
@@ -1213,9 +1214,13 @@ impl<'program> StructuralJudge<'program> {
                         continue;
                     }
                     if (!self.require_closed_computation || subject.is_closed_value())
-                        && let Some(value) = path
-                            .split('.')
-                            .try_fold(subject, super::observed_projections::project_field)
+                        && let Some(value) = path.split('.').try_fold(subject, |value, field| {
+                            super::observed_projections::project_declared_field(
+                                self.program,
+                                value,
+                                field,
+                            )
+                        })
                         && value != resolved
                     {
                         term = value;
@@ -1717,6 +1722,16 @@ impl<'program> StructuralJudge<'program> {
         };
         if self.require_closed_computation && !value.is_closed_value() {
             return None;
+        }
+        if super::structural_terms::owned_observation_type(self.program, &value).is_some() {
+            // Typed owned projection preserves inline observation and masks a
+            // reference child. Returning that descriptor supports metadata,
+            // not a later unchecked read of its referent.
+            return super::observed_projections::project_declared_field(
+                self.program,
+                value,
+                field_name,
+            );
         }
         let projected = super::observed_projections::project_field(value, field_name)?;
         // A completed reference is a descriptor, not a snapshot of its
@@ -3068,7 +3083,10 @@ impl<'program> StructuralJudge<'program> {
         reference: typed_trees::types::TypeReferenceHandle,
         active: &mut Vec<typed_trees::types::TypeReferenceHandle>,
     ) -> StructuralTerm {
-        if active.contains(&reference) || active.len() >= 32 {
+        if super::structural_terms::owned_observation_type(self.program, &term).is_some()
+            || active.contains(&reference)
+            || active.len() >= 32
+        {
             return term;
         }
         let Some(data) =
