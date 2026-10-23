@@ -438,12 +438,19 @@ pub(super) fn borrow_target_exposes_carrier_binding(
             && super::type_may_carry_write(program, parameter.type_reference)
             && !super::type_is_caller_isolated_local(program, parameter.type_reference)
     });
+    // A range view selects elements of its collection and has no declared
+    // place type of its own. Its replacement reach is the collection's: a
+    // subslice of a byte buffer exposes no carrier slot, while a subslice of
+    // reference-bearing elements keeps the collection's fence.
+    let typed_target = crate::subslice_expression(program, target)
+        .and_then(|operation| program.expression_table.indexed_node(operation))
+        .map_or(target, |indexed| indexed.collection);
     (established_local || incoming_carrier)
         && crate::value_custody::places::declared_place_type_raw(
             program,
             machine,
             Some(state),
-            target,
+            typed_target,
         )
         .is_none_or(|reference| {
             super::type_may_carry_write(program, reference)
