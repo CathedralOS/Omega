@@ -2754,6 +2754,34 @@ fail/facts/case_payload_layout_geometry_unproved_parameter rejected 6817ms expec
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
 fail/facts/case_payload_layout_geometry_unproved_target_body rejected 7855ms expected @9ff26a870215+wt
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/case_payload_stored_loan_through_call_result_rejected rejected 1114ms expected @66bc5becc69e
+	state `consume` receives `backing` as both mutable and read-only
+fail/facts/case_payload_stored_loan_through_const_name_rejected rejected 828ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_field_rejected rejected 845ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_local_rejected rejected 864ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_match_join_rejected rejected 859ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_other_machine_rejected rejected 852ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_other_state_rejected rejected 836ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_parameter_rejected rejected 841ms expected @66bc5becc69e
+	state `through_parameter` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+fail/facts/case_payload_stored_loan_through_target_body_rejected rejected 839ms expected @66bc5becc69e
+	state `consume` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
+	state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)
 fail/facts/case_payload_transport_through_call_result_rejected rejected 3562ms expected @45cbafd80d9c
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
 fail/facts/case_payload_transport_through_const_name_rejected rejected 3518ms expected @45cbafd80d9c
@@ -13231,6 +13259,8 @@ fail/ownership/live_registration_cannot_drop rejected 1517ms expected @e74967d11
 fail/ownership/live_registration_cannot_release rejected 461ms expected @e74967d11875
 fail/ownership/local_subslice_window_wrong_repair rejected 1219ms expected @a9ae30e1c334+wt
 fail/ownership/match_selected_parameter_use_after_maybe_move rejected 1476ms expected @7fe95c3b37b3+wt
+fail/ownership/mutable_owned_computation_copy_requires_permission rejected 660ms expected @66bc5becc69e
+	cannot use `source` in machine `probe` state `entry` (statement 1) after `source` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `source` first
 fail/ownership/nested_borrowed_operand_later_read rejected 1177ms expected @a9ae30e1c334+wt
 fail/ownership/nested_call_reuses_transferred_owner rejected 689ms expected @d761e1cfc099+wt
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
@@ -14891,6 +14921,8 @@ pass/borrows/runtime_carrier_reference_reselection_exit checked 11173ms check-ta
 pass/borrows/runtime_carrier_reference_store_exit checked 11057ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_case_descriptor_retirement_exit checked 3590ms check-target:macos_arm64 @4f0f34f3cbb6+wt
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 10506ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_case_reference_mixed_state_returns_exit checked 1049ms check-target:macos_arm64 @66bc5becc69e
+pass/borrows/runtime_case_reference_reordered_state_returns_exit checked 1049ms check-target:macos_arm64 @66bc5becc69e
 pass/borrows/runtime_case_return_parameter_order_exit checked 10245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_case_selected_slice_reference_exit checked 5383ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/borrows/runtime_computed_backing_reference_copy_exit checked 10544ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -14945,6 +14977,8 @@ pass/borrows/runtime_nested_reference_partition_exit checked 2973ms check-target
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_owned_carrier_indexed_referent_store_exit checked 3312ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/runtime_owned_generic_carrier_reborrow_exit checked 3267ms check-target:macos_arm64 @c4c0ab7a5d11
+pass/borrows/runtime_owned_input_reference_replacement_copies_exit checked 1049ms check-target:macos_arm64 @66bc5becc69e
+pass/borrows/runtime_owned_input_reference_replacement_exit checked 999ms check-target:macos_arm64 @66bc5becc69e
 pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit checked 3270ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/runtime_owned_writeonly_carrier_field_exit checked 3317ms check-target:macos_arm64 @3d1bd96aeaa5
 pass/borrows/runtime_partial_reference_partition_exit checked 7334ms check-target:macos_arm64 @8a2c1f68d503
@@ -15350,6 +15384,7 @@ pass/calls/runtime_mutable_call_empty_input_exit checked 11065ms check-target:ma
 pass/calls/runtime_mutable_call_short_input_exit checked 11576ms check-target:macos_arm64 @da842c101400+wt
 pass/calls/runtime_mutable_local_external_scalar_call_exit checked 6208ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/calls/runtime_mutable_local_parameter_write_exit checked 10932ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_mutable_owned_computation_arguments_exit checked 996ms check-target:macos_arm64 @66bc5becc69e
 pass/calls/runtime_mutual_unit_borrowed_continuation_exit checked 11449ms check-target:macos_arm64 @8df1d091a810
 pass/calls/runtime_nested_case_argument_exit checked 11245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 10451ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -16652,6 +16687,15 @@ pass/facts/case_payload_layout_geometry_through_other_machine_exit checked 10343
 pass/facts/case_payload_layout_geometry_through_other_state_exit checked 9668ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/case_payload_layout_geometry_through_parameter_exit checked 7492ms check-target:macos_arm64 @9ff26a870215+wt
 pass/facts/case_payload_layout_geometry_through_target_body_exit checked 10740ms check-target:macos_arm64 @9ff26a870215+wt
+pass/facts/case_payload_stored_loan_through_call_result_exit checked 1004ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_const_name_exit checked 1035ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_field_exit checked 1036ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_local_exit checked 1030ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_match_join_exit checked 1036ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_other_machine_exit checked 1033ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_other_state_exit checked 991ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_parameter_exit checked 964ms check-target:macos_arm64 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_target_body_exit checked 1279ms check-target:macos_arm64 @66bc5becc69e
 pass/facts/case_payload_transport_through_call_result_exit checked 8032ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/case_payload_transport_through_const_name_exit checked 8027ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/case_payload_transport_through_field_exit checked 8026ms check-target:macos_arm64 @45cbafd80d9c

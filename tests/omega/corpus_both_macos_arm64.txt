@@ -119,6 +119,8 @@ pass/borrows/runtime_carrier_reference_reselection_exit built 3257ms exit:70 int
 pass/borrows/runtime_carrier_reference_store_exit built 1557ms exit:70 interpreter-exit:70 interpreter:agrees @f41cc6938f06+wt
 pass/borrows/runtime_case_descriptor_retirement_exit built 3668ms exit:0 interpreter-exit:0 interpreter:agrees @4f0f34f3cbb6+wt
 pass/borrows/runtime_case_payload_partial_transfer_exit built 1411ms exit:0 interpreter-exit:0 interpreter:agrees @53e6e3215d6a
+pass/borrows/runtime_case_reference_mixed_state_returns_exit built 1458ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/borrows/runtime_case_reference_reordered_state_returns_exit built 1364ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
 pass/borrows/runtime_case_return_parameter_order_exit built 2444ms exit:0 interpreter-exit:0 interpreter:agrees @f935383e1d47+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit built 1768ms exit:70 interpreter-exit:70 interpreter:agrees @b5d8c6882a8b+wt
 pass/borrows/runtime_direct_immutable_scalar_loan_exit built 14080ms exit:0 interpreter-exit:0 interpreter:agrees @c6603d3fbbc8+wt
@@ -144,6 +146,8 @@ pass/borrows/runtime_nested_reference_partition_exit built 2667ms exit:0 interpr
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 2548ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
 pass/borrows/runtime_owned_carrier_indexed_referent_store_exit built 3467ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
 pass/borrows/runtime_owned_generic_carrier_reborrow_exit built 3396ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
+pass/borrows/runtime_owned_input_reference_replacement_copies_exit built 1281ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/borrows/runtime_owned_input_reference_replacement_exit built 1079ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
 pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit built 3395ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
 pass/borrows/runtime_owned_writeonly_carrier_field_exit built 3426ms exit:0 interpreter-exit:0 interpreter:agrees @3d1bd96aeaa5
 pass/borrows/runtime_partial_reference_partition_exit built 5676ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
@@ -279,6 +283,7 @@ pass/calls/runtime_linear_state_owner_disposition_exit built 4772ms exit:0 inter
 pass/calls/runtime_linear_terminal_owner_disposition_exit built 3673ms exit:0 interpreter-exit:0 interpreter:agrees @a6d22383c443
 pass/calls/runtime_local_case_terminal_payload_result_exit built 875ms exit:0 interpreter-exit:0 interpreter:agrees @cbbe113c2c24
 pass/calls/runtime_mutable_call_before_transition_args_exit built 1805ms exit:70 interpreter-exit:70 interpreter:agrees @65bf3438e399+wt
+pass/calls/runtime_mutable_owned_computation_arguments_exit built 1086ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
 pass/calls/runtime_nested_case_argument_exit built 4465ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit built 1052ms exit:0 interpreter-exit:0 interpreter:agrees @3daca3fd87c2
 pass/calls/runtime_nested_constructor_child_snapshots_exit built 1617ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
@@ -705,6 +710,15 @@ pass/facts/case_payload_exclusive_loan_through_other_machine_exit built 1805ms e
 pass/facts/case_payload_exclusive_loan_through_other_state_exit built 1602ms exit:0 interpreter-exit:0 interpreter:agrees @4fba1ca3cd5a
 pass/facts/case_payload_exclusive_loan_through_parameter_exit built 1592ms exit:0 interpreter-exit:0 interpreter:agrees @4fba1ca3cd5a
 pass/facts/case_payload_exclusive_loan_through_target_body_exit built 1231ms exit:0 interpreter-exit:0 interpreter:agrees @4fba1ca3cd5a
+pass/facts/case_payload_stored_loan_through_call_result_exit built 1079ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_const_name_exit built 1075ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_field_exit built 1079ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_local_exit built 1090ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_match_join_exit built 1075ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_other_machine_exit built 1080ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_other_state_exit built 1073ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_parameter_exit built 1066ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_target_body_exit built 1038ms exit:0 interpreter-exit:0 interpreter:agrees @66bc5becc69e
 pass/facts/case_payload_transport_through_call_result_exit built 15239ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
 pass/facts/case_payload_transport_through_const_name_exit built 15374ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
 pass/facts/case_payload_transport_through_field_exit built 15505ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474

@@ -8,6 +8,20 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 11.76, "load1_start": 11.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/borrows/runtime_case_reference_mixed_state_returns_exit built 1602ms exit:0 @66bc5becc69e
+pass/borrows/runtime_case_reference_reordered_state_returns_exit built 1496ms exit:0 @66bc5becc69e
+pass/borrows/runtime_owned_input_reference_replacement_copies_exit built 1395ms exit:0 @66bc5becc69e
+pass/borrows/runtime_owned_input_reference_replacement_exit built 1117ms exit:0 @66bc5becc69e
+pass/calls/runtime_mutable_owned_computation_arguments_exit built 1107ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_call_result_exit built 1140ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_const_name_exit built 1117ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_field_exit built 1122ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_local_exit built 1106ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_match_join_exit built 1135ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_other_machine_exit built 1134ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_other_state_exit built 1102ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_parameter_exit built 1087ms exit:0 @66bc5becc69e
+pass/facts/case_payload_stored_loan_through_target_body_exit built 1081ms exit:0 @66bc5becc69e
 pass/facts/nested_eight_level_record_field_bound_through_call_result_exit built 1912ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eight_level_record_field_bound_through_const_name_exit built 1830ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eight_level_record_field_bound_through_field_exit built 1716ms exit:0 @4c23cc3391c2+wt
