@@ -74,6 +74,28 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twentysix_variant_enum_payload_bound_through_*_exit`
+and
+`tests/omega/fail/facts/twentysix_variant_enum_payload_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`, binds
+`ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`,
+`macos_arm64`, `linux_arm64`), and records native exit 0 with Terminal Psi
+agreement. Each of the nine reject twins is a byte-identical copy of its
+`<place>/invalid/main.omg`, widening only variant `V26`'s lower bound
+(`v >= 40u64` to `v >= 39u64`), and pins the diagnostic its own place emits:
+`cannot prove requires contract for call verify_payload from probe` for
+`local` (on `local_res`) and `field` (on `holder.res`), `cannot prove requires
+contract for call consume from probe` for `parameter` and `other_state`,
+`cannot prove requires contract for call forward_payload from probe` for
+`other_machine`, `cannot prove requires contract for call choose from probe`
+for `match_join`, `cannot prove requires contract for call verify_payload from
+probe` (on the bare `res`) for `const_name`, `cannot prove ensures contract for
+exit from extract_payload at statement 51` for `call_result`, and `cannot prove
+requires contract for call verify_payload from target_probe` for `target_body`.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V26(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all twenty-six tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.

@@ -24,6 +24,27 @@ Only the transport mechanism of the 23-argument calling plan and its bounded sta
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives arguments and invokes the 23-argument calling plan |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies invoke the 23-argument calling plan and consume the bounded result on each hosted target |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twentythree_arg_stack_calling_plan_through_*_exit` and
+`tests/omega/fail/facts/twentythree_arg_stack_calling_plan_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`, binds
+`ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`,
+`macos_arm64`, `linux_arm64`), and records native exit 0 with Terminal Psi
+agreement. Each of the nine reject twins is a byte-identical copy of its
+`<place>/invalid/main.omg`, widening only the `pick23` upper bound
+(`a23 <= 80u64` to `a23 <= 81u64`) and passing `81` where the positive passes
+`60`, and pins the exact-arithmetic diagnostic that names its own place:
+
+| Place | Pinned fragment |
+| --- | --- |
+| `local`, `field`, `call_result`, `match_join`, `const_name` | `exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`` |
+| `parameter` | `exact arithmetic in machine \`check_call\` state \`entry\` local \`headroom\` may overflow \`u64\`` |
+| `other_state` | `exact arithmetic in machine \`probe\` state \`step\` local \`headroom\` may overflow \`u64\`` |
+| `other_machine` | `exact arithmetic in machine \`forward23\` state \`entry\` local \`headroom\` may overflow \`u64\`` |
+| `target_body` | `exact arithmetic in machine \`evaluate23\` state \`entry\` local \`headroom\` may overflow \`u64\`` |
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)), governing specifications at [wiki/spec/build/calling_plans.md](../../../../wiki/spec/build/calling_plans.md) and [wiki/spec/resources/activation_storage.md](../../../../wiki/spec/resources/activation_storage.md).
