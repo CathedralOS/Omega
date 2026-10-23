@@ -5,7 +5,8 @@
 ```
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Ticket:** `c748de1b32944b76a08992df45b6ec83` (row authoring); pin and landing
+  claim `17a632a7386c4975b1937cb7395fa688` (`factsr1-pins-co`).
 - **Governing specifications:**
   - `wiki/spec/layouts/plans.md` (Layout plans, record geometry, nested field alignment and displacement)
   - `wiki/spec/terminal-psi/structural_access.md` (Structural access paths, compile-time multi-level projections)
@@ -26,6 +27,12 @@
 | `other_state` | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
 | `other_machine` | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | `target_body` | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
+
+Every positive place and the root `main.omg` probe binds `ProgramEntry` for
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declares
+`Expected exit: 0`, and carries an authored `expected_native_exit.txt` (`0`).
+
+Match the fact sentence beside every place: each positive place is pinned as `tests/omega/pass/facts/nested_thirtyseven_level_record_field_bound_through_<place>_exit` and each reject twin as `tests/omega/fail/facts/nested_thirtyseven_level_record_field_bound_through_<place>_rejected`, byte-equal to the place and `invalid/` programs beside them (main.omg, build.omg, and the exit or rejection oracle).
 
 ## The Oracle
 
@@ -61,12 +68,39 @@ omega --check samples/cli/facts/nested_thirtyseven_level_record_field_bound/<pla
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/nested_thirtyseven_level_record_field_bound --jobs 4
+<gen>/omega run --both samples/cli/facts/nested_thirtyseven_level_record_field_bound/main.omg
+<gen>/omega run --both samples/cli/facts/nested_thirtyseven_level_record_field_bound/<place>/main.omg      # all nine places
+<gen>/omega --check samples/cli/facts/nested_thirtyseven_level_record_field_bound/<place>/invalid/main.omg # all nine twins
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+The sample author's earlier record (`sample_native_gate.py` on `windows_x86_64` with a
+shared `omega-latest.exe`) reports 10/10 samples meeting their documented oracle and 9/9
+intended-invalid controls matching `may overflow \`u64\``. That host and binary are not
+available here, so the row's pinned evidence is the macOS arm64 measurement below.
+
+Measured on macOS arm64 with the `factsr1` shared producer built from base
+`4c23cc3391c` (`omega` sha256 `83c7ae2a45442b1ceb6f5476a6f8ed4c4af9eabbd85e682a3ed7254c7fec94cf`, `corpus_runner` sha256 `a1de848f1baca0837d28285d9da6da9acdd7639081c083743f76862a409bdb3d`):
+
+- `omega run --both` reports `native exit 0` and `interp exit: 0` for the root and all
+  nine places (10/10), Terminal Psi and native execution agreeing.
+- `omega --check` refuses all nine `<place>/invalid/main.omg` twins with
+  `may overflow \`u64\`` in the exact-arithmetic obligation class; `git diff` positive vs
+  twin changes only the construct's own value, domain or contract (the widened
+  `80u64`/`<= 81u64` bounds on each place's `requires`/`ensures` lines, the const-name
+  place's leaf constant `60u64`/`81u64`, and the header's place line).
+- The nine positive places and nine reject twins are pinned as
+  `tests/omega/{pass,fail}/facts/nested_thirtyseven_level_record_field_bound_through_<place>_{exit,rejected}`, each
+  byte-equal to the sample program it pins, with recorded corpus rows: nine
+  `checked ... check-target:macos_arm64` and nine `rejected ... expected` rows carrying
+  their own `may overflow \`u64\`` diagnostic in `tests/omega/corpus_outcomes.txt`, nine
+  `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, and nine
+  `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in
+  `tests/omega/corpus_both_macos_arm64.txt`.
+
+The row's requirement: the leaf field bound `40u64 <= root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.l24.l25.l26.l27.l28.l29.l30.l31.l32.l33.l34.l35.l36.val <= 80u64` of a
+37-level nested structural record survives construction or transport through
+all nine places into the consuming exact subtractions, established statically without a
+post-hoc caller equality guard, with Terminal Psi and native agreement.
 
 ## Requirements and Evidence
 
@@ -84,4 +118,13 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA 64-bit displacement loads and subtractions (`sub r64, r64` on `x86_64`, `sub x, x, x` on `arm64`), register allocators assign homes and activation spill slots, and entry prologues and epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions and transition displacements encode into machine bytes, basic blocks relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
+- **Pinned and recorded:** 18 fixture families (`..._through_<place>_{exit,rejected}`
+  for the nine places) authored byte-for-byte from this sample tree. Measured on macOS
+  arm64 with the `factsr1` shared producer built from base `4c23cc3391c` (stamp `@4c23cc3391c2+wt`):
+  nine `checked ... check-target:macos_arm64` and nine `rejected ... expected` rows in
+  `tests/omega/corpus_outcomes.txt`, nine `built ... exit:0` rows in
+  `tests/omega/corpus_native_macos_arm64.txt`, and nine
+  `exit:0 interpreter-exit:0 interpreter:agrees` rows in
+  `tests/omega/corpus_both_macos_arm64.txt`; 0 fixture keys lost, 0 timeout rows. No
+  compiler repair was needed.
 - **What remains open:** Dynamic nested array-within-record projections, variant tagged payloads across nested structures, and mutable field updates across nested paths.
