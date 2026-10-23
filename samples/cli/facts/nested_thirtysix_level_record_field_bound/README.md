@@ -126,5 +126,10 @@ post-hoc caller equality guard, with Terminal Psi and native agreement.
   `tests/omega/corpus_native_macos_arm64.txt`, and nine
   `exit:0 interpreter-exit:0 interpreter:agrees` rows in
   `tests/omega/corpus_both_macos_arm64.txt`; 0 fixture keys lost, 0 timeout rows. No
-  compiler repair was needed.
+  compiler repair was needed. A later main-change validation run with the newer `gen-9b001b8f6af` producer
+  (revision `9b001b8f6af`) re-measured all 36 fixtures on the integrated candidate
+  and on the landed revision: 0 structural moves (18 checked, 18 rejected, 0 rejected
+  without their expected fragment, 0 fail fixtures that did not reject), 18 native
+  `built exit:0` rows and 18 `exit:0 interpreter-exit:0 interpreter:agrees` rows, so
+  the recorded verdicts survive the compiler movement after the measurement.
 - **What remains open:** Dynamic nested array-within-record projections, variant tagged payloads across nested structures, and mutable field updates across nested paths.
