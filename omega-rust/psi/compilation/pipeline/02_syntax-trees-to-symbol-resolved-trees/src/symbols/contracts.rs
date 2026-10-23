@@ -240,27 +240,32 @@ fn assign_contract_span(
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
 ) {
+    // A member's invocation binders shadow its owner's telescope in every
+    // contract operand, not only indexed-membership arguments. Resolving an
+    // ordinary expression in the owner scope first can permanently select a
+    // same-spelled global declaration before downstream identity projection.
+    // Share one lexical frontier while retaining the callable's exact owner,
+    // explicit value parameters, and trait requirement selection context.
+    let type_parameters =
+        super::scope::declaration_type_scope(signature_type_parameters, machine.type_parameters);
+    let contract_scope = &MachineScope {
+        type_parameters: &type_parameters,
+        ..*machine
+    };
     for contract in signature_contracts.span_or_empty(contracts) {
         for fact in proof_facts.span_or_empty(contract.facts) {
             let expression = match fact {
                 symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
                 symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
-                    // An indexed application's arguments resolve in the
-                    // signature's lexical generic scope, exactly as a
-                    // parameter's `T in Family<P>` constraint arguments do:
-                    // the requirement's own binders shadow the owning
-                    // machine or trait telescope under first-match lookup.
-                    let mut local_type_parameters = signature_type_parameters.to_vec();
-                    local_type_parameters.extend_from_slice(machine.type_parameters);
                     for handle in membership.domain_arguments.handles() {
                         let mut argument = child_type_references.get(handle).clone();
                         crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,
                             child_type_references,
                             machine.type_constraints,
-                            &local_type_parameters,
+                            contract_scope.type_parameters,
                             &mut argument,
-);
+                        );
                         *child_type_references.get_mut(handle) = argument;
                     }
                     membership.value
@@ -268,7 +273,7 @@ fn assign_contract_span(
             };
             assign_calls!(
                 symbols,
-                machine,
+                contract_scope,
                 parameters,
                 state_symbol,
                 expression_table,
