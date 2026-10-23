@@ -26,6 +26,15 @@ pass/facts/nested_eighteen_level_record_field_bound_through_other_machine_exit b
 pass/facts/nested_eighteen_level_record_field_bound_through_other_state_exit built 1782ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eighteen_level_record_field_bound_through_parameter_exit built 1907ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eighteen_level_record_field_bound_through_target_body_exit built 2322ms exit:0 @4c23cc3391c2+wt
+pass/facts/non_owning_reference_erasure_through_call_result_exit built 1619ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_const_name_exit built 1614ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_field_exit built 1620ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_local_exit built 1332ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_match_join_exit built 1651ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_other_machine_exit built 1405ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_other_state_exit built 1609ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_parameter_exit built 1397ms exit:0 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_target_body_exit built 1610ms exit:0 @17f53e6295d2
 pass/facts/seventeen_arg_stack_calling_plan_through_call_result_exit built 15915ms exit:0 @4c23cc3391c2+wt
 pass/facts/seventeen_arg_stack_calling_plan_through_const_name_exit built 17000ms exit:0 @4c23cc3391c2+wt
 pass/facts/seventeen_arg_stack_calling_plan_through_field_exit built 15318ms exit:0 @4c23cc3391c2+wt
@@ -4525,7 +4534,12 @@ pass/recast/callee_returned_aggregate_view_exit built 7085ms exit:0 @22286cb27fc
 pass/recast/callee_returned_interior_view_exit built 7178ms exit:0 @22286cb27fcc
 pass/recast/callee_returned_mutable_view_exit built 7255ms exit:0 @22286cb27fcc
 pass/recast/callee_returned_scalar_interpretation_exit built 4690ms exit:0 @22286cb27fcc
+pass/recast/mutable_routed_qualification_erasure checked 1214ms @17f53e6295d2
 pass/recast/nested_operand_view_compile checked 183ms
+pass/recast/non_owning_erasure_additional_record_predicate_exit built 1627ms exit:0 @17f53e6295d2
+pass/recast/non_owning_erasure_authored_reestablishment_exit built 1353ms exit:0 @17f53e6295d2
+pass/recast/non_owning_erasure_retained_field_predicate_exit built 1011ms exit:0 @17f53e6295d2
+pass/recast/non_owning_erasure_unchanged_input_exit built 990ms exit:0 @17f53e6295d2
 pass/recast/returned_view_state_and_record_composition_exit built 4698ms exit:0 @22286cb27fcc
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 3977ms exit:70 @5a7ed5b57d00+wt
 pass/recast/runtime_authored_toolchain_type_shadow_exit built 1664ms exit:0 @bf3bd23a63c0

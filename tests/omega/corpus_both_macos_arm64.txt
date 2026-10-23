@@ -1764,6 +1764,15 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit built 3782ms exi
 pass/facts/nominal_reference_cleanup_through_other_state_exit built 3731ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_parameter_exit built 3732ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_target_body_exit built 3638ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/non_owning_reference_erasure_through_call_result_exit built 1481ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_const_name_exit built 1199ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_field_exit built 1223ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_local_exit built 1463ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_match_join_exit built 1484ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_other_machine_exit built 1205ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_other_state_exit built 1189ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_parameter_exit built 1481ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_target_body_exit built 1197ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
 pass/facts/opaque_closed_carrier_through_call_result_exit built 2697ms exit:0 interpreter-exit:0 interpreter:agrees @98309d77b143
 pass/facts/opaque_closed_carrier_through_const_name_exit built 2694ms exit:0 interpreter-exit:0 interpreter:agrees @98309d77b143
 pass/facts/opaque_closed_carrier_through_field_exit built 2597ms exit:0 interpreter-exit:0 interpreter:agrees @98309d77b143
@@ -2993,6 +3002,11 @@ pass/providers/structural_result_field_guarantee_exit built 5698ms exit:0 interp
 pass/recast/atomic_qualification_view_exit built 15233ms exit:0 interpreter-exit:0 interpreter:agrees @8137d4f697de+wt
 pass/recast/borrowed_byte_scalar_views_exit built 6798ms exit:0 interpreter-exit:0 interpreter:agrees @e76af65b0403
 pass/recast/indexed_qualification_reference_exit built 15215ms exit:0 interpreter-exit:0 interpreter:agrees @8137d4f697de+wt
+pass/recast/mutable_routed_qualification_erasure checked 1131ms @17f53e6295d2
+pass/recast/non_owning_erasure_additional_record_predicate_exit built 1245ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/recast/non_owning_erasure_authored_reestablishment_exit built 1267ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/recast/non_owning_erasure_retained_field_predicate_exit built 947ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
+pass/recast/non_owning_erasure_unchanged_input_exit built 960ms exit:0 interpreter-exit:0 interpreter:agrees @17f53e6295d2
 pass/recast/returned_qualification_preserves_representation_exit built 12431ms exit:0 interpreter-exit:0 interpreter:agrees @8137d4f697de+wt
 pass/recast/returned_qualified_reference_exit built 12419ms exit:0 interpreter-exit:0 interpreter:agrees @8137d4f697de+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt

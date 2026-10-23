@@ -1860,8 +1860,8 @@ fail/domains/scalar_entry_membership_invalidated_before_forward rejected 4127ms 
 	cannot prove requires contract for call reduce from Actual::subtract: value in u64::AtLeast100 (invalidated by prior mutation of value; value is part of u64::AtLeast100) in state `subtract`
 fail/domains/scalar_entry_membership_invalidated_before_subtraction rejected 2733ms expected @8d0f98ca0891+wt
 	exact arithmetic in machine `Actual::subtract` state `subtract` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/domains/scalar_field_mutable_erasure_cannot_restore_membership rejected 2700ms expected @8d0f98ca0891+wt
-	machine `main` state `entry`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
+fail/domains/scalar_field_mutable_erasure_cannot_restore_membership rejected 800ms expected @17f53e6295d2
+	machine `main` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
 fail/domains/scalar_field_write_requires_issuer rejected 4039ms expected @8d0f98ca0891+wt
 	cannot prove requires contract for call subtract from main: payload.value in u64::AtLeast100 (invalidated by prior mutation of payload.value; payload.value is part of u64::AtLeast100) in state `entry`
 	cannot prove the value assigned to `payload.value` in main is in domain `u64::AtLeast100`; a place declared `in u64::AtLeast100` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
@@ -7350,6 +7350,36 @@ fail/facts/nominal_reference_cleanup_through_target_body_prerequisite rejected 1
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
+fail/facts/non_owning_reference_erasure_through_call_result_rejected rejected 392ms expected @17f53e6295d2
+	machine `erase` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+fail/facts/non_owning_reference_erasure_through_const_name_rejected rejected 369ms expected @17f53e6295d2
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+fail/facts/non_owning_reference_erasure_through_field_rejected rejected 362ms expected @17f53e6295d2
+	construction of `Envelope` field `view` expects reference `&write Storage`, but the source does not supply its carrier and access
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+fail/facts/non_owning_reference_erasure_through_local_rejected rejected 360ms expected @17f53e6295d2
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+fail/facts/non_owning_reference_erasure_through_match_join_rejected rejected 394ms expected @17f53e6295d2
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+fail/facts/non_owning_reference_erasure_through_other_machine_rejected rejected 412ms expected @17f53e6295d2
+	machine `write` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `erase` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	argument `view` for state `entry` expects `&write Storage`, got `call expression`
+	implicit domain weakening in argument `view` for state `entry` drops `Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/facts/non_owning_reference_erasure_through_other_state_rejected rejected 365ms expected @17f53e6295d2
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	argument `view` for state `store` expects `&write Storage`, got `cast expression`
+	implicit domain weakening in argument `view` for state `store` drops `Storage::Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/facts/non_owning_reference_erasure_through_parameter_rejected rejected 560ms expected @17f53e6295d2
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	argument `view` for state `entry` expects `&write Storage`, got `cast expression`
+	implicit domain weakening in argument `view` for state `entry` drops `Storage::Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/facts/non_owning_reference_erasure_through_target_body_rejected rejected 357ms expected @17f53e6295d2
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/facts/opaque_closed_carrier_through_call_result_cleanup rejected 216ms expected @30a3df3bc2fe
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_closed_carrier_through_const_name_cleanup rejected 221ms expected @30a3df3bc2fe
@@ -13051,6 +13081,26 @@ fail/recast/interior_recast_footprint_rejected rejected 2935ms expected @a9ae30e
 fail/recast/interior_slice_exclusive_backing_read rejected 2074ms expected @a9ae30e1c334+wt
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 880ms expected @a9ae30e1c334+wt
 fail/recast/local_stored_byte_region_escape rejected 661ms expected @8fd8af53161a+wt
+fail/recast/non_owning_erasure_false_reestablishment rejected 943ms expected @17f53e6295d2
+	cannot prove ensures contract for exit from overwrite at statement 2: storage in Storage::Issued
+fail/recast/non_owning_erasure_joined_shared_store rejected 530ms expected @17f53e6295d2
+	machine `corrupt` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/recast/non_owning_erasure_preserves_array_element rejected 550ms expected @17f53e6295d2
+	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the recast has no complete exact lender origins
+fail/recast/non_owning_erasure_preserves_helper_field rejected 738ms expected @17f53e6295d2
+	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.slot requires Storage::Issued
+fail/recast/non_owning_erasure_preserves_owned_field rejected 491ms expected @17f53e6295d2
+	machine `main` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/non_owning_erasure_preserves_projected_view rejected 488ms expected @17f53e6295d2
+	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/non_owning_erasure_preserves_reborrow_alias rejected 267ms expected @17f53e6295d2
+	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/non_owning_erasure_preserves_record_field rejected 202ms expected @17f53e6295d2
+	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/non_owning_erasure_preserves_scalar_field rejected 200ms expected @17f53e6295d2
+	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/non_owning_erasure_preserves_stored_alias rejected 364ms expected @17f53e6295d2
+	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
 fail/recast/qualified_reference_local_escape rejected 6044ms expected @8137d4f697de+wt
 	machine `escape` returns a view borrowing the local `ticket`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/recast/qualified_reference_stale_membership rejected 5024ms expected @8137d4f697de+wt
@@ -17655,6 +17705,15 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit checked 115878ms
 pass/facts/nominal_reference_cleanup_through_other_state_exit checked 141567ms check-target:macos_arm64 @2bee46135da6
 pass/facts/nominal_reference_cleanup_through_parameter_exit checked 142147ms check-target:macos_arm64 @2bee46135da6
 pass/facts/nominal_reference_cleanup_through_target_body_exit checked 146207ms check-target:macos_arm64 @2bee46135da6
+pass/facts/non_owning_reference_erasure_through_call_result_exit checked 1223ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_const_name_exit checked 1577ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_field_exit checked 1194ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_local_exit checked 1216ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_match_join_exit checked 1160ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_other_machine_exit checked 1577ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_other_state_exit checked 1225ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_parameter_exit checked 1160ms check-target:macos_arm64 @17f53e6295d2
+pass/facts/non_owning_reference_erasure_through_target_body_exit checked 1253ms check-target:macos_arm64 @17f53e6295d2
 pass/facts/opaque_closed_carrier_exchange_exit checked 79115ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @1b897a2de67b
 pass/facts/opaque_closed_carrier_through_call_result_exit checked 4437ms check-target:macos_arm64 @30a3df3bc2fe
 pass/facts/opaque_closed_carrier_through_const_name_exit checked 4203ms check-target:macos_arm64 @30a3df3bc2fe
@@ -20574,11 +20633,16 @@ pass/recast/mutable_i32_float_write_compile checked 1668ms @a9ae30e1c334+wt
 pass/recast/mutable_i32_unsigned_write_compile checked 1571ms @a9ae30e1c334+wt
 pass/recast/mutable_int_float_write_compile checked 1612ms @a9ae30e1c334+wt
 pass/recast/mutable_local_recast_write_compile checked 1753ms @a9ae30e1c334+wt
+pass/recast/mutable_routed_qualification_erasure checked 1183ms @17f53e6295d2
 pass/recast/mutable_signed_bits_write_compile checked 1565ms @a9ae30e1c334+wt
 pass/recast/mutable_u16_signed_write_compile checked 1576ms @a9ae30e1c334+wt
 pass/recast/mutable_unsigned_signed_write_compile checked 1774ms @a9ae30e1c334+wt
 pass/recast/narrow_signed_bits_view_compile checked 1706ms @a9ae30e1c334+wt
 pass/recast/nested_operand_view_compile checked 1613ms @a9ae30e1c334+wt
+pass/recast/non_owning_erasure_additional_record_predicate_exit checked 1278ms check-target:macos_arm64 @17f53e6295d2
+pass/recast/non_owning_erasure_authored_reestablishment_exit checked 1252ms check-target:macos_arm64 @17f53e6295d2
+pass/recast/non_owning_erasure_retained_field_predicate_exit checked 1093ms check-target:macos_arm64 @17f53e6295d2
+pass/recast/non_owning_erasure_unchanged_input_exit checked 1178ms check-target:macos_arm64 @17f53e6295d2
 pass/recast/recast_view_forward_compile checked 1559ms @a9ae30e1c334+wt
 pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
