@@ -50,7 +50,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The recorded 0 exit is discriminating:
 - At runtime, with `val == 60u64`, `res == 60u64`, `headroom == 20u64`, `margin == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 40 { true -> done() _ -> bad() }` exits 0. If nested field projection or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
-- In each invalid twin, leaf `val` upper bound is widened to `81u64` so `res` can reach `81u64 > 80u64`. Proof obligation checking statically detects that `80u64 - res` can underflow `u64` below zero, failing closed with `may overflow \`u64\``. None reaches native execution.
+- In each invalid twin the declared leaf upper bound is widened to `81u64` (the call-result twin also returns `81u64`, because the checker proves a call result from the callee body) so `res` can reach `81u64 > 80u64`. Proof obligation checking statically detects that `80u64 - res` can underflow `u64` below zero, failing closed with `may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
 
@@ -61,17 +61,28 @@ omega --check samples/cli/facts/nested_twentyfour_level_record_field_bound/<plac
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/nested_twentyfour_level_record_field_bound --jobs 4
+GEN=/Volumes/Crucial/CathedralOS/Omega/build/swarm/factsr1/producers/gen-4c23cc3391c
+python3 tools/corpus_gate.py --runner $GEN/corpus_runner --filter facts/nested_twentyfour_level_record_field_bound
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+`corpus_gate.py` reports:
+- 9/9 pass fixtures `checked` with `check-target:macos_arm64`.
+- 9/9 fail fixtures `rejected` with their `may overflow \`u64\`` fragment.
+- `0 fail fixtures that did not reject`, `0 rejected without their expected fragment`.
+
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/nested_twentyfour_level_record_field_bound_through_*` fixtures; every positive records `built ... exit:0` and `interpreter-exit:0 interpreter:agrees`. The nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart.
+
+Recorded with the shared opt-level 1 generation `gen-4c23cc3391c` (omega sha256 `83c7ae2a45442b1ceb6f5476a6f8ed4c4af9eabbd85e682a3ed7254c7fec94cf`, corpus_runner sha256 `a1de848f1baca0837d28285d9da6da9acdd7639081c083743f76862a409bdb3d`, macos_arm64, jobs 1): check leg 18 fixtures — 9 `checked` with `check-target:macos_arm64`, 9 `rejected` carrying their own `may overflow \`u64\`` diagnostic on local `headroom`, 0 fail fixtures that did not reject and 0 rows recording a lost success; native leg 9 `built ... exit:0`; both leg 9 `interpreter-exit:0 interpreter:agrees`. The record is a pure addition: 30/0 lines in `corpus_outcomes.txt`, 9/0 in `corpus_native_macos_arm64.txt`, 9/0 in `corpus_both_macos_arm64.txt`, stamped `@4c23cc3391c2+wt`. The file-wide pinned-without-success counts (3/18/1) belong to rows elsewhere and are unchanged by this splice.
+
+The call-result twin widens the returned leaf value itself (`val: 81u64` with its contract upper bound widened to `81u64`), not the contract bound alone. The first authoring widened only the contract while the callee body still returned the literal `60u64`; the checker proves that call result from its body, so the twin was correctly accepted and pinned nothing. The other eight twins widen only the declared bound.
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Fixture pin and landing ticket:** `03d9268a91ca40868b5e7ece16f291b0` (factsr1-pins-cs).
 - **Requirement established:** Target-neutral compile-time multi-level nested record projection bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, projecting the leaf field of a 24-level nested structural record `RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { l6: Level6 { l7: Level7 { l8: Level8 { l9: Level9 { l10: Level10 { l11: Level11 { l12: Level12 { l13: Level13 { l14: Level14 { l15: Level15 { l16: Level16 { l17: Level17 { l18: Level18 { l19: Level19 { l20: Level20 { l21: Level21 { l22: Level22 { l23: Level23 { val: u64 } } } } } } } } } } } } } } } } } } } } } } }` preserves the static leaf interval bound (`root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.val >= 40u64 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.val <= 80u64`), discharging exact 64-bit unsigned subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
