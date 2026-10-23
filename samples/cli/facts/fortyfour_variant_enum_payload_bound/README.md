@@ -56,6 +56,15 @@ Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
 
+### Pinned fixtures
+
+The fact row is pinned under `tests/omega/` as 18 corpus fixtures:
+- 9 positive pass fixtures: `tests/omega/pass/facts/fortyfour_variant_enum_payload_bound_through_<place>_exit/` (`main.omg`, `build.omg`, `expected_native_exit.txt`)
+- 9 reject fail fixtures: `tests/omega/fail/facts/fortyfour_variant_enum_payload_bound_through_<place>_rejected/` (`main.omg`, `build.omg`, `expected.txt`)
+
+Each positive fixture is byte-identical to its place program and each fail fixture to its
+invalid twin; the nine positions are the ones in the table below.
+
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` reject twin that widens one variant's bound (`V44(v: u64) where v >= 39u64 && v <= 80u64`).
@@ -64,15 +73,20 @@ The compiler strictly fails closed at compile time:
 
 | Place | `omega run --both` | Reject twin diagnostic |
 | --- | --- | --- |
-| `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
-| `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
-| `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
-| `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
-| `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
-| `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
-| `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+| `local` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
+| `field` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
+| `parameter` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
+| `call_result` | native 0 / interp 0 | `cannot prove ensures contract for exit from extract_payload at statement 87: result >= 40 && result <= 80` |
+| `match_join` | native 0 / interp 0 | `cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
+| `const_name` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
+| `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
+| `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
+| `target_body` | native 0 / interp 0 | `cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+
+The same nine twins are also mirrored under `invalid/<place>/` with an authored
+`expected.txt`, so the invalid controls are discoverable by both the per-place
+route and the batch route. Each mirror is byte-identical to its per-place twin.
+The `target_body` twin emits one identical diagnostic per hosted target (four).
 
 ## Requirements and Evidence (AGENTS.md)
 
