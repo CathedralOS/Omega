@@ -1,0 +1,439 @@
+diff --git a/omega-rust/psi/compilation/compile-time/src/build_time_evaluation.rs b/omega-rust/psi/compilation/compile-time/src/build_time_evaluation.rs
+index 4dc0d8ddcac..d20bd29077e 100644
+--- a/omega-rust/psi/compilation/compile-time/src/build_time_evaluation.rs
++++ b/omega-rust/psi/compilation/compile-time/src/build_time_evaluation.rs
+@@ -140,6 +140,7 @@ pub struct BuildTimeEvaluationRequest<'source> {
+ pub fn evaluate_pre_resolution(
+     request: BuildTimeEvaluationRequest<'_>,
+ ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre_resolution", || format!("roots={}", request.syntax_trees.root_item_count()));
+     let BuildTimeEvaluationRequest {
+         syntax_trees,
+         source_context,
+diff --git a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_calls.rs b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_calls.rs
+index ef7d230d340..c7ca24a8a36 100644
+--- a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_calls.rs
++++ b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_calls.rs
+@@ -38,6 +38,7 @@ pub fn evaluate_const_generic_calls(
+     mut syntax: SyntaxTrees,
+     context: crate::BuildTimeSources<'_>,
+ ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.generic_calls", || String::new());
+     loop {
+         // Readiness precedes admission: a provisional carrier can reveal exact
+         // dependencies but must not supply an executable layout. Every layer
+@@ -55,6 +56,7 @@ fn evaluate_application_group(
+     mut syntax: SyntaxTrees,
+     context: crate::BuildTimeSources<'_>,
+ ) -> Result<(SyntaxTrees, bool), Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.generic_call_group", || String::new());
+     let mut progress = false;
+     let crate::BuildTimeSources {
+         sources,
+diff --git a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_expressions.rs b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_expressions.rs
+index edf25c0838a..8c09013f6c5 100644
+--- a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_expressions.rs
++++ b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_generic_expressions.rs
+@@ -37,6 +37,7 @@ pub(crate) fn evaluate(
+     bindings: &[SourceScopedTopLevelBinding],
+     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+ ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.generic_expressions", || String::new());
+     let data_arguments =
+         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
+             &syntax,
+diff --git a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_initializers.rs b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_initializers.rs
+index a6f4ca62757..791e38ffab4 100644
+--- a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_initializers.rs
++++ b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_initializers.rs
+@@ -94,6 +94,7 @@ pub(crate) fn evaluate(
+     bindings: &[SourceScopedTopLevelBinding],
+     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+ ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.initializers", || String::new());
+     use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
+     syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
+     if !syntax.root_items().any(|item| {
+diff --git a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_qualifications.rs b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_qualifications.rs
+index bb07ca5063c..23dfbc70fb9 100644
+--- a/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_qualifications.rs
++++ b/omega-rust/psi/compilation/compile-time/src/const_evaluation/const_qualifications.rs
+@@ -22,6 +22,7 @@ pub(crate) fn prove_ready(
+     sources: Option<Arc<SourceMap>>,
+     bindings: &[SourceScopedTopLevelBinding],
+ ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.qualifications", || String::new());
+     let candidates = syntax
+         .root_item_handles()
+         .iter()
+diff --git a/omega-rust/psi/compilation/compile-time/src/const_evaluation/range_arguments.rs b/omega-rust/psi/compilation/compile-time/src/const_evaluation/range_arguments.rs
+index defe6c21053..d9926a959b1 100644
+--- a/omega-rust/psi/compilation/compile-time/src/const_evaluation/range_arguments.rs
++++ b/omega-rust/psi/compilation/compile-time/src/const_evaluation/range_arguments.rs
+@@ -23,6 +23,7 @@ pub(crate) fn evaluate(
+     bindings: &[SourceScopedTopLevelBinding],
+     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+ ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.range_arguments", || String::new());
+     let mut pending = syntax.type_references.generic_nodes();
+     for (_, expression) in syntax.expressions.iter_expressions() {
+         if let ExpressionNode::Call(call) = expression {
+diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs
+index 308cb49921b..f3650a8db9b 100644
+--- a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs
++++ b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs
+@@ -232,6 +232,14 @@ pub fn desugar_placed_views(
+         &selected_arguments,
+         &selected_owners,
+     )?;
++    if std::env::var_os("OMEGA_PLACED_DISCOVERY_MEASURE").is_some() {
++        eprintln!("PLACEDMEASURE\tapplications\tcount={}", applications.len());
++        for application in &applications {
++            eprintln!("PLACEDMEASURE\tapplication\t{:?}\t{:?}\t{:?}\t{:?}",
++                application.template_source, application.policy_source,
++                application.schema_source, application.invocation_sources);
++        }
++    }
+     if applications.is_empty() {
+         // The generic boundary templates exist only as compiler input for
+         // cloning exact accessor machines. Leaving them active when a program
+diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
+index d84630abd5e..412f1df06d1 100644
+--- a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
++++ b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
+@@ -22,6 +22,12 @@ pub(super) fn retain_applied_results(
+     sources: Option<Arc<source::SourceMap>>,
+     bindings: &[symbols::SourceScopedTopLevelBinding],
+ ) -> Result<Vec<SelectedArgument>, Vec<Diagnostic>> {
++    let measured = std::env::var_os("OMEGA_PLACED_DISCOVERY_MEASURE").is_some();
++    if std::env::var("OMEGA_PLACED_DISCOVERY_MODE").as_deref() == Ok("skip") {
++        if measured { eprintln!("PLACEDMEASURE\tskipped"); }
++        return Ok(Vec::new());
++    }
++    let started = measured.then(std::time::Instant::now);
+     if !syntax.expressions.iter_expressions().any(|(_, node)| {
+         matches!(node,
+         syntax_trees::expression::ExpressionNode::Call(call) if !call.machine_arguments.is_empty())
+@@ -38,6 +44,12 @@ pub(super) fn retain_applied_results(
+             top_level_bindings: bindings.to_vec(),
+         },
+     )?;
++    if measured {
++        eprintln!("PLACEDMEASURE\tinput\tresolved_expressions={} calls={} machines={}",
++            resolved.tables.bodies.expressions.iter_expressions().count(),
++            resolved.tables.bodies.expressions.iter_expressions().filter(|(_, node)| matches!(node, symbol_resolved_trees::expression::ExpressionNode::Call(_))).count(),
++            resolved.machines.iter().count());
++    }
+     let mut selections = Vec::new();
+     for (_, node) in resolved.tables.bodies.expressions.iter_expressions() {
+         let symbol_resolved_trees::expression::ExpressionNode::Call(call) = node else {
+@@ -113,6 +125,13 @@ pub(super) fn retain_applied_results(
+             )?;
+         }
+     }
++    if let Some(started) = started {
++        eprintln!("PLACEDMEASURE\toutput\tselections={} elapsed_ns={}", selections.len(), started.elapsed().as_nanos());
++        for selected in &selections {
++            eprintln!("PLACEDMEASURE\tselection\t{:?}\t{:?}",
++                selected.declaration, syntax.type_references.type_reference(selected.reference));
++        }
++    }
+     Ok(selections)
+ }
+ 
+diff --git a/omega-rust/psi/compilation/compile-time/src/syntax_probes.rs b/omega-rust/psi/compilation/compile-time/src/syntax_probes.rs
+index 6733fcdf71f..078644374c3 100644
+--- a/omega-rust/psi/compilation/compile-time/src/syntax_probes.rs
++++ b/omega-rust/psi/compilation/compile-time/src/syntax_probes.rs
+@@ -71,6 +71,7 @@ pub(crate) fn normalize_generic_data(
+     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
+     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+ ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("pre.normalize_generic", || String::new());
+     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
+         normalization_request(
+             syntax_trees,
+diff --git a/omega-rust/psi/compilation/driver/src/source_compilation.rs b/omega-rust/psi/compilation/driver/src/source_compilation.rs
+index 0cd636def44..5d2ac658fbe 100644
+--- a/omega-rust/psi/compilation/driver/src/source_compilation.rs
++++ b/omega-rust/psi/compilation/driver/src/source_compilation.rs
+@@ -59,6 +59,7 @@ impl SourceCompilationRequest {
+         self,
+         observer: &mut impl PsiCompilationObserver,
+     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
++    let _measurement_scope = syntax_trees::measurement_probe::Scope::begin("driver.prepare", || String::new());
+         let evaluated = build_time_evaluation::evaluate_pre_resolution(
+             build_time_evaluation::BuildTimeEvaluationRequest {
+                 syntax_trees: self.syntax,
+@@ -154,6 +155,7 @@ impl SourceContinuation {
+         self,
+         observer: &mut impl PsiCompilationObserver,
+     ) -> Result<CompletedSource, Vec<Diagnostic>> {
++    let _measurement_scope = syntax_trees::measurement_probe::Scope::begin("driver.complete_authored", || String::new());
+         let Self {
+             mut typing,
+             mut pending_bodies,
+diff --git a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/mod.rs b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/mod.rs
+index 46e1f405f4e..c29868c2aaf 100644
+--- a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/mod.rs
++++ b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/mod.rs
+@@ -31,6 +31,7 @@ pub(crate) fn lower_items(
+     lowerer: &mut Lowerer,
+     syntax: &SyntaxTrees,
+ ) -> Result<(), Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.lower_items", || format!("roots={}", syntax.root_item_count()));
+     for &item in syntax.root_item_handles() {
+         item::lower_item(lowerer, syntax, item).map_err(|diagnostic| vec![diagnostic])?;
+     }
+diff --git a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/mod.rs b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/mod.rs
+index c3e7c29b8da..f048c78ffea 100644
+--- a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/mod.rs
++++ b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/mod.rs
+@@ -45,6 +45,7 @@ pub(crate) fn prepare(
+     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+     constants: crate::resolution::lowerer::ConstResolutionMode,
+ ) -> Result<Prepared, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.prepare", || format!("roots={}", syntax.root_item_count()));
+     target_families::normalize(&mut syntax, sources.as_deref())?;
+     let constant_selection =
+         declaration_selection::ConstantSelection::new(&syntax, sources, top_level_bindings)?;
+diff --git a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
+index d06ba21e42e..ad480a97d9f 100644
+--- a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
++++ b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
+@@ -72,6 +72,7 @@ pub struct ExtensionRequest {
+ 
+ /// Resolve every name in the forest to its exact declaration.
+ pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve", || format!("roots={}", request.syntax.root_item_count()));
+     let (syntax, lowerer) = begin_complete(request, None)?;
+     drive(lowerer, &syntax).map(|(trees, _)| trees)
+ }
+@@ -81,6 +82,7 @@ pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Di
+ pub fn resolve_deferred(
+     request: ResolutionRequest,
+ ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve_deferred", || format!("roots={}", request.syntax.root_item_count()));
+     let sources = request.sources.clone();
+     let bindings = request.top_level_bindings.clone();
+     let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+@@ -120,6 +122,7 @@ pub fn resolve_deferred(
+ pub fn resolve_deferred_numeric_probe(
+     request: ResolutionRequest,
+ ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve_deferred_numeric_probe", || format!("roots={}", request.syntax.root_item_count()));
+     let sources = request.sources.clone();
+     let bindings = request.top_level_bindings.clone();
+     let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+@@ -182,6 +185,7 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
+ pub fn resolve_const_argument_selection(
+     request: ResolutionRequest,
+ ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve_const_argument_selection", || format!("roots={}", request.syntax.root_item_count()));
+     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
+     index_declarations(&mut lowerer, &syntax)?;
+     crate::symbols::assign_lexical_inputs(&mut lowerer, &syntax)?;
+@@ -195,6 +199,7 @@ pub fn resolve_const_argument_selection(
+ pub fn resolve_numeric_probe(
+     request: ResolutionRequest,
+ ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve_numeric_probe", || format!("roots={}", request.syntax.root_item_count()));
+     let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+     drive(lowerer, &syntax).map(|(trees, _)| trees)
+ }
+@@ -206,6 +211,7 @@ pub fn resolve_numeric_probe(
+ pub fn resolve_deferred_initializer_probe(
+     request: ResolutionRequest,
+ ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve_deferred_initializer_probe", || format!("roots={}", request.syntax.root_item_count()));
+     let sources = request.sources.clone();
+     let bindings = request.top_level_bindings.clone();
+     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+@@ -222,6 +228,7 @@ pub fn resolve_deferred_initializer_probe(
+ pub fn prepare_const_initializer_selection(
+     request: ResolutionRequest,
+ ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.prepare_const_initializer_selection", || format!("roots={}", request.syntax.root_item_count()));
+     let sources = request.sources.clone();
+     let bindings = request.top_level_bindings.clone();
+     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+@@ -277,6 +284,7 @@ pub fn prepare_const_initializer_selection(
+ pub fn resolve_extension(
+     request: ExtensionRequest,
+ ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.resolve_extension", || format!("roots={}", request.syntax.root_item_count()));
+     let ExtensionRequest {
+         base,
+         syntax,
+@@ -395,6 +403,7 @@ fn drive_recorded(
+ }
+ 
+ fn finish_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.finish", || String::new());
+     settle_resolution(lowerer, syntax)?;
+     lowerer.symbol_resolved_trees.rebuild_tables();
+     finish_resolved_tables(lowerer)
+@@ -428,6 +437,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
+ }
+ 
+ fn finish_resolved_tables(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.finish_tables", || String::new());
+     selection::conformance_blocks::route_conformance_requirement_calls(
+         &mut lowerer.symbol_resolved_trees,
+     )?;
+diff --git a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution/body_completion.rs b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution/body_completion.rs
+index 4ba3edcfea7..e10dd9e1431 100644
+--- a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution/body_completion.rs
++++ b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution/body_completion.rs
+@@ -235,6 +235,7 @@ impl DeferredResolvedFrontier {
+         mut self,
+         selected: &[SymbolHandle],
+     ) -> Result<ResolvedBodyCompletion, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.complete_bodies", || format!("selected={}", selected.len()));
+         let mut pending = Vec::new();
+         for &symbol in selected {
+             if pending.iter().any(|body: &PendingMachineBody| {
+@@ -316,6 +317,7 @@ impl DeferredResolvedFrontier {
+     }
+ 
+     fn seed_body_lowerer(&self) -> Result<Lowerer, Vec<Diagnostic>> {
++    let _measurement_scope = symbol_resolved_trees::measurement_probe::Scope::begin("resolver.clone_body_base", || format!("expressions={}", self.trees.tables.bodies.expressions.iter_expressions().count()));
+         let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
+         lowerer.seed_resolved_base((*self.trees).clone())?;
+         lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs
+index fc3ece922fc..a7eab470351 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs
+@@ -53,3 +53,28 @@ pub use symbol_resolved_trees::{
+     SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees,
+     SymbolResolvedTypeStorage,
+ };
++
++/// Temporary diagnostic instrumentation; removed from the retained compiler.
++pub mod measurement_probe {
++    pub struct Scope {
++        label: &'static str,
++        start: Option<std::time::Instant>,
++    }
++    impl Scope {
++        pub fn begin(label: &'static str, detail: impl FnOnce() -> String) -> Self {
++            let start = if std::env::var_os("OMEGA_RESOLUTION_MEASURE").is_some() {
++                eprintln!("RESMEASURE\t{:?}\tbegin\t{}\t{}", std::thread::current().id(), label, detail());
++                Some(std::time::Instant::now())
++            } else { None };
++            Self { label, start }
++        }
++    }
++    impl Drop for Scope {
++        fn drop(&mut self) {
++            if let Some(start) = self.start {
++                let elapsed = start.elapsed().as_nanos();
++                eprintln!("RESMEASURE\t{:?}\tend\t{}\t{}", std::thread::current().id(), self.label, elapsed);
++            }
++        }
++    }
++}
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs
+index e1774e8e14e..32878423500 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs
+@@ -898,6 +898,7 @@ impl SymbolResolvedTrees {
+     }
+ 
+     pub fn rebuild_tables(&mut self) {
++    let _measurement_scope = crate::measurement_probe::Scope::begin("resolved.rebuild_tables", || String::new());
+         let tables =
+             tables::SymbolResolvedTreeTables::from_symbol_resolved_trees_with_state_spans(self);
+         self.tables.bodies.expressions = tables.bodies.expressions;
+@@ -912,6 +913,7 @@ impl SymbolResolvedTrees {
+         predecessor: &Self,
+         completed_machines: &[symbols::SymbolHandle],
+     ) {
++    let _measurement_scope = crate::measurement_probe::Scope::begin("resolved.append_body_tables", || String::new());
+         let tables = tables::SymbolResolvedTreeTables::from_body_completion(
+             self,
+             predecessor,
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs
+index fe347b7cbf6..8f8c058bbfd 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs
+@@ -45,7 +45,7 @@ impl StoredAuthoredSelectionOccurrenceId {
+     }
+ }
+ 
+-#[derive(Debug, Clone, PartialEq, Eq)]
++#[derive(Debug, PartialEq, Eq)]
+ pub struct ExpressionTable {
+     nodes: ExpressionNodeStorage,
+     spans: ExpressionSpanStorage,
+@@ -824,3 +824,11 @@ pub enum MatchPattern {
+     #[default]
+     Wildcard,
+ }
++
++impl Clone for ExpressionTable {
++    fn clone(&self) -> Self {
++        let _measurement_scope = crate::measurement_probe::Scope::begin("resolved.expressions.clone", ||
++            format!("expressions={}", self.nodes.expressions.len()));
++        Self { nodes: self.nodes.clone(), spans: self.spans.clone() }
++    }
++}
+diff --git a/omega-rust/psi/compilation/representations/syntax-trees/src/lib.rs b/omega-rust/psi/compilation/representations/syntax-trees/src/lib.rs
+index c3b4cd82f26..824ab46e442 100644
+--- a/omega-rust/psi/compilation/representations/syntax-trees/src/lib.rs
++++ b/omega-rust/psi/compilation/representations/syntax-trees/src/lib.rs
+@@ -33,3 +33,28 @@ pub use syntax_trees::source_files::{ParsedRootItems, ParsedSource, ParsedSource
+ pub use syntax_trees::{SyntaxTreeRoots, SyntaxTreeTables, SyntaxTrees};
+ 
+ pub use syntax_trees::names::text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
++
++/// Temporary diagnostic instrumentation; removed from the retained compiler.
++pub mod measurement_probe {
++    pub struct Scope {
++        label: &'static str,
++        start: Option<std::time::Instant>,
++    }
++    impl Scope {
++        pub fn begin(label: &'static str, detail: impl FnOnce() -> String) -> Self {
++            let start = if std::env::var_os("OMEGA_RESOLUTION_MEASURE").is_some() {
++                eprintln!("RESMEASURE\t{:?}\tbegin\t{}\t{}", std::thread::current().id(), label, detail());
++                Some(std::time::Instant::now())
++            } else { None };
++            Self { label, start }
++        }
++    }
++    impl Drop for Scope {
++        fn drop(&mut self) {
++            if let Some(start) = self.start {
++                let elapsed = start.elapsed().as_nanos();
++                eprintln!("RESMEASURE\t{:?}\tend\t{}\t{}", std::thread::current().id(), self.label, elapsed);
++            }
++        }
++    }
++}
+diff --git a/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees.rs b/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees.rs
+index 58e826cf09f..ede4e49f432 100644
+--- a/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees.rs
++++ b/omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees.rs
+@@ -29,7 +29,7 @@ use crate::types::TypeReferenceTable;
+ use source::SourceId;
+ use std::ops::{Deref, DerefMut};
+ 
+-#[derive(Debug, Clone)]
++#[derive(Debug)]
+ pub struct SyntaxTrees {
+     pub source_id: SourceId,
+     pub roots: SyntaxTreeRoots,
+@@ -362,3 +362,11 @@ impl crate::SyntaxTextContext for SyntaxTrees {
+         self.text.source_text(source)
+     }
+ }
++
++impl Clone for SyntaxTrees {
++    fn clone(&self) -> Self {
++        let _measurement_scope = crate::measurement_probe::Scope::begin("syntax.clone", ||
++            format!("roots={} expressions={}", self.root_item_count(), self.expressions.iter_expressions().count()));
++        Self { source_id: self.source_id, roots: self.roots.clone(), tables: self.tables.clone() }
++    }
++}

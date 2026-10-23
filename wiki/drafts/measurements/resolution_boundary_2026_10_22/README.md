@@ -72,6 +72,11 @@ This is not evidence that every compiler boundary duplicates its entire input.
 The constructor-path string/split issue found during the earlier source audit
 is not measured here and remains part of the separate layer-0 investigation.
 
+The [placed-result discovery follow-up](placed_discovery/README.md) measures the
+consumed output and rejects unconditional removal: ordinary workloads produce
+no selections, while returned/forwarded placed views lose invocation locations
+needed by placement admission despite retaining identical native bytes.
+
 ## Quality and producer evidence
 
 - All 12 compile observations exit 0, and their published native programs each

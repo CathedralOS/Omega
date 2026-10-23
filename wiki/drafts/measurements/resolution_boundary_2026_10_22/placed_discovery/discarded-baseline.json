@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolution-measurement/omega-baseline",
+    "run",
+    "--both",
+    "wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/witnesses/discarded_result/main.omg"
+  ],
+  "exit": 200,
+  "stdout": "",
+  "stderr": "native compile FAILED:\n  error: cannot compile accepted package inputs: checked compilation failed for package `discarded_placed_result` with 1 diagnostic(s)\n  error: call to `view` discards its non-unit `&Placed<StablePlacement, Value>` result; consume the value or discard it explicitly with `_ = view(...);`\n    in package `discarded_placed_result`, /Users/jarod/.codex/worktrees/resolution-measurement/Omega/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/witnesses/discarded_result/main.omg:29:13\n",
+  "source_sha256": "58621171f06fcbabdb013427fba54d174546d27c5654c0ea3bdf341f01641b26"
+}

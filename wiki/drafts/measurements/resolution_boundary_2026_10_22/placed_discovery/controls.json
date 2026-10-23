@@ -1,0 +1,80 @@
+[
+  {
+    "subject": "returned",
+    "mode": "baseline",
+    "command": [
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolution-measurement/omega-baseline",
+      "run",
+      "--both",
+      "tests/omega/pass/layouts/placed_reference_results/returned/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "subject": "returned",
+    "mode": "full",
+    "command": [
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/placed-discovery/omega-instrumented",
+      "run",
+      "--both",
+      "tests/omega/pass/layouts/placed_reference_results/returned/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "subject": "returned",
+    "mode": "skip",
+    "command": [
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/placed-discovery/omega-instrumented",
+      "run",
+      "--both",
+      "tests/omega/pass/layouts/placed_reference_results/returned/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "subject": "forwarded",
+    "mode": "baseline",
+    "command": [
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/resolution-measurement/omega-baseline",
+      "run",
+      "--both",
+      "tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "subject": "forwarded",
+    "mode": "full",
+    "command": [
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/placed-discovery/omega-instrumented",
+      "run",
+      "--both",
+      "tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "subject": "forwarded",
+    "mode": "skip",
+    "command": [
+      "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/build/placed-discovery/omega-instrumented",
+      "run",
+      "--both",
+      "tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  }
+]
