@@ -67,12 +67,36 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 39: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+
+### Pinned Fixtures
+
+All nine positive places and nine reject twins are pinned as canonical corpus fixtures:
+- **Pass fixtures** (`tests/omega/pass/facts/`):
+  - `twenty_variant_enum_payload_bound_through_local_exit/`
+  - `twenty_variant_enum_payload_bound_through_field_exit/`
+  - `twenty_variant_enum_payload_bound_through_parameter_exit/`
+  - `twenty_variant_enum_payload_bound_through_call_result_exit/`
+  - `twenty_variant_enum_payload_bound_through_match_join_exit/`
+  - `twenty_variant_enum_payload_bound_through_const_name_exit/`
+  - `twenty_variant_enum_payload_bound_through_other_state_exit/`
+  - `twenty_variant_enum_payload_bound_through_other_machine_exit/`
+  - `twenty_variant_enum_payload_bound_through_target_body_exit/`
+- **Fail fixtures** (`tests/omega/fail/facts/`):
+  - `twenty_variant_enum_payload_bound_through_local_rejected/`
+  - `twenty_variant_enum_payload_bound_through_field_rejected/`
+  - `twenty_variant_enum_payload_bound_through_parameter_rejected/`
+  - `twenty_variant_enum_payload_bound_through_call_result_rejected/`
+  - `twenty_variant_enum_payload_bound_through_match_join_rejected/`
+  - `twenty_variant_enum_payload_bound_through_const_name_rejected/`
+  - `twenty_variant_enum_payload_bound_through_other_state_rejected/`
+  - `twenty_variant_enum_payload_bound_through_other_machine_rejected/`
+  - `twenty_variant_enum_payload_bound_through_target_body_rejected/`
 
 ## Requirements and Evidence (AGENTS.md)
 
@@ -84,4 +108,6 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 20-variant tagged enum `TwentyChoice` with a 1-byte discriminant tag (`u8` range 0..19) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 20-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Verification Evidence**: macOS arm64 at revision `9b001b8f6af` with generation producer `gen-9b001b8f6af` (`omega` sha256 `6d24393125b7847b2f46…`, opt-level 1): `omega run --both` exits 0 with `native exit 0` and `interp exit: 0` for the root and all nine places (10/10). All nine reject twins fail checked compilation carrying their authored fragments: `cannot prove requires contract for call verify_payload / consume / choose / forward_payload from probe:` (`from target_probe` for `target_body`) and `cannot prove ensures contract for exit from extract_payload at statement 39: result >= 40 && result <= 80`.
+- **Pinned Fixtures**: the nine pass fixtures and nine reject twins listed above are pinned under `tests/omega/{pass,fail}/facts/`; three golden legs are recorded for all 18 fixtures.
+- **Remaining Open**: none for this fact row; other variant counts and payload widths belong to their own fact folders.
