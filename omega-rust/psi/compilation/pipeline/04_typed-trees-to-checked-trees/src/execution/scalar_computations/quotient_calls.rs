@@ -29,16 +29,12 @@ impl Builder<'_, '_> {
             return None;
         }
         let receiver_value = self.quotient_call_value(expression, result_type)?;
-        self.structural_values
-            .roots
-            .append(checked_trees::CheckedStructuralValueRoot {
-                machine: self.machine,
-                state: self.state,
-                statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                expression,
-                type_reference: result_type,
-                root: receiver_value,
-            });
+        self.retain_structural_root(
+            u32::try_from(self.statement_index).ok()?,
+            expression,
+            result_type,
+            receiver_value,
+        );
         Some(self.insert(expected, checked_trees::CheckedScalarComputationKind::StructuralField {
             atomic_ordering: None,
             result_type,

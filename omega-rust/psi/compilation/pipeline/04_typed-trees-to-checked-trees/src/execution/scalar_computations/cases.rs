@@ -1,10 +1,7 @@
 //! Constructor payloads use the ordinary operand graph before tag observation.
 //! The same dynamic field computations retain their calls, traps and selected
 //! operators; knowing the constructed case does not erase their evaluation.
-use super::{
-    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
-    PrimitiveType,
-};
+use super::{Builder, CheckedScalarComputationHandle, ExpressionHandle, PrimitiveType};
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
     CheckedScalarComputationStructuralArgument,
@@ -44,15 +41,12 @@ impl Builder<'_, '_> {
             } else {
                 checked_trees::CheckedStructuralValueHandle::invalid()
             };
-            return Some(self.insert(
-                PrimitiveType::Bool,
-                CheckedScalarComputationKind::CaseMembership {
-                    receiver_value,
-                    source_expression: expression,
-                    completion_expression: expression,
-                    subject: CheckedScalarComputationStructuralArgument::Place(subject),
-                    case,
-                },
+            return Some(self.publish_case_membership(
+                expression,
+                expression,
+                receiver_value,
+                CheckedScalarComputationStructuralArgument::Place(subject),
+                case,
             ));
         }
         // A computed subject (`choose(flag) in Choice::Some`) is observed
@@ -66,15 +60,12 @@ impl Builder<'_, '_> {
             return self.computed_case_membership(expression, binary.left, case);
         }
         let constructor = self.case_construction(binary.left)?;
-        Some(self.insert(
-            PrimitiveType::Bool,
-            CheckedScalarComputationKind::CaseMembership {
-                receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-                source_expression: expression,
-                completion_expression: expression,
-                subject: CheckedScalarComputationStructuralArgument::Case(constructor),
-                case,
-            },
+        Some(self.publish_case_membership(
+            expression,
+            expression,
+            checked_trees::CheckedStructuralValueHandle::invalid(),
+            CheckedScalarComputationStructuralArgument::Case(constructor),
+            case,
         ))
     }
 

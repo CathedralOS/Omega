@@ -121,26 +121,12 @@ impl Builder<'_, '_> {
             .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
             {
                 authority_value = self.structural_value(call.receiver, reference)?;
-                if self
-                    .structural_values
-                    .root_for_expression(
-                        self.state,
-                        u32::try_from(self.statement_index).ok()?,
-                        call.receiver,
-                    )
-                    .is_none()
-                {
-                    self.structural_values.roots.append(
-                        checked_trees::CheckedStructuralValueRoot {
-                            machine: self.machine,
-                            state: self.state,
-                            statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                            expression: call.receiver,
-                            type_reference: reference,
-                            root: authority_value,
-                        },
-                    );
-                }
+                self.retain_structural_root(
+                    u32::try_from(self.statement_index).ok()?,
+                    call.receiver,
+                    reference,
+                    authority_value,
+                );
             }
         }
         let operands = program

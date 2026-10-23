@@ -142,7 +142,11 @@ impl Builder<'_, '_> {
 
     /// Publish the exact completed value independently of its containing home.
     /// A projected observer needs both associations: the whole owner supplies
-    /// custody, while the selected value supplies its own shape and type.
+    /// custody, while the selected value supplies its own shape and type. The
+    /// check refuses a coordinate already holding another value, machine or
+    /// contract; publishing itself is the one operation that keeps an
+    /// association, so an absent coordinate is filled by `retain_structural_root`
+    /// rather than by a second append here.
     pub(super) fn retain_structural_value_root(
         &mut self,
         value: CheckedStructuralValueHandle,
@@ -165,16 +169,7 @@ impl Builder<'_, '_> {
                 return None;
             }
         } else {
-            self.structural_values
-                .roots
-                .append(checked_trees::CheckedStructuralValueRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: statement,
-                    expression,
-                    type_reference: reference,
-                    root: value,
-                });
+            self.retain_structural_root(statement, expression, reference, value);
         }
         Some(())
     }

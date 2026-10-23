@@ -151,13 +151,7 @@ impl Builder<'_, '_> {
         self.call_ordinal(operand, call_target)?;
         let value = self.structural_value(operand, target)?;
         let ordinal = u32::try_from(self.statement_index).ok()?;
-        if self
-            .structural_values
-            .root_for_expression(self.state, ordinal, operand)
-            .is_none()
-        {
-            self.push_structural_root(ordinal, operand, target, value);
-        }
+        self.retain_structural_root(ordinal, operand, target, value);
         Some(CheckedUnitStructuralArgumentPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression: operand,

@@ -80,13 +80,6 @@ pub(super) fn zeroed_integer_literal(
     })
 }
 
-/// The terminal expression carrying a projection's storage: the whole local
-/// name for an owned place source, or the producing call for a structural
-/// product source.
-
-/// Existing storage transfers through the call's canonical source identity.
-/// Copies and evaluated descriptors establish values; a whole-place transfer
-/// must not acquire another result identity or another ownership event.
 /// Existing storage transfers through the call's canonical source identity.
 /// Copies and evaluated descriptors establish values; a whole-place transfer
 /// must not acquire another result identity or another ownership event.

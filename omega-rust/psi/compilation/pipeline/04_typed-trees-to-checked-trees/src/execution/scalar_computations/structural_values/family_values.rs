@@ -40,9 +40,6 @@ impl Builder<'_, '_> {
     /// literal. Lowering establishes the whole roster as one scalar array, so
     /// the array contributes no element custody of its own. Constant-array
     /// projections retain their exact builtin indexing selection.
-    /// Element-wise array literal establishment: each element registers as
-    /// its own structural value under the declared element type, exactly as
-    /// record fields do inside a constructor.
     pub(super) fn scalar_array_value(
         &mut self,
         expression: ExpressionHandle,

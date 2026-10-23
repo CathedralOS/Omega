@@ -292,15 +292,12 @@ impl Builder<'_, '_> {
                 if !case.is_valid() {
                     return None;
                 }
-                self.insert(
-                    PrimitiveType::Bool,
-                    CheckedScalarComputationKind::CaseMembership {
-                        source_expression: expression,
-                        completion_expression: ExpressionHandle::invalid(),
-                        receiver_value: *receiver,
-                        subject: CheckedScalarComputationStructuralArgument::Place(place.clone()),
-                        case,
-                    },
+                self.publish_case_membership(
+                    expression,
+                    ExpressionHandle::invalid(),
+                    *receiver,
+                    CheckedScalarComputationStructuralArgument::Place(place.clone()),
+                    case,
                 )
             }
             MatchPattern::Wildcard => return None,

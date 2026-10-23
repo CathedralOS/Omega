@@ -98,19 +98,16 @@ impl Builder<'_, '_> {
             _ => None,
         };
         if let Some((subject, case)) = known_case {
-            let membership = self.insert(
-                PrimitiveType::Bool,
-                CheckedScalarComputationKind::CaseMembership {
-                    receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-                    source_expression: expression,
-                    completion_expression: if unequal {
-                        ExpressionHandle::invalid()
-                    } else {
-                        expression
-                    },
-                    subject,
-                    case,
+            let membership = self.publish_case_membership(
+                expression,
+                if unequal {
+                    ExpressionHandle::invalid()
+                } else {
+                    expression
                 },
+                checked_trees::CheckedStructuralValueHandle::invalid(),
+                subject,
+                case,
             );
             if !unequal {
                 return Some(membership);
@@ -184,15 +181,12 @@ impl Builder<'_, '_> {
             CheckedScalarComputationStructuralArgument::Case(constructor) => {
                 self.boolean(constructor.case == case)
             }
-            _ => self.insert(
-                PrimitiveType::Bool,
-                CheckedScalarComputationKind::CaseMembership {
-                    receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-                    source_expression: expression,
-                    completion_expression: ExpressionHandle::invalid(),
-                    subject: subject.clone(),
-                    case,
-                },
+            _ => self.publish_case_membership(
+                expression,
+                ExpressionHandle::invalid(),
+                checked_trees::CheckedStructuralValueHandle::invalid(),
+                subject.clone(),
+                case,
             ),
         }
     }
@@ -273,18 +267,18 @@ impl Builder<'_, '_> {
             return None;
         }
         let receiver_value = self.retain_structural_argument(expression, returned)?;
-        Some(self.insert(PrimitiveType::Bool, CheckedScalarComputationKind::CaseMembership {
+        Some(self.publish_case_membership(
             source_expression,
-            completion_expression: source_expression,
+            source_expression,
             receiver_value,
-            subject: CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+            CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
                 path: Vec::new(),
                 type_identity: self.program.normalized_type_identity(returned),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             }),
             case,
-        }))
+        ))
     }
 
     fn enum_operand(

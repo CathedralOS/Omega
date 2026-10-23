@@ -228,7 +228,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
                 {
-                    builder.push_structural_root(statement_ordinal, expression, expected, root);
+                    builder.retain_structural_root(statement_ordinal, expression, expected, root);
                 }
                 // An uninitialized local of a zero-constructible
                 // type mints its establishment here: the whole declared
@@ -266,7 +266,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             },
                         },
                     );
-                    builder.push_structural_root(
+                    builder.retain_structural_root(
                         statement_ordinal,
                         local.initial_value,
                         local.type_reference,
@@ -483,7 +483,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         && program.primitive_type_reference(expected).is_none()
                         && let Some(root) = builder.structural_value(assignment.value, expected)
                     {
-                        builder.push_structural_root(
+                        builder.retain_structural_root(
                             statement_ordinal,
                             assignment.value,
                             expected,
@@ -662,7 +662,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             .is_none()
                         && let Some(root) = builder.structural_value(*expression, state.return_type)
                     {
-                        builder.push_structural_root(
+                        builder.retain_structural_root(
                             statement_ordinal,
                             *expression,
                             state.return_type,

@@ -15,7 +15,8 @@ use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationPlans, CheckedScalarComputationRoot, CheckedStructuralValueHandle,
+    CheckedScalarComputationPlans, CheckedScalarComputationRoot,
+    CheckedScalarComputationStructuralArgument, CheckedStructuralValueHandle,
     CheckedStructuralValueRoot, FlowFacts,
 };
 use numerics::arithmetic::ArithmeticDomain;
@@ -211,13 +212,25 @@ impl Builder<'_, '_> {
         ))
     }
 
-    pub(super) fn push_structural_root(
+    /// Associate an expression with the structural value established for it
+    /// at one statement. Re-publishing an association is idempotent: the
+    /// first root stays the one consumers resolve, because
+    /// `root_for_expression` refuses an ambiguous coordinate and an appended
+    /// second root would hide the association instead of replacing it.
+    pub(super) fn retain_structural_root(
         &mut self,
         statement_ordinal: u32,
         expression: ExpressionHandle,
         type_reference: TypeReferenceHandle,
         root: CheckedStructuralValueHandle,
     ) {
+        if self
+            .structural_values
+            .root_for_expression(self.state, statement_ordinal, expression)
+            .is_some()
+        {
+            return;
+        }
         self.structural_values
             .roots
             .append(CheckedStructuralValueRoot {
@@ -339,6 +352,33 @@ impl Builder<'_, '_> {
                     })),
                 )),
                 operands,
+            },
+        )
+    }
+
+    /// One Boolean tag observation of an established subject: the checked
+    /// case-membership operation. The subject is the completed operand the
+    /// authoring site resolved (a place argument, or the case construction it
+    /// established); `receiver_value` is the evaluated owner when one was
+    /// retained ahead of the read, and no receiver for an already-stored
+    /// place; `completion_expression` is the authored occurrence whose value
+    /// the observation completes, and none where the arm cannot complete it.
+    pub(super) fn publish_case_membership(
+        &mut self,
+        source_expression: ExpressionHandle,
+        completion_expression: ExpressionHandle,
+        receiver_value: CheckedStructuralValueHandle,
+        subject: CheckedScalarComputationStructuralArgument,
+        case: SymbolHandle,
+    ) -> CheckedScalarComputationHandle {
+        self.insert(
+            PrimitiveType::Bool,
+            CheckedScalarComputationKind::CaseMembership {
+                source_expression,
+                completion_expression,
+                receiver_value,
+                subject,
+                case,
             },
         )
     }

@@ -367,27 +367,7 @@ impl Builder<'_, '_> {
             // establish those domains anew. Whole transfer preserves cleanup.
             // Shared descriptor leaves keep their loans without owning the backing;
             // neither transport grants no-code disposal of the moved value.
-            || !(validation::has_contents(
-        self.program,
-        expected,
-        &[],
-        validation::ContentsRequirement::StructuralConstruction
-    )
-                    || validation::has_contents(
-        self.program,
-        expected,
-        &[],
-        validation::ContentsRequirement::LinearOwned
-    )
-                || validation::has_contents(
-        self.program,
-        expected,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    )
-                || validation::reference_result_custody::is_reference_record(self.program, expected)
-                || validation::reference_result_custody::stored_loan_parts(self.program, expected).is_some()
-                || validation::borrowed_slice_view_result(self.program, expected))
+            || !names_owned_structural_value(self.program, expected)
         {
             return None;
         }
@@ -441,30 +421,7 @@ impl Builder<'_, '_> {
         // Keep reference descriptors and representation-bearing shells exact.
         if validation::stored_structural_type_identity(self.program, reference, &[], &[])
             != validation::stored_structural_type_identity(self.program, expected, &[], &[])
-            || !(validation::has_contents(
-                self.program,
-                reference,
-                &[],
-                validation::ContentsRequirement::StructuralConstruction,
-            ) || validation::has_contents(
-                self.program,
-                reference,
-                &[],
-                validation::ContentsRequirement::LinearOwned,
-            ) || validation::has_contents(
-                self.program,
-                reference,
-                &[],
-                validation::ContentsRequirement::OwnedOrSharedView,
-            ) || validation::reference_result_custody::is_reference_record(
-                self.program,
-                reference,
-            ) || validation::reference_result_custody::stored_loan_parts(
-                self.program,
-                reference,
-            )
-            .is_some()
-                || validation::borrowed_slice_view_result(self.program, reference))
+            || !names_owned_structural_value(self.program, reference)
         {
             return None;
         }
@@ -481,4 +438,32 @@ impl Builder<'_, '_> {
             access: checked_trees::CheckedStructuralAccess::Owned,
         })
     }
+}
+
+/// A declaration that names a completed structural value this transfer owns
+/// directly: a construction, linear owner or view, a stored reference
+/// descriptor or loan, or a borrowed slice view. Membership here is the
+/// authored declaration's shape, never a source spelling or a scalar lane.
+fn names_owned_structural_value(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    validation::has_contents(
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction,
+    ) || validation::has_contents(
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::LinearOwned,
+    ) || validation::has_contents(
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView,
+    ) || validation::reference_result_custody::is_reference_record(program, reference)
+        || validation::reference_result_custody::stored_loan_parts(program, reference).is_some()
+        || validation::borrowed_slice_view_result(program, reference)
 }

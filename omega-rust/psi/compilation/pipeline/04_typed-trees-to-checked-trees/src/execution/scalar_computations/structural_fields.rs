@@ -82,13 +82,7 @@ impl Builder<'_, '_> {
         let reference = observation.type_reference;
         let receiver_value = self.structural_value(expression, reference)?;
         let statement = u32::try_from(self.statement_index).ok()?;
-        if self
-            .structural_values
-            .root_for_expression(self.state, statement, expression)
-            .is_none()
-        {
-            self.push_structural_root(statement, expression, reference, receiver_value);
-        }
+        self.retain_structural_root(statement, expression, reference, receiver_value);
         Some(self.insert(
             expected,
             CheckedScalarComputationKind::StructuralField {
@@ -253,22 +247,12 @@ impl Builder<'_, '_> {
         let receiver_value = if field.receiver_value.is_valid() {
             let value = self.structural_value(field.receiver_value, field.type_reference)?;
             let statement = u32::try_from(self.statement_index).ok()?;
-            if self
-                .structural_values
-                .root_for_expression(self.state, statement, field.receiver_value)
-                .is_none()
-            {
-                self.structural_values
-                    .roots
-                    .append(checked_trees::CheckedStructuralValueRoot {
-                        machine: self.machine,
-                        state: self.state,
-                        statement_ordinal: statement,
-                        expression: field.receiver_value,
-                        type_reference: field.type_reference,
-                        root: value,
-                    });
-            }
+            self.retain_structural_root(
+                statement,
+                field.receiver_value,
+                field.type_reference,
+                value,
+            );
             value
         } else {
             checked_trees::CheckedStructuralValueHandle::invalid()
