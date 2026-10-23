@@ -70,10 +70,25 @@ Measured on base `9ff26a870215` with the shared wave producer
 - `omega --check` on the nine `invalid/` twins: 9/9 exit 1, each with the verbatim diagnostic pinned above.
 - `python3 tools/sample_gate.py --filter cli/facts/case_payload_exclusive_loan,cli/facts/loop_branch_relaxation_ranking --cli <producer> --write-results …`: 38/38 check on Darwin arm64, 18 intended-invalid controls matched.
 
-Two native-leg rows are recorded after the repair described below:
+The repair (`302bfaad6d4`) and this row's fixtures (`5457f73d3ed`) landed inside
+revision `4fba1ca3cd5a`. The landing rebases re-measured the row at every base
+main moved to; at the landed revision, `omega` and the `corpus_runner` built
+from that same revision re-ran the acceptance and recorded all three corpus
+legs there (each leg exited 0; every row is stamped `@4fba1ca3cd5a`):
 
-- `python3 tools/corpus_gate.py --record --filter facts/case_payload_exclusive_loan` — 18 rows spliced (9 `checked` with `check-target:macos_arm64`, 9 `rejected ... expected`).
-- `python3 tools/corpus_gate.py --native --record --filter facts/case_payload_exclusive_loan` — 9 `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`.
+- `omega run --both` on the root `main.omg` and the nine places: 10/10
+  `native exit 0` with `interp exit: 0`; `omega --check` on the nine twins:
+  9/9 exit 1; the sample gate above re-ran 38/38 with 18 controls matched.
+- `python3 tools/corpus_gate.py --runner <r> --filter facts/case_payload_exclusive_loan --record`
+  — 18 rows in `tests/omega/corpus_outcomes.txt`: nine `checked` with
+  `check-target:macos_arm64` and nine `rejected ... expected` carrying the
+  per-place diagnostics above.
+- `python3 tools/corpus_gate.py --runner <r> --native --filter facts/case_payload_exclusive_loan --record`
+  — nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`
+  (`executed 9 (exit codes {'0': 9})`).
+- `python3 tools/corpus_gate.py --runner <r> --both --filter facts/case_payload_exclusive_loan --record`
+  — nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in
+  `tests/omega/corpus_both_macos_arm64.txt`.
 
 ### Repair: a state's own reference handed to a call
 
