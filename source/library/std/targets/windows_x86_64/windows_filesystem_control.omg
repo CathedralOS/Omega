@@ -131,6 +131,21 @@ reaches FilesystemNamespaceMutation {
         _ -> (-87)
     }
 }
+windows_x86_64 machine WindowsFilesystemNativeProvider::hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
+satisfies WindowsFilesystemHost::hard_link
+reaches FilesystemNamespaceMutation {
+    let mut wide_original: [u16; 4096];
+    let mut wide_link: [u16; 4096];
+    let original_count: i64 = windows_wide_path(original, &mut wide_original);
+    wide_original[4095] = 0;
+    let link_count: i64 = windows_wide_path(link, &mut wide_link);
+    wide_link[4095] = 0;
+    transition original_count > 0 && link_count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(block WindowsFilesystemIo::c_hard_link(&wide_link, &wide_original, 0)))
+        false -> (-87)
+    }
+}
+
 // FILETIME is two little-endian DWORDs, not an arbitrary borrowed Omega u64.
 // Encode the public by-value timestamps into their native records before
 // lending them. A forwarded shared scalar loan may describe narrower storage;

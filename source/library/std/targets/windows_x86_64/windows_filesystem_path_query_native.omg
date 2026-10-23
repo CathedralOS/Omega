@@ -1,0 +1,56 @@
+// Native path queries borrow complete fixed buffers. UTF-16 units and UTF-8
+// bytes are separate extents; strict conversion rejects unpaired surrogates
+// instead of replacing a pathname with a different spelling.
+// The converter specializes its array capacities statically, so reparse data
+// can use its full native bound without adding another width-specific import.
+// https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
+// https://learn.microsoft.com/windows/win32/api/stringapiset/nf-stringapiset-widechartomultibyte
+use omega::language::core::external_binding;
+use omega::language::core::filesystem_authority;
+
+data WindowsFilesystemPathImports {}
+
+boundary trait WindowsFilesystemPathIo {
+    machine final_path(handle: i64, output: &mut [u16; 4096], capacity: u32, flags: u32) -> u32
+    requires handle != 0 && handle != -1 && capacity == 4096 && flags == 0
+    reaches FilesystemMetadataQuery blocks;
+}
+
+// This single generic requirement selects its exact bodyless satisfier through
+// the ordinary provider closure. No checked wrapper calls a specialized opaque
+// realization directly or adds a second, independently selectable converter.
+boundary trait WindowsFilesystemUtf8Io {
+    machine utf8<const Units: u64, const Bytes: u64>(code_page: u32, flags: u32, source: &[u16; Units], characters: i32,
+        output: &mut [u8; Bytes], capacity: i32, default_character: u64, used_default: u64) -> i32
+    requires code_page == 65001 && flags == 128 && characters > 0 && characters <= Units
+        && capacity > 0 && capacity <= Bytes && default_character == 0 && used_default == 0;
+}
+
+windows_x86_64 machine windows_final_path_binding() -> ForeignBinding<12, 25, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetFinalPathNameByHandleW"
+    } }
+}
+windows_x86_64 machine windows_path_utf8_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "WideCharToMultiByte"
+    } }
+}
+
+windows_x86_64 machine WindowsFilesystemPathImports::final_path(handle: i64, output: &mut [u16; 4096], capacity: u32, flags: u32) -> u32
+satisfies WindowsFilesystemPathIo::final_path via windows_final_path_binding()
+requires handle != 0 && handle != -1 && capacity == 4096 && flags == 0
+blocks;
+windows_x86_64 machine WindowsFilesystemPathImports::utf8<const Units: u64, const Bytes: u64>(code_page: u32, flags: u32,
+    source: &[u16; Units], characters: i32, output: &mut [u8; Bytes], capacity: i32,
+    default_character: u64, used_default: u64) -> i32
+satisfies WindowsFilesystemUtf8Io::utf8 via windows_path_utf8_binding()
+requires code_page == 65001 && flags == 128 && characters > 0 && characters <= Units
+    && capacity > 0 && capacity <= Bytes && default_character == 0 && used_default == 0;
+
+NativeWindowsFilesystemPathImports satisfies WindowsFilesystemPathIo {
+    machine final_path(handle: i64, output: &mut [u16; 4096], capacity: u32, flags: u32) -> u32
+    requires handle != 0 && handle != -1 && capacity == 4096 && flags == 0
+    reaches FilesystemMetadataQuery blocks;
+    { block WindowsFilesystemPathImports::final_path(handle, output, capacity, flags) }
+}

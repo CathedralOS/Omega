@@ -10,11 +10,10 @@ after creating, writing, inspecting, reading, renaming and removing the file
 and its directory. macOS ARM64 and both Linux targets select the POSIX portable
 provider; matching-host execution remains separate evidence.
 
-Windows currently refuses `omega run --target windows_x86_64 main.omg` because
-no complete `FilesystemService` provider is selected. The raw Windows family
-alone does not satisfy that portable requirement. This remains under
-**FILESYSTEM-PLATFORM-SERVICES**; producing a Windows image will not establish
-the exit-7 oracle without execution on Windows.
+Windows selects the portable provider over its retained raw-family closure.
+Cross-production supplies a Windows image, not evidence of the exit-7 oracle:
+native Windows execution remains under **FILESYSTEM-PLATFORM-SERVICES** and
+requires a Windows runner, unavailable on the current macOS host.
 
 The authored `/tmp/omega_journal_dir` is rooted, not relative to the working
 directory. A Windows runner must explicitly provision a writable `\tmp` on

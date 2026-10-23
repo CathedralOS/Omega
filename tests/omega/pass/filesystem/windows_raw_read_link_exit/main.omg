@@ -1,0 +1,158 @@
+// Expected exit: 70 (Windows only). Needs Windows Developer Mode (or an
+// authorized symlink-creation token) for fixture setup; never skips that setup.
+// Read dangling relative/absolute targets without following them, return a
+// byte prefix without NUL, and validate all Unicode before copying any prefix.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::external_binding;
+use omega::language::core::filesystem_authority;
+
+domain [u16; 19]::FixtureLink(path) requires path[18] == 0;
+domain [u16; 64]::FixtureTarget(path) requires path[63] == 0;
+
+// Independent, fixture-only setup. Windows requires file/directory intent;
+// the portable generic symlink operation cannot infer that intent. BOOLEAN is
+// an eight-bit result, not Win32's four-byte BOOL.
+boundary trait FixtureSymlink {
+    machine create(link: &[u16; 19] in FixtureLink, target: &[u16; 64] in FixtureTarget, flags: u32) -> u8
+    requires flags == 2
+    reaches FilesystemNamespaceMutation blocks;
+}
+windows_x86_64 machine fixture_symlink_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "CreateSymbolicLinkW"
+    } }
+}
+windows_x86_64 machine fixture_symlink(link: &[u16; 19] in FixtureLink, target: &[u16; 64] in FixtureTarget, flags: u32) -> u8
+satisfies FixtureSymlink::create via fixture_symlink_binding()
+requires flags == 2
+blocks;
+
+data Main { buffer: [u8; 64]; }
+machine Main::main(main: &mut Main)
+reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + FilesystemMetadataQuery {
+    let stale: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
+    let link: [u16; 19] in FixtureLink = fixture_link();
+    let target: [u16; 64] in FixtureTarget = relative_target();
+    let created: u8 = block FixtureSymlink::create(&link, &target, 2);
+    transition created != 0 { true -> relative(main) false -> finish(main, 71) }
+    state relative(main: &mut Main) {
+        main.buffer[12] = 176;
+        main.buffer[63] = 175;
+        let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 64);
+        transition count == 12 && main.buffer[0] == 109 && main.buffer[1] == 105
+            && main.buffer[6] == 103 && main.buffer[7] == 92 && main.buffer[8] == 240
+            && main.buffer[9] == 157 && main.buffer[10] == 132 && main.buffer[11] == 158
+            && main.buffer[12] == 176 && main.buffer[63] == 175 {
+            true -> prefix(main)
+            false -> finish(main, 72)
+        }
+    }
+    state prefix(main: &mut Main) {
+        main.buffer[0] = 173;
+        main.buffer[10] = 177;
+        let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 10);
+        transition count == 10 && main.buffer[0] == 109 && main.buffer[8] == 240
+            && main.buffer[9] == 157 && main.buffer[10] == 177 {
+            true -> arguments(main)
+            false -> finish(main, 73)
+        }
+    }
+    state arguments(main: &mut Main) {
+        main.buffer[0] = 178;
+        let zero: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 0);
+        let missing_zero: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_missing", &mut main.buffer, 0);
+        let oversized: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 65);
+        transition zero == -87 && missing_zero == -87 && oversized == -87 && main.buffer[0] == 178 {
+            true -> missing(main)
+            false -> finish(main, 74)
+        }
+    }
+    state missing(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_missing", &mut main.buffer, 64);
+        transition count < 0 && main.buffer[0] == 178 { true -> plain(main) false -> finish(main, 75) }
+    }
+    state plain(main: &mut Main) {
+        let stale: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_readlink_plain");
+        let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_readlink_plain");
+        transition created == 0 { true -> refuse_plain(main) false -> finish(main, 76) }
+    }
+    state refuse_plain(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_plain", &mut main.buffer, 64);
+        let zero: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink_plain", &mut main.buffer, 0);
+        let removed: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_readlink_plain");
+        transition count < 0 && zero == -87 && removed == 0 && main.buffer[0] == 178 {
+            true -> absolute_link(main)
+            false -> finish(main, 77)
+        }
+    }
+    state absolute_link(main: &mut Main) {
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
+        let link: [u16; 19] in FixtureLink = fixture_link();
+        let target: [u16; 64] in FixtureTarget = absolute_target();
+        let created: u8 = block FixtureSymlink::create(&link, &target, 2);
+        transition removed == 0 && created != 0 { true -> absolute(main) false -> finish(main, 78) }
+    }
+    state absolute(main: &mut Main) {
+        main.buffer[20] = 179;
+        let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 64);
+        transition count == 20 && main.buffer[0] == 92 && main.buffer[1] == 92
+            && main.buffer[2] == 63 && main.buffer[3] == 92 && main.buffer[4] == 67
+            && main.buffer[5] == 58 && main.buffer[6] == 92 && main.buffer[7] == 111
+            && main.buffer[12] == 95 && main.buffer[19] == 103 && main.buffer[20] == 179 {
+            true -> malformed_link(main)
+            false -> finish(main, 79)
+        }
+    }
+    state malformed_link(main: &mut Main) {
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
+        let link: [u16; 19] in FixtureLink = fixture_link();
+        let target: [u16; 64] in FixtureTarget = malformed_target();
+        let created: u8 = block FixtureSymlink::create(&link, &target, 2);
+        transition removed == 0 && created != 0 { true -> malformed(main) false -> finish(main, 80) }
+    }
+    state malformed(main: &mut Main) {
+        main.buffer[0] = 180;
+        // The invalid surrogate lies beyond the requested one-byte prefix.
+        // Copying a prefix before validating the whole target would pass it.
+        let count: i64 = block WindowsFilesystemHost::read_link("omega_raw_readlink", &mut main.buffer, 1);
+        transition count == -1113 && main.buffer[0] == 180 { true -> finish(main, 70) false -> finish(main, 81) }
+    }
+    state finish(main: &mut Main, code: i32) {
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_readlink");
+        let plain: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_readlink_plain");
+        transition code != 70 { true -> done(code) false -> cleanup(removed) }
+    }
+    state cleanup(removed: i32) {
+        transition removed == 0 { true -> done(70) false -> done(82) }
+    }
+    state done(code: i32) { Console::exit_process(code); }
+}
+
+machine fixture_link() -> [u16; 19] in FixtureLink {
+    [111u16, 109u16, 101u16, 103u16, 97u16, 95u16, 114u16, 97u16, 119u16,
+        95u16, 114u16, 101u16, 97u16, 100u16, 108u16, 105u16, 110u16, 107u16, 0u16]
+}
+machine relative_target() -> [u16; 64] in FixtureTarget {
+    let mut target: [u16; 64];
+    target[0] = 109; target[1] = 105; target[2] = 115; target[3] = 115;
+    target[4] = 105; target[5] = 110; target[6] = 103; target[7] = 92;
+    target[8] = 55348; target[9] = 56606;
+    target[63] = 0;
+    target
+}
+machine absolute_target() -> [u16; 64] in FixtureTarget {
+    let mut target: [u16; 64];
+    target[0] = 67; target[1] = 58; target[2] = 92; target[3] = 111;
+    target[4] = 109; target[5] = 101; target[6] = 103; target[7] = 97;
+    target[8] = 95; target[9] = 109; target[10] = 105; target[11] = 115;
+    target[12] = 115; target[13] = 105; target[14] = 110; target[15] = 103;
+    target[63] = 0;
+    target
+}
+machine malformed_target() -> [u16; 64] in FixtureTarget {
+    let mut target: [u16; 64];
+    target[0] = 97; target[1] = 98; target[2] = 99; target[3] = 55296;
+    target[63] = 0;
+    target
+}

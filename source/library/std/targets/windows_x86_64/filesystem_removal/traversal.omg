@@ -1,0 +1,181 @@
+// Depth-first deletion retains opened directory objects in invocation-owned
+// storage. A native name opens relative to its retained parent; only actual
+// opened-object attributes authorize descent. Reparse objects remain leaves.
+// Clear a slot before disposing or unwinding it, so even a failed close is
+// attempted exactly once. No work budget silently cuts off wide directories.
+// The finite handle stack fails explicitly with ERROR_NOT_ENOUGH_MEMORY.
+use omega::language::core::filesystem_authority;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_private_handles;
+use targets::windows_x86_64::windows_filesystem_directory;
+use targets::windows_x86_64::windows_filesystem_directory_entry;
+use targets::windows_x86_64::windows_filesystem_directory_native;
+use targets::windows_x86_64::filesystem_removal::acquisition;
+use targets::windows_x86_64::filesystem_removal::attributes;
+use targets::windows_x86_64::filesystem_removal::completion;
+
+data WindowsRemovalFrame [copy] {
+    case Empty;
+    case Directory(handle: i64 in WindowsPrivateNonalertFileOrAbsent);
+}
+
+windows_x86_64 machine windows_removal_walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+requires root != 0
+reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration + FilesystemNamespaceMutation {
+    let mut frames: [WindowsRemovalFrame; 4096];
+    let mut entry: WindowsNativeDirectoryEntryInfo;
+    frames[0] = WindowsRemovalFrame::Directory { handle: root };
+    transition { _ -> next(&mut frames, &mut entry, 1, 1) }
+
+    state next(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, restart: u8) -> u32
+    requires depth > 0 && depth <= 4096 && restart <= 1 {
+        transition frames[depth - 1] {
+            WindowsRemovalFrame::Directory { handle } -> directory(frames, entry, depth, restart, handle)
+            WindowsRemovalFrame::Empty -> block windows_removal_unwind(frames, depth, 31)
+        }
+    }
+    state directory(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, restart: u8, handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && restart <= 1 {
+        transition handle != 0 {
+            true -> query(frames, entry, depth, restart, handle)
+            false -> block windows_removal_unwind(frames, depth, 31)
+        }
+    }
+    state query(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, restart: u8, handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && restart <= 1 && handle != 0 {
+        let step: WindowsDirectoryStep = block windows_directory_next_entry(handle, entry, restart);
+        transition step {
+            WindowsDirectoryStep::Error { code } -> block windows_removal_unwind(frames, depth, windows_removal_error(code))
+            WindowsDirectoryStep::End -> pop(frames, entry, depth, handle)
+            WindowsDirectoryStep::Name { length } -> name(frames, entry, depth, handle, length)
+        }
+    }
+    state name(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, parent: i64 in WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
+    requires depth > 0 && depth <= 4096 && parent != 0 {
+        transition windows_directory_entry_dot(entry, length) {
+            true -> next(frames, entry, depth, 0)
+            false -> extent(frames, entry, depth, parent, length)
+        }
+    }
+    state extent(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, parent: i64 in WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
+    requires depth > 0 && depth <= 4096 && parent != 0 {
+        transition length > 0 && length < 4096 {
+            true -> open(frames, entry, depth, parent, length)
+            false -> block windows_removal_unwind(frames, depth, 122)
+        }
+    }
+    state open(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, parent: i64 in WindowsPrivateNonalertFileOrAbsent, length: u64) -> u32
+    requires depth > 0 && depth <= 4096 && parent != 0 && length > 0 && length < 4096 {
+        let child: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_child(parent, entry, length);
+        transition child != 0 {
+            true -> attributes(frames, entry, depth, child)
+            false -> failed_open(frames, depth)
+        }
+    }
+    state failed_open(frames: &mut [WindowsRemovalFrame; 4096], depth: u64) -> u32
+    requires depth <= 4096 {
+        let code: u32 = windows_removal_error(WindowsFilesystemIo::c_get_last_error());
+        block windows_removal_unwind(frames, depth, code)
+    }
+    state attributes(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && child != 0 {
+        let information: WindowsRemovalAttributes = block windows_removal_attributes(child);
+        transition information {
+            WindowsRemovalAttributes::Error { code } -> failed_child(frames, depth, child, code)
+            WindowsRemovalAttributes::Value { attributes } -> kind(frames, entry, depth, child, attributes)
+        }
+    }
+    state failed_child(frames: &mut [WindowsRemovalFrame; 4096], depth: u64,
+        child: i64 in WindowsPrivateNonalertFileOrAbsent, code: u32) -> u32
+    requires depth <= 4096 && child != 0 {
+        let failure: u32 = block windows_removal_close(child, windows_removal_error(code));
+        block windows_removal_unwind(frames, depth, failure)
+    }
+    state kind(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> u32
+    requires depth > 0 && depth <= 4096 && child != 0 {
+        transition (attributes & 16) != 0 && (attributes & 1024) == 0 {
+            true -> capacity(frames, entry, depth, child)
+            false -> leaf(frames, entry, depth, child)
+        }
+    }
+    state capacity(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && child != 0 {
+        transition depth < 4096 {
+            true -> push(frames, entry, depth, child)
+            false -> failed_child(frames, depth, child, 8)
+        }
+    }
+    state push(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth < 4096 && child != 0 {
+        frames[depth] = WindowsRemovalFrame::Directory { handle: child };
+        transition { _ -> next(frames, entry, depth + 1, 1) }
+    }
+    state leaf(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, child: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && child != 0 {
+        let code: u32 = block windows_removal_dispose(child);
+        transition code == 0 {
+            true -> next(frames, entry, depth, 1)
+            false -> block windows_removal_unwind(frames, depth, code)
+        }
+    }
+    state pop(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64, handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires depth > 0 && depth <= 4096 && handle != 0 {
+        frames[depth - 1] = WindowsRemovalFrame::Empty;
+        let code: u32 = block windows_removal_dispose(handle);
+        transition code == 0 {
+            true -> parent(frames, entry, depth - 1)
+            false -> block windows_removal_unwind(frames, depth - 1, code)
+        }
+    }
+    state parent(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
+        depth: u64) -> u32
+    requires depth < 4096 {
+        transition depth > 0 { true -> next(frames, entry, depth, 1) false -> 0 }
+    }
+}
+
+windows_x86_64 machine windows_removal_unwind(frames: &mut [WindowsRemovalFrame; 4096], count: u64,
+    original: u32) -> u32
+requires count <= 4096
+reaches FilesystemNamespaceMutation {
+    transition { _ -> next(frames, count, original) }
+    state next(frames: &mut [WindowsRemovalFrame; 4096], count: u64, original: u32) -> u32
+    requires count <= 4096 {
+        transition count > 0 { true -> pop(frames, count, original) false -> (original) }
+    }
+    state pop(frames: &mut [WindowsRemovalFrame; 4096], count: u64, original: u32) -> u32
+    requires count > 0 && count <= 4096 {
+        let frame: WindowsRemovalFrame = frames[count - 1];
+        frames[count - 1] = WindowsRemovalFrame::Empty;
+        transition frame {
+            WindowsRemovalFrame::Empty -> next(frames, count - 1, original)
+            WindowsRemovalFrame::Directory { handle } -> close(frames, count - 1, original, handle)
+        }
+    }
+    state close(frames: &mut [WindowsRemovalFrame; 4096], count: u64, original: u32,
+        handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires count < 4096 {
+        transition handle != 0 {
+            true -> release(frames, count, original, handle)
+            false -> next(frames, count, windows_removal_error(original))
+        }
+    }
+    state release(frames: &mut [WindowsRemovalFrame; 4096], count: u64, original: u32,
+        handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+    requires count < 4096 && handle != 0 {
+        let code: u32 = block windows_removal_close(handle, original);
+        transition { _ -> next(frames, count, code) }
+    }
+}

@@ -27,6 +27,13 @@ use targets::windows_x86_64::windows_filesystem_impl;
 use targets::windows_x86_64::windows_filesystem_native;
 use targets::windows_x86_64::windows_filesystem_transfer_native;
 use targets::windows_x86_64::windows_filesystem_metadata_native;
+use targets::windows_x86_64::windows_filesystem_file_control_native;
+use targets::windows_x86_64::windows_filesystem_position_native;
+use targets::windows_x86_64::windows_filesystem_directory_native;
+use targets::windows_x86_64::windows_filesystem_path_query_native;
+use targets::windows_x86_64::windows_filesystem_lock_native;
+use targets::windows_x86_64::windows_filesystem_reparse_native;
+use targets::windows_x86_64::filesystem_removal::native;
 
 // An untouched result is an error. Timestamp zero remains a valid FILETIME.
 public data WindowsFileTimeResult {
@@ -53,12 +60,95 @@ public data WindowsMetadataResult {
     case Value(metadata: WindowsFileMetadata);
 }
 
+// The raw directory entry retains native attributes. Bounded UTF-8 spelling
+// failure is explicit; a long or unrepresentable name is never truncated.
+public data WindowsDirectoryEntry [copy] {
+    name: [u8; 256];
+    name_len: u64;
+    attributes: u32;
+}
+public data WindowsDirectoryEntryResult {
+    case Error(code: u32);
+    case End;
+    case Entry(entry: WindowsDirectoryEntry);
+}
+
 // Operation capabilities are independent of the raw family's selection identity.
 // Cursor, durability, handle custody and last-error access have no content,
 // metadata or namespace reach; physical authority is still admitted separately.
 // In particular, empty source reach on CloseHandle proves no ordinary-release
 // classification for an arbitrary HANDLE or its close-triggered behavior.
 public boundary trait WindowsFilesystemHost {
+    // Traverse exact retained directory objects. Never follow a reparse child;
+    // refuse a reparse root. A failed native operation stops removal and
+    // releases each private handle once, preserving the original failure.
+    machine remove_tree(path: &[u8] in Path) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemDirectoryIo;
+    invokes WindowsFilesystemRemovalIo;
+    // Stored target bytes, not the display PrintName. Writes at most count,
+    // excludes NUL, and returns that byte count; a full buffer may be a prefix.
+    // Zero or out-of-buffer count refuses before opening the path.
+    machine read_link(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64
+    reaches FilesystemMetadataQuery blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemReparseIo;
+    invokes WindowsFilesystemUtf8Io;
+    // Same-object synchronous whole-file range locking, including future
+    // growth. Try conflicts return -33; repeated locks/unmatched unlocks keep
+    // native semantics. No cursor movement, access upgrade or reopening.
+    machine lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32 blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemLockIo;
+    machine unlock_file(handle: u64) -> i32 blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemLockIo;
+    machine directory_nth(path: &[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemDirectoryIo;
+    invokes WindowsFilesystemUtf8Io;
+    machine canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i32
+    reaches FilesystemMetadataQuery blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemPathIo;
+    invokes WindowsFilesystemUtf8Io;
+    // Counts every non-dot native name without UTF-8 decoding or metadata
+    // queries. A private synchronous directory object owns the complete scan.
+    machine directory_count(path: &[u8] in Path) -> i64
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemDirectoryIo;
+    // Reopen an independent synchronous file object without increasing the
+    // pinned original's granted data rights. The original cursor is untouched.
+    machine read_at(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64
+    reaches FilesystemContentRead blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemTransferIo;
+    invokes WindowsFilesystemPositionIo;
+    machine write_at(handle: u64, bytes: &[u8], offset: i64) -> i64
+    reaches FilesystemContentWrite blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemTransferIo;
+    invokes WindowsFilesystemPositionIo;
+    machine set_file_length(handle: u64, length: i64) -> i32
+    reaches FilesystemContentWrite + FilesystemMetadataMutation blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemFileControlIo;
+    machine set_handle_readonly(handle: u64, readonly: bool) -> i32
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemFileControlIo;
+    machine set_path_readonly(path: &[u8] in Path, readonly: bool) -> i32
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemFileControlIo;
     machine metadata(handle: u64) -> WindowsMetadataResult
     reaches FilesystemMetadataQuery
     blocks;
@@ -106,6 +196,10 @@ public boundary trait WindowsFilesystemHost {
     // Same-volume replacement only: no copy fallback or delayed deletion.
     // A constant at a call of move_file cannot narrow its declared reach.
     machine rename_file(from: &[u8] in Path, to: &[u8] in Path) -> i32
+    reaches FilesystemNamespaceMutation
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
     reaches FilesystemNamespaceMutation
     blocks;
     invokes WindowsFilesystemIo;

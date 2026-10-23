@@ -1,0 +1,20 @@
+// Public operations select the library's anonymous-SQOS private opens.
+// This checking fixture does not execute any native operation.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::filesystem_host;
+use omega::language::core::filesystem_authority;
+
+machine checked_metadata_open(path: &[u8] in Path) -> WindowsMetadataResult
+reaches FilesystemMetadataQuery {
+    block WindowsFilesystemHost::read_metadata(path, false)
+}
+
+machine checked_reparse_open(path: &[u8] in Path) -> WindowsMetadataResult
+reaches FilesystemMetadataQuery {
+    block WindowsFilesystemHost::read_metadata(path, true)
+}
+
+machine checked_permission_open(path: &[u8] in Path) -> i32
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+    block WindowsFilesystemHost::set_path_readonly(path, true)
+}

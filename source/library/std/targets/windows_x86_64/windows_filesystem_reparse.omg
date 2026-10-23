@@ -1,0 +1,116 @@
+// Stored link-target query. The fresh no-follow object never escapes before
+// completion and close, so no external alias can change its synchronous mode.
+// Decode/encode entirely in owned scratch before writing the requested caller
+// byte prefix. read_link returns bytes, excludes NUL, and can fill count exactly
+// like the portable POSIX operation; it does not claim a full-path result.
+use filesystem_host;
+use windows_filesystem_host;
+use omega::language::core::filesystem_authority;
+use omega::language::core::numeric_conversion;
+use targets::windows_x86_64::windows_filesystem_impl;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_metadata_native;
+use targets::windows_x86_64::windows_filesystem_paths;
+use targets::windows_x86_64::windows_filesystem_path_query_native;
+use targets::windows_x86_64::windows_filesystem_reparse_native;
+use targets::windows_x86_64::windows_filesystem_private_handles;
+use targets::windows_x86_64::windows_filesystem_reparse_data;
+
+machine windows_open_reparse(path: &[u16; 4096] in WindowsNativePath) -> i64 in WindowsPrivateNonalertFileOrAbsent
+reaches FilesystemMetadataQuery {
+    let handle: i64 = block windows_open_reparse_handle(path);
+    handle
+}
+windows_x86_64 machine windows_open_reparse_handle(path: &[u16; 4096] in WindowsNativePath) -> i64
+ensures result != -1
+reaches FilesystemMetadataQuery {
+    let handle: i64 = block WindowsFilesystemMetadataIo::open_attributes(path, 128, 7, 0, 3, 36700160, 0);
+    transition handle != 0 && handle != -1 { true -> (handle) false -> 0 }
+}
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::read_link(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64
+satisfies WindowsFilesystemHost::read_link
+reaches FilesystemMetadataQuery {
+    transition count > 0 && count <= output.len { true -> path(path, output, count) false -> (-87) }
+    state path(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64 {
+        let mut wide: [u16; 4096];
+        let units: i64 = windows_wide_path(path, &mut wide);
+        wide[4095] = 0;
+        transition units > 0 { true -> open(wide, output, count) false -> (-87) }
+    }
+    state open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8], count: u64) -> i64 {
+        let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(&path);
+        transition handle != 0 {
+            true -> query(handle, output, count)
+            false -> (WindowsFilesystemNativeProvider::failure_i64())
+        }
+    }
+    state query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
+    requires handle != 0 {
+        let result: i64 = block windows_reparse_query(handle, output, count);
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
+        transition result < 0 { true -> (result) false -> complete(result, released) }
+    }
+    state complete(result: i64, released: i32) -> i64 {
+        transition released < 0 { true -> (widen_i32_to_i64(released)) false -> (result) }
+    }
+}
+
+windows_x86_64 machine windows_reparse_query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
+requires handle != 0
+reaches FilesystemMetadataQuery {
+    let mut data: WindowsNativeReparseData;
+    let mut returned: u32 = 0;
+    let succeeded: i32 = block WindowsFilesystemReparseIo::query(handle, 589992, 0, 0, &mut data, 16384, &mut returned, 0);
+    transition succeeded != 0 {
+        true -> decode(data, returned, output, count)
+        false -> (WindowsFilesystemNativeProvider::failure_i64())
+    }
+    state decode(data: WindowsNativeReparseData, returned: u32, output: &mut [u8], count: u64) -> i64 {
+        let mut target: [u16; 8192];
+        let units: i64 = windows_reparse_target(&data, returned, &mut target);
+        transition units > 0 && units < 8192 { true -> encode(target, units, output, count) false -> failed_decode(units) }
+    }
+    state failed_decode(units: i64) -> i64 {
+        transition units < 0 { true -> (units) false -> (-31) }
+    }
+    state encode(target: [u16; 8192], units: i64, output: &mut [u8], count: u64) -> i64
+    requires units > 0 && units < 8192 {
+        let native_units: i32 = narrow_i64_to_i32_exact(units);
+        let mut encoded: [u8; 24576];
+        let written: i32 = WindowsFilesystemUtf8Io::utf8<8192, 24576>(65001, 128, &target, native_units, &mut encoded, 24576, 0, 0);
+        transition written > 0 {
+            true -> extent(&encoded, written, output, count)
+            false -> (WindowsFilesystemNativeProvider::failure_i64())
+        }
+    }
+    state extent(encoded: &[u8; 24576], written: i32, output: &mut [u8], count: u64) -> i64
+    requires written > 0 {
+        transition written <= 24576 {
+            true -> (windows_reparse_copy_bytes(encoded, written, output, count))
+            false -> (-31)
+        }
+    }
+}
+
+machine windows_reparse_copy_bytes(source: &[u8; 24576], written: i32, output: &mut [u8], count: u64) -> i64
+requires written > 0 && written <= 24576 {
+    let length: u64 = narrow_i32_to_u64_exact(written);
+    transition count <= output.len {
+        true -> limit(source, length, output, count)
+        false -> (-87)
+    }
+    state limit(source: &[u8; 24576], length: u64, output: &mut [u8], count: u64) -> i64
+    requires length <= 24576 && count <= output.len {
+        transition length < count { true -> copy(source, output, length, 0) false -> copy(source, output, count, 0) }
+    }
+    state copy(source: &[u8; 24576], output: &mut [u8], count: u64, position: u64) -> i64
+    requires count <= 24576 && count <= output.len {
+        transition position < count { true -> store(source, output, count, position) false -> (narrow_u64_to_i64_exact(count)) }
+    }
+    state store(source: &[u8; 24576], output: &mut [u8], count: u64, position: u64) -> i64
+    requires count <= 24576 && count <= output.len && position < count {
+        output[position] = source[position];
+        transition { _ -> copy(source, output, count, position + 1) }
+    }
+}

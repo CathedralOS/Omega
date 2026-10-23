@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "windows_read_link_requires_metadata");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+}

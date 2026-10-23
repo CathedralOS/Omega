@@ -1,0 +1,129 @@
+// Root acquisition uses one fresh synchronous no-follow file object. Children
+// open one validated native component relative to its retained parent handle;
+// no pathname is reconstructed, case-folded, or reopened after classification.
+// Enumeration attributes select requested rights only. The opened object's
+// actual attributes, not that hint, decide whether traversal can descend.
+use filesystem_host;
+use omega::language::core::filesystem_authority;
+use omega::language::core::numeric_conversion;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_paths;
+use targets::windows_x86_64::windows_filesystem_directory_native;
+use targets::windows_x86_64::windows_filesystem_private_handles;
+use targets::windows_x86_64::filesystem_removal::native;
+use targets::windows_x86_64::filesystem_removal::completion;
+
+windows_x86_64 machine windows_removal_open_root(path: &[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let handle: i64 = block windows_removal_acquire_root(path);
+    handle
+}
+
+windows_x86_64 machine windows_removal_acquire_root(path: &[u8] in Path) -> i64
+ensures result != -1
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut wide: [u16; 4096];
+    let units: i64 = windows_wide_path(path, &mut wide);
+    wide[4095] = 0;
+    transition units > 0 { true -> open(wide) false -> invalid() }
+    state invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
+    state open(path: [u16; 4096] in WindowsNativePath) -> i64 {
+        // SYNCHRONIZE|DELETE|READ_ATTRIBUTES|LIST_DIRECTORY; shared delete;
+        // OPEN_EXISTING; BACKUP_SEMANTICS|OPEN_REPARSE_POINT; no inheritance,
+        // overlap or DELETE_ON_CLOSE. Anonymous SQOS does not grant a server
+        // the caller's identity. This private object has no mode setter.
+        let handle: i64 = block WindowsFilesystemIo::c_create_file(&path, 1114241, 7, 0, 3, 36700160, 0);
+        transition handle != 0 && handle != -1 { true -> (handle) false -> 0 }
+    }
+}
+
+machine windows_removal_component(name: &[u16; 4096], length: u64) -> bool
+requires length > 0 && length < 4096 {
+    transition length <= 2 { true -> dot(name, length) false -> scan(name, length, 0) }
+    state dot(name: &[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
+        transition name[0] == 46 { true -> second(name, length) false -> scan(name, length, 0) }
+    }
+    state second(name: &[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
+        transition length == 1 { true -> false false -> pair(name, length) }
+    }
+    state pair(name: &[u16; 4096], length: u64) -> bool requires length > 1 && length < 4096 {
+        transition name[1] == 46 { true -> false false -> scan(name, length, 0) }
+    }
+    state scan(name: &[u16; 4096], length: u64, position: u64) -> bool
+    requires length > 0 && length < 4096 {
+        transition position < length { true -> character(name, length, position) false -> true }
+    }
+    state character(name: &[u16; 4096], length: u64, position: u64) -> bool
+    requires length > 0 && length < 4096 && position < length {
+        let unit: u16 = name[position];
+        // Preserve native UTF-16 spelling, including unpaired surrogates;
+        // reject separators, alternate streams, and embedded termination.
+        transition unit == 0 || unit == 47 || unit == 92 || unit == 58 {
+            true -> false
+            false -> scan(name, length, position + 1)
+        }
+    }
+}
+
+windows_x86_64 machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+    entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in WindowsPrivateNonalertFileOrAbsent
+requires parent != 0 && length > 0 && length < 4096
+reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
+    let handle: i64 = block windows_removal_acquire_child(parent, entry, length);
+    handle
+}
+
+windows_x86_64 machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+    entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
+requires parent != 0 && length > 0 && length < 4096
+ensures result != -1
+reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
+    transition windows_removal_component(&entry.characters, length) {
+        true -> access(parent, entry, length)
+        false -> invalid()
+    }
+    state invalid() -> i64 { WindowsFilesystemIo::c_set_last_error(87); 0 }
+    state access(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+        entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
+    requires parent != 0 && length > 0 && length < 4096 {
+        transition (entry.attributes & 16) != 0 {
+            true -> open(parent, entry, length, 1114241)
+            false -> open(parent, entry, length, 1114240)
+        }
+    }
+    state open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+        entry: &mut WindowsNativeDirectoryEntryInfo, length: u64, access: u32) -> i64
+    requires parent != 0 && length > 0 && length < 4096
+        && (access == 1114240 || access == 1114241) {
+        entry.characters[4095] = 0;
+        let name: WindowsNativeUnicodeString = WindowsNativeUnicodeString {
+            // length < 4096 makes this explicit narrowing exact; retain the
+            // arithmetic expression so the record proves its even byte count.
+            length: (length * 2) as u16, capacity: 8192, padding: 0,
+            buffer: &entry.characters
+        };
+        let attributes: WindowsNativeObjectAttributes = WindowsNativeObjectAttributes {
+            // Traversal admits only retained disk-directory parents. The
+            // single no-follow component cannot select a DOS pipe endpoint;
+            // unlike root acquisition, this is not an arbitrary path open.
+            length: 48, padding: 0, root: parent, name: &name,
+            attributes: 4096, name_padding: 0, security: 0, quality: 0
+        };
+        let mut handle: i64 = 0;
+        let mut completion: WindowsFilesystemIoStatus;
+        let status: i32 = block WindowsFilesystemRemovalIo::open(&mut handle, access, &attributes,
+            &mut completion, 7, 2113568);
+        transition status == 0 {
+            true -> opened(handle)
+            false -> failed(status)
+        }
+    }
+    state opened(handle: i64) -> i64 {
+        transition handle != 0 && handle != -1 { true -> (handle) false -> corrupt() }
+    }
+    state corrupt() -> i64 { WindowsFilesystemIo::c_set_last_error(31); 0 }
+    state failed(status: i32) -> i64 {
+        WindowsFilesystemIo::c_set_last_error(windows_removal_error(WindowsFilesystemIo::c_status_to_error(status)));
+        0
+    }
+}

@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "windows_owned_open_cannot_request_impersonation");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+}

@@ -1,0 +1,7 @@
+// A read-only reopen contract cannot request FILE_WRITE_DATA instead.
+use omega_language_std::targets::windows_x86_64::windows_filesystem_position_native;
+use omega::language::core::filesystem_authority;
+
+machine gain_write_access() -> i64 reaches FilesystemContentRead {
+    block WindowsFilesystemPositionIo::reopen_read(0, 1048578, 7, 0)
+}

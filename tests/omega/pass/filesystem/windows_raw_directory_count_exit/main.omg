@@ -1,0 +1,65 @@
+// Expected exit: 70 (Windows only). Names-only enumeration counts a child
+// directory and two files, including a 300-byte UTF-8 name. Counting must not
+// decode into the portable 256-byte DirEntry buffer or request metadata reach.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::filesystem_authority;
+
+data Main { first: u64; second: u64; }
+
+machine Main::main(main: &mut Main)
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
+    let removed: i32 = block cleanup_names();
+    let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_directory");
+    transition created == 0 { true -> child(main) false -> finish(main, 71) }
+    state child(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::create_directory("omega_raw_directory/child");
+        transition status == 0 { true -> first(main) false -> finish(main, 72) }
+    }
+    state first(main: &mut Main) {
+        main.first = block WindowsFilesystemHost::create_file("omega_raw_directory/first", 3221225472, 7, 2, 128);
+        transition main.first != 0 { true -> second(main) false -> finish(main, 73) }
+    }
+    state second(main: &mut Main) {
+        main.second = block WindowsFilesystemHost::create_file("omega_raw_directory/界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界", 3221225472, 7, 2, 128);
+        transition main.second != 0 { true -> count(main) false -> finish(main, 74) }
+    }
+    state count(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory");
+        transition count == 3 { true -> empty(main) false -> finish(main, 75) }
+    }
+    state empty(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory/child");
+        transition count == 0 { true -> refuse_file(main) false -> finish(main, 76) }
+    }
+    state refuse_file(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory/first");
+        transition count < 0 { true -> refuse_missing(main) false -> finish(main, 77) }
+    }
+    state refuse_missing(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::directory_count("omega_raw_directory/missing");
+        transition count < 0 { true -> finish(main, 70) false -> finish(main, 78) }
+    }
+    state finish(main: &mut Main, code: i32) {
+        let second: i32 = block close_if_present(main.second);
+        let first: i32 = block close_if_present(main.first);
+        let removed: i32 = block cleanup_names();
+        transition code != 70 { true -> done(code) false -> cleanup(first, second, removed) }
+    }
+    state cleanup(first: i32, second: i32, removed: i32) {
+        transition first == 0 && second == 0 && removed == 0 { true -> done(70) false -> done(79) }
+    }
+    state done(code: i32) { Console::exit_process(code); }
+}
+
+machine close_if_present(handle: u64) -> i32 {
+    transition handle != 0 { true -> release(handle) false -> 0 }
+    state release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
+}
+
+machine cleanup_names() -> i32 reaches FilesystemNamespaceMutation {
+    let first: i32 = block WindowsFilesystemHost::delete_file("omega_raw_directory/first");
+    let second: i32 = block WindowsFilesystemHost::delete_file("omega_raw_directory/界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界");
+    let child: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_directory/child");
+    block WindowsFilesystemHost::remove_directory("omega_raw_directory")
+}

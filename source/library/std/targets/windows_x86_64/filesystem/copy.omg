@@ -1,0 +1,86 @@
+// Copy the caller-bounded initialized prefix, not an unbounded CopyFileW.
+// Read and close the source before opening the destination; every acquired
+// object is closed on every returning path and an earlier failure wins.
+// Restore the source's portable read-only bit on the exact destination handle,
+// not a second path lookup which could race namespace replacement.
+use filesystem;
+use filesystem_host;
+use windows_filesystem_host;
+use omega::language::core::filesystem_authority;
+use targets::windows_x86_64::filesystem::errors;
+use targets::windows_x86_64::filesystem::handles;
+use targets::windows_x86_64::filesystem::metadata;
+use targets::windows_x86_64::filesystem::sequences;
+
+windows_x86_64 machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+invokes WindowsFilesystemHost;
+{
+    transition cap <= buffer.len && cap <= 4294967295 {
+        true -> acquire(from, to, buffer, cap)
+        false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
+    }
+    state acquire(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
+        let acquired: OpenResult = block windows_filesystem_open(from);
+        transition acquired {
+            OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
+            OpenResult::Ok { file } -> metadata(file, to, buffer, cap)
+        }
+    }
+    state metadata(source: File, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
+        let result: MetadataResult = block windows_filesystem_metadata(source);
+        transition result {
+            MetadataResult::Error { kind } -> failed(source, kind)
+            MetadataResult::Ok { meta } -> read(source, to, buffer, cap, meta.permissions)
+        }
+    }
+    state failed(file: File, kind: ErrorKind) -> IoResult {
+        let released: UnitResult = block windows_filesystem_close(file);
+        IoResult::Error { kind: kind }
+    }
+    state read(source: File, to: &[u8] in Path, buffer: &mut [u8], cap: u64, permissions: Permissions) -> IoResult {
+        let result: IoResult = block windows_filesystem_read(source, buffer, cap);
+        let released: UnitResult = block windows_filesystem_close(source);
+        let finished: IoResult = windows_filesystem_finish_read(result, released);
+        transition finished {
+            IoResult::Error { kind } -> (IoResult::Error { kind: kind })
+            IoResult::Ok { count } -> bounded(to, buffer, count, permissions)
+        }
+    }
+    state bounded(to: &[u8] in Path, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult {
+        transition count <= buffer.len {
+            true -> destination(to, buffer, count, permissions)
+            false -> (IoResult::Error { kind: ErrorKind::Other })
+        }
+    }
+    state destination(to: &[u8] in Path, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult
+    requires count <= buffer.len {
+        // GENERIC_WRITE plus FILE_READ_ATTRIBUTES allows the permission update
+        // to preserve unrelated attributes on this same object. Ordinary write
+        // opens need not acquire the extra query right just for this algorithm.
+        // FILE_ATTRIBUTE_NORMAL | SECURITY_SQOS_PRESENT (Anonymous).
+        let handle: u64 = block WindowsFilesystemHost::create_file(to, 1073741952, 7, 2, 1048704);
+        let acquired: OpenResult = windows_filesystem_opened(handle);
+        transition acquired {
+            OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
+            OpenResult::Ok { file } -> write(file, buffer, count, permissions)
+        }
+    }
+    state write(destination: File, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult
+    requires count <= buffer.len {
+        let result: UnitResult = block windows_filesystem_write_complete(destination, buffer[0..count]);
+        transition result {
+            UnitResult::Error { kind } -> failed(destination, kind)
+            UnitResult::Ok -> restore(destination, count, permissions)
+        }
+    }
+    state restore(destination: File, count: u64, permissions: Permissions) -> IoResult {
+        let result: UnitResult = block windows_filesystem_set_file_permissions(destination, permissions);
+        let released: UnitResult = block windows_filesystem_close(destination);
+        let finished: UnitResult = windows_filesystem_finish_unit(result, released);
+        transition finished {
+            UnitResult::Error { kind } -> (IoResult::Error { kind: kind })
+            UnitResult::Ok -> (IoResult::Ok { count: count })
+        }
+    }
+}

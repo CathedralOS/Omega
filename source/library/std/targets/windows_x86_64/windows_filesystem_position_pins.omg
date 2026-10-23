@@ -1,0 +1,79 @@
+// Shared acquisition/cleanup for positioned transfers. The pin keeps the
+// numeric original from being recycled between its access query and reopen.
+// Zero-initialized outcomes fail closed; no error record denotes byte count 0.
+use omega::language::core::numeric_conversion;
+use targets::windows_x86_64::windows_filesystem_impl;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_position_native;
+
+data WindowsPinnedAccessResult {
+    case Error(code: u32);
+    case Value(handle: u64, access: u32);
+}
+data WindowsPositionedFile {
+    case Error(code: u32);
+    case Handle(value: u64);
+}
+
+machine windows_positioned_error(code: u32) -> i64 {
+    transition code == 0 { true -> (-31) false -> (0 - widen_u32_to_i64(code)) }
+}
+
+windows_x86_64 machine windows_positioned_pin(handle: u64) -> WindowsPinnedAccessResult {
+    let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
+    transition duplicate != 0 { true -> query(duplicate) false -> failed() }
+    state failed() -> WindowsPinnedAccessResult {
+        WindowsPinnedAccessResult::Error { code: WindowsFilesystemIo::c_get_last_error() }
+    }
+    state query(duplicate: u64) -> WindowsPinnedAccessResult {
+        let mut information: WindowsNativeObjectBasicInfo;
+        let mut returned: u32 = 0;
+        let raw: i64 = narrow_u64_to_i64_wrapping(duplicate);
+        let status: i32 = block WindowsFilesystemPositionIo::object_access(raw, 0, &mut information, 56, &mut returned);
+        transition status == 0 {
+            true -> complete(duplicate, information.granted_access, returned)
+            false -> query_failed(duplicate, status)
+        }
+    }
+    state complete(duplicate: u64, access: u32, returned: u32) -> WindowsPinnedAccessResult {
+        transition returned == 56 {
+            true -> (WindowsPinnedAccessResult::Value { handle: duplicate, access: access })
+            false -> refuse(duplicate, 31)
+        }
+    }
+    state query_failed(duplicate: u64, status: i32) -> WindowsPinnedAccessResult {
+        let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
+        transition { _ -> refuse(duplicate, code) }
+    }
+    state refuse(duplicate: u64, code: u32) -> WindowsPinnedAccessResult {
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(duplicate);
+        WindowsPinnedAccessResult::Error { code: code }
+    }
+}
+
+windows_x86_64 machine windows_positioned_reopened(pin: u64, raw: i64) -> WindowsPositionedFile {
+    let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
+    transition handle != 0 { true -> release_pin(pin, handle) false -> failed_open(pin) }
+    state failed_open(pin: u64) -> WindowsPositionedFile {
+        let code: u32 = WindowsFilesystemIo::c_get_last_error();
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(pin);
+        WindowsPositionedFile::Error { code: code }
+    }
+    state release_pin(pin: u64, handle: u64) -> WindowsPositionedFile {
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(pin);
+        transition released == 0 {
+            true -> (WindowsPositionedFile::Handle { value: handle })
+            false -> release_failed(handle)
+        }
+    }
+    state release_failed(handle: u64) -> WindowsPositionedFile {
+        let code: u32 = WindowsFilesystemIo::c_get_last_error();
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+        WindowsPositionedFile::Error { code: code }
+    }
+}
+
+windows_x86_64 machine windows_positioned_seek_failed(handle: u64, position: i64) -> i64 {
+    let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+    transition position < 0 { true -> (position) false -> (-31) }
+}

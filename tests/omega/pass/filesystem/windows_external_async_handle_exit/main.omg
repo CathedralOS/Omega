@@ -1,6 +1,8 @@
 // Expected Windows exit: 70. External asynchronous handles reject before any
 // caller buffer is lent, including zero-length requests. Synchronous transfers
 // retain a shared cursor and never consume the caller's original HANDLE.
+// Locks also refuse asynchronous objects before borrowing request storage;
+// every acquisition mode is tried on a free file, avoiding a blocking oracle.
 use omega_language_std::windows_filesystem_host;
 use omega_language_std::console;
 use omega::language::core::external_binding;
@@ -53,9 +55,37 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
         let write: i64 = block WindowsFilesystemHost::write_file(main.asynchronous, "q");
         let empty_write: i64 = block WindowsFilesystemHost::write_file(main.asynchronous, "");
         transition read == -87 && empty_read == -87 && write == -87 && empty_write == -87 && main.buffer[0] == 119 {
-            true -> first(main)
+            true -> reject_blocking_exclusive(main)
             _ -> bad(main, 74)
         }
+    }
+    state reject_blocking_exclusive(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, true, false);
+        transition status == -87 { true -> reject_blocking_shared(main) false -> bad(main, 79) }
+    }
+    state reject_blocking_shared(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, false, false);
+        transition status == -87 { true -> reject_try_exclusive(main) false -> bad(main, 80) }
+    }
+    state reject_try_exclusive(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, true, true);
+        transition status == -87 { true -> reject_try_shared(main) false -> bad(main, 81) }
+    }
+    state reject_try_shared(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::lock_file(main.asynchronous, false, true);
+        transition status == -87 { true -> reject_unlock(main) false -> bad(main, 82) }
+    }
+    state reject_unlock(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::unlock_file(main.asynchronous);
+        transition status == -87 { true -> no_leaked_lock(main) false -> bad(main, 83) }
+    }
+    state no_leaked_lock(main: &mut Main) {
+        let acquired: i32 = block WindowsFilesystemHost::lock_file(main.handle, true, true);
+        transition acquired == 0 { true -> unlock_synchronous(main) false -> bad(main, 84) }
+    }
+    state unlock_synchronous(main: &mut Main) {
+        let released: i32 = block WindowsFilesystemHost::unlock_file(main.handle);
+        transition released == 0 { true -> first(main) false -> bad(main, 85) }
     }
     state first(main: &mut Main) {
         main.duplicate = WindowsFilesystemHost::duplicate_handle(main.handle);

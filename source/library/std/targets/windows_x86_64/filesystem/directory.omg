@@ -1,0 +1,56 @@
+// Names-only counting does not decode into DirEntry's bounded UTF-8 spelling
+// or query metadata. In particular an unrepresentable name still counts.
+use filesystem;
+use filesystem_host;
+use windows_filesystem_host;
+use omega::language::core::filesystem_authority;
+use omega::language::core::numeric_conversion;
+use targets::windows_x86_64::filesystem::errors;
+
+windows_x86_64 machine windows_filesystem_read_dir_count(path: &[u8] in Path) -> IoResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+invokes WindowsFilesystemHost;
+{
+    let result: i64 = block WindowsFilesystemHost::directory_count(path);
+    windows_filesystem_transferred(result, 9223372036854775807)
+}
+
+windows_x86_64 machine windows_filesystem_read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+invokes WindowsFilesystemHost;
+{
+    let result: IoResult = block windows_filesystem_read_dir_count(path);
+    transition result {
+        IoResult::Error { kind } -> (EmptyResult::Error { kind: kind })
+        IoResult::Ok { count } -> count(count)
+    }
+    state count(count: u64) -> EmptyResult {
+        transition count == 0 { true -> EmptyResult::Empty false -> EmptyResult::NonEmpty }
+    }
+}
+
+// Retain the enumeration record's no-follow classification. Reparse points
+// are neither ordinary files nor directories here, including directory links;
+// querying a child path afterward could classify a replacement object instead.
+windows_x86_64 machine windows_filesystem_read_dir_nth(path: &[u8] in Path, ordinal: u64) -> DirEntryResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+invokes WindowsFilesystemHost;
+{
+    let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
+    transition result {
+        WindowsDirectoryEntryResult::Error { code } -> (DirEntryResult::Error { kind: windows_filesystem_error(code) })
+        WindowsDirectoryEntryResult::End -> DirEntryResult::End
+        WindowsDirectoryEntryResult::Entry { entry } -> selected(entry)
+    }
+    state selected(record: WindowsDirectoryEntry) -> DirEntryResult {
+        transition record.name_len > 0 && record.name_len <= 256 {
+            true -> (DirEntryResult::Ok { entry: DirEntry {
+                name: record.name,
+                name_len: record.name_len,
+                is_dir: (record.attributes & 1040) == 16,
+                is_file: (record.attributes & 1040) == 0
+            } })
+            false -> (DirEntryResult::Error { kind: ErrorKind::Other })
+        }
+    }
+}

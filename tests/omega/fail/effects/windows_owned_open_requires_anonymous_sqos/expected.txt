@@ -1,0 +1,2 @@
+cannot prove requires contract for call open_attributes
+flags == 34603008 || flags == 36700160

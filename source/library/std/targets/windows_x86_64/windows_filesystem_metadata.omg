@@ -46,12 +46,12 @@ reaches FilesystemMetadataQuery {
     }
     state select(wide: [u16; 4096] in WindowsNativePath, no_follow: bool) -> WindowsMetadataResult {
         transition no_follow {
-            true -> open(wide, 35651584)
-            false -> open(wide, 33554432)
+            true -> open(wide, 36700160)
+            false -> open(wide, 34603008)
         }
     }
     state open(wide: [u16; 4096] in WindowsNativePath, flags: u32) -> WindowsMetadataResult
-    requires flags == 33554432 || flags == 35651584 {
+    requires flags == 34603008 || flags == 36700160 {
         let raw: i64 = block WindowsFilesystemMetadataIo::open_attributes(&wide, 128, 7, 0, 3, flags, 0);
         let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
         transition handle != 0 {

@@ -1,0 +1,63 @@
+// Exact metadata updates and cursor-independent file-length changes. Class
+// constraints prevent SetFileInformationByHandle from selecting disposition,
+// rename or another operation with a broader authority row.
+// Owned attribute opens retain anonymous SQOS rather than native impersonation.
+// https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
+use omega::language::core::external_binding;
+use omega::language::core::filesystem_authority;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_metadata_native;
+
+data WindowsNativeFileEndOfFileInfo { length: i64; }
+data WindowsFilesystemFileControlImports {}
+
+boundary trait WindowsFilesystemFileControlIo {
+    machine end_of_file(handle: i64, information_class: u32, input: &WindowsNativeFileEndOfFileInfo, size: u32) -> i32
+    requires information_class == 6 && size == 8
+    reaches FilesystemContentWrite + FilesystemMetadataMutation blocks;
+    machine basic(handle: i64, information_class: u32, input: &WindowsNativeFileBasicInfo, size: u32) -> i32
+    requires information_class == 0 && size == 40
+    reaches FilesystemMetadataMutation blocks;
+    machine open_attributes(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
+    requires desired_access == 384 && sharing == 7 && security == 0 && disposition == 3
+        && flags == 34603008 && template == 0
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks;
+}
+
+windows_x86_64 machine windows_file_control_binding() -> ForeignBinding<12, 26, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "SetFileInformationByHandle"
+    } }
+}
+
+windows_x86_64 machine WindowsFilesystemFileControlImports::end_of_file(handle: i64, information_class: u32, input: &WindowsNativeFileEndOfFileInfo, size: u32) -> i32
+satisfies WindowsFilesystemFileControlIo::end_of_file via windows_file_control_binding()
+requires information_class == 6 && size == 8
+blocks;
+
+windows_x86_64 machine WindowsFilesystemFileControlImports::basic(handle: i64, information_class: u32, input: &WindowsNativeFileBasicInfo, size: u32) -> i32
+satisfies WindowsFilesystemFileControlIo::basic via windows_file_control_binding()
+requires information_class == 0 && size == 40
+blocks;
+
+windows_x86_64 machine WindowsFilesystemFileControlImports::open_attributes(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
+satisfies WindowsFilesystemFileControlIo::open_attributes via windows_create_file_binding()
+requires desired_access == 384 && sharing == 7 && security == 0 && disposition == 3
+    && flags == 34603008 && template == 0
+blocks;
+
+NativeWindowsFilesystemFileControlImports satisfies WindowsFilesystemFileControlIo {
+    machine end_of_file(handle: i64, information_class: u32, input: &WindowsNativeFileEndOfFileInfo, size: u32) -> i32
+    requires information_class == 6 && size == 8
+    reaches FilesystemContentWrite + FilesystemMetadataMutation blocks;
+    { block WindowsFilesystemFileControlImports::end_of_file(handle, information_class, input, size) }
+    machine basic(handle: i64, information_class: u32, input: &WindowsNativeFileBasicInfo, size: u32) -> i32
+    requires information_class == 0 && size == 40
+    reaches FilesystemMetadataMutation blocks;
+    { block WindowsFilesystemFileControlImports::basic(handle, information_class, input, size) }
+    machine open_attributes(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
+    requires desired_access == 384 && sharing == 7 && security == 0 && disposition == 3
+        && flags == 34603008 && template == 0
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks;
+    { block WindowsFilesystemFileControlImports::open_attributes(path, desired_access, sharing, security, disposition, flags, template) }
+}

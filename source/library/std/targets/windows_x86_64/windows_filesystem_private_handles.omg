@@ -1,0 +1,14 @@
+// The shared completion premise for private synchronous nonalert file objects.
+// Each issuer actually opens the object with fixed synchronous options and
+// keeps it private through completion/close; no constructor accepts mode bits
+// as evidence. Zero denotes failed acquisition, never an admissible query.
+// This classifies mode/alias discipline, not directory kind, ownership, or
+// ordinary-empty release. A later disposition may attach deletion to a handle.
+use targets::windows_x86_64::windows_filesystem_directory;
+use targets::windows_x86_64::windows_filesystem_reparse;
+use targets::windows_x86_64::filesystem_removal::acquisition;
+
+domain i64::WindowsPrivateNonalertFileOrAbsent(handle)
+requires handle != -1
+established by windows_directory_open, windows_open_reparse,
+    windows_removal_open_root, windows_removal_open_child;

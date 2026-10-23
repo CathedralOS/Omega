@@ -1,0 +1,110 @@
+// Expected exit: 70 (Windows only). Offset I/O leaves the original/duplicate
+// cursor at six. An append-only handle cannot acquire random-write/read rights
+// through reopening, but its ordinary write still appends through the OS.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::filesystem_authority;
+
+data Main { original: u64; alias: u64; appending: u64; buffer: [u8; 8]; }
+
+machine Main::main(main: &mut Main)
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_positioned.bin");
+    main.original = block WindowsFilesystemHost::create_file("omega_raw_positioned.bin", 3221225472, 7, 2, 128);
+    transition main.original != 0 { true -> seed(main) false -> finish(main, 71) }
+    state seed(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::write_file(main.original, "abcdef");
+        transition count == 6 { true -> duplicate(main) false -> finish(main, 72) }
+    }
+    state duplicate(main: &mut Main) {
+        main.alias = WindowsFilesystemHost::duplicate_handle(main.original);
+        transition main.alias != 0 { true -> read_offset(main) false -> finish(main, 73) }
+    }
+    state read_offset(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::read_at(main.alias, &mut main.buffer, 2, 1);
+        transition count == 2 && main.buffer[0] == 98 && main.buffer[1] == 99 {
+            true -> read_cursor(main)
+            false -> finish(main, 74)
+        }
+    }
+    state read_cursor(main: &mut Main) {
+        let original: i64 = block WindowsFilesystemHost::set_file_pointer(main.original, 0, 1);
+        let alias: i64 = block WindowsFilesystemHost::set_file_pointer(main.alias, 0, 1);
+        transition original == 6 && alias == 6 { true -> write_offset(main) false -> finish(main, 75) }
+    }
+    state write_offset(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::write_at(main.alias, "XY", 2);
+        transition count == 2 { true -> write_cursor(main) false -> finish(main, 76) }
+    }
+    state write_cursor(main: &mut Main) {
+        let original: i64 = block WindowsFilesystemHost::set_file_pointer(main.original, 0, 1);
+        let alias: i64 = block WindowsFilesystemHost::set_file_pointer(main.alias, 0, 1);
+        transition original == 6 && alias == 6 { true -> inspect(main) false -> finish(main, 77) }
+    }
+    state inspect(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 6, 0);
+        transition count == 6 && main.buffer[0] == 97 && main.buffer[1] == 98
+            && main.buffer[2] == 88 && main.buffer[3] == 89
+            && main.buffer[4] == 101 && main.buffer[5] == 102 {
+            true -> append_open(main)
+            false -> finish(main, 78)
+        }
+    }
+    state append_open(main: &mut Main) {
+        // FILE_GENERIC_WRITE without FILE_WRITE_DATA; this is not a one-time
+        // seek to EOF and cannot authorize positioned overwrite.
+        main.appending = block WindowsFilesystemHost::create_file("omega_raw_positioned.bin", 1179924, 7, 3, 128);
+        transition main.appending != 0 { true -> deny_write(main) false -> finish(main, 79) }
+    }
+    state deny_write(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::write_at(main.appending, "Q", 0);
+        transition count == -5 { true -> deny_read(main) false -> finish(main, 80) }
+    }
+    state deny_read(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::read_at(main.appending, &mut main.buffer, 1, 0);
+        transition count == -5 { true -> append(main) false -> finish(main, 81) }
+    }
+    state append(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::write_file(main.appending, "!");
+        transition count == 1 { true -> appended(main) false -> finish(main, 82) }
+    }
+    state appended(main: &mut Main) {
+        let count: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 7, 0);
+        transition count == 7 && main.buffer[0] == 97 && main.buffer[2] == 88
+            && main.buffer[3] == 89 && main.buffer[6] == 33 {
+            true -> bounds(main)
+            false -> finish(main, 83)
+        }
+    }
+    state bounds(main: &mut Main) {
+        let too_large: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 9, 0);
+        let negative_read: i64 = block WindowsFilesystemHost::read_at(main.original, &mut main.buffer, 1, -1);
+        let negative_write: i64 = block WindowsFilesystemHost::write_at(main.original, "Q", -1);
+        transition too_large == -87 && negative_read == -87 && negative_write == -87 {
+            true -> finish(main, 70)
+            false -> finish(main, 84)
+        }
+    }
+    state finish(main: &mut Main, code: i32) {
+        let appending: i32 = block close_if_present(main.appending);
+        let alias: i32 = block close_if_present(main.alias);
+        let original: i32 = block close_if_present(main.original);
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_positioned.bin");
+        transition code != 70 {
+            true -> done(code)
+            false -> cleanup(appending, alias, original, removed)
+        }
+    }
+    state cleanup(appending: i32, alias: i32, original: i32, removed: i32) {
+        transition appending == 0 && alias == 0 && original == 0 && removed == 0 {
+            true -> done(70)
+            false -> done(85)
+        }
+    }
+    state done(code: i32) { Console::exit_process(code); }
+}
+
+machine close_if_present(handle: u64) -> i32 {
+    transition handle != 0 { true -> release(handle) false -> 0 }
+    state release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
+}

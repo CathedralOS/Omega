@@ -1,0 +1,57 @@
+// One metadata query, not an arbitrary DeviceIoControl escape. A fresh private
+// synchronous no-follow object owns the output loan through terminal completion.
+// MAXIMUM_REPARSE_DATA_BUFFER_SIZE is 16384, including the common header.
+// https://learn.microsoft.com/windows/win32/api/winioctl/ni-winioctl-fsctl_get_reparse_point
+// https://learn.microsoft.com/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+use omega::language::core::external_binding;
+use omega::language::core::filesystem_authority;
+use targets::windows_x86_64::windows_filesystem_private_handles;
+
+// Native common header and the two link kinds' shared offset/length fields.
+// The remaining aligned WCHAR storage starts at byte16: mount-point path data
+// starts there; symbolic links first store two WCHAR-sized halves of Flags.
+// No cast manufactures a typed reference into the variable native payload.
+data WindowsNativeReparseData {
+    tag: u32;
+    data_length: u16;
+    reserved: u16;
+    substitute_offset: u16;
+    substitute_length: u16;
+    print_offset: u16;
+    print_length: u16;
+    rest: [u16; 8184];
+}
+data WindowsFilesystemReparseImports {}
+
+boundary trait WindowsFilesystemReparseIo {
+    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, control: u32, input: u64,
+        input_size: u32, output: &mut WindowsNativeReparseData, capacity: u32,
+        returned: &mut u32, overlapped: u64) -> i32
+    requires handle != 0 && control == 589992 && input == 0 && input_size == 0
+        && capacity == 16384 && overlapped == 0
+    reaches FilesystemMetadataQuery blocks;
+}
+
+windows_x86_64 machine windows_reparse_query_binding() -> ForeignBinding<12, 15, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "DeviceIoControl"
+    } }
+}
+windows_x86_64 machine WindowsFilesystemReparseImports::query(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+    control: u32, input: u64, input_size: u32, output: &mut WindowsNativeReparseData,
+    capacity: u32, returned: &mut u32, overlapped: u64) -> i32
+satisfies WindowsFilesystemReparseIo::query via windows_reparse_query_binding()
+requires handle != 0 && control == 589992 && input == 0 && input_size == 0
+    && capacity == 16384 && overlapped == 0
+blocks;
+
+NativeWindowsFilesystemReparseImports satisfies WindowsFilesystemReparseIo {
+    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, control: u32, input: u64,
+        input_size: u32, output: &mut WindowsNativeReparseData, capacity: u32,
+        returned: &mut u32, overlapped: u64) -> i32
+    requires handle != 0 && control == 589992 && input == 0 && input_size == 0
+        && capacity == 16384 && overlapped == 0
+    reaches FilesystemMetadataQuery blocks;
+    { block WindowsFilesystemReparseImports::query(handle, control, input, input_size,
+        output, capacity, returned, overlapped) }
+}

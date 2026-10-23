@@ -1,7 +1,8 @@
 // Portable filesystem values and one routed service slot. Target adapters own
 // raw descriptors, flags, foreign record layouts and operation scratch.
-// The complete portable provider covers both Linux architectures and macos_arm64. Other hosts
-// retain their independent raw services and have no portable default yet.
+// Complete target adapters cover both Linux architectures, macos_arm64 and
+// windows_x86_64. Runtime acceptance is recorded per host, not inferred from
+// the availability of a provider or a foreign-target image.
 
 use filesystem_host;
 use windows_filesystem_host;
@@ -254,6 +255,7 @@ public data MetadataResult {
 }
 
 use posix_filesystem_adapter;
+use targets::windows_x86_64::filesystem_impl;
 
 public data Filesystem {}
 

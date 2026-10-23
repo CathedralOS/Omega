@@ -1,0 +1,35 @@
+// Inspect the exact private object, not a second pathname lookup or a copied
+// enumeration hint. No duplicate is needed: the traversal owns this handle
+// exclusively until the query and its call-scoped output loan have completed.
+use omega::language::core::filesystem_authority;
+use omega::language::core::numeric_conversion;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_metadata;
+use targets::windows_x86_64::windows_filesystem_metadata_native;
+use targets::windows_x86_64::windows_filesystem_private_handles;
+use targets::windows_x86_64::filesystem_removal::completion;
+
+data WindowsRemovalAttributes {
+    case Error(code: u32);
+    case Value(attributes: u32);
+}
+
+windows_x86_64 machine windows_removal_attributes(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsRemovalAttributes
+requires handle != 0
+reaches FilesystemMetadataQuery {
+    let file: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(
+        narrow_i64_to_u64_wrapping(handle as i64));
+    transition file != 0 { true -> query(file) false -> failed() }
+    state query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
+    requires file != 0 {
+        let mut information: WindowsNativeFileAttributeTagInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(file, 9, &mut information, 8);
+        transition succeeded != 0 {
+            true -> (WindowsRemovalAttributes::Value { attributes: information.attributes })
+            false -> failed()
+        }
+    }
+    state failed() -> WindowsRemovalAttributes {
+        WindowsRemovalAttributes::Error { code: windows_removal_error(WindowsFilesystemIo::c_get_last_error()) }
+    }
+}

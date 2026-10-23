@@ -1,0 +1,113 @@
+// Expected exit: 70 (Windows only). Select an owned UTF-8 name and native
+// attributes, distinguish exhaustion from errors, and skip dot entries.
+// Each phase has one child, so no enumeration-order or snapshot is assumed.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::filesystem_authority;
+
+data Main { handle: u64; }
+
+machine Main::main(main: &mut Main)
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
+    let removed: i32 = block cleanup_names();
+    let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_nth");
+    transition created == 0 { true -> empty(main) false -> finish(main, 71) }
+    state empty(main: &mut Main) {
+        let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 0);
+        transition result {
+            WindowsDirectoryEntryResult::End -> create_file(main)
+            _ -> finish(main, 72)
+        }
+    }
+    state create_file(main: &mut Main) {
+        main.handle = block WindowsFilesystemHost::create_file("omega_raw_nth/𝄞", 3221225472, 7, 2, 128);
+        transition main.handle != 0 { true -> close_file(main) false -> finish(main, 73) }
+    }
+    state close_file(main: &mut Main) {
+        let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
+        transition closed == 0 { true -> file(main) false -> finish(main, 74) }
+    }
+    state file(main: &mut Main) {
+        main.handle = 0;
+        let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 0);
+        transition result {
+            WindowsDirectoryEntryResult::Entry { entry } -> inspect_file(main, entry)
+            _ -> finish(main, 75)
+        }
+    }
+    state inspect_file(main: &mut Main, selected: WindowsDirectoryEntry) {
+        transition selected.name_len == 4 && (selected.attributes & 1040) == 0
+            && selected.name[0] == 240 && selected.name[1] == 157
+            && selected.name[2] == 132 && selected.name[3] == 158 {
+            true -> exhausted(main)
+            false -> finish(main, 76)
+        }
+    }
+    state exhausted(main: &mut Main) {
+        let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 1);
+        transition result {
+            WindowsDirectoryEntryResult::End -> refuse_file(main)
+            _ -> finish(main, 77)
+        }
+    }
+    state refuse_file(main: &mut Main) {
+        let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth/𝄞", 0);
+        transition result {
+            WindowsDirectoryEntryResult::Error { code } -> remove_file(main, code)
+            _ -> finish(main, 78)
+        }
+    }
+    state remove_file(main: &mut Main, code: u32) {
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_nth/𝄞");
+        transition code != 0 && removed == 0 { true -> child(main) false -> finish(main, 79) }
+    }
+    state child(main: &mut Main) {
+        let created: i32 = block WindowsFilesystemHost::create_directory("omega_raw_nth/child");
+        transition created == 0 { true -> directory(main) false -> finish(main, 80) }
+    }
+    state directory(main: &mut Main) {
+        let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth", 0);
+        transition result {
+            WindowsDirectoryEntryResult::Entry { entry } -> inspect_directory(main, entry)
+            _ -> finish(main, 81)
+        }
+    }
+    state inspect_directory(main: &mut Main, selected: WindowsDirectoryEntry) {
+        transition selected.name_len == 5 && (selected.attributes & 1040) == 16
+            && selected.name[0] == 99 && selected.name[1] == 104
+            && selected.name[2] == 105 && selected.name[3] == 108 && selected.name[4] == 100 {
+            true -> missing(main)
+            false -> finish(main, 82)
+        }
+    }
+    state missing(main: &mut Main) {
+        let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth("omega_raw_nth/missing", 0);
+        transition result {
+            WindowsDirectoryEntryResult::Error { code } -> failed_query(main, code)
+            _ -> finish(main, 83)
+        }
+    }
+    state failed_query(main: &mut Main, code: u32) {
+        transition code != 0 { true -> finish(main, 70) false -> finish(main, 84) }
+    }
+    state finish(main: &mut Main, code: i32) {
+        let closed: i32 = block close_if_present(main.handle);
+        let removed: i32 = block cleanup_names();
+        transition code != 70 { true -> done(code) false -> cleanup(closed, removed) }
+    }
+    state cleanup(closed: i32, removed: i32) {
+        transition closed == 0 && removed == 0 { true -> done(70) false -> done(85) }
+    }
+    state done(code: i32) { Console::exit_process(code); }
+}
+
+machine close_if_present(handle: u64) -> i32 {
+    transition handle != 0 { true -> close(handle) false -> 0 }
+    state close(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
+}
+
+machine cleanup_names() -> i32 reaches FilesystemNamespaceMutation {
+    let file: i32 = block WindowsFilesystemHost::delete_file("omega_raw_nth/𝄞");
+    let child: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_nth/child");
+    block WindowsFilesystemHost::remove_directory("omega_raw_nth")
+}

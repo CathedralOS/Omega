@@ -1,0 +1,93 @@
+// Handle-relative, no-follow opens and object-bound removal. The synchronous
+// nonalert NtOpenFile request completes before these nested input loans and
+// output slots return. Do not replace the references with numerical pointers.
+// Disposition attaches deletion to this handle; the following close therefore
+// carries namespace mutation, never an asserted ordinary-empty release proof.
+// https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenfile
+// https://learn.microsoft.com/windows/win32/api/ntdef/ns-ntdef-_unicode_string
+// https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
+use omega::language::core::external_binding;
+use omega::language::core::filesystem_authority;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_private_handles;
+
+data WindowsNativeUnicodeString<'scope>
+where length > 0 && length <= 8190 && length % 2 == 0 && capacity == 8192
+{
+    length: u16;
+    capacity: u16;
+    padding: u32;
+    buffer: &'scope [u16; 4096] in WindowsNativePath;
+}
+data WindowsNativeObjectAttributes<'scope>
+where length == 48 && root != 0 && attributes == 4096 && security == 0 && quality == 0
+{
+    length: u32;
+    padding: u32;
+    root: i64 in WindowsPrivateNonalertFileOrAbsent;
+    name: &'scope WindowsNativeUnicodeString<'scope>;
+    attributes: u32;
+    name_padding: u32;
+    security: u64;
+    quality: u64;
+}
+data WindowsNativeFileDisposition { delete: u8; }
+data WindowsFilesystemRemovalImports {}
+
+boundary trait WindowsFilesystemRemovalIo {
+    // SYNCHRONIZE|DELETE|READ_ATTRIBUTES, adding LIST_DIRECTORY only when
+    // requesting a directory. Actual opened-object metadata decides descent.
+    // OBJ_DONT_REPARSE, no case-folding of exact enumeration components.
+    machine open<'scope>(output: &mut i64, access: u32, attributes: &WindowsNativeObjectAttributes<'scope>,
+        status: &mut WindowsFilesystemIoStatus, sharing: u32, options: u32) -> i32
+    requires (access == 1114240 || access == 1114241) && sharing == 7 && options == 2113568
+    reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration blocks;
+    machine dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent, information_class: u32, input: &WindowsNativeFileDisposition, size: u32) -> i32
+    requires handle != 0 && information_class == 4 && input.delete == 1 && size == 1
+    reaches FilesystemNamespaceMutation blocks;
+    machine close(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
+    requires handle != 0
+    reaches FilesystemNamespaceMutation blocks;
+}
+
+windows_x86_64 machine windows_relative_open_binding() -> ForeignBinding<9, 10, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "ntdll.dll", export: "NtOpenFile"
+    } }
+}
+windows_x86_64 machine windows_disposition_binding() -> ForeignBinding<12, 26, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "SetFileInformationByHandle"
+    } }
+}
+windows_x86_64 machine WindowsFilesystemRemovalImports::open<'scope>(output: &mut i64, access: u32,
+    attributes: &WindowsNativeObjectAttributes<'scope>, status: &mut WindowsFilesystemIoStatus,
+    sharing: u32, options: u32) -> i32
+satisfies WindowsFilesystemRemovalIo::open via windows_relative_open_binding()
+requires (access == 1114240 || access == 1114241) && sharing == 7 && options == 2113568
+blocks;
+windows_x86_64 machine WindowsFilesystemRemovalImports::dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+    information_class: u32, input: &WindowsNativeFileDisposition, size: u32) -> i32
+satisfies WindowsFilesystemRemovalIo::dispose via windows_disposition_binding()
+requires handle != 0 && information_class == 4 && input.delete == 1 && size == 1
+blocks;
+windows_x86_64 machine WindowsFilesystemRemovalImports::close(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
+satisfies WindowsFilesystemRemovalIo::close via windows_close_handle_binding()
+requires handle != 0
+blocks;
+
+NativeWindowsFilesystemRemovalImports satisfies WindowsFilesystemRemovalIo {
+    machine open<'scope>(output: &mut i64, access: u32, attributes: &WindowsNativeObjectAttributes<'scope>,
+        status: &mut WindowsFilesystemIoStatus, sharing: u32, options: u32) -> i32
+    requires (access == 1114240 || access == 1114241) && sharing == 7 && options == 2113568
+    reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration blocks;
+    { block WindowsFilesystemRemovalImports::open(output, access, attributes, status, sharing, options) }
+    machine dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent, information_class: u32, input: &WindowsNativeFileDisposition, size: u32) -> i32
+    requires handle != 0 && information_class == 4 && input.delete == 1 && size == 1
+    reaches FilesystemNamespaceMutation blocks;
+    { block WindowsFilesystemRemovalImports::dispose(handle, information_class, input, size) }
+    machine close(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
+    requires handle != 0
+    reaches FilesystemNamespaceMutation blocks;
+    { block WindowsFilesystemRemovalImports::close(handle) }
+}

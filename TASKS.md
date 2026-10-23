@@ -5865,12 +5865,15 @@ wait for Cathedral's instruction coverage. The interpreter is
   portable data, raw-family routing fields or hidden source values.
 
   Remaining acceptance:
-  - Supply the Windows portable implementation, preserving zero handles as absent,
+  - Validate the Windows portable implementation natively, preserving zero handles as absent,
     zero OpenOptions as defaults and closed failure results. Windows stores
     HANDLE; POSIX stores descriptor + 1, preserving descriptor 0.
     Windows ownership, duplication, file permissions, data synchronization
     and unsupported operations need explicit portable behavior, not POSIX
-    conventions or sentinel implementations.
+    conventions or sentinel implementations. Owned path opens must retain
+    anonymous SQOS; use a controlled named-pipe endpoint to verify that the
+    portable API grants no client-identity impersonation while explicit raw
+    caller flags keep their native meaning.
   - Run `file_journal` (exit 7), `note_vault` (exit 14) and applicable
     filesystem fixture oracles on Windows x86-64. Linux x86-64 retains
     its portable provider; the moved shared algorithms, direct raw byte-view

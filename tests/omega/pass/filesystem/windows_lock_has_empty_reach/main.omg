@@ -1,0 +1,9 @@
+// Checking control: locking has no content, metadata, namespace or enumeration
+// reach. It still uses the selected raw provider and its native dependencies.
+use omega_language_std::windows_filesystem_host;
+
+machine checked_lock(handle: u64) -> i32 {
+    let acquired: i32 = block WindowsFilesystemHost::lock_file(handle, true, true);
+    let released: i32 = block WindowsFilesystemHost::unlock_file(handle);
+    acquired
+}

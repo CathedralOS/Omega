@@ -1,0 +1,7 @@
+use omega_language_std::windows_filesystem_host;
+use omega::language::core::filesystem_authority;
+data Main {}
+machine Main::main(main: &mut Main)
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
+    let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(".", 0);
+}

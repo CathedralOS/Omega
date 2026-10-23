@@ -1,0 +1,77 @@
+// Expected exit: 70 (Windows only). File and directory canonical paths retain
+// the normalized DOS prefix and a UTF-8 name. A too-small caller buffer stays
+// untouched; failed acquisition remains NotFound rather than empty success.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::filesystem_authority;
+
+data Main { buffer: [u8; 1024]; }
+
+machine Main::main(main: &mut Main)
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_canonical_file_界");
+    let removed_directory: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_canonical_directory_界");
+    let file: u64 = block WindowsFilesystemHost::create_file("omega_raw_canonical_file_界", 3221225472, 7, 2, 128);
+    transition file != 0 { true -> release(main, file) false -> finish(71) }
+    state release(main: &mut Main, file: u64) {
+        let status: i32 = block WindowsFilesystemHost::close_handle(file);
+        transition status == 0 { true -> directory(main) false -> finish(72) }
+    }
+    state directory(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::create_directory("omega_raw_canonical_directory_界");
+        transition status == 0 { true -> file(main) false -> finish(73) }
+    }
+    state file(main: &mut Main) {
+        let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_file_界", &mut main.buffer);
+        transition status == 0 && canonical_spelling(&main.buffer) {
+            true -> directory_path(main)
+            false -> finish(74)
+        }
+    }
+    state directory_path(main: &mut Main) {
+        // The directory must write its own result, not pass on the preceding
+        // file's retained canonical spelling.
+        main.buffer[0] = 171;
+        let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_directory_界", &mut main.buffer);
+        transition status == 0 && canonical_spelling(&main.buffer) {
+            true -> small()
+            false -> finish(75)
+        }
+    }
+    state small() {
+        let mut output: [u8; 1];
+        output[0] = 171;
+        let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_file_界", &mut output);
+        transition status == -122 && output[0] == 171 { true -> missing() false -> finish(76) }
+    }
+    state missing() {
+        let mut output: [u8; 1024];
+        let status: i32 = block WindowsFilesystemHost::canonicalize("omega_raw_canonical_missing_界", &mut output);
+        transition status == -2 || status == -3 { true -> finish(70) false -> finish(77) }
+    }
+    state finish(code: i32) {
+        let file: i32 = block WindowsFilesystemHost::delete_file("omega_raw_canonical_file_界");
+        let directory: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_canonical_directory_界");
+        transition code != 70 { true -> done(code) false -> cleaned(file, directory) }
+    }
+    state cleaned(file: i32, directory: i32) {
+        transition file == 0 && directory == 0 { true -> done(70) false -> done(78) }
+    }
+    state done(code: i32) { Console::exit_process(code); }
+}
+
+machine canonical_spelling(bytes: &[u8; 1024]) -> bool {
+    transition bytes[0] == 92 && bytes[1] == 92 && bytes[2] == 63 && bytes[3] == 92 {
+        true -> find(bytes, 4)
+        false -> false
+    }
+    state find(bytes: &[u8; 1024], position: u64) -> bool {
+        transition position < 1024 { true -> inspect(bytes, position) false -> false }
+    }
+    state inspect(bytes: &[u8; 1024], position: u64) -> bool requires position < 1024 && position >= 4 {
+        transition bytes[position] == 0 { true -> suffix(bytes, position) false -> find(bytes, position + 1) }
+    }
+    state suffix(bytes: &[u8; 1024], length: u64) -> bool requires length >= 4 && length < 1024 {
+        bytes[length - 3] == 231 && bytes[length - 2] == 149 && bytes[length - 1] == 140
+    }
+}

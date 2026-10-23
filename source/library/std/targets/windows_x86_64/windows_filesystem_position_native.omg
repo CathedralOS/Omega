@@ -1,0 +1,71 @@
+// A duplicate shares its file pointer; ReOpenFile instead creates an independent
+// file object and may request different rights. Query the pinned original's
+// granted mask first. Read/write reopen contracts have distinct exact ceilings.
+// ObjectBasicInformation is handle bookkeeping, not a file-name/type query.
+// https://learn.microsoft.com/windows/win32/api/winternl/nf-winternl-ntqueryobject
+// https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-reopenfile
+use omega::language::core::external_binding;
+use omega::language::core::filesystem_authority;
+
+// Four DWORD fields followed by 40 uninterpreted reserved bytes. QWORD storage
+// for the reserved region supplies eight-byte alignment without changing its
+// offset or the complete 56-byte native record.
+data WindowsNativeObjectBasicInfo {
+    attributes: u32;
+    granted_access: u32;
+    handle_count: u32;
+    pointer_count: u32;
+    reserved: [u64; 5];
+}
+data WindowsFilesystemPositionImports {}
+
+boundary trait WindowsFilesystemPositionIo {
+    machine object_access(handle: i64, information_class: u32, output: &mut WindowsNativeObjectBasicInfo, size: u32, returned: &mut u32) -> i32
+    requires information_class == 0 && size == 56
+    blocks;
+    machine reopen_read(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
+    requires desired_access == 1048577 && sharing == 7 && flags == 0
+    reaches FilesystemContentRead blocks;
+    machine reopen_write(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
+    requires desired_access == 1048578 && sharing == 7 && flags == 0
+    reaches FilesystemContentWrite blocks;
+}
+
+windows_x86_64 machine windows_object_access_binding() -> ForeignBinding<9, 13, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "ntdll.dll", export: "NtQueryObject"
+    } }
+}
+windows_x86_64 machine windows_reopen_file_binding() -> ForeignBinding<12, 10, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "ReOpenFile"
+    } }
+}
+
+windows_x86_64 machine WindowsFilesystemPositionImports::object_access(handle: i64, information_class: u32, output: &mut WindowsNativeObjectBasicInfo, size: u32, returned: &mut u32) -> i32
+satisfies WindowsFilesystemPositionIo::object_access via windows_object_access_binding()
+requires information_class == 0 && size == 56
+blocks;
+windows_x86_64 machine WindowsFilesystemPositionImports::reopen_read(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
+satisfies WindowsFilesystemPositionIo::reopen_read via windows_reopen_file_binding()
+requires desired_access == 1048577 && sharing == 7 && flags == 0
+blocks;
+windows_x86_64 machine WindowsFilesystemPositionImports::reopen_write(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
+satisfies WindowsFilesystemPositionIo::reopen_write via windows_reopen_file_binding()
+requires desired_access == 1048578 && sharing == 7 && flags == 0
+blocks;
+
+NativeWindowsFilesystemPositionImports satisfies WindowsFilesystemPositionIo {
+    machine object_access(handle: i64, information_class: u32, output: &mut WindowsNativeObjectBasicInfo, size: u32, returned: &mut u32) -> i32
+    requires information_class == 0 && size == 56
+    blocks;
+    { block WindowsFilesystemPositionImports::object_access(handle, information_class, output, size, returned) }
+    machine reopen_read(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
+    requires desired_access == 1048577 && sharing == 7 && flags == 0
+    reaches FilesystemContentRead blocks;
+    { block WindowsFilesystemPositionImports::reopen_read(handle, desired_access, sharing, flags) }
+    machine reopen_write(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
+    requires desired_access == 1048578 && sharing == 7 && flags == 0
+    reaches FilesystemContentWrite blocks;
+    { block WindowsFilesystemPositionImports::reopen_write(handle, desired_access, sharing, flags) }
+}

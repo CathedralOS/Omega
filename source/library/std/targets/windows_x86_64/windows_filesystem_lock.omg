@@ -1,0 +1,66 @@
+// Whole-file locks belong to the same live file object, process and range.
+// Duplicate with unchanged access, never ReOpenFile: reopening would change
+// lock identity. Closing the pin preserves a lock while another handle keeps
+// that object open. The normal last-handle cleanup still releases its locks.
+// Classification rejects asynchronous objects before borrowing a request.
+// Native overlap/repeated-acquisition semantics are preserved, not made
+// recursive or idempotent. These locks do not protect memory-mapped access.
+use windows_filesystem_host;
+use omega::language::core::numeric_conversion;
+use targets::windows_x86_64::windows_filesystem_impl;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_transfer;
+use targets::windows_x86_64::windows_filesystem_transfer_native;
+use targets::windows_x86_64::windows_filesystem_lock_native;
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32
+satisfies WindowsFilesystemHost::lock_file {
+    let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
+    transition duplicate != 0 {
+        true -> flags(duplicate, exclusive, nonblocking)
+        false -> (WindowsFilesystemNativeProvider::failure_i32())
+    }
+    state flags(duplicate: i64 in WindowsSynchronousFileOrAbsent, exclusive: bool, nonblocking: bool) -> i32
+    requires duplicate != 0 {
+        transition exclusive {
+            true -> exclusive_mode(duplicate, nonblocking)
+            false -> shared_mode(duplicate, nonblocking)
+        }
+    }
+    state exclusive_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
+    requires duplicate != 0 {
+        transition nonblocking { true -> acquire(duplicate, 3) false -> acquire(duplicate, 2) }
+    }
+    state shared_mode(duplicate: i64 in WindowsSynchronousFileOrAbsent, nonblocking: bool) -> i32
+    requires duplicate != 0 {
+        transition nonblocking { true -> acquire(duplicate, 1) false -> acquire(duplicate, 0) }
+    }
+    state acquire(duplicate: i64 in WindowsSynchronousFileOrAbsent, flags: u32) -> i32
+    requires duplicate != 0 && flags <= 3 {
+        let mut request: WindowsNativeLockRequest;
+        let succeeded: i32 = block WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, &mut request);
+        let status: i32 = WindowsFilesystemNativeProvider::completion_status(succeeded);
+        block windows_lock_completion(duplicate, status)
+    }
+}
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::unlock_file(handle: u64) -> i32
+satisfies WindowsFilesystemHost::unlock_file {
+    let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
+    transition duplicate != 0 {
+        true -> release(duplicate)
+        false -> (WindowsFilesystemNativeProvider::failure_i32())
+    }
+    state release(duplicate: i64 in WindowsSynchronousFileOrAbsent) -> i32
+    requires duplicate != 0 {
+        let succeeded: i32 = block WindowsFilesystemLockIo::release(duplicate, 0, 0, 4294967295, 4294967295);
+        let status: i32 = WindowsFilesystemNativeProvider::completion_status(succeeded);
+        block windows_lock_completion(duplicate, status)
+    }
+}
+
+windows_x86_64 machine windows_lock_completion(duplicate: i64 in WindowsSynchronousFileOrAbsent, status: i32) -> i32
+requires duplicate != 0 {
+    let closed: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(duplicate as i64));
+    transition status < 0 { true -> (status) false -> (closed) }
+}
