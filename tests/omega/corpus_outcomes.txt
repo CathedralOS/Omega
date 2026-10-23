@@ -7322,6 +7322,48 @@ fail/facts/shared_qualification_erasure_through_target_body_rejected rejected 64
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/signed_16bit_bitwise_or_bound_through_call_result_rejected rejected 27004ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from produce_combined at statement 0: result >= 40 && result <= 63
+fail/facts/signed_16bit_bitwise_or_bound_through_const_name_rejected rejected 26683ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_combined from main: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_or_bound_through_field_rejected rejected 21677ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_combined from main: carrier.combined >= 40 && carrier.combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_or_bound_through_local_rejected rejected 21130ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_combined from main: local_combined >= 40 && local_combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_or_bound_through_match_join_rejected rejected 21828ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_combined from main: joined >= 40 && joined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_or_bound_through_other_machine_rejected rejected 20631ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call runner from main: combined >= 40 && combined <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_or_bound_through_other_state_rejected rejected 19864ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_combined from main: forwarded >= 40 && forwarded <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_bitwise_or_bound_through_parameter_rejected rejected 22463ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call check_param from main: combined >= 40 && combined <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_or_bound_through_target_body_rejected rejected 21469ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call exercise from main: combined >= 40 && combined <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: combined >= 40 && combined <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: combined >= 40 && combined <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: combined >= 40 && combined <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_call_result_rejected rejected 17590ms expected @4c23cc3391c2+wt
+	cannot prove ensures contract for exit from produce_xored at statement 0: result >= 40 && result <= 63
+fail/facts/signed_16bit_bitwise_xor_bound_through_const_name_rejected rejected 27202ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_xored from main: xored >= 40 && xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_field_rejected rejected 19152ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_xored from main: carrier.xored >= 40 && carrier.xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_local_rejected rejected 21278ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_xored from main: local_xored >= 40 && local_xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_match_join_rejected rejected 20979ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_xored from main: joined >= 40 && joined <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_other_machine_rejected rejected 18437ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call runner from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_other_state_rejected rejected 17254ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call verify_xored from main: forwarded >= 40 && forwarded <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_bitwise_xor_bound_through_parameter_rejected rejected 15831ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call check_param from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_bitwise_xor_bound_through_target_body_rejected rejected 16771ms expected @4c23cc3391c2+wt
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_rejected rejected 10471ms expected @4c23cc3391c2+wt
 	cannot prove requires contract for call verify_sum from compute_call_result: transported >= 350 && transported <= 600 (needs fact `value >= 350 && value <= 600` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_rejected rejected 10723ms expected @4c23cc3391c2+wt
@@ -15232,6 +15274,24 @@ pass/facts/shared_qualification_erasure_through_other_machine_exit checked 1897m
 pass/facts/shared_qualification_erasure_through_other_state_exit checked 1836ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/shared_qualification_erasure_through_parameter_exit checked 2073ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/shared_qualification_erasure_through_target_body_exit checked 1737ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_call_result_exit checked 30561ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_const_name_exit checked 30551ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_field_exit checked 31533ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_local_exit checked 27446ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_match_join_exit checked 27318ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_other_machine_exit checked 28260ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_other_state_exit checked 29333ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_parameter_exit checked 38657ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_or_bound_through_target_body_exit checked 29013ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_call_result_exit checked 29291ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_const_name_exit checked 28147ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_field_exit checked 26860ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_local_exit checked 22373ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_match_join_exit checked 23627ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_other_machine_exit checked 24739ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_other_state_exit checked 27634ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_parameter_exit checked 27098ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_bitwise_xor_bound_through_target_body_exit checked 30039ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_exit checked 11941ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_exit checked 11960ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_field_exit checked 11913ms check-target:macos_arm64 @4c23cc3391c2+wt
