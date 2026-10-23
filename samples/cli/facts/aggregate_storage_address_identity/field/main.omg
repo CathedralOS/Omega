@@ -1,0 +1,18 @@
+// Compatible references to a live Pair expose the same nonzero address without retaining a loan.
+// Expected exit: 0.
+data Pair [copy] { left: u64; right: u64; }
+machine expose(value: &Pair) -> addr { address_of(value) }
+data Holder { value: Pair; }
+machine probe() -> bool {
+    let mut holder: Holder = Holder { value: Pair { left: 7, right: 11 } };
+    let original: addr = address_of(&holder.value);
+    let forwarded: addr = expose(&holder.value);
+    holder.value.left = 13;
+    let current: addr = address_of(&holder.value);
+    original != 0 && original == forwarded && original == current && holder.value.left == 13
+}
+machine main() crashes Trap {
+    transition probe() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

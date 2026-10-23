@@ -1,0 +1,7 @@
+data Pair [copy] { left: u64; right: u64; }
+machine main() {
+    let mut value: Pair = Pair { left: 7, right: 11 };
+    let held: &mut Pair = &mut value;
+    let observed: addr = address_of(&value);
+    held.left = 13;
+}

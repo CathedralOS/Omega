@@ -2169,6 +2169,41 @@ fail/facts/affine_discard_root_cleanup_through_target_body_rejected rejected 946
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
+fail/facts/aggregate_storage_address_identity_exclusive_rejected rejected 2308ms expected @183d46e52111+wt
+	state `unknown` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/aggregate_storage_address_identity_through_call_result_rejected rejected 798ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_const_name_rejected rejected 797ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_field_rejected rejected 898ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_local_rejected rejected 962ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_match_join_rejected rejected 822ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_other_machine_rejected rejected 716ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_other_state_rejected rejected 783ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_parameter_rejected rejected 810ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+fail/facts/aggregate_storage_address_identity_through_target_body_rejected rejected 780ms expected @183d46e52111+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
+	storage address_of requires exactly one ordinary storage reference and no static arguments
 fail/facts/aggregate_struct_return_abi_through_call_result_rejected rejected 2336ms expected @114906953e11+wt
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/aggregate_struct_return_abi_through_const_name_rejected rejected 2297ms expected @114906953e11+wt
@@ -11020,7 +11055,6 @@ fail/types/shared_borrow_bool_to_u64 rejected 3109ms expected @78d7769c4441
 fail/types/shared_borrow_bool_to_u64_explicit rejected 3718ms expected @78d7769c4441
 fail/types/shared_borrow_u32_to_u64 rejected 3446ms expected @78d7769c4441
 fail/types/shared_borrow_u32_to_u64_explicit rejected 6617ms expected @78d7769c4441
-fail/types/storage_address_aggregate_unsupported rejected 556ms expected @78d7769c4441
 fail/types/storage_address_not_portable_boolean rejected 86ms expected @78d7769c4441
 fail/types/storage_address_not_portable_constant rejected 47ms expected @78d7769c4441
 fail/types/unknown_data_binder_carrier rejected 2716ms expected @a9ae30e1c334+wt
@@ -12949,6 +12983,15 @@ pass/facts/affine_discard_root_cleanup_through_other_machine_exit checked 107865
 pass/facts/affine_discard_root_cleanup_through_other_state_exit checked 106976ms check-target:macos_arm64 @4a446ad6c8f9
 pass/facts/affine_discard_root_cleanup_through_parameter_exit checked 106044ms check-target:macos_arm64 @4a446ad6c8f9
 pass/facts/affine_discard_root_cleanup_through_target_body_exit checked 106893ms check-target:macos_arm64 @4a446ad6c8f9
+pass/facts/aggregate_storage_address_identity_through_call_result_exit checked 2682ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_const_name_exit checked 3444ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_field_exit checked 2684ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_local_exit checked 3547ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_match_join_exit checked 2869ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_other_machine_exit checked 2651ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_other_state_exit checked 3490ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_parameter_exit checked 2639ms check-target:macos_arm64 @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_target_body_exit checked 2936ms check-target:macos_arm64 @183d46e52111+wt
 pass/facts/aggregate_struct_return_abi_through_call_result_exit checked 7046ms check-target:macos_arm64 @69725a85bb43
 pass/facts/aggregate_struct_return_abi_through_const_name_exit checked 6958ms check-target:macos_arm64 @69725a85bb43
 pass/facts/aggregate_struct_return_abi_through_field_exit checked 7000ms check-target:macos_arm64 @69725a85bb43
@@ -17576,6 +17619,7 @@ pass/types/runtime_address_literal_landing_exit checked 7129ms check-target:maco
 pass/types/runtime_exact_address_subtraction_exit checked 11542ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/runtime_i16_signed_arith_exit checked 11789ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/shared_borrow_retains_carrier_exit checked 10887ms check-target:linux_x86_64 @78d7769c4441
+pass/types/storage_address_aggregate checked 2222ms @183d46e52111+wt
 pass/types/storage_address_core_name_shadowed_exit checked 13153ms check-target:linux_x86_64 @78d7769c4441
 pass/versioning/migration_generic_trait checked 7651ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/versioning/runtime_version_migration_exit checked 12425ms check-target:macos_arm64 @a9ae30e1c334+wt

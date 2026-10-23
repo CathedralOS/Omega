@@ -181,8 +181,6 @@ pub(super) fn report_unresolved_value_call(
             .and_then(|target| crate::reference_shell(program, target));
         match valid {
             None => diagnostics.push(Diagnostic::error("storage address_of requires exactly one ordinary storage reference and no static arguments")),
-            Some(shell) if program.primitive_type_reference(shell.referee).is_none() =>
-                diagnostics.push(Diagnostic::error("storage address_of for non-scalar referents is not implemented")),
             Some(shell) if shell.access == language_semantics::ReferenceAccess::WriteOnly =>
                 diagnostics.push(Diagnostic::error("storage address_of for write-only references is not implemented")),
             Some(_) => {}

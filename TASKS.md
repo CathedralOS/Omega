@@ -4341,9 +4341,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
 - **ADDRESS-EXPOSURE.** (new-scope) Remaining settled
   [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure):
-  selected machine applications and nonprimitive or write-only storage
-  operands. Readable primitive storage queries retain their original referents;
-  extend that admission and realization without weakening loan or access rules.
+  selected machine applications and remaining nonprimitive or write-only
+  storage operands. Extend ordinary record backing observations through the
+  remaining aggregate and re-view carriers, including windows without an exact
+  runtime endpoint, and hosted targets while preserving ordinary loan/access rules.
   - Retain the selected machine application or original referent; a machine
     query adds ordinary executable demand even without a direct call, which
     survives specialization/inlining and keeps the interpreted body.

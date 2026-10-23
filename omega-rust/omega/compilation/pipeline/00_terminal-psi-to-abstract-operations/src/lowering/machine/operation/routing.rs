@@ -186,12 +186,24 @@ pub(super) fn lower(
                         .produced_structural_type()
                 })
                 .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
-            terminal_semantics::primitive_read_projection_type(
+            // Address exposure observes the exact referent, not its contents.
+            // Inline scalar fields and structural referents have distinct leaf
+            // declarations, but both retain the same checked source path.
+            if terminal_semantics::primitive_read_projection_type(
                 structural_types.iter(),
                 root,
                 &source.path,
             )
-            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+            .is_none()
+                && terminal_semantics::runtime_structural_path_tip(
+                    structural_types.iter(),
+                    root,
+                    &source.path,
+                )
+                .is_none()
+            {
+                return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+            }
             Ok(AbstractOperation::StorageAddress {
                 psi_operation: operation.id,
                 result: result.into(),

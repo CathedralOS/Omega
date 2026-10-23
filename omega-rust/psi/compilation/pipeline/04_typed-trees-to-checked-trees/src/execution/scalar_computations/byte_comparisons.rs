@@ -94,7 +94,6 @@ impl Builder<'_, '_> {
         let operand = validation::compiler_operations::storage_address_operand(self.program, call)?;
         let target = semantic_casts::result_type(self.program, self.state, operand)?;
         let shell = validation::reference_shell(self.program, target)?;
-        self.program.primitive_type_reference(shell.referee)?;
         if shell.access == language_semantics::ReferenceAccess::WriteOnly {
             return None;
         }

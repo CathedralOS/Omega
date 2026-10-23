@@ -81,8 +81,34 @@ impl TerminalExecution<'_> {
     fn storage_address_endpoint(
         &self,
         source: &StructuralArgument,
-        scalar_type: ScalarType,
+        scalar_type: Option<ScalarType>,
     ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
+        let Some(scalar_type) = scalar_type else {
+            // Aggregate references retain the original runtime occurrence and
+            // subplace, including when the descriptor crossed a call frame.
+            // Resolving that custody observes no fields and allocates no copy.
+            let (carrier, view) = self.resolve_live_view_projection(
+                source.place,
+                &source.path,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            )?;
+            if let Some(crate::reference::AggregateViewTip::Aggregate { view, backing }) = view
+                && (view.byte_offset != 0
+                    || terminal_semantics::reference_storage_size(
+                        self.program.structural_types().values(),
+                        backing,
+                    ) != Some(view.byte_length))
+            {
+                return Err(TerminalInterpretError::StructuralArgumentPreparation {
+                    stage: "storage address",
+                    detail: "an aggregate re-view window has no canonical storage address endpoint"
+                        .into(),
+                });
+            }
+            return Ok(PrimitiveStorageEndpoint::Scalar(
+                StructuralRuntimePlace::from(&carrier),
+            ));
+        };
         if let Some((prefix, field_path)) = scalar_field_projection(&source.path) {
             let (carrier, view) = self.resolve_live_view_projection(
                 source.place,
@@ -210,8 +236,7 @@ impl TerminalExecution<'_> {
             self.program.structural_types().values(),
             self.live_structural_type(source.place)?,
             &source.path,
-        )
-        .ok_or_else(malformed)?;
+        );
         let endpoint = self.storage_address_endpoint(source, scalar_type)?;
         let (namespace, root, path) = self.endpoint_identity(endpoint)?;
         let namespace = namespace

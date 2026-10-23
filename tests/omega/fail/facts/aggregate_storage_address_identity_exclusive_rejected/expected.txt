@@ -1,0 +1,1 @@
+receives `value` while local borrow `held` is still active

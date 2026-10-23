@@ -47,6 +47,15 @@ pass/calls/outcome_specific_snapshot_runtime built 10804ms exit:0 interpreter-ex
 pass/calls/outcome_specific_snapshot_subject checked 12479ms @97fca7a18f74+wt
 pass/constants/mathematical_constant_domain_selection checked 8982ms @d2f0e31ca0d4+wt
 pass/constants/qualified_variant_constant checked 1449ms @d2f0e31ca0d4+wt
+pass/facts/aggregate_storage_address_identity_through_call_result_exit built 2750ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_const_name_exit built 2740ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_field_exit built 2607ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_local_exit built 2570ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_match_join_exit built 2840ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_other_machine_exit built 2779ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_other_state_exit built 2700ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_parameter_exit built 2618ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/facts/aggregate_storage_address_identity_through_target_body_exit built 2746ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
 pass/facts/atomic_compare_exchange_once_composition_exit built 23656ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
 pass/facts/atomic_compare_exchange_once_high_bit_exit built 23385ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
 pass/facts/atomic_compare_exchange_once_local_exit built 21653ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
@@ -93,10 +102,10 @@ pass/borrow/runtime_signed_element_empty_exit built 19325ms exit:0 interpreter-e
 pass/borrow/runtime_signed_element_inclusive_exit built 15248ms exit:0 interpreter-exit:0 interpreter:agrees @1600dc6c09aa4689d8ae36aafa3cc581073c42b4
 pass/borrow/runtime_signed_element_window_exit built 20907ms exit:0 interpreter-exit:0 interpreter:agrees @1600dc6c09aa4689d8ae36aafa3cc581073c42b4
 pass/borrow/runtime_static_callable_preserves_readonly_subject_exit built 48184ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
-pass/borrow/storage_address_backing_identity_exit built 19169ms exit:0 interpreter-exit:0 interpreter:agrees @f123ba6a6bc2
+pass/borrow/storage_address_backing_identity_exit built 2805ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
 pass/borrow/storage_address_byte_window_identity_exit built 18833ms exit:0 interpreter-exit:0 interpreter:agrees @f123ba6a6bc2
-pass/borrow/storage_address_loop_copy_identity_exit built 12006ms exit:0 interpreter-exit:0 interpreter:agrees @f123ba6a6bc2
-pass/borrow/storage_address_window_identity_exit built 11695ms exit:0 interpreter-exit:0 interpreter:agrees @f123ba6a6bc2
+pass/borrow/storage_address_loop_copy_identity_exit built 3219ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
+pass/borrow/storage_address_window_identity_exit built 2807ms exit:0 interpreter-exit:0 interpreter:agrees @183d46e52111+wt
 pass/borrows/callee_returned_shared_reborrow_chain_exit built 12938ms exit:0 interpreter-exit:0 interpreter:agrees @f474fcca89fe
 pass/borrows/collection_element_loans_exit built 14209ms exit:0 interpreter-exit:0 interpreter:agrees @8a14e9db1e32
 pass/borrows/completed_selector_join_pattern_effect_exit built 12600ms exit:0 interpreter-exit:0 interpreter:agrees @89bb9e0009e9
