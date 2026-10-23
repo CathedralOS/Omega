@@ -63,6 +63,12 @@ All 18 corresponding fixtures are pinned in the compiler test corpus:
 - **Pass fixtures (9):** `tests/omega/pass/facts/live_across_six_calls_preservation_bound_through_<place>_exit/` for each place in `{local, field, parameter, call_result, match_join, const_name, other_state, other_machine, target_body}` — `main.omg` byte-identical to the place, `build.omg` binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and `expected_native_exit.txt` = 0.
 - **Fail fixtures (9):** `tests/omega/fail/facts/live_across_six_calls_preservation_bound_through_<place>_rejected/` — `main.omg` byte-identical to the place's `invalid/main.omg`, the same four target bindings, and `expected.txt` carrying that twin's own `underflow` conflict.
 
+Recorded golden rows (macOS arm64, shared generation runner `gen-595562a958b`, rows stamped `@317bacd12b0a+wt`):
+
+- `tests/omega/corpus_outcomes.txt`: 18 `checked` rows carrying `check-target:macos_arm64` and 18 `rejected` rows carrying each twin's own `exact arithmetic ... may overflow u64` diagnostic, its `underflow` fragment satisfied (0 unmet oracles, 0 timeout rows);
+- `tests/omega/corpus_native_macos_arm64.txt`: 18 `built` rows with `exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: 18 `built` rows with `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
+
 ### Acceptance Gate
 
 ```sh
