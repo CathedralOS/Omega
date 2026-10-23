@@ -303,6 +303,15 @@ pass/facts/checked_asm_zero_branch_other_state_exit built 5663ms exit:0 interpre
 pass/facts/checked_asm_zero_branch_parameter_exit built 3833ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
 pass/facts/checked_asm_zero_branch_target_body_exit built 3258ms exit:0 interpreter-exit:0 interpreter:agrees @79972ff7f4c8
 pass/facts/computed_constant_array_extent_exit built 20162ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
+pass/facts/computed_nested_state_loan_through_call_result_exit built 2379ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_const_name_exit built 2344ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_field_exit built 2265ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_local_exit built 2243ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_match_join_exit built 2311ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_other_machine_exit built 2283ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_other_state_exit built 2390ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_parameter_exit built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_target_body_exit built 2273ms exit:0 interpreter-exit:0 interpreter:agrees @9c4f4a45b35b+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit built 23994ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_call_result_exit built 22116ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_const_name_exit built 23097ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef

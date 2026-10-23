@@ -2962,6 +2962,27 @@ fail/facts/computed_constant_array_extent_through_target_body_rejected rejected 
 	cannot prove index `1` is within length 1
 	cannot prove index `1` is within length 1
 	cannot prove index `1` is within length 1
+fail/facts/computed_nested_state_loan_through_call_result_shared rejected 789ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_const_name_shared rejected 735ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_field_shared rejected 818ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_local_shared rejected 774ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_match_join_shared rejected 776ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_other_machine_shared rejected 746ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_other_state_shared rejected 702ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_parameter_shared rejected 712ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/computed_nested_state_loan_through_target_body_shared rejected 658ms expected @9c4f4a45b35b+wt
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	argument `value` for state `apply` is declared `&mut` (`&mut i32[in Wrapping]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/computed_record_window_nonhost_body_rejected rejected 3410ms expected @dd658fb23eef
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_call_result_rejected rejected 3581ms expected @dd658fb23eef
@@ -13293,6 +13314,15 @@ pass/facts/computed_constant_array_extent_through_other_machine_exit checked 323
 pass/facts/computed_constant_array_extent_through_other_state_exit checked 32618ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_constant_array_extent_through_parameter_exit checked 32327ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_constant_array_extent_through_target_body_exit checked 33050ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_nested_state_loan_through_call_result_exit checked 2142ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_const_name_exit checked 2201ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_field_exit checked 2176ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_local_exit checked 2222ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_match_join_exit checked 2223ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_other_machine_exit checked 2190ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_other_state_exit checked 2163ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_parameter_exit checked 2179ms check-target:macos_arm64 @9c4f4a45b35b+wt
+pass/facts/computed_nested_state_loan_through_target_body_exit checked 2501ms check-target:macos_arm64 @9c4f4a45b35b+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 25778ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_original_exit checked 8376ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/computed_record_window_through_call_result_exit checked 24962ms check-target:macos_arm64 @dd658fb23eef
