@@ -133,3 +133,10 @@ resolver, representation, foundation, parser and witness inputs are unchanged
 ([integration delta](landing/prebuild-integration.json)); downstream changes receive
 a fresh optimized build and all 14 outcomes again. Qualification passes with
 no invalidations. Earlier captures retain their own identities.
+
+The [oracle refresh](oracle-refresh/production-observations.json) on main `19bde9234d5cdb98b51b3afc79b01e68ebc1e258`
+consumes the nested-record expected-exit file after its blank content became
+explicit `0`. Compiler and library inputs remain byte-identical to the landing
+producer, whose identity is retained. All 14 outcomes are freshly replayed;
+the updated oracle is read, asserted and hashed. Qualification passes without
+invalidations. This is a new execution with the retained producer, not a rebuild.
