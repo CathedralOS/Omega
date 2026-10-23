@@ -8312,6 +8312,48 @@ fail/facts/signed_8bit_bitwise_xor_bound_through_target_body_rejected rejected 1
 	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_call_result_rejected rejected 9476ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_const_name_rejected rejected 9612ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_field_rejected rejected 7659ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_local_rejected rejected 7597ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_match_join_rejected rejected 7357ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_other_machine_rejected rejected 7158ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_other_state_rejected rejected 7147ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: q >= 30 && q <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_division_quotient_bound_through_parameter_rejected rejected 7751ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from check_quotient: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_quotient_bound_through_target_body_rejected rejected 7808ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i8_quotient from exercise: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_call_result_rejected rejected 8078ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_call_result: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_const_name_rejected rejected 9336ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_const: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_field_rejected rejected 9831ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_field: c.rem >= 0 && c.rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_local_rejected rejected 10459ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_local: transported >= 0 && transported <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_match_join_rejected rejected 10054ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_match_join: joined >= 0 && joined <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_other_machine_rejected rejected 9523ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_other_machine: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_other_state_rejected rejected 8539ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_other_state: r >= 0 && r <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_division_remainder_bound_through_parameter_rejected rejected 8203ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_parameter: transported >= 0 && transported <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_division_remainder_bound_through_target_body_rejected rejected 8266ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_rem from compute_target_body: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from compute_target_body: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from compute_target_body: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from compute_target_body: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_exact_arithmetic_bound_through_call_result_rejected rejected 355ms expected @b9f31a0e74de+wt
 	exact arithmetic in machine `add_helper` state `entry` terminal expression may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i8 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_8bit_exact_arithmetic_bound_through_const_name_rejected rejected 347ms expected @b9f31a0e74de+wt
@@ -16486,6 +16528,24 @@ pass/facts/signed_8bit_bitwise_xor_bound_through_other_machine_exit checked 2474
 pass/facts/signed_8bit_bitwise_xor_bound_through_other_state_exit checked 24478ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_bitwise_xor_bound_through_parameter_exit checked 21810ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_bitwise_xor_bound_through_target_body_exit checked 22213ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_call_result_exit checked 13446ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_const_name_exit checked 9716ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_field_exit checked 9685ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_local_exit checked 13084ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_match_join_exit checked 10280ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_other_machine_exit checked 10107ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_other_state_exit checked 9623ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_parameter_exit checked 9223ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_quotient_bound_through_target_body_exit checked 8688ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_call_result_exit checked 8073ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_const_name_exit checked 8591ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_field_exit checked 9353ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_local_exit checked 8576ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_match_join_exit checked 8872ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_other_machine_exit checked 8764ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_other_state_exit checked 8758ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_parameter_exit checked 10232ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_division_remainder_bound_through_target_body_exit checked 10824ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_call_result_exit checked 1834ms check-target:macos_arm64 @b9f31a0e74de+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_const_name_exit checked 1829ms check-target:macos_arm64 @b9f31a0e74de+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_field_exit checked 1565ms check-target:macos_arm64 @b9f31a0e74de+wt
