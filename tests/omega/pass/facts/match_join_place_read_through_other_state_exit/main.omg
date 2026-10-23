@@ -1,0 +1,38 @@
+// A borrowed match join records the selected place, and a later projection read uses that recorded referent. The consumer reads the joined field.
+// Place: other_state.
+// Expected exit: 0
+
+data Pair { kept: i64; other: i64; }
+
+machine choose() -> bool
+ensures result == true
+{
+    true
+}
+
+machine read_field(place: &Pair) -> i64
+requires place.kept == 17
+{
+    place.kept
+}
+
+machine main() crashes Trap {
+    let chosen: Pair = Pair { kept: 17, other: 5 };
+    let spare: Pair = Pair { kept: 0, other: 8 };
+    transition { _ -> pick(&chosen, &spare) }
+
+    state pick(chosen: &Pair, spare: &Pair) {
+        let joined: &Pair = match choose() {
+            true -> chosen
+            false -> spare
+        };
+        let observed: i64 = read_field(joined);
+        transition observed == 17 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+
+    state done() {}
+    state wrong() { crash Trap; }
+}

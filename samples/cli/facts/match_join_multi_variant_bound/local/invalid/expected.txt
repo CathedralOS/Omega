@@ -1,1 +1,1 @@
-exact arithmetic may overflow `u64`
+may overflow `u64`

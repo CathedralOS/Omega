@@ -49,7 +49,11 @@ python3 tools/corpus_gate.py --filter facts/match_join_multi_variant_bound
 Exit `0` is strictly discriminative. The joined interval `[20u64, 60u64]` is
 what discharges `60u64 - joined`; widening any one variant gate (`High` to
 `val <= 61`) admits `joined == 61` and the exact subtraction refuses to compile
-(``exact arithmetic ... may overflow `u64` ``). Corrupting the observed
+with the exact-arithmetic obligation
+(``exact arithmetic in machine `main` state `entry` local `diff1` may overflow
+`u64`: the operands are not provably in range (decision 17 -- exact arithmetic
+is a proof obligation)``, pinned as ``may overflow `u64` `` in each twin's
+`expected.txt`). Corrupting the observed
 transition instead of the bound (`diff1 == 20 && diff2 == 20` to
 `diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
 both engines abort non-zero (`native signal 5` with
@@ -64,15 +68,15 @@ compile-time verification with the fragment named in the twin's `expected.txt`:
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``exact arithmetic may overflow `u64` `` |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | ``may overflow `u64` `` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``may overflow `u64` `` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | ``may overflow `u64` `` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``may overflow `u64` `` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``may overflow `u64` `` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``may overflow `u64` `` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``may overflow `u64` `` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``may overflow `u64` `` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``may overflow `u64` `` |
 
 ## Pinned Fixtures
 
@@ -104,7 +108,7 @@ Full 8-layer specification and lowering evidence:
   - `other_machine`: match join result is forwarded through intermediate machine `runner()`.
   - `target_body`: match join dispatch is executed across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the `High` variant payload gate to `val <= 61` (widening the joined interval to `[20, 61]`), proving that `60u64 - joined` strictly fails closed at compile time when any arm allows underflow.
-- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine ... may overflow \`u64\``, confirming that the arithmetic proof engine soundly detects that when `joined` can be 61, `60u64 - joined` may underflow `u64`.
+- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine <machine> state <state> local \`diff1\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` (the pinned ``may overflow `u64` `` fragment; the owner names move with the place — `main`/`entry` for local through const name, `step` for another state, `runner` for another machine, `exercise` for another target body), confirming that the arithmetic proof engine soundly detects that when `joined` can be 61, `60u64 - joined` may underflow `u64`.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Multi-variant sum types and exhaustive match joins lower into canonical target-neutral `PSITERM\0` representation, preserving interval arithmetic certificates and control-flow join structures. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Layout geometry for `Mode` allocates an 8-byte discriminant tag plus 8-byte payload slot (16 bytes total, 8-byte alignment), and calling plans assign register homes for scalar values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for discriminant comparison, branch jumps, and 64-bit subtractions (`sub`). Disjoint activation stack frames and register homes are allocated with entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
