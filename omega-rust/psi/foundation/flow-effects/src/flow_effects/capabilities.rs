@@ -12,14 +12,6 @@ pub enum CapabilityFlowKind {
 }
 
 impl CapabilityFlowKind {
-    pub const ALL: [Self; 5] = [
-        Self::Uses,
-        Self::Returns,
-        Self::Acquires,
-        Self::Stores,
-        Self::Derives,
-    ];
-
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Uses => "uses",
@@ -44,8 +36,6 @@ pub struct CapabilityFlowFact {
     /// boundary call.
     pub via_state_symbol: SymbolHandle,
 }
-
-impl CapabilityFlowFact {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CapabilityFlowPlan {
@@ -72,10 +62,6 @@ impl CapabilityFlowPlan {
     pub fn flows(&self) -> impl Iterator<Item = &CapabilityFlowFact> {
         self.flows.iter().map(|(_, flow)| flow)
     }
-
-    pub fn count_by_kind(&self, kind: CapabilityFlowKind) -> usize {
-        self.flows().filter(|flow| flow.kind == kind).count()
-    }
 }
 
 #[cfg(test)]
@@ -84,10 +70,14 @@ mod tests {
 
     #[test]
     fn capability_flow_kind_names_are_stable() {
-        let names = CapabilityFlowKind::ALL
-            .into_iter()
-            .map(CapabilityFlowKind::as_str)
-            .collect::<Vec<_>>();
+        let names = [
+            CapabilityFlowKind::Uses,
+            CapabilityFlowKind::Returns,
+            CapabilityFlowKind::Acquires,
+            CapabilityFlowKind::Stores,
+            CapabilityFlowKind::Derives,
+        ]
+        .map(CapabilityFlowKind::as_str);
 
         assert_eq!(names, ["uses", "returns", "acquires", "stores", "derives"]);
     }
@@ -109,7 +99,9 @@ mod tests {
 
         assert_eq!(plan.flows, flows);
         assert_eq!(plan.len(), 1);
-        assert_eq!(plan.count_by_kind(CapabilityFlowKind::Acquires), 1);
-        assert_eq!(plan.count_by_kind(CapabilityFlowKind::Uses), 0);
+        assert_eq!(
+            plan.flows().map(|flow| flow.kind).collect::<Vec<_>>(),
+            [CapabilityFlowKind::Acquires]
+        );
     }
 }

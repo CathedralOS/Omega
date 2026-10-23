@@ -32,16 +32,3 @@ pub(crate) fn invocation_target_profile(
         }),
     }
 }
-
-pub(crate) fn write_diagnostics(
-    formatter: &mut std::fmt::Formatter<'_>,
-    diagnostics: &[diagnostics::Diagnostic],
-) -> std::fmt::Result {
-    for (index, diagnostic) in diagnostics.iter().enumerate() {
-        if index != 0 {
-            writeln!(formatter)?;
-        }
-        write!(formatter, "{diagnostic}")?;
-    }
-    Ok(())
-}

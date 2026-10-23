@@ -6,9 +6,10 @@
 //! and — when a refusal stopped at a named private provision instead of
 //! finding the source invalid — the `ExceededProvision` that outcome
 //! publication reads in place of the wording; `PhaseSnapshot` records what one
-//! phase observed for later reports; and `format_diagnostics` renders a batch
-//! for the command line. Producers decide severity, wording and provision.
-//! This crate only carries and prints them; bracketed names keep each
+//! phase observed for later reports; and `write_diagnostics` renders a batch
+//! for the command line while the ordered name and message list policies share
+//! one separator operation. Producers decide severity, wording and provision.
+//! This crate only carries and renders them; bracketed names keep each
 //! producer's naming policy in its callback.
 
 mod diagnostic;
@@ -19,9 +20,7 @@ pub use diagnostic::{
     CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision, ResolvedSourceLocation,
 };
 pub use phase_snapshot::PhaseSnapshot;
-pub use reporter::{
-    bracketed_display_names, comma_join_display, format_diagnostics, join_messages,
-};
+pub use reporter::{bracketed_display_names, comma_join_display, join_messages, write_diagnostics};
 
 /// `Display` that delegates to `Debug`: the standard shape for
 /// compiler-internal error enums whose rendered message is their variant data.

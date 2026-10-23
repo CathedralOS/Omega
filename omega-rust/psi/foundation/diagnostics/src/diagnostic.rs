@@ -124,10 +124,7 @@ impl Diagnostic {
     pub fn warning(message: impl Into<String>) -> Self {
         Self {
             severity: DiagnosticSeverity::Warning,
-            message: message.into(),
-            exceeded_provision: None,
-            source_span: None,
-            resolved_location: None,
+            ..Self::error(message)
         }
     }
 
