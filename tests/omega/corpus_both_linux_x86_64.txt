@@ -511,6 +511,15 @@ pass/facts/outcome_structural_evidence_through_other_machine_exit built 8488ms e
 pass/facts/outcome_structural_evidence_through_other_state_exit built 7390ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_through_parameter_exit built 8683ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_through_target_body_exit built 9164ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/progress_selector_through_call_result_exit built 2600ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_const_name_exit built 2741ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_field_exit built 2686ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_local_exit built 2688ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_match_join_exit built 2497ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_other_machine_exit built 2542ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_other_state_exit built 3264ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_parameter_exit built 2391ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/facts/progress_selector_through_target_body_exit built 2659ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
 pass/facts/quotient_closed_literal built 68630ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @0c3a7af296d8
 pass/facts/quotient_closed_literal_scalar_first built 37892ms exit:0 interpreter-exit:0 interpreter:agrees @0c3a7af296d8
 pass/facts/quotient_closed_literal_transport built 32777ms exit:0 interpreter-exit:0 interpreter:agrees @0c3a7af296d8
@@ -868,6 +877,8 @@ pass/structural/indexed_scalar_call_result_store built 92856ms exit:70 interpret
 pass/structural/runtime_affine_local_successor_loans_exit built 6473ms exit:0 interpreter-exit:0 interpreter:agrees @0755e2c06ec1
 pass/structural/runtime_scalar_record_reclamation_exit built 22259ms exit:0 interpreter-exit:0 interpreter:agrees @d3f34d02fc55
 pass/targets/runtime_target_named_provider_defaults_exit built 15379ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @c48489ea6ad6
+pass/termination/progress_selector_owned_snapshot_exit built 2567ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
+pass/termination/progress_selector_reference_snapshot_exit built 2392ms exit:0 interpreter-exit:0 interpreter:agrees @47168d09ee17
 pass/termination/runtime_same_pair_call_occurrence built 1140ms exit:0 interpreter-exit:0 interpreter:agrees @acda888786a6
 pass/termination/runtime_zero_local_rank_prefix_exit built 14740ms exit:0 interpreter-exit:0 interpreter:agrees @741f1a015ab2
 pass/text/byte_view_element_read_without_byte_declaration_exit built 42549ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6

@@ -1708,6 +1708,15 @@ pass/facts/opaque_closed_carrier_through_target_body_exit built 1603ms exit:0 @3
 pass/facts/opaque_inactive_carrier_payload_exit built 53162ms exit:70 @4bae60101579
 pass/facts/opaque_nested_carrier_exchange_exit built 155651ms exit:70 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @4bae60101579
 pass/facts/opaque_wrapped_carrier_exchange_exit built 64992ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579
+pass/facts/progress_selector_through_call_result_exit built 2505ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_const_name_exit built 2954ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_field_exit built 2608ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_local_exit built 2761ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_match_join_exit built 2857ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_other_machine_exit built 2657ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_other_state_exit built 2762ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_parameter_exit built 2625ms exit:0 @47168d09ee17
+pass/facts/progress_selector_through_target_body_exit built 2540ms exit:0 @47168d09ee17
 pass/facts/returned_write_destination_through_match_join_exit built 7332ms exit:0 @adb7b6ab515b+wt
 pass/facts/selected_crash_formal_through_call_result_exit built 2682ms exit:0 @22e86f6683cb
 pass/facts/selected_crash_formal_through_const_name_exit built 2539ms exit:0 @22e86f6683cb
@@ -3178,6 +3187,8 @@ pass/termination/nested_leaf_rank checked 17946ms @6c49683ce714
 pass/termination/nested_pair_endpoint checked 17633ms @6c49683ce714
 pass/termination/nested_projection_measure checked 8736ms @6c49683ce714
 pass/termination/private_self_call_without_promise_compile checked 3336ms @6c49683ce714
+pass/termination/progress_selector_owned_snapshot_exit built 2350ms exit:0 @47168d09ee17
+pass/termination/progress_selector_reference_snapshot_exit built 3184ms exit:0 @47168d09ee17
 pass/termination/projected_subject_measure checked 18385ms @6c49683ce714
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 3482ms @6c49683ce714
 pass/termination/quotient_endpoint_call_component checked 3550ms @6c49683ce714

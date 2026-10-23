@@ -7703,6 +7703,27 @@ fail/facts/predicate_array_copy_through_target_body_rejected rejected 1860ms exp
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/progress_selector_through_call_result_rejected rejected 2720ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_const_name_rejected rejected 2465ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_field_rejected rejected 3673ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_local_rejected rejected 2355ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_match_join_rejected rejected 2880ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_machine_rejected rejected 2152ms expected @47168d09ee17
+	machine `nested` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_state_rejected rejected 2393ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_parameter_rejected rejected 2394ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_target_body_rejected rejected 2563ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/projection_call_premise_through_call_result_rejected rejected 1712ms expected @94247f983231+wt
 	cannot prove ensures contract for exit from produced at statement 0: result.kept
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -14416,6 +14437,18 @@ fail/termination/native_layout_family_circular rejected 2563ms expected @b2bd1ba
 fail/termination/native_layout_family_missing_premise rejected 2912ms expected @b2bd1ba421fd+wt
 fail/termination/native_layout_family_unpromised rejected 2764ms expected @b2bd1ba421fd+wt
 fail/termination/nested_field_without_predicate_cannot_bound_result rejected 418ms expected @2430f497a77c+wt
+fail/termination/progress_selector_owned_snapshot_rejected rejected 2502ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_reference_snapshot_rejected rejected 2307ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_carrier rejected 2322ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_slot rejected 2225ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_stale_contents rejected 2106ms expected @47168d09ee17
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
+fail/termination/progress_selector_unknown_alternative rejected 1946ms expected @47168d09ee17
+	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/proof_joint_machine_cycle_nondecreasing rejected 865ms expected @a9ae30e1c334+wt
 fail/termination/proof_joint_machine_cycle_unmeasured rejected 873ms expected @a9ae30e1c334+wt
 fail/termination/quotient_result_rank_alternative_results rejected 1569ms expected @a9ae30e1c334+wt
@@ -18863,6 +18896,15 @@ pass/facts/predicate_array_copy_through_other_machine_exit checked 617ms check-t
 pass/facts/predicate_array_copy_through_other_state_exit checked 611ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_parameter_exit checked 637ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_target_body_exit checked 637ms check-target:macos_arm64 @e34cad686b12
+pass/facts/progress_selector_through_call_result_exit checked 3775ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_const_name_exit checked 3359ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_field_exit checked 3376ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_local_exit checked 3558ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_match_join_exit checked 3839ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_other_machine_exit checked 3793ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_other_state_exit checked 3429ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_parameter_exit checked 3614ms check-target:macos_arm64 @47168d09ee17
+pass/facts/progress_selector_through_target_body_exit checked 4228ms check-target:macos_arm64 @47168d09ee17
 pass/facts/projection_call_premise_through_call_result_exit checked 3391ms check-target:macos_arm64 @94247f983231+wt
 pass/facts/projection_call_premise_through_const_name_exit checked 2805ms check-target:macos_arm64 @94247f983231+wt
 pass/facts/projection_call_premise_through_field_exit checked 3139ms check-target:macos_arm64 @94247f983231+wt
@@ -22529,6 +22571,8 @@ pass/termination/nested_leaf_rank checked 9949ms @5041ef1af684+wt
 pass/termination/nested_pair_endpoint checked 9582ms @5041ef1af684+wt
 pass/termination/nested_projection_measure checked 9557ms @5041ef1af684+wt
 pass/termination/predicate_requires_ranked_cycle checked 5648ms @039ba3f207a7
+pass/termination/progress_selector_owned_snapshot_exit checked 3855ms check-target:macos_arm64 @47168d09ee17
+pass/termination/progress_selector_reference_snapshot_exit checked 3989ms check-target:macos_arm64 @47168d09ee17
 pass/termination/projected_subject_measure checked 9712ms @5041ef1af684+wt
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 1547ms @a9ae30e1c334+wt
 pass/termination/quotient_endpoint_call_component checked 1728ms @a9ae30e1c334+wt
