@@ -5973,6 +5973,24 @@ fail/facts/narrow_to_wide_zero_extension_through_target_body_rejected rejected 6
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/negated_mathematical_order_through_call_result_rejected rejected 3224ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_const_name_rejected rejected 3749ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_field_rejected rejected 2811ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_local_rejected rejected 1118ms expected @80e7797d0e1e
+	exact arithmetic in machine `main` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/negated_mathematical_order_through_match_join_rejected rejected 2727ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_other_machine_rejected rejected 2570ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_other_state_rejected rejected 2746ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_parameter_rejected rejected 2805ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/facts/negated_mathematical_order_through_target_body_rejected rejected 2967ms expected @80e7797d0e1e
+	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/facts/nested_array_element_projection_through_call_result_rejected rejected 7833ms expected @84ebbdd6b4e1+wt
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_array_element_projection_through_const_name_rejected rejected 7862ms expected @84ebbdd6b4e1+wt
@@ -9880,6 +9898,15 @@ fail/proofs/mathematical_machine_result_mismatched_carriers rejected 715ms expec
 fail/proofs/mathematical_machine_result_no_denotation rejected 1945ms expected @3b72a3521c0e+wt
 fail/proofs/mathematical_machine_result_requires rejected 816ms expected @3b72a3521c0e+wt
 fail/proofs/mathematical_mutated_capture rejected 249ms expected @8a884ecc43d5+wt
+fail/proofs/mathematical_negated_changed_operand rejected 1298ms expected @80e7797d0e1e
+	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	machine `main` state `entry` value call to `consume` violates required fact `within(5, value)`: the instantiated fact is structurally false
+fail/proofs/mathematical_negated_custom_order rejected 1151ms expected @80e7797d0e1e
+	exact arithmetic in machine `unjustified` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/mathematical_negated_false_call rejected 932ms expected @80e7797d0e1e
+	machine `main` state `entry` value call to `consume` violates required fact `within(5, value)`: the instantiated fact is structurally false
+fail/proofs/mathematical_negated_ieee_order rejected 4322ms expected @80e7797d0e1e
+	cannot prove ensures contract for exit from unjustified at statement 0: value <= 5.0
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 1571ms expected @a9ae30e1c334+wt
 fail/proofs/mathematical_qualified_literal_argument rejected 106ms expected @69cfefcd2bf1+wt
 	invalid mathematical application `positive_identity(0)`: mathematical argument does not preserve its declared carrier and policy
@@ -14340,6 +14367,15 @@ pass/facts/narrow_to_wide_zero_extension_through_other_machine_exit checked 3344
 pass/facts/narrow_to_wide_zero_extension_through_other_state_exit checked 3505ms check-target:macos_arm64 @317bacd12b0a+wt
 pass/facts/narrow_to_wide_zero_extension_through_parameter_exit checked 3662ms check-target:macos_arm64 @317bacd12b0a+wt
 pass/facts/narrow_to_wide_zero_extension_through_target_body_exit checked 3818ms check-target:macos_arm64 @317bacd12b0a+wt
+pass/facts/negated_mathematical_order_through_call_result_exit checked 3261ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_const_name_exit checked 3843ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_field_exit checked 5184ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_local_exit checked 3296ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_match_join_exit checked 4133ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_other_machine_exit checked 4426ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_other_state_exit checked 3900ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_parameter_exit checked 3680ms check-target:macos_arm64 @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_target_body_exit checked 4132ms check-target:macos_arm64 @80e7797d0e1e
 pass/facts/nested_array_element_projection_through_call_result_exit checked 24427ms check-target:macos_arm64 @84ebbdd6b4e1+wt
 pass/facts/nested_array_element_projection_through_const_name_exit checked 24969ms check-target:macos_arm64 @84ebbdd6b4e1+wt
 pass/facts/nested_array_element_projection_through_field_exit checked 24575ms check-target:macos_arm64 @84ebbdd6b4e1+wt
@@ -16397,6 +16433,8 @@ pass/proofs/lemma_requires_citation checked 9734ms @5041ef1af684+wt
 pass/proofs/loop_postcondition_after_element_store checked 739ms @b3d0b7396229+wt
 pass/proofs/machine_parameterized_data_compile checked 1671ms @a9ae30e1c334+wt
 pass/proofs/mathematical_machine_result_carrier checked 4228ms check-target:macos_arm64 @3b72a3521c0e+wt
+pass/proofs/mathematical_negated_integer_order_double_exit checked 3797ms check-target:macos_arm64 @80e7797d0e1e
+pass/proofs/mathematical_negated_integer_order_exit checked 3757ms check-target:macos_arm64 @80e7797d0e1e
 pass/proofs/mathematical_predicate_contract_import_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/mathematical_prepared_scalar_interval checked 11674ms @aec80e197778
 pass/proofs/named_witness_static_trait_plural_compile checked 3010ms @5acf32321f42+wt

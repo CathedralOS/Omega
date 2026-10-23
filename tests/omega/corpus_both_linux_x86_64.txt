@@ -409,6 +409,15 @@ pass/facts/may_write_codec_through_other_machine_exit built 6601ms exit:0 interp
 pass/facts/may_write_codec_through_other_state_exit built 5472ms exit:0 interpreter-exit:0 interpreter:agrees @d6cf554fd1cb+wt
 pass/facts/may_write_codec_through_parameter_exit built 7257ms exit:0 interpreter-exit:0 interpreter:agrees @d6cf554fd1cb+wt
 pass/facts/may_write_codec_through_target_body_exit built 5842ms exit:0 interpreter-exit:0 interpreter:agrees @d6cf554fd1cb+wt
+pass/facts/negated_mathematical_order_through_call_result_exit built 3810ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_const_name_exit built 5174ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_field_exit built 4153ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_local_exit built 4167ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_match_join_exit built 3782ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_other_machine_exit built 3538ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_other_state_exit built 3244ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_parameter_exit built 3500ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/facts/negated_mathematical_order_through_target_body_exit built 2649ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
 pass/facts/no_wrap_domain_through_call_result_exit built 8445ms exit:0 interpreter-exit:0 interpreter:agrees @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_const_name_exit built 8554ms exit:0 interpreter-exit:0 interpreter:agrees @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_field_exit built 8521ms exit:0 interpreter-exit:0 interpreter:agrees @d2f0e31ca0d4+wt
@@ -707,6 +716,8 @@ pass/proofs/embedded_successor_call_requirement_exit built 3822ms exit:0 interpr
 pass/proofs/embedded_successor_transports_upper_bound_exit built 2358ms exit:0 interpreter-exit:0 interpreter:agrees @e0550ac3bf28
 pass/proofs/fact_only_proof_value_citation_exit built 23589ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/proofs/field_view_index_contract checked 6542ms @d3431e5a76cb+wt
+pass/proofs/mathematical_negated_integer_order_double_exit built 2690ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
+pass/proofs/mathematical_negated_integer_order_exit built 2599ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e
 pass/proofs/numeric_state_contract_exit built 25643ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/proofs/runtime_ranked_forwarding_state_recursion_exit built 30812ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
 pass/proofs/runtime_ranked_store_through_local_exit built 21473ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
