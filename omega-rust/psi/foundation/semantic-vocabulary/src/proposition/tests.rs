@@ -1367,6 +1367,104 @@ fn address_math_embedding_preserves_exact_context_type() {
     assert!(count_context.validate(&proposition).is_err());
 }
 
+/// The six wrapping/saturating add/subtract/multiply constructors carry one
+/// operand rule: both operands must inhabit the declared result carrier, and
+/// the rejection reports it through the shared `IntegerOperandTypeMismatch`.
+#[test]
+fn wrapping_and_saturating_binary_terms_share_the_operand_carrier_rule() {
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let wide = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let operand = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(byte));
+    let mismatched = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean);
+    let constructors: [fn(
+        IntegerType,
+        ScalarTerm,
+        ScalarTerm,
+    ) -> Result<ScalarTerm, PropositionError>; 6] = [
+        ScalarTerm::wrapping_integer_add,
+        ScalarTerm::saturating_integer_add,
+        ScalarTerm::wrapping_integer_subtract,
+        ScalarTerm::saturating_integer_subtract,
+        ScalarTerm::wrapping_integer_multiply,
+        ScalarTerm::saturating_integer_multiply,
+    ];
+    for constructor in constructors {
+        let term = constructor(byte, operand.clone(), operand.clone()).expect("carried operands");
+        assert_eq!(term.validate(), Ok(()));
+        assert!(constructor(wide, operand.clone(), operand.clone()).is_err());
+    }
+    assert_eq!(
+        ScalarTerm::wrapping_integer_add(byte, mismatched.clone(), operand.clone()),
+        Err(PropositionError::IntegerOperandTypeMismatch {
+            expected: ScalarType::Integer(byte),
+            left: ScalarType::Boolean,
+            right: ScalarType::Integer(byte),
+        })
+    );
+    // A decoded wrapping term validates through the same shared rule.
+    assert_eq!(
+        ScalarTerm::SaturatingIntegerMultiply {
+            scalar_type: byte,
+            left: Box::new(mismatched),
+            right: Box::new(operand),
+        }
+        .validate(),
+        Err(PropositionError::IntegerOperandTypeMismatch {
+            expected: ScalarType::Integer(byte),
+            left: ScalarType::Boolean,
+            right: ScalarType::Integer(byte),
+        })
+    );
+}
+
+/// The three integer comparisons (`=`, `<`, `<=`) carry one operand rule:
+/// the left operand inhabits the declared carrier and the right operand is an
+/// integer that shares it or is a non-address peer. All three reject through
+/// the shared `IntegerOperandTypeMismatch`.
+#[test]
+fn integer_comparisons_share_the_operand_rule_and_error() {
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let signed = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let operand = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(byte));
+    let bool_operand = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean);
+    let peer = ScalarTerm::value(ValueId::new(3).unwrap(), ScalarType::Integer(signed));
+    let constructors: [fn(
+        IntegerType,
+        ScalarTerm,
+        ScalarTerm,
+    ) -> Result<ScalarTerm, PropositionError>; 3] = [
+        ScalarTerm::integer_equal,
+        ScalarTerm::integer_less_than,
+        ScalarTerm::integer_less_or_equal,
+    ];
+    for constructor in constructors {
+        let term = constructor(byte, operand.clone(), peer.clone()).expect("non-address peer");
+        assert_eq!(term.validate(), Ok(()));
+        assert_eq!(
+            constructor(byte, bool_operand.clone(), operand.clone()),
+            Err(PropositionError::IntegerOperandTypeMismatch {
+                expected: ScalarType::Integer(byte),
+                left: ScalarType::Boolean,
+                right: ScalarType::Integer(byte),
+            })
+        );
+    }
+    // A decoded comparison validates through the same shared rule.
+    assert_eq!(
+        ScalarTerm::IntegerEqual {
+            scalar_type: byte,
+            left: Box::new(bool_operand),
+            right: Box::new(operand),
+        }
+        .validate(),
+        Err(PropositionError::IntegerOperandTypeMismatch {
+            expected: ScalarType::Integer(byte),
+            left: ScalarType::Boolean,
+            right: ScalarType::Integer(byte),
+        })
+    );
+}
+
 #[test]
 fn finite_math_embedding_preserves_policy_and_nested_value_context() {
     let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();

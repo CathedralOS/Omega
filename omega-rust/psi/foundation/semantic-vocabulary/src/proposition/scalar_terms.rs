@@ -652,30 +652,6 @@ macro_rules! integer_shift_term {
     };
 }
 
-macro_rules! integer_binary_term_mismatch {
-    ($name:ident => $variant:ident, $error:ident) => {
-        pub fn $name(
-            scalar_type: IntegerType,
-            left: ScalarTerm,
-            right: ScalarTerm,
-        ) -> Result<Self, PropositionError> {
-            let expected = ScalarType::Integer(scalar_type);
-            if left.scalar_type() != expected || right.scalar_type() != expected {
-                return Err(PropositionError::$error {
-                    expected,
-                    left: left.scalar_type(),
-                    right: right.scalar_type(),
-                });
-            }
-            Ok(Self::$variant {
-                scalar_type,
-                left: Box::new(left),
-                right: Box::new(right),
-            })
-        }
-    };
-}
-
 macro_rules! scalar_term_operand_table {
     ($self:expr, $borrow:ident) => {
         match $self {
@@ -831,25 +807,7 @@ impl ScalarTerm {
         })
     }
 
-    pub fn integer_equal(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if !integer_comparison_operands_match(scalar_type, &left, &right) {
-            return Err(PropositionError::IntegerEqualTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::IntegerEqual {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(@valid integer_equal => IntegerEqual, validate_integer_comparison_operands);
 
     integer_binary_term!(@valid integer_less_than => IntegerLessThan, validate_integer_comparison_operands);
 
@@ -1051,17 +1009,17 @@ impl ScalarTerm {
         Ok(Self::Integer { scalar_type, value })
     }
 
-    integer_binary_term_mismatch!(wrapping_integer_add => WrappingIntegerAdd, WrappingIntegerAddTypeMismatch);
+    integer_binary_term!(wrapping_integer_add => WrappingIntegerAdd);
 
-    integer_binary_term_mismatch!(saturating_integer_add => SaturatingIntegerAdd, SaturatingIntegerAddTypeMismatch);
+    integer_binary_term!(saturating_integer_add => SaturatingIntegerAdd);
 
-    integer_binary_term_mismatch!(wrapping_integer_subtract => WrappingIntegerSubtract, WrappingIntegerSubtractTypeMismatch);
+    integer_binary_term!(wrapping_integer_subtract => WrappingIntegerSubtract);
 
-    integer_binary_term_mismatch!(saturating_integer_subtract => SaturatingIntegerSubtract, SaturatingIntegerSubtractTypeMismatch);
+    integer_binary_term!(saturating_integer_subtract => SaturatingIntegerSubtract);
 
-    integer_binary_term_mismatch!(wrapping_integer_multiply => WrappingIntegerMultiply, WrappingIntegerMultiplyTypeMismatch);
+    integer_binary_term!(wrapping_integer_multiply => WrappingIntegerMultiply);
 
-    integer_binary_term_mismatch!(saturating_integer_multiply => SaturatingIntegerMultiply, SaturatingIntegerMultiplyTypeMismatch);
+    integer_binary_term!(saturating_integer_multiply => SaturatingIntegerMultiply);
 
     /// The direct scalar operands this term owns, in declaration order:
     /// unary operators yield their operand, binary and shift operators yield

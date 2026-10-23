@@ -556,11 +556,6 @@ pub enum PropositionError {
         left: ScalarType,
         right: ScalarType,
     },
-    IntegerEqualTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
-    },
     IntegerBitwiseNotTypeMismatch {
         expected: ScalarType,
         operand: ScalarType,
@@ -585,36 +580,6 @@ pub enum PropositionError {
         actual_value: ScalarType,
         expected_count: ScalarType,
         actual_count: ScalarType,
-    },
-    WrappingIntegerAddTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
-    },
-    SaturatingIntegerAddTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
-    },
-    WrappingIntegerSubtractTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
-    },
-    SaturatingIntegerSubtractTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
-    },
-    WrappingIntegerMultiplyTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
-    },
-    SaturatingIntegerMultiplyTypeMismatch {
-        expected: ScalarType,
-        left: ScalarType,
-        right: ScalarType,
     },
     OrderedComparisonRequiresIntegers(ScalarType),
     ScalarIeeeFloatOperandTypeMismatch {
