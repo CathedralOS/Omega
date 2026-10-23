@@ -1,1 +1,1 @@
-rejection: compile-error
+cannot prove requires contract for call check_param
